@@ -1,0 +1,50 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+DerivedData/
+.derivedData/
+build/
+*.xcresult
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods / Carthage / SwiftPM artifacts
+Pods/
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# App signing and local config
+*.mobileprovision
+*.cer
+*.p12
+*.key
+*.xcconfig.local
+Local.xcconfig
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Local development artifacts
+.artifacts/
+
+# Environment files
+.env
+.env.*
+!.env.example

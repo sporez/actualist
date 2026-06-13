@@ -1,0 +1,631 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		010000000000000000000001 /* ActualistApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000001 /* ActualistApp.swift */; };
+		010000000000000000000002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000002 /* AppState.swift */; };
+		010000000000000000000003 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000003 /* AppTab.swift */; };
+		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
+		010000000000000000000005 /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000005 /* GlassPanel.swift */; };
+		010000000000000000000006 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000006 /* APIModels.swift */; };
+		010000000000000000000007 /* ActualAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000007 /* ActualAPIClient.swift */; };
+		010000000000000000000008 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000008 /* KeychainStore.swift */; };
+		010000000000000000000009 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000009 /* AppSettingsStore.swift */; };
+		01000000000000000000000A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000A /* RootView.swift */; };
+		01000000000000000000000B /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000B /* MainTabView.swift */; };
+		01000000000000000000000C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000C /* OnboardingView.swift */; };
+		01000000000000000000000D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000D /* SettingsView.swift */; };
+		01000000000000000000000E /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000E /* BudgetView.swift */; };
+		01000000000000000000000F /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000F /* AccountsView.swift */; };
+		010000000000000000000010 /* AccountTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000010 /* AccountTransactionsView.swift */; };
+		010000000000000000000011 /* Money.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000011 /* Money.swift */; };
+		010000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* Assets.xcassets */; };
+		010000000000000000000013 /* MoneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000013 /* MoneyTests.swift */; };
+		010000000000000000000014 /* CategoryNameParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000017 /* CategoryNameParts.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		080000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 050000000000000000000001;
+			remoteInfo = Actualist;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		020000000000000000000001 /* ActualistApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistApp.swift; sourceTree = "<group>"; };
+		020000000000000000000002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
+		020000000000000000000004 /* ActualistTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistTheme.swift; sourceTree = "<group>"; };
+		020000000000000000000005 /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassPanel.swift; sourceTree = "<group>"; };
+		020000000000000000000006 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		020000000000000000000007 /* ActualAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualAPIClient.swift; sourceTree = "<group>"; };
+		020000000000000000000008 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		020000000000000000000009 /* AppSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStore.swift; sourceTree = "<group>"; };
+		02000000000000000000000A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		02000000000000000000000B /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		02000000000000000000000C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		02000000000000000000000D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		02000000000000000000000E /* BudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
+		02000000000000000000000F /* AccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsView.swift; sourceTree = "<group>"; };
+		020000000000000000000010 /* AccountTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionsView.swift; sourceTree = "<group>"; };
+		020000000000000000000011 /* Money.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Money.swift; sourceTree = "<group>"; };
+		020000000000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		020000000000000000000013 /* MoneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyTests.swift; sourceTree = "<group>"; };
+		020000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		020000000000000000000015 /* Actualist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Actualist.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		020000000000000000000016 /* ActualistTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualistTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		020000000000000000000017 /* CategoryNameParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryNameParts.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		030000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		030000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		040000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				040000000000000000000002 /* Actualist */,
+				040000000000000000000010 /* ActualistTests */,
+				040000000000000000000011 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		040000000000000000000002 /* Actualist */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000014 /* Info.plist */,
+				020000000000000000000012 /* Assets.xcassets */,
+				040000000000000000000003 /* App */,
+				040000000000000000000004 /* DesignSystem */,
+				040000000000000000000005 /* API */,
+				040000000000000000000006 /* Security */,
+				040000000000000000000007 /* Persistence */,
+				040000000000000000000008 /* Features */,
+				040000000000000000000009 /* Shared */,
+			);
+			path = Actualist;
+			sourceTree = "<group>";
+		};
+		040000000000000000000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000001 /* ActualistApp.swift */,
+				020000000000000000000002 /* AppState.swift */,
+				020000000000000000000003 /* AppTab.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		040000000000000000000004 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000004 /* ActualistTheme.swift */,
+				020000000000000000000005 /* GlassPanel.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		040000000000000000000005 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000006 /* APIModels.swift */,
+				020000000000000000000007 /* ActualAPIClient.swift */,
+			);
+			path = API;
+			sourceTree = "<group>";
+		};
+		040000000000000000000006 /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000008 /* KeychainStore.swift */,
+			);
+			path = Security;
+			sourceTree = "<group>";
+		};
+		040000000000000000000007 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000009 /* AppSettingsStore.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		040000000000000000000008 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				040000000000000000000012 /* Root */,
+				040000000000000000000013 /* Onboarding */,
+				040000000000000000000014 /* Budget */,
+				040000000000000000000015 /* Accounts */,
+				040000000000000000000016 /* Transactions */,
+				040000000000000000000017 /* Settings */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		040000000000000000000009 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000011 /* Money.swift */,
+				020000000000000000000017 /* CategoryNameParts.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		040000000000000000000010 /* ActualistTests */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000013 /* MoneyTests.swift */,
+			);
+			path = ActualistTests;
+			sourceTree = "<group>";
+		};
+		040000000000000000000011 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000015 /* Actualist.app */,
+				020000000000000000000016 /* ActualistTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		040000000000000000000012 /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000000A /* RootView.swift */,
+				02000000000000000000000B /* MainTabView.swift */,
+			);
+			path = Root;
+			sourceTree = "<group>";
+		};
+		040000000000000000000013 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000000C /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		040000000000000000000014 /* Budget */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000000E /* BudgetView.swift */,
+			);
+			path = Budget;
+			sourceTree = "<group>";
+		};
+		040000000000000000000015 /* Accounts */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000000F /* AccountsView.swift */,
+			);
+			path = Accounts;
+			sourceTree = "<group>";
+		};
+		040000000000000000000016 /* Transactions */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000010 /* AccountTransactionsView.swift */,
+			);
+			path = Transactions;
+			sourceTree = "<group>";
+		};
+		040000000000000000000017 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000000D /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		050000000000000000000001 /* Actualist */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 090000000000000000000003 /* Build configuration list for PBXNativeTarget "Actualist" */;
+			buildPhases = (
+				060000000000000000000001 /* Sources */,
+				030000000000000000000001 /* Frameworks */,
+				070000000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Actualist;
+			productName = Actualist;
+			productReference = 020000000000000000000015 /* Actualist.app */;
+			productType = "com.apple.product-type.application";
+		};
+		050000000000000000000002 /* ActualistTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 090000000000000000000004 /* Build configuration list for PBXNativeTarget "ActualistTests" */;
+			buildPhases = (
+				060000000000000000000002 /* Sources */,
+				030000000000000000000002 /* Frameworks */,
+				070000000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				080000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = ActualistTests;
+			productName = ActualistTests;
+			productReference = 020000000000000000000016 /* ActualistTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0A0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					050000000000000000000001 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					050000000000000000000002 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 050000000000000000000001;
+					};
+				};
+			};
+			buildConfigurationList = 090000000000000000000001 /* Build configuration list for PBXProject "Actualist" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 040000000000000000000001;
+			productRefGroup = 040000000000000000000011 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				050000000000000000000001 /* Actualist */,
+				050000000000000000000002 /* ActualistTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		070000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				010000000000000000000012 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		070000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		060000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				010000000000000000000001 /* ActualistApp.swift in Sources */,
+				010000000000000000000002 /* AppState.swift in Sources */,
+				010000000000000000000003 /* AppTab.swift in Sources */,
+				010000000000000000000004 /* ActualistTheme.swift in Sources */,
+				010000000000000000000005 /* GlassPanel.swift in Sources */,
+				010000000000000000000006 /* APIModels.swift in Sources */,
+				010000000000000000000007 /* ActualAPIClient.swift in Sources */,
+				010000000000000000000008 /* KeychainStore.swift in Sources */,
+				010000000000000000000009 /* AppSettingsStore.swift in Sources */,
+				01000000000000000000000A /* RootView.swift in Sources */,
+				01000000000000000000000B /* MainTabView.swift in Sources */,
+				01000000000000000000000C /* OnboardingView.swift in Sources */,
+				01000000000000000000000D /* SettingsView.swift in Sources */,
+				01000000000000000000000E /* BudgetView.swift in Sources */,
+				01000000000000000000000F /* AccountsView.swift in Sources */,
+				010000000000000000000010 /* AccountTransactionsView.swift in Sources */,
+				010000000000000000000011 /* Money.swift in Sources */,
+				010000000000000000000014 /* CategoryNameParts.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		060000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				010000000000000000000013 /* MoneyTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		080000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 050000000000000000000001 /* Actualist */;
+			targetProxy = 080000000000000000000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0B0000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		0B0000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		0B0000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = BJNL8CJWW6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Actualist/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0B0000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = BJNL8CJWW6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Actualist/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		0B0000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Actualist.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Actualist";
+			};
+			name = Debug;
+		};
+		0B0000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Actualist.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Actualist";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		090000000000000000000001 /* Build configuration list for PBXProject "Actualist" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0B0000000000000000000001 /* Debug */,
+				0B0000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		090000000000000000000003 /* Build configuration list for PBXNativeTarget "Actualist" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0B0000000000000000000003 /* Debug */,
+				0B0000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		090000000000000000000004 /* Build configuration list for PBXNativeTarget "ActualistTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0B0000000000000000000005 /* Debug */,
+				0B0000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0A0000000000000000000001 /* Project object */;
+}
