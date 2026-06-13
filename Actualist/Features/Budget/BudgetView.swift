@@ -3,6 +3,7 @@ import SwiftUI
 struct BudgetView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = BudgetViewModel()
+    @State private var isTransactionEditorPresented = false
 
     var body: some View {
         NavigationStack {
@@ -28,8 +29,9 @@ struct BudgetView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        isTransactionEditorPresented = true
                     } label: {
-                        Image(systemName: "line.3.horizontal.decrease")
+                        Image(systemName: "plus")
                     }
                     .actualistToolbarGlassButton()
                 }
@@ -45,6 +47,10 @@ struct BudgetView: View {
             }
             .task { await viewModel.load(using: appState) }
             .refreshable { await viewModel.load(using: appState) }
+            .sheet(isPresented: $isTransactionEditorPresented) {
+                TransactionEditorView(prefilledAccount: nil)
+                    .environment(appState)
+            }
         }
     }
 

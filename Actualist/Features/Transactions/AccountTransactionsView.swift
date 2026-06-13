@@ -10,24 +10,24 @@ struct AccountTransactionsView: View {
     @State private var balance: Int?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var isTransactionEditorPresented = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
                 header
 
-                if account.name.localizedCaseInsensitiveContains("credit") || balance ?? 0 < 0 {
-                    Button {
-                    } label: {
-                        Label("Record Payment", systemImage: "creditcard.fill")
-                            .font(.headline.weight(.bold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .padding(.horizontal, 16)
+                Button {
+                    isTransactionEditorPresented = true
+                } label: {
+                    Label("Add Transaction", systemImage: "plus.circle.fill")
+                        .font(.headline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                 }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
+                .padding(.horizontal, 16)
 
                 transactionList
 
@@ -67,6 +67,10 @@ struct AccountTransactionsView: View {
         }
         .task { await load() }
         .refreshable { await load() }
+        .sheet(isPresented: $isTransactionEditorPresented) {
+            TransactionEditorView(prefilledAccount: account)
+                .environment(appState)
+        }
     }
 
     private var header: some View {

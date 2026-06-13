@@ -5,18 +5,18 @@ struct AccountsView: View {
     @State private var accounts: [AccountDisplay] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var closedExpanded = false
+    @State private var expandedSections: Set<AccountSectionKind> = [.budget, .offBudget]
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
-                    accountSection(title: "Budget Accounts", rows: openBudgetAccounts, collapsedSummary: nil)
-                    accountSection(title: "Off Budget", rows: offBudgetAccounts, collapsedSummary: nil)
+                    accountSection(kind: .budget, title: "Budget Accounts", rows: openBudgetAccounts)
+                    accountSection(kind: .offBudget, title: "Off Budget", rows: offBudgetAccounts)
                     accountSection(
+                        kind: .closed,
                         title: "Closed",
-                        rows: closedAccounts,
-                        collapsedSummary: "\(closedAccounts.count) closed accounts"
+                        rows: closedAccounts
                     )
 
                     Button {
@@ -76,20 +76,24 @@ struct AccountsView: View {
     }
 
     @ViewBuilder
-    private func accountSection(title: String, rows: [AccountDisplay], collapsedSummary: String?) -> some View {
-        if !rows.isEmpty || collapsedSummary != nil {
+    private func accountSection(kind: AccountSectionKind, title: String, rows: [AccountDisplay]) -> some View {
+        if !rows.isEmpty {
+            let isExpanded = expandedSections.contains(kind)
+
             VStack(alignment: .leading, spacing: 12) {
                 Button {
-                    if collapsedSummary != nil {
-                        withAnimation(.smooth(duration: 0.2)) {
-                            closedExpanded.toggle()
+                    withAnimation(.smooth(duration: 0.2)) {
+                        if isExpanded {
+                            expandedSections.remove(kind)
+                        } else {
+                            expandedSections.insert(kind)
                         }
                     }
                 } label: {
                     HStack {
                         Image(systemName: "chevron.down")
-                            .rotationEffect(.degrees(collapsedSummary == nil || closedExpanded ? 0 : -90))
-                        Text(title)
+                            .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        Text(sectionTitle(title, count: rows.count, isExpanded: isExpanded))
                             .font(.title2.weight(.bold))
                         Spacer()
                         Text(total(rows).actualMoney.formatted())
@@ -100,17 +104,7 @@ struct AccountsView: View {
                 }
                 .buttonStyle(.plain)
 
-                if collapsedSummary != nil && !closedExpanded {
-                    GlassPanel {
-                        HStack {
-                            Text(collapsedSummary ?? "")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
-                        .foregroundStyle(ActualistTheme.primaryText)
-                    }
-                } else {
+                if isExpanded {
                     VStack(spacing: 0) {
                         ForEach(rows) { row in
                             NavigationLink(value: row.account) {
@@ -123,6 +117,10 @@ struct AccountsView: View {
                 }
             }
         }
+    }
+
+    private func sectionTitle(_ title: String, count: Int, isExpanded: Bool) -> String {
+        isExpanded ? title : "\(title) (\(count))"
     }
 
     private func total(_ rows: [AccountDisplay]) -> Int {
@@ -152,6 +150,12 @@ struct AccountsView: View {
         }
         isLoading = false
     }
+}
+
+private enum AccountSectionKind: Hashable {
+    case budget
+    case offBudget
+    case closed
 }
 
 struct AccountRow: View {
