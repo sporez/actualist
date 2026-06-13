@@ -80,27 +80,32 @@ struct BudgetView: View {
     @ViewBuilder
     private var overspendingBanner: some View {
         if let overspendingCount = viewModel.overspendingAlertCount {
-            HStack(spacing: 10) {
-                Text("\(overspendingCount)")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 28, height: 28)
-                    .background(ActualistTheme.danger.opacity(0.8), in: Circle())
+            Button {
+            } label: {
+                HStack(spacing: 10) {
+                    Text("\(overspendingCount)")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(ActualistTheme.danger.opacity(0.8), in: Circle())
 
-                Text("Overspent categories")
-                    .font(.subheadline.weight(.semibold))
+                    Text("Overspent categories")
+                        .font(.subheadline.weight(.semibold))
 
-                Spacer()
+                    Spacer()
 
-                Button("Cover") {
+                    Text("Cover")
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(1)
+
+                    Image(systemName: "chevron.right")
+                        .font(.body.weight(.bold))
                 }
-                .font(.subheadline.weight(.bold))
-                .buttonStyle(.glass)
-                .tint(ActualistTheme.accent)
+                .foregroundStyle(ActualistTheme.primaryText)
+                .padding(12)
+                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
-            .foregroundStyle(ActualistTheme.primaryText)
-            .padding(12)
-            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .buttonStyle(.plain)
         }
     }
 
