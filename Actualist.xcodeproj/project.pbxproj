@@ -27,6 +27,11 @@
 		010000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* Assets.xcassets */; };
 		010000000000000000000013 /* MoneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000013 /* MoneyTests.swift */; };
 		010000000000000000000014 /* CategoryNameParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000017 /* CategoryNameParts.swift */; };
+		010000000000000000000015 /* BudgetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000018 /* BudgetRepository.swift */; };
+		010000000000000000000016 /* BudgetViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000019 /* BudgetViewModel.swift */; };
+		010000000000000000000017 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001A /* OnboardingViewModel.swift */; };
+		010000000000000000000018 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* SettingsViewModel.swift */; };
+		010000000000000000000019 /* BudgetViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001C /* BudgetViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +68,11 @@
 		020000000000000000000015 /* Actualist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Actualist.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020000000000000000000016 /* ActualistTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualistTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		020000000000000000000017 /* CategoryNameParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryNameParts.swift; sourceTree = "<group>"; };
+		020000000000000000000018 /* BudgetRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRepository.swift; sourceTree = "<group>"; };
+		020000000000000000000019 /* BudgetViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModel.swift; sourceTree = "<group>"; };
+		02000000000000000000001A /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
+		02000000000000000000001B /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		02000000000000000000001C /* BudgetViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +112,7 @@
 				040000000000000000000005 /* API */,
 				040000000000000000000006 /* Security */,
 				040000000000000000000007 /* Persistence */,
+				040000000000000000000018 /* Repositories */,
 				040000000000000000000008 /* Features */,
 				040000000000000000000009 /* Shared */,
 			);
@@ -178,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				020000000000000000000013 /* MoneyTests.swift */,
+				02000000000000000000001C /* BudgetViewModelTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -204,6 +216,7 @@
 			isa = PBXGroup;
 			children = (
 				02000000000000000000000C /* OnboardingView.swift */,
+				02000000000000000000001A /* OnboardingViewModel.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -212,6 +225,7 @@
 			isa = PBXGroup;
 			children = (
 				02000000000000000000000E /* BudgetView.swift */,
+				020000000000000000000019 /* BudgetViewModel.swift */,
 			);
 			path = Budget;
 			sourceTree = "<group>";
@@ -236,8 +250,17 @@
 			isa = PBXGroup;
 			children = (
 				02000000000000000000000D /* SettingsView.swift */,
+				02000000000000000000001B /* SettingsViewModel.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		040000000000000000000018 /* Repositories */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000018 /* BudgetRepository.swift */,
+			);
+			path = Repositories;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -357,6 +380,10 @@
 				010000000000000000000010 /* AccountTransactionsView.swift in Sources */,
 				010000000000000000000011 /* Money.swift in Sources */,
 				010000000000000000000014 /* CategoryNameParts.swift in Sources */,
+				010000000000000000000015 /* BudgetRepository.swift in Sources */,
+				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
+				010000000000000000000017 /* OnboardingViewModel.swift in Sources */,
+				010000000000000000000018 /* SettingsViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -365,6 +392,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
+				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -557,6 +585,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BJNL8CJWW6;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -579,6 +608,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BJNL8CJWW6;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (

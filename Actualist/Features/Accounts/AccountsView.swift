@@ -159,10 +159,6 @@ struct AccountRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Circle()
-                .fill(ActualistTheme.accent)
-                .frame(width: 10, height: 10)
-
             Image(systemName: row.account.offbudget ? "tray.full.fill" : "banknote.fill")
                 .font(.title2)
                 .foregroundStyle(ActualistTheme.accent)

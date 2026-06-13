@@ -2,15 +2,13 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
-    @State private var serverURLString = ""
-    @State private var apiKey = ""
-    @State private var isTesting = false
+    @State private var viewModel = SettingsViewModel()
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Connection") {
-                    TextField("Server URL", text: $serverURLString, prompt: Text("http://host:5007"))
+                    TextField("Server URL", text: $viewModel.serverURLString, prompt: Text("http://host:5007"))
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
 
@@ -18,13 +16,13 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    SecureField("API Key", text: $apiKey)
+                    SecureField("API Key", text: $viewModel.apiKey)
                         .textInputAutocapitalization(.never)
 
                     Button {
-                        Task { await saveAndTest() }
+                        Task { await viewModel.saveAndTest(using: appState) }
                     } label: {
-                        Label(isTesting ? "Testing" : "Save and Test", systemImage: "network")
+                        Label(viewModel.isTesting ? "Testing" : "Save and Test", systemImage: "network")
                     }
                 }
 
@@ -35,8 +33,7 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        appState.clearSelectionForBudgetChange()
-                        Task { await appState.loadBudgets() }
+                        Task { await viewModel.changeBudget(using: appState) }
                     } label: {
                         Label("Change Budget", systemImage: "folder")
                     }
@@ -53,17 +50,8 @@ struct SettingsView: View {
             .background(ActualistTheme.background)
             .navigationTitle("Settings")
             .onAppear {
-                serverURLString = appState.settings.serverURLString
-                apiKey = appState.apiKey
+                viewModel.hydrate(from: appState)
             }
         }
-    }
-
-    private func saveAndTest() async {
-        isTesting = true
-        appState.lastErrorMessage = nil
-        appState.saveConnection(serverURLString: serverURLString, apiKey: apiKey)
-        await appState.loadBudgets()
-        isTesting = false
     }
 }

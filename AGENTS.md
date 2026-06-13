@@ -143,6 +143,9 @@ Button {
 
 Pre-handoff visual rule: if any control looks like a smaller rounded rectangle or capsule sitting inside a larger rounded rectangle or capsule, it is wrong. Remove one layer of glass before handing off.
 - Keep API transport, API Codable models, domain/display models, view models, and views separated.
+- Keep SwiftUI views layout-focused. Do not put API composition, loading/error workflows, budget derivation, or screen state machines directly in views.
+- Put Actual API composition in repositories. Put feature screen state, loading/error handling, expansion/selection state, and derived display logic in feature view models.
+- `AppState` should coordinate app-wide session/settings/routing only. Do not grow it into a catch-all feature view model.
 - Keep design values in a small theme/design-system layer instead of scattering colors and dimensions through views.
 - Treat write actions as explicit flows with confirmation or clear review states; this app controls real budget data.
 - Decode Actual API responses defensively. The checked-in OpenAPI has mismatches such as string examples for fields typed as integers and boolean examples for fields typed as strings.

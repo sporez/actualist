@@ -2,7 +2,7 @@
 
 ## Product Direction
 
-Actualist will be a native iOS 26+ app for browsing and eventually managing an Actual Budget file through the Actual HTTP API. The app should feel like the screenshots in `reference/`: dark, dense, rounded, thumb-friendly, Liquid Glass-aware, with bold money states and a persistent floating tab bar.
+Actualist will be a native iOS 26+ app for browsing and eventually managing an Actual Budget file through the Actual HTTP API. The app should feel like the screenshots in `reference/`: dark, dense, rounded, thumb-friendly, Liquid Glass-aware, with bold money states and native floating-feeling tab chrome.
 
 Initial scope is a connected read experience:
 
@@ -22,7 +22,7 @@ Confirmed platform decisions:
 - Standard Xcode Swift/SwiftUI app project.
 - iOS 26+ deployment target.
 - Use real SwiftUI Liquid Glass APIs where glass belongs, especially navigation, toolbars, menus, buttons, sheets, and tab surfaces. Do not fake glass with `Material`, blur views, or translucent custom capsules.
-- Use a tab/menu bar matching the screenshots, but include only real implemented views.
+- Use native SwiftUI tab/menu chrome matching the screenshots' floating feel, but include only real implemented views.
 
 ## Reference UI Notes
 
@@ -37,7 +37,7 @@ Confirmed platform decisions:
 - Yellow available pill: `#F1C84B`.
 - Primary text: near-white `#F6F6FB`.
 - Secondary text: `#B8B9C7`.
-- Bottom tab bar: translucent floating capsule with selected circular/pill highlight.
+- Bottom tab bar: native Liquid Glass tab chrome with a floating feel and selected highlight. Do not replace it with a custom glass-on-glass tab control.
 - Typography should use native San Francisco with heavier weights for section headers and money values.
 - Settings should eventually expose theme colors, but the first theme should hard-code the screenshot palette behind design tokens.
 - Content rows and financial data should remain mostly solid/dark for legibility.
@@ -241,23 +241,29 @@ Actualist/
     ActualistGlass.swift
     MoneyText.swift
     PillButton.swift
-    FloatingTabBar.swift
   API/
     ActualAPIClient.swift
     ActualEndpoint.swift
     ActualAuthenticator.swift
     APIModels.swift
     APIError.swift
+  Repositories/
+    BudgetRepository.swift
+    AccountRepository.swift
+    TransactionRepository.swift
   Security/
     KeychainStore.swift
   Persistence/
     AppSettingsStore.swift
   Features/
     Onboarding/
+      OnboardingViewModel.swift
     Budget/
+      BudgetViewModel.swift
     Accounts/
     Transactions/
     Settings/
+      SettingsViewModel.swift
   Shared/
     Money.swift
     MonthIdentifier.swift
@@ -285,6 +291,14 @@ flowchart LR
 ```
 
 ## Implementation Phases
+
+Current foundation status:
+
+- Phases 0-2 are functionally established for the read-only app foundation.
+- Phase 3 is established for the current-month budget read path, expandable category groups, hidden category filtering, `toBudget`, overspending display, loading/error states, and the initial reference-style layout.
+- Phases 0-3 now use repositories and feature view models so SwiftUI views stay layout-focused and future budget actions can attach to view-model intents.
+- The native SwiftUI tab bar is the accepted implementation of the planned floating menu bar. Earlier custom floating-glass tab experiments were removed to avoid nested Liquid Glass controls.
+- Phase 3 still has planned expansion points, especially a real month picker and deeper category action flows.
 
 ### Phase 0: Project Foundation
 

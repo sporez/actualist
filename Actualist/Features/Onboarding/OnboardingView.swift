@@ -2,9 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Environment(AppState.self) private var appState
-    @State private var serverURLString = ""
-    @State private var apiKey = ""
-    @State private var isConnecting = false
+    @State private var viewModel = OnboardingViewModel()
 
     var body: some View {
         ZStack {
@@ -32,12 +30,12 @@ struct OnboardingView: View {
                         VStack(alignment: .leading, spacing: 18) {
                             LabeledContent("Server URL") {
                                 ZStack(alignment: .trailing) {
-                                    if serverURLString.isEmpty {
+                                    if viewModel.serverURLString.isEmpty {
                                         Text("Required")
                                             .foregroundStyle(ActualistTheme.secondaryText)
                                     }
 
-                                    TextField("", text: $serverURLString)
+                                    TextField("", text: $viewModel.serverURLString)
                                         .textInputAutocapitalization(.never)
                                         .keyboardType(.URL)
                                         .multilineTextAlignment(.trailing)
@@ -49,7 +47,7 @@ struct OnboardingView: View {
                             LabeledContent("API Key") {
                                 SecureField(
                                     "",
-                                    text: $apiKey,
+                                    text: $viewModel.apiKey,
                                     prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
                                 )
                                 .textInputAutocapitalization(.never)
@@ -66,19 +64,19 @@ struct OnboardingView: View {
                     }
 
                     Button {
-                        Task { await connect() }
+                        Task { await viewModel.connect(using: appState) }
                     } label: {
                         HStack {
-                            if isConnecting {
+                            if viewModel.isConnecting {
                                 ProgressView()
                             }
-                            Text(isConnecting ? "Connecting" : "Connect")
+                            Text(viewModel.isConnecting ? "Connecting" : "Connect")
                                 .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glassProminent)
-                    .disabled(serverURLString.isEmpty || apiKey.isEmpty || isConnecting)
+                    .disabled(viewModel.serverURLString.isEmpty || viewModel.apiKey.isEmpty || viewModel.isConnecting)
 
                     Spacer(minLength: 120)
                 }
@@ -87,23 +85,14 @@ struct OnboardingView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .onAppear {
-            serverURLString = appState.settings.serverURLString
-            apiKey = appState.apiKey
+            viewModel.hydrate(from: appState)
         }
-    }
-
-    private func connect() async {
-        isConnecting = true
-        appState.lastErrorMessage = nil
-        appState.saveConnection(serverURLString: serverURLString, apiKey: apiKey)
-        await appState.loadBudgets()
-        isConnecting = false
     }
 }
 
 struct BudgetPickerView: View {
     @Environment(AppState.self) private var appState
-    @State private var isLoading = false
+    @State private var viewModel = BudgetPickerViewModel()
 
     var body: some View {
         NavigationStack {
@@ -137,7 +126,7 @@ struct BudgetPickerView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await reload() }
+                        Task { await viewModel.reload(using: appState) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -146,15 +135,9 @@ struct BudgetPickerView: View {
             }
             .task {
                 if appState.budgets.isEmpty {
-                    await reload()
+                    await viewModel.reload(using: appState)
                 }
             }
         }
-    }
-
-    private func reload() async {
-        isLoading = true
-        await appState.loadBudgets()
-        isLoading = false
     }
 }

@@ -2,33 +2,29 @@ import SwiftUI
 
 struct BudgetView: View {
     @Environment(AppState.self) private var appState
-    @State private var budgetMonth: BudgetMonth?
-    @State private var selectedMonth: String?
-    @State private var expandedGroups: Set<String> = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State private var viewModel = BudgetViewModel()
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 18) {
-                    if let budgetMonth {
+                VStack(spacing: BudgetLayout.sectionSpacing) {
+                    if let budgetMonth = viewModel.budgetMonth {
                         readyToAssignBanner(budgetMonth)
-                        overspendingBanner(budgetMonth)
-                        categoryGroups(budgetMonth)
-                    } else if isLoading {
+                        overspendingBanner
+                        categoryGroups
+                    } else if viewModel.isLoading {
                         loadingState
                     } else {
                         emptyState
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.horizontal, BudgetLayout.screenHorizontalPadding)
+                .padding(.top, 4)
                 .padding(.bottom, 28)
             }
             .scrollIndicators(.hidden)
             .background(ActualistTheme.background)
-            .navigationTitle(navigationTitle)
+            .navigationTitle(viewModel.navigationTitle)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -40,48 +36,16 @@ struct BudgetView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await load() }
+                        Task { await viewModel.load(using: appState) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
                     .actualistToolbarGlassButton()
                 }
             }
-            .task { await load() }
-            .refreshable { await load() }
+            .task { await viewModel.load(using: appState) }
+            .refreshable { await viewModel.load(using: appState) }
         }
-    }
-
-    private var preferredMonth: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM"
-        return formatter.string(from: Date())
-    }
-
-    private var navigationTitle: String {
-        guard let selectedMonth else {
-            return currentMonthTitle
-        }
-
-        return title(for: selectedMonth)
-    }
-
-    private var currentMonthTitle: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM yyyy"
-        return formatter.string(from: Date())
-    }
-
-    private func title(for month: String) -> String {
-        let input = DateFormatter()
-        input.dateFormat = "yyyy-MM"
-        guard let date = input.date(from: month) else {
-            return month
-        }
-
-        let output = DateFormatter()
-        output.dateFormat = "MMM yyyy"
-        return output.string(from: date)
     }
 
     private func readyToAssignBanner(_ month: BudgetMonth) -> some View {
@@ -89,65 +53,60 @@ struct BudgetView: View {
         } label: {
             HStack {
                 Text(month.toBudget.actualMoney.formatted())
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                 Spacer()
-                Text("Ready to Assign")
-                    .font(.headline)
+                Text("To Budget")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
                 Image(systemName: "chevron.right")
-                    .font(.title3.weight(.bold))
+                    .font(.body.weight(.bold))
             }
             .foregroundStyle(.black.opacity(0.78))
-            .padding(.horizontal, 22)
-            .padding(.vertical, 20)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
             .background(ActualistTheme.positive, in: Capsule())
         }
         .buttonStyle(.plain)
     }
 
     @ViewBuilder
-    private func overspendingBanner(_ month: BudgetMonth) -> some View {
-        let overspent = month.categoryGroups
-            .flatMap(\.categories)
-            .filter { !$0.isIncome && !($0.hidden ?? false) && $0.balance < 0 }
-
-        if !overspent.isEmpty || month.lastMonthOverspent < 0 {
-            HStack(spacing: 14) {
-                Text("\(max(overspent.count, 1))")
-                    .font(.headline.weight(.bold))
+    private var overspendingBanner: some View {
+        if let overspendingCount = viewModel.overspendingAlertCount {
+            HStack(spacing: 10) {
+                Text("\(overspendingCount)")
+                    .font(.subheadline.weight(.bold))
                     .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 28, height: 28)
                     .background(ActualistTheme.danger.opacity(0.8), in: Circle())
 
                 Text("Overspent categories")
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
 
                 Spacer()
 
                 Button("Cover") {
                 }
-                .font(.headline.weight(.bold))
+                .font(.subheadline.weight(.bold))
                 .buttonStyle(.glass)
                 .tint(ActualistTheme.accent)
             }
             .foregroundStyle(ActualistTheme.primaryText)
-            .padding(16)
-            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .padding(12)
+            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
     }
 
-    private func categoryGroups(_ month: BudgetMonth) -> some View {
+    private var categoryGroups: some View {
         LazyVStack(spacing: 0, pinnedViews: []) {
-            ForEach(month.categoryGroups.filter { !$0.isIncome }) { group in
+            ForEach(viewModel.visibleGroups) { group in
                 BudgetGroupSection(
                     group: group,
-                    isExpanded: expandedGroups.contains(group.id),
+                    isExpanded: viewModel.isExpanded(group),
                     toggle: {
                         withAnimation(.smooth(duration: 0.2)) {
-                            if expandedGroups.contains(group.id) {
-                                expandedGroups.remove(group.id)
-                            } else {
-                                expandedGroups.insert(group.id)
-                            }
+                            viewModel.toggle(group)
                         }
                     }
                 )
@@ -172,7 +131,7 @@ struct BudgetView: View {
                 Image(systemName: "list.bullet.rectangle.portrait")
                     .font(.largeTitle)
                     .foregroundStyle(ActualistTheme.accent)
-                Text(errorMessage ?? "Budget data will appear after Actualist connects.")
+                Text(viewModel.errorMessage ?? "Budget data will appear after Actualist connects.")
                     .font(.headline)
                     .foregroundStyle(ActualistTheme.primaryText)
                     .multilineTextAlignment(.center)
@@ -180,29 +139,17 @@ struct BudgetView: View {
             .frame(maxWidth: .infinity)
         }
     }
+}
 
-    private func load() async {
-        await appState.loadBudgets()
-
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let client = appState.makeClient() else {
-            return
-        }
-
-        isLoading = true
-        errorMessage = nil
-        do {
-            let availableMonths = try await client.budgetMonths(budgetID: budgetID)
-            let monthID = availableMonths.contains(preferredMonth) ? preferredMonth : (availableMonths.last ?? preferredMonth)
-            let month = try await client.budgetMonth(budgetID: budgetID, month: monthID)
-            budgetMonth = month
-            selectedMonth = month.month
-            expandedGroups = Set(month.categoryGroups.prefix(3).map(\.id))
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
-    }
+private enum BudgetLayout {
+    static let screenHorizontalPadding: CGFloat = 14
+    static let sectionSpacing: CGFloat = 14
+    static let rowSpacing: CGFloat = 8
+    static let chevronWidth: CGFloat = 24
+    static let emojiSize: CGFloat = 20
+    static let emojiWidth: CGFloat = 26
+    static let assignedWidth: CGFloat = 96
+    static let availableWidth: CGFloat = 112
 }
 
 struct BudgetGroupSection: View {
@@ -213,41 +160,48 @@ struct BudgetGroupSection: View {
     var body: some View {
         VStack(spacing: 0) {
             Button(action: toggle) {
-                HStack(alignment: .center, spacing: 12) {
+                HStack(alignment: .center, spacing: BudgetLayout.rowSpacing) {
                     Image(systemName: "chevron.down")
                         .rotationEffect(.degrees(isExpanded ? 0 : -90))
-                        .font(.title3.weight(.bold))
-                        .frame(width: 28)
+                        .font(.body.weight(.bold))
+                        .frame(width: BudgetLayout.chevronWidth)
 
                     Text(group.name)
-                        .font(.title3.weight(.bold))
+                        .font(.headline.weight(.bold))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.82)
 
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("Assigned")
-                            .font(.callout)
+                            .font(.caption.weight(.medium))
                             .foregroundStyle(ActualistTheme.secondaryText)
                         Text(group.budgeted.actualMoney.formatted())
-                            .font(.headline.weight(.bold))
+                            .font(.subheadline.weight(.bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
+                    .frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
 
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("Available")
-                            .font(.callout)
+                            .font(.caption.weight(.medium))
                             .foregroundStyle(ActualistTheme.secondaryText)
                         Text(group.balance.actualMoney.formatted())
-                            .font(.headline.weight(.bold))
+                            .font(.subheadline.weight(.bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
+                    .frame(width: BudgetLayout.availableWidth, alignment: .trailing)
                 }
                 .foregroundStyle(ActualistTheme.primaryText)
-                .padding(.vertical, 18)
+                .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
 
             if isExpanded {
-                ForEach(group.categories.filter { !($0.hidden ?? false) }) { category in
+                ForEach(group.visibleCategories) { category in
                     BudgetCategoryRow(category: category)
                 }
             }
@@ -259,35 +213,35 @@ struct BudgetCategoryRow: View {
     let category: BudgetMonthCategory
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: BudgetLayout.rowSpacing) {
             emojiSlot
 
             Text(nameParts.name)
-                .font(.body)
+                .font(.callout)
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.86)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(category.budgeted.actualMoney.formatted())
-                .font(.headline.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
-                .frame(width: 100, alignment: .trailing)
+                .frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
 
             Text(category.balance.actualMoney.formatted())
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(availableForeground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .frame(width: 108)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .frame(width: BudgetLayout.availableWidth)
                 .background(availableBackground, in: Capsule())
         }
-        .padding(.vertical, 15)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 2)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(ActualistTheme.separator)
@@ -299,12 +253,12 @@ struct BudgetCategoryRow: View {
     private var emojiSlot: some View {
         if let emoji = nameParts.emoji {
             Text(verbatim: emoji)
-                .font(.actualistEmoji(size: 22))
-                .frame(width: 30, height: 30)
+                .font(.actualistEmoji(size: BudgetLayout.emojiSize))
+                .frame(width: BudgetLayout.emojiWidth, height: BudgetLayout.emojiWidth)
                 .accessibilityHidden(true)
         } else {
             Color.clear
-                .frame(width: 30, height: 30)
+                .frame(width: BudgetLayout.emojiWidth, height: BudgetLayout.emojiWidth)
         }
     }
 

@@ -60,13 +60,13 @@ final class AppState {
     }
 
     func loadBudgets() async {
-        guard let client = makeClient() else {
+        guard let repository = makeBudgetRepository() else {
             setupPhase = .needsConnection
             return
         }
 
         do {
-            budgets = Self.uniqueBudgets(try await client.budgets())
+            budgets = Self.uniqueBudgets(try await repository.budgets())
             if budgets.count == 1, let budget = budgets.first {
                 selectBudget(budget)
                 return
@@ -98,6 +98,14 @@ final class AppState {
         }
 
         return ActualAPIClient(baseURL: baseURL, apiKey: apiKey)
+    }
+
+    func makeBudgetRepository() -> BudgetRepository? {
+        guard let client = makeClient() else {
+            return nil
+        }
+
+        return BudgetRepository(client: client)
     }
 
     private static func uniqueBudgets(_ budgets: [ActualBudget]) -> [ActualBudget] {
