@@ -4,6 +4,7 @@ struct BudgetView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = BudgetViewModel()
     @State private var isTransactionEditorPresented = false
+    @State private var isMonthPickerPresented = false
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,31 @@ struct BudgetView: View {
                         Image(systemName: "plus")
                     }
                     .actualistToolbarGlassButton()
+                }
+
+                ToolbarItem(placement: .principal) {
+                    Button {
+                        isMonthPickerPresented.toggle()
+                    } label: {
+                        HStack(spacing: 7) {
+                            Text(viewModel.navigationTitle)
+                                .font(.headline.weight(.bold))
+                            Image(systemName: "chevron.down")
+                                .font(.subheadline.weight(.bold))
+                                .rotationEffect(.degrees(isMonthPickerPresented ? 180 : 0))
+                        }
+                        .foregroundStyle(ActualistTheme.primaryText)
+                    }
+                    .popover(isPresented: $isMonthPickerPresented, arrowEdge: .top) {
+                        BudgetMonthPicker(
+                            availableMonths: viewModel.availableMonths,
+                            selectedMonth: viewModel.selectedMonth
+                        ) { month in
+                            isMonthPickerPresented = false
+                            Task { await viewModel.selectMonth(month, using: appState) }
+                        }
+                        .presentationCompactAdaptation(.popover)
+                    }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -149,6 +175,142 @@ struct BudgetView: View {
             }
             .frame(maxWidth: .infinity)
         }
+    }
+}
+
+private struct BudgetMonthPicker: View {
+    let availableMonths: [String]
+    let selectedMonth: String?
+    let onSelect: (String) -> Void
+
+    @State private var displayedYear: Int
+
+    init(
+        availableMonths: [String],
+        selectedMonth: String?,
+        onSelect: @escaping (String) -> Void
+    ) {
+        self.availableMonths = availableMonths
+        self.selectedMonth = selectedMonth
+        self.onSelect = onSelect
+        _displayedYear = State(initialValue: Self.initialYear(
+            selectedMonth: selectedMonth,
+            availableMonths: availableMonths
+        ))
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    displayedYear -= 1
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.title3.weight(.bold))
+                }
+                .disabled(!hasPreviousYear)
+
+                Spacer()
+
+                Text(String(displayedYear))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                Spacer()
+
+                Button {
+                    displayedYear += 1
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.title3.weight(.bold))
+                }
+                .disabled(!hasNextYear)
+            }
+            .foregroundStyle(ActualistTheme.accent)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+
+            Divider().overlay(ActualistTheme.separator)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 4), spacing: 18) {
+                ForEach(1...12, id: \.self) { monthNumber in
+                    let monthID = Self.monthID(year: displayedYear, month: monthNumber)
+                    Button {
+                        onSelect(monthID)
+                    } label: {
+                        Text(Self.monthName(for: monthNumber))
+                            .font(.title3.weight(monthID == selectedMonth ? .bold : .regular))
+                            .foregroundStyle(monthTextColor(monthID))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(monthBackground(monthID), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!availableMonthSet.contains(monthID))
+                }
+            }
+            .padding(20)
+        }
+        .frame(width: 320)
+        .background(ActualistTheme.surface)
+    }
+
+    private var availableMonthSet: Set<String> {
+        Set(availableMonths)
+    }
+
+    private var availableYears: [Int] {
+        Array(Set(availableMonths.compactMap(Self.year))).sorted()
+    }
+
+    private var hasPreviousYear: Bool {
+        availableYears.contains(where: { $0 < displayedYear })
+    }
+
+    private var hasNextYear: Bool {
+        availableYears.contains(where: { $0 > displayedYear })
+    }
+
+    private func monthTextColor(_ monthID: String) -> Color {
+        if monthID == selectedMonth {
+            return ActualistTheme.primaryText
+        }
+
+        return availableMonthSet.contains(monthID) ? ActualistTheme.primaryText : ActualistTheme.secondaryText.opacity(0.36)
+    }
+
+    private func monthBackground(_ monthID: String) -> Color {
+        monthID == selectedMonth ? ActualistTheme.accent : Color.clear
+    }
+
+    private static func initialYear(selectedMonth: String?, availableMonths: [String]) -> Int {
+        if let selectedYear = selectedMonth.flatMap(year) {
+            return selectedYear
+        }
+
+        if let latestYear = availableMonths.compactMap(year).max() {
+            return latestYear
+        }
+
+        return Calendar(identifier: .gregorian).component(.year, from: Date())
+    }
+
+    private static func monthID(year: Int, month: Int) -> String {
+        String(format: "%04d-%02d", year, month)
+    }
+
+    private static func year(from monthID: String) -> Int? {
+        guard monthID.count >= 4 else {
+            return nil
+        }
+
+        return Int(monthID.prefix(4))
+    }
+
+    private static func monthName(for monthNumber: Int) -> String {
+        Calendar.current.shortMonthSymbols[monthNumber - 1]
     }
 }
 

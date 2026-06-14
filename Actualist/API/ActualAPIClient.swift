@@ -40,6 +40,30 @@ struct ActualAPIClient: Sendable {
         try await get("/budgets/\(budgetID)/categories")
     }
 
+    func createTransaction(
+        budgetID: String,
+        draft: TransactionDraft
+    ) async throws -> APIGeneralMessage {
+        let payload = APITransactionCreatePayload(
+            transaction: APITransactionDraft(
+                account: draft.accountID,
+                date: Self.formattedTransactionDate(draft.date),
+                amount: draft.amountMinorUnits,
+                payee: draft.payeeID,
+                payeeName: draft.payeeID == nil ? draft.payeeName : nil,
+                category: draft.categoryID,
+                notes: draft.notes,
+                cleared: draft.cleared
+            )
+        )
+
+        return try await request(
+            path: "/budgets/\(budgetID)/accounts/\(draft.accountID)/transactions",
+            method: "POST",
+            body: payload
+        )
+    }
+
     private func get<Value: Decodable>(
         _ path: String,
         queryItems: [URLQueryItem] = []
@@ -51,7 +75,8 @@ struct ActualAPIClient: Sendable {
     private func request<Value: Decodable>(
         path: String,
         method: String,
-        queryItems: [URLQueryItem] = []
+        queryItems: [URLQueryItem] = [],
+        body: (any Encodable)? = nil
     ) async throws -> Value {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
@@ -71,6 +96,10 @@ struct ActualAPIClient: Sendable {
         request.timeoutInterval = 12
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let body {
+            request.httpBody = try JSONEncoder.actual.encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
 
         let data: Data
         let response: URLResponse
@@ -97,6 +126,17 @@ struct ActualAPIClient: Sendable {
             throw ActualAPIError.decoding(error.localizedDescription)
         }
     }
+
+    private static func formattedTransactionDate(_ date: Date) -> String {
+        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 1970,
+            components.month ?? 1,
+            components.day ?? 1
+        )
+    }
+
 }
 
 enum ActualAPIError: LocalizedError {
@@ -142,5 +182,11 @@ extension JSONDecoder {
     static var actual: JSONDecoder {
         let decoder = JSONDecoder()
         return decoder
+    }
+}
+
+extension JSONEncoder {
+    static var actual: JSONEncoder {
+        JSONEncoder()
     }
 }

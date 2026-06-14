@@ -3,7 +3,7 @@ import Testing
 @testable import Actualist
 
 struct MoneyTests {
-    @Test func formatsActualMilliunitsAsCurrency() {
+    @Test func formatsActualMinorUnitsAsCurrency() {
         #expect(123456.actualMoney.formatted().contains("1,234.56"))
     }
 

@@ -198,8 +198,13 @@ struct TransactionEditorView: View {
 
     private var saveButton: some View {
         Button {
+            Task {
+                if await viewModel.submit(using: appState) {
+                    dismiss()
+                }
+            }
         } label: {
-            Label("Save", systemImage: "checkmark.circle.fill")
+            Label(viewModel.saveButtonTitle, systemImage: viewModel.isSubmitting ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
                 .font(.headline.weight(.bold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)

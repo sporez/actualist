@@ -138,8 +138,11 @@ For each API/data change:
 
 - Add or update decoding fixtures.
 - Test money formatting and date grouping.
+- Keep money as integer minor units internally. Do not use `Double` for money.
 - Verify API key redaction in logs.
 - Verify failures produce actionable settings/onboarding errors.
+- For write actions, test the conservative flow: draft, submitting, refetching, clean, and failed/retry.
+- After successful writes, verify the affected account/month/category data is refetched from the API before the UI returns to clean state.
 
 ## Future CI
 

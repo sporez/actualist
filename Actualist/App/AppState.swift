@@ -108,6 +108,22 @@ final class AppState {
         return BudgetRepository(client: client)
     }
 
+    func makeAccountRepository() -> AccountRepository? {
+        guard let client = makeClient() else {
+            return nil
+        }
+
+        return AccountRepository(client: client)
+    }
+
+    func makeTransactionRepository() -> TransactionRepository? {
+        guard let client = makeClient() else {
+            return nil
+        }
+
+        return TransactionRepository(client: client)
+    }
+
     private static func uniqueBudgets(_ budgets: [ActualBudget]) -> [ActualBudget] {
         var seenSyncIDs: Set<String> = []
         return budgets.filter { budget in

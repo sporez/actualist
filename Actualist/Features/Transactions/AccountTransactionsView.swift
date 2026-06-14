@@ -67,7 +67,9 @@ struct AccountTransactionsView: View {
         }
         .task { await load() }
         .refreshable { await load() }
-        .sheet(isPresented: $isTransactionEditorPresented) {
+        .sheet(isPresented: $isTransactionEditorPresented, onDismiss: {
+            Task { await load() }
+        }) {
             TransactionEditorView(prefilledAccount: account)
                 .environment(appState)
         }
@@ -154,26 +156,18 @@ struct AccountTransactionsView: View {
 
     private func load() async {
         guard let budgetID = appState.settings.selectedBudgetID,
-              let client = appState.makeClient() else {
+              let repository = appState.makeTransactionRepository() else {
             return
         }
 
         isLoading = true
         errorMessage = nil
         do {
-            async let loadedTransactions = client.transactions(budgetID: budgetID, accountID: account.id)
-            async let loadedBalance = client.balance(budgetID: budgetID, accountID: account.id)
-            async let loadedCategories = client.categories(budgetID: budgetID)
-            async let loadedPayees = client.payees(budgetID: budgetID)
-
-            transactions = try await loadedTransactions
-            balance = try? await loadedBalance
-            categoryNames = Dictionary(uniqueKeysWithValues: (try? await loadedCategories)?.compactMap { category in
-                category.id.map { ($0, category.name) }
-            } ?? [])
-            payeeNames = Dictionary(uniqueKeysWithValues: (try? await loadedPayees)?.compactMap { payee in
-                payee.id.map { ($0, payee.name) }
-            } ?? [])
+            let loaded = try await repository.accountTransactions(budgetID: budgetID, accountID: account.id)
+            transactions = loaded.transactions
+            balance = loaded.balance
+            categoryNames = loaded.categoryNames
+            payeeNames = loaded.payeeNames
         } catch {
             errorMessage = error.localizedDescription
         }

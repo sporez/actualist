@@ -2,7 +2,7 @@
 
 ## Product Direction
 
-Actualist will be a native iOS 26+ app for browsing and eventually managing an Actual Budget file through the Actual HTTP API. The app should feel like the screenshots in `reference/`: dark, dense, rounded, thumb-friendly, Liquid Glass-aware, with bold money states and native floating-feeling tab chrome.
+Actualist will be a native iOS 26+ app for browsing and eventually managing an Actual Budget file through the Actual HTTP API. The app should be a polished native UI for Actual, not a second budgeting engine. The app should feel like the screenshots in `reference/`: dark, dense, rounded, thumb-friendly, Liquid Glass-aware, with bold money states and native floating-feeling tab chrome.
 
 Initial scope is a connected read experience:
 
@@ -14,6 +14,7 @@ Initial scope is a connected read experience:
 - Drill into an account and show transactions grouped by date.
 - Allow server details, API key, and selected budget to be changed from Settings.
 - Keep the view models and action surfaces ready for later write operations such as category transfers, covering overspending, editing transactions, and adding transactions.
+- Avoid optimistic writes in the first write phases. Write flows should submit to the API, wait for success, refetch affected API-backed data, and only then return to a clean UI state.
 
 Confirmed platform decisions:
 
@@ -68,7 +69,7 @@ Do not include placeholder tabs for Home, Spending, or Reflect until those featu
 
 Reference: `reference/Budget.PNG`
 
-- Top navigation includes month picker centered and compact action buttons.
+- Top navigation includes compact native toolbar buttons with a centered month dropdown. Tapping the month opens a compact year/month picker, and selecting a month refetches that month from the API.
 - Primary alert: large green `Ready to Assign` / Actual `toBudget` amount.
 - Secondary alert: overspending count with `Cover` action.
 - Category groups are expandable.
@@ -214,6 +215,36 @@ Later write actions:
 - `PATCH /budgets/{budgetSyncId}/transactions/{transactionId}`
 - `DELETE /budgets/{budgetSyncId}/transactions/{transactionId}`
 
+### Write And Refresh Rules
+
+The Swift app should never calculate final account balances, budget balances, category availability, or ready-to-assign amounts locally except for temporary display previews while the user is editing a draft. Actual remains the source of truth.
+
+Use a conservative write state machine for the first write phases:
+
+```text
+draft -> submitting -> refetching -> clean
+draft -> submitting -> failed/retry
+```
+
+After any successful write, the repository should refetch the affected data from the API before the feature returns to a clean state:
+
+- Transaction create/edit/delete: refetch the affected account balance, affected account transactions, and affected budget month.
+- Categorize or clear/unclear transaction: refetch the affected transaction list, account balance when relevant, and affected month when the category or amount changes budget state.
+- Category transfer, move money, or cover overspending: refetch the affected budget month and categories.
+
+The Actual HTTP API currently returns a simple general response for transaction creation, so `TransactionMutationResult.changed` is app-side metadata synthesized by the repository from the submitted draft unless the server later exposes richer mutation results.
+
+Suggested Swift boundary:
+
+```swift
+protocol BudgetAPI {
+    func getBudgetMonth(_ month: YearMonth) async throws -> BudgetMonth
+    func getAccounts() async throws -> [BudgetAccount]
+    func getTransactions(accountID: String) async throws -> [ActualTransaction]
+    func createTransaction(_ draft: TransactionDraft) async throws -> TransactionMutationResult
+}
+```
+
 ## Architecture
 
 Recommended first implementation:
@@ -222,6 +253,7 @@ Recommended first implementation:
 - iOS 26+ target.
 - `URLSession` networking with `async/await`.
 - Codable API models with an adapter layer for display models.
+- Clean app-native models at view/view-model boundaries; keep ugly or inconsistent API payload shapes isolated in the API client and repositories.
 - Swift Testing or XCTest for formatting, decoding, and view-model logic.
 - No database in the first pass; use in-memory repositories, `UserDefaults`/`AppStorage` for non-secret preferences, and Keychain for the API key.
 - Use Observation (`@Observable`) for app/view model state where appropriate.
@@ -297,8 +329,9 @@ Current foundation status:
 - Phases 0-2 are functionally established for the read-only app foundation.
 - Phase 3 is established for the current-month budget read path, expandable category groups, hidden category filtering, `toBudget`, overspending display, loading/error states, and the initial reference-style layout.
 - Phases 0-3 now use repositories and feature view models so SwiftUI views stay layout-focused and future budget actions can attach to view-model intents.
+- Account and transaction loading have repository boundaries, and transaction creation has a conservative mutation scaffold that submits, refetches changed resources, and avoids local balance calculation.
 - The native SwiftUI tab bar is the accepted implementation of the planned floating menu bar. Earlier custom floating-glass tab experiments were removed to avoid nested Liquid Glass controls.
-- Phase 3 still has planned expansion points, especially a real month picker and deeper category action flows.
+- Phase 3 now includes the centered month dropdown and month picker interaction. Deeper category action flows remain planned.
 
 ### Phase 0: Project Foundation
 
@@ -358,17 +391,35 @@ Current foundation status:
 - Show working balance from account balance endpoint.
 - Add search/select/action placeholders.
 
-### Phase 6: First Write Features
+### Phase 6: Month Switching
+
+- Show the budget month as the centered toolbar title between compact toolbar buttons.
+- Open a compact month picker when the month title is tapped.
+- Disable months not reported by the API.
+- Refetch the selected `BudgetMonth` from the API and replace screen state only after the request succeeds.
+
+### Phase 7: First Write Features
 
 - Add transaction creation.
-- Add transaction edit flow.
-- Add category transfer or cover overspending flow.
-- Add account payment flow for credit accounts.
-- Add refresh controls and optimistic update rules.
+- Categorize uncategorized transactions.
+- Clear and unclear transactions.
+- Add transaction edit and delete flows.
+- Add move-money/category transfer flow.
+- Add cover-overspending flow.
+- Keep account payment flow for credit accounts behind confirmed credit-account semantics.
+- Use conservative mutation/refetch rules for every write.
+
+### Later Write And Management Features
+
+- Reconciliation.
+- Split transactions.
+- Account creation.
+- Full reporting.
+- Advanced budget configuration.
 
 ## Technical Notes
 
-- Actual amounts appear as integers in the API. Confirm whether the running container returns cents or Actual milliunits before final money formatting. Actual commonly stores amounts in milliunits, where `$1.00` is `1000`.
+- Actual HTTP amount values are integer minor units in the checked-in OpenAPI, where a USD amount of `$120.30` is represented as `12030`. Keep amounts as `Int` internally and format as currency only at the display boundary. Do not use `Double` for money.
 - The OpenAPI schema marks `BudgetMonthCategoryGroup.name` and `BudgetMonthCategory.name` as integers, but examples show strings. Generated Swift models may need schema correction or custom tolerant decoding.
 - Some transaction fields are inconsistent in the schema and examples. For example, `cleared` is typed as a string but examples show boolean. Decode defensively.
 - Avoid placing API secrets in source control. Store API keys in Keychain.
@@ -378,6 +429,7 @@ Current foundation status:
 
 - Decode fixtures from representative API responses.
 - Unit test money formatting, date grouping, overspending detection, and account grouping.
+- Unit test mutation draft encoding, conservative submission state transitions, and refetch target synthesis before enabling each write action.
 - Add screenshot or preview coverage for dark theme states.
 - Manually verify against the running API container:
   - First launch requires server URL and API key.

@@ -41,9 +41,7 @@ final class BudgetViewModel {
     }
 
     var preferredMonth: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM"
-        return formatter.string(from: Date())
+        YearMonth(date: Date()).rawValue
     }
 
     func load(using appState: AppState) async {
@@ -69,10 +67,41 @@ final class BudgetViewModel {
                 budgetID: budgetID,
                 preferredMonth: preferredMonth
             )
-            availableMonths = loadedMonth.availableMonths
-            budgetMonth = loadedMonth.month
-            selectedMonth = loadedMonth.month.month
-            expandedGroupIDs = Set(loadedMonth.month.categoryGroups.prefix(3).map(\.id))
+            apply(loadedMonth)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+
+    func selectMonth(_ month: String, using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeBudgetRepository() else {
+            return
+        }
+
+        await selectMonth(month, budgetID: budgetID, repository: repository)
+    }
+
+    func selectMonth(
+        _ month: String,
+        budgetID: String,
+        repository: BudgetRepository
+    ) async {
+        guard selectedMonth != month else {
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let loadedMonth = try await repository.budgetMonth(
+                budgetID: budgetID,
+                selectedMonth: month
+            )
+            apply(loadedMonth)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -106,6 +135,13 @@ final class BudgetViewModel {
         }
 
         return title(for: date)
+    }
+
+    private func apply(_ loadedMonth: LoadedBudgetMonth) {
+        availableMonths = loadedMonth.availableMonths
+        budgetMonth = loadedMonth.month
+        selectedMonth = loadedMonth.month.month
+        expandedGroupIDs = Set(loadedMonth.month.categoryGroups.prefix(3).map(\.id))
     }
 }
 

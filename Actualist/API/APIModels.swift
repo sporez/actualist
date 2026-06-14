@@ -4,7 +4,31 @@ struct APIDataResponse<Value: Decodable>: Decodable {
     let data: Value
 }
 
-struct ActualBudget: Decodable, Identifiable, Hashable {
+struct APIGeneralMessage: Decodable, Hashable, Sendable {
+    let message: String
+}
+
+struct APITransactionCreatePayload: Encodable, Sendable {
+    let transaction: APITransactionDraft
+}
+
+struct APITransactionDraft: Encodable, Sendable {
+    let account: String
+    let date: String
+    let amount: Int
+    let payee: String?
+    let payeeName: String?
+    let category: String?
+    let notes: String?
+    let cleared: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case account, date, amount, payee, category, notes, cleared
+        case payeeName = "payee_name"
+    }
+}
+
+struct ActualBudget: Decodable, Identifiable, Hashable, Sendable {
     let budgetID: String?
     let cloudFileId: String?
     let groupId: String?
@@ -25,21 +49,21 @@ struct ActualBudget: Decodable, Identifiable, Hashable {
     }
 }
 
-struct ActualAccount: Decodable, Identifiable, Hashable {
+struct ActualAccount: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let offbudget: Bool
     let closed: Bool
 }
 
-struct AccountDisplay: Identifiable, Hashable {
+struct AccountDisplay: Identifiable, Hashable, Sendable {
     let account: ActualAccount
     let balance: Int?
 
     var id: String { account.id }
 }
 
-struct BudgetMonth: Decodable, Hashable {
+struct BudgetMonth: Decodable, Hashable, Sendable {
     let month: String
     let incomeAvailable: Int
     let lastMonthOverspent: Int
@@ -53,7 +77,7 @@ struct BudgetMonth: Decodable, Hashable {
     let categoryGroups: [BudgetMonthCategoryGroup]
 }
 
-struct BudgetMonthCategoryGroup: Decodable, Identifiable, Hashable {
+struct BudgetMonthCategoryGroup: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let isIncome: Bool
@@ -81,7 +105,7 @@ struct BudgetMonthCategoryGroup: Decodable, Identifiable, Hashable {
     }
 }
 
-struct BudgetMonthCategory: Decodable, Identifiable, Hashable {
+struct BudgetMonthCategory: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let isIncome: Bool
@@ -112,7 +136,7 @@ struct BudgetMonthCategory: Decodable, Identifiable, Hashable {
     }
 }
 
-struct ActualPayee: Decodable, Identifiable, Hashable {
+struct ActualPayee: Decodable, Identifiable, Hashable, Sendable {
     let id: String?
     let name: String
     let category: String?
@@ -124,7 +148,7 @@ struct ActualPayee: Decodable, Identifiable, Hashable {
     }
 }
 
-struct ActualCategory: Decodable, Identifiable, Hashable {
+struct ActualCategory: Decodable, Identifiable, Hashable, Sendable {
     let id: String?
     let name: String
     let isIncome: Bool?
@@ -138,7 +162,7 @@ struct ActualCategory: Decodable, Identifiable, Hashable {
     }
 }
 
-struct ActualTransaction: Decodable, Identifiable, Hashable {
+struct ActualTransaction: Decodable, Identifiable, Hashable, Sendable {
     let id: String?
     let account: String
     let date: String
@@ -157,7 +181,7 @@ struct ActualTransaction: Decodable, Identifiable, Hashable {
     }
 }
 
-enum FlexibleBool: Decodable, Hashable {
+enum FlexibleBool: Decodable, Hashable, Sendable {
     case bool(Bool)
     case string(String)
 

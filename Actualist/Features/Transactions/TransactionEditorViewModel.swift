@@ -9,6 +9,14 @@ enum TransactionFlowKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum TransactionSubmissionState: Equatable {
+    case draft
+    case submitting
+    case refetching
+    case clean
+    case failed(String)
+}
+
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
@@ -26,11 +34,35 @@ final class TransactionEditorViewModel {
     var payees: [ActualPayee] = []
     var isLoading = false
     var errorMessage: String?
+    var submissionState: TransactionSubmissionState = .draft
 
     var canSave: Bool {
         amountCents > 0
             && !payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && selectedAccountID != nil
+            && !isSubmitting
+    }
+
+    var isSubmitting: Bool {
+        switch submissionState {
+        case .submitting, .refetching:
+            true
+        case .draft, .clean, .failed:
+            false
+        }
+    }
+
+    var saveButtonTitle: String {
+        switch submissionState {
+        case .draft, .failed:
+            "Save"
+        case .submitting:
+            "Saving"
+        case .refetching:
+            "Refreshing"
+        case .clean:
+            "Saved"
+        }
     }
 
     var amountCents: Int {
@@ -38,7 +70,7 @@ final class TransactionEditorViewModel {
     }
 
     var formattedAmount: String {
-        Money(cents: amountCents).formatted()
+        Money(minorUnits: amountCents).formatted()
     }
 
     var amountColor: Color {
@@ -95,7 +127,7 @@ final class TransactionEditorViewModel {
 
     func load(using appState: AppState, prefilledAccount: ActualAccount?) async {
         guard let budgetID = appState.settings.selectedBudgetID,
-              let client = appState.makeClient() else {
+              let repository = appState.makeTransactionRepository() else {
             return
         }
 
@@ -107,15 +139,10 @@ final class TransactionEditorViewModel {
         errorMessage = nil
 
         do {
-            async let loadedAccounts = client.accounts(budgetID: budgetID)
-            async let loadedCategories = client.categories(budgetID: budgetID)
-            async let loadedPayees = client.payees(budgetID: budgetID)
-
-            let fetchedAccounts = try await loadedAccounts
-            accounts = fetchedAccounts.filter { !$0.closed }
-            categories = (try await loadedCategories)
-                .filter { !($0.hidden ?? false) && !($0.isIncome ?? false) }
-            payees = try await loadedPayees
+            let options = try await repository.editorOptions(budgetID: budgetID)
+            accounts = options.accounts
+            categories = options.categories
+            payees = options.payees
 
             if selectedAccountID == nil {
                 selectedAccountID = accounts.first?.id
@@ -125,6 +152,55 @@ final class TransactionEditorViewModel {
         }
 
         isLoading = false
+    }
+
+    func submit(using appState: AppState) async -> Bool {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository(),
+              let draft = makeDraft() else {
+            return false
+        }
+
+        submissionState = .submitting
+        errorMessage = nil
+
+        do {
+            let result = try await repository.createTransaction(draft, budgetID: budgetID)
+            submissionState = .refetching
+            try await repository.refreshAffectedResources(result.changed, budgetID: budgetID)
+            submissionState = .clean
+            return true
+        } catch {
+            let message = error.localizedDescription
+            submissionState = .failed(message)
+            errorMessage = message
+            return false
+        }
+    }
+
+    private func makeDraft() -> TransactionDraft? {
+        guard let selectedAccountID else {
+            return nil
+        }
+
+        let trimmedPayee = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard amountCents > 0, !trimmedPayee.isEmpty else {
+            return nil
+        }
+
+        let signedAmount = kind == .spend ? -amountCents : amountCents
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return TransactionDraft(
+            accountID: selectedAccountID,
+            date: date,
+            amountMinorUnits: signedAmount,
+            payeeID: selectedPayeeID,
+            payeeName: trimmedPayee,
+            categoryID: selectedCategoryID,
+            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+            cleared: isCleared
+        )
     }
 }
 

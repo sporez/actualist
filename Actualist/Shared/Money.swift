@@ -1,10 +1,18 @@
 import Foundation
 
 struct Money: Hashable, Sendable {
-    var cents: Int
+    var minorUnits: Int
+
+    init(minorUnits: Int) {
+        self.minorUnits = minorUnits
+    }
+
+    init(cents: Int) {
+        self.minorUnits = cents
+    }
 
     var decimalValue: Decimal {
-        Decimal(cents) / Decimal(100)
+        Decimal(minorUnits) / Decimal(100)
     }
 
     func formatted() -> String {
@@ -19,6 +27,6 @@ struct Money: Hashable, Sendable {
 
 extension Int {
     var actualMoney: Money {
-        Money(cents: self)
+        Money(minorUnits: self)
     }
 }

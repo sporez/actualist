@@ -20,6 +20,20 @@ struct BudgetRepository: Sendable {
             month: month
         )
     }
+
+    func budgetMonth(
+        budgetID: String,
+        selectedMonth: String
+    ) async throws -> LoadedBudgetMonth {
+        let availableMonths = try await client.budgetMonths(budgetID: budgetID)
+        let monthID = availableMonths.contains(selectedMonth) ? selectedMonth : (availableMonths.last ?? selectedMonth)
+        let month = try await client.budgetMonth(budgetID: budgetID, month: monthID)
+        return LoadedBudgetMonth(
+            availableMonths: availableMonths,
+            selectedMonth: monthID,
+            month: month
+        )
+    }
 }
 
 struct LoadedBudgetMonth: Equatable {

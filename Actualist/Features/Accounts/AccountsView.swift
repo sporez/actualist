@@ -131,20 +131,14 @@ struct AccountsView: View {
         await appState.loadBudgets()
 
         guard let budgetID = appState.settings.selectedBudgetID,
-              let client = appState.makeClient() else {
+              let repository = appState.makeAccountRepository() else {
             return
         }
 
         isLoading = true
         errorMessage = nil
         do {
-            let apiAccounts = try await client.accounts(budgetID: budgetID)
-            var displays: [AccountDisplay] = []
-            for account in apiAccounts {
-                let balance = try? await client.balance(budgetID: budgetID, accountID: account.id)
-                displays.append(AccountDisplay(account: account, balance: balance))
-            }
-            accounts = displays
+            accounts = try await repository.accountsWithBalances(budgetID: budgetID)
         } catch {
             errorMessage = error.localizedDescription
         }
