@@ -4,15 +4,34 @@ struct APIDataResponse<Value: Decodable>: Decodable {
     let data: Value
 }
 
-struct APIGeneralMessage: Decodable, Hashable, Sendable {
-    let message: String
-}
-
-struct APITransactionCreatePayload: Encodable, Sendable {
+struct APITransactionRulesRunPayload: Encodable, Sendable {
     let transaction: APITransactionDraft
 }
 
+struct APITransactionBatchUpdatePayload: Encodable, Sendable {
+    let learnCategories: Bool
+    let runTransfers: Bool
+    let added: [APITransactionDraft]
+    let updated: [APITransactionDraft]
+    let deleted: [APITransactionDraft]
+
+    init(
+        added: [APITransactionDraft],
+        updated: [APITransactionDraft] = [],
+        deleted: [APITransactionDraft] = [],
+        learnCategories: Bool = false,
+        runTransfers: Bool = false
+    ) {
+        self.learnCategories = learnCategories
+        self.runTransfers = runTransfers
+        self.added = added
+        self.updated = updated
+        self.deleted = deleted
+    }
+}
+
 struct APITransactionDraft: Encodable, Sendable {
+    let id: String?
     let account: String
     let date: String
     let amount: Int
@@ -23,9 +42,31 @@ struct APITransactionDraft: Encodable, Sendable {
     let cleared: Bool
 
     enum CodingKeys: String, CodingKey {
-        case account, date, amount, payee, category, notes, cleared
+        case id, account, date, amount, payee, category, notes, cleared
         case payeeName = "payee_name"
     }
+}
+
+struct APITransactionBatchUpdateResult: Decodable, Hashable, Sendable {
+    let added: [ActualTransaction]
+    let updated: [ActualTransaction]
+    let deleted: [ActualTransaction]
+
+    enum CodingKeys: CodingKey {
+        case added, updated, deleted
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        added = try container.decodeIfPresent([ActualTransaction].self, forKey: .added) ?? []
+        updated = try container.decodeIfPresent([ActualTransaction].self, forKey: .updated) ?? []
+        deleted = try container.decodeIfPresent([ActualTransaction].self, forKey: .deleted) ?? []
+    }
+}
+
+struct APITransactionRulePreview: Decodable, Hashable, Sendable {
+    let category: String?
+    let notes: String?
 }
 
 struct ActualBudget: Decodable, Identifiable, Hashable, Sendable {

@@ -74,7 +74,9 @@ struct BudgetView: View {
             .task { await viewModel.load(using: appState) }
             .refreshable { await viewModel.load(using: appState) }
             .sheet(isPresented: $isTransactionEditorPresented) {
-                TransactionEditorView(prefilledAccount: nil)
+                TransactionEditorView(prefilledAccount: nil) {
+                    Task { await viewModel.refreshSelectedMonth(using: appState) }
+                }
                     .environment(appState)
             }
         }

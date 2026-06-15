@@ -8,6 +8,15 @@ struct TransactionEditorView: View {
     @FocusState private var isAmountFocused: Bool
 
     let prefilledAccount: ActualAccount?
+    let onSaved: (() -> Void)?
+
+    init(
+        prefilledAccount: ActualAccount?,
+        onSaved: (() -> Void)? = nil
+    ) {
+        self.prefilledAccount = prefilledAccount
+        self.onSaved = onSaved
+    }
 
     var body: some View {
         NavigationStack {
@@ -19,6 +28,7 @@ struct TransactionEditorView: View {
                         amountHeader
                         transactionDetails
                         metadataDetails
+                        submissionError
                         saveButton
                     }
                     .padding(.horizontal, 18)
@@ -200,6 +210,7 @@ struct TransactionEditorView: View {
         Button {
             Task {
                 if await viewModel.submit(using: appState) {
+                    onSaved?()
                     dismiss()
                 }
             }
@@ -213,6 +224,19 @@ struct TransactionEditorView: View {
         .tint(ActualistTheme.accent)
         .disabled(!viewModel.canSave)
         .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private var submissionError: some View {
+        if let errorMessage = viewModel.errorMessage {
+            Text(errorMessage)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(ActualistTheme.danger)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
     }
 
     private var amountDigitsBinding: Binding<String> {
@@ -327,6 +351,7 @@ struct TransactionEditorView: View {
 }
 
 private struct PayeeSelectionView: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: TransactionEditorViewModel
     @State private var searchText = ""
@@ -350,7 +375,7 @@ private struct PayeeSelectionView: View {
 
                         if !trimmedSearchText.isEmpty {
                             Button {
-                                viewModel.useCustomPayee(trimmedSearchText)
+                                viewModel.useCustomPayee(trimmedSearchText, using: appState)
                                 dismiss()
                             } label: {
                                 HStack(spacing: 12) {
@@ -383,7 +408,7 @@ private struct PayeeSelectionView: View {
                             LazyVStack(spacing: 0) {
                                 ForEach(filteredPayees, id: \.pickerID) { payee in
                                     Button {
-                                        viewModel.selectPayee(payee)
+                                        viewModel.selectPayee(payee, using: appState)
                                         dismiss()
                                     } label: {
                                         HStack {

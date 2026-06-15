@@ -33,14 +33,17 @@ final class TransactionEditorViewModel {
     var categories: [ActualCategory] = []
     var payees: [ActualPayee] = []
     var isLoading = false
+    var isPreviewingRules = false
     var errorMessage: String?
     var submissionState: TransactionSubmissionState = .draft
+    private var rulePreviewSequence = 0
 
     var canSave: Bool {
         amountCents > 0
             && !payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && selectedAccountID != nil
             && !isSubmitting
+            && !isPreviewingRules
     }
 
     var isSubmitting: Bool {
@@ -120,9 +123,25 @@ final class TransactionEditorViewModel {
         payeeName = payee.name
     }
 
+    func selectPayee(_ payee: ActualPayee, using appState: AppState) {
+        selectPayee(payee)
+
+        Task {
+            await previewRules(using: appState)
+        }
+    }
+
     func useCustomPayee(_ name: String) {
         selectedPayeeID = nil
         payeeName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func useCustomPayee(_ name: String, using appState: AppState) {
+        useCustomPayee(name)
+
+        Task {
+            await previewRules(using: appState)
+        }
     }
 
     func load(using appState: AppState, prefilledAccount: ActualAccount?) async {
@@ -156,8 +175,57 @@ final class TransactionEditorViewModel {
 
     func submit(using appState: AppState) async -> Bool {
         guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository(),
-              let draft = makeDraft() else {
+              let repository = appState.makeTransactionRepository() else {
+            return false
+        }
+
+        return await submit(budgetID: budgetID, repository: repository)
+    }
+
+    func previewRules(using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository() else {
+            return
+        }
+
+        await previewRules(budgetID: budgetID, repository: repository)
+    }
+
+    func previewRules(
+        budgetID: String,
+        repository: any TransactionRepositoryProtocol
+    ) async {
+        guard let draft = makeRulePreviewDraft() else {
+            return
+        }
+
+        rulePreviewSequence += 1
+        let requestSequence = rulePreviewSequence
+        isPreviewingRules = true
+
+        do {
+            let preview = try await repository.previewRules(for: draft, budgetID: budgetID)
+            if requestSequence == rulePreviewSequence,
+               matchesCurrentRulePreviewDraft(draft) {
+                applyRulePreview(preview)
+                errorMessage = nil
+            }
+        } catch {
+            if requestSequence == rulePreviewSequence {
+                errorMessage = "Could not apply payee rules: \(error.localizedDescription)"
+            }
+        }
+
+        if requestSequence == rulePreviewSequence {
+            isPreviewingRules = false
+        }
+    }
+
+    func submit(
+        budgetID: String,
+        repository: any TransactionRepositoryProtocol
+    ) async -> Bool {
+        guard !isSubmitting, let draft = makeDraft() else {
             return false
         }
 
@@ -165,9 +233,14 @@ final class TransactionEditorViewModel {
         errorMessage = nil
 
         do {
-            let result = try await repository.createTransaction(draft, budgetID: budgetID)
-            submissionState = .refetching
-            try await repository.refreshAffectedResources(result.changed, budgetID: budgetID)
+            _ = try await repository.createTransactionAndRefresh(
+                draft,
+                budgetID: budgetID
+            ) { [weak self] in
+                await MainActor.run {
+                    self?.submissionState = .refetching
+                }
+            }
             submissionState = .clean
             return true
         } catch {
@@ -201,6 +274,48 @@ final class TransactionEditorViewModel {
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared
         )
+    }
+
+    private func makeRulePreviewDraft() -> TransactionDraft? {
+        guard let selectedAccountID else {
+            return nil
+        }
+
+        let trimmedPayee = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPayee.isEmpty else {
+            return nil
+        }
+
+        let signedAmount: Int
+        if amountCents > 0 {
+            signedAmount = kind == .spend ? -amountCents : amountCents
+        } else {
+            signedAmount = 0
+        }
+
+        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return TransactionDraft(
+            accountID: selectedAccountID,
+            date: date,
+            amountMinorUnits: signedAmount,
+            payeeID: selectedPayeeID,
+            payeeName: trimmedPayee,
+            categoryID: selectedCategoryID,
+            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+            cleared: isCleared
+        )
+    }
+
+    private func applyRulePreview(_ preview: TransactionRulePreview) {
+        selectedCategoryID = preview.categoryID
+        notes = preview.notes ?? ""
+    }
+
+    private func matchesCurrentRulePreviewDraft(_ draft: TransactionDraft) -> Bool {
+        draft.accountID == selectedAccountID
+            && draft.payeeID == selectedPayeeID
+            && draft.payeeName == payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

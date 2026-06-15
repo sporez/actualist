@@ -77,3 +77,8 @@ struct ChangedResources: Hashable, Sendable {
     let months: [String]
     let transactions: [String]
 }
+
+struct TransactionRulePreview: Hashable, Sendable {
+    let categoryID: String?
+    let notes: String?
+}

@@ -1,5 +1,18 @@
 import Foundation
 
+protocol TransactionRepositoryProtocol: Sendable {
+    func editorOptions(budgetID: String) async throws -> TransactionEditorOptions
+    func previewRules(
+        for draft: TransactionDraft,
+        budgetID: String
+    ) async throws -> TransactionRulePreview
+    func createTransactionAndRefresh(
+        _ draft: TransactionDraft,
+        budgetID: String,
+        didCreate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult
+}
+
 struct TransactionRepository: Sendable {
     let client: ActualAPIClient
 
@@ -42,6 +55,13 @@ struct TransactionRepository: Sendable {
         )
     }
 
+    func previewRules(
+        for draft: TransactionDraft,
+        budgetID: String
+    ) async throws -> TransactionRulePreview {
+        try await client.runTransactionRules(budgetID: budgetID, draft: draft)
+    }
+
     func createTransaction(
         _ draft: TransactionDraft,
         budgetID: String
@@ -50,12 +70,23 @@ struct TransactionRepository: Sendable {
         return try await api.createTransaction(draft)
     }
 
+    func createTransactionAndRefresh(
+        _ draft: TransactionDraft,
+        budgetID: String,
+        didCreate: @escaping () async -> Void = {}
+    ) async throws -> TransactionMutationResult {
+        let result = try await createTransaction(draft, budgetID: budgetID)
+        await didCreate()
+        try await refreshAffectedResources(result.changed, budgetID: budgetID)
+        return result
+    }
+
     func refreshAffectedResources(
         _ changed: ChangedResources,
         budgetID: String
     ) async throws {
         for accountID in changed.accounts {
-            _ = try? await client.balance(budgetID: budgetID, accountID: accountID)
+            _ = try await client.balance(budgetID: budgetID, accountID: accountID)
             _ = try await client.transactions(budgetID: budgetID, accountID: accountID)
         }
 
@@ -77,3 +108,5 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let categoryNames: [String: String]
     let payeeNames: [String: String]
 }
+
+extension TransactionRepository: TransactionRepositoryProtocol {}

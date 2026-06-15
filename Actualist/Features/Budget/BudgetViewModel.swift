@@ -84,15 +84,20 @@ final class BudgetViewModel {
         await selectMonth(month, budgetID: budgetID, repository: repository)
     }
 
+    func refreshSelectedMonth(using appState: AppState) async {
+        guard let selectedMonth else {
+            await load(using: appState)
+            return
+        }
+
+        await selectMonth(selectedMonth, using: appState)
+    }
+
     func selectMonth(
         _ month: String,
         budgetID: String,
         repository: BudgetRepository
     ) async {
-        guard selectedMonth != month else {
-            return
-        }
-
         isLoading = true
         errorMessage = nil
 

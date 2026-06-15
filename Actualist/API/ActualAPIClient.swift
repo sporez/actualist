@@ -43,24 +43,44 @@ struct ActualAPIClient: Sendable {
     func createTransaction(
         budgetID: String,
         draft: TransactionDraft
-    ) async throws -> APIGeneralMessage {
-        let payload = APITransactionCreatePayload(
-            transaction: APITransactionDraft(
-                account: draft.accountID,
-                date: Self.formattedTransactionDate(draft.date),
-                amount: draft.amountMinorUnits,
-                payee: draft.payeeID,
-                payeeName: draft.payeeID == nil ? draft.payeeName : nil,
-                category: draft.categoryID,
-                notes: draft.notes,
-                cleared: draft.cleared
+    ) async throws -> APITransactionBatchUpdateResult {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [
+                Self.transactionPayload(
+                    from: draft,
+                    id: UUID().uuidString
+                )
+            ]
+        )
+
+        let response: APIDataResponse<APITransactionBatchUpdateResult> = try await request(
+            path: "/budgets/\(budgetID)/transactions/batch-update",
+            method: "POST",
+            body: payload
+        )
+        return response.data
+    }
+
+    func runTransactionRules(
+        budgetID: String,
+        draft: TransactionDraft
+    ) async throws -> TransactionRulePreview {
+        let payload = APITransactionRulesRunPayload(
+            transaction: Self.transactionPayload(
+                from: draft,
+                id: "actualist-preview-\(UUID().uuidString)"
             )
         )
 
-        return try await request(
-            path: "/budgets/\(budgetID)/accounts/\(draft.accountID)/transactions",
+        let response: APIDataResponse<APITransactionRulePreview> = try await request(
+            path: "/budgets/\(budgetID)/rules/run",
             method: "POST",
             body: payload
+        )
+
+        return TransactionRulePreview(
+            categoryID: response.data.category,
+            notes: response.data.notes
         )
     }
 
@@ -137,6 +157,22 @@ struct ActualAPIClient: Sendable {
         )
     }
 
+    private static func transactionPayload(
+        from draft: TransactionDraft,
+        id: String?
+    ) -> APITransactionDraft {
+        APITransactionDraft(
+            id: id,
+            account: draft.accountID,
+            date: formattedTransactionDate(draft.date),
+            amount: draft.amountMinorUnits,
+            payee: draft.payeeID,
+            payeeName: draft.payeeID == nil ? draft.payeeName : nil,
+            category: draft.categoryID,
+            notes: draft.notes,
+            cleared: draft.cleared
+        )
+    }
 }
 
 enum ActualAPIError: LocalizedError {

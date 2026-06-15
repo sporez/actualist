@@ -67,10 +67,10 @@ struct AccountTransactionsView: View {
         }
         .task { await load() }
         .refreshable { await load() }
-        .sheet(isPresented: $isTransactionEditorPresented, onDismiss: {
-            Task { await load() }
-        }) {
-            TransactionEditorView(prefilledAccount: account)
+        .sheet(isPresented: $isTransactionEditorPresented) {
+            TransactionEditorView(prefilledAccount: account) {
+                Task { await load() }
+            }
                 .environment(appState)
         }
     }
