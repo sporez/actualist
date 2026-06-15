@@ -20,6 +20,11 @@ enum TransactionSubmissionState: Equatable {
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
+    private let editingTransactionID: String?
+    private let originalAccountID: String?
+    private let originalMonth: String?
+    private var selectedCategoryFallbackName: String?
+
     var kind: TransactionFlowKind = .spend
     var amountDigits = ""
     var payeeName = ""
@@ -38,10 +43,34 @@ final class TransactionEditorViewModel {
     var submissionState: TransactionSubmissionState = .draft
     private var rulePreviewSequence = 0
 
+    init(
+        editing transaction: ActualTransaction? = nil,
+        payeeName fallbackPayeeName: String? = nil,
+        categoryName fallbackCategoryName: String? = nil
+    ) {
+        editingTransactionID = transaction?.id
+        originalAccountID = transaction?.account
+        originalMonth = transaction?.date.actualYearMonth
+        selectedCategoryFallbackName = fallbackCategoryName
+
+        if let transaction {
+            apply(transaction, payeeName: fallbackPayeeName)
+        }
+    }
+
+    var isEditing: Bool {
+        originalAccountID != nil
+    }
+
+    var title: String {
+        isEditing ? "Edit Transaction" : "Add Transaction"
+    }
+
     var canSave: Bool {
         amountCents > 0
             && !payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && selectedAccountID != nil
+            && (!isEditing || (editingTransactionID != nil && originalMonth != nil))
             && !isSubmitting
             && !isPreviewingRules
     }
@@ -58,13 +87,13 @@ final class TransactionEditorViewModel {
     var saveButtonTitle: String {
         switch submissionState {
         case .draft, .failed:
-            "Save"
+            isEditing ? "Update" : "Save"
         case .submitting:
-            "Saving"
+            isEditing ? "Updating" : "Saving"
         case .refetching:
             "Refreshing"
         case .clean:
-            "Saved"
+            isEditing ? "Updated" : "Saved"
         }
     }
 
@@ -81,9 +110,12 @@ final class TransactionEditorViewModel {
     }
 
     var selectedCategoryName: String {
-        guard let selectedCategoryID,
-              let category = categories.first(where: { $0.id == selectedCategoryID }) else {
-            return "Select Category"
+        guard let selectedCategoryID else {
+            return isEditing ? "Uncategorized" : "Select Category"
+        }
+
+        guard let category = categories.first(where: { $0.id == selectedCategoryID }) else {
+            return selectedCategoryFallbackName?.actualistCategoryNameParts.name ?? "Select Category"
         }
 
         return category.name.actualistCategoryNameParts.name
@@ -150,7 +182,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        if let prefilledAccount {
+        if !isEditing, let prefilledAccount {
             selectedAccountID = prefilledAccount.id
         }
 
@@ -162,6 +194,8 @@ final class TransactionEditorViewModel {
             accounts = options.accounts
             categories = options.categories
             payees = options.payees
+
+            applyLoadedOptionNamesIfNeeded()
 
             if selectedAccountID == nil {
                 selectedAccountID = accounts.first?.id
@@ -229,16 +263,40 @@ final class TransactionEditorViewModel {
             return false
         }
 
+        guard !isEditing || (editingTransactionID != nil && originalAccountID != nil && originalMonth != nil) else {
+            return false
+        }
+
         submissionState = .submitting
         errorMessage = nil
 
         do {
-            _ = try await repository.createTransactionAndRefresh(
-                draft,
-                budgetID: budgetID
-            ) { [weak self] in
-                await MainActor.run {
-                    self?.submissionState = .refetching
+            if isEditing {
+                guard let editingTransactionID,
+                      let originalAccountID,
+                      let originalMonth else {
+                    return false
+                }
+
+                _ = try await repository.updateTransactionAndRefresh(
+                    editingTransactionID,
+                    with: draft,
+                    budgetID: budgetID,
+                    originalAccountID: originalAccountID,
+                    originalMonth: originalMonth
+                ) { [weak self] in
+                    await MainActor.run {
+                        self?.submissionState = .refetching
+                    }
+                }
+            } else {
+                _ = try await repository.createTransactionAndRefresh(
+                    draft,
+                    budgetID: budgetID
+                ) { [weak self] in
+                    await MainActor.run {
+                        self?.submissionState = .refetching
+                    }
                 }
             }
             submissionState = .clean
@@ -317,11 +375,63 @@ final class TransactionEditorViewModel {
             && draft.payeeID == selectedPayeeID
             && draft.payeeName == payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    private func apply(_ transaction: ActualTransaction, payeeName fallbackPayeeName: String?) {
+        let amount = transaction.amount ?? 0
+        kind = amount >= 0 ? .inflow : .spend
+        amountDigits = String(abs(amount))
+        selectedAccountID = transaction.account
+        selectedPayeeID = transaction.payee
+        selectedCategoryID = transaction.category
+        date = transaction.date.actualDate ?? date
+        notes = transaction.notes ?? ""
+        isCleared = transaction.cleared?.boolValue ?? false
+
+        if let fallbackPayeeName,
+           !fallbackPayeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           fallbackPayeeName != "Unknown Payee" {
+            payeeName = fallbackPayeeName
+        } else if let transactionPayeeName = transaction.payeeName,
+                  !transactionPayeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            payeeName = transactionPayeeName
+        } else if let importedPayee = transaction.importedPayee,
+                  !importedPayee.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            payeeName = importedPayee
+        }
+    }
+
+    private func applyLoadedOptionNamesIfNeeded() {
+        if let selectedPayeeID,
+           let matchedPayee = payees.first(where: { $0.id == selectedPayeeID }) {
+            payeeName = matchedPayee.name
+        }
+
+        if let selectedCategoryID,
+           let matchedCategory = categories.first(where: { $0.id == selectedCategoryID }) {
+            selectedCategoryFallbackName = matchedCategory.name
+        }
+    }
 }
 
 private extension String {
     func trimmingLeadingZeros() -> String {
         let trimmed = drop(while: { $0 == "0" })
         return trimmed.isEmpty ? "" : String(trimmed)
+    }
+
+    var actualDate: Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: self)
+    }
+
+    var actualYearMonth: String? {
+        guard count >= 7 else {
+            return nil
+        }
+
+        return String(prefix(7))
     }
 }

@@ -10,7 +10,7 @@ struct AccountTransactionsView: View {
     @State private var balance: Int?
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var isTransactionEditorPresented = false
+    @State private var transactionEditorPresentation: TransactionEditorPresentation?
 
     var body: some View {
         ScrollView {
@@ -18,7 +18,7 @@ struct AccountTransactionsView: View {
                 header
 
                 Button {
-                    isTransactionEditorPresented = true
+                    transactionEditorPresentation = .create
                 } label: {
                     Label("Add Transaction", systemImage: "plus.circle.fill")
                         .font(.headline.weight(.bold))
@@ -67,8 +67,13 @@ struct AccountTransactionsView: View {
         }
         .task { await load() }
         .refreshable { await load() }
-        .sheet(isPresented: $isTransactionEditorPresented) {
-            TransactionEditorView(prefilledAccount: account) {
+        .sheet(item: $transactionEditorPresentation) { presentation in
+            TransactionEditorView(
+                prefilledAccount: account,
+                editingTransaction: presentation.transaction,
+                prefilledPayeeName: presentation.payeeName,
+                prefilledCategoryName: presentation.categoryName
+            ) {
                 Task { await load() }
             }
                 .environment(appState)
@@ -101,11 +106,20 @@ struct AccountTransactionsView: View {
 
                 VStack(spacing: 0) {
                     ForEach(group.transactions, id: \.rowID) { transaction in
-                        TransactionRow(
-                            transaction: transaction,
-                            payeeName: payeeName(for: transaction),
-                            categoryName: categoryName(for: transaction)
-                        )
+                        Button {
+                            transactionEditorPresentation = .edit(
+                                transaction,
+                                payeeName: payeeName(for: transaction),
+                                categoryName: categoryName(for: transaction)
+                            )
+                        } label: {
+                            TransactionRow(
+                                transaction: transaction,
+                                payeeName: payeeName(for: transaction),
+                                categoryName: categoryName(for: transaction)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -175,6 +189,35 @@ struct AccountTransactionsView: View {
     }
 }
 
+struct TransactionEditorPresentation: Identifiable, Hashable {
+    let id: String
+    let transaction: ActualTransaction?
+    let payeeName: String?
+    let categoryName: String?
+
+    static var create: TransactionEditorPresentation {
+        TransactionEditorPresentation(
+            id: "create",
+            transaction: nil,
+            payeeName: nil,
+            categoryName: nil
+        )
+    }
+
+    static func edit(
+        _ transaction: ActualTransaction,
+        payeeName: String,
+        categoryName: String
+    ) -> TransactionEditorPresentation {
+        TransactionEditorPresentation(
+            id: "edit-\(transaction.rowID)",
+            transaction: transaction,
+            payeeName: payeeName,
+            categoryName: categoryName
+        )
+    }
+}
+
 struct TransactionDateGroup: Hashable {
     let date: String
     let title: String
@@ -221,6 +264,8 @@ struct TransactionRow: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(ActualistTheme.separator)

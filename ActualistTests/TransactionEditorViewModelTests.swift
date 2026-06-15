@@ -70,6 +70,72 @@ struct TransactionEditorViewModelTests {
         #expect(draft.notes == nil)
     }
 
+    @Test func prefilledEditModelMatchesTransaction() {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "txn-1",
+                account: "savings",
+                date: "2026-06-13",
+                amount: 4512,
+                payee: "employer",
+                payeeName: nil,
+                importedPayee: "Imported Employer",
+                category: "income",
+                notes: "paycheck",
+                cleared: .bool(true)
+            ),
+            payeeName: "Employer",
+            categoryName: "Income"
+        )
+
+        #expect(model.isEditing)
+        #expect(model.title == "Edit Transaction")
+        #expect(model.kind == .inflow)
+        #expect(model.amountDigits == "4512")
+        #expect(model.payeeName == "Employer")
+        #expect(model.selectedPayeeID == "employer")
+        #expect(model.selectedAccountID == "savings")
+        #expect(model.selectedCategoryID == "income")
+        #expect(model.selectedCategoryName == "Income")
+        #expect(model.notes == "paycheck")
+        #expect(model.isCleared)
+        #expect(model.saveButtonTitle == "Update")
+    }
+
+    @Test func editingSubmitUpdatesExistingTransaction() async throws {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "txn-1",
+                account: "checking",
+                date: "2026-05-31",
+                amount: -1200,
+                payee: nil,
+                payeeName: "Corner Store",
+                importedPayee: nil,
+                category: nil,
+                notes: nil,
+                cleared: .bool(false)
+            )
+        )
+        model.amountDigits = "1299"
+        model.date = Self.date("2026-06-14")
+        model.notes = "updated"
+        let repository = RecordingTransactionRepository()
+
+        let saved = await model.submit(budgetID: "budget", repository: repository)
+
+        #expect(saved)
+        #expect(model.submissionState == .clean)
+        #expect(await repository.draftCount() == 0)
+
+        let update = try await repository.onlyUpdate()
+        #expect(update.transactionID == "txn-1")
+        #expect(update.originalAccountID == "checking")
+        #expect(update.originalMonth == "2026-05")
+        #expect(update.draft.amountMinorUnits == -1299)
+        #expect(update.draft.notes == "updated")
+    }
+
     @Test func doesNotSubmitInvalidDrafts() async {
         let repository = RecordingTransactionRepository()
         let missingEverything = TransactionEditorViewModel()
@@ -234,6 +300,34 @@ struct TransactionEditorViewModelTests {
         #expect(transaction["payee_name"] == nil)
     }
 
+    @Test func batchUpdatePayloadCanCarryUpdatedTransactions() throws {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [],
+            updated: [
+                APITransactionDraft(
+                    id: "txn-id",
+                    account: "checking",
+                    date: "2026-06-14",
+                    amount: -1234,
+                    payee: nil,
+                    payeeName: "Corner Store",
+                    category: nil,
+                    notes: nil,
+                    cleared: false
+                )
+            ]
+        )
+
+        let dictionary = try encodedDictionary(payload)
+        let updated = try #require(dictionary["updated"] as? [[String: Any]])
+        let transaction = try #require(updated.first)
+        let added = try #require(dictionary["added"] as? [[String: Any]])
+
+        #expect(added.isEmpty)
+        #expect(transaction["id"] as? String == "txn-id")
+        #expect(transaction["payee_name"] as? String == "Corner Store")
+    }
+
     @Test func rulesRunPayloadUsesExistingPayeeID() throws {
         let payload = APITransactionRulesRunPayload(
             transaction: APITransactionDraft(
@@ -307,6 +401,32 @@ struct TransactionRepositoryRefreshTests {
         #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
     }
 
+    @Test func updateTransactionRefetchesOriginalAndNewAffectedResources() async throws {
+        let recorder = RequestRecorder()
+        let repository = Self.repository { request in
+            recorder.record(request)
+            return try Self.response(for: request)
+        }
+
+        let result = try await repository.updateTransactionAndRefresh(
+            "txn-1",
+            with: Self.draft(accountID: "savings", date: "2026-06-14"),
+            budgetID: "budget",
+            originalAccountID: "checking",
+            originalMonth: "2026-05"
+        )
+
+        let requests = recorder.requests()
+        #expect(result.changed.accounts == ["checking", "savings"])
+        #expect(result.changed.months == ["2026-05", "2026-06"])
+        #expect(result.changed.transactions == ["txn-1"])
+        #expect(requests.contains("POST /v1/budgets/budget/transactions/batch-update"))
+        #expect(requests.contains("GET /v1/budgets/budget/accounts/checking/balance"))
+        #expect(requests.contains("GET /v1/budgets/budget/accounts/savings/balance"))
+        #expect(requests.contains("GET /v1/budgets/budget/months/2026-05"))
+        #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
+    }
+
     @Test func previewRulesRequestsRulesRunEndpoint() async throws {
         let recorder = RequestRecorder()
         let repository = Self.repository { request in
@@ -373,10 +493,13 @@ struct TransactionRepositoryRefreshTests {
         return TransactionRepository(client: client)
     }
 
-    private static func draft() -> TransactionDraft {
+    private static func draft(
+        accountID: String = "checking",
+        date: String = "2026-06-14"
+    ) -> TransactionDraft {
         TransactionDraft(
-            accountID: "checking",
-            date: TransactionEditorViewModelTests.date("2026-06-14"),
+            accountID: accountID,
+            date: TransactionEditorViewModelTests.date(date),
             amountMinorUnits: -1234,
             payeeID: nil,
             payeeName: "Corner Store",
@@ -410,6 +533,10 @@ struct TransactionRepositoryRefreshTests {
             return (try okResponse(for: request), budgetMonthData())
         }
 
+        if method == "GET", path.hasSuffix("/months/2026-05") {
+            return (try okResponse(for: request), budgetMonthData(month: "2026-05"))
+        }
+
         return try errorResponse(for: request)
     }
 
@@ -441,11 +568,11 @@ struct TransactionRepositoryRefreshTests {
         return (response, #"{"error":"server failed"}"#.data(using: .utf8)!)
     }
 
-    private static func budgetMonthData() -> Data {
+    private static func budgetMonthData(month: String = "2026-06") -> Data {
         """
         {
           "data": {
-            "month": "2026-06",
+            "month": "\(month)",
             "incomeAvailable": 0,
             "lastMonthOverspent": 0,
             "forNextMonth": 0,
@@ -464,6 +591,7 @@ struct TransactionRepositoryRefreshTests {
 
 actor RecordingTransactionRepository: TransactionRepositoryProtocol {
     private var drafts: [TransactionDraft] = []
+    private var updates: [RecordedTransactionUpdate] = []
     private var rulePreviewDrafts: [TransactionDraft] = []
     private let rulePreview: TransactionRulePreview
     private let createError: Error?
@@ -543,8 +671,50 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         )
     }
 
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        updates.append(
+            RecordedTransactionUpdate(
+                transactionID: transactionID,
+                draft: draft,
+                originalAccountID: originalAccountID,
+                originalMonth: originalMonth
+            )
+        )
+
+        if let createError {
+            throw createError
+        }
+
+        await didUpdate()
+        didCreateCallbackFinished = true
+
+        if let refreshError {
+            throw refreshError
+        }
+
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [originalAccountID, draft.accountID],
+                months: [originalMonth, draft.month.rawValue],
+                transactions: [transactionID]
+            )
+        )
+    }
+
     func onlyDraft() throws -> TransactionDraft {
         try #require(drafts.first)
+    }
+
+    func onlyUpdate() throws -> RecordedTransactionUpdate {
+        try #require(updates.first)
     }
 
     func onlyRulePreviewDraft() throws -> TransactionDraft {
@@ -572,6 +742,13 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         afterDidCreateContinuation?.resume()
         afterDidCreateContinuation = nil
     }
+}
+
+struct RecordedTransactionUpdate: Sendable {
+    let transactionID: String
+    let draft: TransactionDraft
+    let originalAccountID: String
+    let originalMonth: String
 }
 
 final class StubURLProtocol: URLProtocol {

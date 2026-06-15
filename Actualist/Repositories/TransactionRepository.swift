@@ -11,6 +11,14 @@ protocol TransactionRepositoryProtocol: Sendable {
         budgetID: String,
         didCreate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult
 }
 
 struct TransactionRepository: Sendable {
@@ -81,6 +89,49 @@ struct TransactionRepository: Sendable {
         return result
     }
 
+    func updateTransaction(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String
+    ) async throws -> TransactionMutationResult {
+        _ = try await client.updateTransaction(
+            budgetID: budgetID,
+            transactionID: transactionID,
+            draft: draft
+        )
+
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: Self.uniquePreservingOrder([originalAccountID, draft.accountID]),
+                months: Self.uniquePreservingOrder([originalMonth, draft.month.rawValue]),
+                transactions: [transactionID]
+            )
+        )
+    }
+
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        didUpdate: @escaping () async -> Void = {}
+    ) async throws -> TransactionMutationResult {
+        let result = try await updateTransaction(
+            transactionID,
+            with: draft,
+            budgetID: budgetID,
+            originalAccountID: originalAccountID,
+            originalMonth: originalMonth
+        )
+        await didUpdate()
+        try await refreshAffectedResources(result.changed, budgetID: budgetID)
+        return result
+    }
+
     func refreshAffectedResources(
         _ changed: ChangedResources,
         budgetID: String
@@ -93,6 +144,11 @@ struct TransactionRepository: Sendable {
         for month in changed.months {
             _ = try await client.budgetMonth(budgetID: budgetID, month: month)
         }
+    }
+
+    private static func uniquePreservingOrder(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        return values.filter { seen.insert($0).inserted }
     }
 }
 

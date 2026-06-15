@@ -179,6 +179,8 @@ struct AccountRow: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(ActualistTheme.separator)

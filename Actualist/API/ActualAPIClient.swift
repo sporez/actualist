@@ -61,6 +61,29 @@ struct ActualAPIClient: Sendable {
         return response.data
     }
 
+    func updateTransaction(
+        budgetID: String,
+        transactionID: String,
+        draft: TransactionDraft
+    ) async throws -> APITransactionBatchUpdateResult {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [],
+            updated: [
+                Self.transactionPayload(
+                    from: draft,
+                    id: transactionID
+                )
+            ]
+        )
+
+        let response: APIDataResponse<APITransactionBatchUpdateResult> = try await request(
+            path: "/budgets/\(budgetID)/transactions/batch-update",
+            method: "POST",
+            body: payload
+        )
+        return response.data
+    }
+
     func runTransactionRules(
         budgetID: String,
         draft: TransactionDraft

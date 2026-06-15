@@ -3,7 +3,7 @@ import SwiftUI
 struct TransactionEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel = TransactionEditorViewModel()
+    @State private var viewModel: TransactionEditorViewModel
     @State private var isPayeePickerPresented = false
     @FocusState private var isAmountFocused: Bool
 
@@ -12,8 +12,18 @@ struct TransactionEditorView: View {
 
     init(
         prefilledAccount: ActualAccount?,
+        editingTransaction: ActualTransaction? = nil,
+        prefilledPayeeName: String? = nil,
+        prefilledCategoryName: String? = nil,
         onSaved: (() -> Void)? = nil
     ) {
+        _viewModel = State(
+            initialValue: TransactionEditorViewModel(
+                editing: editingTransaction,
+                payeeName: prefilledPayeeName,
+                categoryName: prefilledCategoryName
+            )
+        )
         self.prefilledAccount = prefilledAccount
         self.onSaved = onSaved
     }
@@ -35,7 +45,7 @@ struct TransactionEditorView: View {
                     .padding(.top, 18)
                     .padding(.bottom, 32)
                 }
-                .scrollDismissesKeyboard(.interactively)
+                .scrollDismissesKeyboard(.immediately)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -47,12 +57,16 @@ struct TransactionEditorView: View {
                     .actualistToolbarGlassButton()
                 }
             }
+            .navigationTitle(viewModel.title)
+            .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
             await viewModel.load(using: appState, prefilledAccount: prefilledAccount)
-            isAmountFocused = true
+            if !viewModel.isEditing {
+                isAmountFocused = true
+            }
         }
         .sheet(isPresented: $isPayeePickerPresented) {
             PayeeSelectionView(viewModel: viewModel)

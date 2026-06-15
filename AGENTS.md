@@ -171,6 +171,54 @@ Pre-handoff visual rule: if any control looks like a smaller rounded rectangle o
 - The main tab bar should include only implemented views: Budget, Accounts, and Settings initially.
 - Closed accounts and hidden categories should be collapsed by default when present.
 
+## Physical iPhone Build And Run
+
+When the user asks to build and run on their iPhone, use the connected physical device named `Airy` when present.
+
+1. List connected devices:
+
+```sh
+xcrun devicectl list devices
+```
+
+2. Build for the physical iPhone using Xcode's hardware UDID, not the CoreDevice identifier from `devicectl`. If needed, get Xcode destinations with:
+
+```sh
+xcodebuild \
+  -project Actualist.xcodeproj \
+  -scheme Actualist \
+  -showdestinations
+```
+
+The known working Xcode destination for `Airy` is:
+
+```sh
+xcodebuild \
+  -project Actualist.xcodeproj \
+  -scheme Actualist \
+  -destination 'platform=iOS,id=00008150-0001189C2220401C' \
+  -derivedDataPath .derivedData \
+  build
+```
+
+3. Install the built app with `devicectl` using the CoreDevice identifier from `xcrun devicectl list devices`. The known working CoreDevice identifier for `Airy` is `F8621CA4-4F85-50E3-A00F-FE846C848327`:
+
+```sh
+xcrun devicectl device install app \
+  --device F8621CA4-4F85-50E3-A00F-FE846C848327 \
+  .derivedData/Build/Products/Debug-iphoneos/Actualist.app
+```
+
+4. Launch the app:
+
+```sh
+xcrun devicectl device process launch \
+  --device F8621CA4-4F85-50E3-A00F-FE846C848327 \
+  com.sporez.actualist
+```
+
+These commands usually need permission outside the filesystem sandbox because Xcode and CoreDevice access signing credentials, device services, and connected-device state.
+
 ## Verification Checklist
 
 Before handing off UI or API work:
