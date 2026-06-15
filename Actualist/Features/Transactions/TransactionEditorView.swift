@@ -129,13 +129,13 @@ struct TransactionEditorView: View {
                 value: viewModel.selectedCategoryName
             ) {
                 Button("Uncategorized") {
-                    viewModel.selectedCategoryID = nil
+                    viewModel.clearCategory()
                 }
 
                 ForEach(viewModel.categories) { category in
-                    if let categoryID = category.id {
+                    if category.id != nil {
                         Button(category.name.actualistCategoryNameParts.name) {
-                            viewModel.selectedCategoryID = categoryID
+                            viewModel.selectCategory(category)
                         }
                     }
                 }

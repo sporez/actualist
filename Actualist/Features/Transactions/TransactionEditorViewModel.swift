@@ -176,6 +176,20 @@ final class TransactionEditorViewModel {
         }
     }
 
+    func clearCategory() {
+        selectedCategoryID = nil
+        selectedCategoryFallbackName = nil
+    }
+
+    func selectCategory(_ category: ActualCategory) {
+        guard let categoryID = category.id else {
+            return
+        }
+
+        selectedCategoryID = categoryID
+        selectedCategoryFallbackName = category.name
+    }
+
     func load(using appState: AppState, prefilledAccount: ActualAccount?) async {
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {

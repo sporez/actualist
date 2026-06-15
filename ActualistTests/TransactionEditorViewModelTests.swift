@@ -136,6 +136,35 @@ struct TransactionEditorViewModelTests {
         #expect(update.draft.notes == "updated")
     }
 
+    @Test func editingSubmitCanClearExistingCategory() async throws {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "txn-1",
+                account: "checking",
+                date: "2026-06-14",
+                amount: -1200,
+                payee: nil,
+                payeeName: "Corner Store",
+                importedPayee: nil,
+                category: "groceries",
+                notes: nil,
+                cleared: .bool(false)
+            ),
+            categoryName: "Groceries"
+        )
+        model.amountDigits = "1200"
+        model.clearCategory()
+        let repository = RecordingTransactionRepository()
+
+        let saved = await model.submit(budgetID: "budget", repository: repository)
+
+        #expect(saved)
+        #expect(model.selectedCategoryName == "Uncategorized")
+
+        let update = try await repository.onlyUpdate()
+        #expect(update.draft.categoryID == nil)
+    }
+
     @Test func doesNotSubmitInvalidDrafts() async {
         let repository = RecordingTransactionRepository()
         let missingEverything = TransactionEditorViewModel()
@@ -326,6 +355,7 @@ struct TransactionEditorViewModelTests {
         #expect(added.isEmpty)
         #expect(transaction["id"] as? String == "txn-id")
         #expect(transaction["payee_name"] as? String == "Corner Store")
+        #expect(transaction["category"] is NSNull)
     }
 
     @Test func batchUpdatePayloadCanCarryDeletedTransactions() throws {

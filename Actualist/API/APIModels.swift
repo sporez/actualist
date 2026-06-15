@@ -45,6 +45,30 @@ struct APITransactionDraft: Encodable, Sendable {
         case id, account, date, amount, payee, category, notes, cleared
         case payeeName = "payee_name"
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encode(account, forKey: .account)
+        try container.encode(date, forKey: .date)
+        try container.encode(amount, forKey: .amount)
+        try container.encodeIfPresent(payee, forKey: .payee)
+        try container.encodeIfPresent(payeeName, forKey: .payeeName)
+
+        if let category {
+            try container.encode(category, forKey: .category)
+        } else {
+            try container.encodeNil(forKey: .category)
+        }
+
+        if let notes {
+            try container.encode(notes, forKey: .notes)
+        } else {
+            try container.encodeNil(forKey: .notes)
+        }
+
+        try container.encode(cleared, forKey: .cleared)
+    }
 }
 
 struct APITransactionBatchUpdateResult: Decodable, Hashable, Sendable {

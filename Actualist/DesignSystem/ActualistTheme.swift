@@ -73,19 +73,19 @@ enum ActualistDisplayDensity: String, Codable, CaseIterable, Identifiable {
 
     var transactionAmountSize: CGFloat {
         switch self {
-        case .dense: 24
-        case .compact: 28
-        case .comfortable: 30
-        case .large: 34
+        case .dense: 18
+        case .compact: 21
+        case .comfortable: 23
+        case .large: 26
         }
     }
 
     var transactionClearedIconSize: CGFloat {
         switch self {
-        case .dense: 20
-        case .compact: 22
-        case .comfortable: 24
-        case .large: 26
+        case .dense: 15
+        case .compact: 17
+        case .comfortable: 18
+        case .large: 20
         }
     }
 
