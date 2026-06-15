@@ -15,6 +15,12 @@ Actualist is a native iOS 26+ client for Actual Budget through the Actual HTTP A
 - Product plan: `docs/PLAN.md`
 - Development pipeline: `docs/DEVELOPMENT.md`
 
+## Live API
+
+- The live Actual HTTP API for this network is `http://192.168.1.16:5007/v1`.
+- Use `http://192.168.1.16:5007/api-docs/swagger.json` to verify deployed route presence.
+- Do not commit API keys, budget IDs, or personal financial data when using the live API.
+
 ## Development Defaults
 
 - Use Swift and SwiftUI only for app UI.

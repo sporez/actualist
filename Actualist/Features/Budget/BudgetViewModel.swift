@@ -7,6 +7,7 @@ final class BudgetViewModel {
     var budgetMonth: BudgetMonth?
     var selectedMonth: String?
     var availableMonths: [String] = []
+    var budgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
     var isLoading = false
     var errorMessage: String?
@@ -146,7 +147,75 @@ final class BudgetViewModel {
         availableMonths = loadedMonth.availableMonths
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
+        budgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
         expandedGroupIDs = Set(loadedMonth.month.categoryGroups.prefix(3).map(\.id))
+    }
+}
+
+struct BudgetAlert: Identifiable, Equatable {
+    enum Kind: String {
+        case toBudget
+        case overspending
+        case uncategorizedTransactions
+    }
+
+    enum Severity: Equatable {
+        case positive
+        case warning
+        case danger
+    }
+
+    let kind: Kind
+    let title: String
+    let valueText: String?
+    let count: Int?
+    let actionTitle: String?
+    let severity: Severity
+
+    var id: String {
+        kind.rawValue
+    }
+
+    init(
+        kind: Kind,
+        title: String,
+        valueText: String? = nil,
+        count: Int? = nil,
+        actionTitle: String?,
+        severity: Severity
+    ) {
+        self.kind = kind
+        self.title = title
+        self.valueText = valueText
+        self.count = count
+        self.actionTitle = actionTitle
+        self.severity = severity
+    }
+
+    init?(apiAlert: APIBudgetMonthAlert) {
+        guard let kind = Kind(rawValue: apiAlert.kind) else {
+            return nil
+        }
+
+        self.kind = kind
+        title = apiAlert.title
+        valueText = apiAlert.amount?.actualMoney.formatted()
+        count = apiAlert.count
+        actionTitle = apiAlert.actionTitle
+        severity = Severity(apiValue: apiAlert.severity)
+    }
+}
+
+private extension BudgetAlert.Severity {
+    init(apiValue: String) {
+        switch apiValue {
+        case "positive":
+            self = .positive
+        case "danger":
+            self = .danger
+        default:
+            self = .warning
+        }
     }
 }
 

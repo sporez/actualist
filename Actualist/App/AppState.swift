@@ -59,6 +59,11 @@ final class AppState {
         setupPhase = canUseAPI ? .selectingBudget : .needsConnection
     }
 
+    func updateDisplayDensity(_ density: ActualistDisplayDensity) {
+        settings.displayDensity = density
+        settingsStore.save(settings)
+    }
+
     func loadBudgets() async {
         guard let repository = makeBudgetRepository() else {
             setupPhase = .needsConnection

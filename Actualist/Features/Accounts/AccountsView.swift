@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AccountsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
     @State private var accounts: [AccountDisplay] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -10,7 +11,7 @@ struct AccountsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: 20) {
                     accountSection(kind: .budget, title: "Budget Accounts", rows: openBudgetAccounts)
                     accountSection(kind: .offBudget, title: "Off Budget", rows: offBudgetAccounts)
                     accountSection(
@@ -22,7 +23,7 @@ struct AccountsView: View {
                     Button {
                     } label: {
                         Label("Add Account", systemImage: "plus.circle")
-                            .font(.headline.weight(.bold))
+                            .font(ActualistTypography.control(for: density))
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glass)
@@ -36,7 +37,7 @@ struct AccountsView: View {
 
                     if let errorMessage {
                         Text(errorMessage)
-                            .font(.callout.weight(.semibold))
+                            .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.danger)
                     }
                 }
@@ -80,7 +81,7 @@ struct AccountsView: View {
         if !rows.isEmpty {
             let isExpanded = expandedSections.contains(kind)
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 Button {
                     withAnimation(.smooth(duration: 0.2)) {
                         if isExpanded {
@@ -94,10 +95,10 @@ struct AccountsView: View {
                         Image(systemName: "chevron.down")
                             .rotationEffect(.degrees(isExpanded ? 0 : -90))
                         Text(sectionTitle(title, count: rows.count, isExpanded: isExpanded))
-                            .font(.title2.weight(.bold))
+                            .font(ActualistTypography.sectionTitle(for: density))
                         Spacer()
                         Text(total(rows).actualMoney.formatted())
-                            .font(.headline.weight(.bold))
+                            .font(ActualistTypography.rowValue(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
                     .foregroundStyle(ActualistTheme.primaryText)
@@ -113,7 +114,7 @@ struct AccountsView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
             }
         }
@@ -153,39 +154,41 @@ private enum AccountSectionKind: Hashable {
 }
 
 struct AccountRow: View {
+    @Environment(\.actualistDensity) private var density
+
     let row: AccountDisplay
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             Image(systemName: row.account.offbudget ? "tray.full.fill" : "banknote.fill")
-                .font(.title2)
+                .font(.body.weight(.semibold))
                 .foregroundStyle(ActualistTheme.accent)
-                .frame(width: 42, height: 42)
+                .frame(width: density.iconSize, height: density.iconSize)
                 .background(ActualistTheme.elevatedSurface, in: Circle())
 
             Text(row.account.name)
-                .font(.headline)
+                .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
 
             Spacer()
 
             Text((row.balance ?? 0).actualMoney.formatted())
-                .font(.headline.weight(.bold))
+                .font(ActualistTypography.rowValue(for: density))
                 .foregroundStyle((row.balance ?? 0) >= 0 ? ActualistTheme.positive : ActualistTheme.primaryText)
 
             Image(systemName: "chevron.right")
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 18)
+        .padding(.horizontal, density.rowHorizontalPadding)
+        .padding(.vertical, density.accountRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(ActualistTheme.separator)
                 .frame(height: 1)
-                .padding(.leading, 76)
+                .padding(.leading, density.iconSize + density.rowHorizontalPadding + 12)
         }
     }
 }

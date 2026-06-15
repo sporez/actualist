@@ -4,6 +4,27 @@ struct AppSettings: Codable, Equatable {
     var serverURLString: String = ""
     var selectedBudgetID: String?
     var selectedBudgetName: String?
+    var displayDensity: ActualistDisplayDensity = .compact
+
+    init(
+        serverURLString: String = "",
+        selectedBudgetID: String? = nil,
+        selectedBudgetName: String? = nil,
+        displayDensity: ActualistDisplayDensity = .compact
+    ) {
+        self.serverURLString = serverURLString
+        self.selectedBudgetID = selectedBudgetID
+        self.selectedBudgetName = selectedBudgetName
+        self.displayDensity = displayDensity
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        serverURLString = try container.decodeIfPresent(String.self, forKey: .serverURLString) ?? ""
+        selectedBudgetID = try container.decodeIfPresent(String.self, forKey: .selectedBudgetID)
+        selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)
+        displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
+    }
 }
 
 struct AppSettingsStore {
@@ -29,4 +50,3 @@ struct AppSettingsStore {
         defaults.set(data, forKey: key)
     }
 }
-

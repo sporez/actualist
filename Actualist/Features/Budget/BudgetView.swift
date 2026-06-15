@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BudgetView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
     @State private var viewModel = BudgetViewModel()
     @State private var isTransactionEditorPresented = false
     @State private var isMonthPickerPresented = false
@@ -10,9 +11,8 @@ struct BudgetView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: BudgetLayout.sectionSpacing) {
-                    if let budgetMonth = viewModel.budgetMonth {
-                        readyToAssignBanner(budgetMonth)
-                        overspendingBanner
+                    if viewModel.budgetMonth != nil {
+                        budgetAlertBanners
                         categoryGroups
                     } else if viewModel.isLoading {
                         loadingState
@@ -82,56 +82,48 @@ struct BudgetView: View {
         }
     }
 
-    private func readyToAssignBanner(_ month: BudgetMonth) -> some View {
-        Button {
-        } label: {
-            HStack {
-                Text(month.toBudget.actualMoney.formatted())
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Spacer()
-                Text("To Budget")
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Image(systemName: "chevron.right")
-                    .font(.body.weight(.bold))
-            }
-            .foregroundStyle(.black.opacity(0.78))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(ActualistTheme.positive, in: Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private var overspendingBanner: some View {
-        if let overspendingCount = viewModel.overspendingAlertCount {
+    private var budgetAlertBanners: some View {
+        ForEach(viewModel.budgetAlerts) { alert in
             Button {
             } label: {
                 HStack(spacing: 10) {
-                    Text("\(overspendingCount)")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(ActualistTheme.danger.opacity(0.8), in: Circle())
+                    if let valueText = alert.valueText {
+                        Text(valueText)
+                            .font(ActualistTypography.workScreenAmount(for: density))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
 
-                    Text("Overspent categories")
-                        .font(.subheadline.weight(.semibold))
+                    if let count = alert.count {
+                        Text("\(count)")
+                            .font(ActualistTypography.control(for: density))
+                            .foregroundStyle(alert.countForeground)
+                            .frame(width: 28, height: 28)
+                            .background(alert.countBackground, in: Circle())
+                    }
+
+                    Text(alert.title)
+                        .font(ActualistTypography.body(for: density))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.86)
 
                     Spacer()
 
-                    Text("Cover")
-                        .font(.subheadline.weight(.bold))
-                        .lineLimit(1)
+                    if let actionTitle = alert.actionTitle {
+                        Text(actionTitle)
+                            .font(ActualistTypography.control(for: density))
+                            .lineLimit(1)
+                    }
 
                     Image(systemName: "chevron.right")
                         .font(.body.weight(.bold))
                 }
-                .foregroundStyle(ActualistTheme.primaryText)
-                .padding(12)
-                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .foregroundStyle(alert.foreground)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background {
+                    alert.backgroundView
+                }
             }
             .buttonStyle(.plain)
         }
@@ -168,10 +160,10 @@ struct BudgetView: View {
         GlassPanel {
             VStack(spacing: 12) {
                 Image(systemName: "list.bullet.rectangle.portrait")
-                    .font(.largeTitle)
+                    .font(.title)
                     .foregroundStyle(ActualistTheme.accent)
                 Text(viewModel.errorMessage ?? "Budget data will appear after Actualist connects.")
-                    .font(.headline)
+                    .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .multilineTextAlignment(.center)
             }
@@ -180,7 +172,53 @@ struct BudgetView: View {
     }
 }
 
+private extension BudgetAlert {
+    var foreground: Color {
+        switch severity {
+        case .positive:
+            .black.opacity(0.78)
+        case .warning, .danger:
+            ActualistTheme.primaryText
+        }
+    }
+
+    @ViewBuilder
+    var backgroundView: some View {
+        switch severity {
+        case .positive:
+            Capsule().fill(ActualistTheme.positive)
+        case .warning, .danger:
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(ActualistTheme.surface)
+        }
+    }
+
+    var countForeground: Color {
+        switch severity {
+        case .positive:
+            .black.opacity(0.78)
+        case .warning:
+            .black.opacity(0.78)
+        case .danger:
+            .white
+        }
+    }
+
+    var countBackground: Color {
+        switch severity {
+        case .positive:
+            ActualistTheme.positive
+        case .warning:
+            ActualistTheme.warning
+        case .danger:
+            ActualistTheme.danger.opacity(0.8)
+        }
+    }
+}
+
 private struct BudgetMonthPicker: View {
+    @Environment(\.actualistDensity) private var density
+
     let availableMonths: [String]
     let selectedMonth: String?
     let onSelect: (String) -> Void
@@ -208,14 +246,14 @@ private struct BudgetMonthPicker: View {
                     displayedYear -= 1
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.title3.weight(.bold))
+                        .font(.body.weight(.bold))
                 }
                 .disabled(!hasPreviousYear)
 
                 Spacer()
 
                 Text(String(displayedYear))
-                    .font(.title3.weight(.bold))
+                    .font(ActualistTypography.sectionTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
 
                 Spacer()
@@ -224,7 +262,7 @@ private struct BudgetMonthPicker: View {
                     displayedYear += 1
                 } label: {
                     Image(systemName: "chevron.right")
-                        .font(.title3.weight(.bold))
+                        .font(.body.weight(.bold))
                 }
                 .disabled(!hasNextYear)
             }
@@ -241,7 +279,7 @@ private struct BudgetMonthPicker: View {
                         onSelect(monthID)
                     } label: {
                         Text(Self.monthName(for: monthNumber))
-                            .font(.title3.weight(monthID == selectedMonth ? .bold : .regular))
+                            .font(monthID == selectedMonth ? ActualistTypography.control(for: density) : ActualistTypography.body(for: density))
                             .foregroundStyle(monthTextColor(monthID))
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
@@ -328,6 +366,8 @@ private enum BudgetLayout {
 }
 
 struct BudgetGroupSection: View {
+    @Environment(\.actualistDensity) private var density
+
     let group: BudgetMonthCategoryGroup
     let isExpanded: Bool
     let toggle: () -> Void
@@ -342,7 +382,7 @@ struct BudgetGroupSection: View {
                         .frame(width: BudgetLayout.chevronWidth)
 
                     Text(group.name)
-                        .font(.headline.weight(.bold))
+                        .font(ActualistTypography.sectionTitle(for: density))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
 
@@ -350,10 +390,10 @@ struct BudgetGroupSection: View {
 
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("Assigned")
-                            .font(.caption.weight(.medium))
+                            .font(ActualistTypography.rowLabel(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                         Text(group.budgeted.actualMoney.formatted())
-                            .font(.subheadline.weight(.bold))
+                            .font(ActualistTypography.rowValue(for: density))
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                     }
@@ -361,10 +401,10 @@ struct BudgetGroupSection: View {
 
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("Available")
-                            .font(.caption.weight(.medium))
+                            .font(ActualistTypography.rowLabel(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                         Text(group.balance.actualMoney.formatted())
-                            .font(.subheadline.weight(.bold))
+                            .font(ActualistTypography.rowValue(for: density))
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
                     }
@@ -385,6 +425,8 @@ struct BudgetGroupSection: View {
 }
 
 struct BudgetCategoryRow: View {
+    @Environment(\.actualistDensity) private var density
+
     let category: BudgetMonthCategory
 
     var body: some View {
@@ -392,21 +434,21 @@ struct BudgetCategoryRow: View {
             emojiSlot
 
             Text(nameParts.name)
-                .font(.callout)
+                .font(ActualistTypography.body(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.86)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(category.budgeted.actualMoney.formatted())
-                .font(.subheadline.weight(.semibold))
+                .font(ActualistTypography.rowValue(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
                 .frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
 
             Text(category.balance.actualMoney.formatted())
-                .font(.subheadline.weight(.bold))
+                .font(ActualistTypography.rowValue(for: density))
                 .foregroundStyle(availableForeground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)

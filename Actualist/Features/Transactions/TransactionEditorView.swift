@@ -3,6 +3,7 @@ import SwiftUI
 struct TransactionEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
     @State private var viewModel: TransactionEditorViewModel
     @State private var isPayeePickerPresented = false
     @FocusState private var isAmountFocused: Bool
@@ -77,7 +78,7 @@ struct TransactionEditorView: View {
         VStack(spacing: 18) {
             ZStack {
                 Text(viewModel.formattedAmount)
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                    .font(ActualistTypography.editorAmount(for: density))
                     .foregroundStyle(viewModel.amountColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
@@ -120,7 +121,7 @@ struct TransactionEditorView: View {
                 isPayeePickerPresented = true
             }
 
-            Divider().overlay(ActualistTheme.separator).padding(.leading, 58)
+            Divider().overlay(ActualistTheme.separator).padding(.leading, density.iconSize + density.rowHorizontalPadding)
 
             editorPickerRow(
                 title: "Category",
@@ -140,7 +141,7 @@ struct TransactionEditorView: View {
                 }
             }
 
-            Divider().overlay(ActualistTheme.separator).padding(.leading, 58)
+            Divider().overlay(ActualistTheme.separator).padding(.leading, density.iconSize + density.rowHorizontalPadding)
 
             editorPickerRow(
                 title: "Account",
@@ -154,25 +155,25 @@ struct TransactionEditorView: View {
                 }
             }
 
-            Divider().overlay(ActualistTheme.separator).padding(.leading, 58)
+            Divider().overlay(ActualistTheme.separator).padding(.leading, density.iconSize + density.rowHorizontalPadding)
 
             HStack(spacing: 16) {
                 Image(systemName: "calendar")
-                    .font(.title3.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
-                    .frame(width: 42)
+                    .frame(width: density.iconSize)
 
                 DatePicker(
                     "Date",
                     selection: $viewModel.date,
                     displayedComponents: .date
                 )
-                .font(.headline)
+                .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .tint(ActualistTheme.accent)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 18)
+            .padding(.horizontal, density.rowHorizontalPadding)
+            .padding(.vertical, density.editorRowVerticalPadding)
         }
         .transactionEditorPanel()
     }
@@ -181,41 +182,41 @@ struct TransactionEditorView: View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 16) {
                 Image(systemName: "note.text")
-                    .font(.title3.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
-                    .frame(width: 42)
+                    .frame(width: density.iconSize)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Notes")
-                        .font(.subheadline.weight(.medium))
+                        .font(ActualistTypography.body(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
 
                     TextField("Optional", text: $viewModel.notes, axis: .vertical)
                         .lineLimit(2...4)
-                        .font(.headline)
+                        .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 18)
+            .padding(.horizontal, density.rowHorizontalPadding)
+            .padding(.vertical, density.editorRowVerticalPadding)
 
-            Divider().overlay(ActualistTheme.separator).padding(.leading, 58)
+            Divider().overlay(ActualistTheme.separator).padding(.leading, density.iconSize + density.rowHorizontalPadding)
 
             Toggle(isOn: $viewModel.isCleared) {
                 HStack(spacing: 16) {
                     Image(systemName: "c.circle")
-                        .font(.title3.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(ActualistTheme.secondaryText)
-                        .frame(width: 42)
+                        .frame(width: density.iconSize)
 
                     Text("Cleared")
-                        .font(.headline)
+                        .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
                 }
             }
             .tint(ActualistTheme.positive)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 18)
+            .padding(.horizontal, density.rowHorizontalPadding)
+            .padding(.vertical, density.editorRowVerticalPadding)
         }
         .transactionEditorPanel()
     }
@@ -230,7 +231,7 @@ struct TransactionEditorView: View {
             }
         } label: {
             Label(viewModel.saveButtonTitle, systemImage: viewModel.isSubmitting ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
-                .font(.headline.weight(.bold))
+                .font(ActualistTypography.control(for: density))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
         }
@@ -244,7 +245,7 @@ struct TransactionEditorView: View {
     private var submissionError: some View {
         if let errorMessage = viewModel.errorMessage {
             Text(errorMessage)
-                .font(.callout.weight(.semibold))
+                .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.danger)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -270,16 +271,16 @@ struct TransactionEditorView: View {
         Button(action: action) {
             HStack(spacing: 16) {
                 Image(systemName: systemImage)
-                    .font(.title3.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
-                    .frame(width: 42)
+                    .frame(width: density.iconSize)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title)
-                        .font(.subheadline.weight(.medium))
+                        .font(ActualistTypography.body(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
                     Text(value)
-                        .font(.headline)
+                        .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -288,14 +289,14 @@ struct TransactionEditorView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.headline.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 18)
+        .padding(.horizontal, density.rowHorizontalPadding)
+        .padding(.vertical, density.editorRowVerticalPadding)
     }
 
     private func editorTextFieldRow(
@@ -306,22 +307,22 @@ struct TransactionEditorView: View {
     ) -> some View {
         HStack(alignment: .top, spacing: 16) {
             Image(systemName: systemImage)
-                .font(.title3.weight(.semibold))
+                .font(.body.weight(.semibold))
                 .foregroundStyle(ActualistTheme.secondaryText)
-                .frame(width: 42)
+                .frame(width: density.iconSize)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(.subheadline.weight(.medium))
+                    .font(ActualistTypography.body(for: density))
                     .foregroundStyle(ActualistTheme.secondaryText)
                 TextField(prompt, text: text)
-                    .font(.headline)
+                    .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .textInputAutocapitalization(.words)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 18)
+        .padding(.horizontal, density.rowHorizontalPadding)
+        .padding(.vertical, density.editorRowVerticalPadding)
     }
 
     private func editorPickerRow<MenuContent: View>(
@@ -335,38 +336,39 @@ struct TransactionEditorView: View {
         } label: {
             HStack(spacing: 16) {
                 Image(systemName: systemImage)
-                    .font(.title3.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
-                    .frame(width: 42)
+                    .frame(width: density.iconSize)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title)
-                        .font(.subheadline.weight(.medium))
+                        .font(ActualistTypography.body(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
-                        Text(value)
-                            .font(.headline)
-                            .foregroundStyle(ActualistTheme.primaryText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                    Text(value)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.headline.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 18)
+        .padding(.horizontal, density.rowHorizontalPadding)
+        .padding(.vertical, density.editorRowVerticalPadding)
     }
 }
 
 private struct PayeeSelectionView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
     @Bindable var viewModel: TransactionEditorViewModel
     @State private var searchText = ""
 
@@ -396,7 +398,7 @@ private struct PayeeSelectionView: View {
                                     Image(systemName: "plus.circle.fill")
                                         .foregroundStyle(ActualistTheme.accent)
                                     Text("Use \"\(trimmedSearchText)\"")
-                                        .font(.headline.weight(.semibold))
+                                        .font(ActualistTypography.rowTitle(for: density))
                                         .foregroundStyle(ActualistTheme.primaryText)
                                         .lineLimit(1)
                                     Spacer()
@@ -414,7 +416,7 @@ private struct PayeeSelectionView: View {
                                 .padding(.top, 18)
                         } else if filteredPayees.isEmpty {
                             Text("No matching payees")
-                                .font(.callout.weight(.semibold))
+                                .font(ActualistTypography.rowTitle(for: density))
                                 .foregroundStyle(ActualistTheme.secondaryText)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 18)
@@ -427,7 +429,7 @@ private struct PayeeSelectionView: View {
                                     } label: {
                                         HStack {
                                             Text(payee.name)
-                                                .font(.headline)
+                                                .font(ActualistTypography.rowTitle(for: density))
                                                 .foregroundStyle(ActualistTheme.primaryText)
                                                 .lineLimit(1)
                                             Spacer()
@@ -437,7 +439,7 @@ private struct PayeeSelectionView: View {
                                             }
                                         }
                                         .padding(.horizontal, 16)
-                                        .padding(.vertical, 14)
+                                        .padding(.vertical, density.transactionRowVerticalPadding)
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)
@@ -480,7 +482,7 @@ private struct PayeeSelectionView: View {
 
             TextField("Search or enter custom payee", text: $searchText)
                 .textInputAutocapitalization(.words)
-                .font(.headline)
+                .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
 
             if !searchText.isEmpty {

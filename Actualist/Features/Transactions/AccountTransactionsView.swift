@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
     let account: ActualAccount
 
     @State private var transactions: [ActualTransaction] = []
@@ -11,41 +12,48 @@ struct AccountTransactionsView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var transactionEditorPresentation: TransactionEditorPresentation?
+    @State private var deletePresentation: TransactionDeletePresentation?
+    @State private var deletingTransactionID: String?
+    @State private var deleteIntentHaptic = 0
+    @State private var deleteSuccessHaptic = 0
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 22) {
+        List {
+            Section {
                 header
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
 
-                Button {
-                    transactionEditorPresentation = .create
-                } label: {
-                    Label("Add Transaction", systemImage: "plus.circle.fill")
-                        .font(.headline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-                .padding(.horizontal, 16)
-
-                transactionList
-
-                if isLoading {
-                    ProgressView("Loading transactions")
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 16)
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(ActualistTheme.danger)
-                        .padding(.horizontal, 16)
-                }
+                addTransactionButton
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
-            .padding(.bottom, 28)
+
+            transactionList
+
+            if isLoading {
+                ProgressView("Loading transactions")
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 16)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.danger)
+                    .padding(.horizontal, 16)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
         .navigationTitle(account.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -67,6 +75,8 @@ struct AccountTransactionsView: View {
         }
         .task { await load() }
         .refreshable { await load() }
+        .sensoryFeedback(.selection, trigger: deleteIntentHaptic)
+        .sensoryFeedback(.success, trigger: deleteSuccessHaptic)
         .sheet(item: $transactionEditorPresentation) { presentation in
             TransactionEditorView(
                 prefilledAccount: account,
@@ -78,15 +88,39 @@ struct AccountTransactionsView: View {
             }
                 .environment(appState)
         }
+        .confirmationDialog(
+            "Delete Transaction?",
+            isPresented: Binding(
+                get: { deletePresentation != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        deletePresentation = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let deletePresentation {
+                Button("Delete Transaction", role: .destructive) {
+                    Task { await delete(deletePresentation.transaction) }
+                }
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let deletePresentation {
+                Text("Delete \(deletePresentation.payeeName)? Actualist will confirm the server update before refreshing this account.")
+            }
+        }
     }
 
     private var header: some View {
         VStack(spacing: 6) {
             Text((balance ?? 0).actualMoney.formatted())
-                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .font(ActualistTypography.workScreenAmount(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
             Text("Working Balance")
-                .font(.headline)
+                .font(ActualistTypography.body(for: density))
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .frame(maxWidth: .infinity)
@@ -94,39 +128,110 @@ struct AccountTransactionsView: View {
         .padding(.horizontal, 16)
     }
 
-    private var transactionList: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(groupedTransactions, id: \.date) { group in
-                Text(group.title)
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .padding(.top, 22)
-                    .padding(.bottom, 12)
-                    .padding(.horizontal, 16)
-
-                VStack(spacing: 0) {
-                    ForEach(group.transactions, id: \.rowID) { transaction in
-                        Button {
-                            transactionEditorPresentation = .edit(
-                                transaction,
-                                payeeName: payeeName(for: transaction),
-                                categoryName: categoryName(for: transaction)
-                            )
-                        } label: {
-                            TransactionRow(
-                                transaction: transaction,
-                                payeeName: payeeName(for: transaction),
-                                categoryName: categoryName(for: transaction)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+    private var addTransactionButton: some View {
+        Button {
+            transactionEditorPresentation = .create
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "plus")
+                    .font(.body.weight(.bold))
+                Text("Add Transaction")
+                    .font(ActualistTypography.control(for: density))
+            }
+                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 0, style: .continuous))
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.glassProminent)
+        .tint(ActualistTheme.accent)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+    }
+
+    private var transactionList: some View {
+        ForEach(groupedTransactions, id: \.date) { group in
+            Text(group.title)
+                .font(ActualistTypography.sectionTitle(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+                .textCase(nil)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+                .padding(.horizontal, density.rowHorizontalPadding)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
+            ForEach(group.transactions, id: \.rowID) { transaction in
+                transactionButton(for: transaction)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(ActualistTheme.surface)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func transactionButton(for transaction: ActualTransaction) -> some View {
+        Button {
+            transactionEditorPresentation = .edit(
+                transaction,
+                payeeName: payeeName(for: transaction),
+                categoryName: categoryName(for: transaction)
+            )
+        } label: {
+            TransactionRow(
+                transaction: transaction,
+                payeeName: payeeName(for: transaction),
+                categoryName: categoryName(for: transaction)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(deletingTransactionID == transaction.rowID)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                requestDelete(transaction)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .disabled(transaction.id == nil || deletingTransactionID != nil)
+        }
+    }
+
+    private func requestDelete(_ transaction: ActualTransaction) {
+        guard transaction.id != nil else {
+            errorMessage = "This transaction cannot be deleted because the API did not provide its transaction ID."
+            return
+        }
+
+        deleteIntentHaptic += 1
+        deletePresentation = TransactionDeletePresentation(
+            transaction: transaction,
+            payeeName: payeeName(for: transaction)
+        )
+    }
+
+    private func delete(_ transaction: ActualTransaction) async {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository() else {
+            return
+        }
+
+        deletingTransactionID = transaction.rowID
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            _ = try await repository.deleteTransactionAndRefresh(
+                transaction,
+                budgetID: budgetID
+            ) {}
+            deleteSuccessHaptic += 1
+            await load()
+        } catch {
+            errorMessage = error.localizedDescription
+            isLoading = false
+        }
+
+        deletingTransactionID = nil
     }
 
     private var groupedTransactions: [TransactionDateGroup] {
@@ -218,6 +323,15 @@ struct TransactionEditorPresentation: Identifiable, Hashable {
     }
 }
 
+struct TransactionDeletePresentation: Identifiable, Hashable {
+    let transaction: ActualTransaction
+    let payeeName: String
+
+    var id: String {
+        transaction.rowID
+    }
+}
+
 struct TransactionDateGroup: Hashable {
     let date: String
     let title: String
@@ -231,15 +345,17 @@ extension ActualTransaction {
 }
 
 struct TransactionRow: View {
+    @Environment(\.actualistDensity) private var density
+
     let transaction: ActualTransaction
     let payeeName: String
     let categoryName: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(cleanedPayeeName)
-                    .font(.headline.weight(.bold))
+                    .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(2)
                     .minimumScaleFactor(0.9)
@@ -248,22 +364,23 @@ struct TransactionRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .trailing, spacing: 8) {
+            HStack(alignment: .center, spacing: 7) {
                 Text((transaction.amount ?? 0).actualMoney.formatted())
-                    .font(.headline.weight(.bold))
+                    .font(ActualistTypography.transactionAmount(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
 
                 if transaction.cleared?.boolValue == true {
                     Image(systemName: "c.circle.fill")
+                        .font(.system(size: density.transactionClearedIconSize, weight: .bold))
                         .foregroundStyle(ActualistTheme.positive)
                 }
             }
-            .frame(width: 104, alignment: .trailing)
+            .frame(minWidth: 150, alignment: .trailing)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.horizontal, density.rowHorizontalPadding)
+        .padding(.vertical, density.transactionRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
@@ -277,19 +394,19 @@ struct TransactionRow: View {
         HStack(spacing: 6) {
             if let emoji = categoryParts.emoji {
                 Text(verbatim: emoji)
-                    .font(.actualistEmoji(size: 16))
-                    .frame(width: 18, height: 18)
+                    .font(.actualistEmoji(size: 14))
+                    .frame(width: 16, height: 16)
                     .accessibilityHidden(true)
             }
 
             Text(categoryParts.name)
-                .font(.callout.weight(.medium))
+                .font(ActualistTypography.rowBadge(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.86)
         }
-            .padding(.horizontal, categoryParts.emoji == nil ? 12 : 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, categoryParts.emoji == nil ? 10 : 9)
+            .padding(.vertical, 5)
             .background(ActualistTheme.control, in: Capsule())
     }
 

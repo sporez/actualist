@@ -13,6 +13,10 @@ struct ActualAPIClient: Sendable {
         try await get("/budgets/\(budgetID)/months/\(month)")
     }
 
+    func budgetMonthAlerts(budgetID: String, month: String) async throws -> APIBudgetMonthAlerts {
+        try await get("/budgets/\(budgetID)/months/\(month)/alerts")
+    }
+
     func budgetMonths(budgetID: String) async throws -> [String] {
         try await get("/budgets/\(budgetID)/months")
     }
@@ -74,6 +78,24 @@ struct ActualAPIClient: Sendable {
                     id: transactionID
                 )
             ]
+        )
+
+        let response: APIDataResponse<APITransactionBatchUpdateResult> = try await request(
+            path: "/budgets/\(budgetID)/transactions/batch-update",
+            method: "POST",
+            body: payload
+        )
+        return response.data
+    }
+
+    func deleteTransaction(
+        budgetID: String,
+        transaction: ActualTransaction
+    ) async throws -> APITransactionBatchUpdateResult {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [],
+            updated: [],
+            deleted: [try Self.transactionPayload(from: transaction)]
         )
 
         let response: APIDataResponse<APITransactionBatchUpdateResult> = try await request(
@@ -196,11 +218,32 @@ struct ActualAPIClient: Sendable {
             cleared: draft.cleared
         )
     }
+
+    private static func transactionPayload(
+        from transaction: ActualTransaction
+    ) throws -> APITransactionDraft {
+        guard let id = transaction.id else {
+            throw ActualAPIError.missingTransactionID
+        }
+
+        return APITransactionDraft(
+            id: id,
+            account: transaction.account,
+            date: transaction.date,
+            amount: transaction.amount ?? 0,
+            payee: transaction.payee,
+            payeeName: transaction.payee == nil ? transaction.payeeName : nil,
+            category: transaction.category,
+            notes: transaction.notes,
+            cleared: transaction.cleared?.boolValue ?? false
+        )
+    }
 }
 
 enum ActualAPIError: LocalizedError {
     case invalidURL
     case invalidResponse
+    case missingTransactionID
     case httpStatus(Int, String?)
     case decoding(String)
     case transport(URLError?)
@@ -211,6 +254,8 @@ enum ActualAPIError: LocalizedError {
             "The server URL is invalid."
         case .invalidResponse:
             "The server returned an invalid response."
+        case .missingTransactionID:
+            "This transaction cannot be changed because the API did not provide its transaction ID."
         case .httpStatus(let status, let message):
             if let message, !message.isEmpty {
                 "The server returned HTTP \(status): \(message)"

@@ -328,6 +328,34 @@ struct TransactionEditorViewModelTests {
         #expect(transaction["payee_name"] as? String == "Corner Store")
     }
 
+    @Test func batchUpdatePayloadCanCarryDeletedTransactions() throws {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [],
+            deleted: [
+                APITransactionDraft(
+                    id: "txn-id",
+                    account: "checking",
+                    date: "2026-06-14",
+                    amount: -1234,
+                    payee: nil,
+                    payeeName: "Corner Store",
+                    category: nil,
+                    notes: nil,
+                    cleared: false
+                )
+            ]
+        )
+
+        let dictionary = try encodedDictionary(payload)
+        let deleted = try #require(dictionary["deleted"] as? [[String: Any]])
+        let transaction = try #require(deleted.first)
+        let added = try #require(dictionary["added"] as? [[String: Any]])
+
+        #expect(added.isEmpty)
+        #expect(transaction["id"] as? String == "txn-id")
+        #expect(transaction["account"] as? String == "checking")
+    }
+
     @Test func rulesRunPayloadUsesExistingPayeeID() throws {
         let payload = APITransactionRulesRunPayload(
             transaction: APITransactionDraft(
@@ -427,6 +455,28 @@ struct TransactionRepositoryRefreshTests {
         #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
     }
 
+    @Test func deleteTransactionRefetchesAffectedResourcesBeforeReturning() async throws {
+        let recorder = RequestRecorder()
+        let repository = Self.repository { request in
+            recorder.record(request)
+            return try Self.response(for: request)
+        }
+
+        let result = try await repository.deleteTransactionAndRefresh(
+            Self.transaction(),
+            budgetID: "budget"
+        )
+
+        let requests = recorder.requests()
+        #expect(result.changed.accounts == ["checking"])
+        #expect(result.changed.months == ["2026-06"])
+        #expect(result.changed.transactions == ["txn-1"])
+        #expect(requests.contains("POST /v1/budgets/budget/transactions/batch-update"))
+        #expect(requests.contains("GET /v1/budgets/budget/accounts/checking/balance"))
+        #expect(requests.contains { $0.hasPrefix("GET /v1/budgets/budget/accounts/checking/transactions?") })
+        #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
+    }
+
     @Test func previewRulesRequestsRulesRunEndpoint() async throws {
         let recorder = RequestRecorder()
         let repository = Self.repository { request in
@@ -506,6 +556,24 @@ struct TransactionRepositoryRefreshTests {
             categoryID: nil,
             notes: nil,
             cleared: false
+        )
+    }
+
+    private static func transaction(
+        accountID: String = "checking",
+        date: String = "2026-06-14"
+    ) -> ActualTransaction {
+        ActualTransaction(
+            id: "txn-1",
+            account: accountID,
+            date: date,
+            amount: -1234,
+            payee: nil,
+            payeeName: "Corner Store",
+            importedPayee: nil,
+            category: nil,
+            notes: nil,
+            cleared: nil
         )
     }
 
@@ -592,6 +660,7 @@ struct TransactionRepositoryRefreshTests {
 actor RecordingTransactionRepository: TransactionRepositoryProtocol {
     private var drafts: [TransactionDraft] = []
     private var updates: [RecordedTransactionUpdate] = []
+    private var deletes: [ActualTransaction] = []
     private var rulePreviewDrafts: [TransactionDraft] = []
     private let rulePreview: TransactionRulePreview
     private let createError: Error?
@@ -709,12 +778,44 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         )
     }
 
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        deletes.append(transaction)
+
+        if let createError {
+            throw createError
+        }
+
+        await didDelete()
+        didCreateCallbackFinished = true
+
+        if let refreshError {
+            throw refreshError
+        }
+
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [transaction.account],
+                months: transaction.date.actualYearMonth.map { [$0] } ?? [],
+                transactions: transaction.id.map { [$0] } ?? []
+            )
+        )
+    }
+
     func onlyDraft() throws -> TransactionDraft {
         try #require(drafts.first)
     }
 
     func onlyUpdate() throws -> RecordedTransactionUpdate {
         try #require(updates.first)
+    }
+
+    func onlyDelete() throws -> ActualTransaction {
+        try #require(deletes.first)
     }
 
     func onlyRulePreviewDraft() throws -> TransactionDraft {

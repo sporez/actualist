@@ -15,6 +15,6 @@ struct RootView: View {
             }
         }
         .actualistScreenBackground()
+        .environment(\.actualistDensity, appState.settings.displayDensity)
     }
 }
-

@@ -22,15 +22,91 @@ struct BudgetViewModelTests {
         model.budgetMonth = try Self.decodeBudgetMonth(
             visibleCategoryBalance: 1000,
             hiddenCategoryBalance: -5000,
+            toBudget: 0,
             lastMonthOverspent: -1000
         )
 
         #expect(model.overspendingAlertCount == 1)
     }
 
+    @Test func buildsReusableBudgetAlertsFromAPIPayloads() throws {
+        let alerts = [
+            BudgetAlert(
+                apiAlert: APIBudgetMonthAlert(
+                    kind: "toBudget",
+                    severity: "positive",
+                    title: "To Budget",
+                    amount: 1500,
+                    count: nil,
+                    actionTitle: nil
+                )
+            ),
+            BudgetAlert(
+                apiAlert: APIBudgetMonthAlert(
+                    kind: "overspending",
+                    severity: "danger",
+                    title: "Overspent categories",
+                    amount: nil,
+                    count: 1,
+                    actionTitle: "Cover"
+                )
+            ),
+            BudgetAlert(
+                apiAlert: APIBudgetMonthAlert(
+                    kind: "uncategorizedTransactions",
+                    severity: "warning",
+                    title: "Uncategorized transactions",
+                    amount: nil,
+                    count: 3,
+                    actionTitle: "Review"
+                )
+            )
+        ].compactMap { $0 }
+
+        #expect(alerts.map(\.kind) == [
+            .toBudget,
+            .overspending,
+            .uncategorizedTransactions
+        ])
+        #expect(alerts.first?.title == "To Budget")
+        #expect(alerts.first?.severity == .positive)
+        #expect(alerts.first?.valueText?.contains("15.00") == true)
+        #expect(alerts.last?.count == 3)
+        #expect(alerts.last?.actionTitle == "Review")
+        #expect(alerts.last?.severity == .warning)
+    }
+
+    @Test func ignoresUnknownAPIAlertKinds() {
+        let alert = BudgetAlert(
+            apiAlert: APIBudgetMonthAlert(
+                kind: "futureAlert",
+                severity: "warning",
+                title: "Future Alert",
+                amount: nil,
+                count: 1,
+                actionTitle: "Open"
+            )
+        )
+
+        #expect(alert == nil)
+    }
+
+    @Test func omitsZeroToBudgetAlert() throws {
+        let model = BudgetViewModel()
+        model.budgetMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 1000,
+            hiddenCategoryBalance: 0,
+            toBudget: 0,
+            lastMonthOverspent: 0
+        )
+
+        #expect(model.budgetAlerts.isEmpty)
+    }
+
     private static func decodeBudgetMonth(
         visibleCategoryBalance: Int,
         hiddenCategoryBalance: Int,
+        toBudget: Int = 0,
         lastMonthOverspent: Int
     ) throws -> BudgetMonth {
         let json = """
@@ -40,7 +116,7 @@ struct BudgetViewModelTests {
           "lastMonthOverspent": \(lastMonthOverspent),
           "forNextMonth": 0,
           "totalBudgeted": 0,
-          "toBudget": 0,
+          "toBudget": \(toBudget),
           "fromLastMonth": 0,
           "totalIncome": 0,
           "totalSpent": 0,

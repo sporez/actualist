@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
     @State private var viewModel = OnboardingViewModel()
 
     var body: some View {
@@ -14,15 +15,15 @@ struct OnboardingView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Actualist")
-                            .font(.system(size: 46, weight: .bold, design: .rounded))
+                            .font(.system(size: 40, weight: .bold, design: .rounded))
                             .foregroundStyle(ActualistTheme.primaryText)
 
                         Text("Connect to your Actual Budget server.")
-                            .font(.title3.weight(.medium))
+                            .font(ActualistTypography.sectionTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
 
                         Text("Enter the server base URL. Actualist adds /v1 when no path is provided.")
-                            .font(.callout.weight(.medium))
+                            .font(ActualistTypography.body(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText.opacity(0.82))
                     }
 
@@ -59,7 +60,7 @@ struct OnboardingView: View {
 
                     if let message = appState.lastErrorMessage {
                         Text(message)
-                            .font(.callout.weight(.semibold))
+                            .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.danger)
                     }
 
@@ -71,7 +72,7 @@ struct OnboardingView: View {
                                 ProgressView()
                             }
                             Text(viewModel.isConnecting ? "Connecting" : "Connect")
-                                .font(.headline)
+                                .font(ActualistTypography.control(for: density))
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -92,6 +93,7 @@ struct OnboardingView: View {
 
 struct BudgetPickerView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
     @State private var viewModel = BudgetPickerViewModel()
 
     var body: some View {
@@ -105,9 +107,9 @@ struct BudgetPickerView: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(budget.name)
-                                        .font(.headline)
+                                        .font(ActualistTypography.rowTitle(for: density))
                                     Text(budget.syncID)
-                                        .font(.caption)
+                                        .font(ActualistTypography.rowLabel(for: density))
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()

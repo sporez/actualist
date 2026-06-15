@@ -19,6 +19,11 @@ protocol TransactionRepositoryProtocol: Sendable {
         originalMonth: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult
 }
 
 struct TransactionRepository: Sendable {
@@ -128,6 +133,33 @@ struct TransactionRepository: Sendable {
             originalMonth: originalMonth
         )
         await didUpdate()
+        try await refreshAffectedResources(result.changed, budgetID: budgetID)
+        return result
+    }
+
+    func deleteTransaction(
+        _ transaction: ActualTransaction,
+        budgetID: String
+    ) async throws -> TransactionMutationResult {
+        _ = try await client.deleteTransaction(budgetID: budgetID, transaction: transaction)
+
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [transaction.account],
+                months: transaction.date.actualYearMonth.map { [$0] } ?? [],
+                transactions: transaction.id.map { [$0] } ?? []
+            )
+        )
+    }
+
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        didDelete: @escaping () async -> Void = {}
+    ) async throws -> TransactionMutationResult {
+        let result = try await deleteTransaction(transaction, budgetID: budgetID)
+        await didDelete()
         try await refreshAffectedResources(result.changed, budgetID: budgetID)
         return result
     }

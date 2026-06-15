@@ -44,6 +44,27 @@ struct SettingsView: View {
                         Text("Reference Dark")
                             .foregroundStyle(.secondary)
                     }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        LabeledContent("Display Size") {
+                            Text(appState.settings.displayDensity.title)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Slider(value: displayDensityValue, in: 0...3, step: 1)
+
+                        HStack {
+                            ForEach(ActualistDisplayDensity.allCases) { density in
+                                Text(density.title)
+                                    .font(.caption2.weight(density == appState.settings.displayDensity ? .bold : .medium))
+                                    .foregroundStyle(density == appState.settings.displayDensity ? ActualistTheme.primaryText : .secondary)
+
+                                if density != ActualistDisplayDensity.allCases.last {
+                                    Spacer(minLength: 8)
+                                }
+                            }
+                        }
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -52,6 +73,14 @@ struct SettingsView: View {
             .onAppear {
                 viewModel.hydrate(from: appState)
             }
+        }
+    }
+
+    private var displayDensityValue: Binding<Double> {
+        Binding {
+            appState.settings.displayDensity.sliderValue
+        } set: { value in
+            appState.updateDisplayDensity(ActualistDisplayDensity(sliderValue: value))
         }
     }
 }

@@ -118,6 +118,20 @@ struct BudgetMonth: Decodable, Hashable, Sendable {
     let categoryGroups: [BudgetMonthCategoryGroup]
 }
 
+struct APIBudgetMonthAlerts: Decodable, Hashable, Sendable {
+    let month: String
+    let alerts: [APIBudgetMonthAlert]
+}
+
+struct APIBudgetMonthAlert: Decodable, Hashable, Sendable {
+    let kind: String
+    let severity: String
+    let title: String
+    let amount: Int?
+    let count: Int?
+    let actionTitle: String?
+}
+
 struct BudgetMonthCategoryGroup: Decodable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String

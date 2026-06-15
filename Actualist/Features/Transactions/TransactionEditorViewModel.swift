@@ -413,7 +413,7 @@ final class TransactionEditorViewModel {
     }
 }
 
-private extension String {
+extension String {
     func trimmingLeadingZeros() -> String {
         let trimmed = drop(while: { $0 == "0" })
         return trimmed.isEmpty ? "" : String(trimmed)
