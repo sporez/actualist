@@ -1,6 +1,69 @@
 import Foundation
 import Observation
 
+enum BudgetAssignmentInputMode: Equatable {
+    case direct
+    case addition
+    case subtraction
+}
+
+enum BudgetAssignmentSubmissionState: Equatable {
+    case draft
+    case submitting
+    case refetching
+    case failed(String)
+}
+
+struct BudgetAssignmentDraft: Equatable {
+    let categoryID: String
+    let originalBudgeted: Int
+    var inputDigits: String
+    var inputMode: BudgetAssignmentInputMode
+    var submissionState: BudgetAssignmentSubmissionState = .draft
+
+    var isSubmitting: Bool {
+        switch submissionState {
+        case .submitting, .refetching:
+            true
+        case .draft, .failed:
+            false
+        }
+    }
+
+    var inputAmount: Int {
+        Int(inputDigits) ?? 0
+    }
+
+    var finalBudgeted: Int {
+        switch inputMode {
+        case .direct:
+            inputDigits.isEmpty ? originalBudgeted : inputAmount
+        case .addition:
+            originalBudgeted + inputAmount
+        case .subtraction:
+            originalBudgeted - inputAmount
+        }
+    }
+
+    var signedDelta: Int {
+        switch inputMode {
+        case .direct:
+            0
+        case .addition:
+            inputAmount
+        case .subtraction:
+            -inputAmount
+        }
+    }
+}
+
+struct BudgetAssignedAmountDisplay: Equatable {
+    let primaryText: String
+    let secondaryText: String?
+    let isEditing: Bool
+    let isDeltaMode: Bool
+}
+
 @MainActor
 @Observable
 final class BudgetViewModel {
@@ -11,6 +74,7 @@ final class BudgetViewModel {
     var expandedGroupIDs: Set<String> = []
     var isLoading = false
     var errorMessage: String?
+    var assignmentDraft: BudgetAssignmentDraft?
 
     var navigationTitle: String {
         guard let selectedMonth else {
@@ -45,6 +109,38 @@ final class BudgetViewModel {
         YearMonth(date: Date()).rawValue
     }
 
+    var isAssignmentKeypadPresented: Bool {
+        assignmentDraft != nil
+    }
+
+    var activeAssignmentCategoryID: String? {
+        assignmentDraft?.categoryID
+    }
+
+    var canSubmitAssignment: Bool {
+        guard let assignmentDraft else {
+            return false
+        }
+
+        return !assignmentDraft.inputDigits.isEmpty && !assignmentDraft.isSubmitting
+    }
+
+    var activeAssignmentErrorMessage: String? {
+        guard let assignmentDraft else {
+            return nil
+        }
+
+        if case .failed(let message) = assignmentDraft.submissionState {
+            return message
+        }
+
+        return nil
+    }
+
+    var isSubmittingAssignment: Bool {
+        assignmentDraft?.isSubmitting == true
+    }
+
     func load(using appState: AppState) async {
         await appState.loadBudgets()
 
@@ -58,7 +154,7 @@ final class BudgetViewModel {
 
     func load(
         budgetID: String,
-        repository: BudgetRepository
+        repository: any BudgetRepositoryProtocol
     ) async {
         isLoading = true
         errorMessage = nil
@@ -97,7 +193,7 @@ final class BudgetViewModel {
     func selectMonth(
         _ month: String,
         budgetID: String,
-        repository: BudgetRepository
+        repository: any BudgetRepositoryProtocol
     ) async {
         isLoading = true
         errorMessage = nil
@@ -127,6 +223,157 @@ final class BudgetViewModel {
         }
     }
 
+    func beginAssignmentEditing(for category: BudgetMonthCategory) {
+        guard assignmentDraft?.isSubmitting != true else {
+            return
+        }
+
+        assignmentDraft = BudgetAssignmentDraft(
+            categoryID: category.id,
+            originalBudgeted: category.budgeted,
+            inputDigits: "",
+            inputMode: .direct
+        )
+    }
+
+    func cancelAssignmentEditing() {
+        guard assignmentDraft?.isSubmitting != true else {
+            return
+        }
+
+        assignmentDraft = nil
+    }
+
+    func appendAssignmentDigit(_ digit: Int) {
+        guard var draft = editableAssignmentDraft,
+              (0...9).contains(digit) else {
+            return
+        }
+
+        draft.inputDigits = Self.normalizedAssignmentDigits(draft.inputDigits + String(digit))
+        assignmentDraft = draft
+    }
+
+    func deleteAssignmentDigit() {
+        guard var draft = editableAssignmentDraft,
+              !draft.inputDigits.isEmpty else {
+            return
+        }
+
+        draft.inputDigits.removeLast()
+        assignmentDraft = draft
+    }
+
+    func clearOrCancelAssignmentInput() {
+        guard var draft = assignmentDraft,
+              !draft.isSubmitting else {
+            return
+        }
+
+        if draft.inputDigits.isEmpty {
+            assignmentDraft = nil
+        } else {
+            draft.inputDigits = ""
+            assignmentDraft = draft
+        }
+    }
+
+    func setAssignmentInputMode(_ mode: BudgetAssignmentInputMode) {
+        guard var draft = editableAssignmentDraft else {
+            return
+        }
+
+        draft.inputMode = mode
+        assignmentDraft = draft
+    }
+
+    func assignedAmountDisplay(for category: BudgetMonthCategory) -> BudgetAssignedAmountDisplay {
+        guard let draft = assignmentDraft,
+              draft.categoryID == category.id else {
+            return BudgetAssignedAmountDisplay(
+                primaryText: category.budgeted.actualMoney.formatted(),
+                secondaryText: nil,
+                isEditing: false,
+                isDeltaMode: false
+            )
+        }
+
+        switch draft.inputMode {
+        case .direct:
+            return BudgetAssignedAmountDisplay(
+                primaryText: draft.finalBudgeted.actualMoney.formatted(),
+                secondaryText: nil,
+                isEditing: true,
+                isDeltaMode: false
+            )
+        case .addition, .subtraction:
+            return BudgetAssignedAmountDisplay(
+                primaryText: draft.originalBudgeted.actualMoney.formatted(),
+                secondaryText: Self.deltaText(
+                    for: draft.inputAmount,
+                    mode: draft.inputMode
+                ),
+                isEditing: true,
+                isDeltaMode: true
+            )
+        }
+    }
+
+    func isEditingAssignment(for category: BudgetMonthCategory) -> Bool {
+        assignmentDraft?.categoryID == category.id
+    }
+
+    func submitAssignment(using appState: AppState) async -> Bool {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeBudgetRepository() else {
+            return false
+        }
+
+        return await submitAssignment(budgetID: budgetID, repository: repository)
+    }
+
+    func submitAssignment(
+        budgetID: String,
+        repository: any BudgetRepositoryProtocol
+    ) async -> Bool {
+        guard var draft = assignmentDraft,
+              let selectedMonth,
+              !draft.inputDigits.isEmpty,
+              !draft.isSubmitting else {
+            return false
+        }
+
+        draft.submissionState = .submitting
+        assignmentDraft = draft
+
+        do {
+            let loadedMonth = try await repository.assignCategoryBudgetAndRefresh(
+                categoryID: draft.categoryID,
+                budgeted: draft.finalBudgeted,
+                budgetID: budgetID,
+                month: selectedMonth
+            ) { [weak self] in
+                await MainActor.run {
+                    guard var currentDraft = self?.assignmentDraft,
+                          currentDraft.categoryID == draft.categoryID else {
+                        return
+                    }
+
+                    currentDraft.submissionState = .refetching
+                    self?.assignmentDraft = currentDraft
+                }
+            }
+            apply(loadedMonth, preservingExpansion: true)
+            assignmentDraft = nil
+            return true
+        } catch {
+            let message = error.localizedDescription
+            draft.submissionState = .failed(message)
+            assignmentDraft = draft
+            return false
+        }
+    }
+
     private static func title(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM yyyy"
@@ -144,11 +391,51 @@ final class BudgetViewModel {
     }
 
     private func apply(_ loadedMonth: LoadedBudgetMonth) {
+        apply(loadedMonth, preservingExpansion: false)
+    }
+
+    private func apply(
+        _ loadedMonth: LoadedBudgetMonth,
+        preservingExpansion: Bool
+    ) {
+        let previousExpandedGroupIDs = expandedGroupIDs
         availableMonths = loadedMonth.availableMonths
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
         budgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
-        expandedGroupIDs = Set(loadedMonth.month.categoryGroups.prefix(3).map(\.id))
+        if preservingExpansion {
+            let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
+            expandedGroupIDs = previousExpandedGroupIDs.intersection(loadedGroupIDs)
+        } else {
+            expandedGroupIDs = Set(loadedMonth.month.categoryGroups.prefix(3).map(\.id))
+        }
+    }
+
+    private var editableAssignmentDraft: BudgetAssignmentDraft? {
+        guard let assignmentDraft,
+              !assignmentDraft.isSubmitting else {
+            return nil
+        }
+
+        return assignmentDraft
+    }
+
+    private static func deltaText(
+        for amount: Int,
+        mode: BudgetAssignmentInputMode
+    ) -> String {
+        let formatted = amount.actualMoney.formatted()
+        return mode == .subtraction ? "-\(formatted)" : "+\(formatted)"
+    }
+
+    private static func normalizedAssignmentDigits(_ value: String) -> String {
+        let digits = value.filter(\.isNumber)
+        let trimmed = digits.drop(while: { $0 == "0" })
+        if trimmed.isEmpty {
+            return digits.isEmpty ? "" : "0"
+        }
+
+        return String(trimmed)
     }
 }
 

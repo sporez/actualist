@@ -17,6 +17,19 @@ struct ActualAPIClient: Sendable {
         try await get("/budgets/\(budgetID)/months/\(month)/alerts")
     }
 
+    func updateBudgetMonthCategory(
+        budgetID: String,
+        month: String,
+        categoryID: String,
+        budgeted: Int
+    ) async throws -> APIGeneralResponseMessage {
+        try await request(
+            path: "/budgets/\(budgetID)/months/\(month)/categories/\(categoryID)",
+            method: "PATCH",
+            body: APIBudgetMonthCategoryUpdatePayload(budgeted: budgeted)
+        )
+    }
+
     func budgetMonths(budgetID: String) async throws -> [String] {
         try await get("/budgets/\(budgetID)/months")
     }

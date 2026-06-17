@@ -4,6 +4,22 @@ struct APIDataResponse<Value: Decodable>: Decodable {
     let data: Value
 }
 
+struct APIGeneralResponseMessage: Decodable, Hashable, Sendable {
+    let message: String?
+}
+
+struct APIBudgetMonthCategoryUpdatePayload: Encodable, Sendable {
+    let category: Category
+
+    init(budgeted: Int) {
+        self.category = Category(budgeted: budgeted)
+    }
+
+    struct Category: Encodable, Sendable {
+        let budgeted: Int
+    }
+}
+
 struct APITransactionRulesRunPayload: Encodable, Sendable {
     let transaction: APITransactionDraft
 }

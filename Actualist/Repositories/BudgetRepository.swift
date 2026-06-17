@@ -1,5 +1,24 @@
 import Foundation
 
+protocol BudgetRepositoryProtocol: Sendable {
+    func budgets() async throws -> [ActualBudget]
+    func currentBudgetMonth(
+        budgetID: String,
+        preferredMonth: String
+    ) async throws -> LoadedBudgetMonth
+    func budgetMonth(
+        budgetID: String,
+        selectedMonth: String
+    ) async throws -> LoadedBudgetMonth
+    func assignCategoryBudgetAndRefresh(
+        categoryID: String,
+        budgeted: Int,
+        budgetID: String,
+        month: String,
+        didAssign: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth
+}
+
 struct BudgetRepository: Sendable {
     let client: ActualAPIClient
 
@@ -33,6 +52,27 @@ struct BudgetRepository: Sendable {
         )
     }
 
+    func assignCategoryBudgetAndRefresh(
+        categoryID: String,
+        budgeted: Int,
+        budgetID: String,
+        month: String,
+        didAssign: @escaping () async -> Void = {}
+    ) async throws -> LoadedBudgetMonth {
+        _ = try await client.updateBudgetMonthCategory(
+            budgetID: budgetID,
+            month: month,
+            categoryID: categoryID,
+            budgeted: budgeted
+        )
+        await didAssign()
+
+        return try await budgetMonth(
+            budgetID: budgetID,
+            selectedMonth: month
+        )
+    }
+
     private func loadBudgetMonth(
         budgetID: String,
         availableMonths: [String],
@@ -58,3 +98,5 @@ struct LoadedBudgetMonth: Equatable {
     let month: BudgetMonth
     let alerts: [APIBudgetMonthAlert]
 }
+
+extension BudgetRepository: BudgetRepositoryProtocol {}

@@ -149,8 +149,11 @@ Button {
 
 Pre-handoff visual rule: if any control looks like a smaller rounded rectangle or capsule sitting inside a larger rounded rectangle or capsule, it is wrong. Remove one layer of glass before handing off.
 - Keep API transport, API Codable models, domain/display models, view models, and views separated.
-- Keep SwiftUI views layout-focused. Do not put API composition, loading/error workflows, budget derivation, or screen state machines directly in views.
-- Put Actual API composition in repositories. Put feature screen state, loading/error handling, expansion/selection state, and derived display logic in feature view models.
+- Keep SwiftUI views layout-focused. Do not put API composition, loading/error workflows, budget derivation, input interpretation/math, write orchestration, or screen state machines directly in views.
+- SwiftUI views may format layout, bind controls, show state already prepared for display, and call view-model intent methods. They must not compute final money amounts, decide API payload values, mutate model state beyond local presentation toggles, or contain business rules hidden in button actions/gestures.
+- Put Actual API composition, write calls, and mandatory post-write refetch policy in repositories.
+- Put feature screen state, loading/error handling, expansion/selection state, submission state machines, and derived display logic in feature view models.
+- Put reusable pure calculations or draft input interpretation in explicit value types/helpers owned by the feature or domain layer, then unit test them. Views should consume the resulting display state; repositories should receive the already-decided command values.
 - `AppState` should coordinate app-wide session/settings/routing only. Do not grow it into a catch-all feature view model.
 - Keep design values in a small theme/design-system layer instead of scattering colors and dimensions through views.
 - Treat write actions as explicit flows with confirmation or clear review states; this app controls real budget data.
