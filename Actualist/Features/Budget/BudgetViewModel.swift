@@ -250,7 +250,13 @@ final class BudgetViewModel {
             return
         }
 
-        draft.inputDigits = Self.normalizedAssignmentDigits(draft.inputDigits + String(digit))
+        let candidate = Self.normalizedAssignmentDigits(draft.inputDigits + String(digit))
+        // Cap length so the accumulated value can never overflow Int (and stays a sane amount).
+        guard candidate.count <= Self.maxAssignmentDigits else {
+            return
+        }
+
+        draft.inputDigits = candidate
         assignmentDraft = draft
     }
 
@@ -427,6 +433,9 @@ final class BudgetViewModel {
         let formatted = amount.actualMoney.formatted()
         return mode == .subtraction ? "-\(formatted)" : "+\(formatted)"
     }
+
+    /// Max digits of accumulated cents input (9 → up to $9,999,999.99). Prevents `Int` overflow.
+    static let maxAssignmentDigits = 9
 
     private static func normalizedAssignmentDigits(_ value: String) -> String {
         let digits = value.filter(\.isNumber)

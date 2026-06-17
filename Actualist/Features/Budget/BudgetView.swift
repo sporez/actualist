@@ -520,6 +520,16 @@ private enum BudgetScrollTarget {
 private enum BudgetKeypadLayout {
     static let keyHeight: CGFloat = 46
     static let actionHeight: CGFloat = 54
+    static let toolbarButtonHeight: CGFloat = 68
+    static let stackSpacing: CGFloat = 14
+    static let gridHorizontalSpacing: CGFloat = 22
+    static let gridVerticalSpacing: CGFloat = 14
+    static let horizontalPadding: CGFloat = 18
+    static let topPadding: CGFloat = 18
+    static let bottomPadding: CGFloat = 22
+    static let dismissButtonWidth: CGFloat = 52
+    static let dismissButtonHeight: CGFloat = 32
+    static let dismissRowBottomInset: CGFloat = -6
 }
 
 private struct BudgetAssignmentKeypadHeightKey: PreferenceKey {
@@ -741,8 +751,10 @@ private struct BudgetAssignmentKeypad: View {
     let cancel: () -> Void
     let submit: () -> Void
 
+    @State private var keyPressCount = 0
+
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: BudgetKeypadLayout.stackSpacing) {
             HStack {
                 Spacer()
 
@@ -750,14 +762,16 @@ private struct BudgetAssignmentKeypad: View {
                     Image(systemName: "keyboard.chevron.compact.down")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(ActualistTheme.secondaryText)
-                        .frame(width: 52, height: 32)
+                        .frame(
+                            width: BudgetKeypadLayout.dismissButtonWidth,
+                            height: BudgetKeypadLayout.dismissButtonHeight
+                        )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(isSubmitting)
                 .accessibilityLabel("Dismiss keypad")
             }
-            .padding(.bottom, -6)
+            .padding(.bottom, BudgetKeypadLayout.dismissRowBottomInset)
 
             HStack(spacing: 12) {
                 keypadToolbarButton(title: "Auto-Assign", systemImage: "bolt.fill") {}
@@ -773,52 +787,69 @@ private struct BudgetAssignmentKeypad: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Grid(horizontalSpacing: 22, verticalSpacing: 14) {
+            Grid(
+                horizontalSpacing: BudgetKeypadLayout.gridHorizontalSpacing,
+                verticalSpacing: BudgetKeypadLayout.gridVerticalSpacing
+            ) {
                 GridRow {
                     digitButton(7)
                     digitButton(8)
                     digitButton(9)
-                    modeButton(systemImage: "minus", mode: .subtraction)
+                    modeButton(systemImage: "minus", mode: .subtraction, label: "Subtract from budgeted")
                 }
 
                 GridRow {
                     digitButton(4)
                     digitButton(5)
                     digitButton(6)
-                    modeButton(systemImage: "plus", mode: .addition)
+                    modeButton(systemImage: "plus", mode: .addition, label: "Add to budgeted")
                 }
 
                 GridRow {
                     digitButton(1)
                     digitButton(2)
                     digitButton(3)
-                    modeButton(systemImage: "equal", mode: .direct)
+                    modeButton(systemImage: "equal", mode: .direct, label: "Set budgeted amount")
                 }
 
                 GridRow {
-                    iconButton(systemImage: "xmark.circle.fill", foreground: ActualistTheme.secondaryText) {
+                    iconButton(
+                        systemImage: "xmark.circle.fill",
+                        foreground: ActualistTheme.secondaryText,
+                        label: "Clear amount"
+                    ) {
                         clearOrCancel()
                     }
                     digitButton(0)
-                    iconButton(systemImage: "delete.left", foreground: ActualistTheme.accent) {
+                    iconButton(
+                        systemImage: "delete.left",
+                        foreground: ActualistTheme.accent,
+                        label: "Delete last digit"
+                    ) {
                         deleteDigit()
                     }
-                    Button(action: submit) {
-                        Text(isSubmitting ? "saving" : "done")
+                    Button {
+                        submit()
+                        keyPressCount += 1
+                    } label: {
+                        Text(isSubmitting ? "Saving" : "Done")
                             .font(ActualistTypography.control(for: density))
                             .frame(maxWidth: .infinity)
                             .frame(height: BudgetKeypadLayout.actionHeight)
                     }
                     .buttonStyle(.glassProminent)
                     .tint(ActualistTheme.accent)
-                    .disabled(!canSubmit || isSubmitting)
+                    .disabled(!canSubmit)
+                    .accessibilityLabel("Save assignment")
                 }
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 18)
-        .padding(.bottom, 22)
+        .padding(.horizontal, BudgetKeypadLayout.horizontalPadding)
+        .padding(.top, BudgetKeypadLayout.topPadding)
+        .padding(.bottom, BudgetKeypadLayout.bottomPadding)
         .background(ActualistTheme.elevatedSurface)
+        .disabled(isSubmitting)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: keyPressCount)
     }
 
     private func keypadToolbarButton(
@@ -837,7 +868,7 @@ private struct BudgetAssignmentKeypad: View {
             }
             .foregroundStyle(ActualistTheme.secondaryText)
             .frame(maxWidth: .infinity)
-            .frame(height: 68)
+            .frame(height: BudgetKeypadLayout.toolbarButtonHeight)
             .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -847,23 +878,25 @@ private struct BudgetAssignmentKeypad: View {
     private func digitButton(_ digit: Int) -> some View {
         Button {
             appendDigit(digit)
+            keyPressCount += 1
         } label: {
             Text(String(digit))
-                .font(.system(size: 32, weight: .regular, design: .rounded))
+                .font(ActualistTypography.keypadDigit(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .frame(maxWidth: .infinity)
                 .frame(height: BudgetKeypadLayout.keyHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isSubmitting)
+        .accessibilityLabel(String(digit))
     }
 
     private func modeButton(
         systemImage: String,
-        mode: BudgetAssignmentInputMode
+        mode: BudgetAssignmentInputMode,
+        label: String
     ) -> some View {
-        iconButton(systemImage: systemImage, foreground: ActualistTheme.accent) {
+        iconButton(systemImage: systemImage, foreground: ActualistTheme.accent, label: label) {
             setMode(mode)
         }
     }
@@ -871,17 +904,21 @@ private struct BudgetAssignmentKeypad: View {
     private func iconButton(
         systemImage: String,
         foreground: Color,
+        label: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            action()
+            keyPressCount += 1
+        } label: {
             Image(systemName: systemImage)
-                .font(.system(size: 27, weight: .semibold, design: .rounded))
+                .font(ActualistTypography.keypadSymbol(for: density))
                 .foregroundStyle(foreground)
                 .frame(maxWidth: .infinity)
                 .frame(height: BudgetKeypadLayout.keyHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isSubmitting)
+        .accessibilityLabel(label)
     }
 }

@@ -154,6 +154,19 @@ struct BudgetViewModelTests {
         #expect(model.assignedAmountDisplay(for: category).secondaryText?.contains("-") == true)
     }
 
+    @Test func assignmentInputIsCappedToMaxDigits() throws {
+        let model = BudgetViewModel()
+        model.beginAssignmentEditing(for: try Self.decodeCategory(budgeted: 0))
+
+        for _ in 0..<(BudgetViewModel.maxAssignmentDigits + 5) {
+            model.appendAssignmentDigit(9)
+        }
+
+        let digits = try #require(model.assignmentDraft?.inputDigits)
+        #expect(digits.count == BudgetViewModel.maxAssignmentDigits)
+        #expect(Int(digits) != nil)
+    }
+
     @Test func assignmentInputSupportsBackspaceClearCancelAndNegativeFinalAmounts() throws {
         let model = BudgetViewModel()
         let category = try Self.decodeCategory(budgeted: 200)

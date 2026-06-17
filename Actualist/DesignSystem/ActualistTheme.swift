@@ -207,6 +207,24 @@ enum ActualistTypography {
         case .dense: .subheadline.weight(.medium)
         }
     }
+
+    static func keypadDigit(for density: ActualistDisplayDensity) -> Font {
+        switch density {
+        case .large: .system(size: 34, weight: .regular, design: .rounded)
+        case .comfortable: .system(size: 32, weight: .regular, design: .rounded)
+        case .compact: .system(size: 29, weight: .regular, design: .rounded)
+        case .dense: .system(size: 26, weight: .regular, design: .rounded)
+        }
+    }
+
+    static func keypadSymbol(for density: ActualistDisplayDensity) -> Font {
+        switch density {
+        case .large: .system(size: 29, weight: .semibold, design: .rounded)
+        case .comfortable: .system(size: 27, weight: .semibold, design: .rounded)
+        case .compact: .system(size: 24, weight: .semibold, design: .rounded)
+        case .dense: .system(size: 22, weight: .semibold, design: .rounded)
+        }
+    }
 }
 
 private struct ActualistDisplayDensityKey: EnvironmentKey {
