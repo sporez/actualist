@@ -48,3 +48,7 @@ Local.xcconfig
 .env
 .env.*
 !.env.example
+
+# Local-only reference material and agent instructions
+reference/
+AGENTS.md
