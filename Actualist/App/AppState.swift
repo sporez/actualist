@@ -14,6 +14,11 @@ final class AppState {
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
 
+    /// In-memory source of truth for fetched API data (stale-while-revalidate cache).
+    @ObservationIgnored lazy var dataStore = ActualDataStore(
+        clientProvider: { [weak self] in self?.makeClient() }
+    )
+
     init(
         settingsStore: AppSettingsStore = .live,
         keychain: KeychainStore = .actualist
@@ -41,9 +46,14 @@ final class AppState {
         settings.serverURLString = ServerURLNormalizer.normalize(serverURLString)
         settingsStore.save(settings)
         keychain.saveAPIKey(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
+        // Credentials/server changed: never let another context's data linger.
+        dataStore.reset()
     }
 
     func selectBudget(_ budget: ActualBudget) {
+        if settings.selectedBudgetID != budget.syncID {
+            dataStore.reset()
+        }
         selectedBudget = budget
         settings.selectedBudgetID = budget.syncID
         settings.selectedBudgetName = budget.name
@@ -52,6 +62,7 @@ final class AppState {
     }
 
     func clearSelectionForBudgetChange() {
+        dataStore.reset()
         selectedBudget = nil
         settings.selectedBudgetID = nil
         settings.selectedBudgetName = nil
@@ -65,13 +76,14 @@ final class AppState {
     }
 
     func loadBudgets() async {
-        guard let repository = makeBudgetRepository() else {
+        guard makeClient() != nil else {
             setupPhase = .needsConnection
             return
         }
 
         do {
-            budgets = Self.uniqueBudgets(try await repository.budgets())
+            try await dataStore.ensureBudgets()
+            budgets = Self.uniqueBudgets(dataStore.budgets?.value ?? [])
             if budgets.count == 1, let budget = budgets.first {
                 selectBudget(budget)
                 return
@@ -105,28 +117,22 @@ final class AppState {
         return ActualAPIClient(baseURL: baseURL, apiKey: apiKey)
     }
 
-    func makeBudgetRepository() -> BudgetRepository? {
-        guard let client = makeClient() else {
+    /// Returns the shared data store as a budget repository, or `nil` when the app is not yet
+    /// configured (so callers skip loading just as before).
+    func makeBudgetRepository() -> (any BudgetRepositoryProtocol)? {
+        guard makeClient() != nil else {
             return nil
         }
 
-        return BudgetRepository(client: client)
+        return dataStore
     }
 
-    func makeAccountRepository() -> AccountRepository? {
-        guard let client = makeClient() else {
+    func makeTransactionRepository() -> (any TransactionRepositoryProtocol)? {
+        guard makeClient() != nil else {
             return nil
         }
 
-        return AccountRepository(client: client)
-    }
-
-    func makeTransactionRepository() -> TransactionRepository? {
-        guard let client = makeClient() else {
-            return nil
-        }
-
-        return TransactionRepository(client: client)
+        return dataStore
     }
 
     private static func uniqueBudgets(_ budgets: [ActualBudget]) -> [ActualBudget] {

@@ -1,0 +1,452 @@
+import Foundation
+import Observation
+
+/// Single in-memory source of truth for fetched API data.
+///
+/// Caching strategy (agreed with product): **stale-while-revalidate with hard
+/// invalidation**. Screens read the observable cached snapshots for instant display,
+/// then call a `refresh*` method to revalidate in the background; the view updates when
+/// fresh data lands. Every write invalidates exactly the affected cache keys and refetches
+/// them, so dependent screens never render pre-write data. The cache is memory-only and is
+/// cleared via `reset()` on budget switch / connection change / logout.
+@MainActor
+@Observable
+final class ActualDataStore {
+    struct CacheEntry<Value> {
+        var value: Value
+        var fetchedAt: Date
+    }
+
+    /// Reference data older than this is refetched by `ensure*` (secondary) reads.
+    /// Appear-driven `refresh*` calls always revalidate regardless of this window.
+    private static let referenceTTL: TimeInterval = 300
+
+    // Reference resources (slow-changing, reused across screens).
+    private(set) var budgets: CacheEntry<[ActualBudget]>?
+    private(set) var accountsByBudget: [String: CacheEntry<[ActualAccount]>] = [:]
+    private(set) var categoriesByBudget: [String: CacheEntry<[ActualCategory]>] = [:]
+    private(set) var payeesByBudget: [String: CacheEntry<[ActualPayee]>] = [:]
+    private(set) var monthsByBudget: [String: CacheEntry<[String]>] = [:]
+
+    // Money-truth resources (per account / per month).
+    private(set) var balancesByAccount: [String: CacheEntry<Int>] = [:]
+    private(set) var transactionsByAccount: [String: CacheEntry<[ActualTransaction]>] = [:]
+    private(set) var monthByKey: [String: CacheEntry<BudgetMonth>] = [:]
+    private(set) var alertsByKey: [String: CacheEntry<[APIBudgetMonthAlert]>] = [:]
+
+    @ObservationIgnored private let clientProvider: () -> ActualAPIClientProtocol?
+    @ObservationIgnored private var inFlight: [String: Task<Void, Error>] = [:]
+
+    init(clientProvider: @escaping () -> ActualAPIClientProtocol?) {
+        self.clientProvider = clientProvider
+    }
+
+    // MARK: - Keys
+
+    private func accountKey(_ budgetID: String, _ accountID: String) -> String {
+        "\(budgetID)|\(accountID)"
+    }
+
+    private func monthKey(_ budgetID: String, _ month: String) -> String {
+        "\(budgetID)|\(month)"
+    }
+
+    // MARK: - Reset / invalidation
+
+    /// Clears the entire cache. Call when the active budget, server, or credentials change so
+    /// data from another context can never appear.
+    func reset() {
+        budgets = nil
+        accountsByBudget = [:]
+        categoriesByBudget = [:]
+        payeesByBudget = [:]
+        monthsByBudget = [:]
+        balancesByAccount = [:]
+        transactionsByAccount = [:]
+        monthByKey = [:]
+        alertsByKey = [:]
+        inFlight.values.forEach { $0.cancel() }
+        inFlight = [:]
+    }
+
+    func invalidateAccount(budgetID: String, accountID: String) {
+        let key = accountKey(budgetID, accountID)
+        transactionsByAccount[key] = nil
+        balancesByAccount[key] = nil
+    }
+
+    func invalidateMonth(budgetID: String, month: String) {
+        let key = monthKey(budgetID, month)
+        monthByKey[key] = nil
+        alertsByKey[key] = nil
+    }
+
+    func invalidatePayees(budgetID: String) {
+        payeesByBudget[budgetID] = nil
+    }
+
+    // MARK: - Cached snapshot accessors (instant, observable reads)
+
+    func accountDisplays(budgetID: String) -> [AccountDisplay] {
+        (accountsByBudget[budgetID]?.value ?? []).map { account in
+            AccountDisplay(account: account, balance: balancesByAccount[accountKey(budgetID, account.id)]?.value)
+        }
+    }
+
+    /// Cached composed transactions snapshot for a screen, or `nil` if nothing is cached yet.
+    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
+        let key = accountKey(budgetID, accountID)
+        guard let transactions = transactionsByAccount[key]?.value else {
+            return nil
+        }
+
+        return LoadedAccountTransactions(
+            transactions: transactions,
+            balance: balancesByAccount[key]?.value,
+            categoryNames: categoryNames(budgetID: budgetID),
+            payeeNames: payeeNames(budgetID: budgetID)
+        )
+    }
+
+    private func categoryNames(budgetID: String) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: (categoriesByBudget[budgetID]?.value ?? []).compactMap { category in
+            category.id.map { ($0, category.name) }
+        })
+    }
+
+    private func payeeNames(budgetID: String) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: (payeesByBudget[budgetID]?.value ?? []).compactMap { payee in
+            payee.id.map { ($0, payee.name) }
+        })
+    }
+
+    // MARK: - Reference refreshes
+
+    func refreshBudgets() async throws {
+        let client = try requireClient()
+        try await coalesced("budgets") {
+            let value = try await client.budgets()
+            self.budgets = CacheEntry(value: value, fetchedAt: Date())
+        }
+    }
+
+    func refreshAccounts(budgetID: String) async throws {
+        let client = try requireClient()
+        try await coalesced("accounts|\(budgetID)") {
+            let value = try await client.accounts(budgetID: budgetID)
+            self.accountsByBudget[budgetID] = CacheEntry(value: value, fetchedAt: Date())
+        }
+    }
+
+    func refreshCategories(budgetID: String) async throws {
+        let client = try requireClient()
+        try await coalesced("categories|\(budgetID)") {
+            let value = try await client.categories(budgetID: budgetID)
+            self.categoriesByBudget[budgetID] = CacheEntry(value: value, fetchedAt: Date())
+        }
+    }
+
+    func refreshPayees(budgetID: String) async throws {
+        let client = try requireClient()
+        try await coalesced("payees|\(budgetID)") {
+            let value = try await client.payees(budgetID: budgetID)
+            self.payeesByBudget[budgetID] = CacheEntry(value: value, fetchedAt: Date())
+        }
+    }
+
+    func refreshBudgetMonths(budgetID: String) async throws {
+        let client = try requireClient()
+        try await coalesced("months|\(budgetID)") {
+            let value = try await client.budgetMonths(budgetID: budgetID)
+            self.monthsByBudget[budgetID] = CacheEntry(value: value, fetchedAt: Date())
+        }
+    }
+
+    func ensureBudgets() async throws {
+        if let budgets, Date().timeIntervalSince(budgets.fetchedAt) < Self.referenceTTL {
+            return
+        }
+        try await refreshBudgets()
+    }
+
+    func ensureCategories(budgetID: String) async throws {
+        if let entry = categoriesByBudget[budgetID], Date().timeIntervalSince(entry.fetchedAt) < Self.referenceTTL {
+            return
+        }
+        try await refreshCategories(budgetID: budgetID)
+    }
+
+    func ensurePayees(budgetID: String) async throws {
+        if let entry = payeesByBudget[budgetID], Date().timeIntervalSince(entry.fetchedAt) < Self.referenceTTL {
+            return
+        }
+        try await refreshPayees(budgetID: budgetID)
+    }
+
+    // MARK: - Money-truth refreshes
+
+    /// Fetches accounts then their balances in parallel (replaces the previous serial N+1).
+    func refreshAccountsWithBalances(budgetID: String) async throws {
+        try await refreshAccounts(budgetID: budgetID)
+        let client = try requireClient()
+        let accounts = accountsByBudget[budgetID]?.value ?? []
+
+        let balances = try await withThrowingTaskGroup(of: (String, Int?).self) { group -> [(String, Int?)] in
+            for account in accounts {
+                group.addTask {
+                    let balance = try? await client.balance(budgetID: budgetID, accountID: account.id)
+                    return (account.id, balance)
+                }
+            }
+            var results: [(String, Int?)] = []
+            for try await result in group {
+                results.append(result)
+            }
+            return results
+        }
+
+        for (accountID, balance) in balances {
+            if let balance {
+                balancesByAccount[accountKey(budgetID, accountID)] = CacheEntry(value: balance, fetchedAt: Date())
+            }
+        }
+    }
+
+    /// Revalidates the money-truth data for one account; reuses cached reference data unless stale.
+    func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
+        try await ensureCategories(budgetID: budgetID)
+        try await ensurePayees(budgetID: budgetID)
+
+        let client = try requireClient()
+        let key = accountKey(budgetID, accountID)
+        try await coalesced("transactions|\(key)") {
+            async let transactions = client.transactions(budgetID: budgetID, accountID: accountID)
+            async let balance = client.balance(budgetID: budgetID, accountID: accountID)
+            let loadedTransactions = try await transactions
+            let loadedBalance = try? await balance
+            self.transactionsByAccount[key] = CacheEntry(value: loadedTransactions, fetchedAt: Date())
+            if let loadedBalance {
+                self.balancesByAccount[key] = CacheEntry(value: loadedBalance, fetchedAt: Date())
+            }
+        }
+    }
+
+    func refreshBudgetMonth(budgetID: String, month: String) async throws {
+        let client = try requireClient()
+        let key = monthKey(budgetID, month)
+        try await coalesced("month|\(key)") {
+            async let loadedMonth = client.budgetMonth(budgetID: budgetID, month: month)
+            async let loadedAlerts = client.budgetMonthAlerts(budgetID: budgetID, month: month)
+            self.monthByKey[key] = CacheEntry(value: try await loadedMonth, fetchedAt: Date())
+            self.alertsByKey[key] = CacheEntry(value: try await loadedAlerts.alerts, fetchedAt: Date())
+        }
+    }
+
+    // MARK: - Invalidation orchestration for writes
+
+    /// Invalidates and refetches everything a mutation touched so the cache holds fresh values
+    /// before any dependent screen reads.
+    func applyInvalidation(_ changed: ChangedResources, budgetID: String, newPayeeName: String? = nil) async throws {
+        if newPayeeName != nil {
+            invalidatePayees(budgetID: budgetID)
+            try? await refreshPayees(budgetID: budgetID)
+        }
+
+        for accountID in changed.accounts {
+            invalidateAccount(budgetID: budgetID, accountID: accountID)
+            try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID)
+        }
+
+        for month in changed.months {
+            invalidateMonth(budgetID: budgetID, month: month)
+            try await refreshBudgetMonth(budgetID: budgetID, month: month)
+        }
+    }
+
+    // MARK: - Coalescing
+
+    private func coalesced(_ key: String, _ operation: @escaping @MainActor @Sendable () async throws -> Void) async throws {
+        if let existing = inFlight[key] {
+            try await existing.value
+            return
+        }
+
+        let task = Task<Void, Error> { try await operation() }
+        inFlight[key] = task
+        do {
+            try await task.value
+            inFlight[key] = nil
+        } catch {
+            inFlight[key] = nil
+            throw error
+        }
+    }
+
+    private func requireClient() throws -> ActualAPIClientProtocol {
+        guard let client = clientProvider() else {
+            throw ActualAPIError.invalidURL
+        }
+        return client
+    }
+}
+
+// MARK: - Composed data providers (conform to existing repository protocols)
+
+extension ActualDataStore: BudgetRepositoryProtocol {
+    func budgets() async throws -> [ActualBudget] {
+        try await refreshBudgets()
+        return budgets?.value ?? []
+    }
+
+    func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth {
+        try await refreshBudgetMonths(budgetID: budgetID)
+        let months = monthsByBudget[budgetID]?.value ?? []
+        let monthID = months.contains(preferredMonth) ? preferredMonth : (months.last ?? preferredMonth)
+        return try await loadedBudgetMonth(budgetID: budgetID, availableMonths: months, monthID: monthID)
+    }
+
+    func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth {
+        try await refreshBudgetMonths(budgetID: budgetID)
+        let months = monthsByBudget[budgetID]?.value ?? []
+        let monthID = months.contains(selectedMonth) ? selectedMonth : (months.last ?? selectedMonth)
+        return try await loadedBudgetMonth(budgetID: budgetID, availableMonths: months, monthID: monthID)
+    }
+
+    func assignCategoryBudgetAndRefresh(
+        categoryID: String,
+        budgeted: Int,
+        budgetID: String,
+        month: String,
+        didAssign: @escaping () async -> Void = {}
+    ) async throws -> LoadedBudgetMonth {
+        let client = try requireClient()
+        _ = try await client.updateBudgetMonthCategory(
+            budgetID: budgetID,
+            month: month,
+            categoryID: categoryID,
+            budgeted: budgeted
+        )
+        await didAssign()
+        invalidateMonth(budgetID: budgetID, month: month)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+    }
+
+    private func loadedBudgetMonth(
+        budgetID: String,
+        availableMonths: [String],
+        monthID: String
+    ) async throws -> LoadedBudgetMonth {
+        try await refreshBudgetMonth(budgetID: budgetID, month: monthID)
+        let key = monthKey(budgetID, monthID)
+        guard let month = monthByKey[key]?.value else {
+            throw ActualAPIError.invalidResponse
+        }
+        return LoadedBudgetMonth(
+            availableMonths: availableMonths,
+            selectedMonth: monthID,
+            month: month,
+            alerts: alertsByKey[key]?.value ?? []
+        )
+    }
+}
+
+extension ActualDataStore: TransactionRepositoryProtocol {
+    func editorOptions(budgetID: String) async throws -> TransactionEditorOptions {
+        try await ensureAccounts(budgetID: budgetID)
+        try await ensureCategories(budgetID: budgetID)
+        try await ensurePayees(budgetID: budgetID)
+
+        return TransactionEditorOptions(
+            accounts: (accountsByBudget[budgetID]?.value ?? []).filter { !$0.closed },
+            categories: (categoriesByBudget[budgetID]?.value ?? []).filter { !($0.hidden ?? false) && !($0.isIncome ?? false) },
+            payees: payeesByBudget[budgetID]?.value ?? []
+        )
+    }
+
+    func previewRules(for draft: TransactionDraft, budgetID: String) async throws -> TransactionRulePreview {
+        try await requireClient().runTransactionRules(budgetID: budgetID, draft: draft)
+    }
+
+    func createTransactionAndRefresh(
+        _ draft: TransactionDraft,
+        budgetID: String,
+        didCreate: @escaping () async -> Void = {}
+    ) async throws -> TransactionMutationResult {
+        let client = try requireClient()
+        _ = try await client.createTransaction(budgetID: budgetID, draft: draft)
+        let result = TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [draft.accountID],
+                months: [draft.month.rawValue],
+                transactions: []
+            )
+        )
+        await didCreate()
+        try await applyInvalidation(
+            result.changed,
+            budgetID: budgetID,
+            newPayeeName: draft.payeeID == nil ? draft.payeeName : nil
+        )
+        return result
+    }
+
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        didUpdate: @escaping () async -> Void = {}
+    ) async throws -> TransactionMutationResult {
+        let client = try requireClient()
+        _ = try await client.updateTransaction(budgetID: budgetID, transactionID: transactionID, draft: draft)
+        let result = TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: Self.uniquePreservingOrder([originalAccountID, draft.accountID]),
+                months: Self.uniquePreservingOrder([originalMonth, draft.month.rawValue]),
+                transactions: [transactionID]
+            )
+        )
+        await didUpdate()
+        try await applyInvalidation(
+            result.changed,
+            budgetID: budgetID,
+            newPayeeName: draft.payeeID == nil ? draft.payeeName : nil
+        )
+        return result
+    }
+
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        didDelete: @escaping () async -> Void = {}
+    ) async throws -> TransactionMutationResult {
+        let client = try requireClient()
+        _ = try await client.deleteTransaction(budgetID: budgetID, transaction: transaction)
+        let result = TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [transaction.account],
+                months: transaction.date.actualYearMonth.map { [$0] } ?? [],
+                transactions: transaction.id.map { [$0] } ?? []
+            )
+        )
+        await didDelete()
+        try await applyInvalidation(result.changed, budgetID: budgetID)
+        return result
+    }
+
+    func ensureAccounts(budgetID: String) async throws {
+        if let entry = accountsByBudget[budgetID], Date().timeIntervalSince(entry.fetchedAt) < Self.referenceTTL {
+            return
+        }
+        try await refreshAccounts(budgetID: budgetID)
+    }
+
+    private static func uniquePreservingOrder(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        return values.filter { seen.insert($0).inserted }
+    }
+}

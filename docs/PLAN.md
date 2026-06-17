@@ -188,7 +188,7 @@ Later write actions:
 - `GET /budgets/{budgetSyncId}/accounts`
 - `GET /budgets/{budgetSyncId}/accounts/{accountId}/balance`
 
-The account list response does not include balances, so the repository should enrich accounts by fetching each balance. Cache balances per refresh pass and surface partial loading states.
+The account list response does not include balances, so the data store enriches accounts by fetching each balance in parallel (a task group, not serial). Balances are cached per account and surfaced through the store's composed `accountDisplays`.
 
 Account grouping needs a confirmed data source. The OpenAPI `Account` schema includes `offbudget` and `closed`, but does not include a clear account type such as checking/credit. First implementation can group by:
 
@@ -226,13 +226,13 @@ draft -> submitting -> refetching -> clean
 draft -> submitting -> failed/retry
 ```
 
-After any successful write, the repository should refetch the affected data from the API before the feature returns to a clean state:
+After any successful write, the data store invalidates the affected cache keys and refetches them before the feature returns to a clean state (driven by the write's `ChangedResources`):
 
-- Transaction create/edit/delete: refetch the affected account balance, affected account transactions, and affected budget month.
-- Categorize or clear/unclear transaction: refetch the affected transaction list, account balance when relevant, and affected month when the category or amount changes budget state.
-- Category transfer, move money, or cover overspending: refetch the affected budget month and categories.
+- Transaction create/edit/delete: invalidate + refetch the affected account balance, affected account transactions, and affected budget month (and alerts). A new payee also invalidates the cached payee list.
+- Categorize or clear/unclear transaction: same account/month invalidation as above.
+- Category transfer, move money, or cover overspending: invalidate + refetch the affected budget month and categories.
 
-The Actual HTTP API currently returns a simple general response for transaction creation, so `TransactionMutationResult.changed` is app-side metadata synthesized by the repository from the submitted draft unless the server later exposes richer mutation results.
+The Actual HTTP API currently returns a simple general response for transaction creation, so `TransactionMutationResult.changed` is app-side metadata synthesized by the data store from the submitted draft unless the server later exposes richer mutation results.
 
 Suggested Swift boundary:
 
@@ -255,7 +255,7 @@ Recommended first implementation:
 - Codable API models with an adapter layer for display models.
 - Clean app-native models at view/view-model boundaries; keep ugly or inconsistent API payload shapes isolated in the API client and repositories.
 - Swift Testing or XCTest for formatting, decoding, and view-model logic.
-- No database in the first pass; use in-memory repositories, `UserDefaults`/`AppStorage` for non-secret preferences, and Keychain for the API key.
+- No database in the first pass; use the in-memory `ActualDataStore` (SWR cache), `UserDefaults`/`AppStorage` for non-secret preferences, and Keychain for the API key.
 - Use Observation (`@Observable`) for app/view model state where appropriate.
 - Use Swift concurrency and keep UI mutations on the main actor.
 - Keep the app dependency-light at first. Add Swift packages only when they remove meaningful complexity.
@@ -275,14 +275,14 @@ Actualist/
     PillButton.swift
   API/
     ActualAPIClient.swift
-    ActualEndpoint.swift
-    ActualAuthenticator.swift
+    ActualAPIClientProtocol.swift   # client seam (real client + test fakes)
     APIModels.swift
-    APIError.swift
+  Data/
+    ActualDataStore.swift           # SWR cache + composition + write invalidation (source of truth)
   Repositories/
-    BudgetRepository.swift
-    AccountRepository.swift
-    TransactionRepository.swift
+    BudgetRepository.swift          # BudgetRepositoryProtocol + LoadedBudgetMonth
+    TransactionRepository.swift     # TransactionRepositoryProtocol + Loaded/Options types
+    BudgetAPI.swift                 # shared draft / mutation-result value types
   Security/
     KeychainStore.swift
   Persistence/
@@ -298,28 +298,31 @@ Actualist/
       SettingsViewModel.swift
   Shared/
     Money.swift
-    MonthIdentifier.swift
-    LoadingState.swift
-    IdentifiedLookup.swift
+    CategoryNameParts.swift
+    TransactionGrouping.swift       # pure date grouping + cached formatters
 ActualistTests/
 ```
 
 ### Data Flow
 
+All fetched data flows through a single `ActualDataStore` (an `@MainActor @Observable` cache).
+It implements stale-while-revalidate: views read its cached snapshots for instant display and
+trigger a background `refresh`; every write invalidates the affected cache keys and refetches
+them so dependent screens never show pre-write data. The cache is memory-only and is cleared on
+budget switch / connection change. The store conforms to the `BudgetRepositoryProtocol` /
+`TransactionRepositoryProtocol` seams, so view models inject it in production and inject fakes in
+tests.
+
 ```mermaid
 flowchart LR
   Settings["Connection Settings"] --> Client["ActualAPIClient"]
   Keychain["Keychain API Key"] --> Client
-  Client --> BudgetRepo["BudgetRepository"]
-  Client --> AccountRepo["AccountRepository"]
-  Client --> TransactionRepo["TransactionRepository"]
-  BudgetRepo --> BudgetVM["BudgetViewModel"]
-  AccountRepo --> AccountsVM["AccountsViewModel"]
-  TransactionRepo --> TransactionsVM["TransactionsViewModel"]
+  Client --> Store["ActualDataStore (SWR cache)"]
+  Store --> BudgetVM["BudgetViewModel"]
+  Store --> AccountsView["Accounts View"]
+  Store --> TransactionsView["Account Transactions View"]
   BudgetVM --> BudgetView["Budget View"]
-  AccountRepo --> BudgetPicker["Budget Picker"]
-  AccountsVM --> AccountsView["Accounts View"]
-  TransactionsVM --> TransactionsView["Account Transactions View"]
+  Store --> EditorVM["TransactionEditorViewModel"]
 ```
 
 ## Implementation Phases

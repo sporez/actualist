@@ -436,6 +436,7 @@ struct TransactionEditorViewModelTests {
     }
 }
 
+@MainActor
 @Suite(.serialized)
 struct TransactionRepositoryRefreshTests {
     @Test func createTransactionRefetchesAffectedResourcesBeforeReturning() async throws {
@@ -560,7 +561,7 @@ struct TransactionRepositoryRefreshTests {
 
     private static func repository(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
-    ) -> TransactionRepository {
+    ) -> ActualDataStore {
         StubURLProtocol.handler = handler
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
@@ -570,7 +571,7 @@ struct TransactionRepositoryRefreshTests {
             apiKey: "test-key",
             session: session
         )
-        return TransactionRepository(client: client)
+        return ActualDataStore(clientProvider: { client })
     }
 
     private static func draft(
@@ -633,6 +634,15 @@ struct TransactionRepositoryRefreshTests {
 
         if method == "GET", path.hasSuffix("/months/2026-05") {
             return (try okResponse(for: request), budgetMonthData(month: "2026-05"))
+        }
+
+        // Reference + alerts endpoints the store revalidates as part of a write.
+        if method == "GET", path.hasSuffix("/categories") || path.hasSuffix("/payees") {
+            return (try okResponse(for: request), #"{"data":[]}"#.data(using: .utf8)!)
+        }
+
+        if method == "GET", path.hasSuffix("/alerts") {
+            return (try okResponse(for: request), #"{"data":{"month":"2026-06","alerts":[]}}"#.data(using: .utf8)!)
         }
 
         return try errorResponse(for: request)

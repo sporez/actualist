@@ -1,42 +1,5 @@
 import Foundation
 
-protocol BudgetAPI: Sendable {
-    func getBudgetMonth(_ month: YearMonth) async throws -> BudgetMonth
-    func getAccounts() async throws -> [BudgetAccount]
-    func getTransactions(accountID: String) async throws -> [ActualTransaction]
-    func createTransaction(_ draft: TransactionDraft) async throws -> TransactionMutationResult
-}
-
-struct ActualBudgetAPI: BudgetAPI {
-    let budgetID: String
-    let client: ActualAPIClient
-
-    func getBudgetMonth(_ month: YearMonth) async throws -> BudgetMonth {
-        try await client.budgetMonth(budgetID: budgetID, month: month.rawValue)
-    }
-
-    func getAccounts() async throws -> [BudgetAccount] {
-        try await client.accounts(budgetID: budgetID)
-    }
-
-    func getTransactions(accountID: String) async throws -> [ActualTransaction] {
-        try await client.transactions(budgetID: budgetID, accountID: accountID)
-    }
-
-    func createTransaction(_ draft: TransactionDraft) async throws -> TransactionMutationResult {
-        _ = try await client.createTransaction(budgetID: budgetID, draft: draft)
-
-        return TransactionMutationResult(
-            ok: true,
-            changed: ChangedResources(
-                accounts: [draft.accountID],
-                months: [draft.month.rawValue],
-                transactions: []
-            )
-        )
-    }
-}
-
 typealias BudgetAccount = ActualAccount
 
 struct YearMonth: Hashable, Sendable, RawRepresentable {

@@ -36,8 +36,11 @@
 		01000000000000000000001B /* TransactionEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001E /* TransactionEditorViewModel.swift */; };
 		01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001F /* TransactionEditorViewModelTests.swift */; };
 		01000000000000000000001D /* BudgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000020 /* BudgetAPI.swift */; };
-		01000000000000000000001E /* AccountRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000021 /* AccountRepository.swift */; };
 		01000000000000000000001F /* TransactionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000022 /* TransactionRepository.swift */; };
+		010000000000000000000020 /* ActualAPIClientProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000023 /* ActualAPIClientProtocol.swift */; };
+		010000000000000000000021 /* ActualDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000024 /* ActualDataStore.swift */; };
+		010000000000000000000022 /* ActualDataStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000025 /* ActualDataStoreTests.swift */; };
+		010000000000000000000023 /* TransactionGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000026 /* TransactionGrouping.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,8 +86,11 @@
 		02000000000000000000001E /* TransactionEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001F /* TransactionEditorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModelTests.swift; sourceTree = "<group>"; };
 		020000000000000000000020 /* BudgetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAPI.swift; sourceTree = "<group>"; };
-		020000000000000000000021 /* AccountRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepository.swift; sourceTree = "<group>"; };
 		020000000000000000000022 /* TransactionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionRepository.swift; sourceTree = "<group>"; };
+		020000000000000000000023 /* ActualAPIClientProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualAPIClientProtocol.swift; sourceTree = "<group>"; };
+		020000000000000000000024 /* ActualDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStore.swift; sourceTree = "<group>"; };
+		020000000000000000000025 /* ActualDataStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStoreTests.swift; sourceTree = "<group>"; };
+		020000000000000000000026 /* TransactionGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionGrouping.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,6 +128,7 @@
 				040000000000000000000003 /* App */,
 				040000000000000000000004 /* DesignSystem */,
 				040000000000000000000005 /* API */,
+				040000000000000000000019 /* Data */,
 				040000000000000000000006 /* Security */,
 				040000000000000000000007 /* Persistence */,
 				040000000000000000000018 /* Repositories */,
@@ -155,8 +162,17 @@
 			children = (
 				020000000000000000000006 /* APIModels.swift */,
 				020000000000000000000007 /* ActualAPIClient.swift */,
+				020000000000000000000023 /* ActualAPIClientProtocol.swift */,
 			);
 			path = API;
+			sourceTree = "<group>";
+		};
+		040000000000000000000019 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000024 /* ActualDataStore.swift */,
+			);
+			path = Data;
 			sourceTree = "<group>";
 		};
 		040000000000000000000006 /* Security */ = {
@@ -193,6 +209,7 @@
 			children = (
 				020000000000000000000011 /* Money.swift */,
 				020000000000000000000017 /* CategoryNameParts.swift */,
+				020000000000000000000026 /* TransactionGrouping.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -203,6 +220,7 @@
 				020000000000000000000013 /* MoneyTests.swift */,
 				02000000000000000000001C /* BudgetViewModelTests.swift */,
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
+				020000000000000000000025 /* ActualDataStoreTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -275,7 +293,6 @@
 			children = (
 				020000000000000000000020 /* BudgetAPI.swift */,
 				020000000000000000000018 /* BudgetRepository.swift */,
-				020000000000000000000021 /* AccountRepository.swift */,
 				020000000000000000000022 /* TransactionRepository.swift */,
 			);
 			path = Repositories;
@@ -400,8 +417,10 @@
 				010000000000000000000014 /* CategoryNameParts.swift in Sources */,
 				010000000000000000000015 /* BudgetRepository.swift in Sources */,
 				01000000000000000000001D /* BudgetAPI.swift in Sources */,
-				01000000000000000000001E /* AccountRepository.swift in Sources */,
 				01000000000000000000001F /* TransactionRepository.swift in Sources */,
+				010000000000000000000020 /* ActualAPIClientProtocol.swift in Sources */,
+				010000000000000000000021 /* ActualDataStore.swift in Sources */,
+				010000000000000000000023 /* TransactionGrouping.swift in Sources */,
 				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
 				010000000000000000000017 /* OnboardingViewModel.swift in Sources */,
 				010000000000000000000018 /* SettingsViewModel.swift in Sources */,
@@ -417,6 +436,7 @@
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
+				010000000000000000000022 /* ActualDataStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

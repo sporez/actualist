@@ -3,10 +3,18 @@ import SwiftUI
 struct AccountsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
-    @State private var accounts: [AccountDisplay] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var expandedSections: Set<AccountSectionKind> = [.budget, .offBudget]
+
+    /// Reactive snapshot from the shared store: shows cached balances instantly and updates
+    /// as the background refresh lands.
+    private var accounts: [AccountDisplay] {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return []
+        }
+        return appState.dataStore.accountDisplays(budgetID: budgetID)
+    }
 
     var body: some View {
         NavigationStack {
@@ -131,15 +139,14 @@ struct AccountsView: View {
     private func load() async {
         await appState.loadBudgets()
 
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeAccountRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return
         }
 
         isLoading = true
         errorMessage = nil
         do {
-            accounts = try await repository.accountsWithBalances(budgetID: budgetID)
+            try await appState.dataStore.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
             errorMessage = error.localizedDescription
         }

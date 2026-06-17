@@ -5,10 +5,7 @@ struct AccountTransactionsView: View {
     @Environment(\.actualistDensity) private var density
     let account: ActualAccount
 
-    @State private var transactions: [ActualTransaction] = []
-    @State private var categoryNames: [String: String] = [:]
-    @State private var payeeNames: [String: String] = [:]
-    @State private var balance: Int?
+    @State private var groups: [TransactionDateGroup] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var transactionEditorPresentation: TransactionEditorPresentation?
@@ -16,6 +13,34 @@ struct AccountTransactionsView: View {
     @State private var deletingTransactionID: String?
     @State private var deleteIntentHaptic = 0
     @State private var deleteSuccessHaptic = 0
+
+    private var budgetID: String? {
+        appState.settings.selectedBudgetID
+    }
+
+    /// Reactive composed snapshot from the shared store (cached instantly, revalidated in `load`).
+    private var loaded: LoadedAccountTransactions? {
+        guard let budgetID else {
+            return nil
+        }
+        return appState.dataStore.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
+    }
+
+    private var transactions: [ActualTransaction] {
+        loaded?.transactions ?? []
+    }
+
+    private var balance: Int? {
+        loaded?.balance
+    }
+
+    private var categoryNames: [String: String] {
+        loaded?.categoryNames ?? [:]
+    }
+
+    private var payeeNames: [String: String] {
+        loaded?.payeeNames ?? [:]
+    }
 
     var body: some View {
         List {
@@ -73,8 +98,14 @@ struct AccountTransactionsView: View {
                 .actualistToolbarGlassButton()
             }
         }
-        .task { await load() }
+        .task {
+            groups = TransactionGrouping.grouped(transactions)
+            await load()
+        }
         .refreshable { await load() }
+        .onChange(of: transactions) { _, updated in
+            groups = TransactionGrouping.grouped(updated)
+        }
         .sensoryFeedback(.selection, trigger: deleteIntentHaptic)
         .sensoryFeedback(.success, trigger: deleteSuccessHaptic)
         .sheet(item: $transactionEditorPresentation) { presentation in
@@ -149,7 +180,7 @@ struct AccountTransactionsView: View {
     }
 
     private var transactionList: some View {
-        ForEach(groupedTransactions, id: \.date) { group in
+        ForEach(groups, id: \.date) { group in
             Text(group.title)
                 .font(ActualistTypography.sectionTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
@@ -210,8 +241,7 @@ struct AccountTransactionsView: View {
     }
 
     private func delete(_ transaction: ActualTransaction) async {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
+        guard let budgetID else {
             return
         }
 
@@ -220,25 +250,19 @@ struct AccountTransactionsView: View {
         errorMessage = nil
 
         do {
-            _ = try await repository.deleteTransactionAndRefresh(
+            // The store invalidates and refetches the affected account + month, so the reactive
+            // snapshot (and the Budget tab) refresh without a second round trip here.
+            _ = try await appState.dataStore.deleteTransactionAndRefresh(
                 transaction,
                 budgetID: budgetID
             ) {}
             deleteSuccessHaptic += 1
-            await load()
         } catch {
             errorMessage = error.localizedDescription
-            isLoading = false
         }
 
+        isLoading = false
         deletingTransactionID = nil
-    }
-
-    private var groupedTransactions: [TransactionDateGroup] {
-        let groups = Dictionary(grouping: transactions) { $0.date }
-        return groups.keys.sorted(by: >).map { date in
-            TransactionDateGroup(date: date, title: formattedDate(date), transactions: groups[date] ?? [])
-        }
     }
 
     private func payeeName(for transaction: ActualTransaction) -> String {
@@ -261,32 +285,15 @@ struct AccountTransactionsView: View {
         return categoryNames[category] ?? "Uncategorized"
     }
 
-    private func formattedDate(_ value: String) -> String {
-        let input = DateFormatter()
-        input.dateFormat = "yyyy-MM-dd"
-        guard let date = input.date(from: value) else {
-            return value
-        }
-
-        let output = DateFormatter()
-        output.dateStyle = .long
-        return output.string(from: date)
-    }
-
     private func load() async {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
+        guard let budgetID else {
             return
         }
 
         isLoading = true
         errorMessage = nil
         do {
-            let loaded = try await repository.accountTransactions(budgetID: budgetID, accountID: account.id)
-            transactions = loaded.transactions
-            balance = loaded.balance
-            categoryNames = loaded.categoryNames
-            payeeNames = loaded.payeeNames
+            try await appState.dataStore.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
         } catch {
             errorMessage = error.localizedDescription
         }

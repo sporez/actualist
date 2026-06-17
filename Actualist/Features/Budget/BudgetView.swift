@@ -125,6 +125,13 @@ struct BudgetView: View {
                 }
                 .task { await viewModel.load(using: appState) }
                 .refreshable { await viewModel.load(using: appState) }
+                .onChange(of: appState.selectedTab) { _, tab in
+                    // Edits on other tabs invalidate the cached month; revalidate when the
+                    // Budget tab becomes active so its numbers are never stale.
+                    if tab == .budget {
+                        Task { await viewModel.refreshSelectedMonth(using: appState) }
+                    }
+                }
                 .sheet(isPresented: $isTransactionEditorPresented) {
                     TransactionEditorView(prefilledAccount: nil) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }

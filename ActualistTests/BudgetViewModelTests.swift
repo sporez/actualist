@@ -326,6 +326,7 @@ struct BudgetViewModelTests {
     }
 }
 
+@MainActor
 @Suite(.serialized)
 struct BudgetRepositoryAssignmentTests {
     @Test func categoryAssignmentPatchesBudgetedOnlyAndRefetchesMonthBeforeReturning() async throws {
@@ -385,7 +386,7 @@ struct BudgetRepositoryAssignmentTests {
 
     private static func repository(
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
-    ) -> BudgetRepository {
+    ) -> ActualDataStore {
         BudgetStubURLProtocol.handler = handler
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [BudgetStubURLProtocol.self]
@@ -395,7 +396,7 @@ struct BudgetRepositoryAssignmentTests {
             apiKey: "test-key",
             session: session
         )
-        return BudgetRepository(client: client)
+        return ActualDataStore(clientProvider: { client })
     }
 
     private static func response(for request: URLRequest) throws -> (HTTPURLResponse, Data) {
