@@ -17,9 +17,16 @@ final class ActualDataStore {
         var fetchedAt: Date
     }
 
+    struct AccountTransactionsPage: Hashable, Sendable {
+        var transactions: [ActualTransaction]
+        var oldestLoadedDate: Date
+        var reachedEnd: Bool
+    }
+
     /// Reference data older than this is refetched by `ensure*` (secondary) reads.
     /// Appear-driven `refresh*` calls always revalidate regardless of this window.
     private static let referenceTTL: TimeInterval = 300
+    private static let transactionWindowDays = 90
 
     // Reference resources (slow-changing, reused across screens).
     private(set) var budgets: CacheEntry<[ActualBudget]>?
@@ -30,15 +37,21 @@ final class ActualDataStore {
 
     // Money-truth resources (per account / per month).
     private(set) var balancesByAccount: [String: CacheEntry<Int>] = [:]
-    private(set) var transactionsByAccount: [String: CacheEntry<[ActualTransaction]>] = [:]
+    private(set) var transactionsByAccount: [String: CacheEntry<AccountTransactionsPage>] = [:]
     private(set) var monthByKey: [String: CacheEntry<BudgetMonth>] = [:]
     private(set) var alertsByKey: [String: CacheEntry<[APIBudgetMonthAlert]>] = [:]
 
     @ObservationIgnored private let clientProvider: () -> ActualAPIClientProtocol?
+    @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var inFlight: [String: Task<Void, Error>] = [:]
+    @ObservationIgnored private var invalidatedTransactionPagesByAccount: [String: AccountTransactionsPage] = [:]
 
-    init(clientProvider: @escaping () -> ActualAPIClientProtocol?) {
+    init(
+        clientProvider: @escaping () -> ActualAPIClientProtocol?,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.clientProvider = clientProvider
+        self.now = now
     }
 
     // MARK: - Keys
@@ -63,6 +76,7 @@ final class ActualDataStore {
         monthsByBudget = [:]
         balancesByAccount = [:]
         transactionsByAccount = [:]
+        invalidatedTransactionPagesByAccount = [:]
         monthByKey = [:]
         alertsByKey = [:]
         inFlight.values.forEach { $0.cancel() }
@@ -71,6 +85,9 @@ final class ActualDataStore {
 
     func invalidateAccount(budgetID: String, accountID: String) {
         let key = accountKey(budgetID, accountID)
+        if let page = transactionsByAccount[key]?.value {
+            invalidatedTransactionPagesByAccount[key] = page
+        }
         transactionsByAccount[key] = nil
         balancesByAccount[key] = nil
     }
@@ -96,15 +113,16 @@ final class ActualDataStore {
     /// Cached composed transactions snapshot for a screen, or `nil` if nothing is cached yet.
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
         let key = accountKey(budgetID, accountID)
-        guard let transactions = transactionsByAccount[key]?.value else {
+        guard let page = transactionsByAccount[key]?.value else {
             return nil
         }
 
         return LoadedAccountTransactions(
-            transactions: transactions,
+            transactions: page.transactions,
             balance: balancesByAccount[key]?.value,
             categoryNames: categoryNames(budgetID: budgetID),
-            payeeNames: payeeNames(budgetID: budgetID)
+            payeeNames: payeeNames(budgetID: budgetID),
+            reachedEnd: page.reachedEnd
         )
     }
 
@@ -220,14 +238,62 @@ final class ActualDataStore {
         let client = try requireClient()
         let key = accountKey(budgetID, accountID)
         try await coalesced("transactions|\(key)") {
-            async let transactions = client.transactions(budgetID: budgetID, accountID: accountID)
+            let existingPage = self.transactionsByAccount[key]?.value ?? self.invalidatedTransactionPagesByAccount[key]
+            let oldestLoadedDate = existingPage?.oldestLoadedDate ?? self.initialTransactionSinceDate()
+            async let transactions = client.transactions(
+                budgetID: budgetID,
+                accountID: accountID,
+                since: oldestLoadedDate,
+                until: nil
+            )
             async let balance = client.balance(budgetID: budgetID, accountID: accountID)
             let loadedTransactions = try await transactions
             let loadedBalance = try? await balance
-            self.transactionsByAccount[key] = CacheEntry(value: loadedTransactions, fetchedAt: Date())
+            self.transactionsByAccount[key] = CacheEntry(
+                value: AccountTransactionsPage(
+                    transactions: Self.sortedTransactions(loadedTransactions),
+                    oldestLoadedDate: oldestLoadedDate,
+                    reachedEnd: existingPage?.reachedEnd ?? false
+                ),
+                fetchedAt: Date()
+            )
+            self.invalidatedTransactionPagesByAccount[key] = nil
             if let loadedBalance {
                 self.balancesByAccount[key] = CacheEntry(value: loadedBalance, fetchedAt: Date())
             }
+        }
+    }
+
+    func loadOlderTransactions(budgetID: String, accountID: String) async throws {
+        let client = try requireClient()
+        let key = accountKey(budgetID, accountID)
+        try await coalesced("transactionsOlder|\(key)") {
+            guard var page = self.transactionsByAccount[key]?.value, !page.reachedEnd else {
+                return
+            }
+
+            let until = Self.transactionCalendar.date(byAdding: .day, value: -1, to: page.oldestLoadedDate) ?? page.oldestLoadedDate
+            let since = Self.transactionCalendar.date(
+                byAdding: .day,
+                value: -Self.transactionWindowDays,
+                to: page.oldestLoadedDate
+            ) ?? page.oldestLoadedDate
+
+            let olderTransactions = try await client.transactions(
+                budgetID: budgetID,
+                accountID: accountID,
+                since: since,
+                until: until
+            )
+
+            if olderTransactions.isEmpty {
+                page.reachedEnd = true
+            } else {
+                page.transactions = Self.mergedTransactions(olderTransactions + page.transactions)
+                page.oldestLoadedDate = since
+            }
+
+            self.transactionsByAccount[key] = CacheEntry(value: page, fetchedAt: Date())
         }
     }
 
@@ -288,6 +354,38 @@ final class ActualDataStore {
         }
         return client
     }
+
+    private func initialTransactionSinceDate() -> Date {
+        let today = Self.transactionCalendar.startOfDay(for: now())
+        return Self.transactionCalendar.date(
+            byAdding: .day,
+            value: -Self.transactionWindowDays,
+            to: today
+        ) ?? today
+    }
+
+    private static func mergedTransactions(_ transactions: [ActualTransaction]) -> [ActualTransaction] {
+        var seen: Set<String> = []
+        let unique = transactions.filter { transaction in
+            seen.insert(transactionIdentity(transaction)).inserted
+        }
+        return sortedTransactions(unique)
+    }
+
+    private static func sortedTransactions(_ transactions: [ActualTransaction]) -> [ActualTransaction] {
+        transactions.sorted { lhs, rhs in
+            if lhs.date == rhs.date {
+                return transactionIdentity(lhs) < transactionIdentity(rhs)
+            }
+            return lhs.date > rhs.date
+        }
+    }
+
+    private static func transactionIdentity(_ transaction: ActualTransaction) -> String {
+        transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(transaction.importedPayee ?? "")"
+    }
+
+    private static let transactionCalendar = Calendar(identifier: .gregorian)
 }
 
 // MARK: - Composed data providers (conform to existing repository protocols)

@@ -37,4 +37,5 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let balance: Int?
     let categoryNames: [String: String]
     let payeeNames: [String: String]
+    let reachedEnd: Bool
 }

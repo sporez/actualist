@@ -50,6 +50,95 @@ struct ActualDataStoreTests {
         #expect(cached.payeeNames["store"] == "Corner Store")
     }
 
+    @Test func refreshAccountTransactionsUsesRecentOpenWindow() async throws {
+        let client = FakeAPIClient()
+        let store = ActualDataStore(
+            clientProvider: { client },
+            now: { Self.date("2026-06-17") }
+        )
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+
+        let windows = await client.transactionWindows()
+        #expect(windows == ["2026-03-19..."])
+    }
+
+    @Test func loadOlderTransactionsFetchesPreviousWindowAndExtendsCachedRange() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "recent", date: "2026-06-15")],
+                [Self.transaction(id: "older", date: "2026-02-15")]
+            ]
+        )
+        let store = ActualDataStore(
+            clientProvider: { client },
+            now: { Self.date("2026-06-17") }
+        )
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        try await store.loadOlderTransactions(budgetID: "b", accountID: "checking")
+
+        let cached = try #require(store.cachedAccountTransactions(budgetID: "b", accountID: "checking"))
+        #expect(cached.transactions.map(\.id) == ["recent", "older"])
+        #expect(cached.reachedEnd == false)
+
+        let windows = await client.transactionWindows()
+        #expect(windows == [
+            "2026-03-19...",
+            "2025-12-19...2026-03-18"
+        ])
+    }
+
+    @Test func loadOlderTransactionsMarksEndOnEmptyDeltaWithoutRefreshingBalance() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "recent", date: "2026-06-15")],
+                []
+            ]
+        )
+        let store = ActualDataStore(
+            clientProvider: { client },
+            now: { Self.date("2026-06-17") }
+        )
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        let balanceCallsAfterRefresh = await client.callCount(.balance)
+        try await store.loadOlderTransactions(budgetID: "b", accountID: "checking")
+
+        let cached = try #require(store.cachedAccountTransactions(budgetID: "b", accountID: "checking"))
+        #expect(cached.reachedEnd)
+        #expect(cached.balance == 1_000)
+        #expect(await client.callCount(.balance) == balanceCallsAfterRefresh)
+    }
+
+    @Test func writeInvalidationReplacesPreservedLoadedRange() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "deleted", date: "2026-06-15")],
+                [Self.transaction(id: "survivor", date: "2026-06-14")]
+            ]
+        )
+        let store = ActualDataStore(
+            clientProvider: { client },
+            now: { Self.date("2026-06-17") }
+        )
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        try await store.applyInvalidation(
+            ChangedResources(accounts: ["checking"], months: [], transactions: ["deleted"]),
+            budgetID: "b"
+        )
+
+        let cached = try #require(store.cachedAccountTransactions(budgetID: "b", accountID: "checking"))
+        #expect(cached.transactions.map(\.id) == ["survivor"])
+
+        let windows = await client.transactionWindows()
+        #expect(windows == [
+            "2026-03-19...",
+            "2026-03-19..."
+        ])
+    }
+
     @Test func assignmentInvalidatesAndRefetchesAffectedMonth() async throws {
         let client = FakeAPIClient()
         let store = ActualDataStore { client }
@@ -112,6 +201,35 @@ struct ActualDataStoreTests {
     private static var june2026: Date {
         DateComponents(calendar: Calendar(identifier: .gregorian), year: 2026, month: 6, day: 15).date!
     }
+
+    private static func date(_ value: String) -> Date {
+        let parts = value.split(separator: "-").compactMap { Int($0) }
+        return DateComponents(
+            calendar: Calendar(identifier: .gregorian),
+            year: parts[0],
+            month: parts[1],
+            day: parts[2]
+        ).date!
+    }
+
+    fileprivate nonisolated static func transaction(
+        id: String,
+        accountID: String = "checking",
+        date: String
+    ) -> ActualTransaction {
+        ActualTransaction(
+            id: id,
+            account: accountID,
+            date: date,
+            amount: -1_500,
+            payee: "store",
+            payeeName: nil,
+            importedPayee: nil,
+            category: "groceries",
+            notes: nil,
+            cleared: .bool(true)
+        )
+    }
 }
 
 actor FakeAPIClient: ActualAPIClientProtocol {
@@ -122,9 +240,24 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     }
 
     private var counts: [Method: Int] = [:]
+    private var transactionResponses: [[ActualTransaction]]
+    private var requestedTransactionWindows: [(since: Date, until: Date?)] = []
+
+    init(transactionResponses: [[ActualTransaction]] = []) {
+        self.transactionResponses = transactionResponses
+    }
 
     func callCount(_ method: Method) -> Int {
         counts[method] ?? 0
+    }
+
+    func transactionWindows() -> [String] {
+        requestedTransactionWindows.map { window in
+            if let until = window.until {
+                return "\(Self.formattedDate(window.since))...\(Self.formattedDate(until))"
+            }
+            return "\(Self.formattedDate(window.since))..."
+        }
     }
 
     private func record(_ method: Method) {
@@ -150,21 +283,20 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         return accountID == "checking" ? 1_000 : 5_000
     }
 
-    func transactions(budgetID: String, accountID: String) async throws -> [ActualTransaction] {
+    func transactions(
+        budgetID: String,
+        accountID: String,
+        since: Date,
+        until: Date?
+    ) async throws -> [ActualTransaction] {
         record(.transactions)
+        requestedTransactionWindows.append((since: since, until: until))
+        if !transactionResponses.isEmpty {
+            return transactionResponses.removeFirst()
+        }
+
         return [
-            ActualTransaction(
-                id: "t1",
-                account: accountID,
-                date: "2026-06-15",
-                amount: -1_500,
-                payee: "store",
-                payeeName: nil,
-                importedPayee: nil,
-                category: "groceries",
-                notes: nil,
-                cleared: .bool(true)
-            )
+            ActualDataStoreTests.transaction(id: "t1", accountID: accountID, date: "2026-06-15")
         ]
     }
 
@@ -232,6 +364,16 @@ actor FakeAPIClient: ActualAPIClientProtocol {
 
     private static func emptyBatchResult() throws -> APITransactionBatchUpdateResult {
         try JSONDecoder().decode(APITransactionBatchUpdateResult.self, from: "{}".data(using: .utf8)!)
+    }
+
+    private static func formattedDate(_ date: Date) -> String {
+        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 1970,
+            components.month ?? 1,
+            components.day ?? 1
+        )
     }
 
     private static let budgetMonthJSON = """

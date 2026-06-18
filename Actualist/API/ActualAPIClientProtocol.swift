@@ -15,7 +15,12 @@ protocol ActualAPIClientProtocol: Sendable {
     func budgetMonths(budgetID: String) async throws -> [String]
     func accounts(budgetID: String) async throws -> [ActualAccount]
     func balance(budgetID: String, accountID: String) async throws -> Int
-    func transactions(budgetID: String, accountID: String) async throws -> [ActualTransaction]
+    func transactions(
+        budgetID: String,
+        accountID: String,
+        since: Date,
+        until: Date?
+    ) async throws -> [ActualTransaction]
     func payees(budgetID: String) async throws -> [ActualPayee]
     func categories(budgetID: String) async throws -> [ActualCategory]
     func createTransaction(

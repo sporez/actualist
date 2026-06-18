@@ -522,6 +522,32 @@ struct TransactionRepositoryRefreshTests {
         #expect(recorder.requests().contains("POST /v1/budgets/budget/rules/run"))
     }
 
+    @Test func transactionsRequestIncludesSinceAndUntilDateQueryItems() async throws {
+        let recorder = RequestRecorder()
+        StubURLProtocol.handler = { request in
+            recorder.record(request)
+            return (try Self.okResponse(for: request), #"{"data":[]}"#.data(using: .utf8)!)
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let client = ActualAPIClient(
+            baseURL: URL(string: "http://actual.test/v1")!,
+            apiKey: "test-key",
+            session: URLSession(configuration: configuration)
+        )
+
+        _ = try await client.transactions(
+            budgetID: "budget",
+            accountID: "checking",
+            since: TransactionEditorViewModelTests.date("2026-03-01"),
+            until: TransactionEditorViewModelTests.date("2026-05-31")
+        )
+
+        #expect(recorder.requests() == [
+            "GET /v1/budgets/budget/accounts/checking/transactions?since_date=2026-03-01&until_date=2026-05-31"
+        ])
+    }
+
     @Test func transactionListRefreshFailureIsNotSwallowed() async throws {
         let recorder = RequestRecorder()
         let repository = Self.repository { request in

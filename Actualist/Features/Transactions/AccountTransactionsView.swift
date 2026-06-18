@@ -7,6 +7,7 @@ struct AccountTransactionsView: View {
 
     @State private var groups: [TransactionDateGroup] = []
     @State private var isLoading = false
+    @State private var isLoadingOlder = false
     @State private var errorMessage: String?
     @State private var transactionEditorPresentation: TransactionEditorPresentation?
     @State private var deletePresentation: TransactionDeletePresentation?
@@ -42,6 +43,10 @@ struct AccountTransactionsView: View {
         loaded?.payeeNames ?? [:]
     }
 
+    private var reachedEnd: Bool {
+        loaded?.reachedEnd ?? false
+    }
+
     var body: some View {
         List {
             Section {
@@ -57,6 +62,8 @@ struct AccountTransactionsView: View {
             }
 
             transactionList
+
+            olderTransactionsFooter
 
             if isLoading {
                 ProgressView("Loading transactions")
@@ -201,6 +208,40 @@ struct AccountTransactionsView: View {
         }
     }
 
+    @ViewBuilder
+    private var olderTransactionsFooter: some View {
+        if loaded != nil {
+            Group {
+                if reachedEnd {
+                    Text("Beginning of history")
+                        .font(ActualistTypography.rowBadge(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                } else if isLoadingOlder {
+                    ProgressView("Loading older transactions")
+                        .font(ActualistTypography.rowBadge(for: density))
+                } else {
+                    Button {
+                        Task { await loadOlder() }
+                    } label: {
+                        Label("Load older transactions", systemImage: "clock.arrow.circlepath")
+                            .font(ActualistTypography.control(for: density))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .padding(.horizontal, 16)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .onAppear {
+                Task { await loadOlder() }
+            }
+        }
+    }
+
     private func transactionButton(for transaction: ActualTransaction) -> some View {
         Button {
             transactionEditorPresentation = .edit(
@@ -298,6 +339,21 @@ struct AccountTransactionsView: View {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    private func loadOlder() async {
+        guard let budgetID, loaded != nil, !reachedEnd, !isLoading, !isLoadingOlder else {
+            return
+        }
+
+        isLoadingOlder = true
+        errorMessage = nil
+        do {
+            try await appState.dataStore.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoadingOlder = false
     }
 }
 

@@ -42,11 +42,24 @@ struct ActualAPIClient: Sendable {
         try await get("/budgets/\(budgetID)/accounts/\(accountID)/balance")
     }
 
-    func transactions(budgetID: String, accountID: String) async throws -> [ActualTransaction] {
-        try await get(
+    func transactions(
+        budgetID: String,
+        accountID: String,
+        since: Date = Self.earliestTransactionDate,
+        until: Date? = nil
+    ) async throws -> [ActualTransaction] {
+        var queryItems = [
+            URLQueryItem(name: "since_date", value: Self.formattedTransactionDate(since))
+        ]
+        if let until {
+            queryItems.append(URLQueryItem(name: "until_date", value: Self.formattedTransactionDate(until)))
+        }
+
+        let transactions: [ActualTransaction] = try await get(
             "/budgets/\(budgetID)/accounts/\(accountID)/transactions",
-            queryItems: [URLQueryItem(name: "since_date", value: "1900-01-01")]
+            queryItems: queryItems
         )
+        return transactions
     }
 
     func payees(budgetID: String) async throws -> [ActualPayee] {
@@ -214,6 +227,13 @@ struct ActualAPIClient: Sendable {
             components.day ?? 1
         )
     }
+
+    private static let earliestTransactionDate = DateComponents(
+        calendar: Calendar(identifier: .gregorian),
+        year: 1900,
+        month: 1,
+        day: 1
+    ).date!
 
     private static func transactionPayload(
         from draft: TransactionDraft,
