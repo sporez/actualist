@@ -528,8 +528,6 @@ private enum BudgetKeypadLayout {
     static let topPadding: CGFloat = 18
     static let bottomPadding: CGFloat = 22
     static let dismissButtonWidth: CGFloat = 52
-    static let dismissButtonHeight: CGFloat = 32
-    static let dismissRowBottomInset: CGFloat = -6
 }
 
 private struct BudgetAssignmentKeypadHeightKey: PreferenceKey {
@@ -755,8 +753,10 @@ private struct BudgetAssignmentKeypad: View {
 
     var body: some View {
         VStack(spacing: BudgetKeypadLayout.stackSpacing) {
-            HStack {
-                Spacer()
+            HStack(spacing: 12) {
+                keypadToolbarButton(title: "Auto-Assign", systemImage: "bolt.fill") {}
+                keypadToolbarButton(title: "Move Money", systemImage: "arrow.right") {}
+                keypadToolbarButton(title: "Details", systemImage: "ellipsis") {}
 
                 Button(action: cancel) {
                     Image(systemName: "keyboard.chevron.compact.down")
@@ -764,19 +764,12 @@ private struct BudgetAssignmentKeypad: View {
                         .foregroundStyle(ActualistTheme.secondaryText)
                         .frame(
                             width: BudgetKeypadLayout.dismissButtonWidth,
-                            height: BudgetKeypadLayout.dismissButtonHeight
+                            height: BudgetKeypadLayout.toolbarButtonHeight
                         )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss keypad")
-            }
-            .padding(.bottom, BudgetKeypadLayout.dismissRowBottomInset)
-
-            HStack(spacing: 12) {
-                keypadToolbarButton(title: "Auto-Assign", systemImage: "bolt.fill") {}
-                keypadToolbarButton(title: "Move Money", systemImage: "arrow.right") {}
-                keypadToolbarButton(title: "Details", systemImage: "ellipsis") {}
             }
 
             if let errorMessage {
@@ -849,7 +842,7 @@ private struct BudgetAssignmentKeypad: View {
         .padding(.bottom, BudgetKeypadLayout.bottomPadding)
         .background(ActualistTheme.elevatedSurface)
         .disabled(isSubmitting)
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: keyPressCount)
+        .sensoryFeedback(.impact(weight: .heavy, intensity: 1.0), trigger: keyPressCount)
     }
 
     private func keypadToolbarButton(
