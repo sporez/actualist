@@ -297,6 +297,35 @@ final class ActualDataStore {
         }
     }
 
+    func searchAccountTransactions(
+        budgetID: String,
+        accountID: String,
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> LoadedAccountTransactions {
+        try await ensureCategories(budgetID: budgetID)
+        try await ensurePayees(budgetID: budgetID)
+
+        let client = try requireClient()
+        let key = accountKey(budgetID, accountID)
+        let transactions = try await client.searchTransactions(
+            budgetID: budgetID,
+            accountID: accountID,
+            query: query,
+            limit: limit,
+            offset: offset
+        )
+
+        return LoadedAccountTransactions(
+            transactions: Self.sortedTransactions(transactions),
+            balance: balancesByAccount[key]?.value,
+            categoryNames: categoryNames(budgetID: budgetID),
+            payeeNames: payeeNames(budgetID: budgetID),
+            reachedEnd: true
+        )
+    }
+
     func refreshBudgetMonth(budgetID: String, month: String) async throws {
         let client = try requireClient()
         let key = monthKey(budgetID, month)
@@ -429,6 +458,25 @@ extension ActualDataStore: BudgetRepositoryProtocol {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
+    func moveMoneyAndRefresh(
+        command: BudgetMoveMoneyCommand,
+        budgetID: String,
+        month: String,
+        didMove: @escaping () async -> Void = {}
+    ) async throws -> LoadedBudgetMonth {
+        let client = try requireClient()
+        _ = try await client.createCategoryTransfer(
+            budgetID: budgetID,
+            month: month,
+            fromCategoryID: command.fromCategoryID,
+            toCategoryID: command.toCategoryID,
+            amount: command.amount
+        )
+        await didMove()
+        invalidateMonth(budgetID: budgetID, month: month)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+    }
+
     private func loadedBudgetMonth(
         budgetID: String,
         availableMonths: [String],
@@ -449,16 +497,49 @@ extension ActualDataStore: BudgetRepositoryProtocol {
 }
 
 extension ActualDataStore: TransactionRepositoryProtocol {
-    func editorOptions(budgetID: String) async throws -> TransactionEditorOptions {
+    func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
         try await ensureAccounts(budgetID: budgetID)
         try await ensureCategories(budgetID: budgetID)
         try await ensurePayees(budgetID: budgetID)
+        try? await refreshBudgetMonth(budgetID: budgetID, month: month)
 
         return TransactionEditorOptions(
             accounts: (accountsByBudget[budgetID]?.value ?? []).filter { !$0.closed },
             categories: (categoriesByBudget[budgetID]?.value ?? []).filter { !($0.hidden ?? false) && !($0.isIncome ?? false) },
+            categoryGroups: transactionEditorCategoryGroups(budgetID: budgetID, month: month),
             payees: payeesByBudget[budgetID]?.value ?? []
         )
+    }
+
+    private func transactionEditorCategoryGroups(
+        budgetID: String,
+        month: String
+    ) -> [TransactionEditorCategoryGroup] {
+        let month = monthByKey[monthKey(budgetID, month)]?.value
+        return (month?.categoryGroups ?? []).compactMap { group in
+            let options = group.categories.filter { !($0.hidden ?? false) }.compactMap { category -> TransactionEditorCategoryOption? in
+                guard !category.isIncome else {
+                    return nil
+                }
+
+                return TransactionEditorCategoryOption(
+                    id: category.id,
+                    title: category.name.actualistCategoryNameParts.name,
+                    amount: category.balance,
+                    valueText: category.balance.actualMoney.formatted()
+                )
+            }
+
+            guard !group.isIncome, !options.isEmpty else {
+                return nil
+            }
+
+            return TransactionEditorCategoryGroup(
+                id: group.id,
+                name: group.name,
+                options: options
+            )
+        }
     }
 
     func previewRules(for draft: TransactionDraft, budgetID: String) async throws -> TransactionRulePreview {

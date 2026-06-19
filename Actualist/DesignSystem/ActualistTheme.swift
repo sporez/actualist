@@ -1,17 +1,100 @@
 import SwiftUI
 
+enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable {
+    case actualPurple
+    case whyNab
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .actualPurple: "Actual Purple"
+        case .whyNab: "Why Nab"
+        }
+    }
+}
+
+struct ActualistThemePalette {
+    let background: Color
+    let surface: Color
+    let elevatedSurface: Color
+    let control: Color
+    let accent: Color
+    let positive: Color
+    let warning: Color
+    let danger: Color
+    let primaryText: Color
+    let secondaryText: Color
+    let separator: Color
+}
+
 enum ActualistTheme {
-    static let background = Color(red: 0.02, green: 0.02, blue: 0.05)
-    static let surface = Color(red: 0.07, green: 0.07, blue: 0.15)
-    static let elevatedSurface = Color(red: 0.10, green: 0.10, blue: 0.19)
-    static let control = Color(red: 0.17, green: 0.17, blue: 0.24)
-    static let accent = Color(red: 0.49, green: 0.52, blue: 1.00)
-    static let positive = Color(red: 0.55, green: 0.78, blue: 0.24)
-    static let warning = Color(red: 0.95, green: 0.78, blue: 0.28)
-    static let danger = Color(red: 0.90, green: 0.29, blue: 0.33)
-    static let primaryText = Color(red: 0.96, green: 0.96, blue: 0.99)
-    static let secondaryText = Color(red: 0.72, green: 0.73, blue: 0.78)
-    static let separator = Color.white.opacity(0.10)
+    static var background: Color { current.background }
+    static var surface: Color { current.surface }
+    static var elevatedSurface: Color { current.elevatedSurface }
+    static var control: Color { current.control }
+    static var accent: Color { current.accent }
+    static var positive: Color { current.positive }
+    static var warning: Color { current.warning }
+    static var danger: Color { current.danger }
+    static var primaryText: Color { current.primaryText }
+    static var secondaryText: Color { current.secondaryText }
+    static var separator: Color { current.separator }
+
+    static func activate(_ option: ActualistThemeOption) {
+        activeOption = option
+    }
+
+    static func palette(for option: ActualistThemeOption) -> ActualistThemePalette {
+        switch option {
+        case .actualPurple:
+            return ActualistThemePalette(
+                background: Color(hex: 0x0A0710),
+                surface: Color(hex: 0x14101D),
+                elevatedSurface: Color(hex: 0x1D1429),
+                control: Color(hex: 0x25183A),
+                accent: Color(hex: 0x7E65A8),
+                positive: Self.whyNabPalette.positive,
+                warning: Self.whyNabPalette.warning,
+                danger: Self.whyNabPalette.danger,
+                primaryText: Color(hex: 0xF9F6FE),
+                secondaryText: Color(hex: 0xC7B6DF),
+                separator: Color(hex: 0x7E65A8).opacity(0.16)
+            )
+        case .whyNab:
+            return whyNabPalette
+        }
+    }
+
+    private static let whyNabPalette = ActualistThemePalette(
+        background: Color(red: 0.02, green: 0.02, blue: 0.05),
+        surface: Color(red: 0.07, green: 0.07, blue: 0.15),
+        elevatedSurface: Color(red: 0.10, green: 0.10, blue: 0.19),
+        control: Color(red: 0.17, green: 0.17, blue: 0.24),
+        accent: Color(red: 0.49, green: 0.52, blue: 1.00),
+        positive: Color(red: 0.55, green: 0.78, blue: 0.24),
+        warning: Color(red: 0.95, green: 0.78, blue: 0.28),
+        danger: Color(red: 0.90, green: 0.29, blue: 0.33),
+        primaryText: Color(red: 0.96, green: 0.96, blue: 0.99),
+        secondaryText: Color(red: 0.72, green: 0.73, blue: 0.78),
+        separator: Color.white.opacity(0.10)
+    )
+
+    private static var activeOption: ActualistThemeOption = .actualPurple
+
+    private static var current: ActualistThemePalette {
+        palette(for: activeOption)
+    }
+}
+
+private extension Color {
+    init(hex: UInt32) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
+    }
 }
 
 enum ActualistDisplayDensity: String, Codable, CaseIterable, Identifiable {
@@ -253,6 +336,8 @@ extension View {
     func actualistToolbarGlassButton() -> some View {
         self
             .font(.body.weight(.semibold))
+            .foregroundStyle(.white)
+            .tint(.white)
             .controlSize(.small)
     }
 }

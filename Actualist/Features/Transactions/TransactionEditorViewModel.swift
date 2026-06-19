@@ -36,12 +36,15 @@ final class TransactionEditorViewModel {
     var isCleared = false
     var accounts: [ActualAccount] = []
     var categories: [ActualCategory] = []
+    var categoryGroups: [TransactionEditorCategoryGroup] = []
     var payees: [ActualPayee] = []
     var isLoading = false
+    var isLoadingCategoryBalances = false
     var isPreviewingRules = false
     var errorMessage: String?
     var submissionState: TransactionSubmissionState = .draft
     private var rulePreviewSequence = 0
+    private var loadedCategoryBalanceMonth: String?
 
     init(
         editing transaction: ActualTransaction? = nil,
@@ -150,6 +153,32 @@ final class TransactionEditorViewModel {
         }
     }
 
+    func categorySelectionGroups(matching searchText: String) -> [TransactionEditorCategoryGroup] {
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let groups = categoryGroups.isEmpty ? fallbackCategorySelectionGroups() : categoryGroups
+
+        guard !trimmedSearch.isEmpty else {
+            return groups
+        }
+
+        return groups.compactMap { group in
+            let options = group.options.filter { option in
+                option.title.localizedCaseInsensitiveContains(trimmedSearch)
+                    || group.name.localizedCaseInsensitiveContains(trimmedSearch)
+            }
+
+            guard !options.isEmpty else {
+                return nil
+            }
+
+            return TransactionEditorCategoryGroup(
+                id: group.id,
+                name: group.name,
+                options: options
+            )
+        }
+    }
+
     func selectPayee(_ payee: ActualPayee) {
         selectedPayeeID = payee.id
         payeeName = payee.name
@@ -190,6 +219,11 @@ final class TransactionEditorViewModel {
         selectedCategoryFallbackName = category.name
     }
 
+    func selectCategory(_ option: TransactionEditorCategoryOption) {
+        selectedCategoryID = option.id
+        selectedCategoryFallbackName = option.title
+    }
+
     func load(using appState: AppState, prefilledAccount: ActualAccount?) async {
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {
@@ -204,12 +238,8 @@ final class TransactionEditorViewModel {
         errorMessage = nil
 
         do {
-            let options = try await repository.editorOptions(budgetID: budgetID)
-            accounts = options.accounts
-            categories = options.categories
-            payees = options.payees
-
-            applyLoadedOptionNamesIfNeeded()
+            let month = YearMonth(date: date).rawValue
+            apply(try await repository.editorOptions(budgetID: budgetID, month: month), loadedMonth: month)
 
             if selectedAccountID == nil {
                 selectedAccountID = accounts.first?.id
@@ -219,6 +249,35 @@ final class TransactionEditorViewModel {
         }
 
         isLoading = false
+    }
+
+    func refreshCategoryBalancesIfNeeded(using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository() else {
+            return
+        }
+
+        await refreshCategoryBalancesIfNeeded(budgetID: budgetID, repository: repository)
+    }
+
+    func refreshCategoryBalancesIfNeeded(
+        budgetID: String,
+        repository: any TransactionRepositoryProtocol
+    ) async {
+        let month = YearMonth(date: date).rawValue
+        guard loadedCategoryBalanceMonth != month else {
+            return
+        }
+
+        isLoadingCategoryBalances = true
+        defer { isLoadingCategoryBalances = false }
+
+        do {
+            apply(try await repository.editorOptions(budgetID: budgetID, month: month), loadedMonth: month)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func submit(using appState: AppState) async -> Bool {
@@ -424,6 +483,42 @@ final class TransactionEditorViewModel {
            let matchedCategory = categories.first(where: { $0.id == selectedCategoryID }) {
             selectedCategoryFallbackName = matchedCategory.name
         }
+    }
+
+    private func apply(_ options: TransactionEditorOptions, loadedMonth: String) {
+        accounts = options.accounts
+        categories = options.categories
+        categoryGroups = options.categoryGroups
+        payees = options.payees
+        loadedCategoryBalanceMonth = loadedMonth
+        applyLoadedOptionNamesIfNeeded()
+    }
+
+    private func fallbackCategorySelectionGroups() -> [TransactionEditorCategoryGroup] {
+        let options = categories.compactMap { category -> TransactionEditorCategoryOption? in
+            guard let categoryID = category.id else {
+                return nil
+            }
+
+            return TransactionEditorCategoryOption(
+                id: categoryID,
+                title: category.name.actualistCategoryNameParts.name,
+                amount: nil,
+                valueText: nil
+            )
+        }
+
+        guard !options.isEmpty else {
+            return []
+        }
+
+        return [
+            TransactionEditorCategoryGroup(
+                id: "categories",
+                name: "Categories",
+                options: options
+            )
+        ]
     }
 }
 

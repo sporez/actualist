@@ -30,6 +30,47 @@ struct TransactionEditorViewModelTests {
         #expect(model.selectedPayeeID == nil)
     }
 
+    @Test func filtersAndSelectsCategoryBalanceOptions() throws {
+        let model = TransactionEditorViewModel()
+        model.categoryGroups = [
+            TransactionEditorCategoryGroup(
+                id: "bills",
+                name: "Monthly Bills",
+                options: [
+                    TransactionEditorCategoryOption(
+                        id: "mortgage",
+                        title: "Mortgage",
+                        amount: 100_00,
+                        valueText: "$100.00"
+                    )
+                ]
+            ),
+            TransactionEditorCategoryGroup(
+                id: "everyday",
+                name: "Everyday",
+                options: [
+                    TransactionEditorCategoryOption(
+                        id: "groceries",
+                        title: "Groceries",
+                        amount: -12_34,
+                        valueText: "-$12.34"
+                    )
+                ]
+            )
+        ]
+
+        let filteredGroups = model.categorySelectionGroups(matching: "gro")
+
+        #expect(filteredGroups.map(\.id) == ["everyday"])
+        #expect(filteredGroups.first?.options.map(\.id) == ["groceries"])
+
+        let option = try #require(filteredGroups.first?.options.first)
+        model.selectCategory(option)
+
+        #expect(model.selectedCategoryID == "groceries")
+        #expect(model.selectedCategoryName == "Groceries")
+    }
+
     @Test func buildsSpendDraftForCustomPayee() async throws {
         let model = configuredModel()
         let repository = RecordingTransactionRepository()
@@ -548,6 +589,33 @@ struct TransactionRepositoryRefreshTests {
         ])
     }
 
+    @Test func searchTransactionsRequestsSearchEndpointWithQueryItems() async throws {
+        let recorder = RequestRecorder()
+        StubURLProtocol.handler = { request in
+            recorder.record(request)
+            return (try Self.okResponse(for: request), #"{"data":[]}"#.data(using: .utf8)!)
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let client = ActualAPIClient(
+            baseURL: URL(string: "http://actual.test/v1")!,
+            apiKey: "test-key",
+            session: URLSession(configuration: configuration)
+        )
+
+        _ = try await client.searchTransactions(
+            budgetID: "budget",
+            accountID: "checking",
+            query: "target",
+            limit: 25,
+            offset: 50
+        )
+
+        #expect(recorder.requests() == [
+            "GET /v1/budgets/budget/accounts/checking/transactions/search?q=target&limit=25&offset=50"
+        ])
+    }
+
     @Test func transactionListRefreshFailureIsNotSwallowed() async throws {
         let recorder = RequestRecorder()
         let repository = Self.repository { request in
@@ -752,8 +820,8 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         self.pauseAfterDidCreate = pauseAfterDidCreate
     }
 
-    func editorOptions(budgetID: String) async throws -> TransactionEditorOptions {
-        TransactionEditorOptions(accounts: [], categories: [], payees: [])
+    func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
+        TransactionEditorOptions(accounts: [], categories: [], categoryGroups: [], payees: [])
     }
 
     func previewRules(

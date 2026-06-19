@@ -5,9 +5,16 @@ struct AccountTransactionsView: View {
     @Environment(\.actualistDensity) private var density
     let account: ActualAccount
 
-    @State private var groups: [TransactionDateGroup] = []
+    @FocusState private var isSearchFieldFocused: Bool
+
     @State private var isLoading = false
     @State private var isLoadingOlder = false
+    @State private var isSearchFieldVisible = false
+    @State private var isSearching = false
+    @State private var searchText = ""
+    @State private var searchResults: LoadedAccountTransactions?
+    @State private var searchErrorMessage: String?
+    @State private var searchTask: Task<Void, Never>?
     @State private var errorMessage: String?
     @State private var transactionEditorPresentation: TransactionEditorPresentation?
     @State private var deletePresentation: TransactionDeletePresentation?
@@ -47,15 +54,59 @@ struct AccountTransactionsView: View {
         loaded?.reachedEnd ?? false
     }
 
+    private var trimmedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isSearchActive: Bool {
+        !trimmedSearchText.isEmpty
+    }
+
+    private var displayedTransactions: [ActualTransaction] {
+        guard isSearchActive else {
+            return transactions
+        }
+        if let searchResults {
+            return searchResults.transactions
+        }
+        return locallyFilteredTransactions
+    }
+
+    private var locallyFilteredTransactions: [ActualTransaction] {
+        transactions.filter { transaction in
+            searchTextMatches(payeeName(for: transaction))
+                || searchTextMatches(categoryName(for: transaction))
+                || searchTextMatches(transaction.importedPayee)
+                || searchTextMatches(transaction.notes)
+        }
+    }
+
+    private var displayedGroups: [TransactionDateGroup] {
+        TransactionGrouping.grouped(displayedTransactions)
+    }
+
+    private var activeCategoryNames: [String: String] {
+        searchResults?.categoryNames ?? categoryNames
+    }
+
+    private var activePayeeNames: [String: String] {
+        searchResults?.payeeNames ?? payeeNames
+    }
+
     var body: some View {
         List {
+            if isSearchFieldVisible {
+                Section {
+                    searchBar
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             Section {
                 header
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-
-                addTransactionButton
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
@@ -63,7 +114,11 @@ struct AccountTransactionsView: View {
 
             transactionList
 
-            olderTransactionsFooter
+            if isSearchActive {
+                searchFooter
+            } else {
+                olderTransactionsFooter
+            }
 
             if isLoading {
                 ProgressView("Loading transactions")
@@ -92,26 +147,31 @@ struct AccountTransactionsView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
+                    showSearch()
                 } label: {
                     Image(systemName: "magnifyingglass")
                 }
                 .actualistToolbarGlassButton()
+                .accessibilityLabel("Search Transactions")
 
                 Button {
-                    Task { await load() }
+                    transactionEditorPresentation = .create
                 } label: {
-                    Image(systemName: "arrow.clockwise")
+                    Image(systemName: "plus")
                 }
                 .actualistToolbarGlassButton()
+                .accessibilityLabel("Add Transaction")
             }
         }
         .task {
-            groups = TransactionGrouping.grouped(transactions)
             await load()
         }
         .refreshable { await load() }
-        .onChange(of: transactions) { _, updated in
-            groups = TransactionGrouping.grouped(updated)
+        .onChange(of: searchText) { _, updated in
+            scheduleSearch(updated)
+        }
+        .onDisappear {
+            searchTask?.cancel()
         }
         .sensoryFeedback(.selection, trigger: deleteIntentHaptic)
         .sensoryFeedback(.success, trigger: deleteSuccessHaptic)
@@ -166,28 +226,50 @@ struct AccountTransactionsView: View {
         .padding(.horizontal, 16)
     }
 
-    private var addTransactionButton: some View {
-        Button {
-            transactionEditorPresentation = .create
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "plus")
-                    .font(.body.weight(.bold))
-                Text("Add Transaction")
-                    .font(ActualistTypography.control(for: density))
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .accessibilityHidden(true)
+
+            TextField("Search Transactions", text: $searchText)
+                .focused($isSearchFieldFocused)
+                .font(ActualistTypography.body(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+                .tint(ActualistTheme.accent)
+                .submitLabel(.search)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            Button {
+                if isSearchActive {
+                    searchText = ""
+                    searchResults = nil
+                    searchErrorMessage = nil
+                    isSearching = false
+                    isSearchFieldFocused = true
+                } else {
+                    hideSearch()
+                }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
             }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+            .buttonStyle(.plain)
+            .accessibilityLabel(isSearchActive ? "Clear Search" : "Close Search")
         }
-        .buttonStyle(.glassProminent)
-        .tint(ActualistTheme.accent)
         .padding(.horizontal, 16)
-        .padding(.bottom, 6)
+        .padding(.vertical, 12)
+        .background(ActualistTheme.control, in: Capsule())
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
     }
 
     private var transactionList: some View {
-        ForEach(groups, id: \.date) { group in
+        ForEach(displayedGroups, id: \.date) { group in
             Text(group.title)
                 .font(ActualistTypography.sectionTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
@@ -206,6 +288,30 @@ struct AccountTransactionsView: View {
                     .listRowBackground(ActualistTheme.surface)
             }
         }
+    }
+
+    @ViewBuilder
+    private var searchFooter: some View {
+        Group {
+            if isSearching {
+                ProgressView("Searching transactions")
+                    .font(ActualistTypography.rowBadge(for: density))
+            } else if let searchErrorMessage {
+                Text(searchErrorMessage)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.danger)
+            } else if displayedTransactions.isEmpty {
+                Text("No matching transactions")
+                    .font(ActualistTypography.rowBadge(for: density))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
 
     @ViewBuilder
@@ -310,7 +416,7 @@ struct AccountTransactionsView: View {
         if let payeeName = transaction.payeeName, !payeeName.isEmpty {
             return payeeName
         }
-        if let payee = transaction.payee, let name = payeeNames[payee] {
+        if let payee = transaction.payee, let name = activePayeeNames[payee] {
             return name
         }
         if let importedPayee = transaction.importedPayee, !importedPayee.isEmpty {
@@ -323,7 +429,41 @@ struct AccountTransactionsView: View {
         guard let category = transaction.category else {
             return "Uncategorized"
         }
-        return categoryNames[category] ?? "Uncategorized"
+        return activeCategoryNames[category] ?? "Uncategorized"
+    }
+
+    private func searchTextMatches(_ value: String?) -> Bool {
+        guard let value, !trimmedSearchText.isEmpty else {
+            return false
+        }
+        return value.localizedCaseInsensitiveContains(trimmedSearchText)
+    }
+
+    private func showSearch() {
+        withAnimation(.snappy(duration: 0.22)) {
+            isSearchFieldVisible = true
+        }
+
+        Task { @MainActor in
+            await Task.yield()
+            guard isSearchFieldVisible else {
+                return
+            }
+            isSearchFieldFocused = true
+        }
+    }
+
+    private func hideSearch() {
+        searchTask?.cancel()
+        isSearching = false
+        searchText = ""
+        searchResults = nil
+        searchErrorMessage = nil
+        isSearchFieldFocused = false
+
+        withAnimation(.snappy(duration: 0.2)) {
+            isSearchFieldVisible = false
+        }
     }
 
     private func load() async {
@@ -354,6 +494,55 @@ struct AccountTransactionsView: View {
             errorMessage = error.localizedDescription
         }
         isLoadingOlder = false
+    }
+
+    private func scheduleSearch(_ query: String) {
+        searchTask?.cancel()
+        searchErrorMessage = nil
+        searchResults = nil
+
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else {
+            isSearching = false
+            return
+        }
+
+        searchTask = Task {
+            isSearching = true
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else {
+                isSearching = false
+                return
+            }
+            await search(trimmedQuery)
+        }
+    }
+
+    private func search(_ query: String) async {
+        guard let budgetID else {
+            isSearching = false
+            return
+        }
+
+        do {
+            let results = try await appState.dataStore.searchAccountTransactions(
+                budgetID: budgetID,
+                accountID: account.id,
+                query: query,
+                limit: 50,
+                offset: 0
+            )
+            guard !Task.isCancelled, query == trimmedSearchText else {
+                return
+            }
+            searchResults = results
+        } catch {
+            guard !Task.isCancelled else {
+                return
+            }
+            searchErrorMessage = error.localizedDescription
+        }
+        isSearching = false
     }
 }
 

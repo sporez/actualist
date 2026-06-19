@@ -39,6 +39,11 @@ struct BudgetView: View {
                             errorMessage: viewModel.activeAssignmentErrorMessage,
                             appendDigit: { viewModel.appendAssignmentDigit($0) },
                             setMode: { viewModel.setAssignmentInputMode($0) },
+                            moveMoney: {
+                                withAnimation(BudgetLayout.assignmentKeypadAnimation) {
+                                    viewModel.beginMoveMoney()
+                                }
+                            },
                             deleteDigit: { viewModel.deleteAssignmentDigit() },
                             clearOrCancel: {
                                 withAnimation(BudgetLayout.assignmentKeypadAnimation) {
@@ -138,6 +143,10 @@ struct BudgetView: View {
                     }
                         .environment(appState)
                 }
+                .sheet(isPresented: moveMoneyPresentationBinding) {
+                    BudgetMoveMoneyView(viewModel: viewModel)
+                        .environment(appState)
+                }
                 .onChange(of: viewModel.activeAssignmentCategoryID) { _, categoryID in
                     if let categoryID {
                         scheduleAssignmentCategoryScroll(categoryID, using: scrollProxy)
@@ -148,6 +157,16 @@ struct BudgetView: View {
                         assignmentEditingCategoryFrame = .zero
                     }
                 }
+            }
+        }
+    }
+
+    private var moveMoneyPresentationBinding: Binding<Bool> {
+        Binding {
+            viewModel.isMoveMoneyPresented
+        } set: { isPresented in
+            if !isPresented {
+                viewModel.cancelMoveMoney()
             }
         }
     }
@@ -736,6 +755,492 @@ struct BudgetCategoryRow: View {
     }
 }
 
+private struct BudgetMoveMoneyView: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
+    @Bindable var viewModel: BudgetViewModel
+
+    @State private var isDestinationPickerPresented = false
+    @State private var didAutoPresentDestinationPicker = false
+
+    var body: some View {
+        ZStack {
+            ActualistTheme.background.ignoresSafeArea()
+
+            if let draft = viewModel.moveMoneyDraft {
+                VStack(spacing: 0) {
+                    moveHeader(draft)
+
+                    VStack(spacing: 18) {
+                        destinationCard(draft)
+
+                        if let errorMessage = viewModel.activeMoveMoneyErrorMessage {
+                            Text(errorMessage)
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.danger)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(16)
+                                .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        }
+
+                        Spacer(minLength: 18)
+
+                        BudgetMoveMoneyNumberPad(
+                            canSubmit: viewModel.canSubmitMoveMoney,
+                            isSubmitting: viewModel.isSubmittingMoveMoney,
+                            appendDigit: { viewModel.appendMoveMoneyDigit($0) },
+                            deleteDigit: { viewModel.deleteMoveMoneyDigit() },
+                            clear: { viewModel.clearMoveMoneyAmount() },
+                            submit: {
+                                Task {
+                                    if await viewModel.submitMoveMoney(using: appState) {
+                                        dismiss()
+                                    }
+                                }
+                            }
+                        )
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.top, -34)
+                    .padding(.bottom, 18)
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .sheet(isPresented: $isDestinationPickerPresented) {
+            BudgetMoveMoneyDestinationPicker(viewModel: viewModel)
+        }
+        .task(id: viewModel.moveMoneyDraft?.focusedCategoryID) {
+            guard !didAutoPresentDestinationPicker else {
+                return
+            }
+
+            didAutoPresentDestinationPicker = true
+            try? await Task.sleep(nanoseconds: 320_000_000)
+            guard viewModel.isMoveMoneyPresented,
+                  viewModel.moveMoneyDraft?.destination == nil else {
+                return
+            }
+
+            isDestinationPickerPresented = true
+        }
+    }
+
+    private func moveHeader(_ draft: BudgetMoveMoneyDraft) -> some View {
+        ZStack(alignment: .topLeading) {
+            VStack(spacing: 18) {
+                Text(draft.direction.headerTitle)
+                    .font(ActualistTypography.sectionTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                VStack(spacing: 12) {
+                    Text(draft.focusedCategoryName.actualistCategoryNameParts.name)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Text(draft.focusedAvailable.actualMoney.formatted())
+                        .font(ActualistTypography.workScreenAmount(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 7)
+                        .background(Color.black.opacity(0.26), in: Capsule())
+                }
+
+                VStack(spacing: 8) {
+                    Button {
+                        viewModel.toggleMoveMoneyDirection()
+                        if viewModel.moveMoneyDraft?.destination == nil {
+                            isDestinationPickerPresented = true
+                        }
+                    } label: {
+                        Image(systemName: draft.direction.arrowSystemImage)
+                            .font(.title.weight(.bold))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(Color.black.opacity(0.72), Color.white.opacity(0.92))
+                            .padding(10)
+                            .background(Color.white.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(draft.isSubmitting)
+                    .accessibilityLabel("Switch move money direction")
+
+                    Text(draft.direction.counterpartyPrompt)
+                        .font(ActualistTypography.rowLabel(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .padding(.top, 4)
+
+                Spacer(minLength: 28)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, BudgetMoveMoneyLayout.headerTopInset)
+            .padding(.horizontal, BudgetMoveMoneyLayout.headerHorizontalPadding)
+
+            VStack {
+                Button {
+                    viewModel.cancelMoveMoney()
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.title2.weight(.medium))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .frame(width: 54, height: 54)
+                        .background(Color.white.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(draft.isSubmitting)
+            }
+            .padding(.top, BudgetMoveMoneyLayout.closeButtonTopInset)
+            .padding(.leading, BudgetMoveMoneyLayout.closeButtonLeadingInset)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 380)
+        .background(
+            UnevenRoundedRectangle(
+                cornerRadii: RectangleCornerRadii(bottomLeading: 32, bottomTrailing: 32),
+                style: .continuous
+            )
+            .fill(Color(red: 0.14, green: 0.37, blue: 0.04))
+        )
+    }
+
+    private func destinationCard(_ draft: BudgetMoveMoneyDraft) -> some View {
+        VStack(spacing: 18) {
+            HStack(spacing: 10) {
+                Text(draft.destination?.title ?? "Select Category")
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(draft.destination == nil ? ActualistTheme.accent : ActualistTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer()
+
+                Text(draft.amount.actualMoney.formatted())
+                    .font(ActualistTypography.rowValue(for: density))
+                    .foregroundStyle(ActualistTheme.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                Text(viewModel.moveMoneyAvailableDisplayAmount.actualMoney.formatted())
+                    .font(ActualistTypography.rowBadge(for: density))
+                    .foregroundStyle(moveAvailableForeground)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 5)
+                    .background(moveAvailableBackground, in: Capsule())
+            }
+
+            Slider(
+                value: moveAmountDollarsBinding,
+                in: 0...sliderUpperBound,
+                step: 1
+            )
+            .tint(ActualistTheme.accent)
+            .disabled(viewModel.moveMoneyMaximumDollars <= 0 || draft.isSubmitting)
+
+            Divider().overlay(ActualistTheme.separator)
+
+            Button {
+                isDestinationPickerPresented = true
+            } label: {
+                Label(draft.destination == nil ? "Select Category" : "Select Another", systemImage: "plus.circle.fill")
+                    .font(ActualistTypography.control(for: density))
+                    .foregroundStyle(ActualistTheme.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 2)
+            }
+            .buttonStyle(.plain)
+            .disabled(draft.isSubmitting)
+        }
+        .padding(22)
+        .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    private var moveAmountDollarsBinding: Binding<Double> {
+        Binding {
+            viewModel.moveMoneyAmountDollars
+        } set: { value in
+            viewModel.setMoveMoneyAmountDollars(value)
+        }
+    }
+
+    private var sliderUpperBound: Double {
+        max(1, viewModel.moveMoneyMaximumDollars)
+    }
+
+    private var moveAvailableBackground: Color {
+        let amount = viewModel.moveMoneyAvailableDisplayAmount
+        if amount < 0 {
+            return ActualistTheme.danger
+        }
+        if amount == 0 {
+            return Color.gray.opacity(0.45)
+        }
+        return ActualistTheme.positive
+    }
+
+    private var moveAvailableForeground: Color {
+        viewModel.moveMoneyAvailableDisplayAmount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+    }
+}
+
+private enum BudgetMoveMoneyLayout {
+    static let headerTopInset: CGFloat = 84
+    static let closeButtonTopInset: CGFloat = 74
+    static let closeButtonLeadingInset: CGFloat = 34
+    static let headerHorizontalPadding: CGFloat = 34
+}
+
+private struct BudgetMoveMoneyNumberPad: View {
+    @Environment(\.actualistDensity) private var density
+
+    let canSubmit: Bool
+    let isSubmitting: Bool
+    let appendDigit: (Int) -> Void
+    let deleteDigit: () -> Void
+    let clear: () -> Void
+    let submit: () -> Void
+
+    @State private var keyPressCount = 0
+
+    var body: some View {
+        Grid(horizontalSpacing: 22, verticalSpacing: 14) {
+            GridRow {
+                digitButton(7)
+                digitButton(8)
+                digitButton(9)
+            }
+
+            GridRow {
+                digitButton(4)
+                digitButton(5)
+                digitButton(6)
+            }
+
+            GridRow {
+                digitButton(1)
+                digitButton(2)
+                digitButton(3)
+            }
+
+            GridRow {
+                Button {
+                    clear()
+                    keyPressCount += 1
+                } label: {
+                    Image(systemName: "xmark.rectangle")
+                        .font(ActualistTypography.keypadSymbol(for: density))
+                        .foregroundStyle(ActualistTheme.accent)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear amount")
+
+                digitButton(0)
+
+                Button {
+                    submit()
+                    keyPressCount += 1
+                } label: {
+                    Text(isSubmitting ? "saving" : "done")
+                        .font(ActualistTypography.control(for: density))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(ActualistTheme.accent, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSubmit)
+                .opacity(canSubmit ? 1 : 0.45)
+                .accessibilityLabel("Move money")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 22)
+        .sensoryFeedback(.impact(weight: .heavy, intensity: 1.0), trigger: keyPressCount)
+    }
+
+    private func digitButton(_ digit: Int) -> some View {
+        Button {
+            appendDigit(digit)
+            keyPressCount += 1
+        } label: {
+            Text(String(digit))
+                .font(ActualistTypography.keypadDigit(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(digit))
+    }
+}
+
+private struct BudgetMoveMoneyDestinationPicker: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
+    @Bindable var viewModel: BudgetViewModel
+
+    @State private var searchText = ""
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                ActualistTheme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        searchField
+                        toBudgetButton
+                        destinationGroups
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.top, 18)
+                    .padding(.bottom, 28)
+                }
+            }
+            .navigationTitle(viewModel.moveMoneyDraft?.direction == .intoFocusedCategory ? "Move from" : "Move to")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .actualistToolbarGlassButton()
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(ActualistTheme.secondaryText)
+
+            TextField("Search Categories", text: $searchText)
+                .textInputAutocapitalization(.words)
+                .font(ActualistTypography.rowTitle(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(ActualistTheme.control, in: Capsule())
+    }
+
+    @ViewBuilder
+    private var toBudgetButton: some View {
+        let option = viewModel.toBudgetDestinationOption()
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || option.title.localizedCaseInsensitiveContains(searchText) {
+            destinationButton(option)
+                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+    }
+
+    private var destinationGroups: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(viewModel.moveMoneyDestinationGroups(matching: searchText)) { group in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(group.name)
+                        .font(ActualistTypography.rowLabel(for: density).weight(.bold))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .padding(.horizontal, 22)
+
+                    VStack(spacing: 0) {
+                        ForEach(group.options) { option in
+                            destinationButton(option)
+
+                            if option.id != group.options.last?.id {
+                                Divider()
+                                    .overlay(ActualistTheme.separator)
+                                    .padding(.leading, 22)
+                            }
+                        }
+                    }
+                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func destinationButton(_ option: BudgetMoveMoneyDestinationOption) -> some View {
+        Button {
+            viewModel.selectMoveMoneyDestination(option.destination)
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                Text(option.title)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Spacer()
+
+                Text(option.valueText)
+                    .font(ActualistTypography.rowBadge(for: density))
+                    .foregroundStyle(destinationValueForeground(option))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 5)
+                    .background(destinationValueBackground(option), in: Capsule())
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func destinationValueBackground(_ option: BudgetMoveMoneyDestinationOption) -> Color {
+        switch option.destination {
+        case .toBudget:
+            ActualistTheme.positive
+        case .category:
+            if option.amount < 0 {
+                ActualistTheme.danger
+            } else if option.amount == 0 {
+                Color.gray.opacity(0.45)
+            } else {
+                ActualistTheme.positive
+            }
+        }
+    }
+
+    private func destinationValueForeground(_ option: BudgetMoveMoneyDestinationOption) -> Color {
+        switch option.destination {
+        case .toBudget:
+            .black.opacity(0.78)
+        case .category:
+            option.amount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+        }
+    }
+}
+
 private struct BudgetAssignmentKeypad: View {
     @Environment(\.actualistDensity) private var density
 
@@ -744,6 +1249,7 @@ private struct BudgetAssignmentKeypad: View {
     let errorMessage: String?
     let appendDigit: (Int) -> Void
     let setMode: (BudgetAssignmentInputMode) -> Void
+    let moveMoney: () -> Void
     let deleteDigit: () -> Void
     let clearOrCancel: () -> Void
     let cancel: () -> Void
@@ -755,7 +1261,9 @@ private struct BudgetAssignmentKeypad: View {
         VStack(spacing: BudgetKeypadLayout.stackSpacing) {
             HStack(spacing: 12) {
                 keypadToolbarButton(title: "Auto-Assign", systemImage: "bolt.fill") {}
-                keypadToolbarButton(title: "Move Money", systemImage: "arrow.right") {}
+                keypadToolbarButton(title: "Move Money", systemImage: "arrow.right", isEnabled: true) {
+                    moveMoney()
+                }
                 keypadToolbarButton(title: "Details", systemImage: "ellipsis") {}
 
                 Button(action: cancel) {
@@ -848,6 +1356,7 @@ private struct BudgetAssignmentKeypad: View {
     private func keypadToolbarButton(
         title: String,
         systemImage: String,
+        isEnabled: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -859,13 +1368,13 @@ private struct BudgetAssignmentKeypad: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
             }
-            .foregroundStyle(ActualistTheme.secondaryText)
+            .foregroundStyle(isEnabled ? ActualistTheme.accent : ActualistTheme.secondaryText)
             .frame(maxWidth: .infinity)
             .frame(height: BudgetKeypadLayout.toolbarButtonHeight)
             .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(true)
+        .disabled(!isEnabled)
     }
 
     private func digitButton(_ digit: Int) -> some View {

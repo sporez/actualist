@@ -4,17 +4,20 @@ struct AppSettings: Codable, Equatable {
     var serverURLString: String = ""
     var selectedBudgetID: String?
     var selectedBudgetName: String?
+    var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
 
     init(
         serverURLString: String = "",
         selectedBudgetID: String? = nil,
         selectedBudgetName: String? = nil,
+        theme: ActualistThemeOption = .actualPurple,
         displayDensity: ActualistDisplayDensity = .compact
     ) {
         self.serverURLString = serverURLString
         self.selectedBudgetID = selectedBudgetID
         self.selectedBudgetName = selectedBudgetName
+        self.theme = theme
         self.displayDensity = displayDensity
     }
 
@@ -23,6 +26,7 @@ struct AppSettings: Codable, Equatable {
         serverURLString = try container.decodeIfPresent(String.self, forKey: .serverURLString) ?? ""
         selectedBudgetID = try container.decodeIfPresent(String.self, forKey: .selectedBudgetID)
         selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)
+        theme = try container.decodeIfPresent(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
         displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
     }
 }

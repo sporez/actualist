@@ -12,6 +12,13 @@ protocol ActualAPIClientProtocol: Sendable {
         categoryID: String,
         budgeted: Int
     ) async throws -> APIGeneralResponseMessage
+    func createCategoryTransfer(
+        budgetID: String,
+        month: String,
+        fromCategoryID: String?,
+        toCategoryID: String?,
+        amount: Int
+    ) async throws -> APIGeneralResponseMessage
     func budgetMonths(budgetID: String) async throws -> [String]
     func accounts(budgetID: String) async throws -> [ActualAccount]
     func balance(budgetID: String, accountID: String) async throws -> Int
@@ -20,6 +27,13 @@ protocol ActualAPIClientProtocol: Sendable {
         accountID: String,
         since: Date,
         until: Date?
+    ) async throws -> [ActualTransaction]
+    func searchTransactions(
+        budgetID: String,
+        accountID: String,
+        query: String,
+        limit: Int,
+        offset: Int
     ) async throws -> [ActualTransaction]
     func payees(budgetID: String) async throws -> [ActualPayee]
     func categories(budgetID: String) async throws -> [ActualCategory]

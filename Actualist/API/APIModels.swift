@@ -20,6 +20,41 @@ struct APIBudgetMonthCategoryUpdatePayload: Encodable, Sendable {
     }
 }
 
+struct APIBudgetCategoryTransferPayload: Encodable, Sendable {
+    let categorytransfer: CategoryTransfer
+
+    init(
+        fromCategoryID: String?,
+        toCategoryID: String?,
+        amount: Int
+    ) {
+        categorytransfer = CategoryTransfer(
+            fromCategoryID: fromCategoryID,
+            toCategoryID: toCategoryID,
+            amount: amount
+        )
+    }
+
+    struct CategoryTransfer: Encodable, Sendable {
+        let fromCategoryID: String?
+        let toCategoryID: String?
+        let amount: Int
+
+        enum CodingKeys: String, CodingKey {
+            case fromCategoryID = "fromCategoryId"
+            case toCategoryID = "toCategoryId"
+            case amount
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(fromCategoryID, forKey: .fromCategoryID)
+            try container.encodeIfPresent(toCategoryID, forKey: .toCategoryID)
+            try container.encode(amount, forKey: .amount)
+        }
+    }
+}
+
 struct APITransactionRulesRunPayload: Encodable, Sendable {
     let transaction: APITransactionDraft
 }

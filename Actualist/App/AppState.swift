@@ -10,6 +10,7 @@ final class AppState {
     var budgets: [ActualBudget] = []
     var selectedBudget: ActualBudget?
     var lastErrorMessage: String?
+    var themeRevision = 0
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
@@ -27,6 +28,7 @@ final class AppState {
         self.keychain = keychain
         let loaded = settingsStore.load()
         self.settings = loaded
+        ActualistTheme.activate(loaded.theme)
         if loaded.serverURLString.isEmpty || keychain.readAPIKey().isEmpty || loaded.selectedBudgetID == nil {
             self.setupPhase = .needsConnection
         } else {
@@ -72,6 +74,13 @@ final class AppState {
 
     func updateDisplayDensity(_ density: ActualistDisplayDensity) {
         settings.displayDensity = density
+        settingsStore.save(settings)
+    }
+
+    func updateTheme(_ theme: ActualistThemeOption) {
+        settings.theme = theme
+        ActualistTheme.activate(theme)
+        themeRevision += 1
         settingsStore.save(settings)
     }
 

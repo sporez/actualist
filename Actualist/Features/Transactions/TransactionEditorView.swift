@@ -6,6 +6,7 @@ struct TransactionEditorView: View {
     @Environment(\.actualistDensity) private var density
     @State private var viewModel: TransactionEditorViewModel
     @State private var isPayeePickerPresented = false
+    @State private var isCategoryPickerPresented = false
     @FocusState private var isAmountFocused: Bool
 
     let prefilledAccount: ActualAccount?
@@ -72,6 +73,9 @@ struct TransactionEditorView: View {
         .sheet(isPresented: $isPayeePickerPresented) {
             PayeeSelectionView(viewModel: viewModel)
         }
+        .sheet(isPresented: $isCategoryPickerPresented) {
+            TransactionCategorySelectionView(viewModel: viewModel)
+        }
     }
 
     private var amountHeader: some View {
@@ -123,21 +127,14 @@ struct TransactionEditorView: View {
 
             Divider().overlay(ActualistTheme.separator).padding(.leading, density.iconSize + density.rowHorizontalPadding)
 
-            editorPickerRow(
+            editorButtonRow(
                 title: "Category",
                 systemImage: "tray.full.fill",
                 value: viewModel.selectedCategoryName
             ) {
-                Button("Uncategorized") {
-                    viewModel.clearCategory()
-                }
-
-                ForEach(viewModel.categories) { category in
-                    if category.id != nil {
-                        Button(category.name.actualistCategoryNameParts.name) {
-                            viewModel.selectCategory(category)
-                        }
-                    }
+                Task {
+                    await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
+                    isCategoryPickerPresented = true
                 }
             }
 
@@ -362,6 +359,202 @@ struct TransactionEditorView: View {
         .buttonStyle(.plain)
         .padding(.horizontal, density.rowHorizontalPadding)
         .padding(.vertical, density.editorRowVerticalPadding)
+    }
+}
+
+private struct TransactionCategorySelectionView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
+    @Bindable var viewModel: TransactionEditorViewModel
+    @State private var searchText = ""
+
+    private var trimmedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var categoryGroups: [TransactionEditorCategoryGroup] {
+        viewModel.categorySelectionGroups(matching: searchText)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                ActualistTheme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        searchField
+
+                        if trimmedSearchText.isEmpty {
+                            uncategorizedButton
+                        }
+
+                        if viewModel.isLoadingCategoryBalances, categoryGroups.isEmpty {
+                            ProgressView("Loading categories")
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 18)
+                        } else if categoryGroups.isEmpty {
+                            Text("No matching categories")
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 18)
+                        } else {
+                            destinationGroups
+                        }
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.top, 18)
+                    .padding(.bottom, 28)
+                }
+            }
+            .navigationTitle("Category")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .actualistToolbarGlassButton()
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(ActualistTheme.secondaryText)
+
+            TextField("Search Categories", text: $searchText)
+                .textInputAutocapitalization(.words)
+                .font(ActualistTypography.rowTitle(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(ActualistTheme.control, in: Capsule())
+    }
+
+    private var uncategorizedButton: some View {
+        Button {
+            viewModel.clearCategory()
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                Text("Uncategorized")
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                Spacer()
+
+                if viewModel.selectedCategoryID == nil {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(ActualistTheme.positive)
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private var destinationGroups: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(categoryGroups) { group in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(group.name)
+                        .font(ActualistTypography.rowLabel(for: density).weight(.bold))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .padding(.horizontal, 22)
+
+                    VStack(spacing: 0) {
+                        ForEach(group.options) { option in
+                            categoryButton(option)
+
+                            if option.id != group.options.last?.id {
+                                Divider()
+                                    .overlay(ActualistTheme.separator)
+                                    .padding(.leading, 22)
+                            }
+                        }
+                    }
+                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func categoryButton(_ option: TransactionEditorCategoryOption) -> some View {
+        Button {
+            viewModel.selectCategory(option)
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                Text(option.title)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+
+                Spacer()
+
+                if let valueText = option.valueText {
+                    Text(valueText)
+                        .font(ActualistTypography.rowBadge(for: density))
+                        .foregroundStyle(categoryValueForeground(option))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 5)
+                        .background(categoryValueBackground(option), in: Capsule())
+                }
+
+                if option.id == viewModel.selectedCategoryID {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(ActualistTheme.positive)
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func categoryValueBackground(_ option: TransactionEditorCategoryOption) -> Color {
+        guard let amount = option.amount else {
+            return Color.clear
+        }
+
+        if amount < 0 {
+            return ActualistTheme.danger
+        } else if amount == 0 {
+            return Color.gray.opacity(0.45)
+        } else {
+            return ActualistTheme.positive
+        }
+    }
+
+    private func categoryValueForeground(_ option: TransactionEditorCategoryOption) -> Color {
+        option.amount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
     }
 }
 

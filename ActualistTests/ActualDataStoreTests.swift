@@ -111,6 +111,34 @@ struct ActualDataStoreTests {
         #expect(await client.callCount(.balance) == balanceCallsAfterRefresh)
     }
 
+    @Test func searchAccountTransactionsReturnsDisplaySnapshotWithoutMutatingLoadedPage() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "loaded", date: "2026-06-15")]
+            ],
+            searchTransactionResponses: [
+                [Self.transaction(id: "search", date: "2026-06-14")]
+            ]
+        )
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        let results = try await store.searchAccountTransactions(
+            budgetID: "b",
+            accountID: "checking",
+            query: "corner",
+            limit: 25,
+            offset: 0
+        )
+
+        #expect(results.transactions.map(\.id) == ["search"])
+        #expect(results.categoryNames["groceries"] == "Groceries")
+        #expect(results.payeeNames["store"] == "Corner Store")
+        #expect(results.reachedEnd)
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["loaded"])
+        #expect(await client.callCount(.searchTransactions) == 1)
+    }
+
     @Test func writeInvalidationReplacesPreservedLoadedRange() async throws {
         let client = FakeAPIClient(
             transactionResponses: [
@@ -157,6 +185,36 @@ struct ActualDataStoreTests {
 
         #expect(loaded.selectedMonth == "2026-06")
         #expect(await client.callCount(.updateBudgetMonthCategory) == 1)
+        // The month was invalidated and refetched after the write.
+        #expect(await client.callCount(.budgetMonth) > monthCallsAfterWarm)
+    }
+
+    @Test func categoryTransferInvalidatesAndRefetchesAffectedMonth() async throws {
+        let client = FakeAPIClient()
+        let store = ActualDataStore { client }
+
+        // Warm the month cache.
+        _ = try await store.budgetMonth(budgetID: "b", selectedMonth: "2026-06")
+        let monthCallsAfterWarm = await client.callCount(.budgetMonth)
+
+        let loaded = try await store.moveMoneyAndRefresh(
+            command: BudgetMoveMoneyCommand(
+                fromCategoryID: "groceries",
+                toCategoryID: nil,
+                amount: 2_500
+            ),
+            budgetID: "b",
+            month: "2026-06",
+            didMove: {}
+        )
+
+        #expect(loaded.selectedMonth == "2026-06")
+        #expect(await client.callCount(.createCategoryTransfer) == 1)
+        #expect(await client.lastCategoryTransfer() == BudgetMoveMoneyCommand(
+            fromCategoryID: "groceries",
+            toCategoryID: nil,
+            amount: 2_500
+        ))
         // The month was invalidated and refetched after the write.
         #expect(await client.callCount(.budgetMonth) > monthCallsAfterWarm)
     }
@@ -234,17 +292,24 @@ struct ActualDataStoreTests {
 
 actor FakeAPIClient: ActualAPIClientProtocol {
     enum Method {
-        case accounts, balance, transactions, categories, payees, budgets
+        case accounts, balance, transactions, searchTransactions, categories, payees, budgets
         case budgetMonths, budgetMonth, budgetMonthAlerts, updateBudgetMonthCategory
+        case createCategoryTransfer
         case createTransaction, updateTransaction, deleteTransaction, runTransactionRules
     }
 
     private var counts: [Method: Int] = [:]
     private var transactionResponses: [[ActualTransaction]]
+    private var searchTransactionResponses: [[ActualTransaction]]
     private var requestedTransactionWindows: [(since: Date, until: Date?)] = []
+    private var recordedCategoryTransfer: BudgetMoveMoneyCommand?
 
-    init(transactionResponses: [[ActualTransaction]] = []) {
+    init(
+        transactionResponses: [[ActualTransaction]] = [],
+        searchTransactionResponses: [[ActualTransaction]] = []
+    ) {
         self.transactionResponses = transactionResponses
+        self.searchTransactionResponses = searchTransactionResponses
     }
 
     func callCount(_ method: Method) -> Int {
@@ -258,6 +323,10 @@ actor FakeAPIClient: ActualAPIClientProtocol {
             }
             return "\(Self.formattedDate(window.since))..."
         }
+    }
+
+    func lastCategoryTransfer() -> BudgetMoveMoneyCommand? {
+        recordedCategoryTransfer
     }
 
     private func record(_ method: Method) {
@@ -300,6 +369,23 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         ]
     }
 
+    func searchTransactions(
+        budgetID: String,
+        accountID: String,
+        query: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> [ActualTransaction] {
+        record(.searchTransactions)
+        if !searchTransactionResponses.isEmpty {
+            return searchTransactionResponses.removeFirst()
+        }
+
+        return [
+            ActualDataStoreTests.transaction(id: "search", accountID: accountID, date: "2026-06-15")
+        ]
+    }
+
     func categories(budgetID: String) async throws -> [ActualCategory] {
         record(.categories)
         return [ActualCategory(id: "groceries", name: "Groceries", isIncome: false, hidden: false, groupID: "bills")]
@@ -332,6 +418,22 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         budgeted: Int
     ) async throws -> APIGeneralResponseMessage {
         record(.updateBudgetMonthCategory)
+        return APIGeneralResponseMessage(message: "ok")
+    }
+
+    func createCategoryTransfer(
+        budgetID: String,
+        month: String,
+        fromCategoryID: String?,
+        toCategoryID: String?,
+        amount: Int
+    ) async throws -> APIGeneralResponseMessage {
+        record(.createCategoryTransfer)
+        recordedCategoryTransfer = BudgetMoveMoneyCommand(
+            fromCategoryID: fromCategoryID,
+            toCategoryID: toCategoryID,
+            amount: amount
+        )
         return APIGeneralResponseMessage(message: "ok")
     }
 

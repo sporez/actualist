@@ -40,10 +40,15 @@ struct SettingsView: View {
                 }
 
                 Section("Appearance") {
-                    LabeledContent("Theme") {
-                        Text("Reference Dark")
-                            .foregroundStyle(.secondary)
+                    Picker("Theme", selection: themeSelection) {
+                        ForEach(ActualistThemeOption.allCases) { option in
+                            Text(option.title)
+                                .tag(option)
+                        }
                     }
+                    .pickerStyle(.menu)
+
+                    ThemePreviewStrip(theme: appState.settings.theme)
 
                     VStack(alignment: .leading, spacing: 10) {
                         LabeledContent("Display Size") {
@@ -82,5 +87,46 @@ struct SettingsView: View {
         } set: { value in
             appState.updateDisplayDensity(ActualistDisplayDensity(sliderValue: value))
         }
+    }
+
+    private var themeSelection: Binding<ActualistThemeOption> {
+        Binding {
+            appState.settings.theme
+        } set: { theme in
+            appState.updateTheme(theme)
+        }
+    }
+}
+
+private struct ThemePreviewStrip: View {
+    let theme: ActualistThemeOption
+
+    var body: some View {
+        let palette = ActualistTheme.palette(for: theme)
+
+        HStack(spacing: 8) {
+            ThemeSwatch(color: palette.background)
+            ThemeSwatch(color: palette.surface)
+            ThemeSwatch(color: palette.elevatedSurface)
+            ThemeSwatch(color: palette.accent)
+            ThemeSwatch(color: palette.positive)
+            ThemeSwatch(color: palette.warning)
+            ThemeSwatch(color: palette.danger)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct ThemeSwatch: View {
+    let color: Color
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 18, height: 18)
+            .overlay {
+                Circle()
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+            }
     }
 }

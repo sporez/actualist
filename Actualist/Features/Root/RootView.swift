@@ -4,6 +4,8 @@ struct RootView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
+        let theme = ActualistTheme.palette(for: appState.settings.theme)
+
         Group {
             switch appState.setupPhase {
             case .needsConnection:
@@ -14,7 +16,9 @@ struct RootView: View {
                 MainTabView()
             }
         }
-        .actualistScreenBackground()
+        .id("\(appState.settings.theme.rawValue)-\(appState.themeRevision)")
+        .background(theme.background.ignoresSafeArea())
+        .tint(.white)
         .environment(\.actualistDensity, appState.settings.displayDensity)
     }
 }

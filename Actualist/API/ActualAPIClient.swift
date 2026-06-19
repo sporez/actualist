@@ -30,6 +30,24 @@ struct ActualAPIClient: Sendable {
         )
     }
 
+    func createCategoryTransfer(
+        budgetID: String,
+        month: String,
+        fromCategoryID: String?,
+        toCategoryID: String?,
+        amount: Int
+    ) async throws -> APIGeneralResponseMessage {
+        try await request(
+            path: "/budgets/\(budgetID)/months/\(month)/categorytransfers",
+            method: "POST",
+            body: APIBudgetCategoryTransferPayload(
+                fromCategoryID: fromCategoryID,
+                toCategoryID: toCategoryID,
+                amount: amount
+            )
+        )
+    }
+
     func budgetMonths(budgetID: String) async throws -> [String] {
         try await get("/budgets/\(budgetID)/months")
     }
@@ -60,6 +78,23 @@ struct ActualAPIClient: Sendable {
             queryItems: queryItems
         )
         return transactions
+    }
+
+    func searchTransactions(
+        budgetID: String,
+        accountID: String,
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> [ActualTransaction] {
+        try await get(
+            "/budgets/\(budgetID)/accounts/\(accountID)/transactions/search",
+            queryItems: [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+                URLQueryItem(name: "offset", value: String(offset))
+            ]
+        )
     }
 
     func payees(budgetID: String) async throws -> [ActualPayee] {

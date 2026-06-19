@@ -1,7 +1,7 @@
 import Foundation
 
 protocol TransactionRepositoryProtocol: Sendable {
-    func editorOptions(budgetID: String) async throws -> TransactionEditorOptions
+    func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions
     func previewRules(
         for draft: TransactionDraft,
         budgetID: String
@@ -29,7 +29,21 @@ protocol TransactionRepositoryProtocol: Sendable {
 struct TransactionEditorOptions: Hashable, Sendable {
     let accounts: [ActualAccount]
     let categories: [ActualCategory]
+    let categoryGroups: [TransactionEditorCategoryGroup]
     let payees: [ActualPayee]
+}
+
+struct TransactionEditorCategoryGroup: Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let options: [TransactionEditorCategoryOption]
+}
+
+struct TransactionEditorCategoryOption: Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let amount: Int?
+    let valueText: String?
 }
 
 struct LoadedAccountTransactions: Hashable, Sendable {

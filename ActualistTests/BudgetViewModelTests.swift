@@ -250,13 +250,173 @@ struct BudgetViewModelTests {
         #expect(model.canSubmitAssignment)
     }
 
+    @Test func moveMoneyStartsAtZeroAndClampsSliderToPositiveAvailableDollars() throws {
+        let model = BudgetViewModel()
+        let month = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 11_220,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+        model.budgetMonth = month
+
+        let category = try #require(month.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+
+        #expect(model.moveMoneyDraft?.amount == 0)
+        #expect(model.moveMoneyMaximumDollars == 112)
+
+        model.setMoveMoneyAmountDollars(120)
+        #expect(model.moveMoneyDraft?.amount == 11_200)
+
+        model.setMoveMoneyAmountDollars(-5)
+        #expect(model.moveMoneyDraft?.amount == 0)
+    }
+
+    @Test func moveMoneyDestinationOptionsUseToBudgetAndExcludeSourceCategory() throws {
+        let model = BudgetViewModel()
+        let month = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 11_220,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+        model.budgetMonth = month
+
+        let category = try #require(month.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+
+        #expect(model.toBudgetDestinationOption().title == "To Budget")
+        #expect(model.moveMoneyDestinationGroups(matching: "").flatMap(\.options).contains(where: { $0.id == category.id }) == false)
+    }
+
+    @Test func successfulMoveMoneyToBudgetSubmitsNilDestinationAndClearsEditingState() async throws {
+        let model = BudgetViewModel()
+        let loadedMonth = LoadedBudgetMonth(
+            availableMonths: ["2026-06"],
+            selectedMonth: "2026-06",
+            month: try Self.decodeBudgetMonth(
+                visibleCategoryBalance: 1_000,
+                hiddenCategoryBalance: 0,
+                lastMonthOverspent: 0
+            ),
+            alerts: []
+        )
+        let repository = RecordingBudgetRepository(loadedMonth: loadedMonth)
+
+        model.selectedMonth = "2026-06"
+        model.budgetMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 11_220,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+        model.expandedGroupIDs = ["bills", "missing"]
+
+        let category = try #require(model.budgetMonth?.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+        model.setMoveMoneyAmountDollars(25)
+        model.selectMoveMoneyDestination(.toBudget)
+
+        let saved = await model.submitMoveMoney(budgetID: "budget", repository: repository)
+
+        #expect(saved)
+        #expect(model.moveMoneyDraft == nil)
+        #expect(model.assignmentDraft == nil)
+        #expect(model.expandedGroupIDs == ["bills"])
+
+        let move = try await repository.onlyMove()
+        #expect(move.command == BudgetMoveMoneyCommand(
+            fromCategoryID: "mortgage",
+            toCategoryID: nil,
+            amount: 2_500
+        ))
+        #expect(move.month == "2026-06")
+        #expect(await repository.didMoveFinished())
+    }
+
+    @Test func moveMoneyDirectionToggleMovesFromSelectedCategoryIntoFocusedCategory() async throws {
+        let model = BudgetViewModel()
+        let repository = RecordingBudgetRepository()
+
+        model.selectedMonth = "2026-06"
+        model.budgetMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 7_693,
+            hiddenCategoryBalance: 0,
+            counterpartyCategoryBalance: 12_000,
+            lastMonthOverspent: 0
+        )
+
+        let category = try #require(model.budgetMonth?.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+        model.toggleMoveMoneyDirection()
+        model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        model.setMoveMoneyAmountDollars(25)
+
+        #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
+        #expect(model.moveMoneyMaximumDollars == 120)
+
+        let saved = await model.submitMoveMoney(budgetID: "budget", repository: repository)
+
+        #expect(saved)
+        let move = try await repository.onlyMove()
+        #expect(move.command == BudgetMoveMoneyCommand(
+            fromCategoryID: "utilities",
+            toCategoryID: "mortgage",
+            amount: 2_500
+        ))
+    }
+
+    @Test func failedMoveMoneyKeepsDraftOpenWithInlineError() async throws {
+        let model = BudgetViewModel()
+        let repository = RecordingBudgetRepository(moveError: TestError("transfer failed"))
+
+        model.selectedMonth = "2026-06"
+        model.budgetMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 11_220,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+
+        let category = try #require(model.budgetMonth?.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+        model.setMoveMoneyAmountDollars(25)
+        model.selectMoveMoneyDestination(.category(id: "gas", name: "Gas"))
+
+        let saved = await model.submitMoveMoney(budgetID: "budget", repository: repository)
+
+        #expect(saved == false)
+        #expect(model.moveMoneyDraft?.focusedCategoryID == "mortgage")
+        #expect(model.activeMoveMoneyErrorMessage == "transfer failed")
+        #expect(model.canSubmitMoveMoney)
+    }
+
     private static func decodeBudgetMonth(
         visibleCategoryBalance: Int,
         hiddenCategoryBalance: Int,
         categoryBudgeted: Int = 0,
         toBudget: Int = 0,
+        counterpartyCategoryBalance: Int? = nil,
         lastMonthOverspent: Int
     ) throws -> BudgetMonth {
+        let counterpartyCategoryJSON = counterpartyCategoryBalance.map { balance in
+            """
+                {
+                  "id": "utilities",
+                  "name": "🧹 Utilities",
+                  "is_income": false,
+                  "hidden": false,
+                  "group_id": "bills",
+                  "budgeted": 0,
+                  "spent": 0,
+                  "balance": \(balance),
+                  "carryover": false
+                },
+            """
+        } ?? ""
+
         let json = """
         {
           "month": "2026-06",
@@ -300,6 +460,7 @@ struct BudgetViewModelTests {
                   "balance": \(visibleCategoryBalance),
                   "carryover": false
                 },
+                \(counterpartyCategoryJSON)
                 {
                   "id": "old",
                   "name": "Hidden",
@@ -371,6 +532,37 @@ struct BudgetRepositoryAssignmentTests {
         try await Self.assertCategoryAssignmentThrowsWhenRefetchFailsAfterPatch()
     }
 
+    @Test func categoryTransferPostsPayloadAndRefetchesMonthBeforeReturning() async throws {
+        let recorder = BudgetRequestRecorder()
+        let repository = Self.repository { request in
+            recorder.record(request)
+            return try Self.response(for: request)
+        }
+
+        let loadedMonth = try await repository.moveMoneyAndRefresh(
+            command: BudgetMoveMoneyCommand(
+                fromCategoryID: "mortgage",
+                toCategoryID: nil,
+                amount: 2_500
+            ),
+            budgetID: "budget",
+            month: "2026-06"
+        )
+
+        let requests = recorder.requests()
+        #expect(requests.contains("POST /v1/budgets/budget/months/2026-06/categorytransfers"))
+        #expect(requests.contains("GET /v1/budgets/budget/months"))
+        #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
+        #expect(requests.contains("GET /v1/budgets/budget/months/2026-06/alerts"))
+        #expect(loadedMonth.selectedMonth == "2026-06")
+
+        let postBody = try #require(recorder.body(for: "POST /v1/budgets/budget/months/2026-06/categorytransfers"))
+        let transfer = try #require(postBody["categorytransfer"] as? [String: Any])
+        #expect(transfer["fromCategoryId"] as? String == "mortgage")
+        #expect(transfer["toCategoryId"] == nil)
+        #expect(transfer["amount"] as? Int == 2_500)
+    }
+
     private static func assertCategoryAssignmentThrowsWhenRefetchFailsAfterPatch() async throws {
         let recorder = BudgetRequestRecorder()
         let repository = Self.repository { request in
@@ -418,6 +610,10 @@ struct BudgetRepositoryAssignmentTests {
 
         if method == "PATCH", path.hasSuffix("/months/2026-06/categories/gas") {
             return (try okResponse(for: request), #"{"message":"Category updated"}"#.data(using: .utf8)!)
+        }
+
+        if method == "POST", path.hasSuffix("/months/2026-06/categorytransfers") {
+            return (try okResponse(for: request), #"{"message":"Category transfer created"}"#.data(using: .utf8)!)
         }
 
         if method == "GET", path.hasSuffix("/months") {
@@ -487,8 +683,11 @@ struct BudgetRepositoryAssignmentTests {
 actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private let loadedMonth: LoadedBudgetMonth
     private let assignError: Error?
+    private let moveError: Error?
     private var assignments: [RecordedBudgetAssignment] = []
+    private var moves: [RecordedBudgetMove] = []
     private var didAssignCallbackFinished = false
+    private var didMoveCallbackFinished = false
 
     init(
         loadedMonth: LoadedBudgetMonth = LoadedBudgetMonth(
@@ -511,10 +710,12 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
             """.data(using: .utf8)!),
             alerts: []
         ),
-        assignError: Error? = nil
+        assignError: Error? = nil,
+        moveError: Error? = nil
     ) {
         self.loadedMonth = loadedMonth
         self.assignError = assignError
+        self.moveError = moveError
     }
 
     func budgets() async throws -> [ActualBudget] {
@@ -560,18 +761,55 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
+    func moveMoneyAndRefresh(
+        command: BudgetMoveMoneyCommand,
+        budgetID: String,
+        month: String,
+        didMove: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        moves.append(
+            RecordedBudgetMove(
+                command: command,
+                budgetID: budgetID,
+                month: month
+            )
+        )
+
+        if let moveError {
+            throw moveError
+        }
+
+        await didMove()
+        didMoveCallbackFinished = true
+        return loadedMonth
+    }
+
     func onlyAssignment() throws -> RecordedBudgetAssignment {
         try #require(assignments.first)
     }
 
+    func onlyMove() throws -> RecordedBudgetMove {
+        try #require(moves.first)
+    }
+
     func didAssignFinished() -> Bool {
         didAssignCallbackFinished
+    }
+
+    func didMoveFinished() -> Bool {
+        didMoveCallbackFinished
     }
 }
 
 struct RecordedBudgetAssignment: Sendable {
     let categoryID: String
     let budgeted: Int
+    let budgetID: String
+    let month: String
+}
+
+struct RecordedBudgetMove: Sendable {
+    let command: BudgetMoveMoneyCommand
     let budgetID: String
     let month: String
 }

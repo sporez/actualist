@@ -17,6 +17,12 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didAssign: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
+    func moveMoneyAndRefresh(
+        command: BudgetMoveMoneyCommand,
+        budgetID: String,
+        month: String,
+        didMove: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth
 }
 
 struct LoadedBudgetMonth: Equatable {
@@ -24,4 +30,10 @@ struct LoadedBudgetMonth: Equatable {
     let selectedMonth: String
     let month: BudgetMonth
     let alerts: [APIBudgetMonthAlert]
+}
+
+struct BudgetMoveMoneyCommand: Hashable, Sendable {
+    let fromCategoryID: String?
+    let toCategoryID: String?
+    let amount: Int
 }
