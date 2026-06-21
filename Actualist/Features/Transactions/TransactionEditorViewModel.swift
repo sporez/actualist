@@ -17,6 +17,27 @@ enum TransactionSubmissionState: Equatable {
     case failed(String)
 }
 
+struct TransactionSplitEditorRow: Identifiable, Hashable {
+    let id: String
+    var transactionID: String?
+    var categoryID: String
+    var categoryName: String
+    var amountDigits: String
+
+    var amountCents: Int {
+        Int(amountDigits) ?? 0
+    }
+}
+
+struct TransactionSplitMismatch: Equatable {
+    let transactionTotal: Int
+    let splitTotal: Int
+
+    var difference: Int {
+        transactionTotal - splitTotal
+    }
+}
+
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
@@ -31,6 +52,8 @@ final class TransactionEditorViewModel {
     var selectedPayeeID: String?
     var selectedCategoryID: String?
     var selectedAccountID: String?
+    var splitRows: [TransactionSplitEditorRow] = []
+    var pendingSplitMismatch: TransactionSplitMismatch?
     var date = Date()
     var notes = ""
     var isCleared = false
@@ -112,7 +135,39 @@ final class TransactionEditorViewModel {
         kind == .spend ? ActualistTheme.danger : ActualistTheme.positive
     }
 
+    var isSplit: Bool {
+        splitRows.count >= 2
+    }
+
+    var splitTotalCents: Int {
+        splitRows.reduce(0) { $0 + $1.amountCents }
+    }
+
+    var splitRemainingCents: Int {
+        amountCents - splitTotalCents
+    }
+
+    var splitRemainingText: String {
+        splitRemainingCents.actualMoney.formatted()
+    }
+
+    var splitRemainingStatusText: String {
+        if splitRemainingCents < 0 {
+            return "\(abs(splitRemainingCents).actualMoney.formatted()) Over"
+        }
+
+        return "\(splitRemainingText) Remaining"
+    }
+
     var selectedCategoryName: String {
+        if splitRows.count >= 2 {
+            let names = splitRows.map(\.categoryName)
+            if names.count <= 2 {
+                return names.joined(separator: ", ")
+            }
+            return "Split (\(splitRows.count))"
+        }
+
         guard let selectedCategoryID else {
             return isEditing ? "Uncategorized" : "Select Category"
         }
@@ -140,6 +195,7 @@ final class TransactionEditorViewModel {
 
     func setAmountInput(_ value: String) {
         amountDigits = value.filter(\.isNumber).trimmingLeadingZeros()
+        pendingSplitMismatch = nil
     }
 
     func filteredPayees(matching searchText: String) -> [ActualPayee] {
@@ -208,6 +264,8 @@ final class TransactionEditorViewModel {
     func clearCategory() {
         selectedCategoryID = nil
         selectedCategoryFallbackName = nil
+        splitRows = []
+        pendingSplitMismatch = nil
     }
 
     func selectCategory(_ category: ActualCategory) {
@@ -217,11 +275,133 @@ final class TransactionEditorViewModel {
 
         selectedCategoryID = categoryID
         selectedCategoryFallbackName = category.name
+        splitRows = []
+        pendingSplitMismatch = nil
     }
 
     func selectCategory(_ option: TransactionEditorCategoryOption) {
         selectedCategoryID = option.id
         selectedCategoryFallbackName = option.title
+        splitRows = []
+        pendingSplitMismatch = nil
+    }
+
+    func isSplitCategorySelected(_ option: TransactionEditorCategoryOption) -> Bool {
+        splitRows.contains { $0.categoryID == option.id }
+    }
+
+    func beginSplitSelection() {
+        pendingSplitMismatch = nil
+
+        guard splitRows.isEmpty, let selectedCategoryID else {
+            return
+        }
+
+        splitRows.append(
+            TransactionSplitEditorRow(
+                id: selectedCategoryID,
+                transactionID: nil,
+                categoryID: selectedCategoryID,
+                categoryName: selectedCategoryName,
+                amountDigits: ""
+            )
+        )
+    }
+
+    func toggleSplitCategory(_ option: TransactionEditorCategoryOption) {
+        pendingSplitMismatch = nil
+        if let index = splitRows.firstIndex(where: { $0.categoryID == option.id }) {
+            splitRows.remove(at: index)
+        } else {
+            splitRows.append(
+                TransactionSplitEditorRow(
+                    id: option.id,
+                    transactionID: nil,
+                    categoryID: option.id,
+                    categoryName: option.title,
+                    amountDigits: ""
+                )
+            )
+        }
+
+        if splitRows.count >= 2 {
+            selectedCategoryID = nil
+            selectedCategoryFallbackName = nil
+        }
+    }
+
+    func finalizeSplitSelection() {
+        if splitRows.count == 1, let row = splitRows.first {
+            selectedCategoryID = row.categoryID
+            selectedCategoryFallbackName = row.categoryName
+            splitRows = []
+        } else if splitRows.count >= 2 {
+            selectedCategoryID = nil
+            selectedCategoryFallbackName = nil
+        }
+    }
+
+    func setSplitAmount(rowID: String, value: String) {
+        guard let index = splitRows.firstIndex(where: { $0.id == rowID }) else {
+            return
+        }
+
+        splitRows[index].amountDigits = value.filter(\.isNumber).trimmingLeadingZeros()
+        pendingSplitMismatch = nil
+    }
+
+    func formattedSplitAmount(rowID: String) -> String {
+        guard let row = splitRows.first(where: { $0.id == rowID }),
+              row.amountCents > 0 else {
+            return ""
+        }
+
+        return Self.formattedAmountInput(cents: row.amountCents)
+    }
+
+    func removeSplit(rowID: String) {
+        guard let index = splitRows.firstIndex(where: { $0.id == rowID }) else {
+            return
+        }
+
+        splitRows.remove(at: index)
+        pendingSplitMismatch = nil
+        if splitRows.count == 1, let row = splitRows.first {
+            selectedCategoryID = row.categoryID
+            selectedCategoryFallbackName = row.categoryName
+            splitRows = []
+        }
+    }
+
+    func autoDistributeSplitMismatch() {
+        guard isSplit else {
+            return
+        }
+
+        let currentTotal = splitTotalCents
+        let difference = amountCents - currentTotal
+        guard difference != 0 else {
+            pendingSplitMismatch = nil
+            return
+        }
+
+        let index = splitRows.lastIndex { $0.amountCents > 0 } ?? splitRows.indices.last
+        guard let index else {
+            return
+        }
+
+        let adjusted = max(0, splitRows[index].amountCents + difference)
+        splitRows[index].amountDigits = String(adjusted)
+        pendingSplitMismatch = nil
+    }
+
+    func updateTotalFromSplits() {
+        amountDigits = splitTotalCents == 0 ? "" : String(splitTotalCents)
+        pendingSplitMismatch = nil
+    }
+
+    func adjustSplitsManually() {
+        pendingSplitMismatch = nil
     }
 
     func load(using appState: AppState, prefilledAccount: ActualAccount?) async {
@@ -302,6 +482,10 @@ final class TransactionEditorViewModel {
         budgetID: String,
         repository: any TransactionRepositoryProtocol
     ) async {
+        guard !isSplit else {
+            return
+        }
+
         guard let draft = makeRulePreviewDraft() else {
             return
         }
@@ -332,6 +516,14 @@ final class TransactionEditorViewModel {
         budgetID: String,
         repository: any TransactionRepositoryProtocol
     ) async -> Bool {
+        if isSplit, splitTotalCents != amountCents {
+            pendingSplitMismatch = TransactionSplitMismatch(
+                transactionTotal: amountCents,
+                splitTotal: splitTotalCents
+            )
+            return false
+        }
+
         guard !isSubmitting, let draft = makeDraft() else {
             return false
         }
@@ -401,9 +593,10 @@ final class TransactionEditorViewModel {
             amountMinorUnits: signedAmount,
             payeeID: selectedPayeeID,
             payeeName: trimmedPayee,
-            categoryID: selectedCategoryID,
+            categoryID: isSplit ? nil : selectedCategoryID,
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-            cleared: isCleared
+            cleared: isCleared,
+            splits: splitDrafts(sign: kind == .spend ? -1 : 1)
         )
     }
 
@@ -439,6 +632,10 @@ final class TransactionEditorViewModel {
     }
 
     private func applyRulePreview(_ preview: TransactionRulePreview) {
+        guard !isSplit else {
+            return
+        }
+
         selectedCategoryID = preview.categoryID
         notes = preview.notes ?? ""
     }
@@ -459,6 +656,24 @@ final class TransactionEditorViewModel {
         date = transaction.date.actualDate ?? date
         notes = transaction.notes ?? ""
         isCleared = transaction.cleared?.boolValue ?? false
+        splitRows = transaction.subtransactions.compactMap { child in
+            guard let categoryID = child.category else {
+                return nil
+            }
+
+            return TransactionSplitEditorRow(
+                id: child.id ?? categoryID,
+                transactionID: child.id,
+                categoryID: categoryID,
+                categoryName: categoryID,
+                amountDigits: String(abs(child.amount ?? 0))
+            )
+        }
+
+        if splitRows.count >= 2 {
+            selectedCategoryID = nil
+            selectedCategoryFallbackName = nil
+        }
 
         if let fallbackPayeeName,
            !fallbackPayeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -482,6 +697,16 @@ final class TransactionEditorViewModel {
         if let selectedCategoryID,
            let matchedCategory = categories.first(where: { $0.id == selectedCategoryID }) {
             selectedCategoryFallbackName = matchedCategory.name
+        }
+
+        if !splitRows.isEmpty {
+            splitRows = splitRows.map { row in
+                var updated = row
+                if let matchedCategory = categories.first(where: { $0.id == row.categoryID }) {
+                    updated.categoryName = matchedCategory.name.actualistCategoryNameParts.name
+                }
+                return updated
+            }
         }
     }
 
@@ -519,6 +744,25 @@ final class TransactionEditorViewModel {
                 options: options
             )
         ]
+    }
+
+    private func splitDrafts(sign: Int) -> [TransactionSplitDraft] {
+        guard isSplit else {
+            return []
+        }
+
+        return splitRows.map { row in
+            TransactionSplitDraft(
+                id: row.transactionID,
+                categoryID: row.categoryID,
+                categoryName: row.categoryName,
+                amountMinorUnits: row.amountCents * sign
+            )
+        }
+    }
+
+    private static func formattedAmountInput(cents: Int) -> String {
+        "\(cents / 100).\(String(format: "%02d", cents % 100))"
     }
 }
 

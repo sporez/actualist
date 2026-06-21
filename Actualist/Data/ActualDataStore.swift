@@ -251,7 +251,7 @@ final class ActualDataStore {
             let loadedBalance = try? await balance
             self.transactionsByAccount[key] = CacheEntry(
                 value: AccountTransactionsPage(
-                    transactions: Self.sortedTransactions(loadedTransactions),
+                    transactions: Self.sortedTransactions(Self.parentTransactions(from: loadedTransactions)),
                     oldestLoadedDate: oldestLoadedDate,
                     reachedEnd: existingPage?.reachedEnd ?? false
                 ),
@@ -289,7 +289,7 @@ final class ActualDataStore {
             if olderTransactions.isEmpty {
                 page.reachedEnd = true
             } else {
-                page.transactions = Self.mergedTransactions(olderTransactions + page.transactions)
+                page.transactions = Self.mergedTransactions(Self.parentTransactions(from: olderTransactions) + page.transactions)
                 page.oldestLoadedDate = since
             }
 
@@ -318,12 +318,23 @@ final class ActualDataStore {
         )
 
         return LoadedAccountTransactions(
-            transactions: Self.sortedTransactions(transactions),
+            transactions: Self.sortedTransactions(Self.parentTransactions(from: transactions)),
             balance: balancesByAccount[key]?.value,
             categoryNames: categoryNames(budgetID: budgetID),
             payeeNames: payeeNames(budgetID: budgetID),
             reachedEnd: true
         )
+    }
+
+    func syncBankAccountAndRefresh(
+        budgetID: String,
+        accountID: String
+    ) async throws -> LoadedAccountTransactions? {
+        let client = try requireClient()
+        _ = try await client.syncBankAccount(budgetID: budgetID, accountID: accountID)
+        invalidateAccount(budgetID: budgetID, accountID: accountID)
+        try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID)
+        return cachedAccountTransactions(budgetID: budgetID, accountID: accountID)
     }
 
     func refreshBudgetMonth(budgetID: String, month: String) async throws {
@@ -401,6 +412,10 @@ final class ActualDataStore {
         return sortedTransactions(unique)
     }
 
+    private static func parentTransactions(from transactions: [ActualTransaction]) -> [ActualTransaction] {
+        transactions.filter { !$0.isChild && $0.parentID == nil }
+    }
+
     private static func sortedTransactions(_ transactions: [ActualTransaction]) -> [ActualTransaction] {
         transactions.sorted { lhs, rhs in
             if lhs.date == rhs.date {
@@ -464,15 +479,48 @@ extension ActualDataStore: BudgetRepositoryProtocol {
         month: String,
         didMove: @escaping () async -> Void = {}
     ) async throws -> LoadedBudgetMonth {
-        let client = try requireClient()
-        _ = try await client.createCategoryTransfer(
+        try await moveMoneyAndRefresh(
+            commands: [command],
             budgetID: budgetID,
             month: month,
-            fromCategoryID: command.fromCategoryID,
-            toCategoryID: command.toCategoryID,
-            amount: command.amount
+            didMove: didMove
         )
+    }
+
+    func moveMoneyAndRefresh(
+        commands: [BudgetMoveMoneyCommand],
+        budgetID: String,
+        month: String,
+        didMove: @escaping () async -> Void = {}
+    ) async throws -> LoadedBudgetMonth {
+        let client = try requireClient()
+        for command in commands where command.amount > 0 {
+            _ = try await client.createCategoryTransfer(
+                budgetID: budgetID,
+                month: month,
+                fromCategoryID: command.fromCategoryID,
+                toCategoryID: command.toCategoryID,
+                amount: command.amount
+            )
+        }
         await didMove()
+        invalidateMonth(budgetID: budgetID, month: month)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+    }
+
+    func applyBudgetTemplateAndRefresh(
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping () async -> Void = {}
+    ) async throws -> LoadedBudgetMonth {
+        let client = try requireClient()
+        _ = try await client.applyBudgetTemplate(
+            budgetID: budgetID,
+            month: month,
+            command: command
+        )
+        await didApply()
         invalidateMonth(budgetID: budgetID, month: month)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }

@@ -55,8 +55,46 @@ struct APIBudgetCategoryTransferPayload: Encodable, Sendable {
     }
 }
 
+struct APIBudgetTemplateApplyPayload: Encodable, Sendable {
+    let mode: BudgetTemplateApplicationMode
+    let categoryIDs: [String]?
+
+    init(command: BudgetTemplateCommand) {
+        mode = command.mode
+        categoryIDs = command.categoryIDs.isEmpty ? nil : command.categoryIDs
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case mode
+        case categoryIDs = "categoryIds"
+    }
+}
+
+struct APIBudgetTemplateApplyResult: Decodable, Hashable, Sendable {
+    let type: String?
+    let message: String?
+    let pre: String?
+    let sticky: Bool?
+}
+
 struct APITransactionRulesRunPayload: Encodable, Sendable {
     let transaction: APITransactionDraft
+}
+
+struct APITransactionMutationPayload: Encodable, Sendable {
+    let learnCategories: Bool
+    let runTransfers: Bool
+    let transaction: APITransactionDraft
+
+    init(
+        transaction: APITransactionDraft,
+        learnCategories: Bool = false,
+        runTransfers: Bool = false
+    ) {
+        self.learnCategories = learnCategories
+        self.runTransfers = runTransfers
+        self.transaction = transaction
+    }
 }
 
 struct APITransactionBatchUpdatePayload: Encodable, Sendable {
@@ -91,10 +129,36 @@ struct APITransactionDraft: Encodable, Sendable {
     let category: String?
     let notes: String?
     let cleared: Bool
+    let subtransactions: [APITransactionDraft]
+
+    init(
+        id: String?,
+        account: String,
+        date: String,
+        amount: Int,
+        payee: String?,
+        payeeName: String?,
+        category: String?,
+        notes: String?,
+        cleared: Bool,
+        subtransactions: [APITransactionDraft] = []
+    ) {
+        self.id = id
+        self.account = account
+        self.date = date
+        self.amount = amount
+        self.payee = payee
+        self.payeeName = payeeName
+        self.category = category
+        self.notes = notes
+        self.cleared = cleared
+        self.subtransactions = subtransactions
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, account, date, amount, payee, category, notes, cleared
         case payeeName = "payee_name"
+        case subtransactions
     }
 
     func encode(to encoder: Encoder) throws {
@@ -106,7 +170,7 @@ struct APITransactionDraft: Encodable, Sendable {
         try container.encodeIfPresent(payee, forKey: .payee)
         try container.encodeIfPresent(payeeName, forKey: .payeeName)
 
-        if let category {
+        if let category, subtransactions.isEmpty {
             try container.encode(category, forKey: .category)
         } else {
             try container.encodeNil(forKey: .category)
@@ -119,6 +183,10 @@ struct APITransactionDraft: Encodable, Sendable {
         }
 
         try container.encode(cleared, forKey: .cleared)
+
+        if !subtransactions.isEmpty {
+            try container.encode(subtransactions, forKey: .subtransactions)
+        }
     }
 }
 
@@ -126,6 +194,16 @@ struct APITransactionBatchUpdateResult: Decodable, Hashable, Sendable {
     let added: [ActualTransaction]
     let updated: [ActualTransaction]
     let deleted: [ActualTransaction]
+
+    init(
+        added: [ActualTransaction] = [],
+        updated: [ActualTransaction] = [],
+        deleted: [ActualTransaction] = []
+    ) {
+        self.added = added
+        self.updated = updated
+        self.deleted = deleted
+    }
 
     enum CodingKeys: CodingKey {
         case added, updated, deleted
@@ -303,11 +381,69 @@ struct ActualTransaction: Decodable, Identifiable, Hashable, Sendable {
     let category: String?
     let notes: String?
     let cleared: FlexibleBool?
+    let subtransactions: [ActualTransaction]
+    let isParent: Bool
+    let isChild: Bool
+    let parentID: String?
+
+    init(
+        id: String?,
+        account: String,
+        date: String,
+        amount: Int?,
+        payee: String?,
+        payeeName: String?,
+        importedPayee: String?,
+        category: String?,
+        notes: String?,
+        cleared: FlexibleBool?,
+        subtransactions: [ActualTransaction] = [],
+        isParent: Bool = false,
+        isChild: Bool = false,
+        parentID: String? = nil
+    ) {
+        self.id = id
+        self.account = account
+        self.date = date
+        self.amount = amount
+        self.payee = payee
+        self.payeeName = payeeName
+        self.importedPayee = importedPayee
+        self.category = category
+        self.notes = notes
+        self.cleared = cleared
+        self.subtransactions = subtransactions
+        self.isParent = isParent
+        self.isChild = isChild
+        self.parentID = parentID
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, account, date, amount, payee, category, notes, cleared
         case payeeName = "payee_name"
         case importedPayee = "imported_payee"
+        case subtransactions
+        case isParent = "is_parent"
+        case isChild = "is_child"
+        case parentID = "parent_id"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        account = try container.decodeIfPresent(String.self, forKey: .account) ?? ""
+        date = try container.decodeIfPresent(String.self, forKey: .date) ?? ""
+        amount = try container.decodeIfPresent(Int.self, forKey: .amount)
+        payee = try container.decodeIfPresent(String.self, forKey: .payee)
+        payeeName = try container.decodeIfPresent(String.self, forKey: .payeeName)
+        importedPayee = try container.decodeIfPresent(String.self, forKey: .importedPayee)
+        category = try container.decodeIfPresent(String.self, forKey: .category)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        cleared = try container.decodeIfPresent(FlexibleBool.self, forKey: .cleared)
+        subtransactions = try container.decodeIfPresent([ActualTransaction].self, forKey: .subtransactions) ?? []
+        isParent = try container.decodeIfPresent(Bool.self, forKey: .isParent) ?? !subtransactions.isEmpty
+        isChild = try container.decodeIfPresent(Bool.self, forKey: .isChild) ?? false
+        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
     }
 }
 

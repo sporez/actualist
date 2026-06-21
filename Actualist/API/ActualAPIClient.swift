@@ -48,6 +48,19 @@ struct ActualAPIClient: Sendable {
         )
     }
 
+    func applyBudgetTemplate(
+        budgetID: String,
+        month: String,
+        command: BudgetTemplateCommand
+    ) async throws -> APIBudgetTemplateApplyResult {
+        let response: APIDataResponse<APIBudgetTemplateApplyResult> = try await request(
+            path: "/budgets/\(budgetID)/months/\(month)/templates/apply",
+            method: "POST",
+            body: APIBudgetTemplateApplyPayload(command: command)
+        )
+        return response.data
+    }
+
     func budgetMonths(budgetID: String) async throws -> [String] {
         try await get("/budgets/\(budgetID)/months")
     }
@@ -58,6 +71,16 @@ struct ActualAPIClient: Sendable {
 
     func balance(budgetID: String, accountID: String) async throws -> Int {
         try await get("/budgets/\(budgetID)/accounts/\(accountID)/balance")
+    }
+
+    func syncBankAccount(
+        budgetID: String,
+        accountID: String
+    ) async throws -> APIGeneralResponseMessage {
+        try await request(
+            path: "/budgets/\(budgetID)/accounts/\(accountID)/banksync",
+            method: "POST"
+        )
     }
 
     func transactions(
@@ -109,6 +132,23 @@ struct ActualAPIClient: Sendable {
         budgetID: String,
         draft: TransactionDraft
     ) async throws -> APITransactionBatchUpdateResult {
+        if draft.isSplit {
+            let payload = APITransactionMutationPayload(
+                transaction: Self.transactionPayload(
+                    from: draft,
+                    id: UUID().uuidString
+                )
+            )
+
+            let _: APIGeneralResponseMessage = try await request(
+                path: "/budgets/\(budgetID)/accounts/\(draft.accountID)/transactions",
+                method: "POST",
+                body: payload
+            )
+
+            return APITransactionBatchUpdateResult()
+        }
+
         let payload = APITransactionBatchUpdatePayload(
             added: [
                 Self.transactionPayload(
@@ -274,16 +314,32 @@ struct ActualAPIClient: Sendable {
         from draft: TransactionDraft,
         id: String?
     ) -> APITransactionDraft {
-        APITransactionDraft(
+        let date = formattedTransactionDate(draft.date)
+        let subtransactions = draft.isSplit ? draft.splits.map { split in
+            APITransactionDraft(
+                id: split.id ?? UUID().uuidString,
+                account: draft.accountID,
+                date: date,
+                amount: split.amountMinorUnits,
+                payee: nil,
+                payeeName: nil,
+                category: split.categoryID,
+                notes: nil,
+                cleared: draft.cleared
+            )
+        } : []
+
+        return APITransactionDraft(
             id: id,
             account: draft.accountID,
-            date: formattedTransactionDate(draft.date),
+            date: date,
             amount: draft.amountMinorUnits,
             payee: draft.payeeID,
             payeeName: draft.payeeID == nil ? draft.payeeName : nil,
-            category: draft.categoryID,
+            category: draft.isSplit ? nil : draft.categoryID,
             notes: draft.notes,
-            cleared: draft.cleared
+            cleared: draft.cleared,
+            subtransactions: subtransactions
         )
     }
 
@@ -303,7 +359,20 @@ struct ActualAPIClient: Sendable {
             payeeName: transaction.payee == nil ? transaction.payeeName : nil,
             category: transaction.category,
             notes: transaction.notes,
-            cleared: transaction.cleared?.boolValue ?? false
+            cleared: transaction.cleared?.boolValue ?? false,
+            subtransactions: transaction.subtransactions.map { child in
+                APITransactionDraft(
+                    id: child.id,
+                    account: child.account,
+                    date: child.date,
+                    amount: child.amount ?? 0,
+                    payee: child.payee,
+                    payeeName: child.payee == nil ? child.payeeName : nil,
+                    category: child.category,
+                    notes: child.notes,
+                    cleared: child.cleared?.boolValue ?? false
+                )
+            }
         )
     }
 }

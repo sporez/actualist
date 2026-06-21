@@ -19,9 +19,18 @@ protocol ActualAPIClientProtocol: Sendable {
         toCategoryID: String?,
         amount: Int
     ) async throws -> APIGeneralResponseMessage
+    func applyBudgetTemplate(
+        budgetID: String,
+        month: String,
+        command: BudgetTemplateCommand
+    ) async throws -> APIBudgetTemplateApplyResult
     func budgetMonths(budgetID: String) async throws -> [String]
     func accounts(budgetID: String) async throws -> [ActualAccount]
     func balance(budgetID: String, accountID: String) async throws -> Int
+    func syncBankAccount(
+        budgetID: String,
+        accountID: String
+    ) async throws -> APIGeneralResponseMessage
     func transactions(
         budgetID: String,
         accountID: String,

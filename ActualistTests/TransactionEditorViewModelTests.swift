@@ -71,6 +71,48 @@ struct TransactionEditorViewModelTests {
         #expect(model.selectedCategoryName == "Groceries")
     }
 
+    @Test func beginningSplitSelectionSeedsExistingSingleCategory() {
+        let model = TransactionEditorViewModel()
+        let services = TransactionEditorCategoryOption(
+            id: "services",
+            title: "Services/Software",
+            amount: nil,
+            valueText: nil
+        )
+        let phone = TransactionEditorCategoryOption(
+            id: "phone",
+            title: "iPhone",
+            amount: nil,
+            valueText: nil
+        )
+
+        model.selectCategory(services)
+        model.beginSplitSelection()
+        model.toggleSplitCategory(phone)
+        model.finalizeSplitSelection()
+
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.splitRows.map(\.categoryID) == ["services", "phone"])
+        #expect(model.selectedCategoryName == "Services/Software, iPhone")
+    }
+
+    @Test func formatsSplitAmountsAndLabelsOverage() {
+        let model = TransactionEditorViewModel()
+        model.setAmountInput("1000")
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "services", title: "Services/Software", amount: nil, valueText: nil))
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "phone", title: "iPhone", amount: nil, valueText: nil))
+        model.finalizeSplitSelection()
+
+        model.setSplitAmount(rowID: "services", value: "560")
+        model.setSplitAmount(rowID: "phone", value: "500")
+
+        #expect(model.formattedSplitAmount(rowID: "services") == "5.60")
+        #expect(model.formattedSplitAmount(rowID: "phone") == "5.00")
+        #expect(model.splitRemainingCents == -60)
+        #expect(model.splitRemainingStatusText.contains("Over"))
+        #expect(model.splitRemainingStatusText.contains("0.60"))
+    }
+
     @Test func buildsSpendDraftForCustomPayee() async throws {
         let model = configuredModel()
         let repository = RecordingTransactionRepository()
@@ -204,6 +246,182 @@ struct TransactionEditorViewModelTests {
 
         let update = try await repository.onlyUpdate()
         #expect(update.draft.categoryID == nil)
+    }
+
+    @Test func splitSubmitBlocksMismatchThenAutoDistributesAndBuildsSplitDraft() async throws {
+        let model = configuredModel()
+        let repository = RecordingTransactionRepository()
+        let groceries = TransactionEditorCategoryOption(
+            id: "groceries",
+            title: "Groceries",
+            amount: nil,
+            valueText: nil
+        )
+        let household = TransactionEditorCategoryOption(
+            id: "household",
+            title: "Household",
+            amount: nil,
+            valueText: nil
+        )
+
+        model.toggleSplitCategory(groceries)
+        model.toggleSplitCategory(household)
+        model.finalizeSplitSelection()
+        model.setSplitAmount(rowID: "groceries", value: "500")
+        model.setSplitAmount(rowID: "household", value: "600")
+
+        #expect(await model.submit(budgetID: "budget", repository: repository) == false)
+        #expect(model.pendingSplitMismatch == TransactionSplitMismatch(transactionTotal: 1234, splitTotal: 1100))
+
+        model.autoDistributeSplitMismatch()
+
+        #expect(model.splitTotalCents == 1234)
+        #expect(await model.submit(budgetID: "budget", repository: repository))
+
+        let draft = try await repository.onlyDraft()
+        #expect(draft.categoryID == nil)
+        #expect(draft.splits.map(\.categoryID) == ["groceries", "household"])
+        #expect(draft.splits.map(\.amountMinorUnits) == [-500, -734])
+    }
+
+    @Test func splitUpdateTotalUsesSplitSumAsTransactionAmount() {
+        let model = configuredModel()
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
+        model.finalizeSplitSelection()
+        model.setSplitAmount(rowID: "groceries", value: "2500")
+        model.setSplitAmount(rowID: "household", value: "1250")
+
+        model.updateTotalFromSplits()
+
+        #expect(model.amountCents == 3750)
+        #expect(model.splitRemainingCents == 0)
+    }
+
+    @Test func editingExistingSplitPrefillsChildRows() {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "parent",
+                account: "checking",
+                date: "2026-06-14",
+                amount: -5000,
+                payee: nil,
+                payeeName: "Target",
+                importedPayee: nil,
+                category: nil,
+                notes: nil,
+                cleared: .bool(false),
+                subtransactions: [
+                    ActualTransaction(
+                        id: "child-1",
+                        account: "checking",
+                        date: "2026-06-14",
+                        amount: -2500,
+                        payee: nil,
+                        payeeName: nil,
+                        importedPayee: nil,
+                        category: "groceries",
+                        notes: nil,
+                        cleared: .bool(false),
+                        isChild: true,
+                        parentID: "parent"
+                    ),
+                    ActualTransaction(
+                        id: "child-2",
+                        account: "checking",
+                        date: "2026-06-14",
+                        amount: -2500,
+                        payee: nil,
+                        payeeName: nil,
+                        importedPayee: nil,
+                        category: "household",
+                        notes: nil,
+                        cleared: .bool(false),
+                        isChild: true,
+                        parentID: "parent"
+                    )
+                ],
+                isParent: true
+            )
+        )
+
+        #expect(model.isSplit)
+        #expect(model.splitRows.map(\.transactionID) == ["child-1", "child-2"])
+        #expect(model.splitRows.map(\.amountDigits) == ["2500", "2500"])
+    }
+
+    @Test func splitPayloadEncodesChildrenAndNullParentCategory() throws {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [
+                APITransactionDraft(
+                    id: "parent",
+                    account: "checking",
+                    date: "2026-06-14",
+                    amount: -5000,
+                    payee: nil,
+                    payeeName: "Target",
+                    category: "ignored-parent-category",
+                    notes: nil,
+                    cleared: false,
+                    subtransactions: [
+                        APITransactionDraft(
+                            id: "child-1",
+                            account: "checking",
+                            date: "2026-06-14",
+                            amount: -2500,
+                            payee: nil,
+                            payeeName: nil,
+                            category: "groceries",
+                            notes: nil,
+                            cleared: false
+                        )
+                    ]
+                )
+            ]
+        )
+
+        let dictionary = try encodedDictionary(payload)
+        let added = try #require(dictionary["added"] as? [[String: Any]])
+        let parent = try #require(added.first)
+        let children = try #require(parent["subtransactions"] as? [[String: Any]])
+        let child = try #require(children.first)
+
+        #expect(parent["category"] is NSNull)
+        #expect(child["category"] as? String == "groceries")
+        #expect(child["amount"] as? Int == -2500)
+    }
+
+    @Test func splitTransactionDecodesParentAndChildren() throws {
+        let data = """
+        {
+          "id": "parent",
+          "account": "checking",
+          "date": "2026-06-14",
+          "amount": -5000,
+          "payee_name": "Target",
+          "category": null,
+          "cleared": true,
+          "is_parent": true,
+          "subtransactions": [
+            {
+              "id": "child-1",
+              "account": "checking",
+              "date": "2026-06-14",
+              "amount": -2500,
+              "category": "groceries",
+              "is_child": true,
+              "parent_id": "parent"
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let transaction = try JSONDecoder.actual.decode(ActualTransaction.self, from: data)
+
+        #expect(transaction.isParent)
+        #expect(transaction.subtransactions.count == 1)
+        #expect(transaction.subtransactions.first?.isChild == true)
+        #expect(transaction.subtransactions.first?.parentID == "parent")
     }
 
     @Test func doesNotSubmitInvalidDrafts() async {
@@ -501,6 +719,33 @@ struct TransactionRepositoryRefreshTests {
         #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
     }
 
+    @Test func splitCreateUsesAccountTransactionEndpointWithNestedPayload() async throws {
+        let recorder = RequestRecorder()
+        let repository = Self.repository { request in
+            recorder.record(request)
+            return try Self.response(for: request)
+        }
+
+        _ = try await repository.createTransactionAndRefresh(
+            Self.splitDraft(),
+            budgetID: "budget"
+        )
+
+        let requests = recorder.requests()
+        #expect(requests.contains("POST /v1/budgets/budget/accounts/checking/transactions"))
+        #expect(requests.contains("POST /v1/budgets/budget/transactions/batch-update") == false)
+
+        let createBody = try #require(recorder.bodies().first)
+        let payload = try #require(JSONSerialization.jsonObject(with: createBody) as? [String: Any])
+        let transaction = try #require(payload["transaction"] as? [String: Any])
+        let subtransactions = try #require(transaction["subtransactions"] as? [[String: Any]])
+
+        #expect(transaction["category"] is NSNull)
+        #expect(transaction["amount"] as? Int == -1234)
+        #expect(subtransactions.map { $0["amount"] as? Int } == [-500, -734])
+        #expect(subtransactions.map { $0["category"] as? String } == ["groceries", "household"])
+    }
+
     @Test func updateTransactionRefetchesOriginalAndNewAffectedResources() async throws {
         let recorder = RequestRecorder()
         let repository = Self.repository { request in
@@ -684,6 +929,33 @@ struct TransactionRepositoryRefreshTests {
         )
     }
 
+    private static func splitDraft() -> TransactionDraft {
+        TransactionDraft(
+            accountID: "checking",
+            date: TransactionEditorViewModelTests.date("2026-06-14"),
+            amountMinorUnits: -1234,
+            payeeID: nil,
+            payeeName: "Corner Store",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            splits: [
+                TransactionSplitDraft(
+                    id: nil,
+                    categoryID: "groceries",
+                    categoryName: "Groceries",
+                    amountMinorUnits: -500
+                ),
+                TransactionSplitDraft(
+                    id: nil,
+                    categoryID: "household",
+                    categoryName: "Household",
+                    amountMinorUnits: -734
+                )
+            ]
+        )
+    }
+
     private static func transaction(
         accountID: String = "checking",
         date: String = "2026-06-14"
@@ -708,6 +980,10 @@ struct TransactionRepositoryRefreshTests {
 
         if method == "POST", path.hasSuffix("/transactions/batch-update") {
             return (try okResponse(for: request), #"{"data":{"added":[],"updated":[],"deleted":[]}}"#.data(using: .utf8)!)
+        }
+
+        if method == "POST", path.hasSuffix("/accounts/checking/transactions") {
+            return (try okResponse(for: request), #"{"message":"ok"}"#.data(using: .utf8)!)
         }
 
         if method == "POST", path.hasSuffix("/rules/run") {
@@ -1019,6 +1295,7 @@ final class StubURLProtocol: URLProtocol {
 final class RequestRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recordedRequests: [String] = []
+    private var recordedBodies: [Data] = []
 
     func record(_ request: URLRequest) {
         lock.lock()
@@ -1029,12 +1306,44 @@ final class RequestRecorder: @unchecked Sendable {
         let path = url?.path ?? ""
         let query = url?.query.map { "?\($0)" } ?? ""
         recordedRequests.append("\(method) \(path)\(query)")
+
+        if let httpBody = request.httpBody {
+            recordedBodies.append(httpBody)
+        } else if let httpBodyStream = request.httpBodyStream,
+                  let streamBody = Self.data(from: httpBodyStream) {
+            recordedBodies.append(streamBody)
+        }
     }
 
     func requests() -> [String] {
         lock.lock()
         defer { lock.unlock() }
         return recordedRequests
+    }
+
+    func bodies() -> [Data] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedBodies
+    }
+
+    private static func data(from stream: InputStream) -> Data? {
+        stream.open()
+        defer { stream.close() }
+
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            if count < 0 {
+                return nil
+            }
+            if count == 0 {
+                break
+            }
+            data.append(buffer, count: count)
+        }
+        return data
     }
 }
 

@@ -9,6 +9,7 @@ struct AccountTransactionsView: View {
 
     @State private var isLoading = false
     @State private var isLoadingOlder = false
+    @State private var isSyncingBank = false
     @State private var isSearchFieldVisible = false
     @State private var isSearching = false
     @State private var searchText = ""
@@ -75,7 +76,10 @@ struct AccountTransactionsView: View {
     private var locallyFilteredTransactions: [ActualTransaction] {
         transactions.filter { transaction in
             searchTextMatches(payeeName(for: transaction))
-                || searchTextMatches(categoryName(for: transaction))
+                || categoryNames(for: transaction).contains(where: searchTextMatches)
+                || transaction.subtransactions.contains { child in
+                    searchTextMatches(child.notes)
+                }
                 || searchTextMatches(transaction.importedPayee)
                 || searchTextMatches(transaction.notes)
         }
@@ -161,6 +165,20 @@ struct AccountTransactionsView: View {
                 }
                 .actualistToolbarGlassButton()
                 .accessibilityLabel("Add Transaction")
+
+                Menu {
+                    Button {
+                        Task { await syncBank() }
+                    } label: {
+                        Label("Sync Bank", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(isSyncingBank)
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .actualistToolbarGlassButton()
+                .accessibilityLabel("Account Actions")
+                .disabled(isSyncingBank)
             }
         }
         .task {
@@ -353,13 +371,13 @@ struct AccountTransactionsView: View {
             transactionEditorPresentation = .edit(
                 transaction,
                 payeeName: payeeName(for: transaction),
-                categoryName: categoryName(for: transaction)
+                categoryName: categoryNames(for: transaction).first ?? "Uncategorized"
             )
         } label: {
             TransactionRow(
                 transaction: transaction,
                 payeeName: payeeName(for: transaction),
-                categoryName: categoryName(for: transaction)
+                categoryNames: categoryNames(for: transaction)
             )
         }
         .buttonStyle(.plain)
@@ -432,6 +450,17 @@ struct AccountTransactionsView: View {
         return activeCategoryNames[category] ?? "Uncategorized"
     }
 
+    private func categoryNames(for transaction: ActualTransaction) -> [String] {
+        if !transaction.subtransactions.isEmpty {
+            let names = transaction.subtransactions.map { child in
+                categoryName(for: child)
+            }
+            return names.isEmpty ? ["Split (\(transaction.subtransactions.count))"] : names
+        }
+
+        return [categoryName(for: transaction)]
+    }
+
     private func searchTextMatches(_ value: String?) -> Bool {
         guard let value, !trimmedSearchText.isEmpty else {
             return false
@@ -479,6 +508,23 @@ struct AccountTransactionsView: View {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+
+    private func syncBank() async {
+        guard let budgetID, !isSyncingBank else {
+            return
+        }
+
+        isSyncingBank = true
+        isLoading = true
+        errorMessage = nil
+        do {
+            _ = try await appState.dataStore.syncBankAccountAndRefresh(budgetID: budgetID, accountID: account.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+        isSyncingBank = false
     }
 
     private func loadOlder() async {
@@ -601,7 +647,7 @@ struct TransactionRow: View {
 
     let transaction: ActualTransaction
     let payeeName: String
-    let categoryName: String
+    let categoryNames: [String]
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -612,7 +658,7 @@ struct TransactionRow: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.9)
 
-                categoryBadge
+                categoryBadges
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -642,22 +688,31 @@ struct TransactionRow: View {
         }
     }
 
-    private var categoryBadge: some View {
+    private var categoryBadges: some View {
         HStack(spacing: 6) {
-            if let emoji = categoryParts.emoji {
+            ForEach(Array(displayCategoryNames.enumerated()), id: \.offset) { _, name in
+                categoryBadge(name)
+            }
+        }
+    }
+
+    private func categoryBadge(_ name: String) -> some View {
+        let parts = name.actualistCategoryNameParts
+        return HStack(spacing: 6) {
+            if let emoji = parts.emoji {
                 Text(verbatim: emoji)
                     .font(.actualistEmoji(size: 14))
                     .frame(width: 16, height: 16)
                     .accessibilityHidden(true)
             }
 
-            Text(categoryParts.name)
+            Text(parts.name)
                 .font(ActualistTypography.rowBadge(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.86)
         }
-            .padding(.horizontal, categoryParts.emoji == nil ? 10 : 9)
+            .padding(.horizontal, parts.emoji == nil ? 10 : 9)
             .padding(.vertical, 5)
             .background(ActualistTheme.control, in: Capsule())
     }
@@ -666,7 +721,10 @@ struct TransactionRow: View {
         payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var categoryParts: CategoryNameParts {
-        categoryName.actualistCategoryNameParts
+    private var displayCategoryNames: [String] {
+        guard categoryNames.count > 2 else {
+            return categoryNames
+        }
+        return ["Split (\(categoryNames.count))"]
     }
 }

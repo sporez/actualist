@@ -50,6 +50,31 @@ struct ActualDataStoreTests {
         #expect(cached.payeeNames["store"] == "Corner Store")
     }
 
+    @Test func refreshAccountTransactionsFiltersStandaloneSplitChildren() async throws {
+        let parent = Self.transaction(id: "parent", date: "2026-06-15")
+        let child = ActualTransaction(
+            id: "child",
+            account: "checking",
+            date: "2026-06-15",
+            amount: -500,
+            payee: nil,
+            payeeName: nil,
+            importedPayee: nil,
+            category: "groceries",
+            notes: nil,
+            cleared: .bool(true),
+            isChild: true,
+            parentID: "parent"
+        )
+        let client = FakeAPIClient(transactionResponses: [[parent, child]])
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+
+        let cached = try #require(store.cachedAccountTransactions(budgetID: "b", accountID: "checking"))
+        #expect(cached.transactions.map(\.id) == ["parent"])
+    }
+
     @Test func refreshAccountTransactionsUsesRecentOpenWindow() async throws {
         let client = FakeAPIClient()
         let store = ActualDataStore(
@@ -139,6 +164,25 @@ struct ActualDataStoreTests {
         #expect(await client.callCount(.searchTransactions) == 1)
     }
 
+    @Test func bankSyncInvalidatesAndRefetchesAccount() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "before", date: "2026-06-15")],
+                [Self.transaction(id: "after", date: "2026-06-16")]
+            ]
+        )
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        let synced = try await store.syncBankAccountAndRefresh(budgetID: "b", accountID: "checking")
+
+        #expect(synced?.transactions.map(\.id) == ["after"])
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["after"])
+        #expect(await client.callCount(.syncBankAccount) == 1)
+        #expect(await client.callCount(.transactions) == 2)
+        #expect(await client.callCount(.balance) == 2)
+    }
+
     @Test func writeInvalidationReplacesPreservedLoadedRange() async throws {
         let client = FakeAPIClient(
             transactionResponses: [
@@ -219,6 +263,28 @@ struct ActualDataStoreTests {
         #expect(await client.callCount(.budgetMonth) > monthCallsAfterWarm)
     }
 
+    @Test func templateApplyInvalidatesAndRefetchesAffectedMonth() async throws {
+        let client = FakeAPIClient()
+        let store = ActualDataStore { client }
+
+        // Warm the month cache.
+        _ = try await store.budgetMonth(budgetID: "b", selectedMonth: "2026-06")
+        let monthCallsAfterWarm = await client.callCount(.budgetMonth)
+
+        let loaded = try await store.applyBudgetTemplateAndRefresh(
+            command: .category("groceries"),
+            budgetID: "b",
+            month: "2026-06",
+            didApply: {}
+        )
+
+        #expect(loaded.selectedMonth == "2026-06")
+        #expect(await client.callCount(.applyBudgetTemplate) == 1)
+        #expect(await client.lastTemplateCommand() == .category("groceries"))
+        // The month was invalidated and refetched after the write.
+        #expect(await client.callCount(.budgetMonth) > monthCallsAfterWarm)
+    }
+
     @Test func createTransactionInvalidatesAffectedAccountAndMonth() async throws {
         let client = FakeAPIClient()
         let store = ActualDataStore { client }
@@ -294,7 +360,8 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     enum Method {
         case accounts, balance, transactions, searchTransactions, categories, payees, budgets
         case budgetMonths, budgetMonth, budgetMonthAlerts, updateBudgetMonthCategory
-        case createCategoryTransfer
+        case createCategoryTransfer, applyBudgetTemplate
+        case syncBankAccount
         case createTransaction, updateTransaction, deleteTransaction, runTransactionRules
     }
 
@@ -303,6 +370,7 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     private var searchTransactionResponses: [[ActualTransaction]]
     private var requestedTransactionWindows: [(since: Date, until: Date?)] = []
     private var recordedCategoryTransfer: BudgetMoveMoneyCommand?
+    private var recordedTemplateCommand: BudgetTemplateCommand?
 
     init(
         transactionResponses: [[ActualTransaction]] = [],
@@ -329,6 +397,10 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         recordedCategoryTransfer
     }
 
+    func lastTemplateCommand() -> BudgetTemplateCommand? {
+        recordedTemplateCommand
+    }
+
     private func record(_ method: Method) {
         counts[method, default: 0] += 1
     }
@@ -350,6 +422,14 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     func balance(budgetID: String, accountID: String) async throws -> Int {
         record(.balance)
         return accountID == "checking" ? 1_000 : 5_000
+    }
+
+    func syncBankAccount(
+        budgetID: String,
+        accountID: String
+    ) async throws -> APIGeneralResponseMessage {
+        record(.syncBankAccount)
+        return APIGeneralResponseMessage(message: "Bank sync started")
     }
 
     func transactions(
@@ -435,6 +515,21 @@ actor FakeAPIClient: ActualAPIClientProtocol {
             amount: amount
         )
         return APIGeneralResponseMessage(message: "ok")
+    }
+
+    func applyBudgetTemplate(
+        budgetID: String,
+        month: String,
+        command: BudgetTemplateCommand
+    ) async throws -> APIBudgetTemplateApplyResult {
+        record(.applyBudgetTemplate)
+        recordedTemplateCommand = command
+        return APIBudgetTemplateApplyResult(
+            type: "template",
+            message: "ok",
+            pre: nil,
+            sticky: nil
+        )
     }
 
     func createTransaction(budgetID: String, draft: TransactionDraft) async throws -> APITransactionBatchUpdateResult {

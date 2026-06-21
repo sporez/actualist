@@ -17,8 +17,20 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didAssign: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
+    func applyBudgetTemplateAndRefresh(
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth
     func moveMoneyAndRefresh(
         command: BudgetMoveMoneyCommand,
+        budgetID: String,
+        month: String,
+        didMove: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth
+    func moveMoneyAndRefresh(
+        commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
         didMove: @escaping () async -> Void
@@ -36,4 +48,21 @@ struct BudgetMoveMoneyCommand: Hashable, Sendable {
     let fromCategoryID: String?
     let toCategoryID: String?
     let amount: Int
+}
+
+enum BudgetTemplateApplicationMode: String, Codable, Hashable, Sendable {
+    case fillEmpty = "fill-empty"
+    case overwrite
+}
+
+struct BudgetTemplateCommand: Hashable, Sendable {
+    let mode: BudgetTemplateApplicationMode
+    let categoryIDs: [String]
+
+    static let fillEmpty = BudgetTemplateCommand(mode: .fillEmpty, categoryIDs: [])
+    static let overwrite = BudgetTemplateCommand(mode: .overwrite, categoryIDs: [])
+
+    static func category(_ categoryID: String) -> BudgetTemplateCommand {
+        BudgetTemplateCommand(mode: .overwrite, categoryIDs: [categoryID])
+    }
 }

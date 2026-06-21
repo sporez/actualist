@@ -24,9 +24,25 @@ struct TransactionDraft: Hashable, Sendable {
     let categoryID: String?
     let notes: String?
     let cleared: Bool
+    var splits: [TransactionSplitDraft] = []
 
     var month: YearMonth {
         YearMonth(date: date)
+    }
+
+    var isSplit: Bool {
+        splits.count >= 2
+    }
+}
+
+struct TransactionSplitDraft: Hashable, Sendable, Identifiable {
+    let id: String?
+    let categoryID: String?
+    let categoryName: String?
+    let amountMinorUnits: Int
+
+    var stableID: String {
+        id ?? categoryID ?? categoryName ?? "\(amountMinorUnits)"
     }
 }
 

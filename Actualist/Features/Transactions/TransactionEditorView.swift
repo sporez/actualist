@@ -39,6 +39,7 @@ struct TransactionEditorView: View {
                     VStack(spacing: 20) {
                         amountHeader
                         transactionDetails
+                        splitDetails
                         metadataDetails
                         submissionError
                         saveButton
@@ -75,6 +76,27 @@ struct TransactionEditorView: View {
         }
         .sheet(isPresented: $isCategoryPickerPresented) {
             TransactionCategorySelectionView(viewModel: viewModel)
+        }
+        .confirmationDialog(
+            "Something Doesn't Add Up",
+            isPresented: splitMismatchBinding,
+            titleVisibility: .visible
+        ) {
+            Button("Auto-Distribute") {
+                viewModel.autoDistributeSplitMismatch()
+                Task { await submitAndDismissIfSaved() }
+            }
+            Button("Update Total") {
+                viewModel.updateTotalFromSplits()
+                Task { await submitAndDismissIfSaved() }
+            }
+            Button("Adjust Manually", role: .cancel) {
+                viewModel.adjustSplitsManually()
+            }
+        } message: {
+            if let mismatch = viewModel.pendingSplitMismatch {
+                Text("The total is \(mismatch.transactionTotal.actualMoney.formatted()), but the splits add up to \(mismatch.splitTotal.actualMoney.formatted()). How would you like to handle the unassigned \(abs(mismatch.difference).actualMoney.formatted())?")
+            }
         }
     }
 
@@ -218,14 +240,78 @@ struct TransactionEditorView: View {
         .transactionEditorPanel()
     }
 
+    @ViewBuilder
+    private var splitDetails: some View {
+        if viewModel.isSplit {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Categories")
+                        .font(ActualistTypography.body(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+
+                    Spacer()
+
+                    Text(viewModel.splitRemainingStatusText)
+                        .font(ActualistTypography.rowBadge(for: density))
+                        .foregroundStyle(viewModel.splitRemainingCents == 0 ? ActualistTheme.secondaryText : ActualistTheme.danger)
+                }
+
+                ForEach(viewModel.splitRows) { row in
+                    HStack(spacing: 12) {
+                        Text(row.categoryName)
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+
+                        Spacer()
+
+                        TextField("0.00", text: splitAmountBinding(for: row.id))
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .font(ActualistTypography.rowValue(for: density))
+                            .foregroundStyle(ActualistTheme.primaryText)
+                            .frame(width: 92)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(ActualistTheme.control, in: Capsule())
+
+                        Button {
+                            viewModel.removeSplit(rowID: row.id)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 13)
+                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+
+                Button {
+                    Task {
+                        await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
+                        isCategoryPickerPresented = true
+                    }
+                } label: {
+                    Label("Add a Category", systemImage: "plus.circle.fill")
+                        .font(ActualistTypography.control(for: density))
+                        .foregroundStyle(ActualistTheme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .background(ActualistTheme.control, in: Capsule())
+            }
+            .padding(18)
+            .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        }
+    }
+
     private var saveButton: some View {
         Button {
-            Task {
-                if await viewModel.submit(using: appState) {
-                    onSaved?()
-                    dismiss()
-                }
-            }
+            Task { await submitAndDismissIfSaved() }
         } label: {
             Label(viewModel.saveButtonTitle, systemImage: viewModel.isSubmitting ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
                 .font(ActualistTypography.control(for: density))
@@ -236,6 +322,13 @@ struct TransactionEditorView: View {
         .tint(ActualistTheme.accent)
         .disabled(!viewModel.canSave)
         .padding(.top, 4)
+    }
+
+    private func submitAndDismissIfSaved() async {
+        if await viewModel.submit(using: appState) {
+            onSaved?()
+            dismiss()
+        }
     }
 
     @ViewBuilder
@@ -256,6 +349,24 @@ struct TransactionEditorView: View {
             viewModel.amountDigits
         } set: { newValue in
             viewModel.setAmountInput(newValue)
+        }
+    }
+
+    private var splitMismatchBinding: Binding<Bool> {
+        Binding {
+            viewModel.pendingSplitMismatch != nil
+        } set: { isPresented in
+            if !isPresented {
+                viewModel.adjustSplitsManually()
+            }
+        }
+    }
+
+    private func splitAmountBinding(for rowID: String) -> Binding<String> {
+        Binding {
+            viewModel.formattedSplitAmount(rowID: rowID)
+        } set: { value in
+            viewModel.setSplitAmount(rowID: rowID, value: value)
         }
     }
 
@@ -367,6 +478,7 @@ private struct TransactionCategorySelectionView: View {
     @Environment(\.actualistDensity) private var density
     @Bindable var viewModel: TransactionEditorViewModel
     @State private var searchText = ""
+    @State private var isSplitMode = false
 
     private var trimmedSearchText: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -385,7 +497,7 @@ private struct TransactionCategorySelectionView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         searchField
 
-                        if trimmedSearchText.isEmpty {
+                        if trimmedSearchText.isEmpty && !isSplitMode {
                             uncategorizedButton
                         }
 
@@ -420,10 +532,27 @@ private struct TransactionCategorySelectionView: View {
                     }
                     .actualistToolbarGlassButton()
                 }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        if isSplitMode {
+                            viewModel.finalizeSplitSelection()
+                            dismiss()
+                        } else {
+                            viewModel.beginSplitSelection()
+                            isSplitMode = true
+                        }
+                    } label: {
+                        Text(isSplitMode ? "Done" : "Split")
+                    }
+                }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .onAppear {
+            isSplitMode = viewModel.isSplit
+        }
     }
 
     private var searchField: some View {
@@ -504,8 +633,12 @@ private struct TransactionCategorySelectionView: View {
 
     private func categoryButton(_ option: TransactionEditorCategoryOption) -> some View {
         Button {
-            viewModel.selectCategory(option)
-            dismiss()
+            if isSplitMode {
+                viewModel.toggleSplitCategory(option)
+            } else {
+                viewModel.selectCategory(option)
+                dismiss()
+            }
         } label: {
             HStack(spacing: 12) {
                 Text(option.title)
@@ -527,7 +660,8 @@ private struct TransactionCategorySelectionView: View {
                         .background(categoryValueBackground(option), in: Capsule())
                 }
 
-                if option.id == viewModel.selectedCategoryID {
+                if (isSplitMode && viewModel.isSplitCategorySelected(option))
+                    || (!isSplitMode && option.id == viewModel.selectedCategoryID) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(ActualistTheme.positive)
                 }
