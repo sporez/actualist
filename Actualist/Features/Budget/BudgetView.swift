@@ -32,7 +32,7 @@ struct BudgetView: View {
                 .scrollIndicators(.hidden)
                 .background(ActualistTheme.background)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if viewModel.isAssignmentKeypadPresented {
+                    if viewModel.isAssignmentKeypadPresented && !appState.isReadOnly {
                         BudgetAssignmentKeypad(
                             canSubmit: viewModel.canSubmitAssignment,
                             canApplyTemplate: viewModel.canApplyCategoryTemplate,
@@ -96,6 +96,7 @@ struct BudgetView: View {
                             Image(systemName: "plus")
                         }
                         .actualistToolbarGlassButton()
+                        .disabled(appState.isReadOnly)
                     }
 
                     ToolbarItem(placement: .principal) {
@@ -147,7 +148,7 @@ struct BudgetView: View {
                             Image(systemName: "ellipsis")
                         }
                         .actualistToolbarGlassButton()
-                        .disabled(viewModel.isApplyingMonthTemplate)
+                        .disabled(viewModel.isApplyingMonthTemplate || appState.isReadOnly)
                     }
                 }
                 .task { await viewModel.load(using: appState) }
@@ -261,6 +262,9 @@ struct BudgetView: View {
                         viewModel.isEditingAssignment(for: category)
                     },
                     beginAssignmentEditing: { category, categoryFrame in
+                        guard !appState.isReadOnly else {
+                            return
+                        }
                         assignmentEditingCategoryFrame = categoryFrame
                         withAnimation(.smooth(duration: 0.16)) {
                             viewModel.beginAssignmentEditing(for: category)
@@ -764,7 +768,7 @@ struct BudgetCategoryRow: View {
             return ActualistTheme.danger
         }
         if category.balance == 0 {
-            return Color.gray.opacity(0.45)
+            return ActualistTheme.neutral
         }
         return ActualistTheme.positive
     }
@@ -1115,7 +1119,7 @@ private struct BudgetMoveMoneyView: View {
             return ActualistTheme.danger
         }
         if amount == 0 {
-            return Color.gray.opacity(0.45)
+            return ActualistTheme.neutral
         }
         return ActualistTheme.positive
     }
@@ -1398,7 +1402,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
             if option.amount < 0 {
                 ActualistTheme.danger
             } else if option.amount == 0 {
-                Color.gray.opacity(0.45)
+                ActualistTheme.neutral
             } else {
                 ActualistTheme.positive
             }

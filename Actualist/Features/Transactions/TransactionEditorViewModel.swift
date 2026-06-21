@@ -461,6 +461,11 @@ final class TransactionEditorViewModel {
     }
 
     func submit(using appState: AppState) async -> Bool {
+        guard !appState.isReadOnly else {
+            errorMessage = "Server is offline. Transaction changes are read-only until it reconnects."
+            return false
+        }
+
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {
             return false

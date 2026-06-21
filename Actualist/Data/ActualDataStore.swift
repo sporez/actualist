@@ -1,6 +1,24 @@
 import Foundation
 import Observation
 
+struct ActualDataStoreSnapshot: Codable, Sendable {
+    let savedAt: Date
+    let budgets: SnapshotCacheEntry<[ActualBudget]>?
+    let accountsByBudget: [String: SnapshotCacheEntry<[ActualAccount]>]
+    let categoriesByBudget: [String: SnapshotCacheEntry<[ActualCategory]>]
+    let payeesByBudget: [String: SnapshotCacheEntry<[ActualPayee]>]
+    let monthsByBudget: [String: SnapshotCacheEntry<[String]>]
+    let balancesByAccount: [String: SnapshotCacheEntry<Int>]
+    let transactionsByAccount: [String: SnapshotCacheEntry<ActualDataStore.AccountTransactionsPage>]
+    let monthByKey: [String: SnapshotCacheEntry<BudgetMonth>]
+    let alertsByKey: [String: SnapshotCacheEntry<[APIBudgetMonthAlert]>]
+
+    struct SnapshotCacheEntry<Value: Codable & Sendable>: Codable, Sendable {
+        let value: Value
+        let fetchedAt: Date
+    }
+}
+
 /// Single in-memory source of truth for fetched API data.
 ///
 /// Caching strategy (agreed with product): **stale-while-revalidate with hard
@@ -17,7 +35,7 @@ final class ActualDataStore {
         var fetchedAt: Date
     }
 
-    struct AccountTransactionsPage: Hashable, Sendable {
+    struct AccountTransactionsPage: Codable, Hashable, Sendable {
         var transactions: [ActualTransaction]
         var oldestLoadedDate: Date
         var reachedEnd: Bool
@@ -43,15 +61,27 @@ final class ActualDataStore {
 
     @ObservationIgnored private let clientProvider: () -> ActualAPIClientProtocol?
     @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored private let snapshotDidChange: () -> Void
+    @ObservationIgnored private let networkDidStart: () -> Void
+    @ObservationIgnored private let networkDidSucceed: () -> Void
+    @ObservationIgnored private let networkDidFail: (Error) -> Void
     @ObservationIgnored private var inFlight: [String: Task<Void, Error>] = [:]
     @ObservationIgnored private var invalidatedTransactionPagesByAccount: [String: AccountTransactionsPage] = [:]
 
     init(
         clientProvider: @escaping () -> ActualAPIClientProtocol?,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        snapshotDidChange: @escaping () -> Void = {},
+        networkDidStart: @escaping () -> Void = {},
+        networkDidSucceed: @escaping () -> Void = {},
+        networkDidFail: @escaping (Error) -> Void = { _ in }
     ) {
         self.clientProvider = clientProvider
         self.now = now
+        self.snapshotDidChange = snapshotDidChange
+        self.networkDidStart = networkDidStart
+        self.networkDidSucceed = networkDidSucceed
+        self.networkDidFail = networkDidFail
     }
 
     // MARK: - Keys
@@ -83,6 +113,40 @@ final class ActualDataStore {
         inFlight = [:]
     }
 
+    func restore(_ snapshot: ActualDataStoreSnapshot) {
+        budgets = snapshot.budgets.map { CacheEntry(snapshot: $0) }
+        accountsByBudget = snapshot.accountsByBudget.mapValues { CacheEntry(snapshot: $0) }
+        categoriesByBudget = snapshot.categoriesByBudget.mapValues { CacheEntry(snapshot: $0) }
+        payeesByBudget = snapshot.payeesByBudget.mapValues { CacheEntry(snapshot: $0) }
+        monthsByBudget = snapshot.monthsByBudget.mapValues { CacheEntry(snapshot: $0) }
+        balancesByAccount = snapshot.balancesByAccount.mapValues { CacheEntry(snapshot: $0) }
+        transactionsByAccount = snapshot.transactionsByAccount.mapValues { CacheEntry(snapshot: $0) }
+        monthByKey = snapshot.monthByKey.mapValues { CacheEntry(snapshot: $0) }
+        alertsByKey = snapshot.alertsByKey.mapValues { CacheEntry(snapshot: $0) }
+        invalidatedTransactionPagesByAccount = [:]
+    }
+
+    func snapshot() -> ActualDataStoreSnapshot {
+        ActualDataStoreSnapshot(
+            savedAt: now(),
+            budgets: budgets.map(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            accountsByBudget: accountsByBudget.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            categoriesByBudget: categoriesByBudget.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            payeesByBudget: payeesByBudget.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            monthsByBudget: monthsByBudget.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            balancesByAccount: balancesByAccount.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            transactionsByAccount: transactionsByAccount.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            monthByKey: monthByKey.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            alertsByKey: alertsByKey.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init)
+        )
+    }
+
+    func hasCachedBudgetData(budgetID: String) -> Bool {
+        accountsByBudget[budgetID] != nil
+            || monthsByBudget[budgetID] != nil
+            || monthByKey.keys.contains { $0.hasPrefix("\(budgetID)|") }
+    }
+
     func invalidateAccount(budgetID: String, accountID: String) {
         let key = accountKey(budgetID, accountID)
         if let page = transactionsByAccount[key]?.value {
@@ -90,6 +154,11 @@ final class ActualDataStore {
         }
         transactionsByAccount[key] = nil
         balancesByAccount[key] = nil
+    }
+
+    private func invalidateAccounts(budgetID: String) {
+        accountsByBudget[budgetID] = nil
+        balancesByAccount = balancesByAccount.filter { !$0.key.hasPrefix("\(budgetID)|") }
     }
 
     func invalidateMonth(budgetID: String, month: String) {
@@ -191,14 +260,26 @@ final class ActualDataStore {
         if let entry = categoriesByBudget[budgetID], Date().timeIntervalSince(entry.fetchedAt) < Self.referenceTTL {
             return
         }
-        try await refreshCategories(budgetID: budgetID)
+        do {
+            try await refreshCategories(budgetID: budgetID)
+        } catch {
+            guard categoriesByBudget[budgetID] != nil else {
+                throw error
+            }
+        }
     }
 
     func ensurePayees(budgetID: String) async throws {
         if let entry = payeesByBudget[budgetID], Date().timeIntervalSince(entry.fetchedAt) < Self.referenceTTL {
             return
         }
-        try await refreshPayees(budgetID: budgetID)
+        do {
+            try await refreshPayees(budgetID: budgetID)
+        } catch {
+            guard payeesByBudget[budgetID] != nil else {
+                throw error
+            }
+        }
     }
 
     // MARK: - Money-truth refreshes
@@ -228,6 +309,7 @@ final class ActualDataStore {
                 balancesByAccount[accountKey(budgetID, accountID)] = CacheEntry(value: balance, fetchedAt: Date())
             }
         }
+        snapshotDidChange()
     }
 
     /// Revalidates the money-truth data for one account; reuses cached reference data unless stale.
@@ -377,13 +459,17 @@ final class ActualDataStore {
             return
         }
 
+        networkDidStart()
         let task = Task<Void, Error> { try await operation() }
         inFlight[key] = task
         do {
             try await task.value
             inFlight[key] = nil
+            networkDidSucceed()
+            snapshotDidChange()
         } catch {
             inFlight[key] = nil
+            networkDidFail(error)
             throw error
         }
     }
@@ -436,19 +522,37 @@ final class ActualDataStore {
 
 extension ActualDataStore: BudgetRepositoryProtocol {
     func budgets() async throws -> [ActualBudget] {
-        try await refreshBudgets()
+        do {
+            try await refreshBudgets()
+        } catch {
+            guard budgets != nil else {
+                throw error
+            }
+        }
         return budgets?.value ?? []
     }
 
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth {
-        try await refreshBudgetMonths(budgetID: budgetID)
+        do {
+            try await refreshBudgetMonths(budgetID: budgetID)
+        } catch {
+            guard monthsByBudget[budgetID] != nil else {
+                throw error
+            }
+        }
         let months = monthsByBudget[budgetID]?.value ?? []
         let monthID = months.contains(preferredMonth) ? preferredMonth : (months.last ?? preferredMonth)
         return try await loadedBudgetMonth(budgetID: budgetID, availableMonths: months, monthID: monthID)
     }
 
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth {
-        try await refreshBudgetMonths(budgetID: budgetID)
+        do {
+            try await refreshBudgetMonths(budgetID: budgetID)
+        } catch {
+            guard monthsByBudget[budgetID] != nil else {
+                throw error
+            }
+        }
         let months = monthsByBudget[budgetID]?.value ?? []
         let monthID = months.contains(selectedMonth) ? selectedMonth : (months.last ?? selectedMonth)
         return try await loadedBudgetMonth(budgetID: budgetID, availableMonths: months, monthID: monthID)
@@ -530,8 +634,14 @@ extension ActualDataStore: BudgetRepositoryProtocol {
         availableMonths: [String],
         monthID: String
     ) async throws -> LoadedBudgetMonth {
-        try await refreshBudgetMonth(budgetID: budgetID, month: monthID)
         let key = monthKey(budgetID, monthID)
+        do {
+            try await refreshBudgetMonth(budgetID: budgetID, month: monthID)
+        } catch {
+            guard monthByKey[key] != nil else {
+                throw error
+            }
+        }
         guard let month = monthByKey[key]?.value else {
             throw ActualAPIError.invalidResponse
         }
@@ -592,6 +702,17 @@ extension ActualDataStore: TransactionRepositoryProtocol {
 
     func previewRules(for draft: TransactionDraft, budgetID: String) async throws -> TransactionRulePreview {
         try await requireClient().runTransactionRules(budgetID: budgetID, draft: draft)
+    }
+
+    func createAccountAndRefresh(
+        budgetID: String,
+        name: String,
+        offbudget: Bool
+    ) async throws {
+        let client = try requireClient()
+        _ = try await client.createAccount(budgetID: budgetID, name: name, offbudget: offbudget)
+        invalidateAccounts(budgetID: budgetID)
+        try await refreshAccountsWithBalances(budgetID: budgetID)
     }
 
     func createTransactionAndRefresh(
@@ -669,11 +790,31 @@ extension ActualDataStore: TransactionRepositoryProtocol {
         if let entry = accountsByBudget[budgetID], Date().timeIntervalSince(entry.fetchedAt) < Self.referenceTTL {
             return
         }
-        try await refreshAccounts(budgetID: budgetID)
+        do {
+            try await refreshAccounts(budgetID: budgetID)
+        } catch {
+            guard accountsByBudget[budgetID] != nil else {
+                throw error
+            }
+        }
     }
 
     private static func uniquePreservingOrder(_ values: [String]) -> [String] {
         var seen: Set<String> = []
         return values.filter { seen.insert($0).inserted }
+    }
+}
+
+private extension ActualDataStore.CacheEntry where Value: Codable & Sendable {
+    init(snapshot: ActualDataStoreSnapshot.SnapshotCacheEntry<Value>) {
+        value = snapshot.value
+        fetchedAt = snapshot.fetchedAt
+    }
+}
+
+private extension ActualDataStoreSnapshot.SnapshotCacheEntry {
+    init(_ cacheEntry: ActualDataStore.CacheEntry<Value>) {
+        value = cacheEntry.value
+        fetchedAt = cacheEntry.fetchedAt
     }
 }

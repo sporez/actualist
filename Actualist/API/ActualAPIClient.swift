@@ -69,6 +69,18 @@ struct ActualAPIClient: Sendable {
         try await get("/budgets/\(budgetID)/accounts")
     }
 
+    func createAccount(
+        budgetID: String,
+        name: String,
+        offbudget: Bool
+    ) async throws -> APIGeneralResponseMessage {
+        try await request(
+            path: "/budgets/\(budgetID)/accounts",
+            method: "POST",
+            body: APIAccountCreatePayload(name: name, offbudget: offbudget)
+        )
+    }
+
     func balance(budgetID: String, accountID: String) async throws -> Int {
         try await get("/budgets/\(budgetID)/accounts/\(accountID)/balance")
     }

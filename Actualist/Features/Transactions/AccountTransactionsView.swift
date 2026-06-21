@@ -165,6 +165,7 @@ struct AccountTransactionsView: View {
                 }
                 .actualistToolbarGlassButton()
                 .accessibilityLabel("Add Transaction")
+                .disabled(appState.isReadOnly)
 
                 Menu {
                     Button {
@@ -178,7 +179,7 @@ struct AccountTransactionsView: View {
                 }
                 .actualistToolbarGlassButton()
                 .accessibilityLabel("Account Actions")
-                .disabled(isSyncingBank)
+                .disabled(isSyncingBank || appState.isReadOnly)
             }
         }
         .task {
@@ -368,6 +369,9 @@ struct AccountTransactionsView: View {
 
     private func transactionButton(for transaction: ActualTransaction) -> some View {
         Button {
+            guard !appState.isReadOnly else {
+                return
+            }
             transactionEditorPresentation = .edit(
                 transaction,
                 payeeName: payeeName(for: transaction),
@@ -383,12 +387,14 @@ struct AccountTransactionsView: View {
         .buttonStyle(.plain)
         .disabled(deletingTransactionID == transaction.rowID)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) {
-                requestDelete(transaction)
-            } label: {
-                Label("Delete", systemImage: "trash")
+            if !appState.isReadOnly {
+                Button(role: .destructive) {
+                    requestDelete(transaction)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(transaction.id == nil || deletingTransactionID != nil)
             }
-            .disabled(transaction.id == nil || deletingTransactionID != nil)
         }
     }
 
@@ -406,7 +412,7 @@ struct AccountTransactionsView: View {
     }
 
     private func delete(_ transaction: ActualTransaction) async {
-        guard let budgetID else {
+        guard let budgetID, !appState.isReadOnly else {
             return
         }
 
@@ -511,7 +517,7 @@ struct AccountTransactionsView: View {
     }
 
     private func syncBank() async {
-        guard let budgetID, !isSyncingBank else {
+        guard let budgetID, !isSyncingBank, !appState.isReadOnly else {
             return
         }
 

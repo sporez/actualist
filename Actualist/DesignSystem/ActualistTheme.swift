@@ -2,6 +2,10 @@ import SwiftUI
 
 enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable {
     case actualPurple
+    case amethystHaze
+    case emberAmber
+    case blueCurrent
+    case roseQuartz
     case whyNab
 
     var id: String { rawValue }
@@ -9,6 +13,10 @@ enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .actualPurple: "Actual Purple"
+        case .amethystHaze: "Amethyst Haze"
+        case .emberAmber: "Ember Amber"
+        case .blueCurrent: "Blue Current"
+        case .roseQuartz: "Rose Quartz"
         case .whyNab: "Why Nab"
         }
     }
@@ -23,9 +31,38 @@ struct ActualistThemePalette {
     let positive: Color
     let warning: Color
     let danger: Color
+    let neutral: Color
     let primaryText: Color
     let secondaryText: Color
     let separator: Color
+
+    init(
+        background: Color,
+        surface: Color,
+        elevatedSurface: Color,
+        control: Color,
+        accent: Color,
+        positive: Color,
+        warning: Color,
+        danger: Color,
+        neutral: Color = Color.gray.opacity(0.45),
+        primaryText: Color,
+        secondaryText: Color,
+        separator: Color
+    ) {
+        self.background = background
+        self.surface = surface
+        self.elevatedSurface = elevatedSurface
+        self.control = control
+        self.accent = accent
+        self.positive = positive
+        self.warning = warning
+        self.danger = danger
+        self.neutral = neutral
+        self.primaryText = primaryText
+        self.secondaryText = secondaryText
+        self.separator = separator
+    }
 }
 
 enum ActualistTheme {
@@ -37,6 +74,7 @@ enum ActualistTheme {
     static var positive: Color { current.positive }
     static var warning: Color { current.warning }
     static var danger: Color { current.danger }
+    static var neutral: Color { current.neutral }
     static var primaryText: Color { current.primaryText }
     static var secondaryText: Color { current.secondaryText }
     static var separator: Color { current.separator }
@@ -60,6 +98,66 @@ enum ActualistTheme {
                 primaryText: Color(hex: 0xF9F6FE),
                 secondaryText: Color(hex: 0xC7B6DF),
                 separator: Color(hex: 0x7E65A8).opacity(0.16)
+            )
+        case .amethystHaze:
+            return ActualistThemePalette(
+                background: Color(hex: 0x050313),
+                surface: Color(hex: 0x100D24),
+                elevatedSurface: Color(hex: 0x191337),
+                control: Color(hex: 0x241A43),
+                accent: Color(hex: 0x8B68E8),
+                positive: Color(hex: 0x9671F0),
+                warning: Color(hex: 0xD7B55D),
+                danger: Color(hex: 0xD95F7B),
+                neutral: Color(hex: 0x2F2948),
+                primaryText: Color(hex: 0xF8F5FF),
+                secondaryText: Color(hex: 0xBFB2E3),
+                separator: Color(hex: 0x8B68E8).opacity(0.18)
+            )
+        case .emberAmber:
+            return ActualistThemePalette(
+                background: Color(hex: 0x0E0D10),
+                surface: Color(hex: 0x19161B),
+                elevatedSurface: Color(hex: 0x241A20),
+                control: Color(hex: 0x30232A),
+                accent: Color(hex: 0xE4A258),
+                positive: Color(hex: 0xE2A15A),
+                warning: Color(hex: 0xF0C86D),
+                danger: Color(hex: 0xA84C61),
+                neutral: Color(hex: 0x543040),
+                primaryText: Color(hex: 0xF8F4F0),
+                secondaryText: Color(hex: 0xD1B9AA),
+                separator: Color(hex: 0xE4A258).opacity(0.14)
+            )
+        case .blueCurrent:
+            return ActualistThemePalette(
+                background: Color(hex: 0x020B13),
+                surface: Color(hex: 0x071A26),
+                elevatedSurface: Color(hex: 0x0B2231),
+                control: Color(hex: 0x102D41),
+                accent: Color(hex: 0x4B84BE),
+                positive: Color(hex: 0x477FB6),
+                warning: Color(hex: 0xC9A85A),
+                danger: Color(hex: 0xC85D68),
+                neutral: Color(hex: 0x1B3144),
+                primaryText: Color(hex: 0xF2F8FF),
+                secondaryText: Color(hex: 0x9DB9CF),
+                separator: Color(hex: 0x4B84BE).opacity(0.15)
+            )
+        case .roseQuartz:
+            return ActualistThemePalette(
+                background: Color(hex: 0x111113),
+                surface: Color(hex: 0x1C1A1F),
+                elevatedSurface: Color(hex: 0x241E25),
+                control: Color(hex: 0x302631),
+                accent: Color(hex: 0xC47D90),
+                positive: Color(hex: 0xB97689),
+                warning: Color(hex: 0xD4A15F),
+                danger: Color(hex: 0xD96D79),
+                neutral: Color(hex: 0x403943),
+                primaryText: Color(hex: 0xF8F3F4),
+                secondaryText: Color(hex: 0xD0B7BF),
+                separator: Color(hex: 0xC47D90).opacity(0.14)
             )
         case .whyNab:
             return whyNabPalette

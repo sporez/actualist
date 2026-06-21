@@ -16,6 +16,53 @@ struct ActualDataStoreTests {
         #expect(displays.first(where: { $0.account.id == "savings" })?.balance == 5_000)
     }
 
+    @Test func createAccountRefreshesAccountsAndBalances() async throws {
+        let client = FakeAPIClient()
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountsWithBalances(budgetID: "b")
+        try await store.createAccountAndRefresh(
+            budgetID: "b",
+            name: "Travel Card",
+            offbudget: true
+        )
+
+        let created = try #require(await client.lastCreatedAccount())
+        #expect(created.name == "Travel Card")
+        #expect(created.offbudget == true)
+        #expect(await client.callCount(.createAccount) == 1)
+        #expect(await client.callCount(.accounts) == 2)
+
+        let displays = store.accountDisplays(budgetID: "b")
+        let added = try #require(displays.first { $0.account.name == "Travel Card" })
+        #expect(added.account.offbudget == true)
+        #expect(added.balance == 0)
+    }
+
+    @Test func snapshotRoundTripRestoresCachedBudgetData() async throws {
+        let client = FakeAPIClient()
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountsWithBalances(budgetID: "b")
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+
+        let encoded = try JSONEncoder.actual.encode(store.snapshot())
+        let decoded = try JSONDecoder.actual.decode(ActualDataStoreSnapshot.self, from: encoded)
+        let restored = ActualDataStore { nil }
+
+        restored.restore(decoded)
+
+        let displays = restored.accountDisplays(budgetID: "b")
+        #expect(displays.count == 2)
+        #expect(displays.first(where: { $0.account.id == "checking" })?.balance == 1_000)
+        #expect(restored.hasCachedBudgetData(budgetID: "b"))
+
+        let cached = try #require(restored.cachedAccountTransactions(budgetID: "b", accountID: "checking"))
+        #expect(cached.transactions.map(\.id) == ["t1"])
+        #expect(cached.categoryNames["groceries"] == "Groceries")
+        #expect(cached.payeeNames["store"] == "Corner Store")
+    }
+
     @Test func ensureReferenceDataServesCacheWithinTTL() async throws {
         let client = FakeAPIClient()
         let store = ActualDataStore { client }
@@ -358,7 +405,7 @@ struct ActualDataStoreTests {
 
 actor FakeAPIClient: ActualAPIClientProtocol {
     enum Method {
-        case accounts, balance, transactions, searchTransactions, categories, payees, budgets
+        case accounts, createAccount, balance, transactions, searchTransactions, categories, payees, budgets
         case budgetMonths, budgetMonth, budgetMonthAlerts, updateBudgetMonthCategory
         case createCategoryTransfer, applyBudgetTemplate
         case syncBankAccount
@@ -369,6 +416,7 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     private var transactionResponses: [[ActualTransaction]]
     private var searchTransactionResponses: [[ActualTransaction]]
     private var requestedTransactionWindows: [(since: Date, until: Date?)] = []
+    private var createdAccounts: [ActualAccount] = []
     private var recordedCategoryTransfer: BudgetMoveMoneyCommand?
     private var recordedTemplateCommand: BudgetTemplateCommand?
 
@@ -401,6 +449,10 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         recordedTemplateCommand
     }
 
+    func lastCreatedAccount() -> ActualAccount? {
+        createdAccounts.last
+    }
+
     private func record(_ method: Method) {
         counts[method, default: 0] += 1
     }
@@ -416,12 +468,35 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         return [
             ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
             ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
-        ]
+        ] + createdAccounts
+    }
+
+    func createAccount(
+        budgetID: String,
+        name: String,
+        offbudget: Bool
+    ) async throws -> APIGeneralResponseMessage {
+        record(.createAccount)
+        createdAccounts.append(
+            ActualAccount(
+                id: "created-\(createdAccounts.count + 1)",
+                name: name,
+                offbudget: offbudget,
+                closed: false
+            )
+        )
+        return APIGeneralResponseMessage(message: "Account created")
     }
 
     func balance(budgetID: String, accountID: String) async throws -> Int {
         record(.balance)
-        return accountID == "checking" ? 1_000 : 5_000
+        if accountID == "checking" {
+            return 1_000
+        }
+        if accountID == "savings" {
+            return 5_000
+        }
+        return 0
     }
 
     func syncBankAccount(

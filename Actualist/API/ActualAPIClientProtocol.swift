@@ -26,6 +26,11 @@ protocol ActualAPIClientProtocol: Sendable {
     ) async throws -> APIBudgetTemplateApplyResult
     func budgetMonths(budgetID: String) async throws -> [String]
     func accounts(budgetID: String) async throws -> [ActualAccount]
+    func createAccount(
+        budgetID: String,
+        name: String,
+        offbudget: Bool
+    ) async throws -> APIGeneralResponseMessage
     func balance(budgetID: String, accountID: String) async throws -> Int
     func syncBankAccount(
         budgetID: String,

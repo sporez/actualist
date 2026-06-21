@@ -681,7 +681,7 @@ private struct TransactionCategorySelectionView: View {
         if amount < 0 {
             return ActualistTheme.danger
         } else if amount == 0 {
-            return Color.gray.opacity(0.45)
+            return ActualistTheme.neutral
         } else {
             return ActualistTheme.positive
         }

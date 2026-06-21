@@ -77,6 +77,19 @@ struct APIBudgetTemplateApplyResult: Decodable, Hashable, Sendable {
     let sticky: Bool?
 }
 
+struct APIAccountCreatePayload: Encodable, Sendable {
+    let account: Account
+
+    init(name: String, offbudget: Bool) {
+        account = Account(name: name, offbudget: offbudget)
+    }
+
+    struct Account: Encodable, Sendable {
+        let name: String
+        let offbudget: Bool
+    }
+}
+
 struct APITransactionRulesRunPayload: Encodable, Sendable {
     let transaction: APITransactionDraft
 }
@@ -222,7 +235,7 @@ struct APITransactionRulePreview: Decodable, Hashable, Sendable {
     let notes: String?
 }
 
-struct ActualBudget: Decodable, Identifiable, Hashable, Sendable {
+struct ActualBudget: Codable, Identifiable, Hashable, Sendable {
     let budgetID: String?
     let cloudFileId: String?
     let groupId: String?
@@ -243,7 +256,7 @@ struct ActualBudget: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct ActualAccount: Decodable, Identifiable, Hashable, Sendable {
+struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let offbudget: Bool
@@ -257,7 +270,7 @@ struct AccountDisplay: Identifiable, Hashable, Sendable {
     var id: String { account.id }
 }
 
-struct BudgetMonth: Decodable, Hashable, Sendable {
+struct BudgetMonth: Codable, Hashable, Sendable {
     let month: String
     let incomeAvailable: Int
     let lastMonthOverspent: Int
@@ -271,12 +284,12 @@ struct BudgetMonth: Decodable, Hashable, Sendable {
     let categoryGroups: [BudgetMonthCategoryGroup]
 }
 
-struct APIBudgetMonthAlerts: Decodable, Hashable, Sendable {
+struct APIBudgetMonthAlerts: Codable, Hashable, Sendable {
     let month: String
     let alerts: [APIBudgetMonthAlert]
 }
 
-struct APIBudgetMonthAlert: Decodable, Hashable, Sendable {
+struct APIBudgetMonthAlert: Codable, Hashable, Sendable {
     let kind: String
     let severity: String
     let title: String
@@ -285,7 +298,7 @@ struct APIBudgetMonthAlert: Decodable, Hashable, Sendable {
     let actionTitle: String?
 }
 
-struct BudgetMonthCategoryGroup: Decodable, Identifiable, Hashable, Sendable {
+struct BudgetMonthCategoryGroup: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let isIncome: Bool
@@ -313,7 +326,7 @@ struct BudgetMonthCategoryGroup: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct BudgetMonthCategory: Decodable, Identifiable, Hashable, Sendable {
+struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let isIncome: Bool
@@ -344,7 +357,7 @@ struct BudgetMonthCategory: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct ActualPayee: Decodable, Identifiable, Hashable, Sendable {
+struct ActualPayee: Codable, Identifiable, Hashable, Sendable {
     let id: String?
     let name: String
     let category: String?
@@ -356,7 +369,7 @@ struct ActualPayee: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct ActualCategory: Decodable, Identifiable, Hashable, Sendable {
+struct ActualCategory: Codable, Identifiable, Hashable, Sendable {
     let id: String?
     let name: String
     let isIncome: Bool?
@@ -370,7 +383,7 @@ struct ActualCategory: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct ActualTransaction: Decodable, Identifiable, Hashable, Sendable {
+struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
     let id: String?
     let account: String
     let date: String
@@ -447,7 +460,7 @@ struct ActualTransaction: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-enum FlexibleBool: Decodable, Hashable, Sendable {
+enum FlexibleBool: Codable, Hashable, Sendable {
     case bool(Bool)
     case string(String)
 
@@ -457,6 +470,16 @@ enum FlexibleBool: Decodable, Hashable, Sendable {
             self = .bool(value)
         } else {
             self = .string((try? container.decode(String.self)) ?? "")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .bool(let value):
+            try container.encode(value)
+        case .string(let value):
+            try container.encode(value)
         }
     }
 

@@ -10,29 +10,49 @@ final class AppState {
     var budgets: [ActualBudget] = []
     var selectedBudget: ActualBudget?
     var lastErrorMessage: String?
+    var connectionStatus: ServerConnectionStatus = .connecting
     var themeRevision = 0
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
+    private let snapshotStore: OfflineSnapshotStore
+    private var activeNetworkRequestCount = 0
 
     /// In-memory source of truth for fetched API data (stale-while-revalidate cache).
     @ObservationIgnored lazy var dataStore = ActualDataStore(
-        clientProvider: { [weak self] in self?.makeClient() }
+        clientProvider: { [weak self] in self?.makeClient() },
+        snapshotDidChange: { [weak self] in
+            Task { @MainActor in self?.persistCurrentSnapshot() }
+        },
+        networkDidStart: { [weak self] in
+            Task { @MainActor in self?.beginNetworkRequest() }
+        },
+        networkDidSucceed: { [weak self] in
+            Task { @MainActor in self?.finishNetworkRequest(succeeded: true) }
+        },
+        networkDidFail: { [weak self] error in
+            Task { @MainActor in self?.finishNetworkRequest(succeeded: false, error: error) }
+        }
     )
 
     init(
         settingsStore: AppSettingsStore = .live,
-        keychain: KeychainStore = .actualist
+        keychain: KeychainStore = .actualist,
+        snapshotStore: OfflineSnapshotStore = .live
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
+        self.snapshotStore = snapshotStore
         let loaded = settingsStore.load()
         self.settings = loaded
         ActualistTheme.activate(loaded.theme)
         if loaded.serverURLString.isEmpty || keychain.readAPIKey().isEmpty || loaded.selectedBudgetID == nil {
             self.setupPhase = .needsConnection
+            self.connectionStatus = .offline
         } else {
             self.setupPhase = .ready
+            self.connectionStatus = .connecting
+            restorePersistedSnapshot()
         }
     }
 
@@ -44,12 +64,17 @@ final class AppState {
         !settings.serverURLString.isEmpty && !apiKey.isEmpty
     }
 
+    var isReadOnly: Bool {
+        setupPhase == .ready && connectionStatus == .offline
+    }
+
     func saveConnection(serverURLString: String, apiKey: String) {
         settings.serverURLString = ServerURLNormalizer.normalize(serverURLString)
         settingsStore.save(settings)
         keychain.saveAPIKey(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
         // Credentials/server changed: never let another context's data linger.
         dataStore.reset()
+        connectionStatus = .connecting
     }
 
     func selectBudget(_ budget: ActualBudget) {
@@ -61,6 +86,7 @@ final class AppState {
         settings.selectedBudgetName = budget.name
         settingsStore.save(settings)
         setupPhase = .ready
+        persistCurrentSnapshot()
     }
 
     func clearSelectionForBudgetChange() {
@@ -86,7 +112,12 @@ final class AppState {
 
     func loadBudgets() async {
         guard makeClient() != nil else {
-            setupPhase = .needsConnection
+            connectionStatus = .offline
+            if useOfflineSnapshotIfAvailable() {
+                setupPhase = .ready
+            } else {
+                setupPhase = .needsConnection
+            }
             return
         }
 
@@ -108,7 +139,12 @@ final class AppState {
             setupPhase = .selectingBudget
         } catch {
             lastErrorMessage = error.localizedDescription
-            setupPhase = .needsConnection
+            connectionStatus = .offline
+            if useOfflineSnapshotIfAvailable() {
+                setupPhase = .ready
+            } else {
+                setupPhase = .needsConnection
+            }
         }
     }
 
@@ -144,6 +180,79 @@ final class AppState {
         return dataStore
     }
 
+    private func restorePersistedSnapshot() {
+        guard let budgetID = settings.selectedBudgetID,
+              let snapshot = snapshotStore.load(
+                serverURLString: settings.serverURLString,
+                budgetID: budgetID
+              ) else {
+            return
+        }
+
+        dataStore.restore(snapshot)
+        budgets = Self.uniqueBudgets(snapshot.budgets?.value ?? [])
+        if let selected = budgets.first(where: { $0.syncID == budgetID }) {
+            selectedBudget = selected
+        } else if let selectedBudgetName = settings.selectedBudgetName {
+            selectedBudget = ActualBudget(
+                budgetID: budgetID,
+                cloudFileId: nil,
+                groupId: nil,
+                name: selectedBudgetName,
+                state: nil
+            )
+        }
+    }
+
+    private func persistCurrentSnapshot() {
+        guard let budgetID = settings.selectedBudgetID,
+              !settings.serverURLString.isEmpty,
+              dataStore.hasCachedBudgetData(budgetID: budgetID) else {
+            return
+        }
+
+        snapshotStore.save(
+            dataStore.snapshot(),
+            serverURLString: settings.serverURLString,
+            budgetID: budgetID
+        )
+    }
+
+    private func useOfflineSnapshotIfAvailable() -> Bool {
+        if let budgetID = settings.selectedBudgetID,
+           dataStore.hasCachedBudgetData(budgetID: budgetID) {
+            budgets = Self.uniqueBudgets(dataStore.budgets?.value ?? budgets)
+            if selectedBudget == nil, let selected = budgets.first(where: { $0.syncID == budgetID }) {
+                selectedBudget = selected
+            }
+            return true
+        }
+
+        restorePersistedSnapshot()
+        guard let budgetID = settings.selectedBudgetID else {
+            return false
+        }
+        return dataStore.hasCachedBudgetData(budgetID: budgetID)
+    }
+
+    private func beginNetworkRequest() {
+        activeNetworkRequestCount += 1
+        connectionStatus = .connecting
+    }
+
+    private func finishNetworkRequest(succeeded: Bool, error: Error? = nil) {
+        activeNetworkRequestCount = max(0, activeNetworkRequestCount - 1)
+        if succeeded {
+            if activeNetworkRequestCount == 0 {
+                connectionStatus = .online
+                lastErrorMessage = nil
+            }
+        } else {
+            lastErrorMessage = error?.localizedDescription
+            connectionStatus = .offline
+        }
+    }
+
     private static func uniqueBudgets(_ budgets: [ActualBudget]) -> [ActualBudget] {
         var seenSyncIDs: Set<String> = []
         return budgets.filter { budget in
@@ -156,6 +265,12 @@ enum SetupPhase: Equatable {
     case needsConnection
     case selectingBudget
     case ready
+}
+
+enum ServerConnectionStatus: Equatable {
+    case online
+    case connecting
+    case offline
 }
 
 enum ServerURLNormalizer {

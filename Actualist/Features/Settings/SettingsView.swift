@@ -112,6 +112,7 @@ private struct ThemePreviewStrip: View {
             ThemeSwatch(color: palette.positive)
             ThemeSwatch(color: palette.warning)
             ThemeSwatch(color: palette.danger)
+            ThemeSwatch(color: palette.neutral)
         }
         .padding(.vertical, 4)
     }

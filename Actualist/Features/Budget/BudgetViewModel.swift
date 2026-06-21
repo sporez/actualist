@@ -688,6 +688,10 @@ final class BudgetViewModel {
     }
 
     func submitAssignment(using appState: AppState) async -> Bool {
+        guard !appState.isReadOnly else {
+            return false
+        }
+
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeBudgetRepository() else {
             return false
@@ -742,6 +746,10 @@ final class BudgetViewModel {
         _ mode: BudgetTemplateApplicationMode,
         using appState: AppState
     ) async -> Bool {
+        guard !appState.isReadOnly else {
+            return false
+        }
+
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeBudgetRepository() else {
             return false
@@ -786,6 +794,10 @@ final class BudgetViewModel {
     }
 
     func applyCategoryTemplate(using appState: AppState) async -> Bool {
+        guard !appState.isReadOnly else {
+            return false
+        }
+
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeBudgetRepository() else {
             return false
@@ -835,6 +847,10 @@ final class BudgetViewModel {
     }
 
     func submitMoveMoney(using appState: AppState) async -> Bool {
+        guard !appState.isReadOnly else {
+            return false
+        }
+
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeBudgetRepository() else {
             return false
