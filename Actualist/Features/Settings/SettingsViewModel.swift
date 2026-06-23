@@ -7,6 +7,7 @@ final class SettingsViewModel {
     var serverURLString = ""
     var apiKey = ""
     var isTesting = false
+    var isLoadingBudgets = false
 
     func hydrate(from appState: AppState) {
         serverURLString = appState.settings.serverURLString
@@ -21,8 +22,14 @@ final class SettingsViewModel {
         isTesting = false
     }
 
-    func changeBudget(using appState: AppState) async {
-        appState.clearSelectionForBudgetChange()
+    func loadBudgetsForSelection(using appState: AppState) async {
+        guard !isLoadingBudgets else {
+            return
+        }
+
+        isLoadingBudgets = true
+        appState.lastErrorMessage = nil
         await appState.loadBudgets()
+        isLoadingBudgets = false
     }
 }

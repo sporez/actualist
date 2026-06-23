@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = SettingsViewModel()
+    @State private var isBudgetPickerPresented = false
 
     var body: some View {
         NavigationStack {
@@ -14,7 +15,7 @@ struct SettingsView: View {
 
                     Text("Actualist adds /v1 when no path is provided.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ActualistTheme.secondaryText)
 
                     SecureField("API Key", text: $viewModel.apiKey)
                         .textInputAutocapitalization(.never)
@@ -22,22 +23,27 @@ struct SettingsView: View {
                     Button {
                         Task { await viewModel.saveAndTest(using: appState) }
                     } label: {
-                        Label(viewModel.isTesting ? "Testing" : "Save and Test", systemImage: "network")
+                        SettingsActionLabel(
+                            title: viewModel.isTesting ? "Testing" : "Save and Test",
+                            systemImage: "network"
+                        )
                     }
                 }
+                .settingsSectionChrome()
 
                 Section("Budget") {
                     LabeledContent("Selected") {
                         Text(appState.settings.selectedBudgetName ?? "None")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ActualistTheme.secondaryText)
                     }
 
                     Button {
-                        Task { await viewModel.changeBudget(using: appState) }
+                        isBudgetPickerPresented = true
                     } label: {
-                        Label("Change Budget", systemImage: "folder")
+                        SettingsActionLabel(title: "Change Budget", systemImage: "folder")
                     }
                 }
+                .settingsSectionChrome()
 
                 Section("Appearance") {
                     Picker("Theme", selection: themeSelection) {
@@ -53,7 +59,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         LabeledContent("Display Size") {
                             Text(appState.settings.displayDensity.title)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ActualistTheme.secondaryText)
                         }
 
                         Slider(value: displayDensityValue, in: 0...3, step: 1)
@@ -62,7 +68,11 @@ struct SettingsView: View {
                             ForEach(ActualistDisplayDensity.allCases) { density in
                                 Text(density.title)
                                     .font(.caption2.weight(density == appState.settings.displayDensity ? .bold : .medium))
-                                    .foregroundStyle(density == appState.settings.displayDensity ? ActualistTheme.primaryText : .secondary)
+                                    .foregroundStyle(
+                                        density == appState.settings.displayDensity
+                                            ? ActualistTheme.primaryText
+                                            : ActualistTheme.secondaryText
+                                    )
 
                                 if density != ActualistDisplayDensity.allCases.last {
                                     Spacer(minLength: 8)
@@ -71,12 +81,22 @@ struct SettingsView: View {
                         }
                     }
                 }
+                .settingsSectionChrome()
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
             .navigationTitle("Settings")
             .onAppear {
                 viewModel.hydrate(from: appState)
+            }
+            .sheet(isPresented: $isBudgetPickerPresented) {
+                SettingsBudgetPickerSheet(
+                    viewModel: viewModel,
+                    isPresented: $isBudgetPickerPresented
+                )
+                .environment(appState)
             }
         }
     }
@@ -98,6 +118,109 @@ struct SettingsView: View {
     }
 }
 
+private struct SettingsActionLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label {
+            Text(title)
+                .foregroundStyle(ActualistTheme.primaryText)
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(ActualistTheme.accent)
+        }
+    }
+}
+
+private struct SettingsBudgetPickerSheet: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
+    @Environment(\.dismiss) private var dismiss
+
+    @Bindable var viewModel: SettingsViewModel
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if viewModel.isLoadingBudgets {
+                    ProgressView("Loading budgets")
+                        .settingsRowChrome()
+                }
+
+                if let message = appState.lastErrorMessage {
+                    Text(message)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.danger)
+                        .settingsRowChrome()
+                }
+
+                Section("Choose Budget") {
+                    ForEach(appState.budgets) { budget in
+                        Button {
+                            appState.selectBudget(budget)
+                            isPresented = false
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(budget.name)
+                                        .font(ActualistTypography.rowTitle(for: density))
+                                        .foregroundStyle(ActualistTheme.primaryText)
+                                    Text(budget.syncID)
+                                        .font(ActualistTypography.rowLabel(for: density))
+                                        .foregroundStyle(ActualistTheme.secondaryText)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+
+                                Spacer()
+
+                                if appState.settings.selectedBudgetID == budget.syncID {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(ActualistTheme.accent)
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(ActualistTheme.secondaryText)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .settingsSectionChrome()
+            }
+            .scrollContentBackground(.hidden)
+            .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
+            .navigationTitle("Budgets")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await viewModel.loadBudgetsForSelection(using: appState) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .actualistToolbarGlassButton()
+                    .disabled(viewModel.isLoadingBudgets)
+                }
+            }
+            .task {
+                await viewModel.loadBudgetsForSelection(using: appState)
+            }
+        }
+    }
+}
+
 private struct ThemePreviewStrip: View {
     let theme: ActualistThemeOption
 
@@ -115,6 +238,20 @@ private struct ThemePreviewStrip: View {
             ThemeSwatch(color: palette.neutral)
         }
         .padding(.vertical, 4)
+    }
+}
+
+private extension View {
+    func settingsSectionChrome() -> some View {
+        self
+            .listRowBackground(ActualistTheme.surface)
+            .listRowSeparatorTint(ActualistTheme.separator)
+    }
+
+    func settingsRowChrome() -> some View {
+        self
+            .listRowBackground(ActualistTheme.surface)
+            .listRowSeparatorTint(ActualistTheme.separator)
     }
 }
 

@@ -180,6 +180,14 @@ final class AppState {
         return dataStore
     }
 
+    func cacheAccountsForOfflineUse() async {
+        guard let budgetID = settings.selectedBudgetID else {
+            return
+        }
+
+        try? await dataStore.refreshAccountsWithBalances(budgetID: budgetID)
+    }
+
     private func restorePersistedSnapshot() {
         guard let budgetID = settings.selectedBudgetID,
               let snapshot = snapshotStore.load(

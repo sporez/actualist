@@ -90,6 +90,25 @@ struct APIAccountCreatePayload: Encodable, Sendable {
     }
 }
 
+struct APIAccountReconciliationPayload: Encodable, Sendable {
+    let statementBalance: Int
+}
+
+struct APIAccountReconciliationResult: Decodable, Hashable, Sendable {
+    let accountID: String
+    let cutoffDate: String
+    let statementBalance: Int
+    let clearedBalance: Int
+    let difference: Int
+    let reconciled: Bool
+    let updated: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case accountID = "accountId"
+        case cutoffDate, statementBalance, clearedBalance, difference, reconciled, updated
+    }
+}
+
 struct APITransactionRulesRunPayload: Encodable, Sendable {
     let transaction: APITransactionDraft
 }

@@ -95,6 +95,21 @@ struct ActualAPIClient: Sendable {
         )
     }
 
+    func reconcileAccount(
+        budgetID: String,
+        accountID: String,
+        statementBalance: Int
+    ) async throws -> APIAccountReconciliationResult {
+        let response: APIDataResponse<APIAccountReconciliationResult> = try await request(
+            path: "/budgets/\(budgetID)/accounts/\(accountID)/reconcile",
+            method: "POST",
+            body: APIAccountReconciliationPayload(
+                statementBalance: statementBalance
+            )
+        )
+        return response.data
+    }
+
     func transactions(
         budgetID: String,
         accountID: String,

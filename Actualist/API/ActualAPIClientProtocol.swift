@@ -36,6 +36,11 @@ protocol ActualAPIClientProtocol: Sendable {
         budgetID: String,
         accountID: String
     ) async throws -> APIGeneralResponseMessage
+    func reconcileAccount(
+        budgetID: String,
+        accountID: String,
+        statementBalance: Int
+    ) async throws -> APIAccountReconciliationResult
     func transactions(
         budgetID: String,
         accountID: String,

@@ -104,6 +104,7 @@ struct BudgetView: View {
                             isMonthPickerPresented.toggle()
                         } label: {
                             HStack(spacing: 7) {
+                                ConnectionStatusDot(status: appState.connectionStatus)
                                 Text(viewModel.navigationTitle)
                                     .font(.headline.weight(.bold))
                                 Image(systemName: "chevron.down")
@@ -125,30 +126,32 @@ struct BudgetView: View {
                     }
 
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            Task { await viewModel.load(using: appState) }
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .actualistToolbarGlassButton()
-
                         Menu {
+                            Button {
+                                Task { await viewModel.load(using: appState) }
+                            } label: {
+                                Label("Refresh", systemImage: "arrow.clockwise")
+                            }
+
+                            Divider()
+
                             Button {
                                 Task { await viewModel.applyMonthTemplate(.fillEmpty, using: appState) }
                             } label: {
                                 Label("Apply Template", systemImage: "sparkles")
                             }
+                            .disabled(viewModel.isApplyingMonthTemplate || appState.isReadOnly)
 
                             Button {
                                 Task { await viewModel.applyMonthTemplate(.overwrite, using: appState) }
                             } label: {
                                 Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
                             }
+                            .disabled(viewModel.isApplyingMonthTemplate || appState.isReadOnly)
                         } label: {
                             Image(systemName: "ellipsis")
                         }
                         .actualistToolbarGlassButton()
-                        .disabled(viewModel.isApplyingMonthTemplate || appState.isReadOnly)
                     }
                 }
                 .task { await viewModel.load(using: appState) }
@@ -343,6 +346,44 @@ struct BudgetView: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+private struct ConnectionStatusDot: View {
+    let status: ServerConnectionStatus
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+            .overlay {
+                Circle()
+                    .stroke(.white.opacity(0.65), lineWidth: 0.75)
+            }
+            .shadow(color: color.opacity(0.55), radius: 4)
+            .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var color: Color {
+        switch status {
+        case .online:
+            Color(red: 0.22, green: 0.82, blue: 0.38)
+        case .connecting:
+            Color(red: 0.96, green: 0.76, blue: 0.20)
+        case .offline:
+            Color(red: 0.95, green: 0.26, blue: 0.32)
+        }
+    }
+
+    private var accessibilityLabel: String {
+        switch status {
+        case .online:
+            "Server connected"
+        case .connecting:
+            "Server connecting"
+        case .offline:
+            "Server offline, read only"
         }
     }
 }

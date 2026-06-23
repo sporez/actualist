@@ -42,9 +42,9 @@ struct AccountsView: View {
                     .disabled(appState.isReadOnly)
                     .padding(.top, 8)
 
-                    if isLoading {
-                        ProgressView("Loading accounts")
-                            .foregroundStyle(ActualistTheme.secondaryText)
+                    if isLoading && accounts.isEmpty {
+                        AccountsLoadingView()
+                            .padding(.vertical, 48)
                     }
 
                     if let errorMessage {
@@ -157,9 +157,23 @@ struct AccountsView: View {
         do {
             try await appState.dataStore.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = accounts.isEmpty ? error.localizedDescription : nil
         }
         isLoading = false
+    }
+}
+
+private struct AccountsLoadingView: View {
+    @Environment(\.actualistDensity) private var density
+
+    var body: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+            Text("Loading accounts")
+                .font(ActualistTypography.rowTitle(for: density))
+        }
+        .foregroundStyle(ActualistTheme.secondaryText)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 }
 
@@ -230,6 +244,7 @@ private struct AddAccountSheet: View {
                         }
                     }
                     .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
                     .disabled(!viewModel.canSubmit)
                 }
                 .padding(.horizontal, 18)

@@ -286,7 +286,14 @@ final class ActualDataStore {
 
     /// Fetches accounts then their balances in parallel (replaces the previous serial N+1).
     func refreshAccountsWithBalances(budgetID: String) async throws {
-        try await refreshAccounts(budgetID: budgetID)
+        do {
+            try await refreshAccounts(budgetID: budgetID)
+        } catch {
+            guard accountsByBudget[budgetID] != nil else {
+                throw error
+            }
+        }
+
         let client = try requireClient()
         let accounts = accountsByBudget[budgetID]?.value ?? []
 
@@ -417,6 +424,26 @@ final class ActualDataStore {
         invalidateAccount(budgetID: budgetID, accountID: accountID)
         try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID)
         return cachedAccountTransactions(budgetID: budgetID, accountID: accountID)
+    }
+
+    func reconcileAccountAndRefresh(
+        budgetID: String,
+        accountID: String,
+        statementBalance: Int
+    ) async throws -> APIAccountReconciliationResult {
+        let client = try requireClient()
+        let result = try await client.reconcileAccount(
+            budgetID: budgetID,
+            accountID: accountID,
+            statementBalance: statementBalance
+        )
+        guard result.reconciled else {
+            return result
+        }
+
+        invalidateAccount(budgetID: budgetID, accountID: accountID)
+        try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID)
+        return result
     }
 
     func refreshBudgetMonth(budgetID: String, month: String) async throws {

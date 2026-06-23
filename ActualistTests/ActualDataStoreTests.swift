@@ -16,6 +16,31 @@ struct ActualDataStoreTests {
         #expect(displays.first(where: { $0.account.id == "savings" })?.balance == 5_000)
     }
 
+    @Test func accountRefreshFailureKeepsCachedAccountDisplays() async throws {
+        let client = FakeAPIClient()
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountsWithBalances(budgetID: "b")
+        await client.setFailAccounts(true)
+        try await store.refreshAccountsWithBalances(budgetID: "b")
+
+        let displays = store.accountDisplays(budgetID: "b")
+        #expect(displays.count == 2)
+        #expect(displays.first(where: { $0.account.id == "checking" })?.balance == 1_000)
+        #expect(displays.first(where: { $0.account.id == "savings" })?.balance == 5_000)
+        #expect(await client.callCount(.accounts) == 2)
+    }
+
+    @Test func accountRefreshFailureWithoutCacheThrows() async throws {
+        let client = FakeAPIClient(failAccounts: true)
+        let store = ActualDataStore { client }
+
+        await #expect(throws: ActualAPIError.self) {
+            try await store.refreshAccountsWithBalances(budgetID: "b")
+        }
+        #expect(store.accountDisplays(budgetID: "b").isEmpty)
+    }
+
     @Test func createAccountRefreshesAccountsAndBalances() async throws {
         let client = FakeAPIClient()
         let store = ActualDataStore { client }
@@ -55,6 +80,7 @@ struct ActualDataStoreTests {
         let displays = restored.accountDisplays(budgetID: "b")
         #expect(displays.count == 2)
         #expect(displays.first(where: { $0.account.id == "checking" })?.balance == 1_000)
+        #expect(displays.first(where: { $0.account.id == "savings" })?.balance == 5_000)
         #expect(restored.hasCachedBudgetData(budgetID: "b"))
 
         let cached = try #require(restored.cachedAccountTransactions(budgetID: "b", accountID: "checking"))
@@ -228,6 +254,75 @@ struct ActualDataStoreTests {
         #expect(await client.callCount(.syncBankAccount) == 1)
         #expect(await client.callCount(.transactions) == 2)
         #expect(await client.callCount(.balance) == 2)
+    }
+
+    @Test func reconcileInvalidatesAndRefetchesAccountWhenMatched() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "before", date: "2026-06-15")],
+                [Self.transaction(id: "after", date: "2026-06-16")]
+            ],
+            reconciliationResult: APIAccountReconciliationResult(
+                accountID: "checking",
+                cutoffDate: "2026-06-21",
+                statementBalance: 1_000,
+                clearedBalance: 1_000,
+                difference: 0,
+                reconciled: true,
+                updated: ["before"]
+            )
+        )
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        let result = try await store.reconcileAccountAndRefresh(
+            budgetID: "b",
+            accountID: "checking",
+            statementBalance: 1_000
+        )
+
+        #expect(result.reconciled)
+        #expect(await client.lastReconciliationRequest() == FakeAPIClient.ReconciliationRequest(
+            budgetID: "b",
+            accountID: "checking",
+            statementBalance: 1_000
+        ))
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["after"])
+        #expect(await client.callCount(.reconcileAccount) == 1)
+        #expect(await client.callCount(.transactions) == 2)
+        #expect(await client.callCount(.balance) == 2)
+    }
+
+    @Test func reconcileMismatchDoesNotInvalidateOrRefetchAccount() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "loaded", date: "2026-06-15")]
+            ],
+            reconciliationResult: APIAccountReconciliationResult(
+                accountID: "checking",
+                cutoffDate: "2026-06-21",
+                statementBalance: 1_250,
+                clearedBalance: 1_000,
+                difference: 250,
+                reconciled: false,
+                updated: []
+            )
+        )
+        let store = ActualDataStore { client }
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        let callsBeforeReconcile = await client.callCount(.transactions)
+        let result = try await store.reconcileAccountAndRefresh(
+            budgetID: "b",
+            accountID: "checking",
+            statementBalance: 1_250
+        )
+
+        #expect(result.reconciled == false)
+        #expect(result.difference == 250)
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["loaded"])
+        #expect(await client.callCount(.reconcileAccount) == 1)
+        #expect(await client.callCount(.transactions) == callsBeforeReconcile)
     }
 
     @Test func writeInvalidationReplacesPreservedLoadedRange() async throws {
@@ -404,11 +499,17 @@ struct ActualDataStoreTests {
 }
 
 actor FakeAPIClient: ActualAPIClientProtocol {
+    struct ReconciliationRequest: Equatable {
+        let budgetID: String
+        let accountID: String
+        let statementBalance: Int
+    }
+
     enum Method {
         case accounts, createAccount, balance, transactions, searchTransactions, categories, payees, budgets
         case budgetMonths, budgetMonth, budgetMonthAlerts, updateBudgetMonthCategory
         case createCategoryTransfer, applyBudgetTemplate
-        case syncBankAccount
+        case syncBankAccount, reconcileAccount
         case createTransaction, updateTransaction, deleteTransaction, runTransactionRules
     }
 
@@ -419,13 +520,28 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     private var createdAccounts: [ActualAccount] = []
     private var recordedCategoryTransfer: BudgetMoveMoneyCommand?
     private var recordedTemplateCommand: BudgetTemplateCommand?
+    private var recordedReconciliationRequest: ReconciliationRequest?
+    private var reconciliationResult: APIAccountReconciliationResult
+    private var failAccounts: Bool
 
     init(
         transactionResponses: [[ActualTransaction]] = [],
-        searchTransactionResponses: [[ActualTransaction]] = []
+        searchTransactionResponses: [[ActualTransaction]] = [],
+        failAccounts: Bool = false,
+        reconciliationResult: APIAccountReconciliationResult = APIAccountReconciliationResult(
+            accountID: "checking",
+            cutoffDate: "2026-06-21",
+            statementBalance: 1_000,
+            clearedBalance: 1_000,
+            difference: 0,
+            reconciled: true,
+            updated: []
+        )
     ) {
         self.transactionResponses = transactionResponses
         self.searchTransactionResponses = searchTransactionResponses
+        self.failAccounts = failAccounts
+        self.reconciliationResult = reconciliationResult
     }
 
     func callCount(_ method: Method) -> Int {
@@ -449,8 +565,16 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         recordedTemplateCommand
     }
 
+    func lastReconciliationRequest() -> ReconciliationRequest? {
+        recordedReconciliationRequest
+    }
+
     func lastCreatedAccount() -> ActualAccount? {
         createdAccounts.last
+    }
+
+    func setFailAccounts(_ failAccounts: Bool) {
+        self.failAccounts = failAccounts
     }
 
     private func record(_ method: Method) {
@@ -465,6 +589,10 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     func accounts(budgetID: String) async throws -> [ActualAccount] {
         record(.accounts)
         await Task.yield()
+        if failAccounts {
+            throw ActualAPIError.transport(nil)
+        }
+
         return [
             ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
             ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
@@ -505,6 +633,20 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     ) async throws -> APIGeneralResponseMessage {
         record(.syncBankAccount)
         return APIGeneralResponseMessage(message: "Bank sync started")
+    }
+
+    func reconcileAccount(
+        budgetID: String,
+        accountID: String,
+        statementBalance: Int
+    ) async throws -> APIAccountReconciliationResult {
+        record(.reconcileAccount)
+        recordedReconciliationRequest = ReconciliationRequest(
+            budgetID: budgetID,
+            accountID: accountID,
+            statementBalance: statementBalance
+        )
+        return reconciliationResult
     }
 
     func transactions(

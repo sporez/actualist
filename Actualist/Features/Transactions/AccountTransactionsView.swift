@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 
 struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
@@ -17,6 +18,7 @@ struct AccountTransactionsView: View {
     @State private var searchErrorMessage: String?
     @State private var searchTask: Task<Void, Never>?
     @State private var errorMessage: String?
+    @State private var isReconcilePresented = false
     @State private var transactionEditorPresentation: TransactionEditorPresentation?
     @State private var deletePresentation: TransactionDeletePresentation?
     @State private var deletingTransactionID: String?
@@ -169,6 +171,12 @@ struct AccountTransactionsView: View {
 
                 Menu {
                     Button {
+                        isReconcilePresented = true
+                    } label: {
+                        Label("Reconcile", systemImage: "checkmark.seal")
+                    }
+
+                    Button {
                         Task { await syncBank() }
                     } label: {
                         Label("Sync Bank", systemImage: "arrow.triangle.2.circlepath")
@@ -204,6 +212,13 @@ struct AccountTransactionsView: View {
                 Task { await load() }
             }
                 .environment(appState)
+        }
+        .sheet(isPresented: $isReconcilePresented) {
+            AccountReconciliationSheet(
+                account: account,
+                currentBalance: balance
+            )
+            .environment(appState)
         }
         .confirmationDialog(
             "Delete Transaction?",
@@ -633,6 +648,301 @@ struct TransactionDeletePresentation: Identifiable, Hashable {
 
     var id: String {
         transaction.rowID
+    }
+}
+
+enum AccountReconciliationSubmissionState: Equatable {
+    case draft
+    case submitting
+    case reconciled(APIAccountReconciliationResult)
+    case mismatch(APIAccountReconciliationResult)
+    case failed(String)
+}
+
+@MainActor
+@Observable
+final class AccountReconciliationViewModel {
+    var statementBalanceText: String
+    var submissionState: AccountReconciliationSubmissionState = .draft
+
+    init(currentBalance: Int?) {
+        statementBalanceText = Self.formattedInput(cents: currentBalance ?? 0)
+    }
+
+    var canSubmit: Bool {
+        statementBalanceMinorUnits != nil && !isSubmitting
+    }
+
+    var isSubmitting: Bool {
+        if case .submitting = submissionState {
+            return true
+        }
+        return false
+    }
+
+    var submitTitle: String {
+        isSubmitting ? "Reconciling" : "Reconcile"
+    }
+
+    var statementBalanceMinorUnits: Int? {
+        Self.minorUnits(from: statementBalanceText)
+    }
+
+    var resultTitle: String? {
+        switch submissionState {
+        case .draft, .submitting:
+            nil
+        case .reconciled:
+            "Reconciled"
+        case .mismatch:
+            "Balances Do Not Match"
+        case .failed:
+            "Reconcile Failed"
+        }
+    }
+
+    var resultMessage: String? {
+        switch submissionState {
+        case .draft, .submitting:
+            return nil
+        case .reconciled(let result):
+            let count = result.updated.count
+            return count == 1 ? "Marked 1 transaction reconciled." : "Marked \(count) transactions reconciled."
+        case .mismatch(let result):
+            return "Actual cleared balance is \(result.clearedBalance.actualMoney.formatted()). Statement balance is \(result.statementBalance.actualMoney.formatted()). Difference is \(result.difference.actualMoney.formatted()). No data changed."
+        case .failed(let message):
+            return message
+        }
+    }
+
+    var resultColor: Color {
+        switch submissionState {
+        case .reconciled:
+            ActualistTheme.positive
+        case .mismatch:
+            ActualistTheme.warning
+        case .failed:
+            ActualistTheme.danger
+        case .draft, .submitting:
+            ActualistTheme.secondaryText
+        }
+    }
+
+    func submit(
+        budgetID: String,
+        accountID: String,
+        dataStore: ActualDataStore
+    ) async {
+        guard let statementBalance = statementBalanceMinorUnits else {
+            submissionState = .failed("Enter a valid statement balance.")
+            return
+        }
+
+        submissionState = .submitting
+        do {
+            let result = try await dataStore.reconcileAccountAndRefresh(
+                budgetID: budgetID,
+                accountID: accountID,
+                statementBalance: statementBalance
+            )
+            submissionState = result.reconciled ? .reconciled(result) : .mismatch(result)
+        } catch {
+            submissionState = .failed(error.localizedDescription)
+        }
+    }
+
+    private static func formattedInput(cents: Int) -> String {
+        let sign = cents < 0 ? "-" : ""
+        let absolute = abs(cents)
+        return "\(sign)\(absolute / 100).\(String(format: "%02d", absolute % 100))"
+    }
+
+    private static func minorUnits(from text: String) -> Int? {
+        let sanitized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: " ", with: "")
+
+        guard !sanitized.isEmpty else {
+            return nil
+        }
+
+        let isNegative = sanitized.hasPrefix("-")
+        let unsigned = isNegative ? String(sanitized.dropFirst()) : sanitized
+        let pieces = unsigned.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...2).contains(pieces.count),
+              let dollars = Int(pieces[0]),
+              pieces[0].allSatisfy(\.isNumber) else {
+            return nil
+        }
+
+        let cents: Int
+        if pieces.count == 2 {
+            guard pieces[1].count <= 2, pieces[1].allSatisfy(\.isNumber) else {
+                return nil
+            }
+            cents = Int(pieces[1].padding(toLength: 2, withPad: "0", startingAt: 0)) ?? 0
+        } else {
+            cents = 0
+        }
+
+        let amount = dollars * 100 + cents
+        return isNegative ? -amount : amount
+    }
+}
+
+struct AccountReconciliationSheet: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
+    @State private var viewModel: AccountReconciliationViewModel
+    @FocusState private var isStatementBalanceFocused: Bool
+
+    let account: ActualAccount
+    let currentBalance: Int?
+
+    init(
+        account: ActualAccount,
+        currentBalance: Int?
+    ) {
+        self.account = account
+        self.currentBalance = currentBalance
+        _viewModel = State(initialValue: AccountReconciliationViewModel(currentBalance: currentBalance))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                ActualistTheme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 18) {
+                        header
+                        fields
+                        resultBanner
+                        submitButton
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 18)
+                    .padding(.bottom, 32)
+                }
+                .scrollDismissesKeyboard(.immediately)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .font(.body.weight(.semibold))
+                    .controlSize(.small)
+                }
+            }
+            .navigationTitle("Reconcile")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .task {
+            await Task.yield()
+            isStatementBalanceFocused = true
+        }
+    }
+
+    private var header: some View {
+        VStack(spacing: 6) {
+            Text(account.name)
+                .font(ActualistTypography.rowTitle(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+
+            Text((currentBalance ?? 0).actualMoney.formatted())
+                .font(ActualistTypography.workScreenAmount(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+
+            Text("Working Balance")
+                .font(ActualistTypography.body(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+    }
+
+    private var fields: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 16) {
+                Image(systemName: "banknote.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .frame(width: density.iconSize)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Statement Balance")
+                        .font(ActualistTypography.body(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+
+                    TextField("0.00", text: $viewModel.statementBalanceText)
+                        .focused($isStatementBalanceFocused)
+                        .keyboardType(.numbersAndPunctuation)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .tint(ActualistTheme.accent)
+                }
+            }
+            .padding(.horizontal, density.rowHorizontalPadding)
+            .padding(.vertical, density.editorRowVerticalPadding)
+
+        }
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var resultBanner: some View {
+        if let title = viewModel.resultTitle, let message = viewModel.resultMessage {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(viewModel.resultColor)
+                Text(message)
+                    .font(ActualistTypography.body(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
+
+    private var submitButton: some View {
+        Button {
+            guard let budgetID = appState.settings.selectedBudgetID else {
+                return
+            }
+            Task {
+                await viewModel.submit(
+                    budgetID: budgetID,
+                    accountID: account.id,
+                    dataStore: appState.dataStore
+                )
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if viewModel.isSubmitting {
+                    ProgressView()
+                }
+                Text(viewModel.submitTitle)
+                    .font(ActualistTypography.control(for: density))
+                    .frame(maxWidth: .infinity)
+            }
+            .frame(height: 52)
+        }
+        .buttonStyle(.glassProminent)
+        .tint(ActualistTheme.accent)
+        .disabled(!viewModel.canSubmit || appState.settings.selectedBudgetID == nil)
     }
 }
 

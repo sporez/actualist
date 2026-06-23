@@ -360,6 +360,9 @@ final class BudgetViewModel {
         }
 
         await load(budgetID: budgetID, repository: repository)
+        if errorMessage == nil {
+            await appState.cacheAccountsForOfflineUse()
+        }
     }
 
     func load(
