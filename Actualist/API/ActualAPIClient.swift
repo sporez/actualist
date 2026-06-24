@@ -147,6 +147,13 @@ struct ActualAPIClient: Sendable {
         )
     }
 
+    func uncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> [ActualTransaction] {
+        try await get("/budgets/\(budgetID)/months/\(month)/transactions/uncategorized")
+    }
+
     func payees(budgetID: String) async throws -> [ActualPayee] {
         try await get("/budgets/\(budgetID)/payees")
     }
@@ -204,6 +211,29 @@ struct ActualAPIClient: Sendable {
                 Self.transactionPayload(
                     from: draft,
                     id: transactionID
+                )
+            ]
+        )
+
+        let response: APIDataResponse<APITransactionBatchUpdateResult> = try await request(
+            path: "/budgets/\(budgetID)/transactions/batch-update",
+            method: "POST",
+            body: payload
+        )
+        return response.data
+    }
+
+    func updateTransactionCategory(
+        budgetID: String,
+        transaction: ActualTransaction,
+        categoryID: String
+    ) async throws -> APITransactionBatchUpdateResult {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [],
+            updated: [
+                try Self.transactionPayload(
+                    from: transaction,
+                    overridingCategoryID: categoryID
                 )
             ]
         )
@@ -371,7 +401,8 @@ struct ActualAPIClient: Sendable {
     }
 
     private static func transactionPayload(
-        from transaction: ActualTransaction
+        from transaction: ActualTransaction,
+        overridingCategoryID categoryID: String? = nil
     ) throws -> APITransactionDraft {
         guard let id = transaction.id else {
             throw ActualAPIError.missingTransactionID
@@ -384,7 +415,7 @@ struct ActualAPIClient: Sendable {
             amount: transaction.amount ?? 0,
             payee: transaction.payee,
             payeeName: transaction.payee == nil ? transaction.payeeName : nil,
-            category: transaction.category,
+            category: categoryID ?? transaction.category,
             notes: transaction.notes,
             cleared: transaction.cleared?.boolValue ?? false,
             subtransactions: transaction.subtransactions.map { child in

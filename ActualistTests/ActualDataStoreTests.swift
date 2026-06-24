@@ -237,6 +237,46 @@ struct ActualDataStoreTests {
         #expect(await client.callCount(.searchTransactions) == 1)
     }
 
+    @Test func uncategorizedTransactionsReturnsDisplaySnapshot() async throws {
+        let client = FakeAPIClient(
+            uncategorizedTransactionResponses: [
+                [Self.transaction(id: "uncategorized", date: "2026-06-14", category: nil)]
+            ]
+        )
+        let store = ActualDataStore { client }
+
+        let results = try await store.uncategorizedTransactions(budgetID: "b", month: "2026-06")
+
+        #expect(results.transactions.map(\.id) == ["uncategorized"])
+        #expect(results.accountNames["checking"] == "Checking")
+        #expect(results.payeeNames["store"] == "Corner Store")
+        #expect(results.categoryGroups.flatMap(\.options).map(\.id) == ["groceries"])
+        #expect(await client.callCount(.uncategorizedTransactions) == 1)
+    }
+
+    @Test func categorizeTransactionInvalidatesAffectedAccountAndMonth() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "after", date: "2026-06-15")]
+            ]
+        )
+        let store = ActualDataStore { client }
+        let transaction = Self.transaction(id: "uncategorized", date: "2026-06-14", category: nil)
+
+        let result = try await store.categorizeTransactionAndRefresh(
+            transaction,
+            categoryID: "groceries",
+            budgetID: "b"
+        ) {}
+
+        #expect(result.ok)
+        #expect(await client.callCount(.updateTransactionCategory) == 1)
+        #expect(await client.lastCategorizedTransactionID() == "uncategorized")
+        #expect(await client.lastCategorizedCategoryID() == "groceries")
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["after"])
+        #expect(await client.callCount(.budgetMonth) >= 1)
+    }
+
     @Test func bankSyncInvalidatesAndRefetchesAccount() async throws {
         let client = FakeAPIClient(
             transactionResponses: [
@@ -481,7 +521,8 @@ struct ActualDataStoreTests {
     fileprivate nonisolated static func transaction(
         id: String,
         accountID: String = "checking",
-        date: String
+        date: String,
+        category: String? = "groceries"
     ) -> ActualTransaction {
         ActualTransaction(
             id: id,
@@ -491,7 +532,7 @@ struct ActualDataStoreTests {
             payee: "store",
             payeeName: nil,
             importedPayee: nil,
-            category: "groceries",
+            category: category,
             notes: nil,
             cleared: .bool(true)
         )
@@ -506,27 +547,31 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     }
 
     enum Method {
-        case accounts, createAccount, balance, transactions, searchTransactions, categories, payees, budgets
+        case accounts, createAccount, balance, transactions, searchTransactions, uncategorizedTransactions, categories, payees, budgets
         case budgetMonths, budgetMonth, budgetMonthAlerts, updateBudgetMonthCategory
         case createCategoryTransfer, applyBudgetTemplate
         case syncBankAccount, reconcileAccount
-        case createTransaction, updateTransaction, deleteTransaction, runTransactionRules
+        case createTransaction, updateTransaction, updateTransactionCategory, deleteTransaction, runTransactionRules
     }
 
     private var counts: [Method: Int] = [:]
     private var transactionResponses: [[ActualTransaction]]
     private var searchTransactionResponses: [[ActualTransaction]]
+    private var uncategorizedTransactionResponses: [[ActualTransaction]]
     private var requestedTransactionWindows: [(since: Date, until: Date?)] = []
     private var createdAccounts: [ActualAccount] = []
     private var recordedCategoryTransfer: BudgetMoveMoneyCommand?
     private var recordedTemplateCommand: BudgetTemplateCommand?
     private var recordedReconciliationRequest: ReconciliationRequest?
+    private var recordedCategorizedTransactionID: String?
+    private var recordedCategorizedCategoryID: String?
     private var reconciliationResult: APIAccountReconciliationResult
     private var failAccounts: Bool
 
     init(
         transactionResponses: [[ActualTransaction]] = [],
         searchTransactionResponses: [[ActualTransaction]] = [],
+        uncategorizedTransactionResponses: [[ActualTransaction]] = [],
         failAccounts: Bool = false,
         reconciliationResult: APIAccountReconciliationResult = APIAccountReconciliationResult(
             accountID: "checking",
@@ -540,6 +585,7 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     ) {
         self.transactionResponses = transactionResponses
         self.searchTransactionResponses = searchTransactionResponses
+        self.uncategorizedTransactionResponses = uncategorizedTransactionResponses
         self.failAccounts = failAccounts
         self.reconciliationResult = reconciliationResult
     }
@@ -571,6 +617,14 @@ actor FakeAPIClient: ActualAPIClientProtocol {
 
     func lastCreatedAccount() -> ActualAccount? {
         createdAccounts.last
+    }
+
+    func lastCategorizedTransactionID() -> String? {
+        recordedCategorizedTransactionID
+    }
+
+    func lastCategorizedCategoryID() -> String? {
+        recordedCategorizedCategoryID
     }
 
     func setFailAccounts(_ failAccounts: Bool) {
@@ -683,6 +737,20 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         ]
     }
 
+    func uncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> [ActualTransaction] {
+        record(.uncategorizedTransactions)
+        if !uncategorizedTransactionResponses.isEmpty {
+            return uncategorizedTransactionResponses.removeFirst()
+        }
+
+        return [
+            ActualDataStoreTests.transaction(id: "uncategorized", date: "\(month)-15", category: nil)
+        ]
+    }
+
     func categories(budgetID: String) async throws -> [ActualCategory] {
         record(.categories)
         return [ActualCategory(id: "groceries", name: "Groceries", isIncome: false, hidden: false, groupID: "bills")]
@@ -763,6 +831,17 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         return try Self.emptyBatchResult()
     }
 
+    func updateTransactionCategory(
+        budgetID: String,
+        transaction: ActualTransaction,
+        categoryID: String
+    ) async throws -> APITransactionBatchUpdateResult {
+        record(.updateTransactionCategory)
+        recordedCategorizedTransactionID = transaction.id
+        recordedCategorizedCategoryID = categoryID
+        return try Self.emptyBatchResult()
+    }
+
     func deleteTransaction(
         budgetID: String,
         transaction: ActualTransaction
@@ -802,7 +881,30 @@ actor FakeAPIClient: ActualAPIClientProtocol {
       "totalIncome": 0,
       "totalSpent": 0,
       "totalBalance": 0,
-      "categoryGroups": []
+      "categoryGroups": [
+        {
+          "id": "bills",
+          "name": "Bills",
+          "is_income": false,
+          "hidden": false,
+          "budgeted": 0,
+          "spent": 0,
+          "balance": 0,
+          "categories": [
+            {
+              "id": "groceries",
+              "name": "Groceries",
+              "is_income": false,
+              "hidden": false,
+              "group_id": "bills",
+              "budgeted": 0,
+              "spent": 0,
+              "balance": 2500,
+              "carryover": false
+            }
+          ]
+        }
+      ]
     }
     """.data(using: .utf8)!
 }

@@ -1100,6 +1100,19 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         TransactionEditorOptions(accounts: [], categories: [], categoryGroups: [], payees: [])
     }
 
+    func uncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedUncategorizedTransactions {
+        LoadedUncategorizedTransactions(
+            transactions: [],
+            accountNames: [:],
+            categoryNames: [:],
+            payeeNames: [:],
+            categoryGroups: []
+        )
+    }
+
     func previewRules(
         for draft: TransactionDraft,
         budgetID: String
@@ -1184,6 +1197,32 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
                 accounts: [originalAccountID, draft.accountID],
                 months: [originalMonth, draft.month.rawValue],
                 transactions: [transactionID]
+            )
+        )
+    }
+
+    func categorizeTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        categoryID: String,
+        budgetID: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        if let createError {
+            throw createError
+        }
+
+        await didUpdate()
+
+        if let refreshError {
+            throw refreshError
+        }
+
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [transaction.account],
+                months: transaction.date.actualYearMonth.map { [$0] } ?? [],
+                transactions: transaction.id.map { [$0] } ?? []
             )
         )
     }

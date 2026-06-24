@@ -43,6 +43,9 @@
 		010000000000000000000021 /* ActualDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000024 /* ActualDataStore.swift */; };
 		010000000000000000000022 /* ActualDataStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000025 /* ActualDataStoreTests.swift */; };
 		010000000000000000000023 /* TransactionGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000026 /* TransactionGrouping.swift */; };
+		010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000029 /* UncategorizedTransactionsView.swift */; };
+		010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */; };
+		010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */; };
 		28C36EBD2FE377C800A9F4A8 /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* icon.icon */; };
 /* End PBXBuildFile section */
 
@@ -96,6 +99,9 @@
 		020000000000000000000024 /* ActualDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStore.swift; sourceTree = "<group>"; };
 		020000000000000000000025 /* ActualDataStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStoreTests.swift; sourceTree = "<group>"; };
 		020000000000000000000026 /* TransactionGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionGrouping.swift; sourceTree = "<group>"; };
+		020000000000000000000029 /* UncategorizedTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsView.swift; sourceTree = "<group>"; };
+		02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModel.swift; sourceTree = "<group>"; };
+		02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModelTests.swift; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -221,6 +227,7 @@
 				02000000000000000000001C /* BudgetViewModelTests.swift */,
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
 				020000000000000000000025 /* ActualDataStoreTests.swift */,
+				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -257,6 +264,8 @@
 			children = (
 				02000000000000000000000E /* BudgetView.swift */,
 				020000000000000000000019 /* BudgetViewModel.swift */,
+				020000000000000000000029 /* UncategorizedTransactionsView.swift */,
+				02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */,
 			);
 			path = Budget;
 			sourceTree = "<group>";
@@ -434,6 +443,8 @@
 				010000000000000000000021 /* ActualDataStore.swift in Sources */,
 				010000000000000000000023 /* TransactionGrouping.swift in Sources */,
 				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
+				010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */,
+				010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */,
 				010000000000000000000017 /* OnboardingViewModel.swift in Sources */,
 				010000000000000000000018 /* SettingsViewModel.swift in Sources */,
 				01000000000000000000001A /* TransactionEditorView.swift in Sources */,
@@ -449,6 +460,7 @@
 				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
 				010000000000000000000022 /* ActualDataStoreTests.swift in Sources */,
+				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

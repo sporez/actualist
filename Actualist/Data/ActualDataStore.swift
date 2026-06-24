@@ -201,6 +201,12 @@ final class ActualDataStore {
         })
     }
 
+    private func accountNames(budgetID: String) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: (accountsByBudget[budgetID]?.value ?? []).map { account in
+            (account.id, account.name)
+        })
+    }
+
     private func payeeNames(budgetID: String) -> [String: String] {
         Dictionary(uniqueKeysWithValues: (payeesByBudget[budgetID]?.value ?? []).compactMap { payee in
             payee.id.map { ($0, payee.name) }
@@ -415,6 +421,57 @@ final class ActualDataStore {
         )
     }
 
+    func refreshUncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedUncategorizedTransactions {
+        try await ensureAccounts(budgetID: budgetID)
+        try await ensureCategories(budgetID: budgetID)
+        try await ensurePayees(budgetID: budgetID)
+        try? await refreshBudgetMonth(budgetID: budgetID, month: month)
+
+        let client = try requireClient()
+        var endpointError: Error?
+        let endpointTransactions: [ActualTransaction]
+        do {
+            endpointTransactions = try await client.uncategorizedTransactions(
+                budgetID: budgetID,
+                month: month
+            )
+        } catch {
+            endpointError = error
+            endpointTransactions = []
+        }
+
+        var transactions = Self.sortedTransactions(Self.parentTransactions(from: endpointTransactions))
+        if transactions.isEmpty {
+            let fallbackTransactions: [ActualTransaction]
+            do {
+                fallbackTransactions = try await fallbackUncategorizedTransactions(budgetID: budgetID, month: month)
+            } catch {
+                if let endpointError {
+                    throw endpointError
+                }
+                throw error
+            }
+            if !fallbackTransactions.isEmpty || hasUncategorizedAlert(budgetID: budgetID, month: month) {
+                transactions = fallbackTransactions
+            }
+        }
+
+        if transactions.isEmpty, let endpointError {
+            throw endpointError
+        }
+
+        return LoadedUncategorizedTransactions(
+            transactions: transactions,
+            accountNames: accountNames(budgetID: budgetID),
+            categoryNames: categoryNames(budgetID: budgetID),
+            payeeNames: payeeNames(budgetID: budgetID),
+            categoryGroups: transactionEditorCategoryGroups(budgetID: budgetID, month: month)
+        )
+    }
+
     func syncBankAccountAndRefresh(
         budgetID: String,
         accountID: String
@@ -527,6 +584,72 @@ final class ActualDataStore {
 
     private static func parentTransactions(from transactions: [ActualTransaction]) -> [ActualTransaction] {
         transactions.filter { !$0.isChild && $0.parentID == nil }
+    }
+
+    private func hasUncategorizedAlert(budgetID: String, month: String) -> Bool {
+        let alerts = alertsByKey[monthKey(budgetID, month)]?.value ?? []
+        return alerts.contains { alert in
+            alert.kind == "uncategorizedTransactions" && (alert.count ?? 0) > 0
+        }
+    }
+
+    private func fallbackUncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> [ActualTransaction] {
+        let accounts = (accountsByBudget[budgetID]?.value ?? []).filter { !$0.closed && !$0.offbudget }
+        for account in accounts {
+            try await refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
+        }
+
+        let accountIDs = Set(accounts.map(\.id))
+        let transferPayeeIDs = Set((payeesByBudget[budgetID]?.value ?? []).compactMap { payee -> String? in
+            guard payee.transferAccount != nil else {
+                return nil
+            }
+            return payee.id
+        })
+
+        let accountTransactions = accounts.flatMap { account in
+            transactionsByAccount[accountKey(budgetID, account.id)]?.value.transactions ?? []
+        }
+        let transactions = accountTransactions.filter { transaction in
+            isFallbackUncategorizedTransaction(
+                transaction,
+                month: month,
+                accountIDs: accountIDs,
+                transferPayeeIDs: transferPayeeIDs
+            )
+        }
+
+        return Self.sortedTransactions(transactions)
+    }
+
+    private func isFallbackUncategorizedTransaction(
+        _ transaction: ActualTransaction,
+        month: String,
+        accountIDs: Set<String>,
+        transferPayeeIDs: Set<String>
+    ) -> Bool {
+        if transaction.date.actualYearMonth != month {
+            return false
+        }
+        if !accountIDs.contains(transaction.account) {
+            return false
+        }
+        if let category = transaction.category, !category.isEmpty {
+            return false
+        }
+        if transaction.isChild || transaction.parentID != nil {
+            return false
+        }
+        if transaction.isParent || !transaction.subtransactions.isEmpty {
+            return false
+        }
+        if let payee = transaction.payee, transferPayeeIDs.contains(payee) {
+            return false
+        }
+        return true
     }
 
     private static func sortedTransactions(_ transactions: [ActualTransaction]) -> [ActualTransaction] {
@@ -682,6 +805,13 @@ extension ActualDataStore: BudgetRepositoryProtocol {
 }
 
 extension ActualDataStore: TransactionRepositoryProtocol {
+    func uncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedUncategorizedTransactions {
+        try await refreshUncategorizedTransactions(budgetID: budgetID, month: month)
+    }
+
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
         try await ensureAccounts(budgetID: budgetID)
         try await ensureCategories(budgetID: budgetID)
@@ -790,6 +920,35 @@ extension ActualDataStore: TransactionRepositoryProtocol {
             budgetID: budgetID,
             newPayeeName: draft.payeeID == nil ? draft.payeeName : nil
         )
+        return result
+    }
+
+    func categorizeTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        categoryID: String,
+        budgetID: String,
+        didUpdate: @escaping () async -> Void = {}
+    ) async throws -> TransactionMutationResult {
+        guard let transactionID = transaction.id else {
+            throw ActualAPIError.missingTransactionID
+        }
+
+        let client = try requireClient()
+        _ = try await client.updateTransactionCategory(
+            budgetID: budgetID,
+            transaction: transaction,
+            categoryID: categoryID
+        )
+        let result = TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [transaction.account],
+                months: transaction.date.actualYearMonth.map { [$0] } ?? [],
+                transactions: [transactionID]
+            )
+        )
+        await didUpdate()
+        try await applyInvalidation(result.changed, budgetID: budgetID)
         return result
     }
 

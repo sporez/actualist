@@ -2,6 +2,10 @@ import Foundation
 
 protocol TransactionRepositoryProtocol: Sendable {
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions
+    func uncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedUncategorizedTransactions
     func previewRules(
         for draft: TransactionDraft,
         budgetID: String
@@ -17,6 +21,12 @@ protocol TransactionRepositoryProtocol: Sendable {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult
+    func categorizeTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        categoryID: String,
+        budgetID: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult
     func deleteTransactionAndRefresh(
@@ -52,4 +62,12 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let categoryNames: [String: String]
     let payeeNames: [String: String]
     let reachedEnd: Bool
+}
+
+struct LoadedUncategorizedTransactions: Hashable, Sendable {
+    let transactions: [ActualTransaction]
+    let accountNames: [String: String]
+    let categoryNames: [String: String]
+    let payeeNames: [String: String]
+    let categoryGroups: [TransactionEditorCategoryGroup]
 }

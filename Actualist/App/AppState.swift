@@ -257,7 +257,11 @@ final class AppState {
             }
         } else {
             lastErrorMessage = error?.localizedDescription
-            connectionStatus = .offline
+            if error.isConnectivityFailure {
+                connectionStatus = .offline
+            } else if activeNetworkRequestCount == 0 {
+                connectionStatus = .online
+            }
         }
     }
 
@@ -279,6 +283,25 @@ enum ServerConnectionStatus: Equatable {
     case online
     case connecting
     case offline
+}
+
+private extension Optional where Wrapped == Error {
+    var isConnectivityFailure: Bool {
+        guard let self else {
+            return true
+        }
+
+        if let apiError = self as? ActualAPIError {
+            switch apiError {
+            case .invalidURL, .transport:
+                return true
+            case .invalidResponse, .missingTransactionID, .httpStatus, .decoding:
+                return false
+            }
+        }
+
+        return false
+    }
 }
 
 enum ServerURLNormalizer {

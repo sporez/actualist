@@ -365,6 +365,27 @@ struct BudgetViewModelTests {
         #expect(model.canSubmitMoveMoney)
     }
 
+    @Test func overspentAlertCategoryTapStartsCoverMoveMoneyDraft() throws {
+        let model = BudgetViewModel()
+        let month = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: -7_693,
+            hiddenCategoryBalance: 0,
+            counterpartyCategoryBalance: 12_000,
+            lastMonthOverspent: 0
+        )
+        model.budgetMonth = month
+
+        let option = try #require(model.overspentCategoryOptions.first)
+        model.beginMoveMoney(for: option.id)
+
+        #expect(option.categoryName == "Mortgage")
+        #expect(option.amountText.contains("76.93"))
+        #expect(model.assignmentDraft == nil)
+        #expect(model.moveMoneyDraft?.focusedCategoryID == option.id)
+        #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
+        #expect(model.moveMoneyDraft?.amount == 7_693)
+    }
+
     @Test func moveMoneyCoverAmountDoesNotClampToSelectedSourceAvailability() throws {
         let model = BudgetViewModel()
         let month = try Self.decodeBudgetMonth(

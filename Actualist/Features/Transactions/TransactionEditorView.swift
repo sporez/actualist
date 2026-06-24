@@ -473,19 +473,86 @@ struct TransactionEditorView: View {
     }
 }
 
-private struct TransactionCategorySelectionView: View {
+struct TransactionCategorySelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
-    @Bindable var viewModel: TransactionEditorViewModel
+    let viewModel: TransactionEditorViewModel?
+    let providedCategoryGroups: [TransactionEditorCategoryGroup]
+    let providedSelectedCategoryID: String?
+    let isLoadingProvidedCategories: Bool
+    let showsUncategorizedOption: Bool
+    let allowsSplitSelection: Bool
+    let onSelectCategory: ((TransactionEditorCategoryOption) -> Void)?
+    let onClearCategory: (() -> Void)?
     @State private var searchText = ""
     @State private var isSplitMode = false
+
+    init(viewModel: TransactionEditorViewModel) {
+        self.viewModel = viewModel
+        providedCategoryGroups = []
+        providedSelectedCategoryID = nil
+        isLoadingProvidedCategories = false
+        showsUncategorizedOption = true
+        allowsSplitSelection = true
+        onSelectCategory = nil
+        onClearCategory = nil
+    }
+
+    init(
+        categoryGroups: [TransactionEditorCategoryGroup],
+        selectedCategoryID: String? = nil,
+        isLoading: Bool = false,
+        showsUncategorizedOption: Bool = false,
+        onSelectCategory: @escaping (TransactionEditorCategoryOption) -> Void
+    ) {
+        viewModel = nil
+        providedCategoryGroups = categoryGroups
+        providedSelectedCategoryID = selectedCategoryID
+        isLoadingProvidedCategories = isLoading
+        self.showsUncategorizedOption = showsUncategorizedOption
+        allowsSplitSelection = false
+        self.onSelectCategory = onSelectCategory
+        onClearCategory = nil
+    }
 
     private var trimmedSearchText: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var categoryGroups: [TransactionEditorCategoryGroup] {
-        viewModel.categorySelectionGroups(matching: searchText)
+        if let viewModel {
+            return viewModel.categorySelectionGroups(matching: searchText)
+        }
+
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearch.isEmpty else {
+            return providedCategoryGroups
+        }
+
+        return providedCategoryGroups.compactMap { group in
+            let options = group.options.filter { option in
+                option.title.localizedCaseInsensitiveContains(trimmedSearch)
+                    || group.name.localizedCaseInsensitiveContains(trimmedSearch)
+            }
+
+            guard !options.isEmpty else {
+                return nil
+            }
+
+            return TransactionEditorCategoryGroup(
+                id: group.id,
+                name: group.name,
+                options: options
+            )
+        }
+    }
+
+    private var selectedCategoryID: String? {
+        viewModel?.selectedCategoryID ?? providedSelectedCategoryID
+    }
+
+    private var isLoadingCategories: Bool {
+        viewModel?.isLoadingCategoryBalances ?? isLoadingProvidedCategories
     }
 
     var body: some View {
@@ -497,11 +564,11 @@ private struct TransactionCategorySelectionView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         searchField
 
-                        if trimmedSearchText.isEmpty && !isSplitMode {
+                        if trimmedSearchText.isEmpty && !isSplitMode && showsUncategorizedOption {
                             uncategorizedButton
                         }
 
-                        if viewModel.isLoadingCategoryBalances, categoryGroups.isEmpty {
+                        if isLoadingCategories, categoryGroups.isEmpty {
                             ProgressView("Loading categories")
                                 .foregroundStyle(ActualistTheme.secondaryText)
                                 .frame(maxWidth: .infinity)
@@ -534,16 +601,18 @@ private struct TransactionCategorySelectionView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        if isSplitMode {
-                            viewModel.finalizeSplitSelection()
-                            dismiss()
-                        } else {
-                            viewModel.beginSplitSelection()
-                            isSplitMode = true
+                    if allowsSplitSelection, let viewModel {
+                        Button {
+                            if isSplitMode {
+                                viewModel.finalizeSplitSelection()
+                                dismiss()
+                            } else {
+                                viewModel.beginSplitSelection()
+                                isSplitMode = true
+                            }
+                        } label: {
+                            Text(isSplitMode ? "Done" : "Split")
                         }
-                    } label: {
-                        Text(isSplitMode ? "Done" : "Split")
                     }
                 }
             }
@@ -551,7 +620,7 @@ private struct TransactionCategorySelectionView: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .onAppear {
-            isSplitMode = viewModel.isSplit
+            isSplitMode = viewModel?.isSplit ?? false
         }
     }
 
@@ -582,7 +651,8 @@ private struct TransactionCategorySelectionView: View {
 
     private var uncategorizedButton: some View {
         Button {
-            viewModel.clearCategory()
+            viewModel?.clearCategory()
+            onClearCategory?()
             dismiss()
         } label: {
             HStack(spacing: 12) {
@@ -592,7 +662,7 @@ private struct TransactionCategorySelectionView: View {
 
                 Spacer()
 
-                if viewModel.selectedCategoryID == nil {
+                if selectedCategoryID == nil {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(ActualistTheme.positive)
                 }
@@ -633,10 +703,11 @@ private struct TransactionCategorySelectionView: View {
 
     private func categoryButton(_ option: TransactionEditorCategoryOption) -> some View {
         Button {
-            if isSplitMode {
+            if isSplitMode, let viewModel {
                 viewModel.toggleSplitCategory(option)
             } else {
-                viewModel.selectCategory(option)
+                viewModel?.selectCategory(option)
+                onSelectCategory?(option)
                 dismiss()
             }
         } label: {
@@ -660,8 +731,8 @@ private struct TransactionCategorySelectionView: View {
                         .background(categoryValueBackground(option), in: Capsule())
                 }
 
-                if (isSplitMode && viewModel.isSplitCategorySelected(option))
-                    || (!isSplitMode && option.id == viewModel.selectedCategoryID) {
+                if (isSplitMode && viewModel?.isSplitCategorySelected(option) == true)
+                    || (!isSplitMode && option.id == selectedCategoryID) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(ActualistTheme.positive)
                 }

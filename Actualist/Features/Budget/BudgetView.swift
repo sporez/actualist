@@ -6,6 +6,9 @@ struct BudgetView: View {
     @State private var viewModel = BudgetViewModel()
     @State private var isTransactionEditorPresented = false
     @State private var isMonthPickerPresented = false
+    @State private var isUncategorizedTransactionsPresented = false
+    @State private var isOverspentCategoriesPresented = false
+    @State private var pendingOverspentCategoryID: String?
     @State private var assignmentKeypadHeight: CGFloat = 0
     @State private var assignmentScrollTask: Task<Void, Never>?
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
@@ -169,6 +172,29 @@ struct BudgetView: View {
                     }
                         .environment(appState)
                 }
+                .sheet(isPresented: $isUncategorizedTransactionsPresented) {
+                    UncategorizedTransactionsView(
+                        month: viewModel.selectedMonth ?? viewModel.preferredMonth,
+                        onChanged: {
+                            Task { await viewModel.refreshSelectedMonth(using: appState) }
+                        },
+                        onResolvedAll: {
+                            isUncategorizedTransactionsPresented = false
+                        }
+                    )
+                    .environment(appState)
+                }
+                .sheet(
+                    isPresented: $isOverspentCategoriesPresented,
+                    onDismiss: openPendingOverspentCategory
+                ) {
+                    BudgetOverspentCategoriesView(
+                        categories: viewModel.overspentCategoryOptions,
+                        isReadOnly: appState.isReadOnly
+                    ) { category in
+                        pendingOverspentCategoryID = category.id
+                    }
+                }
                 .sheet(isPresented: moveMoneyPresentationBinding) {
                     BudgetMoveMoneyView(viewModel: viewModel)
                         .environment(appState)
@@ -207,48 +233,86 @@ struct BudgetView: View {
 
     private var budgetAlertBanners: some View {
         ForEach(viewModel.budgetAlerts) { alert in
-            Button {
-            } label: {
-                HStack(spacing: 10) {
-                    if let valueText = alert.valueText {
-                        Text(valueText)
-                            .font(ActualistTypography.workScreenAmount(for: density))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-
-                    if let count = alert.count {
-                        Text("\(count)")
-                            .font(ActualistTypography.control(for: density))
-                            .foregroundStyle(alert.countForeground)
-                            .frame(width: 28, height: 28)
-                            .background(alert.countBackground, in: Circle())
-                    }
-
-                    Text(alert.title)
-                        .font(ActualistTypography.body(for: density))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.86)
-
-                    Spacer()
-
-                    if let actionTitle = alert.actionTitle {
-                        Text(actionTitle)
-                            .font(ActualistTypography.control(for: density))
-                            .lineLimit(1)
-                    }
-
-                    Image(systemName: "chevron.right")
-                        .font(.body.weight(.bold))
+            if alert.isActionable {
+                Button {
+                    open(alert)
+                } label: {
+                    budgetAlertLabel(alert)
                 }
-                .foregroundStyle(alert.foreground)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background {
-                    alert.backgroundView
-                }
+                .buttonStyle(.plain)
+            } else {
+                budgetAlertLabel(alert)
             }
-            .buttonStyle(.plain)
+        }
+    }
+
+    private func budgetAlertLabel(_ alert: BudgetAlert) -> some View {
+        HStack(spacing: 10) {
+            if let valueText = alert.valueText {
+                Text(valueText)
+                    .font(ActualistTypography.workScreenAmount(for: density))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            if let count = alert.count {
+                Text("\(count)")
+                    .font(ActualistTypography.control(for: density))
+                    .foregroundStyle(alert.countForeground)
+                    .frame(width: 28, height: 28)
+                    .background(alert.countBackground, in: Circle())
+            }
+
+            Text(alert.title)
+                .font(ActualistTypography.body(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.86)
+
+            Spacer()
+
+            if let actionTitle = alert.actionTitle {
+                Text(actionTitle)
+                    .font(ActualistTypography.control(for: density))
+                    .lineLimit(1)
+            }
+
+            if alert.isActionable {
+                Image(systemName: "chevron.right")
+                    .font(.body.weight(.bold))
+            }
+        }
+        .foregroundStyle(alert.foreground)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background {
+            alert.backgroundView
+        }
+    }
+
+    private func open(_ alert: BudgetAlert) {
+        guard alert.isActionable else {
+            return
+        }
+
+        switch alert.kind {
+        case .uncategorizedTransactions:
+            isUncategorizedTransactionsPresented = true
+        case .overspending:
+            isOverspentCategoriesPresented = true
+        case .toBudget:
+            break
+        }
+    }
+
+    private func openPendingOverspentCategory() {
+        guard let categoryID = pendingOverspentCategoryID else {
+            return
+        }
+
+        pendingOverspentCategoryID = nil
+        Task { @MainActor in
+            await Task.yield()
+            viewModel.beginMoveMoney(for: categoryID)
         }
     }
 
@@ -389,6 +453,15 @@ private struct ConnectionStatusDot: View {
 }
 
 private extension BudgetAlert {
+    var isActionable: Bool {
+        switch kind {
+        case .uncategorizedTransactions, .overspending:
+            true
+        case .toBudget:
+            false
+        }
+    }
+
     var foreground: Color {
         switch severity {
         case .positive:
@@ -429,6 +502,110 @@ private extension BudgetAlert {
         case .danger:
             ActualistTheme.danger.opacity(0.8)
         }
+    }
+}
+
+private struct BudgetOverspentCategoriesView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
+
+    let categories: [BudgetOverspentCategoryOption]
+    let isReadOnly: Bool
+    let onSelect: (BudgetOverspentCategoryOption) -> Void
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                ActualistTheme.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if categories.isEmpty {
+                            GlassPanel {
+                                VStack(spacing: 12) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title)
+                                        .foregroundStyle(ActualistTheme.positive)
+                                    Text("No overspent categories")
+                                        .font(ActualistTypography.rowTitle(for: density))
+                                        .foregroundStyle(ActualistTheme.primaryText)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(categories) { category in
+                                    Button {
+                                        guard !isReadOnly else {
+                                            return
+                                        }
+                                        onSelect(category)
+                                        dismiss()
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                Text(category.categoryName)
+                                                    .font(ActualistTypography.rowTitle(for: density))
+                                                    .foregroundStyle(ActualistTheme.primaryText)
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.84)
+
+                                                Text(category.groupName)
+                                                    .font(ActualistTypography.rowBadge(for: density))
+                                                    .foregroundStyle(ActualistTheme.secondaryText)
+                                            }
+
+                                            Spacer()
+
+                                            Text(category.amountText)
+                                                .font(ActualistTypography.rowValue(for: density))
+                                                .foregroundStyle(.white)
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.78)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(ActualistTheme.danger.opacity(0.84), in: Capsule())
+
+                                            Image(systemName: "chevron.right")
+                                                .font(.subheadline.weight(.bold))
+                                                .foregroundStyle(ActualistTheme.secondaryText)
+                                        }
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 14)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if category.id != categories.last?.id {
+                                        Divider()
+                                            .overlay(ActualistTheme.separator)
+                                            .padding(.leading, 18)
+                                    }
+                                }
+                            }
+                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 18)
+                    .padding(.bottom, 28)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("Cover Overspending")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 

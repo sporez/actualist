@@ -181,6 +181,20 @@ struct BudgetMoveMoneyDestinationGroup: Identifiable, Equatable {
     let options: [BudgetMoveMoneyDestinationOption]
 }
 
+struct BudgetOverspentCategoryOption: Identifiable, Equatable {
+    let id: String
+    let groupName: String
+    let category: BudgetMonthCategory
+
+    var categoryName: String {
+        category.name.actualistCategoryNameParts.name
+    }
+
+    var amountText: String {
+        category.balance.actualMoney.formatted()
+    }
+}
+
 @MainActor
 @Observable
 final class BudgetViewModel {
@@ -205,6 +219,22 @@ final class BudgetViewModel {
 
     var visibleGroups: [BudgetMonthCategoryGroup] {
         budgetMonth?.categoryGroups.filter { !$0.isIncome } ?? []
+    }
+
+    var overspentCategoryOptions: [BudgetOverspentCategoryOption] {
+        visibleGroups.flatMap { group in
+            group.visibleCategories.compactMap { category in
+                guard category.balance < 0 else {
+                    return nil
+                }
+
+                return BudgetOverspentCategoryOption(
+                    id: category.id,
+                    groupName: group.name,
+                    category: category
+                )
+            }
+        }
     }
 
     var overspendingAlertCount: Int? {
@@ -360,9 +390,6 @@ final class BudgetViewModel {
         }
 
         await load(budgetID: budgetID, repository: repository)
-        if errorMessage == nil {
-            await appState.cacheAccountsForOfflineUse()
-        }
     }
 
     func load(
@@ -465,17 +492,17 @@ final class BudgetViewModel {
             return
         }
 
-        var draft = BudgetMoveMoneyDraft(
-            focusedCategoryID: category.id,
-            focusedCategoryName: category.name,
-            focusedAvailable: category.balance
-        )
-        if category.balance < 0 {
-            draft.direction = .intoFocusedCategory
-            draft.amount = -category.balance
+        moveMoneyDraft = makeMoveMoneyDraft(for: category)
+    }
+
+    func beginMoveMoney(for categoryID: String) {
+        guard moveMoneyDraft?.isSubmitting != true,
+              let category = category(for: categoryID) else {
+            return
         }
 
-        moveMoneyDraft = draft
+        assignmentDraft = nil
+        moveMoneyDraft = makeMoveMoneyDraft(for: category)
     }
 
     func cancelMoveMoney() {
@@ -1135,6 +1162,20 @@ final class BudgetViewModel {
         visibleGroups
             .flatMap(\.visibleCategories)
             .first { $0.id == categoryID }
+    }
+
+    private func makeMoveMoneyDraft(for category: BudgetMonthCategory) -> BudgetMoveMoneyDraft {
+        var draft = BudgetMoveMoneyDraft(
+            focusedCategoryID: category.id,
+            focusedCategoryName: category.name,
+            focusedAvailable: category.balance
+        )
+        if category.balance < 0 {
+            draft.direction = .intoFocusedCategory
+            draft.amount = -category.balance
+        }
+
+        return draft
     }
 
     private static func deltaText(

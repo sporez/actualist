@@ -54,6 +54,10 @@ protocol ActualAPIClientProtocol: Sendable {
         limit: Int,
         offset: Int
     ) async throws -> [ActualTransaction]
+    func uncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) async throws -> [ActualTransaction]
     func payees(budgetID: String) async throws -> [ActualPayee]
     func categories(budgetID: String) async throws -> [ActualCategory]
     func createTransaction(
@@ -64,6 +68,11 @@ protocol ActualAPIClientProtocol: Sendable {
         budgetID: String,
         transactionID: String,
         draft: TransactionDraft
+    ) async throws -> APITransactionBatchUpdateResult
+    func updateTransactionCategory(
+        budgetID: String,
+        transaction: ActualTransaction,
+        categoryID: String
     ) async throws -> APITransactionBatchUpdateResult
     func deleteTransaction(
         budgetID: String,

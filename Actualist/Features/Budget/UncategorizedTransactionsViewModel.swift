@@ -1,0 +1,114 @@
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class UncategorizedTransactionsViewModel {
+    var transactions: [ActualTransaction] = []
+    var accountNames: [String: String] = [:]
+    var categoryNames: [String: String] = [:]
+    var payeeNames: [String: String] = [:]
+    var categoryGroups: [TransactionEditorCategoryGroup] = []
+    var isLoading = false
+    var errorMessage: String?
+    var categorizingTransactionID: String?
+
+    var isCategorizing: Bool {
+        categorizingTransactionID != nil
+    }
+
+    var transactionGroups: [TransactionDateGroup] {
+        TransactionGrouping.grouped(transactions)
+    }
+
+    func load(month: String, using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository() else {
+            return
+        }
+
+        await load(budgetID: budgetID, month: month, repository: repository)
+    }
+
+    func load(
+        budgetID: String,
+        month: String,
+        repository: any TransactionRepositoryProtocol
+    ) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            apply(try await repository.uncategorizedTransactions(budgetID: budgetID, month: month))
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+
+    func categorize(
+        _ transaction: ActualTransaction,
+        as option: TransactionEditorCategoryOption,
+        using appState: AppState
+    ) async -> Bool {
+        guard !appState.isReadOnly,
+              let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository() else {
+            return false
+        }
+
+        return await categorize(transaction, categoryID: option.id, budgetID: budgetID, repository: repository)
+    }
+
+    func categorize(
+        _ transaction: ActualTransaction,
+        categoryID: String,
+        budgetID: String,
+        repository: any TransactionRepositoryProtocol
+    ) async -> Bool {
+        guard categorizingTransactionID == nil else {
+            return false
+        }
+
+        let transactionID = transaction.rowID
+        categorizingTransactionID = transactionID
+        errorMessage = nil
+
+        do {
+            _ = try await repository.categorizeTransactionAndRefresh(
+                transaction,
+                categoryID: categoryID,
+                budgetID: budgetID
+            ) {}
+            transactions.removeAll { $0.rowID == transactionID }
+            categorizingTransactionID = nil
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            categorizingTransactionID = nil
+            return false
+        }
+    }
+
+    func payeeName(for transaction: ActualTransaction) -> String {
+        if let payeeName = transaction.payeeName, !payeeName.isEmpty {
+            return payeeName
+        }
+        if let payee = transaction.payee, let name = payeeNames[payee] {
+            return name
+        }
+        if let importedPayee = transaction.importedPayee, !importedPayee.isEmpty {
+            return importedPayee
+        }
+        return "Unknown Payee"
+    }
+
+    private func apply(_ loaded: LoadedUncategorizedTransactions) {
+        transactions = loaded.transactions
+        accountNames = loaded.accountNames
+        categoryNames = loaded.categoryNames
+        payeeNames = loaded.payeeNames
+        categoryGroups = loaded.categoryGroups
+    }
+}
