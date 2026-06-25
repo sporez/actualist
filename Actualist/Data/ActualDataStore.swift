@@ -41,6 +41,11 @@ final class ActualDataStore {
         var reachedEnd: Bool
     }
 
+    struct BackgroundAccountRefreshResult: Hashable, Sendable {
+        let account: ActualAccount
+        let newTransactionIDs: [String]
+    }
+
     /// Reference data older than this is refetched by `ensure*` (secondary) reads.
     /// Appear-driven `refresh*` calls always revalidate regardless of this window.
     private static let referenceTTL: TimeInterval = 300
@@ -483,6 +488,32 @@ final class ActualDataStore {
         return cachedAccountTransactions(budgetID: budgetID, accountID: accountID)
     }
 
+    func syncBankAccountAndFindNewTransactions(
+        budgetID: String,
+        account: ActualAccount
+    ) async throws -> BackgroundAccountRefreshResult {
+        let key = accountKey(budgetID, account.id)
+        let existingPage = transactionsByAccount[key]?.value
+        let existingTransactionIDs = Set(existingPage?.transactions.compactMap(\.id) ?? [])
+
+        let client = try requireClient()
+        _ = try await client.syncBankAccount(budgetID: budgetID, accountID: account.id)
+        try await refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
+
+        let refreshedTransactions = transactionsByAccount[key]?.value.transactions ?? []
+        let newTransactionIDs: [String]
+        if existingPage == nil {
+            newTransactionIDs = []
+        } else {
+            newTransactionIDs = refreshedTransactions.compactMap(\.id).filter { !existingTransactionIDs.contains($0) }
+        }
+
+        return BackgroundAccountRefreshResult(
+            account: account,
+            newTransactionIDs: newTransactionIDs
+        )
+    }
+
     func reconcileAccountAndRefresh(
         budgetID: String,
         accountID: String,
@@ -509,8 +540,11 @@ final class ActualDataStore {
         try await coalesced("month|\(key)") {
             async let loadedMonth = client.budgetMonth(budgetID: budgetID, month: month)
             async let loadedAlerts = client.budgetMonthAlerts(budgetID: budgetID, month: month)
-            self.monthByKey[key] = CacheEntry(value: try await loadedMonth, fetchedAt: Date())
-            self.alertsByKey[key] = CacheEntry(value: try await loadedAlerts.alerts, fetchedAt: Date())
+            let month = try await loadedMonth
+            let alerts = try await loadedAlerts.alerts
+            let fetchedAt = Date()
+            self.monthByKey[key] = CacheEntry(value: month, fetchedAt: fetchedAt)
+            self.alertsByKey[key] = CacheEntry(value: alerts, fetchedAt: fetchedAt)
         }
     }
 

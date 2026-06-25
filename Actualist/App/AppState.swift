@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UserNotifications
 
 @MainActor
 @Observable
@@ -7,6 +8,7 @@ final class AppState {
     var settings: AppSettings
     var setupPhase: SetupPhase
     var selectedTab: AppTab = .budget
+    var accountNavigationPath: [ActualAccount] = []
     var budgets: [ActualBudget] = []
     var selectedBudget: ActualBudget?
     var lastErrorMessage: String?
@@ -70,16 +72,19 @@ final class AppState {
 
     func saveConnection(serverURLString: String, apiKey: String) {
         settings.serverURLString = ServerURLNormalizer.normalize(serverURLString)
+        settings.pendingNewTransactionIDsByAccount = [:]
         settingsStore.save(settings)
         keychain.saveAPIKey(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
         // Credentials/server changed: never let another context's data linger.
         dataStore.reset()
+        accountNavigationPath = []
         connectionStatus = .connecting
     }
 
     func selectBudget(_ budget: ActualBudget) {
         if settings.selectedBudgetID != budget.syncID {
             dataStore.reset()
+            accountNavigationPath = []
         }
         selectedBudget = budget
         settings.selectedBudgetID = budget.syncID
@@ -87,10 +92,12 @@ final class AppState {
         settingsStore.save(settings)
         setupPhase = .ready
         persistCurrentSnapshot()
+        BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
     }
 
     func clearSelectionForBudgetChange() {
         dataStore.reset()
+        accountNavigationPath = []
         selectedBudget = nil
         settings.selectedBudgetID = nil
         settings.selectedBudgetName = nil
@@ -108,6 +115,127 @@ final class AppState {
         ActualistTheme.activate(theme)
         themeRevision += 1
         settingsStore.save(settings)
+    }
+
+    func updateBackgroundTransactionRefreshEnabled(_ isEnabled: Bool) async {
+        if isEnabled {
+            do {
+                let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+                guard granted else {
+                    settings.backgroundTransactionRefreshEnabled = false
+                    settingsStore.save(settings)
+                    BackgroundTransactionRefreshCoordinator.shared.cancel()
+                    return
+                }
+            } catch {
+                settings.backgroundTransactionRefreshEnabled = false
+                settingsStore.save(settings)
+                lastErrorMessage = error.localizedDescription
+                BackgroundTransactionRefreshCoordinator.shared.cancel()
+                return
+            }
+        }
+
+        settings.backgroundTransactionRefreshEnabled = isEnabled
+        settingsStore.save(settings)
+        if isEnabled {
+            BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
+        } else {
+            BackgroundTransactionRefreshCoordinator.shared.cancel()
+        }
+    }
+
+    func performBackgroundTransactionRefresh() async -> Bool {
+        let debugRunID = recordBackgroundRefreshWake()
+
+        guard settings.backgroundTransactionRefreshEnabled,
+              setupPhase == .ready,
+              let budgetID = settings.selectedBudgetID,
+              makeClient() != nil else {
+            recordBackgroundRefreshCompletion(
+                runID: debugRunID,
+                success: true,
+                message: "Skipped: background alerts are disabled or the app is not ready"
+            )
+            return true
+        }
+
+        do {
+            try await dataStore.refreshAccounts(budgetID: budgetID)
+            let accounts = dataStore.accountsByBudget[budgetID]?.value ?? []
+            let linkedAccounts = accounts.filter { $0.bankSyncLinked && !$0.closed }
+            var newTransactionCount = 0
+
+            for account in linkedAccounts {
+                let result = try await dataStore.syncBankAccountAndFindNewTransactions(
+                    budgetID: budgetID,
+                    account: account
+                )
+                guard !result.newTransactionIDs.isEmpty else {
+                    continue
+                }
+
+                recordPendingNewTransactionIDs(
+                    result.newTransactionIDs,
+                    budgetID: budgetID,
+                    accountID: account.id
+                )
+                try await postNewTransactionsNotification(
+                    account: account,
+                    budgetID: budgetID,
+                    count: result.newTransactionIDs.count
+                )
+                newTransactionCount += result.newTransactionIDs.count
+            }
+
+            persistCurrentSnapshot()
+            recordBackgroundRefreshCompletion(
+                runID: debugRunID,
+                success: true,
+                message: "Checked \(linkedAccounts.count) linked accounts; found \(newTransactionCount) new transactions"
+            )
+            return true
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            recordBackgroundRefreshCompletion(
+                runID: debugRunID,
+                success: false,
+                message: error.localizedDescription
+            )
+            return false
+        }
+    }
+
+    func pendingNewTransactionIDs(budgetID: String, accountID: String) -> Set<String> {
+        Set(settings.pendingNewTransactionIDsByAccount[pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)] ?? [])
+    }
+
+    func clearPendingNewTransactionIDs(budgetID: String, accountID: String) {
+        let key = pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)
+        guard settings.pendingNewTransactionIDsByAccount[key] != nil else {
+            return
+        }
+        settings.pendingNewTransactionIDsByAccount[key] = nil
+        settingsStore.save(settings)
+    }
+
+    func routeToAccountFromNotification(budgetID: String, accountID: String) async {
+        selectedTab = .accounts
+        guard settings.selectedBudgetID == budgetID else {
+            accountNavigationPath = []
+            return
+        }
+
+        if dataStore.accountsByBudget[budgetID]?.value == nil {
+            try? await dataStore.refreshAccountsWithBalances(budgetID: budgetID)
+        }
+
+        let displays = dataStore.accountDisplays(budgetID: budgetID)
+        guard let account = displays.first(where: { $0.account.id == accountID })?.account else {
+            accountNavigationPath = []
+            return
+        }
+        accountNavigationPath = [account]
     }
 
     func loadBudgets() async {
@@ -224,6 +352,69 @@ final class AppState {
             serverURLString: settings.serverURLString,
             budgetID: budgetID
         )
+    }
+
+    private func pendingNewTransactionKey(budgetID: String, accountID: String) -> String {
+        "\(budgetID)|\(accountID)"
+    }
+
+    private func recordPendingNewTransactionIDs(_ transactionIDs: [String], budgetID: String, accountID: String) {
+        let key = pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)
+        var existing = Set(settings.pendingNewTransactionIDsByAccount[key] ?? [])
+        existing.formUnion(transactionIDs)
+        settings.pendingNewTransactionIDsByAccount[key] = existing.sorted()
+        settingsStore.save(settings)
+    }
+
+    private func recordBackgroundRefreshWake() -> UUID {
+        let runID = UUID()
+        let run = BackgroundRefreshDebugRun(
+            id: runID,
+            wakeDate: Date(),
+            completionDate: nil,
+            succeeded: nil,
+            message: "Started"
+        )
+        settings.backgroundRefreshDebug.totalWakeCount += 1
+        settings.backgroundRefreshDebug.recentRuns.insert(run, at: 0)
+        if settings.backgroundRefreshDebug.recentRuns.count > 20 {
+            settings.backgroundRefreshDebug.recentRuns.removeSubrange(20...)
+        }
+        settingsStore.save(settings)
+        return runID
+    }
+
+    private func recordBackgroundRefreshCompletion(runID: UUID, success: Bool, message: String) {
+        guard let index = settings.backgroundRefreshDebug.recentRuns.firstIndex(where: { $0.id == runID }) else {
+            return
+        }
+
+        settings.backgroundRefreshDebug.recentRuns[index].completionDate = Date()
+        settings.backgroundRefreshDebug.recentRuns[index].succeeded = success
+        settings.backgroundRefreshDebug.recentRuns[index].message = message
+        settingsStore.save(settings)
+    }
+
+    private func postNewTransactionsNotification(
+        account: ActualAccount,
+        budgetID: String,
+        count: Int
+    ) async throws {
+        let content = UNMutableNotificationContent()
+        content.title = account.name
+        content.body = count == 1 ? "1 new transaction" : "\(count) new transactions"
+        content.sound = .default
+        content.userInfo = [
+            "budgetID": budgetID,
+            "accountID": account.id
+        ]
+
+        let request = UNNotificationRequest(
+            identifier: "actualist.new-transactions.\(budgetID).\(account.id).\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+        try await UNUserNotificationCenter.current().add(request)
     }
 
     private func useOfflineSnapshotIfAvailable() -> Bool {

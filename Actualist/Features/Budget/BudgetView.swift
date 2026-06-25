@@ -867,11 +867,12 @@ struct BudgetGroupSection: View {
 
             if isExpanded {
                 VStack(spacing: 0) {
-                    ForEach(group.visibleCategories) { category in
+                    ForEach(Array(group.visibleCategories.enumerated()), id: \.element.id) { index, category in
                         BudgetCategoryRow(
                             category: category,
                             assignedDisplay: assignedDisplay(category),
                             isEditing: isEditingAssignment(category),
+                            showsBottomSeparator: index < group.visibleCategories.count - 1,
                             beginAssignmentEditing: { categoryFrame in
                                 beginAssignmentEditing(category, categoryFrame)
                             }
@@ -896,6 +897,7 @@ struct BudgetCategoryRow: View {
     let category: BudgetMonthCategory
     let assignedDisplay: BudgetAssignedAmountDisplay
     let isEditing: Bool
+    let showsBottomSeparator: Bool
     let beginAssignmentEditing: (CGRect) -> Void
 
     @State private var globalFrame: CGRect = .zero
@@ -961,10 +963,12 @@ struct BudgetCategoryRow: View {
         }
         .background(isEditing ? ActualistTheme.elevatedSurface : Color.clear)
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(ActualistTheme.separator)
-                .frame(height: 1)
-                .padding(.leading, BudgetLayout.emojiWidth + BudgetLayout.rowSpacing)
+            if showsBottomSeparator {
+                Rectangle()
+                    .fill(ActualistTheme.separator)
+                    .frame(height: 1)
+                    .padding(.leading, BudgetLayout.emojiWidth + BudgetLayout.rowSpacing)
+            }
         }
     }
 

@@ -4,6 +4,56 @@ import Testing
 
 @MainActor
 struct ActualDataStoreTests {
+    @Test func accountDecodesMissingBankSyncLinkedAsFalse() throws {
+        let data = Data("""
+        {
+          "id": "checking",
+          "name": "Checking",
+          "offbudget": false,
+          "closed": false
+        }
+        """.utf8)
+
+        let account = try JSONDecoder.actual.decode(ActualAccount.self, from: data)
+
+        #expect(account.bankSyncLinked == false)
+    }
+
+    @Test func appSettingsRoundTripsBackgroundRefreshState() throws {
+        let wakeDate = Date(timeIntervalSinceReferenceDate: 10)
+        let finishDate = Date(timeIntervalSinceReferenceDate: 20)
+        let settings = AppSettings(
+            serverURLString: "http://localhost:5007/v1",
+            selectedBudgetID: "budget",
+            selectedBudgetName: "Budget",
+            backgroundTransactionRefreshEnabled: true,
+            backgroundRefreshDebug: BackgroundRefreshDebugInfo(
+                totalWakeCount: 2,
+                recentRuns: [
+                    BackgroundRefreshDebugRun(
+                        id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                        wakeDate: wakeDate,
+                        completionDate: finishDate,
+                        succeeded: true,
+                        message: "Checked 1 linked accounts; found 0 new transactions"
+                    )
+                ]
+            ),
+            pendingNewTransactionIDsByAccount: ["budget|checking": ["txn1", "txn2"]]
+        )
+
+        let data = try JSONEncoder.actual.encode(settings)
+        let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: data)
+
+        #expect(decoded.backgroundTransactionRefreshEnabled)
+        #expect(decoded.backgroundRefreshDebug.wakeCount == 2)
+        #expect(decoded.backgroundRefreshDebug.recentRuns.count == 1)
+        #expect(decoded.backgroundRefreshDebug.recentRuns.first?.wakeDate == wakeDate)
+        #expect(decoded.backgroundRefreshDebug.recentRuns.first?.completionDate == finishDate)
+        #expect(decoded.backgroundRefreshDebug.recentRuns.first?.succeeded == true)
+        #expect(decoded.pendingNewTransactionIDsByAccount["budget|checking"] == ["txn1", "txn2"])
+    }
+
     @Test func accountsWithBalancesCachesAndComposesDisplays() async throws {
         let client = FakeAPIClient()
         let store = ActualDataStore { client }
@@ -294,6 +344,62 @@ struct ActualDataStoreTests {
         #expect(await client.callCount(.syncBankAccount) == 1)
         #expect(await client.callCount(.transactions) == 2)
         #expect(await client.callCount(.balance) == 2)
+    }
+
+    @Test func backgroundBankSyncSeedsBaselineWithoutNewTransactionIDs() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "first", date: "2026-06-15")]
+            ]
+        )
+        let store = ActualDataStore { client }
+        let account = ActualAccount(
+            id: "checking",
+            name: "Checking",
+            offbudget: false,
+            closed: false,
+            bankSyncLinked: true
+        )
+
+        let result = try await store.syncBankAccountAndFindNewTransactions(
+            budgetID: "b",
+            account: account
+        )
+
+        #expect(result.newTransactionIDs.isEmpty)
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["first"])
+        #expect(await client.callCount(.syncBankAccount) == 1)
+    }
+
+    @Test func backgroundBankSyncReportsNewTransactionIDsAfterBaseline() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "before", date: "2026-06-15")],
+                [
+                    Self.transaction(id: "after", date: "2026-06-16"),
+                    Self.transaction(id: "before", date: "2026-06-15")
+                ]
+            ]
+        )
+        let store = ActualDataStore { client }
+        let account = ActualAccount(
+            id: "checking",
+            name: "Checking",
+            offbudget: false,
+            closed: false,
+            bankSyncLinked: true
+        )
+
+        try await store.refreshAccountTransactions(budgetID: "b", accountID: "checking")
+        let result = try await store.syncBankAccountAndFindNewTransactions(
+            budgetID: "b",
+            account: account
+        )
+
+        #expect(result.newTransactionIDs == ["after"])
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["after", "before"])
+        #expect(await client.callCount(.syncBankAccount) == 1)
+        #expect(await client.callCount(.transactions) == 2)
     }
 
     @Test func reconcileInvalidatesAndRefetchesAccountWhenMatched() async throws {
@@ -648,7 +754,7 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         }
 
         return [
-            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false, bankSyncLinked: true),
             ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
         ] + createdAccounts
     }

@@ -56,6 +56,13 @@ struct SettingsView: View {
                 }
                 .settingsSectionChrome()
 
+                Section("Background Refresh") {
+                    Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
+
+                    BackgroundRefreshDebugRows(debug: appState.settings.backgroundRefreshDebug)
+                }
+                .settingsSectionChrome()
+
                 Section("Appearance") {
                     Picker("Theme", selection: themeSelection) {
                         ForEach(ActualistThemeOption.allCases) { option in
@@ -133,6 +140,16 @@ struct SettingsView: View {
             && !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !viewModel.isTesting
     }
+
+    private var backgroundRefreshSelection: Binding<Bool> {
+        Binding {
+            appState.settings.backgroundTransactionRefreshEnabled
+        } set: { isEnabled in
+            Task {
+                await appState.updateBackgroundTransactionRefreshEnabled(isEnabled)
+            }
+        }
+    }
 }
 
 private struct SettingsActionLabel: View {
@@ -187,6 +204,86 @@ private struct SettingsStatusRow: View {
         case .offline:
             ActualistTheme.danger
         }
+    }
+}
+
+private struct BackgroundRefreshDebugRows: View {
+    let debug: BackgroundRefreshDebugInfo
+
+    var body: some View {
+        LabeledContent("Wake Count") {
+            Text(debug.wakeCount.formatted())
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+
+        if debug.recentRuns.isEmpty {
+            Text("No background wakes yet")
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        } else {
+            ForEach(debug.recentRuns.prefix(20)) { run in
+                BackgroundRefreshDebugRunRow(run: run)
+            }
+        }
+    }
+}
+
+private struct BackgroundRefreshDebugRunRow: View {
+    let run: BackgroundRefreshDebugRun
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(formattedDate(run.wakeDate))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                Spacer(minLength: 8)
+
+                Text(resultText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(resultColor)
+            }
+
+            if let completionDate = run.completionDate {
+                Text("Finished \(formattedDate(completionDate))")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+
+            Text(run.message)
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .lineLimit(2)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var resultText: String {
+        guard let succeeded = run.succeeded else {
+            return "Started"
+        }
+
+        return succeeded ? "Succeeded" : "Failed"
+    }
+
+    private var resultColor: Color {
+        switch run.succeeded {
+        case true:
+            ActualistTheme.positive
+        case false:
+            ActualistTheme.danger
+        case nil:
+            ActualistTheme.secondaryText
+        }
+    }
+
+    private func formattedDate(_ date: Date?) -> String {
+        guard let date else {
+            return "Not yet"
+        }
+
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
     }
 }
 

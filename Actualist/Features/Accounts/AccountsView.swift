@@ -19,7 +19,7 @@ struct AccountsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: accountNavigationPath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     accountSection(kind: .budget, title: "Budget Accounts", rows: openBudgetAccounts)
@@ -93,6 +93,14 @@ struct AccountsView: View {
         accounts.filter { $0.account.closed }
     }
 
+    private var accountNavigationPath: Binding<[ActualAccount]> {
+        Binding {
+            appState.accountNavigationPath
+        } set: { path in
+            appState.accountNavigationPath = path
+        }
+    }
+
     @ViewBuilder
     private func accountSection(kind: AccountSectionKind, title: String, rows: [AccountDisplay]) -> some View {
         if !rows.isEmpty {
@@ -124,9 +132,12 @@ struct AccountsView: View {
 
                 if isExpanded {
                     VStack(spacing: 0) {
-                        ForEach(rows) { row in
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                             NavigationLink(value: row.account) {
-                                AccountRow(row: row)
+                                AccountRow(
+                                    row: row,
+                                    showsBottomSeparator: index < rows.count - 1
+                                )
                             }
                             .buttonStyle(.plain)
                         }
@@ -293,6 +304,12 @@ struct AccountRow: View {
     @Environment(\.actualistDensity) private var density
 
     let row: AccountDisplay
+    let showsBottomSeparator: Bool
+
+    init(row: AccountDisplay, showsBottomSeparator: Bool = true) {
+        self.row = row
+        self.showsBottomSeparator = showsBottomSeparator
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -321,10 +338,12 @@ struct AccountRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(ActualistTheme.separator)
-                .frame(height: 1)
-                .padding(.leading, density.iconSize + density.rowHorizontalPadding + 12)
+            if showsBottomSeparator {
+                Rectangle()
+                    .fill(ActualistTheme.separator)
+                    .frame(height: 1)
+                    .padding(.leading, density.iconSize + density.rowHorizontalPadding + 12)
+            }
         }
     }
 }

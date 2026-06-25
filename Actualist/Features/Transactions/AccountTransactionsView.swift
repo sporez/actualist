@@ -57,6 +57,13 @@ struct AccountTransactionsView: View {
         loaded?.reachedEnd ?? false
     }
 
+    private var pendingNewTransactionIDs: Set<String> {
+        guard let budgetID else {
+            return []
+        }
+        return appState.pendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
+    }
+
     private var trimmedSearchText: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -199,6 +206,9 @@ struct AccountTransactionsView: View {
         }
         .onDisappear {
             searchTask?.cancel()
+            if let budgetID {
+                appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
+            }
         }
         .sensoryFeedback(.selection, trigger: deleteIntentHaptic)
         .sensoryFeedback(.success, trigger: deleteSuccessHaptic)
@@ -403,6 +413,7 @@ struct AccountTransactionsView: View {
                 transaction: transaction,
                 payeeName: payeeName(for: transaction),
                 categoryNames: categoryNames(for: transaction),
+                isNew: transaction.id.map { pendingNewTransactionIDs.contains($0) } ?? false,
                 showsBottomSeparator: showsBottomSeparator
             )
         }
@@ -972,17 +983,20 @@ struct TransactionRow: View {
     let transaction: ActualTransaction
     let payeeName: String
     let categoryNames: [String]
+    let isNew: Bool
     let showsBottomSeparator: Bool
 
     init(
         transaction: ActualTransaction,
         payeeName: String,
         categoryNames: [String],
+        isNew: Bool = false,
         showsBottomSeparator: Bool = true
     ) {
         self.transaction = transaction
         self.payeeName = payeeName
         self.categoryNames = categoryNames
+        self.isNew = isNew
         self.showsBottomSeparator = showsBottomSeparator
     }
 
@@ -1017,7 +1031,15 @@ struct TransactionRow: View {
         .padding(.horizontal, density.rowHorizontalPadding)
         .padding(.vertical, density.transactionRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isNew ? ActualistTheme.elevatedSurface : Color.clear)
         .contentShape(Rectangle())
+        .overlay(alignment: .leading) {
+            if isNew {
+                Rectangle()
+                    .fill(ActualistTheme.accent.opacity(0.7))
+                    .frame(width: 3)
+            }
+        }
         .overlay(alignment: .bottom) {
             if showsBottomSeparator {
                 Rectangle()

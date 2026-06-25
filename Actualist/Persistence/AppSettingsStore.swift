@@ -6,19 +6,28 @@ struct AppSettings: Codable, Equatable {
     var selectedBudgetName: String?
     var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
+    var backgroundTransactionRefreshEnabled: Bool = false
+    var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
+    var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
 
     init(
         serverURLString: String = "",
         selectedBudgetID: String? = nil,
         selectedBudgetName: String? = nil,
         theme: ActualistThemeOption = .actualPurple,
-        displayDensity: ActualistDisplayDensity = .compact
+        displayDensity: ActualistDisplayDensity = .compact,
+        backgroundTransactionRefreshEnabled: Bool = false,
+        backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
+        pendingNewTransactionIDsByAccount: [String: [String]] = [:]
     ) {
         self.serverURLString = serverURLString
         self.selectedBudgetID = selectedBudgetID
         self.selectedBudgetName = selectedBudgetName
         self.theme = theme
         self.displayDensity = displayDensity
+        self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
+        self.backgroundRefreshDebug = backgroundRefreshDebug
+        self.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
     }
 
     init(from decoder: Decoder) throws {
@@ -28,7 +37,36 @@ struct AppSettings: Codable, Equatable {
         selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)
         theme = try container.decodeIfPresent(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
         displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
+        backgroundTransactionRefreshEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .backgroundTransactionRefreshEnabled
+        ) ?? false
+        backgroundRefreshDebug = try container.decodeIfPresent(
+            BackgroundRefreshDebugInfo.self,
+            forKey: .backgroundRefreshDebug
+        ) ?? BackgroundRefreshDebugInfo()
+        pendingNewTransactionIDsByAccount = try container.decodeIfPresent(
+            [String: [String]].self,
+            forKey: .pendingNewTransactionIDsByAccount
+        ) ?? [:]
     }
+}
+
+struct BackgroundRefreshDebugInfo: Codable, Equatable {
+    var totalWakeCount: Int = 0
+    var recentRuns: [BackgroundRefreshDebugRun] = []
+
+    var wakeCount: Int {
+        totalWakeCount
+    }
+}
+
+struct BackgroundRefreshDebugRun: Codable, Equatable, Identifiable {
+    let id: UUID
+    var wakeDate: Date
+    var completionDate: Date?
+    var succeeded: Bool?
+    var message: String
 }
 
 struct AppSettingsStore {

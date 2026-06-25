@@ -486,6 +486,7 @@ struct TransactionCategorySelectionView: View {
     let onClearCategory: (() -> Void)?
     @State private var searchText = ""
     @State private var isSplitMode = false
+    @FocusState private var isSearchFocused: Bool
 
     init(viewModel: TransactionEditorViewModel) {
         self.viewModel = viewModel
@@ -621,6 +622,10 @@ struct TransactionCategorySelectionView: View {
         .presentationDragIndicator(.visible)
         .onAppear {
             isSplitMode = viewModel?.isSplit ?? false
+            Task {
+                await Task.yield()
+                isSearchFocused = true
+            }
         }
     }
 
@@ -633,6 +638,7 @@ struct TransactionCategorySelectionView: View {
                 .textInputAutocapitalization(.words)
                 .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
+                .focused($isSearchFocused)
 
             if !searchText.isEmpty {
                 Button {

@@ -280,6 +280,34 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
     let name: String
     let offbudget: Bool
     let closed: Bool
+    let bankSyncLinked: Bool
+
+    init(
+        id: String,
+        name: String,
+        offbudget: Bool,
+        closed: Bool,
+        bankSyncLinked: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.offbudget = offbudget
+        self.closed = closed
+        self.bankSyncLinked = bankSyncLinked
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, offbudget, closed, bankSyncLinked
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        offbudget = try container.decode(Bool.self, forKey: .offbudget)
+        closed = try container.decode(Bool.self, forKey: .closed)
+        bankSyncLinked = try container.decodeIfPresent(Bool.self, forKey: .bankSyncLinked) ?? false
+    }
 }
 
 struct AccountDisplay: Identifiable, Hashable, Sendable {
