@@ -51,7 +51,7 @@ xcodebuild \
   test
 ```
 
-## Liquid Glass Lint
+## Liquid Glass Checks
 
 Actualist targets iOS 26+ and uses real SwiftUI Liquid Glass APIs for glass-like
 controls, floating navigation, toolbars, and panels. Do not use Material or blur
@@ -67,57 +67,39 @@ Allowed glass APIs for now:
 Do not use `GlassEffectContainer` until it is explicitly re-tested on a physical
 iOS 26 device. The first device run after adding it crashed before app code.
 
-Run this after UI/design-system work:
+After UI/design-system work, inspect the diff for accidental custom material or
+nested glass usage:
 
 ```sh
-scripts/lint-liquid-glass.sh
+git diff -- '*.swift' | rg 'Material|\\.regularMaterial|\\.thinMaterial|\\.ultraThinMaterial|GlassEffectContainer|buttonStyle\\(\\.glass|glassEffect'
 ```
 
 ## Fast Simulator Loop
 
-Keep Simulator running while iterating. The default script path does not boot or
-shut down the simulator and does not take screenshots:
+Keep Simulator running while iterating:
 
 1. Build the app.
 2. Install the built app into the already-booted simulator.
 3. Launch `Actualist`.
 
-Use:
+Example:
 
 ```sh
-scripts/run-ios-simulator.sh
+xcodebuild \
+  -project Actualist.xcodeproj \
+  -scheme Actualist \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.3.1' \
+  -derivedDataPath .derivedData \
+  build
+
+xcrun simctl install booted .derivedData/Build/Products/Debug-iphonesimulator/Actualist.app
+xcrun simctl launch booted com.sporez.actualist
 ```
 
-If no simulator is already booted, either start one from Simulator/Xcode or use:
+For visual QA, capture a screenshot explicitly:
 
 ```sh
-scripts/run-ios-simulator.sh --boot
-```
-
-For visual QA, request a screenshot explicitly:
-
-```sh
-scripts/run-ios-simulator.sh --screenshot
-```
-
-For build/install without launch:
-
-```sh
-scripts/run-ios-simulator.sh --no-launch
-```
-
-The script assumes:
-
-- Scheme: `Actualist`
-- Project: `Actualist.xcodeproj`
-- Bundle ID: `com.sporez.actualist`
-- Simulator: `iPhone 17 Pro`
-- Runtime OS: `26.3.1`
-
-Override values when needed:
-
-```sh
-SIMULATOR_NAME='iPhone 17 Pro Max' scripts/run-ios-simulator.sh
+xcrun simctl io booted screenshot /tmp/actualist.png
 ```
 
 The simulator commands may require full local permissions outside Codex's filesystem sandbox because CoreSimulator writes under `~/Library/Developer/CoreSimulator` and `~/Library/Logs/CoreSimulator`.
@@ -127,7 +109,7 @@ The simulator commands may require full local permissions outside Codex's filesy
 For each meaningful UI change:
 
 - Build with `xcodebuild`.
-- Run `scripts/lint-liquid-glass.sh`.
+- Check the SwiftUI diff for custom material or nested glass usage.
 - Launch in the already-running simulator.
 - Capture a screenshot only when visual layout changed or needs verification.
 - Check compact and tall content states.
