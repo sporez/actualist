@@ -43,6 +43,8 @@ Local.xcconfig
 
 # Local development artifacts
 .artifacts/
+.xcode-ota.yml
+.xcode-ota/builds/
 
 # Environment files
 .env

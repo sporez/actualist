@@ -9,25 +9,36 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section("Connection") {
-                    TextField("Server URL", text: $viewModel.serverURLString, prompt: Text("http://host:5007"))
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
+                    LabeledContent("Server") {
+                        TextField("Required", text: $viewModel.serverURLString, prompt: Text("http://host:5007"))
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                            .multilineTextAlignment(.trailing)
+                    }
 
-                    Text("Actualist adds /v1 when no path is provided.")
-                        .font(.footnote)
-                        .foregroundStyle(ActualistTheme.secondaryText)
+                    LabeledContent("API Key") {
+                        SecureField("Required", text: $viewModel.apiKey)
+                            .textInputAutocapitalization(.never)
+                            .multilineTextAlignment(.trailing)
+                    }
 
-                    SecureField("API Key", text: $viewModel.apiKey)
-                        .textInputAutocapitalization(.never)
+                    SettingsStatusRow(status: appState.connectionStatus)
+
+                    if let message = appState.lastErrorMessage {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(ActualistTheme.danger)
+                    }
 
                     Button {
                         Task { await viewModel.saveAndTest(using: appState) }
                     } label: {
                         SettingsActionLabel(
-                            title: viewModel.isTesting ? "Testing" : "Save and Test",
+                            title: viewModel.isTesting ? "Checking" : "Save Connection",
                             systemImage: "network"
                         )
                     }
+                    .disabled(!canSaveConnection)
                 }
                 .settingsSectionChrome()
 
@@ -116,6 +127,12 @@ struct SettingsView: View {
             appState.updateTheme(theme)
         }
     }
+
+    private var canSaveConnection: Bool {
+        !viewModel.serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !viewModel.isTesting
+    }
 }
 
 private struct SettingsActionLabel: View {
@@ -129,6 +146,46 @@ private struct SettingsActionLabel: View {
         } icon: {
             Image(systemName: systemImage)
                 .foregroundStyle(ActualistTheme.accent)
+        }
+    }
+}
+
+private struct SettingsStatusRow: View {
+    let status: ServerConnectionStatus
+
+    var body: some View {
+        LabeledContent("Status") {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 8, height: 8)
+                    .shadow(color: color.opacity(0.45), radius: 4)
+
+                Text(title)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+        }
+    }
+
+    private var title: String {
+        switch status {
+        case .online:
+            "Connected"
+        case .connecting:
+            "Checking"
+        case .offline:
+            "Offline"
+        }
+    }
+
+    private var color: Color {
+        switch status {
+        case .online:
+            ActualistTheme.positive
+        case .connecting:
+            ActualistTheme.warning
+        case .offline:
+            ActualistTheme.danger
         }
     }
 }
@@ -210,7 +267,8 @@ private struct SettingsBudgetPickerSheet: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
-                    .actualistToolbarGlassButton()
+                    .font(.body.weight(.semibold))
+                    .controlSize(.small)
                     .disabled(viewModel.isLoadingBudgets)
                 }
             }

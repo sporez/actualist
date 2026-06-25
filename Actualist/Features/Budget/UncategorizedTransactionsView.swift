@@ -116,8 +116,11 @@ struct UncategorizedTransactionsView: View {
                                     .padding(.horizontal, density.rowHorizontalPadding)
 
                                 VStack(spacing: 0) {
-                                    ForEach(group.transactions, id: \.rowID) { transaction in
-                                        uncategorizedButton(for: transaction)
+                                    ForEach(Array(group.transactions.enumerated()), id: \.element.rowID) { index, transaction in
+                                        uncategorizedButton(
+                                            for: transaction,
+                                            showsBottomSeparator: index < group.transactions.count - 1
+                                        )
                                     }
                                 }
                                 .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -130,7 +133,10 @@ struct UncategorizedTransactionsView: View {
         }
     }
 
-    private func uncategorizedButton(for transaction: ActualTransaction) -> some View {
+    private func uncategorizedButton(
+        for transaction: ActualTransaction,
+        showsBottomSeparator: Bool
+    ) -> some View {
         Button {
             guard !appState.isReadOnly, viewModel.categorizingTransactionID == nil else {
                 return
@@ -141,7 +147,8 @@ struct UncategorizedTransactionsView: View {
                 TransactionRow(
                     transaction: transaction,
                     payeeName: viewModel.payeeName(for: transaction),
-                    categoryNames: ["Uncategorized"]
+                    categoryNames: ["Uncategorized"],
+                    showsBottomSeparator: showsBottomSeparator
                 )
 
                 if viewModel.categorizingTransactionID == transaction.rowID {

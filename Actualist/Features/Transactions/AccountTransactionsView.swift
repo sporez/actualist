@@ -315,8 +315,11 @@ struct AccountTransactionsView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
 
-            ForEach(group.transactions, id: \.rowID) { transaction in
-                transactionButton(for: transaction)
+            ForEach(Array(group.transactions.enumerated()), id: \.element.rowID) { index, transaction in
+                transactionButton(
+                    for: transaction,
+                    showsBottomSeparator: index < group.transactions.count - 1
+                )
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     .listRowBackground(ActualistTheme.surface)
@@ -382,7 +385,10 @@ struct AccountTransactionsView: View {
         }
     }
 
-    private func transactionButton(for transaction: ActualTransaction) -> some View {
+    private func transactionButton(
+        for transaction: ActualTransaction,
+        showsBottomSeparator: Bool
+    ) -> some View {
         Button {
             guard !appState.isReadOnly else {
                 return
@@ -396,7 +402,8 @@ struct AccountTransactionsView: View {
             TransactionRow(
                 transaction: transaction,
                 payeeName: payeeName(for: transaction),
-                categoryNames: categoryNames(for: transaction)
+                categoryNames: categoryNames(for: transaction),
+                showsBottomSeparator: showsBottomSeparator
             )
         }
         .buttonStyle(.plain)
@@ -408,6 +415,7 @@ struct AccountTransactionsView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+                .tint(ActualistTheme.danger)
                 .disabled(transaction.id == nil || deletingTransactionID != nil)
             }
         }
@@ -964,6 +972,19 @@ struct TransactionRow: View {
     let transaction: ActualTransaction
     let payeeName: String
     let categoryNames: [String]
+    let showsBottomSeparator: Bool
+
+    init(
+        transaction: ActualTransaction,
+        payeeName: String,
+        categoryNames: [String],
+        showsBottomSeparator: Bool = true
+    ) {
+        self.transaction = transaction
+        self.payeeName = payeeName
+        self.categoryNames = categoryNames
+        self.showsBottomSeparator = showsBottomSeparator
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -998,9 +1019,11 @@ struct TransactionRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(ActualistTheme.separator)
-                .frame(height: 1)
+            if showsBottomSeparator {
+                Rectangle()
+                    .fill(ActualistTheme.separator)
+                    .frame(height: 1)
+            }
         }
     }
 
