@@ -1,5 +1,44 @@
 import SwiftUI
 
+private enum BudgetTemplateConfirmation: String, Identifiable {
+    case monthFillEmpty
+    case monthOverwrite
+    case category
+
+    var id: String { rawValue }
+
+    var actionTitle: String {
+        switch self {
+        case .monthFillEmpty:
+            "Apply Template"
+        case .monthOverwrite:
+            "Apply Template Overwrite"
+        case .category:
+            "Apply Category Template"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .monthFillEmpty:
+            "This will apply the budget template to empty categories for this month."
+        case .monthOverwrite:
+            "This will overwrite this month's category budget amounts with the budget template."
+        case .category:
+            "This will apply the template to the selected category."
+        }
+    }
+
+    var buttonRole: ButtonRole? {
+        switch self {
+        case .monthOverwrite, .category:
+            .destructive
+        case .monthFillEmpty:
+            nil
+        }
+    }
+}
+
 struct BudgetView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
@@ -13,6 +52,7 @@ struct BudgetView: View {
     @State private var assignmentScrollTask: Task<Void, Never>?
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
     @State private var assignmentKeypadTopY: CGFloat = 0
+    @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
 
     var body: some View {
         NavigationStack {
@@ -44,7 +84,7 @@ struct BudgetView: View {
                             appendDigit: { viewModel.appendAssignmentDigit($0) },
                             setMode: { viewModel.setAssignmentInputMode($0) },
                             applyTemplate: {
-                                Task { await viewModel.applyCategoryTemplate(using: appState) }
+                                pendingTemplateConfirmation = .category
                             },
                             moveMoney: {
                                 withAnimation(BudgetLayout.assignmentKeypadAnimation) {
@@ -139,14 +179,14 @@ struct BudgetView: View {
                             Divider()
 
                             Button {
-                                Task { await viewModel.applyMonthTemplate(.fillEmpty, using: appState) }
+                                pendingTemplateConfirmation = .monthFillEmpty
                             } label: {
                                 Label("Apply Template", systemImage: "sparkles")
                             }
                             .disabled(viewModel.isApplyingMonthTemplate || appState.isReadOnly)
 
                             Button {
-                                Task { await viewModel.applyMonthTemplate(.overwrite, using: appState) }
+                                pendingTemplateConfirmation = .monthOverwrite
                             } label: {
                                 Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
                             }
@@ -199,6 +239,12 @@ struct BudgetView: View {
                     BudgetMoveMoneyView(viewModel: viewModel)
                         .environment(appState)
                 }
+                .modifier(
+                    BudgetTemplateConfirmationModifier(
+                        confirmation: $pendingTemplateConfirmation,
+                        apply: applyTemplate
+                    )
+                )
                 .onChange(of: viewModel.activeAssignmentCategoryID) { _, categoryID in
                     if let categoryID {
                         scheduleAssignmentCategoryScroll(categoryID, using: scrollProxy)
@@ -210,6 +256,17 @@ struct BudgetView: View {
                     }
                 }
             }
+        }
+    }
+
+    private func applyTemplate(_ confirmation: BudgetTemplateConfirmation) {
+        switch confirmation {
+        case .monthFillEmpty:
+            Task { await viewModel.applyMonthTemplate(.fillEmpty, using: appState) }
+        case .monthOverwrite:
+            Task { await viewModel.applyMonthTemplate(.overwrite, using: appState) }
+        case .category:
+            Task { await viewModel.applyCategoryTemplate(using: appState) }
         }
     }
 
@@ -770,6 +827,40 @@ private enum BudgetLayout {
     ]
 }
 
+private struct BudgetTemplateConfirmationModifier: ViewModifier {
+    @Binding var confirmation: BudgetTemplateConfirmation?
+    let apply: (BudgetTemplateConfirmation) -> Void
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            "Are you sure?",
+            isPresented: isPresented,
+            titleVisibility: .visible
+        ) {
+            if let confirmation {
+                Button(confirmation.actionTitle, role: confirmation.buttonRole) {
+                    apply(confirmation)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let confirmation {
+                Text(confirmation.message)
+            }
+        }
+    }
+
+    private var isPresented: Binding<Bool> {
+        Binding {
+            confirmation != nil
+        } set: { isPresented in
+            if !isPresented {
+                confirmation = nil
+            }
+        }
+    }
+}
+
 private enum BudgetScrollTarget {
     static func category(_ categoryID: String) -> String {
         "budget-category-\(categoryID)"
@@ -1217,14 +1308,14 @@ private struct BudgetMoveMoneyView: View {
                         isNumberPadVisible = true
                     }
 
-                Text(viewModel.moveMoneyAvailableDisplayAmount.actualMoney.formatted())
+                Text(viewModel.moveMoneyCounterpartyAvailableDisplayAmount.actualMoney.formatted())
                     .font(ActualistTypography.rowBadge(for: density))
-                    .foregroundStyle(moveAvailableForeground)
+                    .foregroundStyle(moveCounterpartyAvailableForeground)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .padding(.horizontal, 11)
                     .padding(.vertical, 5)
-                    .background(moveAvailableBackground, in: Capsule())
+                    .background(moveCounterpartyAvailableBackground, in: Capsule())
             }
 
             if draft.allocations.isEmpty {
@@ -1335,8 +1426,8 @@ private struct BudgetMoveMoneyView: View {
         max(1, viewModel.moveMoneyMaximumDollars)
     }
 
-    private var moveAvailableBackground: Color {
-        let amount = viewModel.moveMoneyAvailableDisplayAmount
+    private var moveCounterpartyAvailableBackground: Color {
+        let amount = viewModel.moveMoneyCounterpartyAvailableDisplayAmount
         if amount < 0 {
             return ActualistTheme.danger
         }
@@ -1346,8 +1437,8 @@ private struct BudgetMoveMoneyView: View {
         return ActualistTheme.positive
     }
 
-    private var moveAvailableForeground: Color {
-        viewModel.moveMoneyAvailableDisplayAmount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+    private var moveCounterpartyAvailableForeground: Color {
+        viewModel.moveMoneyCounterpartyAvailableDisplayAmount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
     }
 
     private var moveHeaderAmountForeground: Color {

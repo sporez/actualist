@@ -363,6 +363,8 @@ struct BudgetViewModelTests {
         #expect(model.moveMoneyDraft?.amount == 7_693)
         #expect(model.moveMoneyMaximumDollars == 1000)
         #expect(model.canSubmitMoveMoney)
+        #expect(model.moveMoneyAvailableDisplayAmount == 0)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount == 4_307)
     }
 
     @Test func overspentAlertCategoryTapStartsCoverMoveMoneyDraft() throws {
@@ -420,6 +422,26 @@ struct BudgetViewModelTests {
 
         #expect(model.toBudgetDestinationOption().title == "To Budget")
         #expect(model.moveMoneyDestinationGroups(matching: "").flatMap(\.options).contains(where: { $0.id == category.id }) == false)
+    }
+
+    @Test func moveMoneyCounterpartyBalanceUsesSelectedCategoryAmount() throws {
+        let model = BudgetViewModel()
+        let month = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 11_220,
+            hiddenCategoryBalance: 0,
+            counterpartyCategoryBalance: 5_000,
+            lastMonthOverspent: 0
+        )
+        model.budgetMonth = month
+
+        let category = try #require(month.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+        model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        model.setMoveMoneyAmountDollars(25)
+
+        #expect(model.moveMoneyAvailableDisplayAmount == 8_720)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount == 7_500)
     }
 
     @Test func successfulMoveMoneyToBudgetSubmitsNilDestinationAndClearsEditingState() async throws {
@@ -488,6 +510,8 @@ struct BudgetViewModelTests {
 
         #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
         #expect(model.moveMoneyMaximumDollars == 1000)
+        #expect(model.moveMoneyAvailableDisplayAmount == 10_193)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount == 9_500)
 
         let saved = await model.submitMoveMoney(budgetID: "budget", repository: repository)
 

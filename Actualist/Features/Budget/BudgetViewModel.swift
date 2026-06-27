@@ -373,6 +373,21 @@ final class BudgetViewModel {
         }
     }
 
+    var moveMoneyCounterpartyAvailableDisplayAmount: Int {
+        guard let draft = moveMoneyDraft,
+              let destination = draft.destination else {
+            return 0
+        }
+
+        let destinationAvailable = availableAmount(for: destination)
+        switch draft.direction {
+        case .outOfFocusedCategory:
+            return destinationAvailable + draft.amount
+        case .intoFocusedCategory:
+            return destinationAvailable - draft.amount
+        }
+    }
+
     var moveMoneyDisplayAmount: Int {
         guard let draft = moveMoneyDraft else {
             return 0
