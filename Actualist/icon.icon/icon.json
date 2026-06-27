@@ -7,13 +7,28 @@
       "layers" : [
         {
           "glass" : false,
+          "hidden" : false,
           "image-name" : "logo.png",
           "name" : "logo",
           "position" : {
-            "scale" : 1.62,
+            "scale" : 1.47,
             "translation-in-points" : [
               5.670000000000073,
               -30.407812499999977
+            ]
+          }
+        },
+        {
+          "blend-mode" : "normal",
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "38E7DDAF-0232-4F87-9042-C13DEC58756B.png",
+          "name" : "38E7DDAF-0232-4F87-9042-C13DEC58756B",
+          "position" : {
+            "scale" : 3.57,
+            "translation-in-points" : [
+              -1283.73828125,
+              1352.26171875
             ]
           }
         }

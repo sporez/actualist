@@ -4,6 +4,7 @@ import UserNotifications
 
 @main
 struct ActualistApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var appState: AppState
 
     init() {
@@ -18,6 +19,13 @@ struct ActualistApp: App {
                 .environment(appState)
                 .preferredColorScheme(.dark)
                 .onAppear {
+                    BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .background else {
+                        return
+                    }
+
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }
         }
@@ -41,7 +49,7 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         }
 
         didRegisterTask = true
-        BGTaskScheduler.shared.register(
+        let didRegister = BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.taskIdentifier,
             using: nil
         ) { [weak self] task in
@@ -51,25 +59,70 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
             }
             self?.handle(refreshTask)
         }
+        Task { @MainActor in
+            appState.recordBackgroundRefreshScheduleAttempt(
+                succeeded: didRegister,
+                earliestBeginDate: nil,
+                message: didRegister ? "Registered background task" : "Failed to register background task"
+            )
+        }
     }
 
     @MainActor
     func scheduleIfNeeded(for appState: AppState) {
         self.appState = appState
-        guard appState.settings.backgroundTransactionRefreshEnabled,
-              appState.settings.selectedBudgetID != nil,
-              appState.canUseAPI else {
+        if let skipReason = scheduleSkipReason(for: appState) {
             cancel()
+            appState.recordBackgroundRefreshScheduleAttempt(
+                succeeded: false,
+                earliestBeginDate: nil,
+                message: skipReason
+            )
             return
         }
 
         let request = BGAppRefreshTaskRequest(identifier: Self.taskIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: requestedInterval)
-        try? BGTaskScheduler.shared.submit(request)
+        let earliestBeginDate = Date(timeIntervalSinceNow: requestedInterval)
+        request.earliestBeginDate = earliestBeginDate
+        cancel()
+
+        do {
+            try BGTaskScheduler.shared.submit(request)
+            appState.recordBackgroundRefreshScheduleAttempt(
+                succeeded: true,
+                earliestBeginDate: earliestBeginDate,
+                message: "Scheduled background refresh"
+            )
+        } catch {
+            appState.recordBackgroundRefreshScheduleAttempt(
+                succeeded: false,
+                earliestBeginDate: earliestBeginDate,
+                message: "Schedule failed: \(error.localizedDescription)"
+            )
+        }
     }
 
     func cancel() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+    }
+
+    @MainActor
+    private func scheduleSkipReason(for appState: AppState) -> String? {
+        var reasons: [String] = []
+        if !appState.settings.backgroundTransactionRefreshEnabled {
+            reasons.append("alerts disabled")
+        }
+        if appState.settings.selectedBudgetID == nil {
+            reasons.append("no selected budget")
+        }
+        if !appState.canUseAPI {
+            reasons.append("API credentials missing")
+        }
+
+        guard !reasons.isEmpty else {
+            return nil
+        }
+        return "Skipped schedule: \(reasons.joined(separator: ", "))"
     }
 
     private func handle(_ task: BGAppRefreshTask) {

@@ -152,7 +152,8 @@ struct TransactionEditorView: View {
             editorButtonRow(
                 title: "Category",
                 systemImage: "tray.full.fill",
-                value: viewModel.selectedCategoryName
+                value: viewModel.selectedCategoryName,
+                isEnabled: !viewModel.isCategoryReadOnly
             ) {
                 Task {
                     await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
@@ -374,35 +375,39 @@ struct TransactionEditorView: View {
         title: String,
         systemImage: String,
         value: String,
+        isEnabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 16) {
                 Image(systemName: systemImage)
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .foregroundStyle(ActualistTheme.secondaryText.opacity(isEnabled ? 1 : 0.68))
                     .frame(width: density.iconSize)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title)
                         .font(ActualistTypography.body(for: density))
-                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .foregroundStyle(ActualistTheme.secondaryText.opacity(isEnabled ? 1 : 0.68))
                     Text(value)
                         .font(ActualistTypography.rowTitle(for: density))
-                        .foregroundStyle(ActualistTheme.primaryText)
+                        .foregroundStyle(isEnabled ? ActualistTheme.primaryText : ActualistTheme.secondaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                 }
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(ActualistTheme.secondaryText)
+                if isEnabled {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
         .padding(.horizontal, density.rowHorizontalPadding)
         .padding(.vertical, density.editorRowVerticalPadding)
     }
@@ -780,8 +785,8 @@ private struct PayeeSelectionView: View {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var filteredPayees: [ActualPayee] {
-        viewModel.filteredPayees(matching: searchText)
+    private var payeeSections: [TransactionEditorPayeeSection] {
+        viewModel.payeeSections(matching: searchText)
     }
 
     var body: some View {
@@ -793,7 +798,7 @@ private struct PayeeSelectionView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         searchField
 
-                        if !trimmedSearchText.isEmpty {
+                        if viewModel.shouldOfferCustomPayee(matching: searchText) {
                             Button {
                                 viewModel.useCustomPayee(trimmedSearchText, using: appState)
                                 dismiss()
@@ -818,7 +823,7 @@ private struct PayeeSelectionView: View {
                                 .foregroundStyle(ActualistTheme.secondaryText)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 18)
-                        } else if filteredPayees.isEmpty {
+                        } else if payeeSections.isEmpty {
                             Text("No matching payees")
                                 .font(ActualistTypography.rowTitle(for: density))
                                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -826,32 +831,19 @@ private struct PayeeSelectionView: View {
                                 .padding(.top, 18)
                         } else {
                             LazyVStack(spacing: 0) {
-                                ForEach(filteredPayees, id: \.pickerID) { payee in
-                                    Button {
-                                        viewModel.selectPayee(payee, using: appState)
-                                        dismiss()
-                                    } label: {
-                                        HStack {
-                                            Text(payee.name)
-                                                .font(ActualistTypography.rowTitle(for: density))
-                                                .foregroundStyle(ActualistTheme.primaryText)
-                                                .lineLimit(1)
-                                            Spacer()
-                                            if payee.id == viewModel.selectedPayeeID {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundStyle(ActualistTheme.positive)
-                                            }
-                                        }
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, density.transactionRowVerticalPadding)
-                                        .contentShape(Rectangle())
+                                ForEach(payeeSections) { section in
+                                    if let title = section.title {
+                                        sectionHeader(title)
                                     }
-                                    .buttonStyle(.plain)
 
-                                    if payee.pickerID != filteredPayees.last?.pickerID {
-                                        Divider()
-                                            .overlay(ActualistTheme.separator)
-                                            .padding(.leading, 16)
+                                    ForEach(section.options) { option in
+                                        payeeRow(option)
+
+                                        if option.id != section.options.last?.id {
+                                            Divider()
+                                                .overlay(ActualistTheme.separator)
+                                                .padding(.leading, option.isTransfer ? 50 : 16)
+                                        }
                                     }
                                 }
                             }
@@ -903,11 +895,46 @@ private struct PayeeSelectionView: View {
         .padding(.vertical, 12)
         .background(ActualistTheme.control, in: Capsule())
     }
-}
 
-private extension ActualPayee {
-    var pickerID: String {
-        id ?? name
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(ActualistTypography.rowTitle(for: density).weight(.semibold))
+            .foregroundStyle(ActualistTheme.accent)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func payeeRow(_ option: TransactionEditorPayeeOption) -> some View {
+        Button {
+            viewModel.selectPayee(option.payee, using: appState)
+            dismiss()
+        } label: {
+            HStack(spacing: 12) {
+                if option.isTransfer {
+                    Image(systemName: "arrow.left.arrow.right.circle.fill")
+                        .foregroundStyle(ActualistTheme.accent)
+                        .font(.body)
+                }
+
+                Text(option.title)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if option.payee.id == viewModel.selectedPayeeID {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(ActualistTheme.positive)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, density.transactionRowVerticalPadding)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

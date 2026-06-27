@@ -55,9 +55,15 @@ struct AppSettings: Codable, Equatable {
 struct BackgroundRefreshDebugInfo: Codable, Equatable {
     var totalWakeCount: Int = 0
     var recentRuns: [BackgroundRefreshDebugRun] = []
+    var totalScheduleAttemptCount: Int = 0
+    var recentScheduleAttempts: [BackgroundRefreshScheduleAttempt] = []
 
     var wakeCount: Int {
         totalWakeCount
+    }
+
+    var scheduleAttemptCount: Int {
+        totalScheduleAttemptCount
     }
 }
 
@@ -66,6 +72,14 @@ struct BackgroundRefreshDebugRun: Codable, Equatable, Identifiable {
     var wakeDate: Date
     var completionDate: Date?
     var succeeded: Bool?
+    var message: String
+}
+
+struct BackgroundRefreshScheduleAttempt: Codable, Equatable, Identifiable {
+    let id: UUID
+    var date: Date
+    var earliestBeginDate: Date?
+    var succeeded: Bool
     var message: String
 }
 

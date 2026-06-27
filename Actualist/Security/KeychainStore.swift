@@ -20,20 +20,32 @@ struct KeychainStore {
             return ""
         }
 
+        updateAccessibilityForBackgroundRefresh()
         return value
     }
 
     func saveAPIKey(_ apiKey: String) {
         let data = Data(apiKey.utf8)
         let query = baseQuery()
-        let attributes = [kSecValueData as String: data]
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
 
         let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
             var addQuery = query
             addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             SecItemAdd(addQuery as CFDictionary, nil)
         }
+    }
+
+    private func updateAccessibilityForBackgroundRefresh() {
+        let attributes = [
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        SecItemUpdate(baseQuery() as CFDictionary, attributes as CFDictionary)
     }
 
     private func baseQuery() -> [String: Any] {
@@ -44,4 +56,3 @@ struct KeychainStore {
         ]
     }
 }
-

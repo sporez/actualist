@@ -30,6 +30,188 @@ struct TransactionEditorViewModelTests {
         #expect(model.selectedPayeeID == nil)
     }
 
+    @Test func payeeSectionsKeepTransfersBelowRegularPayeesWithoutSearch() {
+        let model = TransactionEditorViewModel()
+        model.accounts = [
+            ActualAccount(id: "checking", name: "Ally Checking", offbudget: false, closed: false)
+        ]
+        model.payees = [
+            ActualPayee(id: "store", name: "Corner Store", category: nil, transferAccount: nil),
+            ActualPayee(id: "transfer-checking", name: "Ally Checking", category: nil, transferAccount: "checking")
+        ]
+
+        let sections = model.payeeSections(matching: "")
+
+        #expect(sections.map(\.kind) == [.payees, .transfers])
+        #expect(sections.first?.options.map(\.title) == ["Corner Store"])
+        #expect(sections.last?.title == "Transfer To/From")
+        #expect(sections.last?.options.map(\.title) == ["Ally Checking"])
+    }
+
+    @Test func payeeSectionsLiftMatchingTransfersDuringSearch() {
+        let model = TransactionEditorViewModel()
+        model.accounts = [
+            ActualAccount(id: "checking", name: "Ally Checking", offbudget: false, closed: false)
+        ]
+        model.payees = [
+            ActualPayee(id: "ally-payee", name: "Ally Auto", category: nil, transferAccount: nil),
+            ActualPayee(id: "transfer-checking", name: "Transfer Payee", category: nil, transferAccount: "checking")
+        ]
+
+        let sections = model.payeeSections(matching: "ally")
+
+        #expect(sections.map(\.kind) == [.transfers, .payees])
+        #expect(sections.first?.options.map(\.title) == ["Transfer Payee"])
+        #expect(sections.last?.options.map(\.title) == ["Ally Auto"])
+    }
+
+    @Test func customPayeeOptionIsHiddenForExactExistingPayeeOrTransferAccountMatch() {
+        let model = TransactionEditorViewModel()
+        model.accounts = [
+            ActualAccount(id: "checking", name: "Ally Checking", offbudget: false, closed: false)
+        ]
+        model.payees = [
+            ActualPayee(id: "store", name: "Corner Store", category: nil, transferAccount: nil),
+            ActualPayee(id: "transfer-checking", name: "Transfer Payee", category: nil, transferAccount: "checking")
+        ]
+
+        #expect(model.shouldOfferCustomPayee(matching: "Corner Store") == false)
+        #expect(model.shouldOfferCustomPayee(matching: "Ally Checking") == false)
+        #expect(model.shouldOfferCustomPayee(matching: "Local Coffee") == true)
+    }
+
+    @Test func selectedCategoryNameShowsAccountTransferForTransferPayee() {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "transfer",
+                account: "checking",
+                date: "2026-06-14",
+                amount: -1_200,
+                payee: "transfer-checking",
+                payeeName: nil,
+                importedPayee: nil,
+                category: nil,
+                notes: nil,
+                cleared: .bool(false)
+            )
+        )
+        model.payees = [
+            ActualPayee(id: "transfer-checking", name: "Ally Checking", category: nil, transferAccount: "checking")
+        ]
+
+        #expect(model.selectedCategoryName == "Account Transfer")
+    }
+
+    @Test func selectingTransferPayeeClearsCategoryAndMakesCategoryReadOnly() {
+        let model = TransactionEditorViewModel()
+        model.selectedCategoryID = "groceries"
+        model.splitRows = [
+            TransactionSplitEditorRow(
+                id: "groceries",
+                transactionID: nil,
+                categoryID: "groceries",
+                categoryName: "Groceries",
+                amountDigits: "500"
+            ),
+            TransactionSplitEditorRow(
+                id: "household",
+                transactionID: nil,
+                categoryID: "household",
+                categoryName: "Household",
+                amountDigits: "734"
+            )
+        ]
+        let transferPayee = ActualPayee(
+            id: "transfer-checking",
+            name: "Ally Checking",
+            category: nil,
+            transferAccount: "checking"
+        )
+        model.payees = [transferPayee]
+
+        model.selectPayee(transferPayee)
+
+        #expect(model.selectedPayeeID == "transfer-checking")
+        #expect(model.isCategoryReadOnly)
+        #expect(model.selectedCategoryName == "Account Transfer")
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.splitRows.isEmpty)
+    }
+
+    @Test func categoryMutationIsIgnoredForTransferPayees() {
+        let model = TransactionEditorViewModel()
+        model.payees = [
+            ActualPayee(id: "transfer-checking", name: "Ally Checking", category: nil, transferAccount: "checking")
+        ]
+        model.selectedPayeeID = "transfer-checking"
+
+        model.selectCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
+        model.beginSplitSelection()
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
+        model.finalizeSplitSelection()
+
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.splitRows.isEmpty)
+        #expect(model.selectedCategoryName == "Account Transfer")
+    }
+
+    @Test func rulePreviewIsSkippedForTransferPayees() async throws {
+        let model = configuredModel()
+        model.payees = [
+            ActualPayee(id: "transfer-checking", name: "Ally Checking", category: nil, transferAccount: "checking")
+        ]
+        model.selectedPayeeID = "transfer-checking"
+        model.payeeName = "Ally Checking"
+        model.selectedCategoryID = nil
+        let repository = RecordingTransactionRepository(
+            rulePreview: TransactionRulePreview(
+                categoryID: "groceries",
+                notes: "rule note"
+            )
+        )
+
+        await model.previewRules(budgetID: "budget", repository: repository)
+
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.notes == "  weekly groceries  ")
+        #expect(await repository.rulePreviewDraftCount() == 0)
+    }
+
+    @Test func transferSubmitDropsCategoryAndSplitsFromDraft() async throws {
+        let model = configuredModel()
+        model.payees = [
+            ActualPayee(id: "transfer-checking", name: "Ally Checking", category: nil, transferAccount: "checking")
+        ]
+        model.selectedPayeeID = "transfer-checking"
+        model.payeeName = "Ally Checking"
+        model.selectedCategoryID = "groceries"
+        model.splitRows = [
+            TransactionSplitEditorRow(
+                id: "groceries",
+                transactionID: nil,
+                categoryID: "groceries",
+                categoryName: "Groceries",
+                amountDigits: "500"
+            ),
+            TransactionSplitEditorRow(
+                id: "household",
+                transactionID: nil,
+                categoryID: "household",
+                categoryName: "Household",
+                amountDigits: "734"
+            )
+        ]
+        let repository = RecordingTransactionRepository()
+
+        #expect(await model.submit(budgetID: "budget", repository: repository))
+
+        let draft = try await repository.onlyDraft()
+        #expect(draft.payeeID == "transfer-checking")
+        #expect(draft.payeeName == "Ally Checking")
+        #expect(draft.categoryID == nil)
+        #expect(draft.splits.isEmpty)
+    }
+
     @Test func filtersAndSelectsCategoryBalanceOptions() throws {
         let model = TransactionEditorViewModel()
         model.categoryGroups = [
@@ -1109,6 +1291,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
             accountNames: [:],
             categoryNames: [:],
             payeeNames: [:],
+            transferPayeeIDs: [],
             categoryGroups: []
         )
     }
@@ -1269,6 +1452,10 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
 
     func onlyRulePreviewDraft() throws -> TransactionDraft {
         try #require(rulePreviewDrafts.first)
+    }
+
+    func rulePreviewDraftCount() -> Int {
+        rulePreviewDrafts.count
     }
 
     func draftCount() -> Int {

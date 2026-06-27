@@ -22,6 +22,8 @@ struct ActualDataStoreTests {
     @Test func appSettingsRoundTripsBackgroundRefreshState() throws {
         let wakeDate = Date(timeIntervalSinceReferenceDate: 10)
         let finishDate = Date(timeIntervalSinceReferenceDate: 20)
+        let scheduleDate = Date(timeIntervalSinceReferenceDate: 30)
+        let earliestBeginDate = Date(timeIntervalSinceReferenceDate: 40)
         let settings = AppSettings(
             serverURLString: "http://localhost:5007/v1",
             selectedBudgetID: "budget",
@@ -37,6 +39,16 @@ struct ActualDataStoreTests {
                         succeeded: true,
                         message: "Checked 1 linked accounts; found 0 new transactions"
                     )
+                ],
+                totalScheduleAttemptCount: 3,
+                recentScheduleAttempts: [
+                    BackgroundRefreshScheduleAttempt(
+                        id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+                        date: scheduleDate,
+                        earliestBeginDate: earliestBeginDate,
+                        succeeded: true,
+                        message: "Scheduled background refresh"
+                    )
                 ]
             ),
             pendingNewTransactionIDsByAccount: ["budget|checking": ["txn1", "txn2"]]
@@ -51,6 +63,11 @@ struct ActualDataStoreTests {
         #expect(decoded.backgroundRefreshDebug.recentRuns.first?.wakeDate == wakeDate)
         #expect(decoded.backgroundRefreshDebug.recentRuns.first?.completionDate == finishDate)
         #expect(decoded.backgroundRefreshDebug.recentRuns.first?.succeeded == true)
+        #expect(decoded.backgroundRefreshDebug.scheduleAttemptCount == 3)
+        #expect(decoded.backgroundRefreshDebug.recentScheduleAttempts.count == 1)
+        #expect(decoded.backgroundRefreshDebug.recentScheduleAttempts.first?.date == scheduleDate)
+        #expect(decoded.backgroundRefreshDebug.recentScheduleAttempts.first?.earliestBeginDate == earliestBeginDate)
+        #expect(decoded.backgroundRefreshDebug.recentScheduleAttempts.first?.succeeded == true)
         #expect(decoded.pendingNewTransactionIDsByAccount["budget|checking"] == ["txn1", "txn2"])
     }
 
@@ -137,6 +154,7 @@ struct ActualDataStoreTests {
         #expect(cached.transactions.map(\.id) == ["t1"])
         #expect(cached.categoryNames["groceries"] == "Groceries")
         #expect(cached.payeeNames["store"] == "Corner Store")
+        #expect(cached.transferPayeeIDs.contains("transfer-checking"))
     }
 
     @Test func ensureReferenceDataServesCacheWithinTTL() async throws {
@@ -171,6 +189,7 @@ struct ActualDataStoreTests {
         #expect(cached.balance == 1_000)
         #expect(cached.categoryNames["groceries"] == "Groceries")
         #expect(cached.payeeNames["store"] == "Corner Store")
+        #expect(cached.transferPayeeIDs.contains("transfer-checking"))
     }
 
     @Test func refreshAccountTransactionsFiltersStandaloneSplitChildren() async throws {
@@ -282,6 +301,7 @@ struct ActualDataStoreTests {
         #expect(results.transactions.map(\.id) == ["search"])
         #expect(results.categoryNames["groceries"] == "Groceries")
         #expect(results.payeeNames["store"] == "Corner Store")
+        #expect(results.transferPayeeIDs.contains("transfer-checking"))
         #expect(results.reachedEnd)
         #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["loaded"])
         #expect(await client.callCount(.searchTransactions) == 1)
@@ -290,7 +310,10 @@ struct ActualDataStoreTests {
     @Test func uncategorizedTransactionsReturnsDisplaySnapshot() async throws {
         let client = FakeAPIClient(
             uncategorizedTransactionResponses: [
-                [Self.transaction(id: "uncategorized", date: "2026-06-14", category: nil)]
+                [
+                    Self.transaction(id: "uncategorized", date: "2026-06-14", category: nil),
+                    Self.transaction(id: "transfer", date: "2026-06-14", payee: "transfer-checking", category: nil)
+                ]
             ]
         )
         let store = ActualDataStore { client }
@@ -300,7 +323,41 @@ struct ActualDataStoreTests {
         #expect(results.transactions.map(\.id) == ["uncategorized"])
         #expect(results.accountNames["checking"] == "Checking")
         #expect(results.payeeNames["store"] == "Corner Store")
+        #expect(results.transferPayeeIDs.contains("transfer-checking"))
         #expect(results.categoryGroups.flatMap(\.options).map(\.id) == ["groceries"])
+        #expect(await client.callCount(.uncategorizedTransactions) == 1)
+    }
+
+    @Test func budgetMonthCorrectsUncategorizedAlertCountForTransfers() async throws {
+        let client = FakeAPIClient(
+            uncategorizedTransactionResponses: [
+                [
+                    Self.transaction(id: "uncategorized-1", date: "2026-06-14", category: nil),
+                    Self.transaction(id: "uncategorized-2", date: "2026-06-15", category: nil),
+                    Self.transaction(id: "uncategorized-3", date: "2026-06-16", category: nil),
+                    Self.transaction(id: "transfer", date: "2026-06-17", payee: "transfer-checking", category: nil)
+                ]
+            ],
+            budgetMonthAlertsResponse: APIBudgetMonthAlerts(
+                month: "2026-06",
+                alerts: [
+                    APIBudgetMonthAlert(
+                        kind: "uncategorizedTransactions",
+                        severity: "warning",
+                        title: "Uncategorized transactions",
+                        amount: nil,
+                        count: 4,
+                        actionTitle: "Review"
+                    )
+                ]
+            )
+        )
+        let store = ActualDataStore { client }
+
+        let loaded = try await store.budgetMonth(budgetID: "b", selectedMonth: "2026-06")
+
+        #expect(loaded.alerts.first?.kind == "uncategorizedTransactions")
+        #expect(loaded.alerts.first?.count == 3)
         #expect(await client.callCount(.uncategorizedTransactions) == 1)
     }
 
@@ -628,6 +685,7 @@ struct ActualDataStoreTests {
         id: String,
         accountID: String = "checking",
         date: String,
+        payee: String = "store",
         category: String? = "groceries"
     ) -> ActualTransaction {
         ActualTransaction(
@@ -635,7 +693,7 @@ struct ActualDataStoreTests {
             account: accountID,
             date: date,
             amount: -1_500,
-            payee: "store",
+            payee: payee,
             payeeName: nil,
             importedPayee: nil,
             category: category,
@@ -673,11 +731,13 @@ actor FakeAPIClient: ActualAPIClientProtocol {
     private var recordedCategorizedCategoryID: String?
     private var reconciliationResult: APIAccountReconciliationResult
     private var failAccounts: Bool
+    private var budgetMonthAlertsResponse: APIBudgetMonthAlerts
 
     init(
         transactionResponses: [[ActualTransaction]] = [],
         searchTransactionResponses: [[ActualTransaction]] = [],
         uncategorizedTransactionResponses: [[ActualTransaction]] = [],
+        budgetMonthAlertsResponse: APIBudgetMonthAlerts = APIBudgetMonthAlerts(month: "2026-06", alerts: []),
         failAccounts: Bool = false,
         reconciliationResult: APIAccountReconciliationResult = APIAccountReconciliationResult(
             accountID: "checking",
@@ -694,6 +754,7 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         self.uncategorizedTransactionResponses = uncategorizedTransactionResponses
         self.failAccounts = failAccounts
         self.reconciliationResult = reconciliationResult
+        self.budgetMonthAlertsResponse = budgetMonthAlertsResponse
     }
 
     func callCount(_ method: Method) -> Int {
@@ -864,7 +925,10 @@ actor FakeAPIClient: ActualAPIClientProtocol {
 
     func payees(budgetID: String) async throws -> [ActualPayee] {
         record(.payees)
-        return [ActualPayee(id: "store", name: "Corner Store", category: nil, transferAccount: nil)]
+        return [
+            ActualPayee(id: "store", name: "Corner Store", category: nil, transferAccount: nil),
+            ActualPayee(id: "transfer-checking", name: "Checking", category: nil, transferAccount: "checking")
+        ]
     }
 
     func budgetMonths(budgetID: String) async throws -> [String] {
@@ -879,7 +943,7 @@ actor FakeAPIClient: ActualAPIClientProtocol {
 
     func budgetMonthAlerts(budgetID: String, month: String) async throws -> APIBudgetMonthAlerts {
         record(.budgetMonthAlerts)
-        return APIBudgetMonthAlerts(month: month, alerts: [])
+        return budgetMonthAlertsResponse
     }
 
     func updateBudgetMonthCategory(

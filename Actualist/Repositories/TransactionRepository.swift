@@ -61,6 +61,7 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let balance: Int?
     let categoryNames: [String: String]
     let payeeNames: [String: String]
+    let transferPayeeIDs: Set<String>
     let reachedEnd: Bool
 }
 
@@ -69,5 +70,6 @@ struct LoadedUncategorizedTransactions: Hashable, Sendable {
     let accountNames: [String: String]
     let categoryNames: [String: String]
     let payeeNames: [String: String]
+    let transferPayeeIDs: Set<String>
     let categoryGroups: [TransactionEditorCategoryGroup]
 }

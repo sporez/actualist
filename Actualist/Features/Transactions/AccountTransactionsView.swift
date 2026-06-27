@@ -53,6 +53,10 @@ struct AccountTransactionsView: View {
         loaded?.payeeNames ?? [:]
     }
 
+    private var transferPayeeIDs: Set<String> {
+        loaded?.transferPayeeIDs ?? []
+    }
+
     private var reachedEnd: Bool {
         loaded?.reachedEnd ?? false
     }
@@ -104,6 +108,10 @@ struct AccountTransactionsView: View {
 
     private var activePayeeNames: [String: String] {
         searchResults?.payeeNames ?? payeeNames
+    }
+
+    private var activeTransferPayeeIDs: Set<String> {
+        searchResults?.transferPayeeIDs ?? transferPayeeIDs
     }
 
     var body: some View {
@@ -485,9 +493,19 @@ struct AccountTransactionsView: View {
 
     private func categoryName(for transaction: ActualTransaction) -> String {
         guard let category = transaction.category else {
+            if isAccountTransfer(transaction) {
+                return "Account Transfer"
+            }
             return "Uncategorized"
         }
         return activeCategoryNames[category] ?? "Uncategorized"
+    }
+
+    private func isAccountTransfer(_ transaction: ActualTransaction) -> Bool {
+        guard let payee = transaction.payee else {
+            return false
+        }
+        return activeTransferPayeeIDs.contains(payee)
     }
 
     private func categoryNames(for transaction: ActualTransaction) -> [String] {

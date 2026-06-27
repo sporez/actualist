@@ -77,6 +77,7 @@ struct OnboardingView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
                     .disabled(viewModel.serverURLString.isEmpty || viewModel.apiKey.isEmpty || viewModel.isConnecting)
 
                     Spacer(minLength: 120)

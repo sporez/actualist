@@ -196,6 +196,7 @@ final class ActualDataStore {
             balance: balancesByAccount[key]?.value,
             categoryNames: categoryNames(budgetID: budgetID),
             payeeNames: payeeNames(budgetID: budgetID),
+            transferPayeeIDs: transferPayeeIDs(budgetID: budgetID),
             reachedEnd: page.reachedEnd
         )
     }
@@ -215,6 +216,15 @@ final class ActualDataStore {
     private func payeeNames(budgetID: String) -> [String: String] {
         Dictionary(uniqueKeysWithValues: (payeesByBudget[budgetID]?.value ?? []).compactMap { payee in
             payee.id.map { ($0, payee.name) }
+        })
+    }
+
+    private func transferPayeeIDs(budgetID: String) -> Set<String> {
+        Set((payeesByBudget[budgetID]?.value ?? []).compactMap { payee in
+            guard payee.transferAccount != nil else {
+                return nil
+            }
+            return payee.id
         })
     }
 
@@ -422,6 +432,7 @@ final class ActualDataStore {
             balance: balancesByAccount[key]?.value,
             categoryNames: categoryNames(budgetID: budgetID),
             payeeNames: payeeNames(budgetID: budgetID),
+            transferPayeeIDs: transferPayeeIDs(budgetID: budgetID),
             reachedEnd: true
         )
     }
@@ -448,7 +459,11 @@ final class ActualDataStore {
             endpointTransactions = []
         }
 
-        var transactions = Self.sortedTransactions(Self.parentTransactions(from: endpointTransactions))
+        var transactions = filteredUncategorizedTransactions(
+            Self.parentTransactions(from: endpointTransactions),
+            budgetID: budgetID,
+            month: month
+        )
         if transactions.isEmpty {
             let fallbackTransactions: [ActualTransaction]
             do {
@@ -473,6 +488,7 @@ final class ActualDataStore {
             accountNames: accountNames(budgetID: budgetID),
             categoryNames: categoryNames(budgetID: budgetID),
             payeeNames: payeeNames(budgetID: budgetID),
+            transferPayeeIDs: transferPayeeIDs(budgetID: budgetID),
             categoryGroups: transactionEditorCategoryGroups(budgetID: budgetID, month: month)
         )
     }
@@ -546,6 +562,7 @@ final class ActualDataStore {
             self.monthByKey[key] = CacheEntry(value: month, fetchedAt: fetchedAt)
             self.alertsByKey[key] = CacheEntry(value: alerts, fetchedAt: fetchedAt)
         }
+        try? await correctUncategorizedAlertCount(budgetID: budgetID, month: month)
     }
 
     // MARK: - Invalidation orchestration for writes
@@ -627,6 +644,44 @@ final class ActualDataStore {
         }
     }
 
+    private func correctUncategorizedAlertCount(budgetID: String, month: String) async throws {
+        let key = monthKey(budgetID, month)
+        guard let alertEntry = alertsByKey[key],
+              alertEntry.value.contains(where: { $0.kind == "uncategorizedTransactions" && ($0.count ?? 0) > 0 }) else {
+            return
+        }
+
+        try await ensureAccounts(budgetID: budgetID)
+        try await ensurePayees(budgetID: budgetID)
+
+        let client = try requireClient()
+        let endpointTransactions = try await client.uncategorizedTransactions(budgetID: budgetID, month: month)
+        let correctedCount = filteredUncategorizedTransactions(
+            Self.parentTransactions(from: endpointTransactions),
+            budgetID: budgetID,
+            month: month
+        ).count
+
+        let correctedAlerts = alertEntry.value.compactMap { alert -> APIBudgetMonthAlert? in
+            guard alert.kind == "uncategorizedTransactions" else {
+                return alert
+            }
+            guard correctedCount > 0 else {
+                return nil
+            }
+            return APIBudgetMonthAlert(
+                kind: alert.kind,
+                severity: alert.severity,
+                title: alert.title,
+                amount: alert.amount,
+                count: correctedCount,
+                actionTitle: alert.actionTitle
+            )
+        }
+
+        alertsByKey[key] = CacheEntry(value: correctedAlerts, fetchedAt: alertEntry.fetchedAt)
+    }
+
     private func fallbackUncategorizedTransactions(
         budgetID: String,
         month: String
@@ -635,31 +690,34 @@ final class ActualDataStore {
         for account in accounts {
             try await refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
         }
-
-        let accountIDs = Set(accounts.map(\.id))
-        let transferPayeeIDs = Set((payeesByBudget[budgetID]?.value ?? []).compactMap { payee -> String? in
-            guard payee.transferAccount != nil else {
-                return nil
-            }
-            return payee.id
-        })
-
         let accountTransactions = accounts.flatMap { account in
             transactionsByAccount[accountKey(budgetID, account.id)]?.value.transactions ?? []
         }
-        let transactions = accountTransactions.filter { transaction in
-            isFallbackUncategorizedTransaction(
+
+        return filteredUncategorizedTransactions(accountTransactions, budgetID: budgetID, month: month)
+    }
+
+    private func filteredUncategorizedTransactions(
+        _ transactions: [ActualTransaction],
+        budgetID: String,
+        month: String
+    ) -> [ActualTransaction] {
+        let accountIDs = Set((accountsByBudget[budgetID]?.value ?? [])
+            .filter { !$0.closed && !$0.offbudget }
+            .map(\.id))
+        let transferPayeeIDs = transferPayeeIDs(budgetID: budgetID)
+
+        return Self.sortedTransactions(transactions.filter { transaction in
+            isUncategorizedTransaction(
                 transaction,
                 month: month,
                 accountIDs: accountIDs,
                 transferPayeeIDs: transferPayeeIDs
             )
-        }
-
-        return Self.sortedTransactions(transactions)
+        })
     }
 
-    private func isFallbackUncategorizedTransaction(
+    private func isUncategorizedTransaction(
         _ transaction: ActualTransaction,
         month: String,
         accountIDs: Set<String>,

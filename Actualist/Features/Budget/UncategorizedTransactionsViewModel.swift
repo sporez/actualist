@@ -8,6 +8,7 @@ final class UncategorizedTransactionsViewModel {
     var accountNames: [String: String] = [:]
     var categoryNames: [String: String] = [:]
     var payeeNames: [String: String] = [:]
+    var transferPayeeIDs: Set<String> = []
     var categoryGroups: [TransactionEditorCategoryGroup] = []
     var isLoading = false
     var errorMessage: String?
@@ -104,11 +105,34 @@ final class UncategorizedTransactionsViewModel {
         return "Unknown Payee"
     }
 
+    func categoryNames(for transaction: ActualTransaction) -> [String] {
+        if !transaction.subtransactions.isEmpty {
+            let names = transaction.subtransactions.map { child in
+                categoryName(for: child)
+            }
+            return names.isEmpty ? ["Split (\(transaction.subtransactions.count))"] : names
+        }
+
+        return [categoryName(for: transaction)]
+    }
+
+    private func categoryName(for transaction: ActualTransaction) -> String {
+        guard let category = transaction.category else {
+            if let payee = transaction.payee, transferPayeeIDs.contains(payee) {
+                return "Account Transfer"
+            }
+            return "Uncategorized"
+        }
+
+        return categoryNames[category] ?? "Uncategorized"
+    }
+
     private func apply(_ loaded: LoadedUncategorizedTransactions) {
         transactions = loaded.transactions
         accountNames = loaded.accountNames
         categoryNames = loaded.categoryNames
         payeeNames = loaded.payeeNames
+        transferPayeeIDs = loaded.transferPayeeIDs
         categoryGroups = loaded.categoryGroups
     }
 }

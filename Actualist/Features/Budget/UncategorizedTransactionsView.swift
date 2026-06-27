@@ -147,7 +147,7 @@ struct UncategorizedTransactionsView: View {
                 TransactionRow(
                     transaction: transaction,
                     payeeName: viewModel.payeeName(for: transaction),
-                    categoryNames: ["Uncategorized"],
+                    categoryNames: viewModel.categoryNames(for: transaction),
                     showsBottomSeparator: showsBottomSeparator
                 )
 

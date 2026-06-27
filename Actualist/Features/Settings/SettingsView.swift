@@ -211,6 +211,21 @@ private struct BackgroundRefreshDebugRows: View {
     let debug: BackgroundRefreshDebugInfo
 
     var body: some View {
+        LabeledContent("Schedule Count") {
+            Text(debug.scheduleAttemptCount.formatted())
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+
+        if debug.recentScheduleAttempts.isEmpty {
+            Text("No schedule attempts yet")
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        } else {
+            ForEach(debug.recentScheduleAttempts.prefix(5)) { attempt in
+                BackgroundRefreshScheduleAttemptRow(attempt: attempt)
+            }
+        }
+
         LabeledContent("Wake Count") {
             Text(debug.wakeCount.formatted())
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -225,6 +240,46 @@ private struct BackgroundRefreshDebugRows: View {
                 BackgroundRefreshDebugRunRow(run: run)
             }
         }
+    }
+}
+
+private struct BackgroundRefreshScheduleAttemptRow: View {
+    let attempt: BackgroundRefreshScheduleAttempt
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(formattedDate(attempt.date))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                Spacer(minLength: 8)
+
+                Text(attempt.succeeded ? "Accepted" : "Rejected")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(attempt.succeeded ? ActualistTheme.positive : ActualistTheme.danger)
+            }
+
+            if let earliestBeginDate = attempt.earliestBeginDate {
+                Text("Earliest \(formattedDate(earliestBeginDate))")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+
+            Text(attempt.message)
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .lineLimit(2)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func formattedDate(_ date: Date?) -> String {
+        guard let date else {
+            return "Not yet"
+        }
+
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
     }
 }
 
@@ -254,7 +309,7 @@ private struct BackgroundRefreshDebugRunRow: View {
             Text(run.message)
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
-                .lineLimit(2)
+                .lineLimit(4)
         }
         .padding(.vertical, 2)
     }

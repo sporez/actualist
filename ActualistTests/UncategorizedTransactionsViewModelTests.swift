@@ -12,6 +12,7 @@ struct UncategorizedTransactionsViewModelTests {
                 accountNames: ["checking": "Checking"],
                 categoryNames: [:],
                 payeeNames: ["store": "Corner Store"],
+                transferPayeeIDs: [],
                 categoryGroups: []
             )
         )
@@ -39,6 +40,7 @@ struct UncategorizedTransactionsViewModelTests {
                 accountNames: [:],
                 categoryNames: [:],
                 payeeNames: [:],
+                transferPayeeIDs: [],
                 categoryGroups: []
             ),
             categorizeError: TestError("could not update")
@@ -58,13 +60,34 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.errorMessage == "could not update")
     }
 
-    private static func transaction(id: String) -> ActualTransaction {
+    @Test func categoryNamesShowAccountTransferForTransferPayees() async throws {
+        let transfer = Self.transaction(id: "transfer", payee: "transfer-checking")
+        let regular = Self.transaction(id: "regular", payee: "store")
+        let repository = UncategorizedRecordingTransactionRepository(
+            loaded: LoadedUncategorizedTransactions(
+                transactions: [transfer, regular],
+                accountNames: [:],
+                categoryNames: [:],
+                payeeNames: [:],
+                transferPayeeIDs: ["transfer-checking"],
+                categoryGroups: []
+            )
+        )
+        let model = UncategorizedTransactionsViewModel()
+
+        await model.load(budgetID: "budget", month: "2026-06", repository: repository)
+
+        #expect(model.categoryNames(for: transfer) == ["Account Transfer"])
+        #expect(model.categoryNames(for: regular) == ["Uncategorized"])
+    }
+
+    private static func transaction(id: String, payee: String = "store") -> ActualTransaction {
         ActualTransaction(
             id: id,
             account: "checking",
             date: "2026-06-14",
             amount: -1_200,
-            payee: "store",
+            payee: payee,
             payeeName: nil,
             importedPayee: nil,
             category: nil,

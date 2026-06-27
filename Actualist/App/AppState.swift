@@ -148,14 +148,20 @@ final class AppState {
     func performBackgroundTransactionRefresh() async -> Bool {
         let debugRunID = recordBackgroundRefreshWake()
 
-        guard settings.backgroundTransactionRefreshEnabled,
-              setupPhase == .ready,
-              let budgetID = settings.selectedBudgetID,
-              makeClient() != nil else {
+        if let skipReason = backgroundRefreshSkipReason() {
             recordBackgroundRefreshCompletion(
                 runID: debugRunID,
                 success: true,
-                message: "Skipped: background alerts are disabled or the app is not ready"
+                message: skipReason
+            )
+            return true
+        }
+
+        guard let budgetID = settings.selectedBudgetID else {
+            recordBackgroundRefreshCompletion(
+                runID: debugRunID,
+                success: true,
+                message: "Skipped: no selected budget"
             )
             return true
         }
@@ -165,34 +171,50 @@ final class AppState {
             let accounts = dataStore.accountsByBudget[budgetID]?.value ?? []
             let linkedAccounts = accounts.filter { $0.bankSyncLinked && !$0.closed }
             var newTransactionCount = 0
+            var succeededAccountCount = 0
+            var failedAccountMessages: [String] = []
 
             for account in linkedAccounts {
-                let result = try await dataStore.syncBankAccountAndFindNewTransactions(
-                    budgetID: budgetID,
-                    account: account
-                )
-                guard !result.newTransactionIDs.isEmpty else {
-                    continue
-                }
+                do {
+                    let result = try await dataStore.syncBankAccountAndFindNewTransactions(
+                        budgetID: budgetID,
+                        account: account
+                    )
+                    succeededAccountCount += 1
+                    guard !result.newTransactionIDs.isEmpty else {
+                        continue
+                    }
 
-                recordPendingNewTransactionIDs(
-                    result.newTransactionIDs,
-                    budgetID: budgetID,
-                    accountID: account.id
-                )
-                try await postNewTransactionsNotification(
-                    account: account,
-                    budgetID: budgetID,
-                    count: result.newTransactionIDs.count
-                )
-                newTransactionCount += result.newTransactionIDs.count
+                    recordPendingNewTransactionIDs(
+                        result.newTransactionIDs,
+                        budgetID: budgetID,
+                        accountID: account.id
+                    )
+                    try await postNewTransactionsNotification(
+                        account: account,
+                        budgetID: budgetID,
+                        count: result.newTransactionIDs.count
+                    )
+                    newTransactionCount += result.newTransactionIDs.count
+                } catch {
+                    if error is CancellationError || Task.isCancelled {
+                        throw error
+                    }
+                    failedAccountMessages.append(backgroundRefreshFailureMessage(for: account, error: error))
+                }
             }
 
             persistCurrentSnapshot()
+            let hasAccountFailures = !failedAccountMessages.isEmpty
             recordBackgroundRefreshCompletion(
                 runID: debugRunID,
-                success: true,
-                message: "Checked \(linkedAccounts.count) linked accounts; found \(newTransactionCount) new transactions"
+                success: !hasAccountFailures,
+                message: backgroundRefreshCompletionMessage(
+                    checkedAccountCount: linkedAccounts.count,
+                    succeededAccountCount: succeededAccountCount,
+                    failedAccountMessages: failedAccountMessages,
+                    newTransactionCount: newTransactionCount
+                )
             )
             return true
         } catch {
@@ -204,6 +226,99 @@ final class AppState {
             )
             return false
         }
+    }
+
+    private func backgroundRefreshCompletionMessage(
+        checkedAccountCount: Int,
+        succeededAccountCount: Int,
+        failedAccountMessages: [String],
+        newTransactionCount: Int
+    ) -> String {
+        guard !failedAccountMessages.isEmpty else {
+            return "Checked \(checkedAccountCount) linked accounts; found \(newTransactionCount) new transactions"
+        }
+
+        let failedSummary = failedAccountMessages.joined(separator: "; ")
+        return "Checked \(checkedAccountCount) linked accounts; \(succeededAccountCount) succeeded; \(failedAccountMessages.count) failed: \(failedSummary); found \(newTransactionCount) new transactions"
+    }
+
+    private func backgroundRefreshFailureMessage(for account: ActualAccount, error: Error) -> String {
+        "\(account.name): \(Self.condensedBackgroundRefreshError(error))"
+    }
+
+    private static func condensedBackgroundRefreshError(_ error: Error) -> String {
+        let message: String
+        if let apiError = error as? ActualAPIError {
+            switch apiError {
+            case .httpStatus(let status, let serverMessage):
+                if let serverMessage, !serverMessage.isEmpty {
+                    message = "HTTP \(status): \(serverMessage)"
+                } else {
+                    message = "HTTP \(status)"
+                }
+            case .transport(let urlError):
+                message = urlError?.localizedDescription ?? "network error"
+            default:
+                message = apiError.localizedDescription
+            }
+        } else {
+            message = error.localizedDescription
+        }
+
+        let oneLineMessage = message
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+        if oneLineMessage.count <= 90 {
+            return oneLineMessage
+        }
+        return "\(oneLineMessage.prefix(87))..."
+    }
+
+    private func backgroundRefreshSkipReason() -> String? {
+        var reasons: [String] = []
+        if !settings.backgroundTransactionRefreshEnabled {
+            reasons.append("alerts disabled")
+        }
+        if setupPhase != .ready {
+            reasons.append("app not ready")
+        }
+        if settings.selectedBudgetID == nil {
+            reasons.append("no selected budget")
+        }
+        if settings.serverURLString.isEmpty {
+            reasons.append("server URL missing")
+        }
+        if apiKey.isEmpty {
+            reasons.append("API key unavailable")
+        }
+        if makeClient() == nil {
+            reasons.append("API client unavailable")
+        }
+
+        guard !reasons.isEmpty else {
+            return nil
+        }
+        return "Skipped: \(reasons.joined(separator: ", "))"
+    }
+
+    func recordBackgroundRefreshScheduleAttempt(
+        succeeded: Bool,
+        earliestBeginDate: Date?,
+        message: String
+    ) {
+        let attempt = BackgroundRefreshScheduleAttempt(
+            id: UUID(),
+            date: Date(),
+            earliestBeginDate: earliestBeginDate,
+            succeeded: succeeded,
+            message: message
+        )
+        settings.backgroundRefreshDebug.totalScheduleAttemptCount += 1
+        settings.backgroundRefreshDebug.recentScheduleAttempts.insert(attempt, at: 0)
+        if settings.backgroundRefreshDebug.recentScheduleAttempts.count > 20 {
+            settings.backgroundRefreshDebug.recentScheduleAttempts.removeSubrange(20...)
+        }
+        settingsStore.save(settings)
     }
 
     func pendingNewTransactionIDs(budgetID: String, accountID: String) -> Set<String> {
