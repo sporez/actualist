@@ -1043,6 +1043,57 @@ struct TransactionRepositoryRefreshTests {
         ])
     }
 
+    @Test func allTransactionsRequestsBudgetEndpointWithDateRange() async throws {
+        let recorder = RequestRecorder()
+        StubURLProtocol.handler = { request in
+            recorder.record(request)
+            return (try Self.okResponse(for: request), #"{"data":[]}"#.data(using: .utf8)!)
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let client = ActualAPIClient(
+            baseURL: URL(string: "http://actual.test/v1")!,
+            apiKey: "test-key",
+            session: URLSession(configuration: configuration)
+        )
+
+        _ = try await client.transactions(
+            budgetID: "budget",
+            since: TransactionEditorViewModelTests.date("2026-03-01"),
+            until: TransactionEditorViewModelTests.date("2026-05-31")
+        )
+
+        #expect(recorder.requests() == [
+            "GET /v1/budgets/budget/transactions?since_date=2026-03-01&until_date=2026-05-31"
+        ])
+    }
+
+    @Test func searchAllTransactionsRequestsBudgetSearchEndpointWithQueryItems() async throws {
+        let recorder = RequestRecorder()
+        StubURLProtocol.handler = { request in
+            recorder.record(request)
+            return (try Self.okResponse(for: request), #"{"data":[]}"#.data(using: .utf8)!)
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let client = ActualAPIClient(
+            baseURL: URL(string: "http://actual.test/v1")!,
+            apiKey: "test-key",
+            session: URLSession(configuration: configuration)
+        )
+
+        _ = try await client.searchTransactions(
+            budgetID: "budget",
+            query: "target",
+            limit: 25,
+            offset: 50
+        )
+
+        #expect(recorder.requests() == [
+            "GET /v1/budgets/budget/transactions/search?q=target&limit=25&offset=50"
+        ])
+    }
+
     @Test func transactionListRefreshFailureIsNotSwallowed() async throws {
         let recorder = RequestRecorder()
         let repository = Self.repository { request in
