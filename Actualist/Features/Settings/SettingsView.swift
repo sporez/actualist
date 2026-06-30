@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = SettingsViewModel()
     @State private var isBudgetPickerPresented = false
+    @State private var isAppIconPickerPresented = false
     @State private var isDeveloperDiagnosticsPresented = false
     #if DEBUG
     @State private var isPostingDebugNotification = false
@@ -101,6 +102,24 @@ struct SettingsView: View {
                             }
                         }
                     }
+
+                    Button {
+                        isAppIconPickerPresented = true
+                    } label: {
+                        LabeledContent {
+                            HStack(spacing: 8) {
+                                Text(viewModel.selectedAppIcon.title)
+                                    .foregroundStyle(ActualistTheme.secondaryText)
+                                AppIconThumbnail(icon: viewModel.selectedAppIcon, size: 28)
+                            }
+                        } label: {
+                            Text("App Icon")
+                                .foregroundStyle(ActualistTheme.primaryText)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!viewModel.supportsAlternateIcons)
                 }
                 .settingsSectionChrome()
 
@@ -127,6 +146,11 @@ struct SettingsView: View {
                     isPresented: $isBudgetPickerPresented
                 )
                 .environment(appState)
+            }
+            .sheet(isPresented: $isAppIconPickerPresented) {
+                AppIconPickerSheet(viewModel: viewModel)
+                    .presentationDetents([.height(320)])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $isDeveloperDiagnosticsPresented) {
                 #if DEBUG
@@ -543,6 +567,102 @@ private struct ThemePreviewStrip: View {
             ThemeSwatch(color: palette.neutral)
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct AppIconPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var viewModel: SettingsViewModel
+
+    private let columns = [GridItem(.adaptive(minimum: 96), spacing: 16)]
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(AppIcon.allCases) { icon in
+                        Button {
+                            Task { await viewModel.setAppIcon(icon) }
+                        } label: {
+                            AppIconChoice(
+                                icon: icon,
+                                isSelected: viewModel.selectedAppIcon == icon
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if let error = viewModel.appIconError {
+                    Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.danger)
+                        .multilineTextAlignment(.center)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(ActualistTheme.background)
+            .navigationTitle("App Icon")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct AppIconChoice: View {
+    let icon: AppIcon
+    let isSelected: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            AppIconThumbnail(icon: icon, size: 72)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(
+                            isSelected ? ActualistTheme.accent : .clear,
+                            lineWidth: 3
+                        )
+                }
+
+            Text(icon.title)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? ActualistTheme.primaryText : ActualistTheme.secondaryText)
+        }
+    }
+}
+
+private struct AppIconThumbnail: View {
+    let icon: AppIcon
+    let size: CGFloat
+
+    var body: some View {
+        let radius = size * 0.2237
+
+        Group {
+            if let image = UIImage(named: icon.previewImageName) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(ActualistTheme.elevatedSurface)
+                    .overlay {
+                        Image(systemName: "app.dashed")
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }
 
