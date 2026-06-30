@@ -1,10 +1,58 @@
 import SwiftUI
 import Observation
 
+struct SpendingTransactionsView: View {
+    var body: some View {
+        NavigationStack {
+            AccountTransactionsView(scope: .spending)
+        }
+    }
+}
+
+enum TransactionFeedScope: Hashable {
+    case account(ActualAccount)
+    case spending
+
+    var title: String {
+        switch self {
+        case .account(let account): account.name
+        case .spending: "Spending"
+        }
+    }
+
+    var account: ActualAccount? {
+        switch self {
+        case .account(let account): account
+        case .spending: nil
+        }
+    }
+
+    var showsBalanceHeader: Bool {
+        if case .account = self {
+            return true
+        }
+        return false
+    }
+
+    var supportsAccountActions: Bool {
+        if case .account = self {
+            return true
+        }
+        return false
+    }
+
+    var refreshTargetDescription: String {
+        switch self {
+        case .account: "this account"
+        case .spending: "Spending"
+        }
+    }
+}
+
 struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
-    let account: ActualAccount
+    let scope: TransactionFeedScope
 
     @FocusState private var isSearchFieldFocused: Bool
 
@@ -25,6 +73,14 @@ struct AccountTransactionsView: View {
     @State private var deleteIntentHaptic = 0
     @State private var deleteSuccessHaptic = 0
 
+    init(account: ActualAccount) {
+        self.scope = .account(account)
+    }
+
+    init(scope: TransactionFeedScope) {
+        self.scope = scope
+    }
+
     private var budgetID: String? {
         appState.settings.selectedBudgetID
     }
@@ -34,7 +90,12 @@ struct AccountTransactionsView: View {
         guard let budgetID else {
             return nil
         }
-        return appState.dataStore.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
+        switch scope {
+        case .account(let account):
+            return appState.dataStore.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
+        case .spending:
+            return appState.dataStore.cachedSpendingTransactions(budgetID: budgetID)
+        }
     }
 
     private var transactions: [ActualTransaction] {
@@ -47,6 +108,10 @@ struct AccountTransactionsView: View {
 
     private var categoryNames: [String: String] {
         loaded?.categoryNames ?? [:]
+    }
+
+    private var accountNames: [String: String] {
+        loaded?.accountNames ?? [:]
     }
 
     private var payeeNames: [String: String] {
@@ -65,7 +130,12 @@ struct AccountTransactionsView: View {
         guard let budgetID else {
             return []
         }
-        return appState.pendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
+        switch scope {
+        case .account(let account):
+            return appState.pendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
+        case .spending:
+            return appState.pendingNewTransactionIDs(budgetID: budgetID)
+        }
     }
 
     private var trimmedSearchText: String {
@@ -90,6 +160,7 @@ struct AccountTransactionsView: View {
         transactions.filter { transaction in
             searchTextMatches(payeeName(for: transaction))
                 || categoryNames(for: transaction).contains(where: searchTextMatches)
+                || searchTextMatches(accountName(for: transaction))
                 || transaction.subtransactions.contains { child in
                     searchTextMatches(child.notes)
                 }
@@ -104,6 +175,10 @@ struct AccountTransactionsView: View {
 
     private var activeCategoryNames: [String: String] {
         searchResults?.categoryNames ?? categoryNames
+    }
+
+    private var activeAccountNames: [String: String] {
+        searchResults?.accountNames ?? accountNames
     }
 
     private var activePayeeNames: [String: String] {
@@ -126,11 +201,13 @@ struct AccountTransactionsView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            Section {
-                header
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+            if scope.showsBalanceHeader {
+                Section {
+                    header
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
             }
 
             transactionList
@@ -163,7 +240,7 @@ struct AccountTransactionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
-        .navigationTitle(account.name)
+        .navigationTitle(scope.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -184,25 +261,27 @@ struct AccountTransactionsView: View {
                 .accessibilityLabel("Add Transaction")
                 .disabled(appState.isReadOnly)
 
-                Menu {
-                    Button {
-                        isReconcilePresented = true
-                    } label: {
-                        Label("Reconcile", systemImage: "checkmark.seal")
-                    }
+                if scope.supportsAccountActions {
+                    Menu {
+                        Button {
+                            isReconcilePresented = true
+                        } label: {
+                            Label("Reconcile", systemImage: "checkmark.seal")
+                        }
 
-                    Button {
-                        Task { await syncBank() }
+                        Button {
+                            Task { await syncBank() }
+                        } label: {
+                            Label("Sync Bank", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .disabled(isSyncingBank)
                     } label: {
-                        Label("Sync Bank", systemImage: "arrow.triangle.2.circlepath")
+                        Image(systemName: "ellipsis")
                     }
-                    .disabled(isSyncingBank)
-                } label: {
-                    Image(systemName: "ellipsis")
+                    .actualistToolbarGlassButton()
+                    .accessibilityLabel("Account Actions")
+                    .disabled(isSyncingBank || appState.isReadOnly)
                 }
-                .actualistToolbarGlassButton()
-                .accessibilityLabel("Account Actions")
-                .disabled(isSyncingBank || appState.isReadOnly)
             }
         }
         .task {
@@ -214,7 +293,7 @@ struct AccountTransactionsView: View {
         }
         .onDisappear {
             searchTask?.cancel()
-            if let budgetID {
+            if let budgetID, let account = scope.account {
                 appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
             }
         }
@@ -222,7 +301,7 @@ struct AccountTransactionsView: View {
         .sensoryFeedback(.success, trigger: deleteSuccessHaptic)
         .sheet(item: $transactionEditorPresentation) { presentation in
             TransactionEditorView(
-                prefilledAccount: account,
+                prefilledAccount: scope.account,
                 editingTransaction: presentation.transaction,
                 prefilledPayeeName: presentation.payeeName,
                 prefilledCategoryName: presentation.categoryName
@@ -232,11 +311,13 @@ struct AccountTransactionsView: View {
                 .environment(appState)
         }
         .sheet(isPresented: $isReconcilePresented) {
-            AccountReconciliationSheet(
-                account: account,
-                currentBalance: balance
-            )
-            .environment(appState)
+            if let account = scope.account {
+                AccountReconciliationSheet(
+                    account: account,
+                    currentBalance: balance
+                )
+                .environment(appState)
+            }
         }
         .confirmationDialog(
             "Delete Transaction?",
@@ -259,7 +340,7 @@ struct AccountTransactionsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             if let deletePresentation {
-                Text("Delete \(deletePresentation.payeeName)? Actualist will confirm the server update before refreshing this account.")
+                Text("Delete \(deletePresentation.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription).")
             }
         }
     }
@@ -421,6 +502,7 @@ struct AccountTransactionsView: View {
                 transaction: transaction,
                 payeeName: payeeName(for: transaction),
                 categoryNames: categoryNames(for: transaction),
+                accountName: accountName(for: transaction),
                 isNew: transaction.id.map { pendingNewTransactionIDs.contains($0) } ?? false,
                 showsBottomSeparator: showsBottomSeparator
             )
@@ -519,6 +601,15 @@ struct AccountTransactionsView: View {
         return [categoryName(for: transaction)]
     }
 
+    private func accountName(for transaction: ActualTransaction) -> String? {
+        guard case .spending = scope else {
+            return nil
+        }
+
+        let name = activeAccountNames[transaction.account]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name?.isEmpty == false ? name : "Unknown Account"
+    }
+
     private func searchTextMatches(_ value: String?) -> Bool {
         guard let value, !trimmedSearchText.isEmpty else {
             return false
@@ -561,7 +652,12 @@ struct AccountTransactionsView: View {
         isLoading = true
         errorMessage = nil
         do {
-            try await appState.dataStore.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
+            switch scope {
+            case .account(let account):
+                try await appState.dataStore.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
+            case .spending:
+                try await appState.dataStore.refreshSpendingTransactions(budgetID: budgetID)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -569,7 +665,10 @@ struct AccountTransactionsView: View {
     }
 
     private func syncBank() async {
-        guard let budgetID, !isSyncingBank, !appState.isReadOnly else {
+        guard let budgetID,
+              let account = scope.account,
+              !isSyncingBank,
+              !appState.isReadOnly else {
             return
         }
 
@@ -593,7 +692,12 @@ struct AccountTransactionsView: View {
         isLoadingOlder = true
         errorMessage = nil
         do {
-            try await appState.dataStore.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
+            switch scope {
+            case .account(let account):
+                try await appState.dataStore.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
+            case .spending:
+                try await appState.dataStore.loadOlderSpendingTransactions(budgetID: budgetID)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -629,13 +733,24 @@ struct AccountTransactionsView: View {
         }
 
         do {
-            let results = try await appState.dataStore.searchAccountTransactions(
-                budgetID: budgetID,
-                accountID: account.id,
-                query: query,
-                limit: 50,
-                offset: 0
-            )
+            let results: LoadedAccountTransactions
+            switch scope {
+            case .account(let account):
+                results = try await appState.dataStore.searchAccountTransactions(
+                    budgetID: budgetID,
+                    accountID: account.id,
+                    query: query,
+                    limit: 50,
+                    offset: 0
+                )
+            case .spending:
+                results = try await appState.dataStore.searchSpendingTransactions(
+                    budgetID: budgetID,
+                    query: query,
+                    limit: 50,
+                    offset: 0
+                )
+            }
             guard !Task.isCancelled, query == trimmedSearchText else {
                 return
             }
@@ -1001,6 +1116,7 @@ struct TransactionRow: View {
     let transaction: ActualTransaction
     let payeeName: String
     let categoryNames: [String]
+    let accountName: String?
     let isNew: Bool
     let showsBottomSeparator: Bool
 
@@ -1008,12 +1124,14 @@ struct TransactionRow: View {
         transaction: ActualTransaction,
         payeeName: String,
         categoryNames: [String],
+        accountName: String? = nil,
         isNew: Bool = false,
         showsBottomSeparator: Bool = true
     ) {
         self.transaction = transaction
         self.payeeName = payeeName
         self.categoryNames = categoryNames
+        self.accountName = accountName
         self.isNew = isNew
         self.showsBottomSeparator = showsBottomSeparator
     }
@@ -1072,6 +1190,10 @@ struct TransactionRow: View {
             ForEach(Array(displayCategoryNames.enumerated()), id: \.offset) { _, name in
                 categoryBadge(name)
             }
+
+            if let accountName {
+                accountBadge(accountName)
+            }
         }
     }
 
@@ -1094,6 +1216,24 @@ struct TransactionRow: View {
             .padding(.horizontal, parts.emoji == nil ? 10 : 9)
             .padding(.vertical, 5)
             .background(ActualistTheme.control, in: Capsule())
+    }
+
+    private func accountBadge(_ name: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "building.columns.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .accessibilityHidden(true)
+
+            Text(name)
+                .font(ActualistTypography.rowBadge(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(ActualistTheme.elevatedSurface, in: Capsule())
     }
 
     private var cleanedPayeeName: String {

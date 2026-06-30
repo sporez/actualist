@@ -325,6 +325,19 @@ final class AppState {
         Set(settings.pendingNewTransactionIDsByAccount[pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)] ?? [])
     }
 
+    /// Union of every account's pending-new IDs for the budget. Used by the cross-account
+    /// Spending feed, where transactions aren't scoped to a single account. Transaction IDs
+    /// are globally unique, so the union is safe to flatten.
+    func pendingNewTransactionIDs(budgetID: String) -> Set<String> {
+        let prefix = "\(budgetID)|"
+        return settings.pendingNewTransactionIDsByAccount.reduce(into: Set<String>()) { result, entry in
+            guard entry.key.hasPrefix(prefix) else {
+                return
+            }
+            result.formUnion(entry.value)
+        }
+    }
+
     func clearPendingNewTransactionIDs(budgetID: String, accountID: String) {
         let key = pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)
         guard settings.pendingNewTransactionIDsByAccount[key] != nil else {
@@ -352,6 +365,47 @@ final class AppState {
         }
         accountNavigationPath = [account]
     }
+
+    #if DEBUG
+    func postDebugNewTransactionNotification() async throws -> String {
+        guard let budgetID = settings.selectedBudgetID else {
+            throw DebugNotificationError.missingBudget
+        }
+
+        let notificationCenter = UNUserNotificationCenter.current()
+        let notificationSettings = await notificationCenter.notificationSettings()
+        if notificationSettings.authorizationStatus != .authorized {
+            let granted = try await notificationCenter.requestAuthorization(options: [.alert, .sound])
+            guard granted else {
+                throw DebugNotificationError.notificationsDenied
+            }
+        }
+
+        if dataStore.accountsByBudget[budgetID]?.value == nil {
+            try await dataStore.refreshAccountsWithBalances(budgetID: budgetID)
+        }
+
+        let accounts = dataStore.accountDisplays(budgetID: budgetID).map(\.account)
+        guard let account = accounts.first(where: { account in
+            account.bankSyncLinked
+                && !account.closed
+                && account.name.localizedCaseInsensitiveContains("amex")
+        }) ?? accounts.first(where: { $0.bankSyncLinked && !$0.closed })
+            ?? accounts.first(where: { !$0.closed })
+            ?? accounts.first else {
+            throw DebugNotificationError.noAccounts
+        }
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        try await postNewTransactionsNotification(
+            account: account,
+            budgetID: budgetID,
+            count: 1,
+            trigger: trigger
+        )
+        return account.name
+    }
+    #endif
 
     func loadBudgets() async {
         guard makeClient() != nil else {
@@ -513,7 +567,8 @@ final class AppState {
     private func postNewTransactionsNotification(
         account: ActualAccount,
         budgetID: String,
-        count: Int
+        count: Int,
+        trigger: UNNotificationTrigger? = nil
     ) async throws {
         let content = UNMutableNotificationContent()
         content.title = account.name
@@ -527,7 +582,7 @@ final class AppState {
         let request = UNNotificationRequest(
             identifier: "actualist.new-transactions.\(budgetID).\(account.id).\(Date().timeIntervalSince1970)",
             content: content,
-            trigger: nil
+            trigger: trigger
         )
         try await UNUserNotificationCenter.current().add(request)
     }
@@ -578,6 +633,25 @@ final class AppState {
         }
     }
 }
+
+#if DEBUG
+private enum DebugNotificationError: LocalizedError {
+    case missingBudget
+    case noAccounts
+    case notificationsDenied
+
+    var errorDescription: String? {
+        switch self {
+        case .missingBudget:
+            "Select a budget before posting a test notification."
+        case .noAccounts:
+            "No accounts are loaded for the selected budget."
+        case .notificationsDenied:
+            "Notification permission is not granted."
+        }
+    }
+}
+#endif
 
 enum SetupPhase: Equatable {
     case needsConnection
