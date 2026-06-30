@@ -307,6 +307,103 @@ struct ActualDataStoreTests {
         #expect(await client.callCount(.searchTransactions) == 1)
     }
 
+    @Test func refreshSpendingTransactionsComposesAccountDisplaySnapshot() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [
+                    Self.transaction(id: "checking", accountID: "checking", date: "2026-06-15"),
+                    Self.transaction(id: "savings", accountID: "savings", date: "2026-06-14")
+                ]
+            ]
+        )
+        let store = ActualDataStore { client }
+
+        try await store.refreshSpendingTransactions(budgetID: "b")
+
+        let cached = try #require(store.cachedSpendingTransactions(budgetID: "b"))
+        #expect(cached.transactions.map(\.id) == ["checking", "savings"])
+        #expect(cached.balance == nil)
+        #expect(cached.accountNames["checking"] == "Checking")
+        #expect(cached.accountNames["savings"] == "Savings")
+        #expect(cached.categoryNames["groceries"] == "Groceries")
+        #expect(cached.payeeNames["store"] == "Corner Store")
+    }
+
+    @Test func searchSpendingTransactionsReturnsDisplaySnapshotWithoutMutatingLoadedPage() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "loaded", accountID: "checking", date: "2026-06-15")]
+            ],
+            searchTransactionResponses: [
+                [Self.transaction(id: "search", accountID: "savings", date: "2026-06-14")]
+            ]
+        )
+        let store = ActualDataStore { client }
+
+        try await store.refreshSpendingTransactions(budgetID: "b")
+        let results = try await store.searchSpendingTransactions(
+            budgetID: "b",
+            query: "corner",
+            limit: 25,
+            offset: 0
+        )
+
+        #expect(results.transactions.map(\.id) == ["search"])
+        #expect(results.accountNames["savings"] == "Savings")
+        #expect(results.reachedEnd)
+        #expect(store.cachedSpendingTransactions(budgetID: "b")?.transactions.map(\.id) == ["loaded"])
+        #expect(await client.callCount(.searchTransactions) == 1)
+    }
+
+    @Test func loadOlderSpendingTransactionsFetchesPreviousWindowAndExtendsCachedRange() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "recent", accountID: "checking", date: "2026-06-15")],
+                [Self.transaction(id: "older", accountID: "savings", date: "2026-02-15")]
+            ]
+        )
+        let store = ActualDataStore(
+            clientProvider: { client },
+            now: { Self.date("2026-06-17") }
+        )
+
+        try await store.refreshSpendingTransactions(budgetID: "b")
+        try await store.loadOlderSpendingTransactions(budgetID: "b")
+
+        let cached = try #require(store.cachedSpendingTransactions(budgetID: "b"))
+        #expect(cached.transactions.map(\.id) == ["recent", "older"])
+        #expect(cached.reachedEnd == false)
+
+        let windows = await client.transactionWindows()
+        #expect(windows == [
+            "2026-03-19...",
+            "2025-12-19...2026-03-18"
+        ])
+    }
+
+    @Test func writeInvalidationRefreshesLoadedSpendingTransactions() async throws {
+        let client = FakeAPIClient(
+            transactionResponses: [
+                [Self.transaction(id: "before", accountID: "checking", date: "2026-06-15")],
+                [Self.transaction(id: "account-after", accountID: "checking", date: "2026-06-14")],
+                [Self.transaction(id: "spending-after", accountID: "savings", date: "2026-06-13")]
+            ]
+        )
+        let store = ActualDataStore(
+            clientProvider: { client },
+            now: { Self.date("2026-06-17") }
+        )
+
+        try await store.refreshSpendingTransactions(budgetID: "b")
+        try await store.applyInvalidation(
+            ChangedResources(accounts: ["checking"], months: [], transactions: ["before"]),
+            budgetID: "b"
+        )
+
+        #expect(store.cachedAccountTransactions(budgetID: "b", accountID: "checking")?.transactions.map(\.id) == ["account-after"])
+        #expect(store.cachedSpendingTransactions(budgetID: "b")?.transactions.map(\.id) == ["spending-after"])
+    }
+
     @Test func uncategorizedTransactionsReturnsDisplaySnapshot() async throws {
         let client = FakeAPIClient(
             uncategorizedTransactionResponses: [
@@ -887,6 +984,23 @@ actor FakeAPIClient: ActualAPIClientProtocol {
         ]
     }
 
+    func transactions(
+        budgetID: String,
+        since: Date,
+        until: Date?
+    ) async throws -> [ActualTransaction] {
+        record(.transactions)
+        requestedTransactionWindows.append((since: since, until: until))
+        if !transactionResponses.isEmpty {
+            return transactionResponses.removeFirst()
+        }
+
+        return [
+            ActualDataStoreTests.transaction(id: "checking-t1", accountID: "checking", date: "2026-06-15"),
+            ActualDataStoreTests.transaction(id: "savings-t1", accountID: "savings", date: "2026-06-14")
+        ]
+    }
+
     func searchTransactions(
         budgetID: String,
         accountID: String,
@@ -901,6 +1015,22 @@ actor FakeAPIClient: ActualAPIClientProtocol {
 
         return [
             ActualDataStoreTests.transaction(id: "search", accountID: accountID, date: "2026-06-15")
+        ]
+    }
+
+    func searchTransactions(
+        budgetID: String,
+        query: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> [ActualTransaction] {
+        record(.searchTransactions)
+        if !searchTransactionResponses.isEmpty {
+            return searchTransactionResponses.removeFirst()
+        }
+
+        return [
+            ActualDataStoreTests.transaction(id: "search", accountID: "savings", date: "2026-06-15")
         ]
     }
 

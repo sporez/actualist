@@ -59,10 +59,29 @@ struct TransactionEditorCategoryOption: Identifiable, Hashable, Sendable {
 struct LoadedAccountTransactions: Hashable, Sendable {
     let transactions: [ActualTransaction]
     let balance: Int?
+    let accountNames: [String: String]
     let categoryNames: [String: String]
     let payeeNames: [String: String]
     let transferPayeeIDs: Set<String>
     let reachedEnd: Bool
+
+    init(
+        transactions: [ActualTransaction],
+        balance: Int?,
+        accountNames: [String: String] = [:],
+        categoryNames: [String: String],
+        payeeNames: [String: String],
+        transferPayeeIDs: Set<String>,
+        reachedEnd: Bool
+    ) {
+        self.transactions = transactions
+        self.balance = balance
+        self.accountNames = accountNames
+        self.categoryNames = categoryNames
+        self.payeeNames = payeeNames
+        self.transferPayeeIDs = transferPayeeIDs
+        self.reachedEnd = reachedEnd
+    }
 }
 
 struct LoadedUncategorizedTransactions: Hashable, Sendable {

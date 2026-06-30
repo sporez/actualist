@@ -47,9 +47,20 @@ protocol ActualAPIClientProtocol: Sendable {
         since: Date,
         until: Date?
     ) async throws -> [ActualTransaction]
+    func transactions(
+        budgetID: String,
+        since: Date,
+        until: Date?
+    ) async throws -> [ActualTransaction]
     func searchTransactions(
         budgetID: String,
         accountID: String,
+        query: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> [ActualTransaction]
+    func searchTransactions(
+        budgetID: String,
         query: String,
         limit: Int,
         offset: Int

@@ -130,6 +130,25 @@ struct ActualAPIClient: Sendable {
         return transactions
     }
 
+    func transactions(
+        budgetID: String,
+        since: Date = Self.earliestTransactionDate,
+        until: Date? = nil
+    ) async throws -> [ActualTransaction] {
+        var queryItems = [
+            URLQueryItem(name: "since_date", value: Self.formattedTransactionDate(since))
+        ]
+        if let until {
+            queryItems.append(URLQueryItem(name: "until_date", value: Self.formattedTransactionDate(until)))
+        }
+
+        let transactions: [ActualTransaction] = try await get(
+            "/budgets/\(budgetID)/transactions",
+            queryItems: queryItems
+        )
+        return transactions
+    }
+
     func searchTransactions(
         budgetID: String,
         accountID: String,
@@ -139,6 +158,22 @@ struct ActualAPIClient: Sendable {
     ) async throws -> [ActualTransaction] {
         try await get(
             "/budgets/\(budgetID)/accounts/\(accountID)/transactions/search",
+            queryItems: [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+                URLQueryItem(name: "offset", value: String(offset))
+            ]
+        )
+    }
+
+    func searchTransactions(
+        budgetID: String,
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> [ActualTransaction] {
+        try await get(
+            "/budgets/\(budgetID)/transactions/search",
             queryItems: [
                 URLQueryItem(name: "q", value: query),
                 URLQueryItem(name: "limit", value: String(limit)),

@@ -10,8 +10,64 @@ struct ActualDataStoreSnapshot: Codable, Sendable {
     let monthsByBudget: [String: SnapshotCacheEntry<[String]>]
     let balancesByAccount: [String: SnapshotCacheEntry<Int>]
     let transactionsByAccount: [String: SnapshotCacheEntry<ActualDataStore.AccountTransactionsPage>]
+    let transactionsByBudget: [String: SnapshotCacheEntry<ActualDataStore.AccountTransactionsPage>]
     let monthByKey: [String: SnapshotCacheEntry<BudgetMonth>]
     let alertsByKey: [String: SnapshotCacheEntry<[APIBudgetMonthAlert]>]
+
+    init(
+        savedAt: Date,
+        budgets: SnapshotCacheEntry<[ActualBudget]>?,
+        accountsByBudget: [String: SnapshotCacheEntry<[ActualAccount]>],
+        categoriesByBudget: [String: SnapshotCacheEntry<[ActualCategory]>],
+        payeesByBudget: [String: SnapshotCacheEntry<[ActualPayee]>],
+        monthsByBudget: [String: SnapshotCacheEntry<[String]>],
+        balancesByAccount: [String: SnapshotCacheEntry<Int>],
+        transactionsByAccount: [String: SnapshotCacheEntry<ActualDataStore.AccountTransactionsPage>],
+        transactionsByBudget: [String: SnapshotCacheEntry<ActualDataStore.AccountTransactionsPage>],
+        monthByKey: [String: SnapshotCacheEntry<BudgetMonth>],
+        alertsByKey: [String: SnapshotCacheEntry<[APIBudgetMonthAlert]>]
+    ) {
+        self.savedAt = savedAt
+        self.budgets = budgets
+        self.accountsByBudget = accountsByBudget
+        self.categoriesByBudget = categoriesByBudget
+        self.payeesByBudget = payeesByBudget
+        self.monthsByBudget = monthsByBudget
+        self.balancesByAccount = balancesByAccount
+        self.transactionsByAccount = transactionsByAccount
+        self.transactionsByBudget = transactionsByBudget
+        self.monthByKey = monthByKey
+        self.alertsByKey = alertsByKey
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case savedAt
+        case budgets
+        case accountsByBudget
+        case categoriesByBudget
+        case payeesByBudget
+        case monthsByBudget
+        case balancesByAccount
+        case transactionsByAccount
+        case transactionsByBudget
+        case monthByKey
+        case alertsByKey
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        savedAt = try container.decode(Date.self, forKey: .savedAt)
+        budgets = try container.decodeIfPresent(SnapshotCacheEntry<[ActualBudget]>.self, forKey: .budgets)
+        accountsByBudget = try container.decode([String: SnapshotCacheEntry<[ActualAccount]>].self, forKey: .accountsByBudget)
+        categoriesByBudget = try container.decode([String: SnapshotCacheEntry<[ActualCategory]>].self, forKey: .categoriesByBudget)
+        payeesByBudget = try container.decode([String: SnapshotCacheEntry<[ActualPayee]>].self, forKey: .payeesByBudget)
+        monthsByBudget = try container.decode([String: SnapshotCacheEntry<[String]>].self, forKey: .monthsByBudget)
+        balancesByAccount = try container.decode([String: SnapshotCacheEntry<Int>].self, forKey: .balancesByAccount)
+        transactionsByAccount = try container.decode([String: SnapshotCacheEntry<ActualDataStore.AccountTransactionsPage>].self, forKey: .transactionsByAccount)
+        transactionsByBudget = try container.decodeIfPresent([String: SnapshotCacheEntry<ActualDataStore.AccountTransactionsPage>].self, forKey: .transactionsByBudget) ?? [:]
+        monthByKey = try container.decode([String: SnapshotCacheEntry<BudgetMonth>].self, forKey: .monthByKey)
+        alertsByKey = try container.decode([String: SnapshotCacheEntry<[APIBudgetMonthAlert]>].self, forKey: .alertsByKey)
+    }
 
     struct SnapshotCacheEntry<Value: Codable & Sendable>: Codable, Sendable {
         let value: Value
@@ -61,6 +117,7 @@ final class ActualDataStore {
     // Money-truth resources (per account / per month).
     private(set) var balancesByAccount: [String: CacheEntry<Int>] = [:]
     private(set) var transactionsByAccount: [String: CacheEntry<AccountTransactionsPage>] = [:]
+    private(set) var transactionsByBudget: [String: CacheEntry<AccountTransactionsPage>] = [:]
     private(set) var monthByKey: [String: CacheEntry<BudgetMonth>] = [:]
     private(set) var alertsByKey: [String: CacheEntry<[APIBudgetMonthAlert]>] = [:]
 
@@ -72,6 +129,7 @@ final class ActualDataStore {
     @ObservationIgnored private let networkDidFail: (Error) -> Void
     @ObservationIgnored private var inFlight: [String: Task<Void, Error>] = [:]
     @ObservationIgnored private var invalidatedTransactionPagesByAccount: [String: AccountTransactionsPage] = [:]
+    @ObservationIgnored private var invalidatedTransactionPagesByBudget: [String: AccountTransactionsPage] = [:]
 
     init(
         clientProvider: @escaping () -> ActualAPIClientProtocol?,
@@ -111,7 +169,9 @@ final class ActualDataStore {
         monthsByBudget = [:]
         balancesByAccount = [:]
         transactionsByAccount = [:]
+        transactionsByBudget = [:]
         invalidatedTransactionPagesByAccount = [:]
+        invalidatedTransactionPagesByBudget = [:]
         monthByKey = [:]
         alertsByKey = [:]
         inFlight.values.forEach { $0.cancel() }
@@ -126,9 +186,11 @@ final class ActualDataStore {
         monthsByBudget = snapshot.monthsByBudget.mapValues { CacheEntry(snapshot: $0) }
         balancesByAccount = snapshot.balancesByAccount.mapValues { CacheEntry(snapshot: $0) }
         transactionsByAccount = snapshot.transactionsByAccount.mapValues { CacheEntry(snapshot: $0) }
+        transactionsByBudget = snapshot.transactionsByBudget.mapValues { CacheEntry(snapshot: $0) }
         monthByKey = snapshot.monthByKey.mapValues { CacheEntry(snapshot: $0) }
         alertsByKey = snapshot.alertsByKey.mapValues { CacheEntry(snapshot: $0) }
         invalidatedTransactionPagesByAccount = [:]
+        invalidatedTransactionPagesByBudget = [:]
     }
 
     func snapshot() -> ActualDataStoreSnapshot {
@@ -141,6 +203,7 @@ final class ActualDataStore {
             monthsByBudget: monthsByBudget.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
             balancesByAccount: balancesByAccount.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
             transactionsByAccount: transactionsByAccount.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
+            transactionsByBudget: transactionsByBudget.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
             monthByKey: monthByKey.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init),
             alertsByKey: alertsByKey.mapValues(ActualDataStoreSnapshot.SnapshotCacheEntry.init)
         )
@@ -149,6 +212,7 @@ final class ActualDataStore {
     func hasCachedBudgetData(budgetID: String) -> Bool {
         accountsByBudget[budgetID] != nil
             || monthsByBudget[budgetID] != nil
+            || transactionsByBudget[budgetID] != nil
             || monthByKey.keys.contains { $0.hasPrefix("\(budgetID)|") }
     }
 
@@ -159,6 +223,13 @@ final class ActualDataStore {
         }
         transactionsByAccount[key] = nil
         balancesByAccount[key] = nil
+    }
+
+    private func invalidateSpendingTransactions(budgetID: String) {
+        if let page = transactionsByBudget[budgetID]?.value {
+            invalidatedTransactionPagesByBudget[budgetID] = page
+        }
+        transactionsByBudget[budgetID] = nil
     }
 
     private func invalidateAccounts(budgetID: String) {
@@ -194,6 +265,22 @@ final class ActualDataStore {
         return LoadedAccountTransactions(
             transactions: page.transactions,
             balance: balancesByAccount[key]?.value,
+            categoryNames: categoryNames(budgetID: budgetID),
+            payeeNames: payeeNames(budgetID: budgetID),
+            transferPayeeIDs: transferPayeeIDs(budgetID: budgetID),
+            reachedEnd: page.reachedEnd
+        )
+    }
+
+    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? {
+        guard let page = transactionsByBudget[budgetID]?.value else {
+            return nil
+        }
+
+        return LoadedAccountTransactions(
+            transactions: page.transactions,
+            balance: nil,
+            accountNames: accountNames(budgetID: budgetID),
             categoryNames: categoryNames(budgetID: budgetID),
             payeeNames: payeeNames(budgetID: budgetID),
             transferPayeeIDs: transferPayeeIDs(budgetID: budgetID),
@@ -437,6 +524,92 @@ final class ActualDataStore {
         )
     }
 
+    func refreshSpendingTransactions(budgetID: String) async throws {
+        try await ensureAccounts(budgetID: budgetID)
+        try await ensureCategories(budgetID: budgetID)
+        try await ensurePayees(budgetID: budgetID)
+
+        let client = try requireClient()
+        try await coalesced("transactions|budget|\(budgetID)") {
+            let existingPage = self.transactionsByBudget[budgetID]?.value ?? self.invalidatedTransactionPagesByBudget[budgetID]
+            let oldestLoadedDate = existingPage?.oldestLoadedDate ?? self.initialTransactionSinceDate()
+            let loadedTransactions = try await client.transactions(
+                budgetID: budgetID,
+                since: oldestLoadedDate,
+                until: nil
+            )
+            self.transactionsByBudget[budgetID] = CacheEntry(
+                value: AccountTransactionsPage(
+                    transactions: Self.sortedTransactions(Self.parentTransactions(from: loadedTransactions)),
+                    oldestLoadedDate: oldestLoadedDate,
+                    reachedEnd: existingPage?.reachedEnd ?? false
+                ),
+                fetchedAt: Date()
+            )
+            self.invalidatedTransactionPagesByBudget[budgetID] = nil
+        }
+    }
+
+    func loadOlderSpendingTransactions(budgetID: String) async throws {
+        let client = try requireClient()
+        try await coalesced("transactionsOlder|budget|\(budgetID)") {
+            guard var page = self.transactionsByBudget[budgetID]?.value, !page.reachedEnd else {
+                return
+            }
+
+            let until = Self.transactionCalendar.date(byAdding: .day, value: -1, to: page.oldestLoadedDate) ?? page.oldestLoadedDate
+            let since = Self.transactionCalendar.date(
+                byAdding: .day,
+                value: -Self.transactionWindowDays,
+                to: page.oldestLoadedDate
+            ) ?? page.oldestLoadedDate
+
+            let olderTransactions = try await client.transactions(
+                budgetID: budgetID,
+                since: since,
+                until: until
+            )
+
+            if olderTransactions.isEmpty {
+                page.reachedEnd = true
+            } else {
+                page.transactions = Self.mergedTransactions(Self.parentTransactions(from: olderTransactions) + page.transactions)
+                page.oldestLoadedDate = since
+            }
+
+            self.transactionsByBudget[budgetID] = CacheEntry(value: page, fetchedAt: Date())
+        }
+    }
+
+    func searchSpendingTransactions(
+        budgetID: String,
+        query: String,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> LoadedAccountTransactions {
+        try await ensureAccounts(budgetID: budgetID)
+        try await ensureCategories(budgetID: budgetID)
+        try await ensurePayees(budgetID: budgetID)
+
+        let client = try requireClient()
+        let transactions = try await client.searchTransactions(
+            budgetID: budgetID,
+            query: query,
+            limit: limit,
+            offset: offset
+        )
+
+        return LoadedAccountTransactions(
+            transactions: Self.sortedTransactions(Self.parentTransactions(from: transactions)),
+            balance: nil,
+            accountNames: accountNames(budgetID: budgetID),
+            categoryNames: categoryNames(budgetID: budgetID),
+            payeeNames: payeeNames(budgetID: budgetID),
+            transferPayeeIDs: transferPayeeIDs(budgetID: budgetID),
+            reachedEnd: true
+        )
+    }
+
     func refreshUncategorizedTransactions(
         budgetID: String,
         month: String
@@ -570,6 +743,11 @@ final class ActualDataStore {
     /// Invalidates and refetches everything a mutation touched so the cache holds fresh values
     /// before any dependent screen reads.
     func applyInvalidation(_ changed: ChangedResources, budgetID: String, newPayeeName: String? = nil) async throws {
+        let shouldRefreshSpendingTransactions = transactionsByBudget[budgetID] != nil
+        if shouldRefreshSpendingTransactions {
+            invalidateSpendingTransactions(budgetID: budgetID)
+        }
+
         if newPayeeName != nil {
             invalidatePayees(budgetID: budgetID)
             try? await refreshPayees(budgetID: budgetID)
@@ -583,6 +761,10 @@ final class ActualDataStore {
         for month in changed.months {
             invalidateMonth(budgetID: budgetID, month: month)
             try await refreshBudgetMonth(budgetID: budgetID, month: month)
+        }
+
+        if shouldRefreshSpendingTransactions {
+            try await refreshSpendingTransactions(budgetID: budgetID)
         }
     }
 

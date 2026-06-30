@@ -11,6 +11,12 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.budget)
 
+            SpendingTransactionsView()
+                .tabItem {
+                    Label(AppTab.spending.title, systemImage: AppTab.spending.symbolName)
+                }
+                .tag(AppTab.spending)
+
             AccountsView()
                 .tabItem {
                     Label(AppTab.accounts.title, systemImage: AppTab.accounts.symbolName)
