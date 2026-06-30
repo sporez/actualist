@@ -37,6 +37,15 @@ private enum BudgetTemplateConfirmation: String, Identifiable {
             nil
         }
     }
+
+    var buttonTint: Color {
+        switch self {
+        case .monthOverwrite, .category:
+            ActualistTheme.danger
+        case .monthFillEmpty:
+            ActualistTheme.positive
+        }
+    }
 }
 
 struct BudgetView: View {
@@ -832,32 +841,68 @@ private struct BudgetTemplateConfirmationModifier: ViewModifier {
     let apply: (BudgetTemplateConfirmation) -> Void
 
     func body(content: Content) -> some View {
-        content.confirmationDialog(
-            "Are you sure?",
-            isPresented: isPresented,
-            titleVisibility: .visible
-        ) {
-            if let confirmation {
-                Button(confirmation.actionTitle, role: confirmation.buttonRole) {
+        content.sheet(item: $confirmation) { confirmation in
+            BudgetTemplateConfirmationSheet(
+                confirmation: confirmation,
+                cancel: {
+                    self.confirmation = nil
+                },
+                apply: {
+                    self.confirmation = nil
                     apply(confirmation)
                 }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if let confirmation {
-                Text(confirmation.message)
-            }
+            )
+            .presentationDetents([.height(310)])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(ActualistTheme.background)
         }
     }
+}
 
-    private var isPresented: Binding<Bool> {
-        Binding {
-            confirmation != nil
-        } set: { isPresented in
-            if !isPresented {
-                confirmation = nil
+private struct BudgetTemplateConfirmationSheet: View {
+    let confirmation: BudgetTemplateConfirmation
+    let cancel: () -> Void
+    let apply: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            VStack(spacing: 8) {
+                Text("Are you sure?")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .multilineTextAlignment(.center)
+
+                Text(confirmation.message)
+                    .font(.subheadline)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 10) {
+                Button(role: confirmation.buttonRole) {
+                    apply()
+                } label: {
+                    Text(confirmation.actionTitle)
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(confirmation.buttonTint)
+
+                Button(role: .cancel) {
+                    cancel()
+                } label: {
+                    Text("Cancel")
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.glass)
             }
         }
+        .padding(.horizontal, 22)
+        .padding(.top, 18)
+        .padding(.bottom, 24)
     }
 }
 
@@ -873,6 +918,8 @@ private enum BudgetScrollTarget {
 
 private enum BudgetKeypadLayout {
     static let keyHeight: CGFloat = 46
+    static let keyPressHighlightWidth: CGFloat = 74
+    static let keyPressHighlightHeight: CGFloat = 44
     static let actionHeight: CGFloat = 54
     static let toolbarButtonHeight: CGFloat = 68
     static let stackSpacing: CGFloat = 14
@@ -899,6 +946,28 @@ private extension View {
                 Color.clear.preference(key: key, value: geometry.size.height)
             }
         }
+    }
+}
+
+private struct BudgetKeypadPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                Capsule(style: .continuous)
+                    .fill(ActualistTheme.control)
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .stroke(ActualistTheme.separator, lineWidth: 1)
+                    }
+                    .frame(
+                        width: BudgetKeypadLayout.keyPressHighlightWidth,
+                        height: BudgetKeypadLayout.keyPressHighlightHeight
+                    )
+                    .opacity(configuration.isPressed ? 1 : 0)
+                    .scaleEffect(configuration.isPressed ? 1 : 0.82)
+            }
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
 
@@ -1505,7 +1574,7 @@ private struct BudgetMoveMoneyNumberPad: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BudgetKeypadPressStyle())
                 .accessibilityLabel("Clear amount")
 
                 digitButton(0)
@@ -1544,7 +1613,7 @@ private struct BudgetMoveMoneyNumberPad: View {
                 .frame(height: 54)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BudgetKeypadPressStyle())
         .accessibilityLabel(String(digit))
     }
 }
@@ -1885,7 +1954,7 @@ private struct BudgetAssignmentKeypad: View {
                 .frame(height: BudgetKeypadLayout.keyHeight)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BudgetKeypadPressStyle())
         .accessibilityLabel(String(digit))
     }
 
@@ -1916,7 +1985,7 @@ private struct BudgetAssignmentKeypad: View {
                 .frame(height: BudgetKeypadLayout.keyHeight)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BudgetKeypadPressStyle())
         .accessibilityLabel(label)
     }
 }
