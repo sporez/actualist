@@ -4,6 +4,11 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = SettingsViewModel()
     @State private var isBudgetPickerPresented = false
+    @State private var isDeveloperDiagnosticsPresented = false
+    #if DEBUG
+    @State private var isPostingDebugNotification = false
+    @State private var debugNotificationMessage: String?
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -58,8 +63,6 @@ struct SettingsView: View {
 
                 Section("Background Refresh") {
                     Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
-
-                    BackgroundRefreshDebugRows(debug: appState.settings.backgroundRefreshDebug)
                 }
                 .settingsSectionChrome()
 
@@ -100,6 +103,15 @@ struct SettingsView: View {
                     }
                 }
                 .settingsSectionChrome()
+
+                Section("Developer") {
+                    Button {
+                        isDeveloperDiagnosticsPresented = true
+                    } label: {
+                        SettingsActionLabel(title: "Diagnostics", systemImage: "wrench.and.screwdriver")
+                    }
+                }
+                .settingsSectionChrome()
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
@@ -115,6 +127,18 @@ struct SettingsView: View {
                     isPresented: $isBudgetPickerPresented
                 )
                 .environment(appState)
+            }
+            .sheet(isPresented: $isDeveloperDiagnosticsPresented) {
+                #if DEBUG
+                SettingsDeveloperDiagnosticsSheet(
+                    debug: appState.settings.backgroundRefreshDebug,
+                    isPostingDebugNotification: $isPostingDebugNotification,
+                    debugNotificationMessage: $debugNotificationMessage,
+                    postDebugNotification: postDebugNotification
+                )
+                #else
+                SettingsDeveloperDiagnosticsSheet(debug: appState.settings.backgroundRefreshDebug)
+                #endif
             }
         }
     }
@@ -147,6 +171,77 @@ struct SettingsView: View {
         } set: { isEnabled in
             Task {
                 await appState.updateBackgroundTransactionRefreshEnabled(isEnabled)
+            }
+        }
+    }
+
+    #if DEBUG
+    private func postDebugNotification() async {
+        isPostingDebugNotification = true
+        debugNotificationMessage = nil
+        defer { isPostingDebugNotification = false }
+
+        do {
+            let accountName = try await appState.postDebugNewTransactionNotification()
+            debugNotificationMessage = "Test alert for \(accountName) will post in 5 seconds. Send Actualist to the background, then tap the notification."
+        } catch {
+            debugNotificationMessage = error.localizedDescription
+        }
+    }
+    #endif
+}
+
+private struct SettingsDeveloperDiagnosticsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let debug: BackgroundRefreshDebugInfo
+    #if DEBUG
+    @Binding var isPostingDebugNotification: Bool
+    @Binding var debugNotificationMessage: String?
+    let postDebugNotification: () async -> Void
+    #endif
+
+    var body: some View {
+        NavigationStack {
+            List {
+                #if DEBUG
+                Section("Notifications") {
+                    Button {
+                        Task { await postDebugNotification() }
+                    } label: {
+                        SettingsActionLabel(
+                            title: isPostingDebugNotification ? "Posting Test Alert" : "Post Test Transaction Alert",
+                            systemImage: "bell.badge"
+                        )
+                    }
+                    .disabled(isPostingDebugNotification)
+
+                    if let debugNotificationMessage {
+                        Text(debugNotificationMessage)
+                            .font(.footnote)
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
+                }
+                .settingsSectionChrome()
+                #endif
+
+                Section("Background Refresh Logs") {
+                    BackgroundRefreshDebugRows(debug: debug)
+                }
+                .settingsSectionChrome()
+            }
+            .scrollContentBackground(.hidden)
+            .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
+            .navigationTitle("Diagnostics")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
             }
         }
     }

@@ -147,6 +147,7 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         }
     }
 
+    @MainActor
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
