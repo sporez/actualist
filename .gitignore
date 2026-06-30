@@ -55,3 +55,4 @@ scripts/
 # Local-only reference material and agent instructions
 reference/
 AGENTS.md
+CLAUDE.md
