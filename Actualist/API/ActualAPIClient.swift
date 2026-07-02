@@ -224,7 +224,8 @@ struct ActualAPIClient: Sendable {
                     from: draft,
                     id: UUID().uuidString
                 )
-            ]
+            ],
+            runTransfers: draft.isTransfer
         )
 
         let response: APIDataResponse<APITransactionBatchUpdateResult> = try await request(
@@ -247,7 +248,8 @@ struct ActualAPIClient: Sendable {
                     from: draft,
                     id: transactionID
                 )
-            ]
+            ],
+            runTransfers: draft.isTransfer
         )
 
         let response: APIDataResponse<APITransactionBatchUpdateResult> = try await request(

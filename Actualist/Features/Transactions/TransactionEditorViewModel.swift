@@ -753,6 +753,7 @@ final class TransactionEditorViewModel {
             categoryID: selectedPayeeIsTransfer || isSplit ? nil : selectedCategoryID,
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared,
+            isTransfer: selectedPayeeIsTransfer,
             splits: selectedPayeeIsTransfer ? [] : splitDrafts(sign: kind == .spend ? -1 : 1)
         )
     }
@@ -784,7 +785,8 @@ final class TransactionEditorViewModel {
             payeeName: trimmedPayee,
             categoryID: selectedPayeeIsTransfer ? nil : selectedCategoryID,
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-            cleared: isCleared
+            cleared: isCleared,
+            isTransfer: selectedPayeeIsTransfer
         )
     }
 

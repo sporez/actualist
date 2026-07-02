@@ -57,6 +57,8 @@ struct BudgetView: View {
     @State private var isUncategorizedTransactionsPresented = false
     @State private var isOverspentCategoriesPresented = false
     @State private var pendingOverspentCategoryID: String?
+    @State private var activeOverspentCoverCategoryID: String?
+    @State private var shouldContinueOverspentCoverFlow = false
     @State private var assignmentKeypadHeight: CGFloat = 0
     @State private var assignmentScrollTask: Task<Void, Never>?
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
@@ -244,8 +246,14 @@ struct BudgetView: View {
                         pendingOverspentCategoryID = category.id
                     }
                 }
-                .sheet(isPresented: moveMoneyPresentationBinding) {
-                    BudgetMoveMoneyView(viewModel: viewModel)
+                .sheet(
+                    isPresented: moveMoneyPresentationBinding,
+                    onDismiss: handleMoveMoneyDismiss
+                ) {
+                    BudgetMoveMoneyView(
+                        viewModel: viewModel,
+                        onSaved: handleMoveMoneySaved
+                    )
                         .environment(appState)
                 }
                 .modifier(
@@ -379,6 +387,32 @@ struct BudgetView: View {
         Task { @MainActor in
             await Task.yield()
             viewModel.beginMoveMoney(for: categoryID)
+            activeOverspentCoverCategoryID = viewModel.isMoveMoneyPresented ? categoryID : nil
+        }
+    }
+
+    private func handleMoveMoneySaved() {
+        guard activeOverspentCoverCategoryID != nil else {
+            return
+        }
+
+        shouldContinueOverspentCoverFlow = !viewModel.overspentCategoryOptions.isEmpty
+        activeOverspentCoverCategoryID = nil
+    }
+
+    private func handleMoveMoneyDismiss() {
+        activeOverspentCoverCategoryID = nil
+
+        guard shouldContinueOverspentCoverFlow else {
+            return
+        }
+
+        shouldContinueOverspentCoverFlow = false
+        Task { @MainActor in
+            await Task.yield()
+            if !viewModel.overspentCategoryOptions.isEmpty {
+                isOverspentCategoriesPresented = true
+            }
         }
     }
 
@@ -1169,6 +1203,7 @@ private struct BudgetMoveMoneyView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
     @Bindable var viewModel: BudgetViewModel
+    let onSaved: () -> Void
 
     @State private var isDestinationPickerPresented = false
     @State private var didAutoPresentDestinationPicker = false
@@ -1268,6 +1303,7 @@ private struct BudgetMoveMoneyView: View {
     private func submitMoveMoney() {
         Task {
             if await viewModel.submitMoveMoney(using: appState) {
+                onSaved()
                 dismiss()
             }
         }

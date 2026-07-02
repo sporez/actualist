@@ -209,6 +209,7 @@ struct TransactionEditorViewModelTests {
         #expect(draft.payeeID == "transfer-checking")
         #expect(draft.payeeName == "Ally Checking")
         #expect(draft.categoryID == nil)
+        #expect(draft.isTransfer)
         #expect(draft.splits.isEmpty)
     }
 
@@ -745,6 +746,30 @@ struct TransactionEditorViewModelTests {
         #expect(transaction["payee_name"] as? String == "Corner Store")
     }
 
+    @Test func batchUpdatePayloadCanEnableTransferAutomation() throws {
+        let payload = APITransactionBatchUpdatePayload(
+            added: [
+                APITransactionDraft(
+                    id: "txn-id",
+                    account: "checking",
+                    date: "2026-06-14",
+                    amount: -1234,
+                    payee: "transfer-checking",
+                    payeeName: nil,
+                    category: nil,
+                    notes: nil,
+                    cleared: false
+                )
+            ],
+            runTransfers: true
+        )
+
+        let dictionary = try encodedDictionary(payload)
+
+        #expect(dictionary["learnCategories"] as? Bool == false)
+        #expect(dictionary["runTransfers"] as? Bool == true)
+    }
+
     @Test func batchUpdatePayloadUsesExistingPayeeIDWhenSelected() throws {
         let payload = APITransactionBatchUpdatePayload(
             added: [
@@ -901,6 +926,24 @@ struct TransactionRepositoryRefreshTests {
         #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
     }
 
+    @Test func transferCreateEnablesTransferAutomation() async throws {
+        let recorder = RequestRecorder()
+        let repository = Self.repository { request in
+            recorder.record(request)
+            return try Self.response(for: request)
+        }
+
+        _ = try await repository.createTransactionAndRefresh(
+            Self.transferDraft(),
+            budgetID: "budget"
+        )
+
+        let body = try #require(recorder.bodies().first)
+        let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+        #expect(payload["runTransfers"] as? Bool == true)
+    }
+
     @Test func splitCreateUsesAccountTransactionEndpointWithNestedPayload() async throws {
         let recorder = RequestRecorder()
         let repository = Self.repository { request in
@@ -952,6 +995,27 @@ struct TransactionRepositoryRefreshTests {
         #expect(requests.contains("GET /v1/budgets/budget/accounts/savings/balance"))
         #expect(requests.contains("GET /v1/budgets/budget/months/2026-05"))
         #expect(requests.contains("GET /v1/budgets/budget/months/2026-06"))
+    }
+
+    @Test func transferUpdateEnablesTransferAutomation() async throws {
+        let recorder = RequestRecorder()
+        let repository = Self.repository { request in
+            recorder.record(request)
+            return try Self.response(for: request)
+        }
+
+        _ = try await repository.updateTransactionAndRefresh(
+            "txn-1",
+            with: Self.transferDraft(),
+            budgetID: "budget",
+            originalAccountID: "checking",
+            originalMonth: "2026-06"
+        )
+
+        let body = try #require(recorder.bodies().first)
+        let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+        #expect(payload["runTransfers"] as? Bool == true)
     }
 
     @Test func deleteTransactionRefetchesAffectedResourcesBeforeReturning() async throws {
@@ -1158,7 +1222,22 @@ struct TransactionRepositoryRefreshTests {
             payeeName: "Corner Store",
             categoryID: nil,
             notes: nil,
-            cleared: false
+            cleared: false,
+            isTransfer: false
+        )
+    }
+
+    private static func transferDraft() -> TransactionDraft {
+        TransactionDraft(
+            accountID: "checking",
+            date: TransactionEditorViewModelTests.date("2026-06-14"),
+            amountMinorUnits: -1234,
+            payeeID: "transfer-checking",
+            payeeName: "Ally Checking",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
         )
     }
 
@@ -1172,6 +1251,7 @@ struct TransactionRepositoryRefreshTests {
             categoryID: nil,
             notes: nil,
             cleared: false,
+            isTransfer: false,
             splits: [
                 TransactionSplitDraft(
                     id: nil,

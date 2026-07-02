@@ -236,82 +236,82 @@ enum ActualistDisplayDensity: String, Codable, CaseIterable, Identifiable {
 
     var workScreenAmountSize: CGFloat {
         switch self {
-        case .comfortable: 24
-        case .compact: 22
-        case .dense: 20
-        case .large: 26
+        case .large: 24
+        case .comfortable: 22
+        case .compact: 20
+        case .dense: 18
         }
     }
 
     var editorAmountSize: CGFloat {
         switch self {
-        case .comfortable: 46
-        case .compact: 42
-        case .dense: 38
-        case .large: 50
+        case .large: 46
+        case .comfortable: 42
+        case .compact: 38
+        case .dense: 34
         }
     }
 
     var transactionAmountSize: CGFloat {
         switch self {
-        case .dense: 18
-        case .compact: 21
-        case .comfortable: 23
-        case .large: 26
+        case .large: 22
+        case .comfortable: 20
+        case .compact: 17
+        case .dense: 14
         }
     }
 
     var transactionClearedIconSize: CGFloat {
         switch self {
-        case .dense: 15
-        case .compact: 17
-        case .comfortable: 18
-        case .large: 20
+        case .large: 17
+        case .comfortable: 16
+        case .compact: 14
+        case .dense: 11
         }
     }
 
     var rowHorizontalPadding: CGFloat {
         switch self {
-        case .comfortable: 18
-        case .compact: 16
-        case .dense: 14
-        case .large: 20
+        case .large: 18
+        case .comfortable: 16
+        case .compact: 14
+        case .dense: 11
         }
     }
 
     var accountRowVerticalPadding: CGFloat {
         switch self {
-        case .comfortable: 16
-        case .compact: 14
-        case .dense: 11
-        case .large: 18
+        case .large: 16
+        case .comfortable: 14
+        case .compact: 11
+        case .dense: 8
         }
     }
 
     var transactionRowVerticalPadding: CGFloat {
         switch self {
-        case .comfortable: 14
-        case .compact: 12
-        case .dense: 10
-        case .large: 16
+        case .large: 14
+        case .comfortable: 12
+        case .compact: 10
+        case .dense: 7
         }
     }
 
     var editorRowVerticalPadding: CGFloat {
         switch self {
-        case .comfortable: 16
-        case .compact: 14
-        case .dense: 12
-        case .large: 18
+        case .large: 16
+        case .comfortable: 14
+        case .compact: 12
+        case .dense: 10
         }
     }
 
     var iconSize: CGFloat {
         switch self {
-        case .comfortable: 38
-        case .compact: 36
-        case .dense: 32
-        case .large: 40
+        case .large: 38
+        case .comfortable: 36
+        case .compact: 32
+        case .dense: 30
         }
     }
 }
@@ -331,79 +331,79 @@ enum ActualistTypography {
 
     static func sectionTitle(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .title3.weight(.bold)
-        case .comfortable, .compact: .headline.weight(.bold)
-        case .dense: .subheadline.weight(.bold)
+        case .large, .comfortable: .headline.weight(.bold)
+        case .compact: .subheadline.weight(.bold)
+        case .dense: .footnote.weight(.bold)
         }
     }
 
     static func rowTitle(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .title3.weight(.semibold)
-        case .comfortable: .body.weight(.semibold)
-        case .compact: .callout.weight(.semibold)
-        case .dense: .subheadline.weight(.semibold)
+        case .large: .body.weight(.semibold)
+        case .comfortable: .callout.weight(.semibold)
+        case .compact: .subheadline.weight(.semibold)
+        case .dense: .footnote.weight(.semibold)
         }
     }
 
     static func rowValue(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .title3.weight(.bold)
-        case .comfortable: .headline.weight(.bold)
-        case .compact: .subheadline.weight(.bold)
-        case .dense: .footnote.weight(.bold)
+        case .large: .headline.weight(.bold)
+        case .comfortable: .subheadline.weight(.bold)
+        case .compact: .footnote.weight(.bold)
+        case .dense: .caption.weight(.bold)
         }
     }
 
     static func rowLabel(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .callout.weight(.medium)
-        case .comfortable, .compact: .caption.weight(.medium)
-        case .dense: .caption2.weight(.medium)
+        case .large, .comfortable: .caption.weight(.medium)
+        case .compact: .caption2.weight(.medium)
+        case .dense: .system(size: 10, weight: .medium)
         }
     }
 
     static func rowBadge(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .callout.weight(.semibold)
-        case .comfortable, .compact: .caption.weight(.semibold)
-        case .dense: .caption2.weight(.semibold)
+        case .large, .comfortable: .caption.weight(.semibold)
+        case .compact: .caption2.weight(.semibold)
+        case .dense: .system(size: 10, weight: .semibold)
         }
     }
 
     static func control(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .body.weight(.bold)
-        case .comfortable: .callout.weight(.bold)
-        case .compact: .subheadline.weight(.bold)
-        case .dense: .footnote.weight(.bold)
+        case .large: .callout.weight(.bold)
+        case .comfortable: .subheadline.weight(.bold)
+        case .compact: .footnote.weight(.bold)
+        case .dense: .caption.weight(.bold)
         }
     }
 
     static func body(for density: ActualistDisplayDensity) -> Font {
         switch density {
         case .large: .body.weight(.medium)
-        case .comfortable: .body.weight(.medium)
-        case .compact: .callout.weight(.medium)
-        case .dense: .subheadline.weight(.medium)
+        case .comfortable: .callout.weight(.medium)
+        case .compact: .subheadline.weight(.medium)
+        case .dense: .footnote.weight(.medium)
         }
     }
 
     static func keypadDigit(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .system(size: 34, weight: .regular, design: .rounded)
-        case .comfortable: .system(size: 32, weight: .regular, design: .rounded)
-        case .compact: .system(size: 29, weight: .regular, design: .rounded)
-        case .dense: .system(size: 26, weight: .regular, design: .rounded)
+        case .large: .system(size: 32, weight: .regular, design: .rounded)
+        case .comfortable: .system(size: 29, weight: .regular, design: .rounded)
+        case .compact: .system(size: 26, weight: .regular, design: .rounded)
+        case .dense: .system(size: 24, weight: .regular, design: .rounded)
         }
     }
 
     static func keypadSymbol(for density: ActualistDisplayDensity) -> Font {
         switch density {
-        case .large: .system(size: 29, weight: .semibold, design: .rounded)
-        case .comfortable: .system(size: 27, weight: .semibold, design: .rounded)
-        case .compact: .system(size: 24, weight: .semibold, design: .rounded)
-        case .dense: .system(size: 22, weight: .semibold, design: .rounded)
+        case .large: .system(size: 27, weight: .semibold, design: .rounded)
+        case .comfortable: .system(size: 24, weight: .semibold, design: .rounded)
+        case .compact: .system(size: 22, weight: .semibold, design: .rounded)
+        case .dense: .system(size: 20, weight: .semibold, design: .rounded)
         }
     }
 }

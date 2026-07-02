@@ -16,15 +16,12 @@
 		010000000000000000000007 /* ActualAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000007 /* ActualAPIClient.swift */; };
 		010000000000000000000008 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000008 /* KeychainStore.swift */; };
 		010000000000000000000009 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000009 /* AppSettingsStore.swift */; };
-		010000000000000000000025 /* OfflineSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000028 /* OfflineSnapshotStore.swift */; };
 		01000000000000000000000A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000A /* RootView.swift */; };
 		01000000000000000000000B /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000B /* MainTabView.swift */; };
 		01000000000000000000000C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000C /* OnboardingView.swift */; };
 		01000000000000000000000D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000D /* SettingsView.swift */; };
-		28C36EC42FE377C800A9F4A8 /* AppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C36EC32FE377C800A9F4A8 /* AppIcon.swift */; };
 		01000000000000000000000E /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000E /* BudgetView.swift */; };
 		01000000000000000000000F /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000F /* AccountsView.swift */; };
-		010000000000000000000024 /* AddAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000027 /* AddAccountViewModel.swift */; };
 		010000000000000000000010 /* AccountTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000010 /* AccountTransactionsView.swift */; };
 		010000000000000000000011 /* Money.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000011 /* Money.swift */; };
 		010000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* Assets.xcassets */; };
@@ -44,12 +41,15 @@
 		010000000000000000000021 /* ActualDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000024 /* ActualDataStore.swift */; };
 		010000000000000000000022 /* ActualDataStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000025 /* ActualDataStoreTests.swift */; };
 		010000000000000000000023 /* TransactionGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000026 /* TransactionGrouping.swift */; };
+		010000000000000000000024 /* AddAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000027 /* AddAccountViewModel.swift */; };
+		010000000000000000000025 /* OfflineSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000028 /* OfflineSnapshotStore.swift */; };
 		010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000029 /* UncategorizedTransactionsView.swift */; };
 		010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */; };
 		010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */; };
 		28C36EBD2FE377C800A9F4A8 /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* icon.icon */; };
 		28C36EC02FE377C800A9F4A8 /* icon_blue.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */; };
 		28C36EC22FE377C800A9F4A8 /* icon_orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC12FE377C800A9F4A8 /* icon_orange.icon */; };
+		28C36EC42FE377C800A9F4A8 /* AppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C36EC32FE377C800A9F4A8 /* AppIcon.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,15 +72,12 @@
 		020000000000000000000007 /* ActualAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualAPIClient.swift; sourceTree = "<group>"; };
 		020000000000000000000008 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		020000000000000000000009 /* AppSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStore.swift; sourceTree = "<group>"; };
-		020000000000000000000028 /* OfflineSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineSnapshotStore.swift; sourceTree = "<group>"; };
 		02000000000000000000000A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		02000000000000000000000B /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		02000000000000000000000C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		02000000000000000000000D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		28C36EC32FE377C800A9F4A8 /* AppIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIcon.swift; sourceTree = "<group>"; };
 		02000000000000000000000E /* BudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
 		02000000000000000000000F /* AccountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsView.swift; sourceTree = "<group>"; };
-		020000000000000000000027 /* AddAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAccountViewModel.swift; sourceTree = "<group>"; };
 		020000000000000000000010 /* AccountTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionsView.swift; sourceTree = "<group>"; };
 		020000000000000000000011 /* Money.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Money.swift; sourceTree = "<group>"; };
 		020000000000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -103,12 +100,15 @@
 		020000000000000000000024 /* ActualDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStore.swift; sourceTree = "<group>"; };
 		020000000000000000000025 /* ActualDataStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStoreTests.swift; sourceTree = "<group>"; };
 		020000000000000000000026 /* TransactionGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionGrouping.swift; sourceTree = "<group>"; };
+		020000000000000000000027 /* AddAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAccountViewModel.swift; sourceTree = "<group>"; };
+		020000000000000000000028 /* OfflineSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineSnapshotStore.swift; sourceTree = "<group>"; };
 		020000000000000000000029 /* UncategorizedTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsView.swift; sourceTree = "<group>"; };
 		02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModelTests.swift; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_blue.icon; sourceTree = "<group>"; };
 		28C36EC12FE377C800A9F4A8 /* icon_orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_orange.icon; sourceTree = "<group>"; };
+		28C36EC32FE377C800A9F4A8 /* AppIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIcon.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -620,7 +620,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -649,7 +649,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

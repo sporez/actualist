@@ -739,7 +739,8 @@ struct ActualDataStoreTests {
             payeeName: "Corner Store",
             categoryID: "groceries",
             notes: nil,
-            cleared: true
+            cleared: true,
+            isTransfer: false
         )
 
         let result = try await store.createTransactionAndRefresh(draft, budgetID: "b") {}

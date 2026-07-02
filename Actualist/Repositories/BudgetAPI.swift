@@ -24,6 +24,7 @@ struct TransactionDraft: Hashable, Sendable {
     let categoryID: String?
     let notes: String?
     let cleared: Bool
+    let isTransfer: Bool
     var splits: [TransactionSplitDraft] = []
 
     var month: YearMonth {
