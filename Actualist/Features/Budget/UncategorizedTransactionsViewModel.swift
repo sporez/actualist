@@ -22,6 +22,22 @@ final class UncategorizedTransactionsViewModel {
         TransactionGrouping.grouped(transactions)
     }
 
+    enum CategorizationResult: Equatable {
+        case failed
+        case categorized(hasRemainingTransactions: Bool)
+
+        var didChange: Bool {
+            if case .categorized = self {
+                return true
+            }
+            return false
+        }
+
+        var resolvedAll: Bool {
+            self == .categorized(hasRemainingTransactions: false)
+        }
+    }
+
     func load(month: String, using appState: AppState) async {
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {
@@ -51,6 +67,27 @@ final class UncategorizedTransactionsViewModel {
     func categorize(
         _ transaction: ActualTransaction,
         as option: TransactionEditorCategoryOption,
+        month: String,
+        using appState: AppState
+    ) async -> CategorizationResult {
+        guard !appState.isReadOnly,
+              let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository() else {
+            return .failed
+        }
+
+        return await categorize(
+            transaction,
+            categoryID: option.id,
+            budgetID: budgetID,
+            monthForRemainingRefresh: month,
+            repository: repository
+        )
+    }
+
+    func categorize(
+        _ transaction: ActualTransaction,
+        as option: TransactionEditorCategoryOption,
         using appState: AppState
     ) async -> Bool {
         guard !appState.isReadOnly,
@@ -68,13 +105,49 @@ final class UncategorizedTransactionsViewModel {
         budgetID: String,
         repository: any TransactionRepositoryProtocol
     ) async -> Bool {
+        let result = await categorizeAndMaybeRefreshRemaining(
+            transaction,
+            categoryID: categoryID,
+            budgetID: budgetID,
+            monthForRemainingRefresh: nil,
+            repository: repository
+        )
+        return result.didChange
+    }
+
+    func categorize(
+        _ transaction: ActualTransaction,
+        categoryID: String,
+        budgetID: String,
+        monthForRemainingRefresh month: String,
+        repository: any TransactionRepositoryProtocol
+    ) async -> CategorizationResult {
+        await categorizeAndMaybeRefreshRemaining(
+            transaction,
+            categoryID: categoryID,
+            budgetID: budgetID,
+            monthForRemainingRefresh: month,
+            repository: repository
+        )
+    }
+
+    private func categorizeAndMaybeRefreshRemaining(
+        _ transaction: ActualTransaction,
+        categoryID: String,
+        budgetID: String,
+        monthForRemainingRefresh month: String?,
+        repository: any TransactionRepositoryProtocol
+    ) async -> CategorizationResult {
         guard categorizingTransactionID == nil else {
-            return false
+            return .failed
         }
 
         let transactionID = transaction.rowID
         categorizingTransactionID = transactionID
         errorMessage = nil
+        defer {
+            categorizingTransactionID = nil
+        }
 
         do {
             _ = try await repository.categorizeTransactionAndRefresh(
@@ -83,12 +156,23 @@ final class UncategorizedTransactionsViewModel {
                 budgetID: budgetID
             ) {}
             transactions.removeAll { $0.rowID == transactionID }
-            categorizingTransactionID = nil
-            return true
+
+            if let month, transactions.isEmpty {
+                do {
+                    isLoading = true
+                    apply(try await repository.uncategorizedTransactions(budgetID: budgetID, month: month))
+                    isLoading = false
+                } catch {
+                    isLoading = false
+                    errorMessage = error.localizedDescription
+                    return .categorized(hasRemainingTransactions: true)
+                }
+            }
+
+            return .categorized(hasRemainingTransactions: !transactions.isEmpty)
         } catch {
             errorMessage = error.localizedDescription
-            categorizingTransactionID = nil
-            return false
+            return .failed
         }
     }
 

@@ -32,6 +32,45 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(await repository.recordedCategoryID() == "groceries")
     }
 
+    @Test func categorizationRefreshesRemainingTransactionsBeforeReportingResolvedAll() async throws {
+        let firstTransaction = Self.transaction(id: "txn1")
+        let remainingTransaction = Self.transaction(id: "txn2")
+        let repository = UncategorizedRecordingTransactionRepository(
+            loadedResponses: [
+                LoadedUncategorizedTransactions(
+                    transactions: [firstTransaction],
+                    accountNames: ["checking": "Checking"],
+                    categoryNames: [:],
+                    payeeNames: ["store": "Corner Store"],
+                    transferPayeeIDs: [],
+                    categoryGroups: []
+                ),
+                LoadedUncategorizedTransactions(
+                    transactions: [remainingTransaction],
+                    accountNames: ["checking": "Checking"],
+                    categoryNames: [:],
+                    payeeNames: ["store": "Corner Store"],
+                    transferPayeeIDs: [],
+                    categoryGroups: []
+                )
+            ]
+        )
+        let model = UncategorizedTransactionsViewModel()
+
+        await model.load(budgetID: "budget", month: "2026-06", repository: repository)
+        let result = await model.categorize(
+            firstTransaction,
+            categoryID: "groceries",
+            budgetID: "budget",
+            monthForRemainingRefresh: "2026-06",
+            repository: repository
+        )
+
+        #expect(result == .categorized(hasRemainingTransactions: true))
+        #expect(model.transactions.map(\.rowID) == ["txn2"])
+        #expect(model.errorMessage == nil)
+    }
+
     @Test func failedCategorizationKeepsTransactionAndShowsError() async throws {
         let transaction = Self.transaction(id: "txn1")
         let repository = UncategorizedRecordingTransactionRepository(
@@ -98,7 +137,7 @@ struct UncategorizedTransactionsViewModelTests {
 }
 
 actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol {
-    private let loaded: LoadedUncategorizedTransactions
+    private var loadedResponses: [LoadedUncategorizedTransactions]
     private let categorizeError: Error?
     private var categoryID: String?
 
@@ -106,7 +145,15 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
         loaded: LoadedUncategorizedTransactions,
         categorizeError: Error? = nil
     ) {
-        self.loaded = loaded
+        self.loadedResponses = [loaded]
+        self.categorizeError = categorizeError
+    }
+
+    init(
+        loadedResponses: [LoadedUncategorizedTransactions],
+        categorizeError: Error? = nil
+    ) {
+        self.loadedResponses = loadedResponses
         self.categorizeError = categorizeError
     }
 
@@ -118,7 +165,14 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
         budgetID: String,
         month: String
     ) async throws -> LoadedUncategorizedTransactions {
-        loaded
+        if loadedResponses.count > 1 {
+            return loadedResponses.removeFirst()
+        }
+
+        guard let loaded = loadedResponses.first else {
+            throw TestError("missing uncategorized fixture")
+        }
+        return loaded
     }
 
     func categorizeTransactionAndRefresh(

@@ -58,14 +58,16 @@ struct UncategorizedTransactionsView: View {
                     let resolved = await viewModel.categorize(
                         selection.transaction,
                         as: option,
+                        month: month,
                         using: appState
                     )
-                    if resolved, viewModel.transactions.isEmpty {
+                    if resolved.didChange {
                         onChanged()
+                    }
+
+                    if resolved.resolvedAll {
                         onResolvedAll()
                         dismiss()
-                    } else if resolved {
-                        onChanged()
                     }
                 }
             }
@@ -80,6 +82,19 @@ struct UncategorizedTransactionsView: View {
                     ProgressView()
                     Text("Loading transactions")
                         .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        } else if viewModel.transactions.isEmpty, let errorMessage = viewModel.errorMessage {
+            GlassPanel {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.title)
+                        .foregroundStyle(ActualistTheme.danger)
+                    Text(errorMessage)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
             }
