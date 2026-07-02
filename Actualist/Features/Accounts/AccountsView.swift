@@ -15,7 +15,10 @@ struct AccountsView: View {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return []
         }
-        return appState.dataStore.accountDisplays(budgetID: budgetID)
+        return appState.orderedAccountDisplays(
+            appState.dataStore.accountDisplays(budgetID: budgetID),
+            budgetID: budgetID
+        )
     }
 
     var body: some View {

@@ -6,6 +6,7 @@ struct AppSettings: Codable, Equatable {
     var selectedBudgetName: String?
     var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
+    var accountOrderByBudgetID: [String: [String]] = [:]
     var backgroundTransactionRefreshEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
     var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
@@ -16,6 +17,7 @@ struct AppSettings: Codable, Equatable {
         selectedBudgetName: String? = nil,
         theme: ActualistThemeOption = .actualPurple,
         displayDensity: ActualistDisplayDensity = .compact,
+        accountOrderByBudgetID: [String: [String]] = [:],
         backgroundTransactionRefreshEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
         pendingNewTransactionIDsByAccount: [String: [String]] = [:]
@@ -25,6 +27,7 @@ struct AppSettings: Codable, Equatable {
         self.selectedBudgetName = selectedBudgetName
         self.theme = theme
         self.displayDensity = displayDensity
+        self.accountOrderByBudgetID = accountOrderByBudgetID
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
         self.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
@@ -37,6 +40,10 @@ struct AppSettings: Codable, Equatable {
         selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)
         theme = try container.decodeIfPresent(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
         displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
+        accountOrderByBudgetID = try container.decodeIfPresent(
+            [String: [String]].self,
+            forKey: .accountOrderByBudgetID
+        ) ?? [:]
         backgroundTransactionRefreshEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .backgroundTransactionRefreshEnabled

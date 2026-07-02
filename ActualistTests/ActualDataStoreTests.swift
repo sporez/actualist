@@ -28,6 +28,7 @@ struct ActualDataStoreTests {
             serverURLString: "http://localhost:5007/v1",
             selectedBudgetID: "budget",
             selectedBudgetName: "Budget",
+            accountOrderByBudgetID: ["budget": ["savings", "checking"]],
             backgroundTransactionRefreshEnabled: true,
             backgroundRefreshDebug: BackgroundRefreshDebugInfo(
                 totalWakeCount: 2,
@@ -69,6 +70,34 @@ struct ActualDataStoreTests {
         #expect(decoded.backgroundRefreshDebug.recentScheduleAttempts.first?.earliestBeginDate == earliestBeginDate)
         #expect(decoded.backgroundRefreshDebug.recentScheduleAttempts.first?.succeeded == true)
         #expect(decoded.pendingNewTransactionIDsByAccount["budget|checking"] == ["txn1", "txn2"])
+        #expect(decoded.accountOrderByBudgetID["budget"] == ["savings", "checking"])
+    }
+
+    @Test func appSettingsDecodesMissingAccountOrderAsEmpty() throws {
+        let data = Data("""
+        {
+          "serverURLString": "http://localhost:5007/v1"
+        }
+        """.utf8)
+
+        let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: data)
+
+        #expect(decoded.accountOrderByBudgetID.isEmpty)
+    }
+
+    @Test func accountOrderPreferenceAppliesSavedOrderAndAppendsUnknownAccounts() {
+        let accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false),
+            ActualAccount(id: "travel", name: "Travel", offbudget: true, closed: false)
+        ]
+
+        let ordered = AccountOrderPreference.ordered(
+            accounts,
+            preferredIDs: ["missing", "savings", "checking", "savings"]
+        )
+
+        #expect(ordered.map(\.id) == ["savings", "checking", "travel"])
     }
 
     @Test func accountsWithBalancesCachesAndComposesDisplays() async throws {

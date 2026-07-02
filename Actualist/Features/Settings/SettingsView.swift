@@ -5,6 +5,7 @@ struct SettingsView: View {
     @State private var viewModel = SettingsViewModel()
     @State private var isBudgetPickerPresented = false
     @State private var isAppIconPickerPresented = false
+    @State private var isAccountOrderPresented = false
     @State private var isDeveloperDiagnosticsPresented = false
     #if DEBUG
     @State private var isPostingDebugNotification = false
@@ -120,6 +121,25 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!viewModel.supportsAlternateIcons)
+
+                    Button {
+                        isAccountOrderPresented = true
+                    } label: {
+                        LabeledContent {
+                            HStack(spacing: 8) {
+                                Text(accountOrderDetail)
+                                    .foregroundStyle(ActualistTheme.secondaryText)
+                                Image(systemName: "line.3.horizontal")
+                                    .foregroundStyle(ActualistTheme.accent)
+                            }
+                        } label: {
+                            Text("Account Order")
+                                .foregroundStyle(ActualistTheme.primaryText)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(appState.settings.selectedBudgetID == nil)
                 }
                 .settingsSectionChrome()
 
@@ -150,6 +170,12 @@ struct SettingsView: View {
             .sheet(isPresented: $isAppIconPickerPresented) {
                 AppIconPickerSheet(viewModel: viewModel)
                     .presentationDetents([.height(320)])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isAccountOrderPresented) {
+                SettingsAccountOrderSheet()
+                    .environment(appState)
+                    .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $isDeveloperDiagnosticsPresented) {
@@ -187,6 +213,14 @@ struct SettingsView: View {
         !viewModel.serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !viewModel.isTesting
+    }
+
+    private var accountOrderDetail: String {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return "No Budget"
+        }
+
+        return appState.settings.accountOrderByBudgetID[budgetID] == nil ? "API Order" : "Custom"
     }
 
     private var backgroundRefreshSelection: Binding<Bool> {
@@ -547,6 +581,176 @@ private struct SettingsBudgetPickerSheet: View {
                 await viewModel.loadBudgetsForSelection(using: appState)
             }
         }
+    }
+}
+
+private struct SettingsAccountOrderSheet: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var accounts: [ActualAccount] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if isLoading {
+                    ProgressView("Loading accounts")
+                        .settingsRowChrome()
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.danger)
+                        .settingsRowChrome()
+                }
+
+                Section("Accounts") {
+                    if appState.settings.selectedBudgetID == nil {
+                        Text("Select a budget before setting account order.")
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    } else if accounts.isEmpty && !isLoading {
+                        Text("No accounts loaded.")
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    } else {
+                        ForEach(accounts) { account in
+                            SettingsAccountOrderRow(account: account)
+                        }
+                        .onMove(perform: moveAccounts)
+                    }
+                }
+                .settingsSectionChrome()
+            }
+            .environment(\.editMode, .constant(.active))
+            .scrollContentBackground(.hidden)
+            .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
+            .navigationTitle("Account Order")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Reset") {
+                        resetOrder()
+                    }
+                    .disabled(!hasCustomOrder)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await loadAccounts() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .font(.body.weight(.semibold))
+                    .controlSize(.small)
+                    .disabled(isLoading || appState.settings.selectedBudgetID == nil)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .task {
+                await loadAccounts()
+            }
+        }
+    }
+
+    private var hasCustomOrder: Bool {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return false
+        }
+        return appState.settings.accountOrderByBudgetID[budgetID] != nil
+    }
+
+    private func loadAccounts() async {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            accounts = []
+            errorMessage = nil
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        do {
+            try await appState.dataStore.refreshAccounts(budgetID: budgetID)
+        } catch {
+            errorMessage = appState.dataStore.accountsByBudget[budgetID]?.value.isEmpty == false
+                ? "Could not refresh accounts. Showing cached accounts."
+                : error.localizedDescription
+        }
+
+        let loadedAccounts = appState.dataStore.accountsByBudget[budgetID]?.value ?? []
+        accounts = appState.orderedAccounts(loadedAccounts, budgetID: budgetID)
+        isLoading = false
+    }
+
+    private func moveAccounts(from source: IndexSet, to destination: Int) {
+        accounts.move(fromOffsets: source, toOffset: destination)
+        persistOrder()
+    }
+
+    private func persistOrder() {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return
+        }
+
+        appState.updateAccountOrder(accounts.map(\.id), budgetID: budgetID)
+    }
+
+    private func resetOrder() {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return
+        }
+
+        appState.resetAccountOrder(budgetID: budgetID)
+        accounts = appState.dataStore.accountsByBudget[budgetID]?.value ?? accounts
+    }
+}
+
+private struct SettingsAccountOrderRow: View {
+    @Environment(\.actualistDensity) private var density
+
+    let account: ActualAccount
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: account.offbudget ? "tray.full.fill" : "banknote.fill")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(ActualistTheme.accent)
+                .frame(width: density.iconSize, height: density.iconSize)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(account.name)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                if let detail {
+                    Text(detail)
+                        .font(ActualistTypography.rowLabel(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var detail: String? {
+        if account.closed {
+            return "Closed"
+        }
+        if account.offbudget {
+            return "Off Budget"
+        }
+        return nil
     }
 }
 

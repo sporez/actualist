@@ -117,6 +117,30 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func orderedAccountDisplays(_ displays: [AccountDisplay], budgetID: String) -> [AccountDisplay] {
+        AccountOrderPreference.ordered(
+            displays,
+            preferredIDs: settings.accountOrderByBudgetID[budgetID] ?? []
+        )
+    }
+
+    func orderedAccounts(_ accounts: [ActualAccount], budgetID: String) -> [ActualAccount] {
+        AccountOrderPreference.ordered(
+            accounts,
+            preferredIDs: settings.accountOrderByBudgetID[budgetID] ?? []
+        )
+    }
+
+    func updateAccountOrder(_ accountIDs: [String], budgetID: String) {
+        settings.accountOrderByBudgetID[budgetID] = accountIDs
+        settingsStore.save(settings)
+    }
+
+    func resetAccountOrder(budgetID: String) {
+        settings.accountOrderByBudgetID[budgetID] = nil
+        settingsStore.save(settings)
+    }
+
     func updateBackgroundTransactionRefreshEnabled(_ isEnabled: Bool) async {
         if isEnabled {
             do {

@@ -16,6 +16,7 @@
 		010000000000000000000007 /* ActualAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000007 /* ActualAPIClient.swift */; };
 		010000000000000000000008 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000008 /* KeychainStore.swift */; };
 		010000000000000000000009 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000009 /* AppSettingsStore.swift */; };
+		01000000000000000000002C /* AccountOrderPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002C /* AccountOrderPreference.swift */; };
 		01000000000000000000000A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000A /* RootView.swift */; };
 		01000000000000000000000B /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000B /* MainTabView.swift */; };
 		01000000000000000000000C /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000C /* OnboardingView.swift */; };
@@ -72,6 +73,7 @@
 		020000000000000000000007 /* ActualAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualAPIClient.swift; sourceTree = "<group>"; };
 		020000000000000000000008 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		020000000000000000000009 /* AppSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStore.swift; sourceTree = "<group>"; };
+		02000000000000000000002C /* AccountOrderPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountOrderPreference.swift; sourceTree = "<group>"; };
 		02000000000000000000000A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		02000000000000000000000B /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		02000000000000000000000C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -199,6 +201,7 @@
 		040000000000000000000007 /* Persistence */ = {
 			isa = PBXGroup;
 			children = (
+				02000000000000000000002C /* AccountOrderPreference.swift */,
 				020000000000000000000009 /* AppSettingsStore.swift */,
 				020000000000000000000028 /* OfflineSnapshotStore.swift */,
 			);
@@ -436,6 +439,7 @@
 				010000000000000000000007 /* ActualAPIClient.swift in Sources */,
 				010000000000000000000008 /* KeychainStore.swift in Sources */,
 				010000000000000000000009 /* AppSettingsStore.swift in Sources */,
+				01000000000000000000002C /* AccountOrderPreference.swift in Sources */,
 				010000000000000000000025 /* OfflineSnapshotStore.swift in Sources */,
 				01000000000000000000000A /* RootView.swift in Sources */,
 				01000000000000000000000B /* MainTabView.swift in Sources */,
