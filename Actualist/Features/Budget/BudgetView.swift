@@ -241,7 +241,8 @@ struct BudgetView: View {
                 ) {
                     BudgetOverspentCategoriesView(
                         categories: viewModel.overspentCategoryOptions,
-                        isReadOnly: appState.isReadOnly
+                        isReadOnly: appState.isReadOnly,
+                        isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
                     ) { category in
                         pendingOverspentCategoryID = category.id
                     }
@@ -323,7 +324,7 @@ struct BudgetView: View {
     private func budgetAlertLabel(_ alert: BudgetAlert) -> some View {
         HStack(spacing: 10) {
             if let valueText = alert.valueText {
-                Text(valueText)
+                Text(displayAlertValueText(alert, fallback: valueText))
                     .font(ActualistTypography.workScreenAmount(for: density))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -378,6 +379,19 @@ struct BudgetView: View {
         }
     }
 
+    private func displayAlertValueText(_ alert: BudgetAlert, fallback: String) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return fallback
+        }
+
+        let signSource = alert.severity == .danger ? -1 : 1
+        return PrivacyDisplay.money(
+            signSource,
+            seed: "budget-alert-\(alert.id)-\(viewModel.selectedMonth ?? viewModel.preferredMonth)",
+            maximumDollars: 900
+        )
+    }
+
     private func openPendingOverspentCategory() {
         guard let categoryID = pendingOverspentCategoryID else {
             return
@@ -422,6 +436,7 @@ struct BudgetView: View {
                 BudgetGroupSection(
                     group: group,
                     isExpanded: viewModel.isExpanded(group),
+                    isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                     assignedDisplay: { category in
                         viewModel.assignedAmountDisplay(for: category)
                     },
@@ -611,6 +626,7 @@ private struct BudgetOverspentCategoriesView: View {
 
     let categories: [BudgetOverspentCategoryOption]
     let isReadOnly: Bool
+    let isPrivacyModeEnabled: Bool
     let onSelect: (BudgetOverspentCategoryOption) -> Void
 
     var body: some View {
@@ -644,20 +660,20 @@ private struct BudgetOverspentCategoriesView: View {
                                     } label: {
                                         HStack(spacing: 12) {
                                             VStack(alignment: .leading, spacing: 6) {
-                                                Text(category.categoryName)
+                                                Text(categoryName(category))
                                                     .font(ActualistTypography.rowTitle(for: density))
                                                     .foregroundStyle(ActualistTheme.primaryText)
                                                     .lineLimit(1)
                                                     .minimumScaleFactor(0.84)
 
-                                                Text(category.groupName)
+                                                Text(groupName(category))
                                                     .font(ActualistTypography.rowBadge(for: density))
                                                     .foregroundStyle(ActualistTheme.secondaryText)
                                             }
 
                                             Spacer()
 
-                                            Text(category.amountText)
+                                            Text(amountText(category))
                                                 .font(ActualistTypography.rowValue(for: density))
                                                 .foregroundStyle(.white)
                                                 .lineLimit(1)
@@ -706,6 +722,34 @@ private struct BudgetOverspentCategoriesView: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private func categoryName(_ category: BudgetOverspentCategoryOption) -> String {
+        guard isPrivacyModeEnabled else {
+            return category.categoryName
+        }
+
+        return PrivacyDisplay.name(for: .category, seed: category.id)
+    }
+
+    private func groupName(_ category: BudgetOverspentCategoryOption) -> String {
+        guard isPrivacyModeEnabled else {
+            return category.groupName
+        }
+
+        return PrivacyDisplay.name(for: .categoryGroup, seed: category.groupName)
+    }
+
+    private func amountText(_ category: BudgetOverspentCategoryOption) -> String {
+        guard isPrivacyModeEnabled else {
+            return category.amountText
+        }
+
+        return PrivacyDisplay.money(
+            category.category.balance,
+            seed: "overspent-category-\(category.id)",
+            maximumDollars: 900
+        )
     }
 }
 
@@ -1010,6 +1054,7 @@ struct BudgetGroupSection: View {
 
     let group: BudgetMonthCategoryGroup
     let isExpanded: Bool
+    let isPrivacyModeEnabled: Bool
     let assignedDisplay: (BudgetMonthCategory) -> BudgetAssignedAmountDisplay
     let isEditingAssignment: (BudgetMonthCategory) -> Bool
     let beginAssignmentEditing: (BudgetMonthCategory, CGRect) -> Void
@@ -1024,7 +1069,7 @@ struct BudgetGroupSection: View {
                         .font(.body.weight(.bold))
                         .frame(width: BudgetLayout.chevronWidth)
 
-                    Text(group.name)
+                    Text(groupName)
                         .font(ActualistTypography.sectionTitle(for: density))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
@@ -1035,7 +1080,7 @@ struct BudgetGroupSection: View {
                         Text("Assigned")
                             .font(ActualistTypography.rowLabel(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
-                        Text(group.budgeted.actualMoney.formatted())
+                        Text(groupBudgetedText)
                             .font(ActualistTypography.rowValue(for: density))
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
@@ -1046,7 +1091,7 @@ struct BudgetGroupSection: View {
                         Text("Available")
                             .font(ActualistTypography.rowLabel(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
-                        Text(group.balance.actualMoney.formatted())
+                        Text(groupBalanceText)
                             .font(ActualistTypography.rowValue(for: density))
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
@@ -1066,6 +1111,7 @@ struct BudgetGroupSection: View {
                             category: category,
                             assignedDisplay: assignedDisplay(category),
                             isEditing: isEditingAssignment(category),
+                            isPrivacyModeEnabled: isPrivacyModeEnabled,
                             showsBottomSeparator: index < group.visibleCategories.count - 1,
                             beginAssignmentEditing: { categoryFrame in
                                 beginAssignmentEditing(category, categoryFrame)
@@ -1083,6 +1129,38 @@ struct BudgetGroupSection: View {
             }
         }
     }
+
+    private var groupName: String {
+        guard isPrivacyModeEnabled else {
+            return group.name
+        }
+
+        return PrivacyDisplay.name(for: .categoryGroup, seed: group.id)
+    }
+
+    private var groupBudgetedText: String {
+        guard isPrivacyModeEnabled else {
+            return group.budgeted.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            group.budgeted,
+            seed: "budget-group-budgeted-\(group.id)",
+            maximumDollars: 2_500
+        )
+    }
+
+    private var groupBalanceText: String {
+        guard isPrivacyModeEnabled else {
+            return group.balance.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            group.balance,
+            seed: "budget-group-balance-\(group.id)",
+            maximumDollars: 2_500
+        )
+    }
 }
 
 struct BudgetCategoryRow: View {
@@ -1091,6 +1169,7 @@ struct BudgetCategoryRow: View {
     let category: BudgetMonthCategory
     let assignedDisplay: BudgetAssignedAmountDisplay
     let isEditing: Bool
+    let isPrivacyModeEnabled: Bool
     let showsBottomSeparator: Bool
     let beginAssignmentEditing: (CGRect) -> Void
 
@@ -1105,7 +1184,7 @@ struct BudgetCategoryRow: View {
             HStack(spacing: BudgetLayout.rowSpacing) {
                 emojiSlot
 
-                Text(nameParts.name)
+                Text(categoryName)
                     .font(ActualistTypography.body(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
@@ -1113,7 +1192,7 @@ struct BudgetCategoryRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(assignedDisplay.primaryText)
+                    Text(assignedPrimaryText)
                         .font(ActualistTypography.rowValue(for: density))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
@@ -1128,7 +1207,7 @@ struct BudgetCategoryRow: View {
                 .foregroundStyle(assignedDisplay.isEditing ? ActualistTheme.accent : ActualistTheme.primaryText)
                 .frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
 
-                Text(category.balance.actualMoney.formatted())
+                Text(availableText)
                     .font(ActualistTypography.rowValue(for: density))
                     .foregroundStyle(availableForeground)
                     .lineLimit(1)
@@ -1168,7 +1247,7 @@ struct BudgetCategoryRow: View {
 
     @ViewBuilder
     private var emojiSlot: some View {
-        if let emoji = nameParts.emoji {
+        if !isPrivacyModeEnabled, let emoji = nameParts.emoji {
             Text(verbatim: emoji)
                 .font(.actualistEmoji(size: BudgetLayout.emojiSize))
                 .frame(width: BudgetLayout.emojiWidth, height: BudgetLayout.emojiWidth)
@@ -1195,6 +1274,38 @@ struct BudgetCategoryRow: View {
 
     private var nameParts: CategoryNameParts {
         category.name.actualistCategoryNameParts
+    }
+
+    private var categoryName: String {
+        guard isPrivacyModeEnabled else {
+            return nameParts.name
+        }
+
+        return PrivacyDisplay.name(for: .category, seed: category.id)
+    }
+
+    private var assignedPrimaryText: String {
+        guard isPrivacyModeEnabled, !assignedDisplay.isEditing else {
+            return assignedDisplay.primaryText
+        }
+
+        return PrivacyDisplay.money(
+            category.budgeted,
+            seed: "budget-category-budgeted-\(category.id)",
+            maximumDollars: 900
+        )
+    }
+
+    private var availableText: String {
+        guard isPrivacyModeEnabled else {
+            return category.balance.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            category.balance,
+            seed: "budget-category-available-\(category.id)",
+            maximumDollars: 900
+        )
     }
 }
 
@@ -1263,6 +1374,7 @@ private struct BudgetMoveMoneyView: View {
         .presentationDragIndicator(.hidden)
         .sheet(isPresented: $isDestinationPickerPresented) {
             BudgetMoveMoneyDestinationPicker(viewModel: viewModel)
+                .environment(appState)
         }
         .task(id: viewModel.moveMoneyDraft?.focusedCategoryID) {
             guard !didAutoPresentDestinationPicker else {
@@ -1317,13 +1429,13 @@ private struct BudgetMoveMoneyView: View {
                     .foregroundStyle(ActualistTheme.primaryText)
 
                 VStack(spacing: 10) {
-                    Text(draft.focusedCategoryName.actualistCategoryNameParts.name)
+                    Text(moveFocusedCategoryName(draft))
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
 
-                    Text(viewModel.moveMoneyAvailableDisplayAmount.actualMoney.formatted())
+                    Text(moveHeaderAmountText(draft))
                         .font(ActualistTypography.workScreenAmount(for: density))
                         .foregroundStyle(moveHeaderAmountForeground)
                         .lineLimit(1)
@@ -1403,7 +1515,7 @@ private struct BudgetMoveMoneyView: View {
 
                 Spacer()
 
-                Text(viewModel.moveMoneyDisplayAmount.actualMoney.formatted())
+                Text(moveDisplayAmountText(draft))
                     .font(ActualistTypography.rowValue(for: density))
                     .foregroundStyle(ActualistTheme.accent)
                     .lineLimit(1)
@@ -1413,7 +1525,7 @@ private struct BudgetMoveMoneyView: View {
                         isNumberPadVisible = true
                     }
 
-                Text(viewModel.moveMoneyCounterpartyAvailableDisplayAmount.actualMoney.formatted())
+                Text(moveCounterpartyAvailableText(draft))
                     .font(ActualistTypography.rowBadge(for: density))
                     .foregroundStyle(moveCounterpartyAvailableForeground)
                     .lineLimit(1)
@@ -1468,10 +1580,91 @@ private struct BudgetMoveMoneyView: View {
 
     private func moveDestinationTitle(for draft: BudgetMoveMoneyDraft) -> String {
         if !draft.allocations.isEmpty {
-            return draft.allocations.count == 1 ? draft.allocations[0].destination.title : "Selected Categories"
+            return draft.allocations.count == 1 ? moveAllocationTitle(draft.allocations[0]) : "Selected Categories"
         }
 
-        return draft.destination?.title ?? "Select Category"
+        guard let destination = draft.destination else {
+            return "Select Category"
+        }
+
+        return moveDestinationTitle(destination)
+    }
+
+    private func moveFocusedCategoryName(_ draft: BudgetMoveMoneyDraft) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return draft.focusedCategoryName.actualistCategoryNameParts.name
+        }
+
+        return PrivacyDisplay.name(for: .category, seed: draft.focusedCategoryID)
+    }
+
+    private func moveHeaderAmountText(_ draft: BudgetMoveMoneyDraft) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return viewModel.moveMoneyAvailableDisplayAmount.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            viewModel.moveMoneyAvailableDisplayAmount,
+            seed: "move-header-\(draft.focusedCategoryID)",
+            maximumDollars: 900
+        )
+    }
+
+    private func moveDisplayAmountText(_ draft: BudgetMoveMoneyDraft) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return viewModel.moveMoneyDisplayAmount.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            viewModel.moveMoneyDisplayAmount,
+            seed: "move-display-\(draft.focusedCategoryID)-\(viewModel.moveMoneyDisplayAmount)",
+            maximumDollars: 900
+        )
+    }
+
+    private func moveCounterpartyAvailableText(_ draft: BudgetMoveMoneyDraft) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return viewModel.moveMoneyCounterpartyAvailableDisplayAmount.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            viewModel.moveMoneyCounterpartyAvailableDisplayAmount,
+            seed: "move-counterparty-\(draft.focusedCategoryID)",
+            maximumDollars: 900
+        )
+    }
+
+    private func moveAllocationTitle(_ allocation: BudgetMoveMoneyAllocation) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return allocation.destination.title
+        }
+
+        return moveDestinationTitle(allocation.destination)
+    }
+
+    private func moveAllocationAmountText(_ allocation: BudgetMoveMoneyAllocation) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return allocation.amount.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            allocation.amount,
+            seed: "move-allocation-\(allocation.id)-\(allocation.amount)",
+            maximumDollars: 900
+        )
+    }
+
+    private func moveDestinationTitle(_ destination: BudgetMoveMoneyDestination) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return destination.title
+        }
+
+        switch destination {
+        case .toBudget:
+            return "To Budget"
+        case .category(let id, _):
+            return PrivacyDisplay.name(for: .category, seed: id)
+        }
     }
 
     private func moveAllocationRow(
@@ -1480,7 +1673,7 @@ private struct BudgetMoveMoneyView: View {
     ) -> some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                Text(allocation.destination.title)
+                Text(moveAllocationTitle(allocation))
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
@@ -1488,7 +1681,7 @@ private struct BudgetMoveMoneyView: View {
 
                 Spacer()
 
-                Text(allocation.amount.actualMoney.formatted())
+                Text(moveAllocationAmountText(allocation))
                     .font(ActualistTypography.rowValue(for: density))
                     .foregroundStyle(ActualistTheme.accent)
                     .lineLimit(1)
@@ -1655,6 +1848,7 @@ private struct BudgetMoveMoneyNumberPad: View {
 }
 
 private struct BudgetMoveMoneyDestinationPicker: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
     @Bindable var viewModel: BudgetViewModel
@@ -1750,7 +1944,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
         VStack(alignment: .leading, spacing: 18) {
             ForEach(viewModel.moveMoneyDestinationGroups(matching: searchText)) { group in
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(group.name)
+                    Text(groupName(group))
                         .font(ActualistTypography.rowLabel(for: density).weight(.bold))
                         .foregroundStyle(ActualistTheme.primaryText)
                         .padding(.horizontal, 22)
@@ -1782,7 +1976,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
             }
         } label: {
             HStack(spacing: 12) {
-                Text(option.title)
+                Text(optionTitle(option))
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
@@ -1790,7 +1984,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
 
                 Spacer()
 
-                Text(option.valueText)
+                Text(optionValueText(option))
                     .font(ActualistTypography.rowBadge(for: density))
                     .foregroundStyle(destinationValueForeground(option))
                     .lineLimit(1)
@@ -1834,6 +2028,39 @@ private struct BudgetMoveMoneyDestinationPicker: View {
         case .category:
             option.amount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
         }
+    }
+
+    private func groupName(_ group: BudgetMoveMoneyDestinationGroup) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return group.name
+        }
+
+        return PrivacyDisplay.name(for: .categoryGroup, seed: group.id)
+    }
+
+    private func optionTitle(_ option: BudgetMoveMoneyDestinationOption) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return option.title
+        }
+
+        switch option.destination {
+        case .toBudget:
+            return "To Budget"
+        case .category(let id, _):
+            return PrivacyDisplay.name(for: .category, seed: id)
+        }
+    }
+
+    private func optionValueText(_ option: BudgetMoveMoneyDestinationOption) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return option.valueText
+        }
+
+        return PrivacyDisplay.money(
+            option.amount,
+            seed: "move-option-\(option.id)",
+            maximumDollars: 900
+        )
     }
 }
 

@@ -107,11 +107,13 @@ struct BudgetPickerView: View {
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(budget.name)
+                                    Text(budgetDisplayName(budget))
                                         .font(ActualistTypography.rowTitle(for: density))
-                                    Text(budget.syncID)
-                                        .font(ActualistTypography.rowLabel(for: density))
-                                        .foregroundStyle(.secondary)
+                                    if !appState.settings.randomizedDisplayValuesEnabled {
+                                        Text(budget.syncID)
+                                            .font(ActualistTypography.rowLabel(for: density))
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -142,5 +144,13 @@ struct BudgetPickerView: View {
                 }
             }
         }
+    }
+
+    private func budgetDisplayName(_ budget: ActualBudget) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return budget.name
+        }
+
+        return PrivacyDisplay.name(for: .budget, seed: budget.syncID)
     }
 }

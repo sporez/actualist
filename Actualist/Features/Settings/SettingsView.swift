@@ -1,5 +1,9 @@
 import SwiftUI
 
+private enum SettingsDeveloperUnlock {
+    static let toastDurationSeconds: Double = 1.4
+}
+
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = SettingsViewModel()
@@ -7,6 +11,7 @@ struct SettingsView: View {
     @State private var isAppIconPickerPresented = false
     @State private var isAccountOrderPresented = false
     @State private var isDeveloperDiagnosticsPresented = false
+    @State private var developerUnlockToastTask: Task<Void, Never>?
     #if DEBUG
     @State private var isPostingDebugNotification = false
     @State private var debugNotificationMessage: String?
@@ -15,6 +20,8 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                settingsHeader
+
                 Section("Connection") {
                     LabeledContent("Server") {
                         TextField("Required", text: $viewModel.serverURLString, prompt: Text("http://host:5007"))
@@ -51,7 +58,7 @@ struct SettingsView: View {
 
                 Section("Budget") {
                     LabeledContent("Selected") {
-                        Text(appState.settings.selectedBudgetName ?? "None")
+                        Text(selectedBudgetDisplayName)
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
 
@@ -143,22 +150,28 @@ struct SettingsView: View {
                 }
                 .settingsSectionChrome()
 
-                Section("Developer") {
-                    Button {
-                        isDeveloperDiagnosticsPresented = true
-                    } label: {
-                        SettingsActionLabel(title: "Diagnostics", systemImage: "wrench.and.screwdriver")
+                if appState.settings.developerModeUnlocked {
+                    Section("Developer") {
+                        Button {
+                            isDeveloperDiagnosticsPresented = true
+                        } label: {
+                            SettingsActionLabel(title: "Developer", systemImage: "wrench.and.screwdriver")
+                        }
                     }
+                    .settingsSectionChrome()
                 }
-                .settingsSectionChrome()
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
             .foregroundStyle(ActualistTheme.primaryText)
             .tint(ActualistTheme.accent)
-            .navigationTitle("Settings")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 viewModel.hydrate(from: appState)
+            }
+            .onDisappear {
+                developerUnlockToastTask?.cancel()
             }
             .sheet(isPresented: $isBudgetPickerPresented) {
                 SettingsBudgetPickerSheet(
@@ -168,7 +181,11 @@ struct SettingsView: View {
                 .environment(appState)
             }
             .sheet(isPresented: $isAppIconPickerPresented) {
-                AppIconPickerSheet(viewModel: viewModel)
+                AppIconPickerSheet(
+                    viewModel: viewModel,
+                    recordDeveloperUnlockTap: recordDeveloperUnlockTap
+                )
+                    .environment(appState)
                     .presentationDetents([.height(320)])
                     .presentationDragIndicator(.visible)
             }
@@ -181,15 +198,61 @@ struct SettingsView: View {
             .sheet(isPresented: $isDeveloperDiagnosticsPresented) {
                 #if DEBUG
                 SettingsDeveloperDiagnosticsSheet(
+                    randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
+                    hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug,
                     isPostingDebugNotification: $isPostingDebugNotification,
                     debugNotificationMessage: $debugNotificationMessage,
                     postDebugNotification: postDebugNotification
                 )
                 #else
-                SettingsDeveloperDiagnosticsSheet(debug: appState.settings.backgroundRefreshDebug)
+                SettingsDeveloperDiagnosticsSheet(
+                    randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
+                    hideDeveloperMode: hideDeveloperMode,
+                    debug: appState.settings.backgroundRefreshDebug
+                )
                 #endif
             }
+        }
+        .overlay(alignment: .bottom) {
+            developerUnlockToast
+        }
+    }
+
+    private var settingsHeader: some View {
+        Button {
+            recordDeveloperUnlockTap()
+        } label: {
+            HStack(spacing: 0) {
+                Text("Settings")
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityLabel("Settings")
+        .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 6, trailing: 20))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+
+    @ViewBuilder
+    private var developerUnlockToast: some View {
+        if let developerUnlockToastMessage = appState.developerUnlockToastMessage {
+            Text(developerUnlockToastMessage)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(ActualistTheme.primaryText)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(ActualistTheme.elevatedSurface, in: Capsule())
+                .padding(.bottom, 22)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .allowsHitTesting(false)
         }
     }
 
@@ -223,6 +286,57 @@ struct SettingsView: View {
         return appState.settings.accountOrderByBudgetID[budgetID] == nil ? "API Order" : "Custom"
     }
 
+    private var selectedBudgetDisplayName: String {
+        guard let selectedBudgetName = appState.settings.selectedBudgetName else {
+            return "None"
+        }
+
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return selectedBudgetName
+        }
+
+        return PrivacyDisplay.name(
+            for: .budget,
+            seed: appState.settings.selectedBudgetID ?? selectedBudgetName
+        )
+    }
+
+    private var randomizedDisplayValuesSelection: Binding<Bool> {
+        Binding {
+            appState.settings.randomizedDisplayValuesEnabled
+        } set: { isEnabled in
+            appState.updateRandomizedDisplayValuesEnabled(isEnabled)
+        }
+    }
+
+    private func recordDeveloperUnlockTap() {
+        if let message = appState.recordDeveloperUnlockTap() {
+            showDeveloperUnlockToast(message)
+        }
+    }
+
+    private func hideDeveloperMode() {
+        appState.updateDeveloperModeUnlocked(false)
+        isDeveloperDiagnosticsPresented = false
+        showDeveloperUnlockToast("Developer Mode hidden")
+    }
+
+    private func showDeveloperUnlockToast(_ message: String) {
+        developerUnlockToastTask?.cancel()
+        withAnimation(.snappy(duration: 0.2)) {
+            appState.developerUnlockToastMessage = message
+        }
+
+        developerUnlockToastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(SettingsDeveloperUnlock.toastDurationSeconds))
+            withAnimation(.snappy(duration: 0.2)) {
+                if appState.developerUnlockToastMessage == message {
+                    appState.developerUnlockToastMessage = nil
+                }
+            }
+        }
+    }
+
     private var backgroundRefreshSelection: Binding<Bool> {
         Binding {
             appState.settings.backgroundTransactionRefreshEnabled
@@ -252,6 +366,8 @@ struct SettingsView: View {
 private struct SettingsDeveloperDiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
+    @Binding var randomizedDisplayValuesSelection: Bool
+    let hideDeveloperMode: () -> Void
     let debug: BackgroundRefreshDebugInfo
     #if DEBUG
     @Binding var isPostingDebugNotification: Bool
@@ -262,6 +378,11 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("Privacy") {
+                    Toggle("Generic Screenshot Data", isOn: $randomizedDisplayValuesSelection)
+                }
+                .settingsSectionChrome()
+
                 #if DEBUG
                 Section("Notifications") {
                     Button {
@@ -287,12 +408,21 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                     BackgroundRefreshDebugRows(debug: debug)
                 }
                 .settingsSectionChrome()
+
+                Section("Developer Mode") {
+                    Button(role: .destructive) {
+                        hideDeveloperMode()
+                    } label: {
+                        SettingsActionLabel(title: "Hide Developer Mode", systemImage: "eye.slash")
+                    }
+                }
+                .settingsSectionChrome()
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
             .foregroundStyle(ActualistTheme.primaryText)
             .tint(ActualistTheme.accent)
-            .navigationTitle("Diagnostics")
+            .navigationTitle("Developer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -526,14 +656,16 @@ private struct SettingsBudgetPickerSheet: View {
                         } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(budget.name)
+                                    Text(budgetDisplayName(budget))
                                         .font(ActualistTypography.rowTitle(for: density))
                                         .foregroundStyle(ActualistTheme.primaryText)
-                                    Text(budget.syncID)
-                                        .font(ActualistTypography.rowLabel(for: density))
-                                        .foregroundStyle(ActualistTheme.secondaryText)
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
+                                    if !appState.settings.randomizedDisplayValuesEnabled {
+                                        Text(budget.syncID)
+                                            .font(ActualistTypography.rowLabel(for: density))
+                                            .foregroundStyle(ActualistTheme.secondaryText)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
                                 }
 
                                 Spacer()
@@ -581,6 +713,14 @@ private struct SettingsBudgetPickerSheet: View {
                 await viewModel.loadBudgetsForSelection(using: appState)
             }
         }
+    }
+
+    private func budgetDisplayName(_ budget: ActualBudget) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return budget.name
+        }
+
+        return PrivacyDisplay.name(for: .budget, seed: budget.syncID)
     }
 }
 
@@ -717,6 +857,7 @@ private struct SettingsAccountOrderSheet: View {
 }
 
 private struct SettingsAccountOrderRow: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
 
     let account: ActualAccount
@@ -729,7 +870,7 @@ private struct SettingsAccountOrderRow: View {
                 .frame(width: density.iconSize, height: density.iconSize)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(account.name)
+                Text(displayName)
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
 
@@ -741,6 +882,14 @@ private struct SettingsAccountOrderRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var displayName: String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return account.name
+        }
+
+        return PrivacyDisplay.name(for: .account, seed: account.id)
     }
 
     private var detail: String? {
@@ -775,8 +924,10 @@ private struct ThemePreviewStrip: View {
 }
 
 private struct AppIconPickerSheet: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: SettingsViewModel
+    let recordDeveloperUnlockTap: () -> Void
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: 16)]
 
@@ -786,6 +937,7 @@ private struct AppIconPickerSheet: View {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(AppIcon.allCases) { icon in
                         Button {
+                            recordDeveloperUnlockTap()
                             Task { await viewModel.setAppIcon(icon) }
                         } label: {
                             AppIconChoice(
@@ -811,6 +963,19 @@ private struct AppIconPickerSheet: View {
             .background(ActualistTheme.background)
             .navigationTitle("App Icon")
             .navigationBarTitleDisplayMode(.inline)
+            .overlay(alignment: .bottom) {
+                if let developerUnlockToastMessage = appState.developerUnlockToastMessage {
+                    Text(developerUnlockToastMessage)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(ActualistTheme.elevatedSurface, in: Capsule())
+                        .padding(.bottom, 22)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {

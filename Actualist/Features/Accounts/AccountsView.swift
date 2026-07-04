@@ -125,7 +125,7 @@ struct AccountsView: View {
                         Text(sectionTitle(title, count: rows.count, isExpanded: isExpanded))
                             .font(ActualistTypography.sectionTitle(for: density))
                         Spacer()
-                        Text(total(rows).actualMoney.formatted())
+                        Text(sectionTotalText(rows, title: title))
                             .font(ActualistTypography.rowValue(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
@@ -139,6 +139,7 @@ struct AccountsView: View {
                             NavigationLink(value: row.account) {
                                 AccountRow(
                                     row: row,
+                                    isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                                     showsBottomSeparator: index < rows.count - 1
                                 )
                             }
@@ -157,6 +158,19 @@ struct AccountsView: View {
 
     private func total(_ rows: [AccountDisplay]) -> Int {
         rows.reduce(0) { $0 + ($1.balance ?? 0) }
+    }
+
+    private func sectionTotalText(_ rows: [AccountDisplay], title: String) -> String {
+        let amount = total(rows)
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return amount.actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            amount,
+            seed: "account-section-\(title)-\(rows.map(\.id).joined(separator: "-"))",
+            maximumDollars: 15_000
+        )
     }
 
     private func load() async {
@@ -307,10 +321,16 @@ struct AccountRow: View {
     @Environment(\.actualistDensity) private var density
 
     let row: AccountDisplay
+    let isPrivacyModeEnabled: Bool
     let showsBottomSeparator: Bool
 
-    init(row: AccountDisplay, showsBottomSeparator: Bool = true) {
+    init(
+        row: AccountDisplay,
+        isPrivacyModeEnabled: Bool = false,
+        showsBottomSeparator: Bool = true
+    ) {
         self.row = row
+        self.isPrivacyModeEnabled = isPrivacyModeEnabled
         self.showsBottomSeparator = showsBottomSeparator
     }
 
@@ -322,14 +342,14 @@ struct AccountRow: View {
                 .frame(width: density.iconSize, height: density.iconSize)
                 .background(ActualistTheme.elevatedSurface, in: Circle())
 
-            Text(row.account.name)
+            Text(accountName)
                 .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
 
             Spacer()
 
-            Text((row.balance ?? 0).actualMoney.formatted())
+            Text(balanceText)
                 .font(ActualistTypography.rowValue(for: density))
                 .foregroundStyle((row.balance ?? 0) >= 0 ? ActualistTheme.positive : ActualistTheme.primaryText)
 
@@ -348,5 +368,25 @@ struct AccountRow: View {
                     .padding(.leading, density.iconSize + density.rowHorizontalPadding + 12)
             }
         }
+    }
+
+    private var accountName: String {
+        guard isPrivacyModeEnabled else {
+            return row.account.name
+        }
+
+        return PrivacyDisplay.name(for: .account, seed: row.account.id)
+    }
+
+    private var balanceText: String {
+        guard isPrivacyModeEnabled else {
+            return (row.balance ?? 0).actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            row.balance,
+            seed: "account-balance-\(row.account.id)",
+            maximumDollars: 15_000
+        )
     }
 }

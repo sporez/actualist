@@ -161,8 +161,9 @@ struct UncategorizedTransactionsView: View {
             ZStack(alignment: .trailing) {
                 TransactionRow(
                     transaction: transaction,
-                    payeeName: viewModel.payeeName(for: transaction),
-                    categoryNames: viewModel.categoryNames(for: transaction),
+                    payeeName: displayPayeeName(for: transaction),
+                    categoryNames: displayCategoryNames(for: transaction),
+                    isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                     showsBottomSeparator: showsBottomSeparator
                 )
 
@@ -179,6 +180,22 @@ struct UncategorizedTransactionsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func displayPayeeName(for transaction: ActualTransaction) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return viewModel.payeeName(for: transaction)
+        }
+
+        return PrivacyDisplay.name(for: .payee, seed: "uncategorized-payee-\(transaction.rowID)")
+    }
+
+    private func displayCategoryNames(for transaction: ActualTransaction) -> [String] {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return viewModel.categoryNames(for: transaction)
+        }
+
+        return [PrivacyDisplay.name(for: .category, seed: "uncategorized-category-\(transaction.rowID)")]
     }
 }
 

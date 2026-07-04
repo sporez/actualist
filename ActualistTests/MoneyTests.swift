@@ -7,6 +7,13 @@ struct MoneyTests {
         #expect(123456.actualMoney.formatted().contains("1,234.56"))
     }
 
+    @Test func privacyDisplayUsesStableGenericMoneyAndNames() {
+        #expect(PrivacyDisplay.name(for: .account, seed: "checking") == PrivacyDisplay.name(for: .account, seed: "checking"))
+        #expect(PrivacyDisplay.amount(-12_345, seed: "transaction") < 0)
+        #expect(PrivacyDisplay.amount(12_345, seed: "transaction") > 0)
+        #expect(PrivacyDisplay.money(12_345, seed: "transaction").contains("$"))
+    }
+
     @MainActor
     @Test func accountReconciliationParsesStatementBalanceInput() {
         let model = AccountReconciliationViewModel(currentBalance: nil)

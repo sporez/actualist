@@ -14,11 +14,17 @@ final class AppState {
     var lastErrorMessage: String?
     var connectionStatus: ServerConnectionStatus = .connecting
     var themeRevision = 0
+    var developerUnlockToastMessage: String?
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
     private let snapshotStore: OfflineSnapshotStore
     private var activeNetworkRequestCount = 0
+    private var developerUnlockTapCount = 0
+    private var developerUnlockLastTapDate: Date?
+    private let developerUnlockRequiredTapCount = 10
+    private let developerUnlockVisibleCountdownThreshold = 5
+    private let developerUnlockResetInterval: TimeInterval = 20
 
     /// In-memory source of truth for fetched API data (stale-while-revalidate cache).
     @ObservationIgnored lazy var dataStore = ActualDataStore(
@@ -108,6 +114,53 @@ final class AppState {
     func updateDisplayDensity(_ density: ActualistDisplayDensity) {
         settings.displayDensity = density
         settingsStore.save(settings)
+    }
+
+    func updateRandomizedDisplayValuesEnabled(_ isEnabled: Bool) {
+        settings.randomizedDisplayValuesEnabled = isEnabled
+        settingsStore.save(settings)
+    }
+
+    func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
+        settings.developerModeUnlocked = isUnlocked
+        if !isUnlocked {
+            settings.randomizedDisplayValuesEnabled = false
+        }
+        resetDeveloperUnlockProgress()
+        settingsStore.save(settings)
+    }
+
+    func recordDeveloperUnlockTap() -> String? {
+        guard !settings.developerModeUnlocked else {
+            return nil
+        }
+
+        let now = Date()
+        if let developerUnlockLastTapDate,
+           now.timeIntervalSince(developerUnlockLastTapDate) > developerUnlockResetInterval {
+            developerUnlockTapCount = 0
+        }
+
+        developerUnlockLastTapDate = now
+        developerUnlockTapCount += 1
+
+        let remainingTaps = max(0, developerUnlockRequiredTapCount - developerUnlockTapCount)
+        if remainingTaps == 0 {
+            updateDeveloperModeUnlocked(true)
+            return "You're a developer!"
+        }
+
+        guard remainingTaps <= developerUnlockVisibleCountdownThreshold else {
+            return nil
+        }
+
+        let noun = remainingTaps == 1 ? "tap" : "taps"
+        return "\(remainingTaps) \(noun) from Developer Mode"
+    }
+
+    func resetDeveloperUnlockProgress() {
+        developerUnlockTapCount = 0
+        developerUnlockLastTapDate = nil
     }
 
     func updateTheme(_ theme: ActualistThemeOption) {

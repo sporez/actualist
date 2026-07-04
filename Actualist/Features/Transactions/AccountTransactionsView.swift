@@ -240,7 +240,7 @@ struct AccountTransactionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
-        .navigationTitle(scope.title)
+        .navigationTitle(scopeTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -347,7 +347,7 @@ struct AccountTransactionsView: View {
 
     private var header: some View {
         VStack(spacing: 6) {
-            Text((balance ?? 0).actualMoney.formatted())
+            Text(balanceText)
                 .font(ActualistTypography.workScreenAmount(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
             Text("Working Balance")
@@ -500,9 +500,10 @@ struct AccountTransactionsView: View {
         } label: {
             TransactionRow(
                 transaction: transaction,
-                payeeName: payeeName(for: transaction),
-                categoryNames: categoryNames(for: transaction),
-                accountName: accountName(for: transaction),
+                payeeName: displayPayeeName(for: transaction),
+                categoryNames: displayCategoryNames(for: transaction),
+                accountName: displayAccountName(for: transaction),
+                isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                 isNew: transaction.id.map { pendingNewTransactionIDs.contains($0) } ?? false,
                 showsBottomSeparator: showsBottomSeparator
             )
@@ -763,6 +764,62 @@ struct AccountTransactionsView: View {
         }
         isSearching = false
     }
+
+    private var scopeTitle: String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return scope.title
+        }
+
+        switch scope {
+        case .account(let account):
+            return PrivacyDisplay.name(for: .account, seed: account.id)
+        case .spending:
+            return scope.title
+        }
+    }
+
+    private var balanceText: String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return (balance ?? 0).actualMoney.formatted()
+        }
+
+        let seed = scope.account.map { "account-header-\($0.id)" } ?? "spending-header"
+        return PrivacyDisplay.money(balance, seed: seed, maximumDollars: 15_000)
+    }
+
+    private func displayPayeeName(for transaction: ActualTransaction) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return payeeName(for: transaction)
+        }
+
+        return PrivacyDisplay.name(for: .payee, seed: "payee-\(transaction.rowID)")
+    }
+
+    private func displayCategoryNames(for transaction: ActualTransaction) -> [String] {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return categoryNames(for: transaction)
+        }
+
+        if !transaction.subtransactions.isEmpty {
+            return transaction.subtransactions.map { child in
+                PrivacyDisplay.name(for: .category, seed: "category-\(child.rowID)")
+            }
+        }
+
+        return [PrivacyDisplay.name(for: .category, seed: "category-\(transaction.rowID)")]
+    }
+
+    private func displayAccountName(for transaction: ActualTransaction) -> String? {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return accountName(for: transaction)
+        }
+
+        guard case .spending = scope else {
+            return nil
+        }
+
+        return PrivacyDisplay.name(for: .account, seed: transaction.account)
+    }
 }
 
 struct TransactionEditorPresentation: Identifiable, Hashable {
@@ -1005,11 +1062,11 @@ struct AccountReconciliationSheet: View {
 
     private var header: some View {
         VStack(spacing: 6) {
-            Text(account.name)
+            Text(accountDisplayName)
                 .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.secondaryText)
 
-            Text((currentBalance ?? 0).actualMoney.formatted())
+            Text(currentBalanceText)
                 .font(ActualistTypography.workScreenAmount(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
 
@@ -1019,6 +1076,26 @@ struct AccountReconciliationSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
+    }
+
+    private var accountDisplayName: String {
+        guard !appState.settings.randomizedDisplayValuesEnabled else {
+            return PrivacyDisplay.name(for: .account, seed: account.id)
+        }
+
+        return account.name
+    }
+
+    private var currentBalanceText: String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return (currentBalance ?? 0).actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            currentBalance,
+            seed: "reconcile-balance-\(account.id)",
+            maximumDollars: 15_000
+        )
     }
 
     private var fields: some View {
@@ -1117,6 +1194,7 @@ struct TransactionRow: View {
     let payeeName: String
     let categoryNames: [String]
     let accountName: String?
+    let isPrivacyModeEnabled: Bool
     let isNew: Bool
     let showsBottomSeparator: Bool
 
@@ -1125,6 +1203,7 @@ struct TransactionRow: View {
         payeeName: String,
         categoryNames: [String],
         accountName: String? = nil,
+        isPrivacyModeEnabled: Bool = false,
         isNew: Bool = false,
         showsBottomSeparator: Bool = true
     ) {
@@ -1132,6 +1211,7 @@ struct TransactionRow: View {
         self.payeeName = payeeName
         self.categoryNames = categoryNames
         self.accountName = accountName
+        self.isPrivacyModeEnabled = isPrivacyModeEnabled
         self.isNew = isNew
         self.showsBottomSeparator = showsBottomSeparator
     }
@@ -1150,7 +1230,7 @@ struct TransactionRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(alignment: .center, spacing: 7) {
-                Text((transaction.amount ?? 0).actualMoney.formatted())
+                Text(amountText)
                     .font(ActualistTypography.transactionAmount(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
@@ -1238,6 +1318,18 @@ struct TransactionRow: View {
 
     private var cleanedPayeeName: String {
         payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var amountText: String {
+        guard isPrivacyModeEnabled else {
+            return (transaction.amount ?? 0).actualMoney.formatted()
+        }
+
+        return PrivacyDisplay.money(
+            transaction.amount,
+            seed: "transaction-amount-\(transaction.rowID)",
+            maximumDollars: 275
+        )
     }
 
     private var displayCategoryNames: [String] {

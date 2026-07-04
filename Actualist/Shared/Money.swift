@@ -30,3 +30,80 @@ extension Int {
         Money(minorUnits: self)
     }
 }
+
+enum PrivacyDisplayKind {
+    case account
+    case budget
+    case category
+    case categoryGroup
+    case payee
+}
+
+enum PrivacyDisplay {
+    static func name(for kind: PrivacyDisplayKind, seed: String) -> String {
+        let value = stableHash(seed)
+        let index = Int(value % UInt64(names(for: kind).count))
+        let suffix = Int((value / 17) % 90) + 10
+
+        switch kind {
+        case .budget:
+            return "Sample Budget \(suffix)"
+        case .account:
+            return "\(names(for: kind)[index]) \(suffix)"
+        case .category, .categoryGroup, .payee:
+            return names(for: kind)[index]
+        }
+    }
+
+    static func amount(
+        _ original: Int?,
+        seed: String,
+        minimumDollars: Int = 4,
+        maximumDollars: Int = 900
+    ) -> Int {
+        let value = stableHash(seed)
+        let dollarSpan = max(maximumDollars - minimumDollars, 1)
+        let dollars = minimumDollars + Int(value % UInt64(dollarSpan + 1))
+        let cents = Int((value / 97) % 100)
+        let sign = (original ?? 0) < 0 ? -1 : 1
+        return sign * ((dollars * 100) + cents)
+    }
+
+    static func money(
+        _ original: Int?,
+        seed: String,
+        minimumDollars: Int = 4,
+        maximumDollars: Int = 900
+    ) -> String {
+        amount(
+            original,
+            seed: seed,
+            minimumDollars: minimumDollars,
+            maximumDollars: maximumDollars
+        ).actualMoney.formatted()
+    }
+
+    static func stableHash(_ value: String) -> UInt64 {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return hash
+    }
+
+    private static func names(for kind: PrivacyDisplayKind) -> [String] {
+        switch kind {
+        case .account:
+            ["Checking", "Savings", "Reserve", "Credit Card", "Cash", "Travel Card", "Brokerage", "Rewards Card"]
+        case .budget:
+            ["Sample Budget"]
+        case .category:
+            ["Groceries", "Dining", "Transport", "Utilities", "Subscriptions", "Home", "Health", "Travel", "Gifts", "Shopping", "Fuel", "Savings"]
+        case .categoryGroup:
+            ["Essentials", "Everyday", "Lifestyle", "Goals", "Bills", "Flex", "Long Term"]
+        case .payee:
+            ["Market", "Cafe", "Pharmacy", "Hardware", "Transit", "Bookstore", "Store", "Service", "Clinic", "Vendor", "Online Shop"]
+        }
+    }
+}

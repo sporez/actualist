@@ -6,6 +6,8 @@ struct AppSettings: Codable, Equatable {
     var selectedBudgetName: String?
     var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
+    var randomizedDisplayValuesEnabled: Bool = false
+    var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var backgroundTransactionRefreshEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
@@ -17,6 +19,8 @@ struct AppSettings: Codable, Equatable {
         selectedBudgetName: String? = nil,
         theme: ActualistThemeOption = .actualPurple,
         displayDensity: ActualistDisplayDensity = .compact,
+        randomizedDisplayValuesEnabled: Bool = false,
+        developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         backgroundTransactionRefreshEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
@@ -27,6 +31,8 @@ struct AppSettings: Codable, Equatable {
         self.selectedBudgetName = selectedBudgetName
         self.theme = theme
         self.displayDensity = displayDensity
+        self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
+        self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
@@ -40,6 +46,14 @@ struct AppSettings: Codable, Equatable {
         selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)
         theme = try container.decodeIfPresent(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
         displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
+        randomizedDisplayValuesEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .randomizedDisplayValuesEnabled
+        ) ?? false
+        developerModeUnlocked = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .developerModeUnlocked
+        ) ?? false
         accountOrderByBudgetID = try container.decodeIfPresent(
             [String: [String]].self,
             forKey: .accountOrderByBudgetID

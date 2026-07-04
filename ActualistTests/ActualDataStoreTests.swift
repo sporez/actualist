@@ -28,6 +28,8 @@ struct ActualDataStoreTests {
             serverURLString: "http://localhost:5007/v1",
             selectedBudgetID: "budget",
             selectedBudgetName: "Budget",
+            randomizedDisplayValuesEnabled: true,
+            developerModeUnlocked: true,
             accountOrderByBudgetID: ["budget": ["savings", "checking"]],
             backgroundTransactionRefreshEnabled: true,
             backgroundRefreshDebug: BackgroundRefreshDebugInfo(
@@ -59,6 +61,8 @@ struct ActualDataStoreTests {
         let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: data)
 
         #expect(decoded.backgroundTransactionRefreshEnabled)
+        #expect(decoded.randomizedDisplayValuesEnabled)
+        #expect(decoded.developerModeUnlocked)
         #expect(decoded.backgroundRefreshDebug.wakeCount == 2)
         #expect(decoded.backgroundRefreshDebug.recentRuns.count == 1)
         #expect(decoded.backgroundRefreshDebug.recentRuns.first?.wakeDate == wakeDate)
@@ -83,6 +87,37 @@ struct ActualDataStoreTests {
         let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: data)
 
         #expect(decoded.accountOrderByBudgetID.isEmpty)
+        #expect(decoded.randomizedDisplayValuesEnabled == false)
+        #expect(decoded.developerModeUnlocked == false)
+    }
+
+    @Test func developerUnlockTapSequenceCountsDownAndUnlocks() {
+        let defaultsName = "ActualistTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: defaultsName)!
+        defer {
+            defaults.removePersistentDomain(forName: defaultsName)
+        }
+        let state = AppState(
+            settingsStore: AppSettingsStore(defaults: defaults),
+            keychain: KeychainStore(
+                service: "com.sporez.actualist.tests",
+                account: UUID().uuidString
+            )
+        )
+
+        for _ in 0..<4 {
+            #expect(state.recordDeveloperUnlockTap() == nil)
+        }
+
+        #expect(state.recordDeveloperUnlockTap() == "5 taps from Developer Mode")
+        #expect(state.recordDeveloperUnlockTap() == "4 taps from Developer Mode")
+        #expect(state.recordDeveloperUnlockTap() == "3 taps from Developer Mode")
+        #expect(state.recordDeveloperUnlockTap() == "2 taps from Developer Mode")
+        #expect(state.recordDeveloperUnlockTap() == "1 tap from Developer Mode")
+
+        #expect(state.settings.developerModeUnlocked == false)
+        #expect(state.recordDeveloperUnlockTap() == "You're a developer!")
+        #expect(state.settings.developerModeUnlocked == true)
     }
 
     @Test func accountOrderPreferenceAppliesSavedOrderAndAppendsUnknownAccounts() {
