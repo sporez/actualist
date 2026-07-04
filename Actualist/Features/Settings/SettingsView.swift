@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var isAccountOrderPresented = false
     @State private var isDeveloperDiagnosticsPresented = false
     @State private var developerUnlockToastTask: Task<Void, Never>?
+    @State private var isSyncingNow = false
     #if DEBUG
     @State private var isPostingDebugNotification = false
     @State private var debugNotificationMessage: String?
@@ -23,17 +24,37 @@ struct SettingsView: View {
                 settingsHeader
 
                 Section("Connection") {
+                    Picker("Backend", selection: $viewModel.backendMode) {
+                        ForEach(BackendMode.allCases) { mode in
+                            Text(mode.title)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
                     LabeledContent("Server") {
-                        TextField("Required", text: $viewModel.serverURLString, prompt: Text("http://host:5007"))
+                        TextField(
+                            "Required",
+                            text: $viewModel.serverURLString,
+                            prompt: Text(viewModel.backendMode == .localFirstSync ? "https://actual.example.com" : "http://host:5007")
+                        )
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
                             .multilineTextAlignment(.trailing)
                     }
 
-                    LabeledContent("API Key") {
-                        SecureField("Required", text: $viewModel.apiKey)
-                            .textInputAutocapitalization(.never)
-                            .multilineTextAlignment(.trailing)
+                    if viewModel.backendMode == .restAPI {
+                        LabeledContent("API Key") {
+                            SecureField("Required", text: $viewModel.apiKey)
+                                .textInputAutocapitalization(.never)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    } else {
+                        LabeledContent("Password") {
+                            SecureField("Required", text: $viewModel.actualPassword)
+                                .textInputAutocapitalization(.never)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
 
                     SettingsStatusRow(status: appState.connectionStatus)
@@ -67,11 +88,35 @@ struct SettingsView: View {
                     } label: {
                         SettingsActionLabel(title: "Change Budget", systemImage: "folder")
                     }
+
+                    if appState.capabilities.isLocalFirst {
+                        Button {
+                            Task { await syncNow() }
+                        } label: {
+                            SettingsActionLabel(
+                                title: isSyncingNow ? "Syncing" : "Sync Now",
+                                systemImage: "arrow.triangle.2.circlepath"
+                            )
+                        }
+                        .disabled(isSyncingNow || appState.settings.selectedBudgetID == nil)
+
+                        LabeledContent("Last Synced") {
+                            Text(localFirstLastSyncedText)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+
+                        if let error = appState.localFirstSyncStatus?.lastError {
+                            Text(error)
+                                .font(.footnote)
+                                .foregroundStyle(ActualistTheme.danger)
+                        }
+                    }
                 }
                 .settingsSectionChrome()
 
                 Section("Background Refresh") {
                     Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
+                        .disabled(!appState.capabilities.supportsBackgroundRefresh)
                 }
                 .settingsSectionChrome()
 
@@ -273,9 +318,17 @@ struct SettingsView: View {
     }
 
     private var canSaveConnection: Bool {
-        !viewModel.serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !viewModel.isTesting
+        guard !viewModel.serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !viewModel.isTesting else {
+            return false
+        }
+
+        switch viewModel.backendMode {
+        case .restAPI:
+            return !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .localFirstSync:
+            return !viewModel.actualPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     private var accountOrderDetail: String {
@@ -299,6 +352,23 @@ struct SettingsView: View {
             for: .budget,
             seed: appState.settings.selectedBudgetID ?? selectedBudgetName
         )
+    }
+
+    private var localFirstLastSyncedText: String {
+        guard let status = appState.localFirstSyncStatus, let lastSyncedAt = status.lastSyncedAt else {
+            return "Never"
+        }
+        let relative = lastSyncedAt.formatted(.relative(presentation: .named))
+        return "\(relative) · \(status.lastAppliedMessageCount) applied"
+    }
+
+    private func syncNow() async {
+        guard let budgetID = appState.settings.selectedBudgetID, !isSyncingNow else {
+            return
+        }
+        isSyncingNow = true
+        await appState.refreshLocalFirstData(budgetID: budgetID)
+        isSyncingNow = false
     }
 
     private var randomizedDisplayValuesSelection: Binding<Bool> {
@@ -651,8 +721,10 @@ private struct SettingsBudgetPickerSheet: View {
                 Section("Choose Budget") {
                     ForEach(appState.budgets) { budget in
                         Button {
-                            appState.selectBudget(budget)
-                            isPresented = false
+                            Task {
+                                await appState.selectBudgetForCurrentBackend(budget)
+                                isPresented = false
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -821,14 +893,19 @@ private struct SettingsAccountOrderSheet: View {
         isLoading = true
         errorMessage = nil
         do {
-            try await appState.dataStore.refreshAccounts(budgetID: budgetID)
+            guard let repository = appState.makeAccountRepository() else {
+                accounts = []
+                isLoading = false
+                return
+            }
+            try await repository.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
-            errorMessage = appState.dataStore.accountsByBudget[budgetID]?.value.isEmpty == false
+            errorMessage = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).isEmpty == false
                 ? "Could not refresh accounts. Showing cached accounts."
                 : error.localizedDescription
         }
 
-        let loadedAccounts = appState.dataStore.accountsByBudget[budgetID]?.value ?? []
+        let loadedAccounts = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).map(\.account) ?? []
         accounts = appState.orderedAccounts(loadedAccounts, budgetID: budgetID)
         isLoading = false
     }
@@ -852,7 +929,7 @@ private struct SettingsAccountOrderSheet: View {
         }
 
         appState.resetAccountOrder(budgetID: budgetID)
-        accounts = appState.dataStore.accountsByBudget[budgetID]?.value ?? accounts
+        accounts = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).map(\.account) ?? accounts
     }
 }
 

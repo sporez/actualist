@@ -1381,6 +1381,19 @@ struct TransactionRepositoryRefreshTests {
 }
 
 actor RecordingTransactionRepository: TransactionRepositoryProtocol {
+    nonisolated func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? { nil }
+    nonisolated func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? { nil }
+    func refreshAccountTransactions(budgetID: String, accountID: String) async throws {}
+    func refreshSpendingTransactions(budgetID: String) async throws {}
+    func loadOlderTransactions(budgetID: String, accountID: String) async throws {}
+    func loadOlderSpendingTransactions(budgetID: String) async throws {}
+    func searchAccountTransactions(budgetID: String, accountID: String, query: String, limit: Int, offset: Int) async throws -> LoadedAccountTransactions {
+        LoadedAccountTransactions(transactions: [], balance: nil, categoryNames: [:], payeeNames: [:], transferPayeeIDs: [], reachedEnd: true)
+    }
+    func searchSpendingTransactions(budgetID: String, query: String, limit: Int, offset: Int) async throws -> LoadedAccountTransactions {
+        LoadedAccountTransactions(transactions: [], balance: nil, categoryNames: [:], payeeNames: [:], transferPayeeIDs: [], reachedEnd: true)
+    }
+
     private var drafts: [TransactionDraft] = []
     private var updates: [RecordedTransactionUpdate] = []
     private var deletes: [ActualTransaction] = []

@@ -43,6 +43,8 @@ final class AppState {
         }
     )
 
+    @ObservationIgnored lazy var localFirstStore = LocalFirstActualStore(keychain: keychain)
+
     init(
         settingsStore: AppSettingsStore = .live,
         keychain: KeychainStore = .actualist,
@@ -54,7 +56,12 @@ final class AppState {
         let loaded = settingsStore.load()
         self.settings = loaded
         ActualistTheme.activate(loaded.theme)
-        if loaded.serverURLString.isEmpty || keychain.readAPIKey().isEmpty || loaded.selectedBudgetID == nil {
+        if loaded.backendMode == .restAPI
+            && (loaded.serverURLString.isEmpty || keychain.readAPIKey().isEmpty || loaded.selectedBudgetID == nil) {
+            self.setupPhase = .needsConnection
+            self.connectionStatus = .offline
+        } else if loaded.backendMode == .localFirstSync
+                    && (loaded.localFirstServerURLString.isEmpty || keychain.readActualSyncToken().isEmpty || loaded.selectedBudgetID == nil) {
             self.setupPhase = .needsConnection
             self.connectionStatus = .offline
         } else {
@@ -69,14 +76,26 @@ final class AppState {
     }
 
     var canUseAPI: Bool {
-        !settings.serverURLString.isEmpty && !apiKey.isEmpty
+        switch settings.backendMode {
+        case .restAPI:
+            !settings.serverURLString.isEmpty && !apiKey.isEmpty
+        case .localFirstSync:
+            !settings.localFirstServerURLString.isEmpty && !keychain.readActualSyncToken().isEmpty
+        }
     }
 
-    var isReadOnly: Bool {
-        setupPhase == .ready && connectionStatus == .offline
+    /// The single source of truth for backend read-only availability. Views and view models
+    /// consult this instead of reading `backendMode`/connection state directly.
+    var capabilities: BackendCapabilities {
+        let isLocalFirst = settings.backendMode == .localFirstSync
+        return BackendCapabilities(
+            isLocalFirst: isLocalFirst,
+            isReadOnly: isLocalFirst || (setupPhase == .ready && connectionStatus == .offline)
+        )
     }
 
     func saveConnection(serverURLString: String, apiKey: String) {
+        settings.backendMode = .restAPI
         settings.serverURLString = ServerURLNormalizer.normalize(serverURLString)
         settings.pendingNewTransactionIDsByAccount = [:]
         settingsStore.save(settings)
@@ -85,6 +104,33 @@ final class AppState {
         dataStore.reset()
         accountNavigationPath = []
         connectionStatus = .connecting
+    }
+
+    func saveLocalFirstConnection(serverURLString: String, password: String) async {
+        let normalized = ActualServerURLNormalizer.normalize(serverURLString)
+        guard !normalized.isEmpty else {
+            lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
+            return
+        }
+
+        settings.backendMode = .localFirstSync
+        settings.localFirstServerURLString = normalized
+        settings.pendingNewTransactionIDsByAccount = [:]
+        settings.backgroundTransactionRefreshEnabled = false
+        settingsStore.save(settings)
+        dataStore.reset()
+        localFirstStore.reset()
+        accountNavigationPath = []
+        connectionStatus = .connecting
+
+        do {
+            try await localFirstStore.login(serverURLString: normalized, password: password)
+            await loadBudgets()
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            connectionStatus = .offline
+            setupPhase = .needsConnection
+        }
     }
 
     func selectBudget(_ budget: ActualBudget) {
@@ -101,8 +147,75 @@ final class AppState {
         BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
     }
 
+    func selectBudgetForCurrentBackend(_ budget: ActualBudget) async {
+        switch settings.backendMode {
+        case .restAPI:
+            selectBudget(budget)
+        case .localFirstSync:
+            await selectLocalFirstBudget(budget)
+        }
+    }
+
+    var localFirstSyncStatus: LocalFirstSyncStatus? {
+        guard let budgetID = settings.selectedBudgetID else {
+            return nil
+        }
+        return localFirstStore.syncStatus(budgetID: budgetID)
+    }
+
+    /// Explicit local-first read refresh: pull CRDT messages and reload native caches.
+    /// A no-op in REST mode or when no budget is open, so view load paths can call it
+    /// unconditionally.
+    func refreshLocalFirstData(budgetID: String) async {
+        guard capabilities.isLocalFirst, localFirstStore.hasOpenBudget else {
+            return
+        }
+
+        connectionStatus = .connecting
+        do {
+            try await localFirstStore.refresh(
+                budgetID: budgetID,
+                serverURLString: settings.localFirstServerURLString
+            )
+            connectionStatus = .online
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            connectionStatus = .offline
+        }
+    }
+
+    private func selectLocalFirstBudget(_ budget: ActualBudget) async {
+        if settings.selectedBudgetID != budget.syncID {
+            dataStore.reset()
+            localFirstStore.reset()
+            accountNavigationPath = []
+        }
+
+        connectionStatus = .connecting
+        do {
+            try await localFirstStore.openBudget(
+                budget,
+                serverURLString: settings.localFirstServerURLString
+            )
+            selectedBudget = budget
+            settings.selectedBudgetID = budget.syncID
+            settings.selectedBudgetName = budget.name
+            settings.selectedLocalFirstFileID = budget.localFirstFileID
+            settings.selectedLocalFirstGroupID = budget.groupId
+            settings.backgroundTransactionRefreshEnabled = false
+            settingsStore.save(settings)
+            setupPhase = .ready
+            connectionStatus = .online
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            connectionStatus = .offline
+        }
+    }
+
     func clearSelectionForBudgetChange() {
         dataStore.reset()
+        localFirstStore.reset()
         accountNavigationPath = []
         selectedBudget = nil
         settings.selectedBudgetID = nil
@@ -353,6 +466,9 @@ final class AppState {
 
     private func backgroundRefreshSkipReason() -> String? {
         var reasons: [String] = []
+        if !capabilities.supportsBackgroundRefresh {
+            reasons.append("local-first mode")
+        }
         if !settings.backgroundTransactionRefreshEnabled {
             reasons.append("alerts disabled")
         }
@@ -425,6 +541,10 @@ final class AppState {
     }
 
     func routeToAccountFromNotification(budgetID: String, accountID: String) async {
+        guard capabilities.supportsTransactionNotifications else {
+            accountNavigationPath = []
+            return
+        }
         selectedTab = .accounts
         guard settings.selectedBudgetID == budgetID else {
             accountNavigationPath = []
@@ -445,6 +565,9 @@ final class AppState {
 
     #if DEBUG
     func postDebugNewTransactionNotification() async throws -> String {
+        guard capabilities.supportsTransactionNotifications else {
+            throw LocalFirstError.unsupportedWrite
+        }
         guard let budgetID = settings.selectedBudgetID else {
             throw DebugNotificationError.missingBudget
         }
@@ -485,6 +608,11 @@ final class AppState {
     #endif
 
     func loadBudgets() async {
+        if settings.backendMode == .localFirstSync {
+            await loadLocalFirstBudgets()
+            return
+        }
+
         guard makeClient() != nil else {
             connectionStatus = .offline
             if useOfflineSnapshotIfAvailable() {
@@ -522,7 +650,53 @@ final class AppState {
         }
     }
 
+    private func loadLocalFirstBudgets() async {
+        guard !settings.localFirstServerURLString.isEmpty,
+              !keychain.readActualSyncToken().isEmpty else {
+            connectionStatus = .offline
+            setupPhase = .needsConnection
+            return
+        }
+
+        do {
+            budgets = Self.uniqueBudgets(
+                try await localFirstStore.loadBudgets(serverURLString: settings.localFirstServerURLString)
+            )
+
+            if budgets.count == 1, let budget = budgets.first, settings.selectedBudgetID == nil {
+                await selectLocalFirstBudget(budget)
+                return
+            }
+
+            if let selectedBudgetID = settings.selectedBudgetID,
+               let budget = budgets.first(where: { $0.syncID == selectedBudgetID }) {
+                selectedBudget = budget
+                // Open only on first load; once open, refresh flows through
+                // refreshLocalFirstData so appears don't reopen the DB or double-sync.
+                if !localFirstStore.isOpen(budgetID: selectedBudgetID) {
+                    try await localFirstStore.openBudget(
+                        budget,
+                        serverURLString: settings.localFirstServerURLString
+                    )
+                }
+                setupPhase = .ready
+                connectionStatus = .online
+                return
+            }
+
+            connectionStatus = .online
+            setupPhase = .selectingBudget
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            connectionStatus = .offline
+            setupPhase = .needsConnection
+        }
+    }
+
     func makeClient() -> ActualAPIClient? {
+        guard settings.backendMode == .restAPI else {
+            return nil
+        }
         let normalizedURLString = ServerURLNormalizer.normalize(settings.serverURLString)
         if normalizedURLString != settings.serverURLString {
             settings.serverURLString = normalizedURLString
@@ -539,6 +713,10 @@ final class AppState {
     /// Returns the shared data store as a budget repository, or `nil` when the app is not yet
     /// configured (so callers skip loading just as before).
     func makeBudgetRepository() -> (any BudgetRepositoryProtocol)? {
+        if settings.backendMode == .localFirstSync {
+            return localFirstStore
+        }
+
         guard makeClient() != nil else {
             return nil
         }
@@ -547,6 +725,10 @@ final class AppState {
     }
 
     func makeTransactionRepository() -> (any TransactionRepositoryProtocol)? {
+        if settings.backendMode == .localFirstSync {
+            return localFirstStore
+        }
+
         guard makeClient() != nil else {
             return nil
         }
@@ -555,6 +737,9 @@ final class AppState {
     }
 
     func cacheAccountsForOfflineUse() async {
+        guard settings.backendMode == .restAPI else {
+            return
+        }
         guard let budgetID = settings.selectedBudgetID else {
             return
         }
@@ -563,6 +748,9 @@ final class AppState {
     }
 
     private func restorePersistedSnapshot() {
+        guard settings.backendMode == .restAPI else {
+            return
+        }
         guard let budgetID = settings.selectedBudgetID,
               let snapshot = snapshotStore.load(
                 serverURLString: settings.serverURLString,
@@ -587,6 +775,9 @@ final class AppState {
     }
 
     private func persistCurrentSnapshot() {
+        guard settings.backendMode == .restAPI else {
+            return
+        }
         guard let budgetID = settings.selectedBudgetID,
               !settings.serverURLString.isEmpty,
               dataStore.hasCachedBudgetData(budgetID: budgetID) else {
@@ -598,6 +789,18 @@ final class AppState {
             serverURLString: settings.serverURLString,
             budgetID: budgetID
         )
+    }
+
+    func makeAccountRepository() -> (any AccountRepositoryProtocol)? {
+        switch settings.backendMode {
+        case .restAPI:
+            guard makeClient() != nil else {
+                return nil
+            }
+            return dataStore
+        case .localFirstSync:
+            return localFirstStore
+        }
     }
 
     private func pendingNewTransactionKey(budgetID: String, accountID: String) -> String {

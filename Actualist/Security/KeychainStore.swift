@@ -8,6 +8,30 @@ struct KeychainStore {
     let account: String
 
     func readAPIKey() -> String {
+        readValue()
+    }
+
+    func saveAPIKey(_ apiKey: String) {
+        saveValue(apiKey)
+    }
+
+    func readActualSyncToken() -> String {
+        scoped(account: "actual-sync-token").readValue()
+    }
+
+    func saveActualSyncToken(_ token: String) {
+        scoped(account: "actual-sync-token").saveValue(token.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    func removeActualSyncToken() {
+        SecItemDelete(scoped(account: "actual-sync-token").baseQuery() as CFDictionary)
+    }
+
+    private func scoped(account: String) -> KeychainStore {
+        KeychainStore(service: service, account: account)
+    }
+
+    private func readValue() -> String {
         var query = baseQuery()
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -24,8 +48,8 @@ struct KeychainStore {
         return value
     }
 
-    func saveAPIKey(_ apiKey: String) {
-        let data = Data(apiKey.utf8)
+    private func saveValue(_ value: String) {
+        let data = Data(value.utf8)
         let query = baseQuery()
         let attributes: [String: Any] = [
             kSecValueData as String: data,

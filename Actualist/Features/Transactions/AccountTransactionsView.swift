@@ -85,16 +85,21 @@ struct AccountTransactionsView: View {
         appState.settings.selectedBudgetID
     }
 
+    /// The active read backend (REST data store or local-first store) behind the shared seam.
+    private var transactionRepository: (any TransactionRepositoryProtocol)? {
+        appState.makeTransactionRepository()
+    }
+
     /// Reactive composed snapshot from the shared store (cached instantly, revalidated in `load`).
     private var loaded: LoadedAccountTransactions? {
-        guard let budgetID else {
+        guard let budgetID, let repository = transactionRepository else {
             return nil
         }
         switch scope {
         case .account(let account):
-            return appState.dataStore.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
+            return repository.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
         case .spending:
-            return appState.dataStore.cachedSpendingTransactions(budgetID: budgetID)
+            return repository.cachedSpendingTransactions(budgetID: budgetID)
         }
     }
 
@@ -259,7 +264,7 @@ struct AccountTransactionsView: View {
                 }
                 .actualistToolbarGlassButton()
                 .accessibilityLabel("Add Transaction")
-                .disabled(appState.isReadOnly)
+                .disabled(!appState.capabilities.canEditTransactions)
 
                 if scope.supportsAccountActions {
                     Menu {
@@ -280,7 +285,7 @@ struct AccountTransactionsView: View {
                     }
                     .actualistToolbarGlassButton()
                     .accessibilityLabel("Account Actions")
-                    .disabled(isSyncingBank || appState.isReadOnly)
+                    .disabled(isSyncingBank || appState.capabilities.isReadOnly)
                 }
             }
         }
@@ -335,7 +340,7 @@ struct AccountTransactionsView: View {
                 Button("Delete Transaction", role: .destructive) {
                     Task { await delete(deletePresentation.transaction) }
                 }
-                .disabled(appState.isReadOnly)
+                .disabled(!appState.capabilities.canEditTransactions)
             }
 
             Button("Cancel", role: .cancel) {}
@@ -490,7 +495,7 @@ struct AccountTransactionsView: View {
         showsBottomSeparator: Bool
     ) -> some View {
         Button {
-            guard !appState.isReadOnly else {
+            guard appState.capabilities.canEditTransactions else {
                 return
             }
             transactionEditorPresentation = .edit(
@@ -512,7 +517,7 @@ struct AccountTransactionsView: View {
         .buttonStyle(.plain)
         .disabled(deletingTransactionID == transaction.rowID)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            if !appState.isReadOnly {
+            if appState.capabilities.canEditTransactions {
                 Button(role: .destructive) {
                     requestDelete(transaction)
                 } label: {
@@ -525,7 +530,7 @@ struct AccountTransactionsView: View {
     }
 
     private func requestDelete(_ transaction: ActualTransaction) {
-        guard !appState.isReadOnly else {
+        guard appState.capabilities.canEditTransactions else {
             deletePresentation = nil
             errorMessage = offlineMutationMessage
             return
@@ -544,7 +549,7 @@ struct AccountTransactionsView: View {
     }
 
     private func delete(_ transaction: ActualTransaction) async {
-        guard !appState.isReadOnly else {
+        guard appState.capabilities.canEditTransactions else {
             deletePresentation = nil
             errorMessage = offlineMutationMessage
             return
@@ -559,9 +564,12 @@ struct AccountTransactionsView: View {
         errorMessage = nil
 
         do {
+            guard let repository = transactionRepository else {
+                return
+            }
             // The store invalidates and refetches the affected account + month, so the reactive
             // snapshot (and the Budget tab) refresh without a second round trip here.
-            _ = try await appState.dataStore.deleteTransactionAndRefresh(
+            _ = try await repository.deleteTransactionAndRefresh(
                 transaction,
                 budgetID: budgetID
             ) {}
@@ -670,11 +678,15 @@ struct AccountTransactionsView: View {
         isLoading = true
         errorMessage = nil
         do {
+            guard let repository = transactionRepository else {
+                return
+            }
+            await appState.refreshLocalFirstData(budgetID: budgetID)
             switch scope {
             case .account(let account):
-                try await appState.dataStore.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
+                try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
             case .spending:
-                try await appState.dataStore.refreshSpendingTransactions(budgetID: budgetID)
+                try await repository.refreshSpendingTransactions(budgetID: budgetID)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -686,7 +698,7 @@ struct AccountTransactionsView: View {
         guard let budgetID,
               let account = scope.account,
               !isSyncingBank,
-              !appState.isReadOnly else {
+              appState.capabilities.canBankSync else {
             return
         }
 
@@ -710,11 +722,14 @@ struct AccountTransactionsView: View {
         isLoadingOlder = true
         errorMessage = nil
         do {
+            guard let repository = transactionRepository else {
+                return
+            }
             switch scope {
             case .account(let account):
-                try await appState.dataStore.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
+                try await repository.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
             case .spending:
-                try await appState.dataStore.loadOlderSpendingTransactions(budgetID: budgetID)
+                try await repository.loadOlderSpendingTransactions(budgetID: budgetID)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -751,10 +766,14 @@ struct AccountTransactionsView: View {
         }
 
         do {
+            guard let repository = transactionRepository else {
+                isSearching = false
+                return
+            }
             let results: LoadedAccountTransactions
             switch scope {
             case .account(let account):
-                results = try await appState.dataStore.searchAccountTransactions(
+                results = try await repository.searchAccountTransactions(
                     budgetID: budgetID,
                     accountID: account.id,
                     query: query,
@@ -762,7 +781,7 @@ struct AccountTransactionsView: View {
                     offset: 0
                 )
             case .spending:
-                results = try await appState.dataStore.searchSpendingTransactions(
+                results = try await repository.searchSpendingTransactions(
                     budgetID: budgetID,
                     query: query,
                     limit: 50,

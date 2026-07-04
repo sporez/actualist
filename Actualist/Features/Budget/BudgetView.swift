@@ -86,7 +86,7 @@ struct BudgetView: View {
                 .scrollIndicators(.hidden)
                 .background(ActualistTheme.background)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if viewModel.isAssignmentKeypadPresented && !appState.isReadOnly {
+                    if viewModel.isAssignmentKeypadPresented && appState.capabilities.canAssignBudget {
                         BudgetAssignmentKeypad(
                             canSubmit: viewModel.canSubmitAssignment,
                             canApplyTemplate: viewModel.canApplyCategoryTemplate,
@@ -150,7 +150,7 @@ struct BudgetView: View {
                             Image(systemName: "plus")
                         }
                         .actualistToolbarGlassButton()
-                        .disabled(appState.isReadOnly)
+                        .disabled(!appState.capabilities.canAssignBudget)
                     }
 
                     ToolbarItem(placement: .principal) {
@@ -194,14 +194,14 @@ struct BudgetView: View {
                             } label: {
                                 Label("Apply Template", systemImage: "sparkles")
                             }
-                            .disabled(viewModel.isApplyingMonthTemplate || appState.isReadOnly)
+                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canAssignBudget)
 
                             Button {
                                 pendingTemplateConfirmation = .monthOverwrite
                             } label: {
                                 Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
                             }
-                            .disabled(viewModel.isApplyingMonthTemplate || appState.isReadOnly)
+                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canAssignBudget)
                         } label: {
                             Image(systemName: "ellipsis")
                         }
@@ -241,7 +241,7 @@ struct BudgetView: View {
                 ) {
                     BudgetOverspentCategoriesView(
                         categories: viewModel.overspentCategoryOptions,
-                        isReadOnly: appState.isReadOnly,
+                        isReadOnly: !appState.capabilities.canAssignBudget,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
                     ) { category in
                         pendingOverspentCategoryID = category.id
@@ -444,7 +444,7 @@ struct BudgetView: View {
                         viewModel.isEditingAssignment(for: category)
                     },
                     beginAssignmentEditing: { category, categoryFrame in
-                        guard !appState.isReadOnly else {
+                        guard appState.capabilities.canAssignBudget else {
                             return
                         }
                         assignmentEditingCategoryFrame = categoryFrame

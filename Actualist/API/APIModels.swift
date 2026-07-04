@@ -360,6 +360,26 @@ struct BudgetMonthCategoryGroup: Codable, Identifiable, Hashable, Sendable {
         case isIncome = "is_income"
     }
 
+    init(
+        id: String,
+        name: String,
+        isIncome: Bool,
+        hidden: Bool?,
+        budgeted: Int,
+        spent: Int,
+        balance: Int,
+        categories: [BudgetMonthCategory]
+    ) {
+        self.id = id
+        self.name = name
+        self.isIncome = isIncome
+        self.hidden = hidden
+        self.budgeted = budgeted
+        self.spent = spent
+        self.balance = balance
+        self.categories = categories
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -388,6 +408,28 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
         case id, name, hidden, budgeted, spent, balance, carryover
         case isIncome = "is_income"
         case groupID = "group_id"
+    }
+
+    init(
+        id: String,
+        name: String,
+        isIncome: Bool,
+        hidden: Bool?,
+        groupID: String,
+        budgeted: Int,
+        spent: Int,
+        balance: Int,
+        carryover: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.isIncome = isIncome
+        self.hidden = hidden
+        self.groupID = groupID
+        self.budgeted = budgeted
+        self.spent = spent
+        self.balance = balance
+        self.carryover = carryover
     }
 
     init(from decoder: Decoder) throws {

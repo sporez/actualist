@@ -22,13 +22,23 @@ struct OnboardingView: View {
                             .font(ActualistTypography.sectionTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
 
-                        Text("Enter the server base URL.")
+                        Text(viewModel.backendMode == .localFirstSync ? "Enter your Actual server credentials." : "Enter the HTTP API server base URL.")
                             .font(ActualistTypography.body(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText.opacity(0.82))
                     }
 
                     GlassPanel {
                         VStack(alignment: .leading, spacing: 18) {
+                            Picker("Backend", selection: $viewModel.backendMode) {
+                                ForEach(BackendMode.allCases) { mode in
+                                    Text(mode.title)
+                                        .tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            Divider().overlay(ActualistTheme.separator)
+
                             LabeledContent("Server URL") {
                                 ZStack(alignment: .trailing) {
                                     if viewModel.serverURLString.isEmpty {
@@ -45,14 +55,26 @@ struct OnboardingView: View {
 
                             Divider().overlay(ActualistTheme.separator)
 
-                            LabeledContent("API Key") {
-                                SecureField(
-                                    "",
-                                    text: $viewModel.apiKey,
-                                    prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
-                                )
-                                .textInputAutocapitalization(.never)
-                                .multilineTextAlignment(.trailing)
+                            if viewModel.backendMode == .restAPI {
+                                LabeledContent("API Key") {
+                                    SecureField(
+                                        "",
+                                        text: $viewModel.apiKey,
+                                        prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
+                                    )
+                                    .textInputAutocapitalization(.never)
+                                    .multilineTextAlignment(.trailing)
+                                }
+                            } else {
+                                LabeledContent("Password") {
+                                    SecureField(
+                                        "",
+                                        text: $viewModel.actualPassword,
+                                        prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
+                                    )
+                                    .textInputAutocapitalization(.never)
+                                    .multilineTextAlignment(.trailing)
+                                }
                             }
                         }
                         .foregroundStyle(ActualistTheme.primaryText)
@@ -78,7 +100,7 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(.glassProminent)
                     .tint(ActualistTheme.accent)
-                    .disabled(viewModel.serverURLString.isEmpty || viewModel.apiKey.isEmpty || viewModel.isConnecting)
+                    .disabled(!viewModel.canConnect)
 
                     Spacer(minLength: 120)
                 }
@@ -103,7 +125,7 @@ struct BudgetPickerView: View {
                 Section {
                     ForEach(appState.budgets) { budget in
                         Button {
-                            appState.selectBudget(budget)
+                            Task { await appState.selectBudgetForCurrentBackend(budget) }
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {

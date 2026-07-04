@@ -1,6 +1,25 @@
 import Foundation
 
 protocol TransactionRepositoryProtocol: Sendable {
+    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions?
+    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions?
+    func refreshAccountTransactions(budgetID: String, accountID: String) async throws
+    func refreshSpendingTransactions(budgetID: String) async throws
+    func loadOlderTransactions(budgetID: String, accountID: String) async throws
+    func loadOlderSpendingTransactions(budgetID: String) async throws
+    func searchAccountTransactions(
+        budgetID: String,
+        accountID: String,
+        query: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions
+    func searchSpendingTransactions(
+        budgetID: String,
+        query: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions
     func uncategorizedTransactions(
         budgetID: String,

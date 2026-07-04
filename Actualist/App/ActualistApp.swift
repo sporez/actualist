@@ -35,7 +35,7 @@ struct ActualistApp: App {
 final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificationCenterDelegate {
     static let shared = BackgroundTransactionRefreshCoordinator()
 
-    static let taskIdentifier = "com.sporez.actualist.transactions.refresh"
+    static let taskIdentifier = "com.sporez.actualist.localfirst.transactions.refresh"
     private let requestedInterval: TimeInterval = 60 * 60
     private weak var appState: AppState?
     private var didRegisterTask = false
@@ -111,6 +111,9 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         var reasons: [String] = []
         if !appState.settings.backgroundTransactionRefreshEnabled {
             reasons.append("alerts disabled")
+        }
+        if !appState.capabilities.supportsBackgroundRefresh {
+            reasons.append("local-first mode")
         }
         if appState.settings.selectedBudgetID == nil {
             reasons.append("no selected budget")

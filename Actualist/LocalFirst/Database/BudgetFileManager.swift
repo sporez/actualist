@@ -1,0 +1,105 @@
+import Foundation
+import ZIPFoundation
+
+struct BudgetFileManager {
+    let applicationSupportURL: URL
+    private let fileManager: FileManager
+
+    init(
+        applicationSupportURL: URL? = nil,
+        fileManager: FileManager = .default
+    ) {
+        self.fileManager = fileManager
+        self.applicationSupportURL = applicationSupportURL
+            ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appending(path: "Actualist", directoryHint: .isDirectory)
+    }
+
+    func budgetDirectory(fileID: String) -> URL {
+        applicationSupportURL
+            .appending(path: "Budgets", directoryHint: .isDirectory)
+            .appending(path: sanitized(fileID), directoryHint: .isDirectory)
+    }
+
+    func databaseURL(fileID: String) -> URL {
+        budgetDirectory(fileID: fileID).appending(path: "db.sqlite")
+    }
+
+    func metadataURL(fileID: String) -> URL {
+        budgetDirectory(fileID: fileID).appending(path: "metadata.json")
+    }
+
+    func loadMetadata(fileID: String) throws -> LocalFirstBudgetMetadata? {
+        let url = metadataURL(fileID: fileID)
+        guard fileManager.fileExists(atPath: url.path) else {
+            return nil
+        }
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder.actual.decode(LocalFirstBudgetMetadata.self, from: data)
+    }
+
+    func importedDatabaseExists(fileID: String) -> Bool {
+        fileManager.fileExists(atPath: databaseURL(fileID: fileID).path)
+    }
+
+    func importBudgetZip(
+        _ data: Data,
+        remoteFile: ActualSyncRemoteFile,
+        metadata: LocalFirstBudgetMetadata
+    ) throws -> URL {
+        let directory = budgetDirectory(fileID: remoteFile.fileID)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let zipURL = directory.appending(path: "download.zip")
+        try data.write(to: zipURL, options: .atomic)
+
+        let extractionURL = directory.appending(path: "import", directoryHint: .isDirectory)
+        if fileManager.fileExists(atPath: extractionURL.path) {
+            try fileManager.removeItem(at: extractionURL)
+        }
+        try fileManager.createDirectory(at: extractionURL, withIntermediateDirectories: true)
+        try fileManager.unzipItem(at: zipURL, to: extractionURL)
+
+        guard let importedDatabase = try findDatabase(in: extractionURL) else {
+            throw LocalFirstError.missingImportedDatabase
+        }
+
+        let databaseURL = databaseURL(fileID: remoteFile.fileID)
+        if fileManager.fileExists(atPath: databaseURL.path) {
+            try fileManager.removeItem(at: databaseURL)
+        }
+        try fileManager.moveItem(at: importedDatabase, to: databaseURL)
+
+        let metadataData = try JSONEncoder.actual.encode(metadata)
+        try metadataData.write(to: metadataURL(fileID: remoteFile.fileID), options: .atomic)
+        try? fileManager.removeItem(at: zipURL)
+        try? fileManager.removeItem(at: extractionURL)
+        return databaseURL
+    }
+
+    private func findDatabase(in directory: URL) throws -> URL? {
+        guard let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        for case let url as URL in enumerator {
+            guard url.lastPathComponent == "db.sqlite" || url.pathExtension == "sqlite" else {
+                continue
+            }
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+            if values.isRegularFile == true {
+                return url
+            }
+        }
+        return nil
+    }
+
+    private func sanitized(_ value: String) -> String {
+        value.replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+    }
+}

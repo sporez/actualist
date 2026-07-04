@@ -1078,6 +1078,8 @@ extension ActualDataStore: BudgetRepositoryProtocol {
     }
 }
 
+extension ActualDataStore: AccountRepositoryProtocol {}
+
 extension ActualDataStore: TransactionRepositoryProtocol {
     func uncategorizedTransactions(
         budgetID: String,

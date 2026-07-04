@@ -15,8 +15,11 @@ struct AccountsView: View {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return []
         }
+        guard let repository = appState.makeAccountRepository() else {
+            return []
+        }
         return appState.orderedAccountDisplays(
-            appState.dataStore.accountDisplays(budgetID: budgetID),
+            repository.accountDisplays(budgetID: budgetID),
             budgetID: budgetID
         )
     }
@@ -33,17 +36,19 @@ struct AccountsView: View {
                         rows: closedAccounts
                     )
 
-                    Button {
-                        isAddAccountPresented = true
-                    } label: {
-                        Label("Add Account", systemImage: "plus.circle")
-                            .font(ActualistTypography.control(for: density))
-                            .frame(maxWidth: .infinity)
+                    if appState.capabilities.showsAddAccount {
+                        Button {
+                            isAddAccountPresented = true
+                        } label: {
+                            Label("Add Account", systemImage: "plus.circle")
+                                .font(ActualistTypography.control(for: density))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
+                        .tint(ActualistTheme.accent)
+                        .disabled(!appState.capabilities.canAddAccount)
+                        .padding(.top, 8)
                     }
-                    .buttonStyle(.glass)
-                    .tint(ActualistTheme.accent)
-                    .disabled(appState.isReadOnly)
-                    .padding(.top, 8)
 
                     if isLoading && accounts.isEmpty {
                         AccountsLoadingView()
@@ -183,7 +188,11 @@ struct AccountsView: View {
         isLoading = true
         errorMessage = nil
         do {
-            try await appState.dataStore.refreshAccountsWithBalances(budgetID: budgetID)
+            guard let repository = appState.makeAccountRepository() else {
+                return
+            }
+            await appState.refreshLocalFirstData(budgetID: budgetID)
+            try await repository.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
             errorMessage = accounts.isEmpty ? error.localizedDescription : nil
         }
@@ -302,7 +311,7 @@ private struct AddAccountSheet: View {
         guard await viewModel.submit(
             budgetID: appState.settings.selectedBudgetID,
             dataStore: appState.dataStore,
-            isReadOnly: appState.isReadOnly
+            isReadOnly: !appState.capabilities.canAddAccount
         ) else {
             return
         }

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		010000000000000000000001 /* ActualistApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000001 /* ActualistApp.swift */; };
 		010000000000000000000002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000002 /* AppState.swift */; };
+		01000000000000000000003A /* BackendCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000036 /* BackendCapabilities.swift */; };
 		010000000000000000000003 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000003 /* AppTab.swift */; };
 		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
 		010000000000000000000005 /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000005 /* GlassPanel.swift */; };
@@ -47,6 +48,20 @@
 		010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000029 /* UncategorizedTransactionsView.swift */; };
 		010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */; };
 		010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */; };
+		01000000000000000000002D /* AccountRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002D /* AccountRepository.swift */; };
+		01000000000000000000002E /* LocalFirstModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002E /* LocalFirstModels.swift */; };
+		01000000000000000000002F /* ActualServerSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002F /* ActualServerSyncClient.swift */; };
+		010000000000000000000030 /* BudgetFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000030 /* BudgetFileManager.swift */; };
+		010000000000000000000031 /* BudgetDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000031 /* BudgetDatabase.swift */; };
+		010000000000000000000032 /* SyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000032 /* SyncClient.swift */; };
+		010000000000000000000033 /* Sync.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000033 /* Sync.pb.swift */; };
+		010000000000000000000034 /* LocalFirstActualStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000034 /* LocalFirstActualStore.swift */; };
+		010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000035 /* LocalFirstActualStoreTests.swift */; };
+		01000000000000000000003B /* BackendCapabilitiesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000037 /* BackendCapabilitiesTests.swift */; };
+		010000000000000000000036 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000001 /* GRDB */; };
+		010000000000000000000037 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000002 /* SwiftProtobuf */; };
+		010000000000000000000038 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000003 /* ZIPFoundation */; };
+		010000000000000000000039 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000001 /* GRDB */; };
 		28C36EBD2FE377C800A9F4A8 /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* icon.icon */; };
 		28C36EC02FE377C800A9F4A8 /* icon_blue.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */; };
 		28C36EC22FE377C800A9F4A8 /* icon_orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC12FE377C800A9F4A8 /* icon_orange.icon */; };
@@ -66,6 +81,7 @@
 /* Begin PBXFileReference section */
 		020000000000000000000001 /* ActualistApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistApp.swift; sourceTree = "<group>"; };
 		020000000000000000000002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		020000000000000000000036 /* BackendCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendCapabilities.swift; sourceTree = "<group>"; };
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
 		020000000000000000000004 /* ActualistTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistTheme.swift; sourceTree = "<group>"; };
 		020000000000000000000005 /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassPanel.swift; sourceTree = "<group>"; };
@@ -107,6 +123,16 @@
 		020000000000000000000029 /* UncategorizedTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsView.swift; sourceTree = "<group>"; };
 		02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModelTests.swift; sourceTree = "<group>"; };
+		02000000000000000000002D /* AccountRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepository.swift; sourceTree = "<group>"; };
+		02000000000000000000002E /* LocalFirstModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstModels.swift; sourceTree = "<group>"; };
+		02000000000000000000002F /* ActualServerSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualServerSyncClient.swift; sourceTree = "<group>"; };
+		020000000000000000000030 /* BudgetFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetFileManager.swift; sourceTree = "<group>"; };
+		020000000000000000000031 /* BudgetDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDatabase.swift; sourceTree = "<group>"; };
+		020000000000000000000032 /* SyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncClient.swift; sourceTree = "<group>"; };
+		020000000000000000000033 /* Sync.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sync.pb.swift; sourceTree = "<group>"; };
+		020000000000000000000034 /* LocalFirstActualStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStore.swift; sourceTree = "<group>"; };
+		020000000000000000000035 /* LocalFirstActualStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreTests.swift; sourceTree = "<group>"; };
+		020000000000000000000037 /* BackendCapabilitiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendCapabilitiesTests.swift; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_blue.icon; sourceTree = "<group>"; };
 		28C36EC12FE377C800A9F4A8 /* icon_orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_orange.icon; sourceTree = "<group>"; };
@@ -118,6 +144,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				010000000000000000000036 /* GRDB in Frameworks */,
+				010000000000000000000037 /* SwiftProtobuf in Frameworks */,
+				010000000000000000000038 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +154,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				010000000000000000000039 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -149,6 +179,7 @@
 				040000000000000000000004 /* DesignSystem */,
 				040000000000000000000005 /* API */,
 				040000000000000000000019 /* Data */,
+				04000000000000000000001A /* LocalFirst */,
 				040000000000000000000006 /* Security */,
 				040000000000000000000007 /* Persistence */,
 				040000000000000000000018 /* Repositories */,
@@ -166,6 +197,7 @@
 			children = (
 				020000000000000000000001 /* ActualistApp.swift */,
 				020000000000000000000002 /* AppState.swift */,
+				020000000000000000000036 /* BackendCapabilities.swift */,
 				020000000000000000000003 /* AppTab.swift */,
 			);
 			path = App;
@@ -239,6 +271,8 @@
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
 				020000000000000000000025 /* ActualDataStoreTests.swift */,
 				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
+				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
+				020000000000000000000037 /* BackendCapabilitiesTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -315,6 +349,7 @@
 			children = (
 				020000000000000000000020 /* BudgetAPI.swift */,
 				020000000000000000000018 /* BudgetRepository.swift */,
+				02000000000000000000002D /* AccountRepository.swift */,
 				020000000000000000000022 /* TransactionRepository.swift */,
 			);
 			path = Repositories;
@@ -326,6 +361,52 @@
 				020000000000000000000024 /* ActualDataStore.swift */,
 			);
 			path = Data;
+			sourceTree = "<group>";
+		};
+		04000000000000000000001A /* LocalFirst */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000002E /* LocalFirstModels.swift */,
+				020000000000000000000034 /* LocalFirstActualStore.swift */,
+				04000000000000000000001B /* Network */,
+				04000000000000000000001C /* Database */,
+				04000000000000000000001D /* Sync */,
+				04000000000000000000001E /* Generated */,
+			);
+			path = LocalFirst;
+			sourceTree = "<group>";
+		};
+		04000000000000000000001B /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000002F /* ActualServerSyncClient.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		04000000000000000000001C /* Database */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000030 /* BudgetFileManager.swift */,
+				020000000000000000000031 /* BudgetDatabase.swift */,
+			);
+			path = Database;
+			sourceTree = "<group>";
+		};
+		04000000000000000000001D /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000032 /* SyncClient.swift */,
+			);
+			path = Sync;
+			sourceTree = "<group>";
+		};
+		04000000000000000000001E /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000033 /* Sync.pb.swift */,
+			);
+			path = Generated;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -344,6 +425,11 @@
 			dependencies = (
 			);
 			name = Actualist;
+			packageProductDependencies = (
+				0D0000000000000000000001 /* GRDB */,
+				0D0000000000000000000002 /* SwiftProtobuf */,
+				0D0000000000000000000003 /* ZIPFoundation */,
+			);
 			productName = Actualist;
 			productReference = 020000000000000000000015 /* Actualist.app */;
 			productType = "com.apple.product-type.application";
@@ -362,6 +448,9 @@
 				080000000000000000000001 /* PBXTargetDependency */,
 			);
 			name = ActualistTests;
+			packageProductDependencies = (
+				0D0000000000000000000001 /* GRDB */,
+			);
 			productName = ActualistTests;
 			productReference = 020000000000000000000016 /* ActualistTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -394,6 +483,11 @@
 				Base,
 			);
 			mainGroup = 040000000000000000000001;
+			packageReferences = (
+				0C0000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				0C0000000000000000000002 /* XCRemoteSwiftPackageReference "swift-protobuf" */,
+				0C0000000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
 			productRefGroup = 040000000000000000000011 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -432,6 +526,7 @@
 			files = (
 				010000000000000000000001 /* ActualistApp.swift in Sources */,
 				010000000000000000000002 /* AppState.swift in Sources */,
+				01000000000000000000003A /* BackendCapabilities.swift in Sources */,
 				010000000000000000000003 /* AppTab.swift in Sources */,
 				010000000000000000000004 /* ActualistTheme.swift in Sources */,
 				010000000000000000000005 /* GlassPanel.swift in Sources */,
@@ -453,10 +548,18 @@
 				010000000000000000000011 /* Money.swift in Sources */,
 				010000000000000000000014 /* CategoryNameParts.swift in Sources */,
 				010000000000000000000015 /* BudgetRepository.swift in Sources */,
+				01000000000000000000002D /* AccountRepository.swift in Sources */,
 				01000000000000000000001D /* BudgetAPI.swift in Sources */,
 				01000000000000000000001F /* TransactionRepository.swift in Sources */,
 				010000000000000000000020 /* ActualAPIClientProtocol.swift in Sources */,
 				010000000000000000000021 /* ActualDataStore.swift in Sources */,
+				01000000000000000000002E /* LocalFirstModels.swift in Sources */,
+				01000000000000000000002F /* ActualServerSyncClient.swift in Sources */,
+				010000000000000000000030 /* BudgetFileManager.swift in Sources */,
+				010000000000000000000031 /* BudgetDatabase.swift in Sources */,
+				010000000000000000000032 /* SyncClient.swift in Sources */,
+				010000000000000000000033 /* Sync.pb.swift in Sources */,
+				010000000000000000000034 /* LocalFirstActualStore.swift in Sources */,
 				010000000000000000000023 /* TransactionGrouping.swift in Sources */,
 				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
 				010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */,
@@ -477,6 +580,8 @@
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
 				010000000000000000000022 /* ActualDataStoreTests.swift in Sources */,
 				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
+				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,
+				01000000000000000000003B /* BackendCapabilitiesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -489,6 +594,51 @@
 			targetProxy = 080000000000000000000002 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0C0000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.0.0;
+			};
+		};
+		0C0000000000000000000002 /* XCRemoteSwiftPackageReference "swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-protobuf.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.29.0;
+			};
+		};
+		0C0000000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0D0000000000000000000001 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C0000000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		0D0000000000000000000002 /* SwiftProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C0000000000000000000002 /* XCRemoteSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobuf;
+		};
+		0D0000000000000000000003 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0C0000000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0B0000000000000000000001 /* Debug */ = {
@@ -625,7 +775,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.8;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.localfirst;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -654,7 +804,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.8;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.localfirst;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;

@@ -70,7 +70,7 @@ final class UncategorizedTransactionsViewModel {
         month: String,
         using appState: AppState
     ) async -> CategorizationResult {
-        guard !appState.isReadOnly,
+        guard appState.capabilities.canEditTransactions,
               let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {
             return .failed
@@ -90,7 +90,7 @@ final class UncategorizedTransactionsViewModel {
         as option: TransactionEditorCategoryOption,
         using appState: AppState
     ) async -> Bool {
-        guard !appState.isReadOnly,
+        guard appState.capabilities.canEditTransactions,
               let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {
             return false

@@ -5,8 +5,10 @@ import UIKit
 @MainActor
 @Observable
 final class SettingsViewModel {
+    var backendMode: BackendMode = .restAPI
     var serverURLString = ""
     var apiKey = ""
+    var actualPassword = ""
     var isTesting = false
     var isLoadingBudgets = false
     var selectedAppIcon: AppIcon = .default
@@ -17,7 +19,10 @@ final class SettingsViewModel {
     }
 
     func hydrate(from appState: AppState) {
-        serverURLString = appState.settings.serverURLString
+        backendMode = appState.settings.backendMode
+        serverURLString = backendMode == .localFirstSync
+            ? appState.settings.localFirstServerURLString
+            : appState.settings.serverURLString
         apiKey = appState.apiKey
         selectedAppIcon = AppIcon.current()
     }
@@ -41,8 +46,13 @@ final class SettingsViewModel {
     func saveAndTest(using appState: AppState) async {
         isTesting = true
         appState.lastErrorMessage = nil
-        appState.saveConnection(serverURLString: serverURLString, apiKey: apiKey)
-        await appState.loadBudgets()
+        switch backendMode {
+        case .restAPI:
+            appState.saveConnection(serverURLString: serverURLString, apiKey: apiKey)
+            await appState.loadBudgets()
+        case .localFirstSync:
+            await appState.saveLocalFirstConnection(serverURLString: serverURLString, password: actualPassword)
+        }
         isTesting = false
     }
 
