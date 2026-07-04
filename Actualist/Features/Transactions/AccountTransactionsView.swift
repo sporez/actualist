@@ -335,6 +335,7 @@ struct AccountTransactionsView: View {
                 Button("Delete Transaction", role: .destructive) {
                     Task { await delete(deletePresentation.transaction) }
                 }
+                .disabled(appState.isReadOnly)
             }
 
             Button("Cancel", role: .cancel) {}
@@ -524,6 +525,12 @@ struct AccountTransactionsView: View {
     }
 
     private func requestDelete(_ transaction: ActualTransaction) {
+        guard !appState.isReadOnly else {
+            deletePresentation = nil
+            errorMessage = offlineMutationMessage
+            return
+        }
+
         guard transaction.id != nil else {
             errorMessage = "This transaction cannot be deleted because the API did not provide its transaction ID."
             return
@@ -537,7 +544,13 @@ struct AccountTransactionsView: View {
     }
 
     private func delete(_ transaction: ActualTransaction) async {
-        guard let budgetID, !appState.isReadOnly else {
+        guard !appState.isReadOnly else {
+            deletePresentation = nil
+            errorMessage = offlineMutationMessage
+            return
+        }
+
+        guard let budgetID else {
             return
         }
 
@@ -559,6 +572,10 @@ struct AccountTransactionsView: View {
 
         isLoading = false
         deletingTransactionID = nil
+    }
+
+    private var offlineMutationMessage: String {
+        "Server is offline. Transaction changes are read-only until it reconnects."
     }
 
     private func payeeName(for transaction: ActualTransaction) -> String {
