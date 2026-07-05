@@ -1244,45 +1244,57 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
-    /// Build the tombstone message that soft-deletes a simple transaction. Actual represents
-    /// deletes as `tombstone = true` so read queries (which filter live rows) stop returning it
-    /// and the delete converges through CRDT sync. Split and transfer rows are rejected because
-    /// their deletes require paired/child handling that lands in later phases.
-    func deleteSimpleTransactionMessages(
+    /// Build the tombstone messages that soft-delete a transaction of any shape. Actual
+    /// represents deletes as `tombstone = true` so read queries (which filter live rows) stop
+    /// returning it and the delete converges through CRDT sync. Mirrors loot-core: a split
+    /// parent also tombstones its children (`idsWithChildren`), and a transfer detaches or
+    /// tombstones its paired row (`onDelete` -> `removeTransfer`). Returns the touched accounts.
+    func deleteTransactionMessages(
         transactionID: String,
         builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
+    ) throws -> TransactionWriteResult {
         let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTransactionID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
 
         return try queue.read { db in
-            let columns = try requiredColumns(
-                table: "transactions",
-                required: ["tombstone"],
-                db: db
-            )
+            let columns = try resolveTransactionRowColumns(db: db)
+            guard columns.hasTombstone else {
+                throw LocalFirstError.invalidLocalWrite("missing column transactions.tombstone")
+            }
             guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing transaction")
             }
 
-            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
-            try validateSimpleTransactionRow(
-                transactionID: trimmedTransactionID,
-                columns: columns,
-                payeeColumn: payeeColumn,
-                db: db
-            )
+            let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
+            var affectedAccounts: Set<String> = [existing.account]
+            var affectedTransactions: Set<String> = [trimmedTransactionID]
+            var messages = [tombstoneMessage(rowID: trimmedTransactionID, builder: &builder)]
 
-            return [
-                builder.makeMessage(
-                    dataset: "transactions",
-                    row: trimmedTransactionID,
-                    column: "tombstone",
-                    value: .bool(true)
-                )
-            ]
+            for childID in existing.childIDs {
+                affectedTransactions.insert(childID)
+                messages.append(tombstoneMessage(rowID: childID, builder: &builder))
+            }
+
+            if let pairedID = existing.transferID, let transferColumn = columns.transferID {
+                affectedTransactions.insert(pairedID)
+                if let oldPaired = existing.pairedAccount {
+                    affectedAccounts.insert(oldPaired)
+                }
+                if existing.pairedIsChild {
+                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
+                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
+                } else {
+                    messages.append(tombstoneMessage(rowID: pairedID, builder: &builder))
+                }
+            }
+
+            return TransactionWriteResult(
+                messages: messages,
+                affectedAccountIDs: Array(affectedAccounts),
+                affectedTransactionIDs: Array(affectedTransactions)
+            )
         }
     }
 

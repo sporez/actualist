@@ -528,27 +528,18 @@ struct AccountTransactionsView: View {
         }
     }
 
-    /// Whether the delete affordance should be shown for a given row. Full-write backends can
-    /// delete anything, but local-first write testing only supports simple (non-split,
-    /// non-transfer) tombstone deletes, so those complex rows stay non-deletable there.
+    /// Whether the delete affordance should be shown for a given row, gated by the capability
+    /// matching the row's shape: split parents need `canWriteSplits`, transfers need
+    /// `canWriteTransfers`, and simple rows need `canDeleteTransactions`. On a full-write backend
+    /// all three are on, so anything is deletable.
     private func canOfferDelete(_ transaction: ActualTransaction) -> Bool {
-        guard appState.capabilities.canDeleteTransactions else {
-            return false
-        }
-        if appState.capabilities.isReadOnly, !isSimpleTransaction(transaction) {
-            return false
-        }
-        return true
-    }
-
-    private func isSimpleTransaction(_ transaction: ActualTransaction) -> Bool {
-        guard !transaction.isParent, !transaction.isChild else {
-            return false
+        if transaction.isParent {
+            return appState.capabilities.canWriteSplits
         }
         if let payee = transaction.payee, activeTransferPayeeIDs.contains(payee) {
-            return false
+            return appState.capabilities.canWriteTransfers
         }
-        return true
+        return appState.capabilities.canDeleteTransactions
     }
 
     private func requestDelete(_ transaction: ActualTransaction) {

@@ -1219,6 +1219,76 @@ struct LocalFirstActualStoreTests {
         #expect(asSimple.category == "groceries")
     }
 
+    @Test func deleteSplitParentLocallyTombstonesParentAndChildren() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 13),
+            amountMinorUnits: -3000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false,
+            splits: [
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -2000),
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1000)
+            ]
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let parentID = try #require(created.changed.transactions.first)
+        let parent = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == parentID }
+        )
+
+        let result = try await store.deleteTransactionAndRefresh(parent, budgetID: "group-1") {}
+
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+
+        #expect(result.ok)
+        #expect(!checking.transactions.contains { $0.id == parentID })
+        // The two child ids are reported as affected (tombstoned) alongside the parent.
+        #expect(result.changed.transactions.count == 3)
+        // Split children removed, so groceries returns to the seeded baseline.
+        #expect(groceries.spent == -12_345)
+    }
+
+    @Test func deleteTransferLocallyTombstonesBothSides() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-credit",
+            payeeName: "",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+        let source = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit")?.transactions.isEmpty == false)
+
+        let result = try await store.deleteTransactionAndRefresh(source, budgetID: "group-1") {}
+
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let credit = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+
+        #expect(result.ok)
+        #expect(Set(result.changed.accounts) == Set(["checking", "credit"]))
+        #expect(!checking.transactions.contains { $0.id == transactionID })
+        #expect(credit.transactions.isEmpty)
+    }
+
     private func makeBudgetMonth(
         toBudget: Int,
         groups: [BudgetMonthCategoryGroup] = []

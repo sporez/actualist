@@ -489,7 +489,7 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                 Section("Local-First Writes") {
                     Toggle("Transaction Writes", isOn: $localFirstTransactionCreationSelection)
 
-                    Text("Enables simple transaction create, basic field edits, categorization, and delete for fake-budget testing. Splits, transfers, budget moves, rules, and account writes stay disabled.")
+                    Text("Enables full transaction writes for fake-budget testing: create, edit, categorize, and delete, including transfers and splits. Budget moves, rules, and account writes stay disabled.")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }

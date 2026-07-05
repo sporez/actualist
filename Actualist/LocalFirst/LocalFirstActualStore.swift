@@ -614,30 +614,32 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let messages = try database.deleteSimpleTransactionMessages(
+        let delete = try database.deleteTransactionMessages(
             transactionID: transactionID,
             builder: &builder
         )
 
         try await pushLocalMessagesIfPossible(
             database: database,
-            messages: messages,
+            messages: delete.messages,
             since: latestTimestamp
         )
-        _ = try database.applyLocalSyncMessages(messages)
+        _ = try database.applyLocalSyncMessages(delete.messages)
         await didDelete()
+
+        let changedAccounts = Array(Set(delete.affectedAccountIDs + [transaction.account]))
         try reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
-            accountIDs: [transaction.account],
+            accountIDs: changedAccounts,
             monthIDs: [monthID]
         )
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
-                accounts: [transaction.account],
+                accounts: changedAccounts,
                 months: [monthID],
-                transactions: [transactionID]
+                transactions: delete.affectedTransactionIDs
             )
         )
     }

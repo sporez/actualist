@@ -317,17 +317,14 @@ struct TransactionEditorView: View {
         }
     }
 
-    /// Local-first keeps complex existing rows read-only, but developer builds can expose
-    /// basic field edits without enabling deletes, splits, or transfers.
+    /// The editor is read-only whenever the backend does not permit writing the current draft's
+    /// shape (simple, transfer, or split), each gated by its own developer capability.
     private var isReadOnly: Bool {
-        if viewModel.isEditing {
-            return !appState.capabilities.canUpdateSimpleTransactions || viewModel.isComplexTransactionEdit
-        }
-        return !appState.capabilities.canCreateTransactions
+        !viewModel.writesAllowed(appState.capabilities)
     }
 
     private var readOnlyNotice: some View {
-        Label(viewModel.isComplexTransactionEdit ? "Read-only. Split and transfer edits are not available yet." : "Read-only. Editing is unavailable in this mode.", systemImage: "lock.fill")
+        Label("Read-only. Editing is unavailable in this mode.", systemImage: "lock.fill")
             .font(ActualistTypography.control(for: density))
             .foregroundStyle(ActualistTheme.secondaryText)
             .frame(maxWidth: .infinity)

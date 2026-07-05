@@ -18,31 +18,42 @@ Living checklist — updated as work lands so a new agent can resume mid-stream.
 
 **Commit 1 — plan doc**
 - [x] Write and save this plan.
-- [ ] Commit the plan doc.
+- [x] Commit the plan doc. (sha e5a3d42)
 
-**Commit 2 — create transfers & splits**
-- [ ] `BackendCapabilities`: add `canWriteTransfers` / `canWriteSplits`.
-- [ ] `BudgetDatabase.createTransferTransactionMessages`.
-- [ ] `BudgetDatabase.createSplitTransactionMessages`.
-- [ ] `LocalFirstActualStore.createTransactionAndRefresh` dispatch (transfer/split/simple).
-- [ ] Fixture: add `transferred_id` + `isChild` columns, 2nd account + transfer payees.
-- [ ] Tests: create transfer (test 1), create split (test 2), split mismatch (test 3).
-- [ ] Capability truth-table updates (test 10).
-- [ ] Full `ActualistTests` green; commit.
+**Commit 2 — create transfers & splits** (sha dd24b19)
+- [x] `BackendCapabilities`: add `canWriteTransfers` / `canWriteSplits`.
+- [x] `BudgetDatabase.createTransferTransactionMessages`.
+- [x] `BudgetDatabase.createSplitTransactionMessages`.
+- [x] `LocalFirstActualStore.createTransactionAndRefresh` dispatch (transfer/split/simple).
+- [x] Fixture: add `transferred_id` + `isChild` columns, 2nd account + transfer payees.
+- [x] Tests: create transfer (test 1), create split (test 2), split mismatch (test 3).
+- [x] Capability truth-table updates (test 10) across all 7 blocks.
+- [x] Full `ActualistTests` green; commit.
 
-**Commit 3 — edit transfers & splits**
-- [ ] `BudgetDatabase.updateTransactionMessages` (main row + child diff + transfer transitions).
-- [ ] `LocalFirstActualStore.updateTransactionAndRefresh` dispatch + affected-cache reload.
-- [ ] Tests: edit split child add/remove/amount (test 4), simple↔transfer (test 5),
-      transfer amount/dest (test 6), simple↔split (test 7).
-- [ ] Full `ActualistTests` green; commit.
+Note: shared helpers `resolveTransactionRowColumns` + `transactionRowMessages` in
+BudgetDatabase build any row shape (source/paired/parent/child); reused by edit.
+Also `transferDestinationAccountID` / `transferPayeeID(forAccount:)` resolvers.
 
-**Commit 4 — delete complex + UI unblock**
-- [ ] `BudgetDatabase.deleteTransactionMessages` (parent+children, transfer remove).
-- [ ] `LocalFirstActualStore.deleteTransactionAndRefresh` dispatch.
-- [ ] UI: unblock `isComplexTransactionEdit`, editor notice, account-view delete gating, settings copy.
-- [ ] Tests: delete split parent (test 8), delete transfer (test 9).
-- [ ] Full `ActualistTests` green; commit.
+**Commit 3 — edit transfers & splits** (sha fec83ed)
+- [x] `BudgetDatabase.updateTransactionMessages` (main row + child diff + transfer transitions).
+      Replaced `updateSimpleTransactionMessages`; returns `TransactionWriteResult`
+      (messages + affected accounts/transactions). Removed dead
+      `validateSimpleTransactionReferences`.
+- [x] `LocalFirstActualStore.updateTransactionAndRefresh` dispatch + affected-cache reload.
+- [x] Tests: edit split child add/remove/amount (test 4), simple↔transfer (test 5),
+      transfer amount/dest repoint (test 6), simple↔split (test 7). Fixture gained a
+      third account (`savings` + transfer payee) for the destination-repoint test.
+- [x] Full `ActualistTests` green; commit.
+
+**Commit 4 — delete complex + UI unblock** (this commit)
+- [x] `BudgetDatabase.deleteTransactionMessages` (parent+children, transfer remove).
+      Replaced `deleteSimpleTransactionMessages`; returns `TransactionWriteResult`.
+- [x] `LocalFirstActualStore.deleteTransactionAndRefresh` dispatch + affected-cache reload.
+- [x] UI: replaced `isComplexTransactionEdit` with `writesAllowed(_:)` (shape→capability),
+      simplified editor read-only notice, account-view delete gated by row shape
+      (`canWriteSplits`/`canWriteTransfers`/`canDeleteTransactions`), settings copy.
+- [x] Tests: delete split parent (test 8), delete transfer (test 9).
+- [x] Full `ActualistTests` green (128 tests); lint passed; commit.
 
 **Post-implementation (owner: user)**
 - [ ] Simulator smoke on a throwaway budget.

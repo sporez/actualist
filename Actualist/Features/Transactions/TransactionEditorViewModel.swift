@@ -179,8 +179,19 @@ final class TransactionEditorViewModel {
         splitRows.count >= 2
     }
 
-    var isComplexTransactionEdit: Bool {
-        isEditing && (isSplit || selectedPayeeIsTransfer)
+    /// Whether the backend permits writing this draft's shape. Transfers and splits are gated by
+    /// their own capabilities so they can be enabled independently of simple create/edit.
+    func writesAllowed(_ capabilities: BackendCapabilities) -> Bool {
+        if selectedPayeeIsTransfer {
+            return capabilities.canWriteTransfers
+        }
+        if isSplit {
+            return capabilities.canWriteSplits
+        }
+        if isEditing {
+            return capabilities.canUpdateSimpleTransactions
+        }
+        return capabilities.canCreateTransactions
     }
 
     var isCategoryReadOnly: Bool {
@@ -611,17 +622,10 @@ final class TransactionEditorViewModel {
     }
 
     func submit(using appState: AppState) async -> Bool {
-        let canSubmit = isEditing
-            ? appState.capabilities.canUpdateSimpleTransactions
-            : appState.capabilities.canCreateTransactions
-        guard canSubmit else {
+        guard writesAllowed(appState.capabilities) else {
             errorMessage = isEditing
                 ? "Transaction edits are disabled. Enable Transaction Writes in Developer settings to test local-first writes."
                 : "Transaction creation is disabled. Enable it in Developer settings to test local-first writes."
-            return false
-        }
-        guard !isComplexTransactionEdit else {
-            errorMessage = "Split and transfer edits are not available in local-first write testing yet."
             return false
         }
 
