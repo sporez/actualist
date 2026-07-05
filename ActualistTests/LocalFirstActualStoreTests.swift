@@ -955,6 +955,73 @@ struct LocalFirstActualStoreTests {
         #expect(loaded.month.toBudget == -40_000)
     }
 
+    @Test func applyCategoryTemplateSetsFixedSimpleAmount() async throws {
+        let store = try await makeOpenedWritableStore()
+        // utilities has a `#template 300` goal_def and a current budget of 0.
+        let loaded = try await store.applyBudgetTemplateAndRefresh(
+            command: .category("utilities"),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let utilities = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
+        #expect(utilities.budgeted == 30_000)
+    }
+
+    @Test func applyMonthTemplateFillEmptyOnlyFillsUnbudgetedAndSkipsUnsupported() async throws {
+        let store = try await makeOpenedWritableStore()
+        // Budget dining so its unsupported average template is skipped by fill-empty (already
+        // budgeted). groceries is already budgeted (50000, template 700); utilities is unbudgeted
+        // (template 300) and should be the only category filled.
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "dining",
+            budgeted: 5_000,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let loaded = try await store.applyBudgetTemplateAndRefresh(
+            command: .fillEmpty,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let categories = loaded.month.categoryGroups.flatMap(\.categories)
+        let groceries = try #require(categories.first { $0.id == "groceries" })
+        let utilities = try #require(categories.first { $0.id == "utilities" })
+        let dining = try #require(categories.first { $0.id == "dining" })
+
+        #expect(utilities.budgeted == 30_000)   // was 0 -> filled
+        #expect(groceries.budgeted == 50_000)   // already budgeted -> untouched (not 70000)
+        #expect(dining.budgeted == 5_000)        // unsupported but already budgeted -> skipped
+    }
+
+    @Test func applyMonthTemplateOverwriteRefusesUnsupportedTemplate() async throws {
+        let store = try await makeOpenedWritableStore()
+        // Whole-month overwrite would write dining, whose average template is not supported yet.
+        await #expect(throws: LocalFirstError.self) {
+            _ = try await store.applyBudgetTemplateAndRefresh(
+                command: .overwrite,
+                budgetID: "group-1",
+                month: "2026-07"
+            ) {}
+        }
+        // Nothing was written: utilities stays at its original 0 budget.
+        let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let utilities = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
+        #expect(utilities.budgeted == 0)
+    }
+
+    @Test func applyCategoryTemplateRefusesUnsupportedTargetedCategory() async throws {
+        let store = try await makeOpenedWritableStore()
+        await #expect(throws: LocalFirstError.self) {
+            _ = try await store.applyBudgetTemplateAndRefresh(
+                command: .category("dining"),
+                budgetID: "group-1",
+                month: "2026-07"
+            ) {}
+        }
+    }
+
     @Test func updateSimpleTransactionLocallyRefreshesMovedAccountMonthAndPayeeOptions() async throws {
         let store = try await makeOpenedWritableStore()
         let draft = TransactionDraft(
@@ -1678,6 +1745,12 @@ struct LocalFirstActualStoreTests {
             INSERT INTO payee_mapping VALUES ('xfer-credit', 'xfer-credit');
             INSERT INTO payee_mapping VALUES ('xfer-savings', 'xfer-savings');
             INSERT INTO payee_mapping VALUES ('xfer-tracking', 'xfer-tracking');
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories SET goal_def = '[{"type":"simple","monthly":700,"limit":null,"priority":null,"directive":"template"}]' WHERE id = 'groceries';
+            UPDATE categories SET goal_def = '[{"type":"simple","monthly":300,"limit":null,"priority":null,"directive":"template"}]' WHERE id = 'utilities';
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+                VALUES ('dining', 'Dining', 'group', 0, 0, 0, 3, '[{"type":"average","numMonths":3,"priority":null,"directive":"template"}]');
+            INSERT INTO category_mapping VALUES ('dining', 'dining');
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)

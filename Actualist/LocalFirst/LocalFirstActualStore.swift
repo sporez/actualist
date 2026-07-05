@@ -370,7 +370,30 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         month: String,
         didApply: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        throw LocalFirstError.unsupportedWrite
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+        let database = try requireDatabase(for: budgetID)
+        let latestTimestamp = try database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let messages = try database.budgetTemplateMessages(
+            command: command,
+            month: month,
+            builder: &builder
+        )
+
+        try await pushLocalMessagesIfPossible(
+            database: database,
+            messages: messages,
+            since: latestTimestamp
+        )
+        _ = try database.applyLocalSyncMessages(messages)
+        await didApply()
+        try reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
     func moveMoneyAndRefresh(

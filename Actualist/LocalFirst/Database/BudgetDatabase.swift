@@ -1350,6 +1350,161 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
+    /// Apply budget templates for a month by computing each category's budgeted amount from its
+    /// `goal_def` and writing `zero_budgets` — the same primitive as a manual assign.
+    ///
+    /// T1 scope: `simple` fixed-amount templates at the default priority (loot-core only clamps
+    /// to available budget at priority > 0, so a priority-0 simple template is a pure constant).
+    /// Any other type/feature that would actually be written is refused so a partial apply never
+    /// diverges from Actual web. `overwrite`/category-targeted force the value; `fillEmpty` writes
+    /// only categories whose budget is currently 0.
+    func budgetTemplateMessages(
+        command: BudgetTemplateCommand,
+        month: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        let monthValue = try Self.actualMonthValue(month)
+
+        return try queue.read { db in
+            let columns = try requiredColumns(
+                table: "zero_budgets",
+                required: ["month", "category", "amount"],
+                db: db
+            )
+            let goalDefsRaw = try readCategoryGoalDefsRaw(db: db)
+            let targeted = Set(
+                command.categoryIDs
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+            let scope: [String]
+            if targeted.isEmpty {
+                scope = try templateScopeCategoryIDs(db: db).filter { goalDefsRaw[$0] != nil }
+            } else {
+                scope = targeted.filter { goalDefsRaw[$0] != nil }.sorted()
+            }
+            // Category-targeted and whole-month "overwrite" force the value; "fillEmpty" only fills
+            // categories with a zero budget.
+            let force = command.mode == .overwrite || !targeted.isEmpty
+            let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
+
+            var unsupported: [String] = []
+            var writes: [(categoryID: String, amount: Int)] = []
+            for categoryID in scope {
+                guard let json = goalDefsRaw[categoryID] else { continue }
+                let currentBudgeted = currentBudgets[categoryID]?.budgeted ?? 0
+                // fillEmpty skips already-budgeted categories, so they never need a support check.
+                guard force || currentBudgeted == 0 else { continue }
+
+                let computedAmount: Int?
+                do {
+                    computedAmount = try computeSimpleTemplateAmount(json: json)
+                } catch {
+                    unsupported.append(categoryID)
+                    continue
+                }
+                guard let amount = computedAmount else { continue } // goal-only: nothing to budget.
+                writes.append((categoryID, amount))
+            }
+
+            guard unsupported.isEmpty else {
+                throw LocalFirstError.unsupportedTemplate(
+                    "categories use template types not supported yet: \(unsupported.sorted().joined(separator: ", "))"
+                )
+            }
+
+            var messages: [ActualSyncDecodedMessage] = []
+            for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
+                messages += try assignCategoryBudgetMessages(
+                    categoryID: write.categoryID,
+                    budgeted: write.amount,
+                    monthValue: monthValue,
+                    columns: columns,
+                    db: db,
+                    builder: &builder
+                )
+            }
+            return messages
+        }
+    }
+
+    /// Decode a category's `goal_def` and, if every budget-setting entry is a supported priority-0
+    /// `simple` fixed-amount template, return their summed minor-unit amount. Returns nil when the
+    /// category has no budget-setting entries (goal-only). Throws `unsupportedTemplate` when any
+    /// budget entry uses a not-yet-ported type/feature (limit, non-zero priority, non-simple, or
+    /// an undecodable definition).
+    private func computeSimpleTemplateAmount(json: String) throws -> Int? {
+        guard let data = json.data(using: .utf8),
+              let entries = try? JSONDecoder().decode([BudgetTemplateEntry].self, from: data) else {
+            throw LocalFirstError.unsupportedTemplate("unreadable template definition")
+        }
+        let budgetEntries = entries.filter(\.setsBudget)
+        guard !budgetEntries.isEmpty else {
+            return nil
+        }
+        var total = 0
+        for entry in budgetEntries {
+            guard entry.type == "simple",
+                  let monthly = entry.monthly,
+                  entry.limit == nil,
+                  (entry.priority ?? 0) == 0 else {
+                throw LocalFirstError.unsupportedTemplate(entry.type)
+            }
+            total += Self.templateAmountToMinorUnits(monthly)
+        }
+        return total
+    }
+
+    private func readCategoryGoalDefsRaw(db: Database) throws -> [String: String] {
+        guard try tableExists("categories", db: db) else {
+            return [:]
+        }
+        let columns = try columnSet(for: "categories", db: db)
+        guard columns.contains("goal_def") else {
+            return [:]
+        }
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT id, goal_def FROM categories WHERE goal_def IS NOT NULL AND \(predicateForLiveRows(columns: columns))"
+        )
+        var result: [String: String] = [:]
+        for row in rows {
+            guard let id = row["id"] as String?,
+                  let json = row["goal_def"] as String?,
+                  !json.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                continue
+            }
+            result[id] = json
+        }
+        return result
+    }
+
+    /// Non-income, live categories eligible for whole-month template application (matches
+    /// loot-core's `getCategories` filter: visible, non-income).
+    private func templateScopeCategoryIDs(db: Database) throws -> [String] {
+        guard try tableExists("categories", db: db) else {
+            return []
+        }
+        let columns = try columnSet(for: "categories", db: db)
+        let isIncome = column("is_income", fallback: "0", columns: columns)
+        let hidden = column("hidden", fallback: "0", columns: columns)
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT id FROM categories
+                WHERE \(predicateForLiveRows(columns: columns))
+                  AND (\(isIncome) = 0 OR \(isIncome) IS NULL)
+                  AND (\(hidden) = 0 OR \(hidden) IS NULL)
+                """
+        )
+        return rows.compactMap { $0["id"] as String? }
+    }
+
+    private static func templateAmountToMinorUnits(_ amount: Double) -> Int {
+        // goal_def amounts are display decimals; convert with the app's 2-decimal money model.
+        Int((amount * 100).rounded())
+    }
+
     func moveMoneyMessages(
         commands: [BudgetMoveMoneyCommand],
         month: String,

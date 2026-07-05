@@ -98,10 +98,10 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canWriteSplits)
         #expect(capabilities.canAssignCategoryBudget)
         #expect(capabilities.canMoveMoney)
+        #expect(capabilities.canApplyBudgetTemplates)
         #expect(capabilities.canAssignBudget)
 
         // Not yet implemented for local-first.
-        #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
@@ -155,7 +155,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canAssignBudget)
         #expect(capabilities.canAssignCategoryBudget)
         #expect(capabilities.canMoveMoney)
-        #expect(!capabilities.canApplyBudgetTemplates)
+        #expect(capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
     }

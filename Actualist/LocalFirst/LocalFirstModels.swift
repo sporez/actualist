@@ -17,6 +17,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case invalidDownloadedBudget
     case invalidLocalWrite(String)
     case budgetNotOpened
+    case unsupportedTemplate(String)
 
     var errorDescription: String? {
         switch self {
@@ -52,8 +53,33 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not apply the local-first write: \(reason)"
         case .budgetNotOpened:
             "Open a local-first budget before loading this screen."
+        case .unsupportedTemplate(let reason):
+            "This budget template can't be applied locally yet: \(reason)"
         }
     }
+}
+
+/// One entry in a category's `goal_def` — Actual's structured budget-template JSON (authored by
+/// the GUI template editor or parsed from `#template` notes). Only the fields needed for the
+/// currently supported template types are decoded; every entry keeps its `type` so unsupported
+/// types are detected and refused rather than mis-applied. Mirrors loot-core's template objects.
+struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
+    let type: String
+    let directive: String?
+    let priority: Int?
+    let monthly: Double?
+    let limit: BudgetTemplateLimit?
+
+    /// `directive` defaults to "template" (sets the budget); "goal" entries set a display target
+    /// only and do not affect the budgeted amount.
+    var setsBudget: Bool { (directive ?? "template") == "template" }
+}
+
+struct BudgetTemplateLimit: Decodable, Equatable, Sendable {
+    let amount: Double?
+    let period: String?
+    let hold: Bool?
+    let start: String?
 }
 
 struct LocalFirstSyncStatus: Equatable, Sendable {
