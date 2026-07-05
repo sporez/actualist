@@ -12,18 +12,17 @@ Do not implement transaction writes, budget writes, reconcile, bank sync, templa
 
 ## Source Baseline
 
-- Actualist fork root: `/Users/neil/CC/actualist-local-first-spike`
-- Actuali source inspected: `MattFaz/actuali` at commit `d2b894020492245930b3161ba69b4c6c1aacff63`
-- Actuali architecture to borrow:
-  - `Actuali/Actuali/Services/Network/ActualServerClient.swift`
-  - `Actuali/Actuali/Services/Database/BudgetFileManager.swift`
-  - `Actuali/Actuali/Services/Database/BudgetDatabase.swift`
-  - `Actuali/Actuali/Services/Sync/`
-  - `Actuali/Actuali/Generated/Sync.pb.swift`
-  - `Actuali/Actuali/Resources/sync.proto`
+- Actualist root: `/Users/neil/CC/actualist-local-first-spike`
+- The local-first engine follows Actual's own sync protocol and SQLite schema.
+- Engine pieces:
+  - `Actualist/LocalFirst/Network/ActualServerSyncClient.swift`
+  - `Actualist/LocalFirst/Database/BudgetFileManager.swift`
+  - `Actualist/LocalFirst/Database/BudgetDatabase.swift`
+  - `Actualist/LocalFirst/Sync/`
+  - `Actualist/LocalFirst/Generated/Sync.pb.swift`
   - supporting models and encryption helpers needed by those files
 
-Actuali's important design fact: reads come from local SQLite, writes generate CRDT messages and sync to `/sync/sync`. For this proof, only the read side and sync configuration need to work.
+The important design fact: reads come from local SQLite, writes generate CRDT messages and sync to `/sync/sync`. For this proof, only the read side and sync configuration need to work.
 
 ## Architectural Goal
 
@@ -57,7 +56,7 @@ The first proof should avoid view rewrites. If a view needs changes, that is a s
 
 - Do not delete `ActualAPIClient` or the current `ActualDataStore`.
 - Do not mutate real budget data through the local-first engine yet.
-- Do not attempt a full Actuali UI merge.
+- Do not attempt a wholesale UI rewrite.
 - Do not add HTTP API container dependencies.
 - Do not support every dashboard/report/widget table.
 - Do not solve all schema drift. Only open a current real budget and record gaps.
@@ -372,7 +371,7 @@ Keep generated protobuf output in the same commit as the sync proto integration.
 
 ### Schema Drift
 
-Actual's local database schema changes over time. Actuali already carries guarded migrations for several upstream additions. The proof should record every missing table/column rather than broadening migrations blindly.
+Actual's local database schema changes over time. The local-first engine should carry guarded migrations for upstream additions. The proof should record every missing table/column rather than broadening migrations blindly.
 
 ### Budget Math Parity
 

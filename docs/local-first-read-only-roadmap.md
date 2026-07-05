@@ -30,7 +30,7 @@ REST mode must remain intact. Local-first mode should treat the normal Actual se
 ### Phase 3: Native Transaction And Lookup Reads
 
 - Add `BudgetDatabase` reads for payees, payee mappings, category mappings, transfer payees, account names, category names, transactions by account, spending/all-account transactions, search, pagination, split parents/children, tombstones, cleared/reconciled state, notes, imported payee, and transfer account display names.
-- Base queries on Actual/Actuali semantics, not inferred REST shapes: use mapped category/payee ids, exclude split parents from totals, preserve split children for category display, and exclude children whose parent is tombstoned.
+- Base queries on Actual's semantics, not inferred REST shapes: use mapped category/payee ids, exclude split parents from totals, preserve split children for category display, and exclude children whose parent is tombstoned.
 - Map rows into existing `ActualTransaction`, `LoadedAccountTransactions`, `TransactionEditorOptions`, and `LoadedUncategorizedTransactions` models so the UI stays mostly unchanged.
 
 ### Phase 4: Make Every View Read-Only Functional
@@ -44,6 +44,7 @@ REST mode must remain intact. Local-first mode should treat the normal Actual se
 ### Phase 5: Parity Audit Before Writes
 
 - Add a documented parity checklist comparing Actual web vs Actualist local-first for budget month totals, account balances, account transaction lists, spending feed, search results, uncategorized transactions, transfers, splits, hidden/closed/off-budget accounts, tombstones, and multiple months.
+- Use `docs/local-first-parity-checklist.md` as the manual throwaway-budget walkthrough for this audit.
 - Add a read parity gate before any local-first write work begins.
 - Keep write-design notes in a later section only: CRDT message generation, HLC/node id, conflict behavior, sync retry, and rollback strategy are out of implementation scope until the read gate passes.
 
@@ -66,4 +67,4 @@ REST mode must remain intact. Local-first mode should treat the normal Actual se
 - The existing Budget and Accounts local-first proof remains the baseline and should not be rewritten except to share refresh/status plumbing.
 - All existing Actualist tabs and reachable sheets should render safely, but write-only workflows may be hidden in local-first mode.
 - No local-first writes, rule application, bank sync, reconcile, or background refresh are attempted until the read-only parity checklist passes.
-- Actuali pinned source and Actual core remain the behavioral references whenever SQLite interpretation is unclear.
+- Actual core remains the behavioral reference whenever SQLite interpretation is unclear.
