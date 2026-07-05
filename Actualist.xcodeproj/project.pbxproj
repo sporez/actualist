@@ -45,6 +45,7 @@
 		010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */; };
 		01000000000000000000002D /* AccountRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002D /* AccountRepository.swift */; };
 		01000000000000000000002E /* LocalFirstModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002E /* LocalFirstModels.swift */; };
+		01000000000000000000003D /* ActualBudgetCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000039 /* ActualBudgetCrypto.swift */; };
 		01000000000000000000002F /* ActualServerSyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002F /* ActualServerSyncClient.swift */; };
 		010000000000000000000030 /* BudgetFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000030 /* BudgetFileManager.swift */; };
 		010000000000000000000031 /* BudgetDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000031 /* BudgetDatabase.swift */; };
@@ -116,6 +117,7 @@
 		02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModelTests.swift; sourceTree = "<group>"; };
 		02000000000000000000002D /* AccountRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepository.swift; sourceTree = "<group>"; };
 		02000000000000000000002E /* LocalFirstModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstModels.swift; sourceTree = "<group>"; };
+		020000000000000000000039 /* ActualBudgetCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualBudgetCrypto.swift; sourceTree = "<group>"; };
 		02000000000000000000002F /* ActualServerSyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualServerSyncClient.swift; sourceTree = "<group>"; };
 		020000000000000000000030 /* BudgetFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetFileManager.swift; sourceTree = "<group>"; };
 		020000000000000000000031 /* BudgetDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDatabase.swift; sourceTree = "<group>"; };
@@ -352,9 +354,10 @@
 		};
 		04000000000000000000001A /* LocalFirst */ = {
 			isa = PBXGroup;
-			children = (
-				02000000000000000000002E /* LocalFirstModels.swift */,
-				020000000000000000000034 /* LocalFirstActualStore.swift */,
+				children = (
+					02000000000000000000002E /* LocalFirstModels.swift */,
+					020000000000000000000039 /* ActualBudgetCrypto.swift */,
+					020000000000000000000034 /* LocalFirstActualStore.swift */,
 				04000000000000000000001B /* Network */,
 				04000000000000000000001C /* Database */,
 				04000000000000000000001D /* Sync */,
@@ -538,6 +541,7 @@
 				01000000000000000000001D /* BudgetAPI.swift in Sources */,
 				01000000000000000000001F /* TransactionRepository.swift in Sources */,
 				01000000000000000000002E /* LocalFirstModels.swift in Sources */,
+				01000000000000000000003D /* ActualBudgetCrypto.swift in Sources */,
 				01000000000000000000002F /* ActualServerSyncClient.swift in Sources */,
 				010000000000000000000030 /* BudgetFileManager.swift in Sources */,
 				010000000000000000000031 /* BudgetDatabase.swift in Sources */,

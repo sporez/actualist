@@ -114,6 +114,59 @@ struct ActualSync_MessageEnvelope: SwiftProtobuf.Message, Equatable, Sendable {
     }
 }
 
+struct ActualSync_EncryptedData: SwiftProtobuf.Message, Equatable, Sendable {
+    static let protoMessageName = "EncryptedData"
+
+    var data = Data()
+    var iv = Data()
+    var authTag = Data()
+    var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    init() {}
+
+    mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+        while let fieldNumber = try decoder.nextFieldNumber() {
+            switch fieldNumber {
+            case 1:
+                try decoder.decodeSingularBytesField(value: &iv)
+            case 2:
+                try decoder.decodeSingularBytesField(value: &authTag)
+            case 3:
+                try decoder.decodeSingularBytesField(value: &data)
+            default:
+                break
+            }
+        }
+    }
+
+    func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+        if !iv.isEmpty {
+            try visitor.visitSingularBytesField(value: iv, fieldNumber: 1)
+        }
+        if !authTag.isEmpty {
+            try visitor.visitSingularBytesField(value: authTag, fieldNumber: 2)
+        }
+        if !data.isEmpty {
+            try visitor.visitSingularBytesField(value: data, fieldNumber: 3)
+        }
+        try unknownFields.traverse(visitor: &visitor)
+    }
+
+    static func == (lhs: ActualSync_EncryptedData, rhs: ActualSync_EncryptedData) -> Bool {
+        lhs.data == rhs.data
+            && lhs.iv == rhs.iv
+            && lhs.authTag == rhs.authTag
+            && lhs.unknownFields == rhs.unknownFields
+    }
+
+    func isEqualTo(message: any SwiftProtobuf.Message) -> Bool {
+        guard let other = message as? ActualSync_EncryptedData else {
+            return false
+        }
+        return self == other
+    }
+}
+
 struct ActualSync_SyncRequest: SwiftProtobuf.Message, Equatable, Sendable {
     static let protoMessageName = "SyncRequest"
 

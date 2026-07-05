@@ -6,6 +6,7 @@ struct LocalFirstSyncConfiguration: Equatable, Sendable {
     let groupID: String?
     let nodeID: String
     let encryptionKeyID: String?
+    let encryptionContext: ActualBudgetEncryptionContext?
 }
 
 struct LocalFirstSyncResult: Equatable, Sendable {
@@ -37,7 +38,7 @@ actor SyncClient {
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         let response = try ActualSync_SyncResponse(serializedData: responseData)
-        let messages = try decodedMessages(from: response)
+        let messages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
         return try database.applyRemoteSyncMessages(messages)
     }
 
@@ -53,7 +54,10 @@ actor SyncClient {
         }
 
         var request = ActualSync_SyncRequest()
-        request.messages = try LocalFirstSyncMessageBuilder.envelopes(for: messages)
+        request.messages = try LocalFirstSyncMessageBuilder.envelopes(
+            for: messages,
+            encryptionContext: configuration.encryptionContext
+        )
         request.fileID = configuration.fileID
         request.groupID = configuration.groupID ?? ""
         request.keyID = configuration.encryptionKeyID ?? ""
@@ -65,7 +69,7 @@ actor SyncClient {
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         let response = try ActualSync_SyncResponse(serializedData: responseData)
-        let remoteMessages = try decodedMessages(from: response)
+        let remoteMessages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
         let appliedCount = try database.applyRemoteSyncMessages(remoteMessages)
 
         return LocalFirstSyncResult(
@@ -74,12 +78,29 @@ actor SyncClient {
         )
     }
 
-    private func decodedMessages(from response: ActualSync_SyncResponse) throws -> [ActualSyncDecodedMessage] {
+    private func decodedMessages(
+        from response: ActualSync_SyncResponse,
+        encryptionContext: ActualBudgetEncryptionContext?
+    ) throws -> [ActualSyncDecodedMessage] {
         try response.messages.map { envelope in
-            guard !envelope.isEncrypted else {
-                throw LocalFirstError.encryptedBudgetRequiresPassword
+            let messageData: Data
+            if envelope.isEncrypted {
+                guard let encryptionContext else {
+                    throw LocalFirstError.encryptedBudgetRequiresPassword
+                }
+                let encryptedData = try ActualSync_EncryptedData(serializedData: envelope.content)
+                messageData = try ActualBudgetCrypto.decrypt(
+                    ActualEncryptedData(
+                        data: encryptedData.data,
+                        iv: encryptedData.iv,
+                        authTag: encryptedData.authTag
+                    ),
+                    keyData: encryptionContext.keyData
+                )
+            } else {
+                messageData = envelope.content
             }
-            let message = try ActualSync_Message(serializedData: envelope.content)
+            let message = try ActualSync_Message(serializedData: messageData)
             return ActualSyncDecodedMessage(
                 timestamp: envelope.timestamp,
                 dataset: message.dataset,

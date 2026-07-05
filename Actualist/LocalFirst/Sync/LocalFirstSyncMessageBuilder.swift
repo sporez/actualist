@@ -120,7 +120,10 @@ struct LocalFirstSyncMessageBuilder: Sendable {
         )
     }
 
-    static func envelope(for message: ActualSyncDecodedMessage) throws -> ActualSync_MessageEnvelope {
+    static func envelope(
+        for message: ActualSyncDecodedMessage,
+        encryptionContext: ActualBudgetEncryptionContext? = nil
+    ) throws -> ActualSync_MessageEnvelope {
         var syncMessage = ActualSync_Message()
         syncMessage.dataset = message.dataset
         syncMessage.row = message.row
@@ -129,12 +132,26 @@ struct LocalFirstSyncMessageBuilder: Sendable {
 
         var envelope = ActualSync_MessageEnvelope()
         envelope.timestamp = message.timestamp
-        envelope.isEncrypted = false
-        envelope.content = try syncMessage.serializedData()
+        let messageData = try syncMessage.serializedData()
+        if let encryptionContext {
+            let encrypted = try ActualBudgetCrypto.encrypt(messageData, context: encryptionContext)
+            var encryptedData = ActualSync_EncryptedData()
+            encryptedData.data = encrypted.data
+            encryptedData.iv = encrypted.iv
+            encryptedData.authTag = encrypted.authTag
+            envelope.isEncrypted = true
+            envelope.content = try encryptedData.serializedData()
+        } else {
+            envelope.isEncrypted = false
+            envelope.content = messageData
+        }
         return envelope
     }
 
-    static func envelopes(for messages: [ActualSyncDecodedMessage]) throws -> [ActualSync_MessageEnvelope] {
-        try messages.map(envelope(for:))
+    static func envelopes(
+        for messages: [ActualSyncDecodedMessage],
+        encryptionContext: ActualBudgetEncryptionContext? = nil
+    ) throws -> [ActualSync_MessageEnvelope] {
+        try messages.map { try envelope(for: $0, encryptionContext: encryptionContext) }
     }
 }

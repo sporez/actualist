@@ -8,36 +8,53 @@ struct KeychainStore {
     let account: String
 
     func readActualSyncToken() -> String {
-        readValue()
+        guard let data = readData(),
+              let value = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return value
     }
 
     func saveActualSyncToken(_ token: String) {
-        saveValue(token.trimmingCharacters(in: .whitespacesAndNewlines))
+        saveData(Data(token.trimmingCharacters(in: .whitespacesAndNewlines).utf8))
     }
 
     func removeActualSyncToken() {
         SecItemDelete(baseQuery() as CFDictionary)
     }
 
-    private func readValue() -> String {
+    func readLocalFirstEncryptionKey(fileID: String, keyID: String) -> Data? {
+        scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID)).readData()
+    }
+
+    func saveLocalFirstEncryptionKey(_ keyData: Data, fileID: String, keyID: String) {
+        scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID)).saveData(keyData)
+    }
+
+    private func scoped(account: String) -> KeychainStore {
+        KeychainStore(service: service, account: account)
+    }
+
+    private static func encryptionKeyAccount(fileID: String, keyID: String) -> String {
+        "actual-encryption-key:\(fileID):\(keyID)"
+    }
+
+    private func readData() -> Data? {
         var query = baseQuery()
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            return ""
+        guard status == errSecSuccess, let data = result as? Data else {
+            return nil
         }
 
         updateAccessibilityForBackgroundRefresh()
-        return value
+        return data
     }
 
-    private func saveValue(_ value: String) {
-        let data = Data(value.utf8)
+    private func saveData(_ data: Data) {
         let query = baseQuery()
         let attributes: [String: Any] = [
             kSecValueData as String: data,

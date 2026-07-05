@@ -97,6 +97,11 @@ struct SettingsView: View {
                                 .foregroundStyle(ActualistTheme.secondaryText)
                         }
 
+                        LabeledContent("Security") {
+                            Text(localFirstSecurityText)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+
                         if let error = appState.localFirstSyncStatus?.lastError {
                             Text(error)
                                 .font(.footnote)
@@ -375,6 +380,13 @@ struct SettingsView: View {
         }
         let relative = lastSyncedAt.formatted(.relative(presentation: .named))
         return "\(relative) · \(status.lastAppliedMessageCount) applied"
+    }
+
+    private var localFirstSecurityText: String {
+        if appState.localFirstSyncStatus?.encryptionKeyID != nil {
+            return "Encrypted · Unlocked"
+        }
+        return "Not encrypted"
     }
 
     private func syncNow() async {
@@ -744,6 +756,9 @@ private struct SettingsBudgetPickerSheet: View {
 
     @Bindable var viewModel: SettingsViewModel
     @Binding var isPresented: Bool
+    @State private var encryptedBudgetPrompt: ActualBudget?
+    @State private var encryptionPassword = ""
+    @State private var isUnlockingEncryptedBudget = false
 
     var body: some View {
         NavigationStack {
@@ -763,10 +778,7 @@ private struct SettingsBudgetPickerSheet: View {
                 Section("Choose Budget") {
                     ForEach(appState.budgets) { budget in
                         Button {
-                            Task {
-                                await appState.selectBudgetForCurrentBackend(budget)
-                                isPresented = false
-                            }
+                            Task { await selectBudget(budget) }
                         } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -826,6 +838,82 @@ private struct SettingsBudgetPickerSheet: View {
             .task {
                 await viewModel.loadBudgetsForSelection(using: appState)
             }
+            .sheet(item: $encryptedBudgetPrompt) { budget in
+                NavigationStack {
+                    Form {
+                        Section {
+                            SecureField("Encryption Password", text: $encryptionPassword)
+                                .textInputAutocapitalization(.never)
+                                .textContentType(.password)
+                        } footer: {
+                            Text("Enter this budget's encryption password. Actualist stores the unlocked budget key in Keychain, not this password.")
+                        }
+
+                        if let message = appState.lastErrorMessage,
+                           message != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription {
+                            Section {
+                                Text(message)
+                                    .font(ActualistTypography.rowTitle(for: density))
+                                    .foregroundStyle(ActualistTheme.danger)
+                            }
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                    .background(ActualistTheme.background)
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .tint(ActualistTheme.accent)
+                    .navigationTitle("Unlock Budget")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") {
+                                encryptedBudgetPrompt = nil
+                                encryptionPassword = ""
+                            }
+                        }
+
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(isUnlockingEncryptedBudget ? "Unlocking" : "Unlock") {
+                                Task { await unlockBudget(budget) }
+                            }
+                            .disabled(encryptionPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isUnlockingEncryptedBudget)
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
+    private func selectBudget(_ budget: ActualBudget) async {
+        await appState.selectBudgetForCurrentBackend(budget)
+        if appState.lastErrorMessage == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription {
+            encryptedBudgetPrompt = budget
+            return
+        }
+
+        if appState.settings.selectedBudgetID == budget.syncID {
+            isPresented = false
+        }
+    }
+
+    private func unlockBudget(_ budget: ActualBudget) async {
+        guard !isUnlockingEncryptedBudget else {
+            return
+        }
+
+        isUnlockingEncryptedBudget = true
+        await appState.selectBudgetForCurrentBackend(
+            budget,
+            encryptionPassword: encryptionPassword
+        )
+        isUnlockingEncryptedBudget = false
+
+        if appState.settings.selectedBudgetID == budget.syncID {
+            encryptedBudgetPrompt = nil
+            encryptionPassword = ""
+            isPresented = false
         }
     }
 

@@ -9,6 +9,10 @@ enum LocalFirstError: LocalizedError, Equatable {
     case unsupportedTransferWrite
     case unsupportedSplitWrite
     case encryptedBudgetRequiresPassword
+    case invalidEncryptionPassword
+    case invalidEncryptionKey
+    case invalidEncryptedPayload
+    case unsupportedEncryptionAlgorithm(String)
     case missingImportedDatabase
     case invalidDownloadedBudget
     case invalidLocalWrite(String)
@@ -32,6 +36,14 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Split transactions are not available in local-first write testing yet."
         case .encryptedBudgetRequiresPassword:
             "This encrypted budget needs an encryption password before Actualist can open it."
+        case .invalidEncryptionPassword:
+            "The encryption password could not unlock this budget."
+        case .invalidEncryptionKey:
+            "Actualist could not load this budget's encryption key."
+        case .invalidEncryptedPayload:
+            "Actualist could not read encrypted budget data from the server."
+        case .unsupportedEncryptionAlgorithm(let algorithm):
+            "Actualist does not support this budget encryption algorithm: \(algorithm)."
         case .missingImportedDatabase:
             "Actualist could not find db.sqlite in the imported budget."
         case .invalidDownloadedBudget:
@@ -50,19 +62,22 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
     var lastSyncedAt: Date?
     var lastAppliedMessageCount: Int
     var lastError: String?
+    var encryptionKeyID: String?
 
     init(
         fileID: String,
         groupID: String?,
         lastSyncedAt: Date? = nil,
         lastAppliedMessageCount: Int = 0,
-        lastError: String? = nil
+        lastError: String? = nil,
+        encryptionKeyID: String? = nil
     ) {
         self.fileID = fileID
         self.groupID = groupID
         self.lastSyncedAt = lastSyncedAt
         self.lastAppliedMessageCount = lastAppliedMessageCount
         self.lastError = lastError
+        self.encryptionKeyID = encryptionKeyID
     }
 }
 
@@ -87,6 +102,7 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
     let name: String
     let deleted: Bool
     let encryptKeyID: String?
+    let encryptMeta: ActualEncryptedMetadata?
     let requiresEncryptionPassword: Bool
 
     var id: String { fileID }
@@ -118,6 +134,7 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
         name: String,
         deleted: Bool = false,
         encryptKeyID: String? = nil,
+        encryptMeta: ActualEncryptedMetadata? = nil,
         requiresEncryptionPassword: Bool = false
     ) {
         self.fileID = fileID
@@ -125,6 +142,7 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
         self.name = name
         self.deleted = deleted
         self.encryptKeyID = encryptKeyID
+        self.encryptMeta = encryptMeta
         self.requiresEncryptionPassword = requiresEncryptionPassword
     }
 
@@ -136,20 +154,16 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
         deleted = try container.decodeFlexibleBoolIfPresent(for: .deleted)
             ?? container.decodeFlexibleBoolIfPresent(for: .tombstone)
             ?? false
-        let hasEncryptMeta = container.contains(.encryptMeta)
-            ? !(try container.decodeNil(forKey: .encryptMeta))
-            : false
+        let decodedEncryptMeta = try container.decodeIfPresent(ActualEncryptedMetadata.self, forKey: .encryptMeta)
+        let hasEncryptMeta = decodedEncryptMeta != nil
         if let topLevelKeyID = try container.decodeFirstPresentString(for: [.encryptKeyID, .encryptionKeyID]) {
             encryptKeyID = topLevelKeyID
-        } else if hasEncryptMeta,
-                  let encryptMeta = try? container.nestedContainer(
-                      keyedBy: EncryptMetaCodingKeys.self,
-                      forKey: .encryptMeta
-                  ) {
-            encryptKeyID = try encryptMeta.decodeIfPresent(String.self, forKey: .keyID)
+        } else if let decodedEncryptMeta {
+            encryptKeyID = decodedEncryptMeta.keyID
         } else {
             encryptKeyID = nil
         }
+        encryptMeta = decodedEncryptMeta
         requiresEncryptionPassword = hasEncryptMeta
     }
 
@@ -161,6 +175,31 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
             name: name,
             state: deleted ? "deleted" : nil
         )
+    }
+}
+
+struct ActualEncryptedMetadata: Codable, Hashable, Sendable {
+    let keyID: String
+    let algorithm: String?
+    let iv: String?
+    let authTag: String?
+
+    enum CodingKeys: String, CodingKey {
+        case keyID = "keyId"
+        case algorithm, iv, authTag
+    }
+
+    func encryptedData(_ data: Data) throws -> ActualEncryptedData {
+        guard let algorithm, algorithm == ActualBudgetCrypto.algorithm else {
+            throw LocalFirstError.unsupportedEncryptionAlgorithm(algorithm ?? "")
+        }
+        guard let iv,
+              let authTag,
+              let ivData = Data(base64Encoded: iv),
+              let authTagData = Data(base64Encoded: authTag) else {
+            throw LocalFirstError.invalidEncryptedPayload
+        }
+        return ActualEncryptedData(data: data, iv: ivData, authTag: authTagData)
     }
 }
 
@@ -294,6 +333,56 @@ struct ActualUserFileInfoResponse: Decodable, Hashable, Sendable {
         } else {
             self.file = try container.decodeIfPresent(ActualSyncRemoteFile.self, forKey: .file)
         }
+    }
+}
+
+struct ActualUserKeyResponse: Decodable, Hashable, Sendable {
+    let id: String
+    let salt: String
+    let test: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, keyID = "keyId", salt, test, data
+    }
+
+    enum DataCodingKeys: String, CodingKey {
+        case id, keyID = "keyId", salt, test
+    }
+
+    struct TestPayload: Codable, Hashable, Sendable {
+        let value: String
+        let meta: ActualEncryptedMetadata
+
+        func encryptedData() throws -> ActualEncryptedData {
+            guard let data = Data(base64Encoded: value) else {
+                throw LocalFirstError.invalidEncryptedPayload
+            }
+            return try meta.encryptedData(data)
+        }
+    }
+
+    init(id: String, salt: String, test: String?) {
+        self.id = id
+        self.salt = salt
+        self.test = test
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let id = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? container.decodeIfPresent(String.self, forKey: .keyID),
+           let salt = try container.decodeIfPresent(String.self, forKey: .salt) {
+            self.id = id
+            self.salt = salt
+            self.test = try container.decodeIfPresent(String.self, forKey: .test)
+            return
+        }
+
+        let data = try container.nestedContainer(keyedBy: DataCodingKeys.self, forKey: .data)
+        id = try data.decodeIfPresent(String.self, forKey: .id)
+            ?? data.decode(String.self, forKey: .keyID)
+        salt = try data.decode(String.self, forKey: .salt)
+        test = try data.decodeIfPresent(String.self, forKey: .test)
     }
 }
 

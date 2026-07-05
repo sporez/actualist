@@ -67,13 +67,13 @@ actor ActualServerSyncClient {
         )
     }
 
-    func userKey(fileID: String, password: String, token: String) async throws -> Data {
-        try await rawRequest(
+    func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse {
+        try await request(
             path: "/sync/user-get-key",
             method: "POST",
             token: token,
             fileID: fileID,
-            body: UserKeyPayload(fileId: fileID, password: password)
+            body: UserKeyPayload(fileId: fileID)
         )
     }
 
@@ -345,7 +345,6 @@ actor ActualServerSyncClient {
 
     private struct UserKeyPayload: Encodable {
         let fileId: String
-        let password: String
     }
 }
 

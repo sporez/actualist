@@ -96,6 +96,9 @@ struct BudgetPickerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
     @State private var viewModel = BudgetPickerViewModel()
+    @State private var encryptedBudgetPrompt: ActualBudget?
+    @State private var encryptionPassword = ""
+    @State private var isUnlockingEncryptedBudget = false
 
     var body: some View {
         NavigationStack {
@@ -103,7 +106,7 @@ struct BudgetPickerView: View {
                 Section {
                     ForEach(appState.budgets) { budget in
                         Button {
-                            Task { await appState.selectBudgetForCurrentBackend(budget) }
+                            Task { await selectBudget(budget) }
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -143,6 +146,53 @@ struct BudgetPickerView: View {
                     await viewModel.reload(using: appState)
                 }
             }
+            .sheet(item: $encryptedBudgetPrompt) { budget in
+                NavigationStack {
+                    Form {
+                        Section {
+                            SecureField("Encryption Password", text: $encryptionPassword)
+                                .textInputAutocapitalization(.never)
+                        } footer: {
+                            Text("This unlocks the selected encrypted Actual budget. Actualist stores the budget key in Keychain, not this password.")
+                        }
+                    }
+                    .navigationTitle("Unlock Budget")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") {
+                                encryptedBudgetPrompt = nil
+                                encryptionPassword = ""
+                            }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(isUnlockingEncryptedBudget ? "Unlocking" : "Unlock") {
+                                Task { await unlockBudget(budget) }
+                            }
+                            .disabled(encryptionPassword.isEmpty || isUnlockingEncryptedBudget)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func selectBudget(_ budget: ActualBudget) async {
+        await appState.selectBudgetForCurrentBackend(budget)
+        if appState.lastErrorMessage == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription {
+            encryptedBudgetPrompt = budget
+        }
+    }
+
+    private func unlockBudget(_ budget: ActualBudget) async {
+        isUnlockingEncryptedBudget = true
+        await appState.selectBudgetForCurrentBackend(
+            budget,
+            encryptionPassword: encryptionPassword
+        )
+        isUnlockingEncryptedBudget = false
+        if appState.lastErrorMessage != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription {
+            encryptedBudgetPrompt = nil
+            encryptionPassword = ""
         }
     }
 

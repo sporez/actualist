@@ -13,6 +13,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     private var database: BudgetDatabase?
     private var openedNodeID: String?
     private var openedServerURLString: String?
+    private var openedEncryptionContext: ActualBudgetEncryptionContext?
     private var cachedBudgets: [ActualBudget] = []
     private var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
     private var accountsByBudget: [String: [AccountDisplay]] = [:]
@@ -42,6 +43,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         openedGroupID = nil
         openedNodeID = nil
         openedServerURLString = nil
+        openedEncryptionContext = nil
         database = nil
         cachedBudgets = []
         remoteFilesByFileID = [:]
@@ -92,7 +94,11 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         return cachedBudgets
     }
 
-    func openBudget(_ budget: ActualBudget, serverURLString: String) async throws {
+    func openBudget(
+        _ budget: ActualBudget,
+        serverURLString: String,
+        encryptionPassword: String? = nil
+    ) async throws {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
@@ -107,7 +113,29 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
         if fileManager.importedDatabaseExists(fileID: fileID),
            let metadata = try fileManager.loadMetadata(fileID: fileID) {
-            try await openImportedBudget(fileID: fileID, metadata: metadata)
+            do {
+                try await openImportedBudget(fileID: fileID, metadata: metadata)
+            } catch LocalFirstError.encryptedBudgetRequiresPassword {
+                guard let encryptionPassword,
+                      !encryptionPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw LocalFirstError.encryptedBudgetRequiresPassword
+                }
+                let token = keychain.readActualSyncToken()
+                guard !token.isEmpty else {
+                    throw LocalFirstError.missingSyncToken
+                }
+                guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
+                    throw ActualAPIError.invalidURL
+                }
+                let client = ActualServerSyncClient(baseURL: baseURL)
+                let context = try await encryptionContext(
+                    metadata: metadata,
+                    client: client,
+                    token: token,
+                    password: encryptionPassword
+                )
+                try await openImportedBudget(fileID: fileID, metadata: metadata, encryptionContext: context)
+            }
             openedServerURLString = serverURLString
             try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
             return
@@ -133,11 +161,26 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         let cachedRemote = remoteFilesByFileID[fileID]
         let fileInfo = try? await client.userFileInfo(fileID: fileID, token: token)
         let remote = fileInfo ?? cachedRemote ?? fallbackRemote
-        if remote.requiresEncryptionPassword {
-            throw LocalFirstError.encryptedBudgetRequiresPassword
-        }
+        let encryptionContext = try await encryptionContext(
+            remote: remote,
+            client: client,
+            token: token,
+            password: encryptionPassword
+        )
 
         let data = try await client.downloadUserFile(fileID: fileID, token: token)
+        let budgetData: Data
+        if let encryptMeta = remote.encryptMeta {
+            guard let encryptionContext else {
+                throw LocalFirstError.encryptedBudgetRequiresPassword
+            }
+            budgetData = try ActualBudgetCrypto.decrypt(
+                encryptMeta.encryptedData(data),
+                keyData: encryptionContext.keyData
+            )
+        } else {
+            budgetData = data
+        }
         let metadata = LocalFirstBudgetMetadata(
             localBudgetID: fileID,
             cloudFileID: fileID,
@@ -146,8 +189,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             encryptionKeyID: remote.syncEncryptionKeyID,
             nodeID: HybridLogicalClock.makeClientID()
         )
-        _ = try fileManager.importBudgetZip(data, remoteFile: remote, metadata: metadata)
-        try await openImportedBudget(fileID: fileID, metadata: metadata)
+        _ = try fileManager.importBudgetZip(budgetData, remoteFile: remote, metadata: metadata)
+        try await openImportedBudget(fileID: fileID, metadata: metadata, encryptionContext: encryptionContext)
         openedServerURLString = serverURLString
         try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
     }
@@ -903,23 +946,97 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         return false
     }
 
-    private func openImportedBudget(fileID: String, metadata: LocalFirstBudgetMetadata) async throws {
+    private func openImportedBudget(
+        fileID: String,
+        metadata: LocalFirstBudgetMetadata,
+        encryptionContext providedEncryptionContext: ActualBudgetEncryptionContext? = nil
+    ) async throws {
+        let encryptionContext = try providedEncryptionContext ?? encryptionContext(metadata: metadata)
         let database = try BudgetDatabase(databaseURL: fileManager.databaseURL(fileID: fileID))
         self.database = database
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID
         openedNodeID = metadata.nodeID
+        openedEncryptionContext = encryptionContext
         try? accountsByBudget[metadata.groupID ?? metadata.cloudFileID] = database.fetchAccountDisplays()
         await syncClient.configure(
             LocalFirstSyncConfiguration(
                 fileID: metadata.cloudFileID,
                 groupID: metadata.groupID,
                 nodeID: metadata.nodeID,
-                // This write proof only emits plaintext sync envelopes; ignore
-                // stale top-level encryptKeyId metadata from earlier imports.
-                encryptionKeyID: nil
+                encryptionKeyID: encryptionContext?.keyID,
+                encryptionContext: encryptionContext
             )
         )
+    }
+
+    private func encryptionContext(metadata: LocalFirstBudgetMetadata) throws -> ActualBudgetEncryptionContext? {
+        guard let keyID = metadata.encryptionKeyID else {
+            return nil
+        }
+        guard let keyData = keychain.readLocalFirstEncryptionKey(
+            fileID: metadata.cloudFileID,
+            keyID: keyID
+        ) else {
+            throw LocalFirstError.encryptedBudgetRequiresPassword
+        }
+        return ActualBudgetEncryptionContext(keyID: keyID, keyData: keyData)
+    }
+
+    private func encryptionContext(
+        metadata: LocalFirstBudgetMetadata,
+        client: ActualServerSyncClient,
+        token: String,
+        password: String
+    ) async throws -> ActualBudgetEncryptionContext {
+        guard let keyID = metadata.encryptionKeyID else {
+            throw LocalFirstError.invalidEncryptionKey
+        }
+        let keyResponse = try await client.userKey(fileID: metadata.cloudFileID, token: token)
+        let context = try ActualBudgetCrypto.validateUserKeyResponse(
+            keyResponse,
+            password: password
+        )
+        guard context.keyID == keyID else {
+            throw LocalFirstError.invalidEncryptionKey
+        }
+        keychain.saveLocalFirstEncryptionKey(
+            context.keyData,
+            fileID: metadata.cloudFileID,
+            keyID: keyID
+        )
+        return context
+    }
+
+    private func encryptionContext(
+        remote: ActualSyncRemoteFile,
+        client: ActualServerSyncClient,
+        token: String,
+        password: String?
+    ) async throws -> ActualBudgetEncryptionContext? {
+        guard remote.requiresEncryptionPassword else {
+            return nil
+        }
+        guard let keyID = remote.syncEncryptionKeyID else {
+            throw LocalFirstError.invalidEncryptionKey
+        }
+        if let keyData = keychain.readLocalFirstEncryptionKey(fileID: remote.fileID, keyID: keyID) {
+            return ActualBudgetEncryptionContext(keyID: keyID, keyData: keyData)
+        }
+        guard let password, !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw LocalFirstError.encryptedBudgetRequiresPassword
+        }
+
+        let keyResponse = try await client.userKey(fileID: remote.fileID, token: token)
+        let context = try ActualBudgetCrypto.validateUserKeyResponse(
+            keyResponse,
+            password: password
+        )
+        guard context.keyID == keyID else {
+            throw LocalFirstError.invalidEncryptionKey
+        }
+        keychain.saveLocalFirstEncryptionKey(context.keyData, fileID: remote.fileID, keyID: keyID)
+        return context
     }
 
     private func transactionIDsByAccount(database: BudgetDatabase) throws -> [String: Set<String>] {
@@ -1032,6 +1149,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.fileID = budgetID
         status.groupID = openedGroupID
+        status.encryptionKeyID = openedEncryptionContext?.keyID
         if let appliedCount {
             status.lastSyncedAt = Date()
             status.lastAppliedMessageCount = appliedCount

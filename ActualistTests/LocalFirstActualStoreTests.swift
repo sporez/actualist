@@ -174,6 +174,57 @@ struct LocalFirstActualStoreTests {
         #expect(response.file?.syncEncryptionKeyID == "key-1")
     }
 
+    @Test func userKeyResponseDecodesNestedActualServerShape() throws {
+        let data = Data("""
+        {
+          "status": "ok",
+          "data": {
+            "id": "key-1",
+            "salt": "salt-1",
+            "test": "{\\"value\\":\\"abc\\",\\"meta\\":{\\"keyId\\":\\"key-1\\",\\"algorithm\\":\\"aes-256-gcm\\",\\"iv\\":\\"MTIzNDU2Nzg5MDEy\\",\\"authTag\\":\\"YWJjZGVmZ2hpamtsbW5vcA==\\"}}"
+          }
+        }
+        """.utf8)
+
+        let response = try JSONDecoder.actual.decode(ActualUserKeyResponse.self, from: data)
+
+        #expect(response.id == "key-1")
+        #expect(response.salt == "salt-1")
+        #expect(response.test?.contains("aes-256-gcm") == true)
+    }
+
+    @Test func actualBudgetCryptoDerivesActualCompatibleKey() throws {
+        let key = try ActualBudgetCrypto.deriveKey(password: "correct horse", salt: "actual-salt")
+
+        #expect(key.base64EncodedString() == "uXkIgygcn1EQ8xhItpxCuiICM9BxkdD5e0ZbBM+9nwE=")
+    }
+
+    @Test func actualBudgetCryptoValidatesUserKeyTestPayload() throws {
+        let password = "budget password"
+        let salt = "server-salt"
+        let keyData = try ActualBudgetCrypto.deriveKey(password: password, salt: salt)
+        let context = ActualBudgetEncryptionContext(keyID: "key-1", keyData: keyData)
+        let encrypted = try ActualBudgetCrypto.encrypt(Data("test-value".utf8), context: context)
+        let testPayload = ActualUserKeyResponse.TestPayload(
+            value: encrypted.data.base64EncodedString(),
+            meta: ActualEncryptedMetadata(
+                keyID: "key-1",
+                algorithm: ActualBudgetCrypto.algorithm,
+                iv: encrypted.iv.base64EncodedString(),
+                authTag: encrypted.authTag.base64EncodedString()
+            )
+        )
+        let response = ActualUserKeyResponse(
+            id: "key-1",
+            salt: salt,
+            test: String(data: try JSONEncoder.actual.encode(testPayload), encoding: .utf8)
+        )
+
+        let validated = try ActualBudgetCrypto.validateUserKeyResponse(response, password: password)
+
+        #expect(validated == context)
+    }
+
     @Test func budgetDatabaseMapsAccountsBalancesAndBudgetMonth() throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
@@ -294,6 +345,61 @@ struct LocalFirstActualStoreTests {
 
         #expect(envelope.timestamp == message.timestamp)
         #expect(envelope.isEncrypted == false)
+        #expect(decoded.dataset == "transactions")
+        #expect(decoded.row == "txn")
+        #expect(decoded.column == "category")
+        #expect(decoded.value == "S:groceries")
+    }
+
+    @Test func encryptedDataDecodesActualWireFieldOrder() throws {
+        let iv = Data("123456789012".utf8)
+        let authTag = Data("abcdefghijklmnop".utf8)
+        let data = Data("ciphertext".utf8)
+        var wireData = Data()
+        wireData.append(contentsOf: [0x0a, UInt8(iv.count)])
+        wireData.append(iv)
+        wireData.append(contentsOf: [0x12, UInt8(authTag.count)])
+        wireData.append(authTag)
+        wireData.append(contentsOf: [0x1a, UInt8(data.count)])
+        wireData.append(data)
+
+        let encryptedData = try ActualSync_EncryptedData(serializedData: wireData)
+
+        #expect(encryptedData.iv == iv)
+        #expect(encryptedData.authTag == authTag)
+        #expect(encryptedData.data == data)
+    }
+
+    @Test func localFirstSyncMessageEnvelopeCanBeEncrypted() throws {
+        let context = ActualBudgetEncryptionContext(
+            keyID: "key-1",
+            keyData: try ActualBudgetCrypto.deriveKey(password: "password", salt: "salt")
+        )
+        let message = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: "S:groceries"
+        )
+
+        let envelope = try LocalFirstSyncMessageBuilder.envelope(
+            for: message,
+            encryptionContext: context
+        )
+        let encryptedData = try ActualSync_EncryptedData(serializedData: envelope.content)
+        let decrypted = try ActualBudgetCrypto.decrypt(
+            ActualEncryptedData(
+                data: encryptedData.data,
+                iv: encryptedData.iv,
+                authTag: encryptedData.authTag
+            ),
+            keyData: context.keyData
+        )
+        let decoded = try ActualSync_Message(serializedData: decrypted)
+
+        #expect(envelope.timestamp == message.timestamp)
+        #expect(envelope.isEncrypted)
         #expect(decoded.dataset == "transactions")
         #expect(decoded.row == "txn")
         #expect(decoded.column == "category")

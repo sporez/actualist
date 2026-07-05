@@ -87,8 +87,8 @@ final class AppState {
         }
     }
 
-    func selectBudgetForCurrentBackend(_ budget: ActualBudget) async {
-        await selectLocalFirstBudget(budget)
+    func selectBudgetForCurrentBackend(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
+        await selectLocalFirstBudget(budget, encryptionPassword: encryptionPassword)
     }
 
     var localFirstSyncStatus: LocalFirstSyncStatus? {
@@ -140,7 +140,7 @@ final class AppState {
         }
     }
 
-    private func selectLocalFirstBudget(_ budget: ActualBudget) async {
+    private func selectLocalFirstBudget(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
         if settings.selectedBudgetID != budget.syncID {
             localFirstStore.reset()
             accountNavigationPath = []
@@ -150,7 +150,8 @@ final class AppState {
         do {
             try await localFirstStore.openBudget(
                 budget,
-                serverURLString: settings.localFirstServerURLString
+                serverURLString: settings.localFirstServerURLString,
+                encryptionPassword: encryptionPassword
             )
             selectedBudget = budget
             settings.selectedBudgetID = budget.syncID
@@ -161,6 +162,7 @@ final class AppState {
             settingsStore.save(settings)
             setupPhase = .ready
             connectionStatus = .online
+            lastErrorMessage = nil
         } catch {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
