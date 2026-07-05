@@ -170,9 +170,9 @@ check.
 
 `[x]` done, `[~]` in progress, `[ ]` not started.
 
-**Step 0 — gate consolidation**
-- [ ] Collapse 3 write flags → `allowsLocalFirstWrites`; rename setting w/ fallback.
-- [ ] Capabilities reference single flag; Settings toggle/copy + tests updated.
+**Step 0 — gate consolidation** (sha 21795ca)
+- [x] Collapse 3 write flags → `allowsLocalFirstWrites`; rename setting w/ fallback.
+- [x] Capabilities reference single flag; Settings toggle/copy + tests updated.
 
 **Phase T1 — constants + allocation core**
 - [ ] `readCategoryGoalDefs` + decode model.
