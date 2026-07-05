@@ -917,6 +917,101 @@ struct LocalFirstActualStoreTests {
         #expect(paired.account == "credit")
     }
 
+    @Test func createCrossBudgetTransferKeepsCategoryOnOnBudgetSide() async throws {
+        let store = try await makeOpenedWritableStore()
+        // checking (on-budget) -> tracking (off-budget): the on-budget source keeps its category.
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-tracking",
+            payeeName: "",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+
+        let source = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == result.changed.transactions.first }
+        )
+        let tracking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "tracking"))
+        let paired = try #require(tracking.transactions.first { $0.amount == 1000 })
+
+        #expect(source.category == "groceries")
+        #expect(paired.category == nil)
+    }
+
+    @Test func createSameBudgetTransferClearsCategoryEvenIfProvided() async throws {
+        let store = try await makeOpenedWritableStore()
+        // checking -> credit, both on-budget: category must be cleared even if a draft carries one.
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-credit",
+            payeeName: "",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+
+        let source = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == result.changed.transactions.first }
+        )
+        #expect(source.category == nil)
+    }
+
+    @Test func editSimpleToCrossBudgetTransferKeepsCategory() async throws {
+        let store = try await makeOpenedWritableStore()
+        let simpleDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+
+        // Convert to a cross-budget transfer to the off-budget account, keeping the category.
+        let transferDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-tracking",
+            payeeName: "",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: transferDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let source = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(source.category == "groceries")
+    }
+
     @Test func createSplitLocallyWritesParentAndChildren() async throws {
         let store = try await makeOpenedWritableStore()
         let draft = TransactionDraft(
@@ -1389,12 +1484,15 @@ struct LocalFirstActualStoreTests {
             INSERT INTO payee_mapping VALUES ('coffee', 'coffee');
             INSERT INTO accounts VALUES ('credit', 'Credit Card', 0, 0, 0, 2);
             INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 3);
+            INSERT INTO accounts VALUES ('tracking', 'Tracking', 1, 0, 0, 4);
             INSERT INTO payees VALUES ('xfer-checking', '', 'checking', 0);
             INSERT INTO payees VALUES ('xfer-credit', '', 'credit', 0);
             INSERT INTO payees VALUES ('xfer-savings', '', 'savings', 0);
+            INSERT INTO payees VALUES ('xfer-tracking', '', 'tracking', 0);
             INSERT INTO payee_mapping VALUES ('xfer-checking', 'xfer-checking');
             INSERT INTO payee_mapping VALUES ('xfer-credit', 'xfer-credit');
             INSERT INTO payee_mapping VALUES ('xfer-savings', 'xfer-savings');
+            INSERT INTO payee_mapping VALUES ('xfer-tracking', 'xfer-tracking');
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)

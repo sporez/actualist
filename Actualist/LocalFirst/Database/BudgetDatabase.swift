@@ -741,6 +741,14 @@ final class BudgetDatabase: @unchecked Sendable {
             let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
             let dateValue = try Self.actualDateValue(draft.date)
             let pairedTransactionID = UUID().uuidString
+            // A cross-budget transfer keeps a category on the on-budget side; a same-budget
+            // transfer (on->on or off->off) is uncategorized. Mirrors loot-core clearCategory.
+            let sourceCategory = try transferCategory(
+                draft: draft,
+                sourceAccountID: draft.accountID,
+                destinationAccountID: destinationAccountID,
+                db: db
+            )
 
             let sourceMessages = transactionRowMessages(
                 rowID: sourceTransactionID,
@@ -748,7 +756,7 @@ final class BudgetDatabase: @unchecked Sendable {
                 dateValue: dateValue,
                 amountMinorUnits: draft.amountMinorUnits,
                 payeeID: payeeID,
-                categoryID: nil,
+                categoryID: sourceCategory,
                 notes: draft.notes,
                 cleared: draft.cleared,
                 isParent: false,
@@ -876,6 +884,50 @@ final class BudgetDatabase: @unchecked Sendable {
         return destination
     }
 
+    /// Whether an account is off-budget. Missing accounts/column read as on-budget.
+    private func accountOffBudget(_ accountID: String, db: Database) throws -> Bool {
+        guard try tableExists("accounts", db: db) else {
+            return false
+        }
+        let columns = try columnSet(for: "accounts", db: db)
+        let offbudgetColumn = column("offbudget", fallback: "0", columns: columns)
+        guard offbudgetColumn != "0" else {
+            return false
+        }
+        let value = try Int.fetchOne(
+            db,
+            sql: "SELECT \(offbudgetColumn) FROM accounts WHERE id = ?",
+            arguments: [accountID]
+        )
+        return (value ?? 0) != 0
+    }
+
+    /// The category the edited (source) side of a transfer should carry. loot-core `clearCategory`
+    /// nulls categories only when both accounts share the same `offbudget` flag; a cross-budget
+    /// transfer keeps a category on the on-budget side. Off-budget source rows are never
+    /// categorized, so this only preserves the draft's category for an on-budget source paired
+    /// with an off-budget destination.
+    private func transferCategory(
+        draft: TransactionDraft,
+        sourceAccountID: String,
+        destinationAccountID: String,
+        db: Database
+    ) throws -> String? {
+        let sourceOffBudget = try accountOffBudget(sourceAccountID, db: db)
+        let destinationOffBudget = try accountOffBudget(destinationAccountID, db: db)
+        guard sourceOffBudget != destinationOffBudget, !sourceOffBudget else {
+            return nil
+        }
+        guard let categoryID = draft.categoryID else {
+            return nil
+        }
+        if try tableExists("categories", db: db),
+           try !rowExists(table: "categories", rowID: categoryID, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+        return categoryID
+    }
+
     /// The transfer payee that points at `account` (each account has exactly one). Used as the
     /// paired transaction's payee so Actual shows the reverse-direction transfer.
     private func transferPayeeID(forAccount account: String, db: Database) throws -> String {
@@ -939,7 +991,22 @@ final class BudgetDatabase: @unchecked Sendable {
 
             let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
             let dateValue = try Self.actualDateValue(draft.date)
-            let mainCategory: String? = (draft.isTransfer || draft.isSplit) ? nil : draft.categoryID
+            let isTransferDraft = draft.isTransfer && !draft.isSplit
+            let mainCategory: String?
+            if draft.isSplit {
+                mainCategory = nil
+            } else if isTransferDraft {
+                // Preserve the on-budget side's category for cross-budget transfers.
+                let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
+                mainCategory = try transferCategory(
+                    draft: draft,
+                    sourceAccountID: draft.accountID,
+                    destinationAccountID: destination,
+                    db: db
+                )
+            } else {
+                mainCategory = draft.categoryID
+            }
             if let mainCategory,
                try tableExists("categories", db: db),
                try !rowExists(table: "categories", rowID: mainCategory, db: db) {
@@ -1149,6 +1216,11 @@ final class BudgetDatabase: @unchecked Sendable {
                     messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: draft.notes.map(LocalFirstSyncValue.string) ?? .null))
                 }
                 messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
+                // Same-budget transfers clear both categories (loot-core clearCategory); a
+                // cross-budget paired row keeps its own category.
+                if try accountOffBudget(draft.accountID, db: db) == accountOffBudget(destination, db: db) {
+                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
+                }
             } else {
                 // Add a new paired row and link the main row to it.
                 let pairedID = UUID().uuidString

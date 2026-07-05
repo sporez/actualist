@@ -151,6 +151,30 @@ struct TransactionEditorViewModelTests {
         #expect(model.splitRows.isEmpty)
     }
 
+    @Test func crossBudgetTransferAllowsCategoryButSameBudgetDoesNot() {
+        let model = TransactionEditorViewModel()
+        model.accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "tracking", name: "Tracking", offbudget: true, closed: false),
+            ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
+        ]
+        let toTracking = ActualPayee(id: "xfer-tracking", name: "", category: nil, transferAccount: "tracking")
+        let toSavings = ActualPayee(id: "xfer-savings", name: "", category: nil, transferAccount: "savings")
+        model.payees = [toTracking, toSavings]
+        model.selectedAccountID = "checking"
+
+        // On-budget -> off-budget: category stays editable and is preserved.
+        model.selectPayee(toTracking)
+        #expect(!model.isCategoryReadOnly)
+        model.selectCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
+        #expect(model.selectedCategoryID == "groceries")
+
+        // On-budget -> on-budget: category is read-only and cleared on selection.
+        model.selectPayee(toSavings)
+        #expect(model.isCategoryReadOnly)
+        #expect(model.selectedCategoryID == nil)
+    }
+
     @Test func categoryMutationIsIgnoredForTransferPayees() {
         let model = TransactionEditorViewModel()
         model.payees = [

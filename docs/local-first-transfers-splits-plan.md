@@ -297,11 +297,13 @@ All return `[ActualSyncDecodedMessage]` and read existing state in one
 
 ## Accepted Divergences
 
-- **On↔off-budget transfer category.** loot-core keeps a category on the
-  on-budget side of an on↔off-budget transfer (`clearCategory` only nulls when
-  offbudget matches). Our editor never allows a category on a transfer, so we
-  always write both sides null. This is a valid (uncategorized) state, not
-  corruption, and matches our UX. Documented, not fixed here.
+- ~~**On↔off-budget transfer category.**~~ **FIXED (sha pending).** The store now
+  applies loot-core `clearCategory`: categories are nulled only when both accounts
+  share the same `offbudget` flag; a cross-budget transfer keeps a category on the
+  on-budget side. The editor allows a category on an on-budget→off-budget transfer
+  (`isCategoryReadOnly`/`transferAllowsCategory`) and preserves it on submit and
+  edit. `BudgetDatabase.transferCategory` is the single source for the rule, used
+  by create and update; the paired row is nulled on same-budget edits.
 - **`sort_order` fidelity.** We assign descending child `sort_order` for correct
   in-split ordering, and omit `sort_order` on top-level rows (as the existing
   simple-create path already does). Top-level ordering in Actual web falls back to

@@ -195,7 +195,21 @@ final class TransactionEditorViewModel {
     }
 
     var isCategoryReadOnly: Bool {
-        selectedPayeeIsTransfer
+        selectedPayeeIsTransfer && !transferAllowsCategory
+    }
+
+    /// A transfer keeps a category only when it crosses the budget boundary and the edited side
+    /// is on-budget (an on-budget -> off-budget transfer). Same-budget transfers and off-budget
+    /// sources are uncategorized, matching Actual's `clearCategory` rule.
+    private var transferAllowsCategory: Bool {
+        guard selectedPayeeIsTransfer,
+              let selectedPayeeID,
+              let destinationAccountID = payees.first(where: { $0.id == selectedPayeeID })?.transferAccount else {
+            return false
+        }
+        let sourceOffBudget = accounts.first(where: { $0.id == selectedAccountID })?.offbudget ?? false
+        let destinationOffBudget = accounts.first(where: { $0.id == destinationAccountID })?.offbudget ?? false
+        return !sourceOffBudget && destinationOffBudget
     }
 
     var splitTotalCents: Int {
@@ -357,7 +371,13 @@ final class TransactionEditorViewModel {
         selectedPayeeID = payee.id
         payeeName = payee.name
         if payee.transferAccount != nil {
-            clearCategory()
+            // A transfer is never a split, but a cross-budget transfer may keep its category.
+            splitRows = []
+            pendingSplitMismatch = nil
+            if isCategoryReadOnly {
+                selectedCategoryID = nil
+                selectedCategoryFallbackName = nil
+            }
         }
     }
 
@@ -777,7 +797,7 @@ final class TransactionEditorViewModel {
             amountMinorUnits: signedAmount,
             payeeID: selectedPayeeID,
             payeeName: trimmedPayee,
-            categoryID: selectedPayeeIsTransfer || isSplit ? nil : selectedCategoryID,
+            categoryID: isCategoryReadOnly || isSplit ? nil : selectedCategoryID,
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared,
             isTransfer: selectedPayeeIsTransfer,
@@ -810,7 +830,7 @@ final class TransactionEditorViewModel {
             amountMinorUnits: signedAmount,
             payeeID: selectedPayeeID,
             payeeName: trimmedPayee,
-            categoryID: selectedPayeeIsTransfer ? nil : selectedCategoryID,
+            categoryID: isCategoryReadOnly ? nil : selectedCategoryID,
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared,
             isTransfer: selectedPayeeIsTransfer
