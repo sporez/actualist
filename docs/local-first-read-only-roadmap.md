@@ -2,6 +2,8 @@
 
 ## Summary
 
+Status: complete. Local-first read parity is considered good enough to begin the write roadmap.
+
 This roadmap extends the local-first proving work after Budget and Accounts parity. The next goal is to make every existing Actualist view work in `BackendMode.localFirstSync` from the native Actual SQLite plus CRDT sync path, while keeping the entire local-first backend read-only.
 
 REST mode must remain intact. Local-first mode should treat the normal Actual server, downloaded SQLite database, and applied CRDT messages as its source of truth. No write path should be attempted until read parity is solid across the app.
@@ -42,6 +44,8 @@ REST mode must remain intact. Local-first mode should treat the normal Actual se
 - Settings: show backend, selected native budget, sync status, last CRDT applied count/timestamp, account ordering, display density, theme, privacy mode, and local-first reset/reimport actions.
 
 ### Phase 5: Parity Audit Before Writes
+
+Status: complete. The read-only gate has passed and follow-up work should move to `docs/local-first-write-plan.md`.
 
 - Add a documented parity checklist comparing Actual web vs Actualist local-first for budget month totals, account balances, account transaction lists, spending feed, search results, uncategorized transactions, transfers, splits, hidden/closed/off-budget accounts, tombstones, and multiple months.
 - Use `docs/local-first-parity-checklist.md` as the manual throwaway-budget walkthrough for this audit.

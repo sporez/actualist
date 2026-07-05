@@ -2,7 +2,7 @@
 
 ## Summary
 
-This plan begins after local-first read parity has been verified against a throwaway Actual budget. The goal is to restore writes conservatively while keeping Actual's native SQLite and CRDT sync model as the source of truth.
+This plan is now active. Local-first read parity has been marked complete, so the next goal is to restore writes conservatively while keeping Actual's native SQLite and CRDT sync model as the source of truth.
 
 The first write proof should be narrow: create a transaction in Actualist, sync it through `/sync/sync`, verify it appears in Actual web, then pull it back into Actualist from SQLite. Broader mutation surfaces should remain disabled until the CRDT write substrate is proven.
 
@@ -25,9 +25,9 @@ The first write proof should be narrow: create a transaction in Actualist, sync 
 
 ## Phase 0: Record The Read Gate
 
-Before implementing writes, complete `docs/local-first-parity-checklist.md` for a throwaway budget.
+Status: complete. The read-only gate has passed and write implementation may begin.
 
-Required gate:
+Completed gate:
 
 - Budget totals match closely enough for write work.
 - Account balances match closely enough for write work.
@@ -39,8 +39,8 @@ Required gate:
 
 Acceptance:
 
-- The checklist has a PASS/FAIL decision.
-- Any blocking read parity mismatch is fixed before write implementation begins.
+- The checklist has a PASS decision.
+- No blocking read parity mismatch remains before write implementation begins.
 
 ## Phase 1: Build The CRDT Write Substrate
 

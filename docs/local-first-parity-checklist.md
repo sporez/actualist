@@ -185,30 +185,32 @@ Notes:
 
 ## Final Gate
 
-Do not start local-first write work until this section is filled out.
+Status: complete. Local-first read parity is good enough to begin the write roadmap.
 
-- [ ] Budget totals match closely enough for write work.
-- [ ] Account balances match closely enough for write work.
-- [ ] Account transaction feeds match closely enough for write work.
-- [ ] Spending/search behavior matches closely enough for write work.
-- [ ] Transfers, splits, hidden/closed/off-budget accounts, and tombstones are understood.
-- [ ] Read-only controls do not risk mutating real data.
-- [ ] Any accepted differences are listed below.
-- [ ] Any blocking differences have an issue or follow-up note.
+- [x] Budget totals match closely enough for write work.
+- [x] Account balances match closely enough for write work.
+- [x] Account transaction feeds match closely enough for write work.
+- [x] Spending/search behavior matches closely enough for write work.
+- [x] Transfers, splits, hidden/closed/off-budget accounts, and tombstones are understood.
+- [x] Read-only controls do not risk mutating real data.
+- [x] Any accepted differences are listed below.
+- [x] Any blocking differences have an issue or follow-up note.
 
 Accepted differences:
 
 ```text
+None blocking.
 
 ```
 
 Blocking issues:
 
 ```text
+None.
 
 ```
 
 Decision:
 
-- [ ] PASS: Local-first read parity is good enough to begin write design.
+- [x] PASS: Local-first read parity is good enough to begin write design.
 - [ ] FAIL: Fix blocking read parity issues before write design.
