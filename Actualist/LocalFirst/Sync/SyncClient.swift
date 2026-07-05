@@ -8,6 +8,11 @@ struct LocalFirstSyncConfiguration: Equatable, Sendable {
     let encryptionKeyID: String?
 }
 
+struct LocalFirstSyncResult: Equatable, Sendable {
+    let pushedMessageCount: Int
+    let appliedRemoteMessageCount: Int
+}
+
 actor SyncClient {
     private(set) var configuration: LocalFirstSyncConfiguration?
 
@@ -32,7 +37,45 @@ actor SyncClient {
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         let response = try ActualSync_SyncResponse(serializedData: responseData)
-        let messages = try response.messages.map { envelope in
+        let messages = try decodedMessages(from: response)
+        return try database.applyRemoteSyncMessages(messages)
+    }
+
+    func pushAndPull(
+        database: BudgetDatabase,
+        client: ActualServerSyncClient,
+        token: String,
+        messages: [ActualSyncDecodedMessage],
+        since: String? = nil
+    ) async throws -> LocalFirstSyncResult {
+        guard let configuration else {
+            return LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
+        }
+
+        var request = ActualSync_SyncRequest()
+        request.messages = try LocalFirstSyncMessageBuilder.envelopes(for: messages)
+        request.fileID = configuration.fileID
+        request.groupID = configuration.groupID ?? ""
+        request.keyID = configuration.encryptionKeyID ?? ""
+        if let since {
+            request.since = since
+        } else {
+            request.since = try database.latestSyncTimestamp()
+        }
+
+        let responseData = try await client.sync(data: try request.serializedData(), token: token)
+        let response = try ActualSync_SyncResponse(serializedData: responseData)
+        let remoteMessages = try decodedMessages(from: response)
+        let appliedCount = try database.applyRemoteSyncMessages(remoteMessages)
+
+        return LocalFirstSyncResult(
+            pushedMessageCount: messages.count,
+            appliedRemoteMessageCount: appliedCount
+        )
+    }
+
+    private func decodedMessages(from response: ActualSync_SyncResponse) throws -> [ActualSyncDecodedMessage] {
+        try response.messages.map { envelope in
             guard !envelope.isEncrypted else {
                 throw LocalFirstError.encryptedBudgetRequiresPassword
             }
@@ -45,6 +88,5 @@ actor SyncClient {
                 serializedValue: message.value
             )
         }
-        return try database.applyRemoteSyncMessages(messages)
     }
 }

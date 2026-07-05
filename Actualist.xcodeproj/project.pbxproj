@@ -49,6 +49,7 @@
 		010000000000000000000030 /* BudgetFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000030 /* BudgetFileManager.swift */; };
 		010000000000000000000031 /* BudgetDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000031 /* BudgetDatabase.swift */; };
 		010000000000000000000032 /* SyncClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000032 /* SyncClient.swift */; };
+		01000000000000000000003C /* LocalFirstSyncMessageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000038 /* LocalFirstSyncMessageBuilder.swift */; };
 		010000000000000000000033 /* Sync.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000033 /* Sync.pb.swift */; };
 		010000000000000000000034 /* LocalFirstActualStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000034 /* LocalFirstActualStore.swift */; };
 		010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000035 /* LocalFirstActualStoreTests.swift */; };
@@ -119,6 +120,7 @@
 		020000000000000000000030 /* BudgetFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetFileManager.swift; sourceTree = "<group>"; };
 		020000000000000000000031 /* BudgetDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDatabase.swift; sourceTree = "<group>"; };
 		020000000000000000000032 /* SyncClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncClient.swift; sourceTree = "<group>"; };
+		020000000000000000000038 /* LocalFirstSyncMessageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstSyncMessageBuilder.swift; sourceTree = "<group>"; };
 		020000000000000000000033 /* Sync.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sync.pb.swift; sourceTree = "<group>"; };
 		020000000000000000000034 /* LocalFirstActualStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStore.swift; sourceTree = "<group>"; };
 		020000000000000000000035 /* LocalFirstActualStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreTests.swift; sourceTree = "<group>"; };
@@ -382,6 +384,7 @@
 			isa = PBXGroup;
 			children = (
 				020000000000000000000032 /* SyncClient.swift */,
+				020000000000000000000038 /* LocalFirstSyncMessageBuilder.swift */,
 			);
 			path = Sync;
 			sourceTree = "<group>";
@@ -539,6 +542,7 @@
 				010000000000000000000030 /* BudgetFileManager.swift in Sources */,
 				010000000000000000000031 /* BudgetDatabase.swift in Sources */,
 				010000000000000000000032 /* SyncClient.swift in Sources */,
+				01000000000000000000003C /* LocalFirstSyncMessageBuilder.swift in Sources */,
 				010000000000000000000033 /* Sync.pb.swift in Sources */,
 				010000000000000000000034 /* LocalFirstActualStore.swift in Sources */,
 				010000000000000000000023 /* TransactionGrouping.swift in Sources */,

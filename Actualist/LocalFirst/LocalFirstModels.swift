@@ -9,6 +9,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case encryptedBudgetRequiresPassword
     case missingImportedDatabase
     case invalidDownloadedBudget
+    case invalidLocalWrite(String)
     case budgetNotOpened
 
     var errorDescription: String? {
@@ -29,6 +30,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not find db.sqlite in the imported budget."
         case .invalidDownloadedBudget:
             "The downloaded budget file could not be imported."
+        case .invalidLocalWrite(let reason):
+            "Actualist could not apply the local-first write: \(reason)"
         case .budgetNotOpened:
             "Open a local-first budget before loading this screen."
         }

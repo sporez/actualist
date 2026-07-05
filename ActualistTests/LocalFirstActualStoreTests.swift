@@ -245,6 +245,85 @@ struct LocalFirstActualStoreTests {
         #expect(groceries?.balance == 10_000)
     }
 
+    @Test func localFirstSyncValueSerializesActualWireValues() {
+        #expect(LocalFirstSyncValue.null.serialized == "0:")
+        #expect(LocalFirstSyncValue.int(42).serialized == "N:42")
+        #expect(LocalFirstSyncValue.double(12.5).serialized == "N:12.5")
+        #expect(LocalFirstSyncValue.string("Coffee").serialized == "S:Coffee")
+        #expect(LocalFirstSyncValue.bool(true).serialized == "N:1")
+        #expect(LocalFirstSyncValue.bool(false).serialized == "N:0")
+    }
+
+    @Test func hybridLogicalClockUsesNodeIDAndIncrementsWhenWallClockDoesNotAdvance() {
+        var clock = HybridLogicalClock(
+            nodeID: "node-1",
+            lastTimestamp: "1970-01-01T00:00:01.234Z-0000-node-1"
+        )
+
+        let first = clock.next(now: Date(timeIntervalSince1970: 1.0))
+        let second = clock.next(now: Date(timeIntervalSince1970: 1.0))
+        let advanced = clock.next(now: Date(timeIntervalSince1970: 2.0))
+
+        #expect(first == "1970-01-01T00:00:01.234Z-0001-node-1")
+        #expect(second == "1970-01-01T00:00:01.234Z-0002-node-1")
+        #expect(advanced == "1970-01-01T00:00:02.000Z-0000-node-1")
+    }
+
+    @Test func localFirstSyncMessageEnvelopeRoundTripsThroughProtobuf() throws {
+        let message = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node-1",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: "S:groceries"
+        )
+
+        let envelope = try LocalFirstSyncMessageBuilder.envelope(for: message)
+        let decoded = try ActualSync_Message(serializedData: envelope.content)
+
+        #expect(envelope.timestamp == message.timestamp)
+        #expect(envelope.isEncrypted == false)
+        #expect(decoded.dataset == "transactions")
+        #expect(decoded.row == "txn")
+        #expect(decoded.column == "category")
+        #expect(decoded.value == "S:groceries")
+    }
+
+    @Test func applyLocalSyncMessagesUpdatesSQLiteAndMessagesTable() throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let message = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node-1",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("gas").serialized
+        )
+
+        let appliedCount = try database.applyLocalSyncMessages([message])
+
+        let transaction = try #require(database.fetchTransactions(accountID: "checking").first { $0.id == "txn" })
+        #expect(appliedCount == 1)
+        #expect(transaction.category == "gas")
+        #expect(try database.latestSyncTimestamp() == message.timestamp)
+    }
+
+    @Test func applyLocalSyncMessagesRejectsUnknownColumns() throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let message = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node-1",
+            dataset: "transactions",
+            row: "txn",
+            column: "bogus",
+            serializedValue: LocalFirstSyncValue.string("nope").serialized
+        )
+
+        #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
+            _ = try database.applyLocalSyncMessages([message])
+        }
+    }
+
     @Test func refreshWithoutOpenBudgetThrowsBudgetNotOpened() async {
         let store = LocalFirstActualStore(
             keychain: KeychainStore(
@@ -694,6 +773,13 @@ struct LocalFirstActualStoreTests {
                 CREATE TABLE category_mapping (
                     id TEXT PRIMARY KEY,
                     transferId TEXT
+                );
+                CREATE TABLE messages_crdt (
+                    timestamp TEXT,
+                    dataset TEXT,
+                    row TEXT,
+                    column TEXT,
+                    value TEXT
                 );
                 INSERT INTO accounts VALUES ('checking', 'Checking', 0, 0, 0, 1);
                 INSERT INTO category_groups VALUES ('group', 'Everyday', 0, 0, 0, 1);

@@ -390,6 +390,46 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
+    func applyLocalSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
+        guard !messages.isEmpty else {
+            return 0
+        }
+
+        return try queue.write { db in
+            guard try tableExists("messages_crdt", db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
+            }
+
+            var appliedCount = 0
+            let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
+            var insertedRows = Set<String>()
+
+            for message in sortedMessages {
+                try validateLocalMessage(message, db: db)
+
+                if try hasSameOrNewerMessage(message, db: db) {
+                    continue
+                }
+
+                let rowWasInserted = insertedRows.contains(message.dataset + message.row)
+                let hasRow: Bool
+                if rowWasInserted {
+                    hasRow = true
+                } else {
+                    hasRow = try rowExists(table: message.dataset, rowID: message.row, db: db)
+                }
+
+                let value = try deserializeSyncValue(message.serializedValue)
+                try apply(message: message, value: value, rowExists: hasRow, db: db)
+                insertedRows.insert(message.dataset + message.row)
+                try insertCRDTMessage(message, db: db)
+                appliedCount += 1
+            }
+
+            return appliedCount
+        }
+    }
+
     private func accountBalances() throws -> [String: Int] {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
@@ -835,6 +875,16 @@ final class BudgetDatabase: @unchecked Sendable {
             arguments: [message.dataset, message.row, message.column, message.timestamp]
         )
         return row != nil
+    }
+
+    private func validateLocalMessage(_ message: ActualSyncDecodedMessage, db: Database) throws {
+        guard try tableExists(message.dataset, db: db) else {
+            throw LocalFirstError.invalidLocalWrite("unknown dataset \(message.dataset)")
+        }
+        let columns = try columnSet(for: message.dataset, db: db)
+        guard columns.contains(message.column) else {
+            throw LocalFirstError.invalidLocalWrite("unknown column \(message.dataset).\(message.column)")
+        }
     }
 
     private func rowExists(table: String, rowID: String, db: Database) throws -> Bool {
