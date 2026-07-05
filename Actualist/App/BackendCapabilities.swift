@@ -35,6 +35,12 @@ struct BackendCapabilities: Equatable {
     /// Delete a non-split, non-transfer transaction via Actual tombstone semantics. Uses the
     /// same developer write gate as the other local-first transaction mutations.
     var canDeleteTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    /// Create, edit, and delete transfer transactions (paired rows across two accounts). Uses
+    /// the same developer write gate as the other local-first transaction mutations.
+    var canWriteTransfers: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    /// Create, edit, and delete split transactions (a parent with category children). Uses the
+    /// same developer write gate as the other local-first transaction mutations.
+    var canWriteSplits: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
     /// Assign budget, move money, and apply budget templates.
     var canAssignBudget: Bool { !isReadOnly }
     /// Edit and delete existing transactions.

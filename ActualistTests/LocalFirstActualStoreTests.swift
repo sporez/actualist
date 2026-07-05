@@ -879,6 +879,103 @@ struct LocalFirstActualStoreTests {
         #expect(groceries.spent == -12_345)
     }
 
+    @Test func createTransferLocallyWritesPairedRowsAcrossAccounts() async throws {
+        let store = try await makeOpenedWritableStore()
+        // Transfer $10.00 out of checking into credit: payee is the credit account's transfer payee.
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-credit",
+            payeeName: "",
+            categoryID: nil,
+            notes: "move to card",
+            cleared: false,
+            isTransfer: true
+        )
+        var didCreate = false
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {
+            didCreate = true
+        }
+
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let credit = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+        let source = try #require(checking.transactions.first { $0.id == result.changed.transactions.first })
+        let paired = try #require(credit.transactions.first { $0.amount == 1000 })
+
+        #expect(didCreate)
+        #expect(result.ok)
+        #expect(Set(result.changed.accounts) == Set(["checking", "credit"]))
+        #expect(source.amount == -1000)
+        #expect(source.category == nil)
+        // The transfer feed resolves the empty-named transfer payee to the linked account name.
+        #expect(source.payeeName == "Credit Card")
+        #expect(paired.amount == 1000)
+        #expect(paired.category == nil)
+        #expect(paired.payeeName == "Checking")
+        #expect(paired.account == "credit")
+    }
+
+    @Test func createSplitLocallyWritesParentAndChildren() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 13),
+            amountMinorUnits: -3000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false,
+            splits: [
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -2000),
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1000)
+            ]
+        )
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let parent = try #require(checking.transactions.first { $0.id == result.changed.transactions.first })
+        let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+
+        #expect(result.ok)
+        #expect(parent.isParent)
+        #expect(parent.category == nil)
+        #expect(parent.amount == -3000)
+        #expect(parent.subtransactions.count == 2)
+        #expect(parent.subtransactions.allSatisfy { $0.category == "groceries" })
+        #expect(parent.subtransactions.reduce(0) { $0 + ($1.amount ?? 0) } == -3000)
+        // Baseline groceries spend is -12345; the split children add another -3000.
+        #expect(groceries.spent == -15_345)
+    }
+
+    @Test func createSplitLocallyRejectsAmountMismatch() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 13),
+            amountMinorUnits: -3000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false,
+            splits: [
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -2000),
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -500)
+            ]
+        )
+
+        await #expect(throws: LocalFirstError.self) {
+            _ = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        }
+    }
+
     private func makeBudgetMonth(
         toBudget: Int,
         groups: [BudgetMonthCategoryGroup] = []
@@ -971,11 +1068,17 @@ struct LocalFirstActualStoreTests {
             ALTER TABLE transactions ADD COLUMN description TEXT;
             ALTER TABLE transactions ADD COLUMN notes TEXT;
             ALTER TABLE transactions ADD COLUMN cleared INTEGER;
+            ALTER TABLE transactions ADD COLUMN transferred_id TEXT;
+            ALTER TABLE transactions ADD COLUMN isChild INTEGER;
             CREATE TABLE payees (id TEXT PRIMARY KEY, name TEXT, transfer_acct TEXT, tombstone INTEGER);
             CREATE TABLE payee_mapping (id TEXT PRIMARY KEY, targetId TEXT);
             INSERT INTO payees VALUES ('coffee', 'Coffee Shop', NULL, 0);
             INSERT INTO payee_mapping VALUES ('coffee', 'coffee');
             INSERT INTO accounts VALUES ('credit', 'Credit Card', 0, 0, 0, 2);
+            INSERT INTO payees VALUES ('xfer-checking', '', 'checking', 0);
+            INSERT INTO payees VALUES ('xfer-credit', '', 'credit', 0);
+            INSERT INTO payee_mapping VALUES ('xfer-checking', 'xfer-checking');
+            INSERT INTO payee_mapping VALUES ('xfer-credit', 'xfer-credit');
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)

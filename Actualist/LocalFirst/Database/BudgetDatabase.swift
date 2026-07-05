@@ -605,6 +605,292 @@ final class BudgetDatabase: @unchecked Sendable {
         return messages
     }
 
+    /// Resolved physical column names for the `transactions` table. Actual's CRDT messages use
+    /// physical columns, which differ from the AQL field names: payee lives in `description`,
+    /// account in `acct`, the split flags are `isParent`/`isChild`, and a transfer's paired-row
+    /// link is `transferred_id`. Older/test schemas may use the snake_case variants, so probe.
+    struct TransactionRowColumns {
+        let all: Set<String>
+        let account: String
+        let payee: String
+        let isParent: String?
+        let isChild: String?
+        let transferID: String?
+        let sortOrder: String?
+
+        var hasNotes: Bool { all.contains("notes") }
+        var hasCleared: Bool { all.contains("cleared") }
+        var hasTombstone: Bool { all.contains("tombstone") }
+        var hasParentID: Bool { all.contains("parent_id") }
+    }
+
+    func resolveTransactionRowColumns(db: Database) throws -> TransactionRowColumns {
+        let columns = try requiredColumns(
+            table: "transactions",
+            required: ["date", "amount", "category"],
+            db: db
+        )
+        return TransactionRowColumns(
+            all: columns,
+            account: try firstExistingColumn(["acct", "account"], in: columns, table: "transactions"),
+            payee: try firstExistingColumn(["description", "payee"], in: columns, table: "transactions"),
+            isParent: ["isParent", "is_parent"].first { columns.contains($0) },
+            isChild: ["isChild", "is_child"].first { columns.contains($0) },
+            transferID: ["transferred_id", "transfer_id"].first { columns.contains($0) },
+            sortOrder: columns.contains("sort_order") ? "sort_order" : nil
+        )
+    }
+
+    /// Emit the CRDT messages that fully define one transaction row. Optional columns are only
+    /// written when present in the schema; `isChild`/`transferID`/`sortOrder` are only written
+    /// when both present and meaningful (loot-core skips null-valued fields on insert).
+    func transactionRowMessages(
+        rowID: String,
+        accountID: String,
+        dateValue: Int,
+        amountMinorUnits: Int,
+        payeeID: String?,
+        categoryID: String?,
+        notes: String?,
+        cleared: Bool,
+        isParent: Bool,
+        parentID: String?,
+        isChild: Bool,
+        transferID: String?,
+        sortOrder: Double?,
+        columns: TransactionRowColumns,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) -> [ActualSyncDecodedMessage] {
+        var fields: [(String, LocalFirstSyncValue)] = [
+            (columns.account, .string(accountID)),
+            ("date", .int(Int64(dateValue))),
+            ("amount", .int(Int64(amountMinorUnits))),
+            (columns.payee, payeeID.map(LocalFirstSyncValue.string) ?? .null),
+            ("category", categoryID.map(LocalFirstSyncValue.string) ?? .null)
+        ]
+        if columns.hasNotes {
+            fields.append(("notes", notes.map(LocalFirstSyncValue.string) ?? .null))
+        }
+        if columns.hasCleared {
+            fields.append(("cleared", .bool(cleared)))
+        }
+        if let isParentColumn = columns.isParent {
+            fields.append((isParentColumn, .bool(isParent)))
+        }
+        if columns.hasParentID {
+            fields.append(("parent_id", parentID.map(LocalFirstSyncValue.string) ?? .null))
+        }
+        if isChild, let isChildColumn = columns.isChild {
+            fields.append((isChildColumn, .bool(true)))
+        }
+        if let transferID, let transferColumn = columns.transferID {
+            fields.append((transferColumn, .string(transferID)))
+        }
+        if let sortOrder, let sortOrderColumn = columns.sortOrder {
+            fields.append((sortOrderColumn, .double(sortOrder)))
+        }
+        if columns.hasTombstone {
+            fields.append(("tombstone", .bool(false)))
+        }
+
+        var messages: [ActualSyncDecodedMessage] = []
+        for (column, value) in fields {
+            messages.append(
+                builder.makeMessage(dataset: "transactions", row: rowID, column: column, value: value)
+            )
+        }
+        return messages
+    }
+
+    /// Build the paired-row messages for a new transfer. Mirrors loot-core `addTransfer`: the
+    /// source row links to a new paired row in the destination account (negated amount, the
+    /// source account's transfer payee, cross-linked `transferred_id`); both categories stay
+    /// null. Returns the messages and the destination account id for cache invalidation.
+    func createTransferTransactionMessages(
+        draft: TransactionDraft,
+        sourceTransactionID: String,
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String) {
+        guard !draft.accountID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing account")
+        }
+        guard draft.amountMinorUnits != 0 else {
+            throw LocalFirstError.invalidLocalWrite("missing amount")
+        }
+
+        return try queue.read { db in
+            let columns = try resolveTransactionRowColumns(db: db)
+            guard columns.transferID != nil else {
+                throw LocalFirstError.invalidLocalWrite("missing column transactions.transferred_id")
+            }
+            if try tableExists("accounts", db: db),
+               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+                throw LocalFirstError.invalidLocalWrite("missing account")
+            }
+            let destinationAccountID = try transferDestinationAccountID(payeeID: payeeID, db: db)
+            let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
+            let dateValue = try Self.actualDateValue(draft.date)
+            let pairedTransactionID = UUID().uuidString
+
+            let sourceMessages = transactionRowMessages(
+                rowID: sourceTransactionID,
+                accountID: draft.accountID,
+                dateValue: dateValue,
+                amountMinorUnits: draft.amountMinorUnits,
+                payeeID: payeeID,
+                categoryID: nil,
+                notes: draft.notes,
+                cleared: draft.cleared,
+                isParent: false,
+                parentID: nil,
+                isChild: false,
+                transferID: pairedTransactionID,
+                sortOrder: nil,
+                columns: columns,
+                builder: &builder
+            )
+            let pairedMessages = transactionRowMessages(
+                rowID: pairedTransactionID,
+                accountID: destinationAccountID,
+                dateValue: dateValue,
+                amountMinorUnits: -draft.amountMinorUnits,
+                payeeID: fromPayeeID,
+                categoryID: nil,
+                notes: draft.notes,
+                cleared: false,
+                isParent: false,
+                parentID: nil,
+                isChild: false,
+                transferID: sourceTransactionID,
+                sortOrder: nil,
+                columns: columns,
+                builder: &builder
+            )
+            return (sourceMessages + pairedMessages, destinationAccountID)
+        }
+    }
+
+    /// Build the parent + child messages for a new split. Parent is `isParent` with null
+    /// category and the total amount; each child inherits the parent's account/date/payee,
+    /// carries its own category/amount, is flagged `isChild`, and gets a descending sort order.
+    func createSplitTransactionMessages(
+        draft: TransactionDraft,
+        parentTransactionID: String,
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        guard !draft.accountID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing account")
+        }
+        guard draft.splits.count >= 2 else {
+            throw LocalFirstError.invalidLocalWrite("split requires at least two categories")
+        }
+        let splitTotal = draft.splits.reduce(0) { $0 + $1.amountMinorUnits }
+        guard splitTotal == draft.amountMinorUnits else {
+            throw LocalFirstError.invalidLocalWrite("split amounts do not sum to the transaction total")
+        }
+
+        return try queue.read { db in
+            let columns = try resolveTransactionRowColumns(db: db)
+            if try tableExists("accounts", db: db),
+               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+                throw LocalFirstError.invalidLocalWrite("missing account")
+            }
+            let dateValue = try Self.actualDateValue(draft.date)
+
+            var messages = transactionRowMessages(
+                rowID: parentTransactionID,
+                accountID: draft.accountID,
+                dateValue: dateValue,
+                amountMinorUnits: draft.amountMinorUnits,
+                payeeID: payeeID,
+                categoryID: nil,
+                notes: draft.notes,
+                cleared: draft.cleared,
+                isParent: true,
+                parentID: nil,
+                isChild: false,
+                transferID: nil,
+                sortOrder: nil,
+                columns: columns,
+                builder: &builder
+            )
+            for (index, split) in draft.splits.enumerated() {
+                if let categoryID = split.categoryID,
+                   try tableExists("categories", db: db),
+                   try !rowExists(table: "categories", rowID: categoryID, db: db) {
+                    throw LocalFirstError.invalidLocalWrite("missing category")
+                }
+                messages.append(contentsOf: transactionRowMessages(
+                    rowID: UUID().uuidString,
+                    accountID: draft.accountID,
+                    dateValue: dateValue,
+                    amountMinorUnits: split.amountMinorUnits,
+                    payeeID: payeeID,
+                    categoryID: split.categoryID,
+                    notes: nil,
+                    cleared: draft.cleared,
+                    isParent: false,
+                    parentID: parentTransactionID,
+                    isChild: true,
+                    transferID: nil,
+                    sortOrder: Double(-(index + 1)),
+                    columns: columns,
+                    builder: &builder
+                ))
+            }
+            return messages
+        }
+    }
+
+    /// The destination account for a transfer is the `transfer_acct` of the selected payee.
+    private func transferDestinationAccountID(payeeID: String, db: Database) throws -> String {
+        guard try tableExists("payees", db: db) else {
+            throw LocalFirstError.invalidLocalWrite("missing payees table")
+        }
+        let payeeColumns = try columnSet(for: "payees", db: db)
+        let transferColumn = column(
+            "transfer_acct",
+            fallback: column("transferAccount", fallback: "NULL", columns: payeeColumns),
+            columns: payeeColumns
+        )
+        guard transferColumn != "NULL",
+              let destination = try String.fetchOne(
+                db,
+                sql: "SELECT \(transferColumn) FROM payees WHERE id = ?",
+                arguments: [payeeID]
+              ),
+              !destination.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("selected payee is not a transfer payee")
+        }
+        return destination
+    }
+
+    /// The transfer payee that points at `account` (each account has exactly one). Used as the
+    /// paired transaction's payee so Actual shows the reverse-direction transfer.
+    private func transferPayeeID(forAccount account: String, db: Database) throws -> String {
+        guard try tableExists("payees", db: db) else {
+            throw LocalFirstError.invalidLocalWrite("missing payees table")
+        }
+        let payeeColumns = try columnSet(for: "payees", db: db)
+        let transferColumn = column(
+            "transfer_acct",
+            fallback: column("transferAccount", fallback: "NULL", columns: payeeColumns),
+            columns: payeeColumns
+        )
+        guard transferColumn != "NULL",
+              let payeeID = try String.fetchOne(
+                db,
+                sql: "SELECT id FROM payees WHERE \(transferColumn) = ? AND \(predicateForLiveRows(columns: payeeColumns)) LIMIT 1",
+                arguments: [account]
+              ),
+              !payeeID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transfer payee for account")
+        }
+        return payeeID
+    }
+
     func updateSimpleTransactionMessages(
         transactionID: String,
         draft: TransactionDraft,

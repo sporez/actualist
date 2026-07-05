@@ -416,12 +416,6 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         didCreate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        guard !draft.isTransfer else {
-            throw LocalFirstError.unsupportedTransferWrite
-        }
-        guard !draft.isSplit else {
-            throw LocalFirstError.unsupportedSplitWrite
-        }
         guard let nodeID = openedNodeID else {
             throw LocalFirstError.budgetNotOpened
         }
@@ -437,12 +431,33 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             payeeName: draft.payeeName,
             builder: &builder
         )
-        let transactionMessages = try database.createSimpleTransactionMessages(
-            draft,
-            transactionID: transactionID,
-            payeeID: payeeResolution.payeeID,
-            builder: &builder
-        )
+
+        let transactionMessages: [ActualSyncDecodedMessage]
+        var changedAccounts = [draft.accountID]
+        if draft.isTransfer {
+            let transfer = try database.createTransferTransactionMessages(
+                draft: draft,
+                sourceTransactionID: transactionID,
+                payeeID: payeeResolution.payeeID,
+                builder: &builder
+            )
+            transactionMessages = transfer.messages
+            changedAccounts.append(transfer.destinationAccountID)
+        } else if draft.isSplit {
+            transactionMessages = try database.createSplitTransactionMessages(
+                draft: draft,
+                parentTransactionID: transactionID,
+                payeeID: payeeResolution.payeeID,
+                builder: &builder
+            )
+        } else {
+            transactionMessages = try database.createSimpleTransactionMessages(
+                draft,
+                transactionID: transactionID,
+                payeeID: payeeResolution.payeeID,
+                builder: &builder
+            )
+        }
 
         let messages = payeeResolution.messages + transactionMessages
         try await pushLocalMessagesIfPossible(
@@ -452,16 +467,18 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         )
         _ = try database.applyLocalSyncMessages(messages)
         await didCreate()
+
+        let uniqueAccounts = Array(Set(changedAccounts))
         try reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
-            accountIDs: [draft.accountID],
+            accountIDs: uniqueAccounts,
             monthIDs: [draft.month.rawValue]
         )
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
-                accounts: [draft.accountID],
+                accounts: uniqueAccounts,
                 months: [draft.month.rawValue],
                 transactions: [transactionID]
             )
