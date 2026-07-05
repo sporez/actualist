@@ -85,6 +85,10 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
 
     var id: String { fileID }
 
+    var syncEncryptionKeyID: String? {
+        requiresEncryptionPassword ? encryptKeyID : nil
+    }
+
     enum CodingKeys: String, CodingKey {
         case id
         case fileID = "fileId"
@@ -96,6 +100,10 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
         case encryptKeyID = "encryptKeyId"
         case encryptionKeyID = "encryptionKeyId"
         case encryptMeta
+    }
+
+    private enum EncryptMetaCodingKeys: String, CodingKey {
+        case keyID = "keyId"
     }
 
     init(
@@ -122,10 +130,20 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
         deleted = try container.decodeFlexibleBoolIfPresent(for: .deleted)
             ?? container.decodeFlexibleBoolIfPresent(for: .tombstone)
             ?? false
-        encryptKeyID = try container.decodeFirstPresentString(for: [.encryptKeyID, .encryptionKeyID])
         let hasEncryptMeta = container.contains(.encryptMeta)
             ? !(try container.decodeNil(forKey: .encryptMeta))
             : false
+        if let topLevelKeyID = try container.decodeFirstPresentString(for: [.encryptKeyID, .encryptionKeyID]) {
+            encryptKeyID = topLevelKeyID
+        } else if hasEncryptMeta,
+                  let encryptMeta = try? container.nestedContainer(
+                      keyedBy: EncryptMetaCodingKeys.self,
+                      forKey: .encryptMeta
+                  ) {
+            encryptKeyID = try encryptMeta.decodeIfPresent(String.self, forKey: .keyID)
+        } else {
+            encryptKeyID = nil
+        }
         requiresEncryptionPassword = hasEncryptMeta
     }
 

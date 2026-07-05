@@ -143,8 +143,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             cloudFileID: fileID,
             groupID: budget.groupId,
             budgetName: budget.name,
-            encryptionKeyID: remote.encryptKeyID,
-            nodeID: UUID().uuidString
+            encryptionKeyID: remote.syncEncryptionKeyID,
+            nodeID: HybridLogicalClock.makeClientID()
         )
         _ = try fileManager.importBudgetZip(data, remoteFile: remote, metadata: metadata)
         try await openImportedBudget(fileID: fileID, metadata: metadata)
@@ -764,7 +764,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
                 fileID: metadata.cloudFileID,
                 groupID: metadata.groupID,
                 nodeID: metadata.nodeID,
-                encryptionKeyID: metadata.encryptionKeyID
+                // This write proof only emits plaintext sync envelopes; ignore
+                // stale top-level encryptKeyId metadata from earlier imports.
+                encryptionKeyID: nil
             )
         )
     }

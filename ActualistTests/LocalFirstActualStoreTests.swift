@@ -109,6 +109,7 @@ struct LocalFirstActualStoreTests {
         #expect(response.files.first?.deleted == false)
         #expect(response.files.first?.encryptKeyID == "key-1")
         #expect(response.files.first?.requiresEncryptionPassword == false)
+        #expect(response.files.first?.syncEncryptionKeyID == nil)
     }
 
     @Test func userFileInfoDecodesActualServerDataObjectShape() throws {
@@ -131,6 +132,7 @@ struct LocalFirstActualStoreTests {
         #expect(response.file?.groupID == "group-1")
         #expect(response.file?.encryptKeyID == "key-1")
         #expect(response.file?.requiresEncryptionPassword == false)
+        #expect(response.file?.syncEncryptionKeyID == nil)
     }
 
     @Test func userFileInfoTreatsNullEncryptMetaAsUnencrypted() throws {
@@ -169,6 +171,7 @@ struct LocalFirstActualStoreTests {
         let response = try JSONDecoder.actual.decode(ActualUserFileInfoResponse.self, from: data)
 
         #expect(response.file?.requiresEncryptionPassword == true)
+        #expect(response.file?.syncEncryptionKeyID == "key-1")
     }
 
     @Test func budgetDatabaseMapsAccountsBalancesAndBudgetMonth() throws {
@@ -257,22 +260,29 @@ struct LocalFirstActualStoreTests {
 
     @Test func hybridLogicalClockUsesNodeIDAndIncrementsWhenWallClockDoesNotAdvance() {
         var clock = HybridLogicalClock(
-            nodeID: "node-1",
-            lastTimestamp: "1970-01-01T00:00:01.234Z-0000-node-1"
+            nodeID: "node1",
+            lastTimestamp: "1970-01-01T00:00:01.234Z-0000-node1"
         )
 
         let first = clock.next(now: Date(timeIntervalSince1970: 1.0))
         let second = clock.next(now: Date(timeIntervalSince1970: 1.0))
         let advanced = clock.next(now: Date(timeIntervalSince1970: 2.0))
 
-        #expect(first == "1970-01-01T00:00:01.234Z-0001-node-1")
-        #expect(second == "1970-01-01T00:00:01.234Z-0002-node-1")
-        #expect(advanced == "1970-01-01T00:00:02.000Z-0000-node-1")
+        #expect(first == "1970-01-01T00:00:01.234Z-0001-node1")
+        #expect(second == "1970-01-01T00:00:01.234Z-0002-node1")
+        #expect(advanced == "1970-01-01T00:00:02.000Z-0000-node1")
+    }
+
+    @Test func hybridLogicalClockUsesActualClientIDShape() {
+        let uuid = UUID(uuidString: "A219E7A7-1CC1-8912-ABCD-0123456789AB")!
+
+        #expect(HybridLogicalClock.makeClientID(uuid: uuid) == "abcd0123456789ab")
+        #expect(HybridLogicalClock.normalizedNodeID("node-1") == "node1")
     }
 
     @Test func localFirstSyncMessageEnvelopeRoundTripsThroughProtobuf() throws {
         let message = ActualSyncDecodedMessage(
-            timestamp: "2026-07-04T12:34:56.789Z-0000-node-1",
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
             dataset: "transactions",
             row: "txn",
             column: "category",
@@ -294,7 +304,7 @@ struct LocalFirstActualStoreTests {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let message = ActualSyncDecodedMessage(
-            timestamp: "2026-07-04T12:34:56.789Z-0000-node-1",
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
             dataset: "transactions",
             row: "txn",
             column: "category",
@@ -313,7 +323,7 @@ struct LocalFirstActualStoreTests {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let message = ActualSyncDecodedMessage(
-            timestamp: "2026-07-04T12:34:56.789Z-0000-node-1",
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
             dataset: "transactions",
             row: "txn",
             column: "bogus",
@@ -609,7 +619,7 @@ struct LocalFirstActualStoreTests {
             groupID: "group-1",
             budgetName: "Cached Budget",
             encryptionKeyID: nil,
-            nodeID: "node-1"
+            nodeID: "node1"
         )
         try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
         let store = LocalFirstActualStore(
@@ -830,7 +840,7 @@ struct LocalFirstActualStoreTests {
             groupID: "group-1",
             budgetName: "Writable Budget",
             encryptionKeyID: nil,
-            nodeID: "node-1"
+            nodeID: "node1"
         )
         try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
         let store = LocalFirstActualStore(

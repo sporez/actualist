@@ -26,6 +26,7 @@ enum LocalFirstSyncValue: Equatable, Sendable {
 
 struct HybridLogicalClock: Equatable, Sendable {
     private static let timestampLength = 24
+    private static let nodeIDLength = 16
 
     let nodeID: String
     private(set) var lastTimestamp: String
@@ -34,8 +35,22 @@ struct HybridLogicalClock: Equatable, Sendable {
         nodeID: String,
         lastTimestamp: String = "1970-01-01T00:00:00.000Z-0000-0000000000000000"
     ) {
-        self.nodeID = nodeID
+        self.nodeID = Self.normalizedNodeID(nodeID)
         self.lastTimestamp = lastTimestamp
+    }
+
+    static func makeClientID(uuid: UUID = UUID()) -> String {
+        normalizedNodeID(uuid.uuidString)
+    }
+
+    static func normalizedNodeID(_ nodeID: String) -> String {
+        let compact = nodeID
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
+        guard compact.count > nodeIDLength else {
+            return compact
+        }
+        return String(compact.suffix(nodeIDLength))
     }
 
     mutating func next(now: Date = Date()) -> String {
