@@ -730,6 +730,108 @@ struct LocalFirstActualStoreTests {
         #expect(options.payees.filter { $0.name.caseInsensitiveCompare("coffee shop") == .orderedSame }.count == 1)
     }
 
+    @Test func categorizeTransactionLocallyRefreshesCachesAndUncategorizedList() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let createResult = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let uncategorizedBefore = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let transactionID = try #require(createResult.changed.transactions.first)
+        let transaction = try #require(uncategorizedBefore.transactions.first { $0.id == transactionID })
+        var didUpdate = false
+
+        let categorizeResult = try await store.categorizeTransactionAndRefresh(
+            transaction,
+            categoryID: "groceries",
+            budgetID: "group-1"
+        ) {
+            didUpdate = true
+        }
+
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let categorized = try #require(loaded.transactions.first { $0.id == transactionID })
+        let uncategorizedAfter = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+
+        #expect(didUpdate)
+        #expect(categorizeResult.ok)
+        #expect(categorizeResult.changed.accounts == ["checking"])
+        #expect(categorizeResult.changed.months == ["2026-07"])
+        #expect(categorizeResult.changed.transactions == [transactionID])
+        #expect(categorized.category == "groceries")
+        #expect(!uncategorizedAfter.transactions.contains { $0.id == transactionID })
+        #expect(groceries.spent == -13_070)
+    }
+
+    @Test func updateSimpleTransactionLocallyRefreshesMovedAccountMonthAndPayeeOptions() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: "old note",
+            cleared: false,
+            isTransfer: false
+        )
+        let createResult = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(createResult.changed.transactions.first)
+        let updateDraft = TransactionDraft(
+            accountID: "credit",
+            date: try makeDate(year: 2026, month: 8, day: 2),
+            amountMinorUnits: 425,
+            payeeID: nil,
+            payeeName: "Edited Payee",
+            categoryID: nil,
+            notes: "updated note",
+            cleared: true,
+            isTransfer: false
+        )
+        var didUpdate = false
+
+        let updateResult = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: updateDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {
+            didUpdate = true
+        }
+
+        let oldAccount = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let newAccount = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+        let updated = try #require(newAccount.transactions.first { $0.id == transactionID })
+        let options = try await store.editorOptions(budgetID: "group-1", month: "2026-08")
+
+        #expect(didUpdate)
+        #expect(updateResult.ok)
+        #expect(Set(updateResult.changed.accounts) == Set(["checking", "credit"]))
+        #expect(Set(updateResult.changed.months) == Set(["2026-07", "2026-08"]))
+        #expect(updateResult.changed.transactions == [transactionID])
+        #expect(!oldAccount.transactions.contains { $0.id == transactionID })
+        #expect(updated.account == "credit")
+        #expect(updated.date == "2026-08-02")
+        #expect(updated.amount == 425)
+        #expect(updated.payeeName == "Edited Payee")
+        #expect(updated.category == nil)
+        #expect(updated.notes == "updated note")
+        #expect(updated.cleared?.boolValue == true)
+        #expect(options.payees.contains { $0.name == "Edited Payee" })
+    }
+
     private func makeBudgetMonth(
         toBudget: Int,
         groups: [BudgetMonthCategoryGroup] = []
@@ -826,6 +928,7 @@ struct LocalFirstActualStoreTests {
             CREATE TABLE payee_mapping (id TEXT PRIMARY KEY, targetId TEXT);
             INSERT INTO payees VALUES ('coffee', 'Coffee Shop', NULL, 0);
             INSERT INTO payee_mapping VALUES ('coffee', 'coffee');
+            INSERT INTO accounts VALUES ('credit', 'Credit Card', 0, 0, 0, 2);
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)

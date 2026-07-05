@@ -179,6 +179,10 @@ final class TransactionEditorViewModel {
         splitRows.count >= 2
     }
 
+    var isComplexTransactionEdit: Bool {
+        isEditing && (isSplit || selectedPayeeIsTransfer)
+    }
+
     var isCategoryReadOnly: Bool {
         selectedPayeeIsTransfer
     }
@@ -608,12 +612,16 @@ final class TransactionEditorViewModel {
 
     func submit(using appState: AppState) async -> Bool {
         let canSubmit = isEditing
-            ? appState.capabilities.canEditTransactions
+            ? appState.capabilities.canUpdateSimpleTransactions
             : appState.capabilities.canCreateTransactions
         guard canSubmit else {
             errorMessage = isEditing
-                ? "Server is offline. Transaction edits are read-only until it reconnects."
+                ? "Transaction edits are disabled. Enable Transaction Writes in Developer settings to test local-first writes."
                 : "Transaction creation is disabled. Enable it in Developer settings to test local-first writes."
+            return false
+        }
+        guard !isComplexTransactionEdit else {
+            errorMessage = "Split and transfer edits are not available in local-first write testing yet."
             return false
         }
 

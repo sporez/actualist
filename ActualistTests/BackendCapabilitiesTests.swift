@@ -11,6 +11,8 @@ struct BackendCapabilitiesTests {
 
         #expect(capabilities.canAssignBudget)
         #expect(capabilities.canCreateTransactions)
+        #expect(capabilities.canCategorizeTransactions)
+        #expect(capabilities.canUpdateSimpleTransactions)
         #expect(capabilities.canEditTransactions)
         #expect(capabilities.canBankSync)
         #expect(capabilities.canReconcile)
@@ -27,6 +29,8 @@ struct BackendCapabilitiesTests {
         // Writes are blocked while offline...
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canCreateTransactions)
+        #expect(!capabilities.canCategorizeTransactions)
+        #expect(!capabilities.canUpdateSimpleTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
@@ -44,6 +48,8 @@ struct BackendCapabilitiesTests {
 
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canCreateTransactions)
+        #expect(!capabilities.canCategorizeTransactions)
+        #expect(!capabilities.canUpdateSimpleTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
@@ -57,7 +63,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.supportsTransactionNotifications)
     }
 
-    @Test func localFirstDeveloperCreateGateOnlyAllowsNewTransactions() {
+    @Test func localFirstDeveloperWriteGateAllowsCreateAndCategorizeOnly() {
         let capabilities = BackendCapabilities(
             isLocalFirst: true,
             isReadOnly: true,
@@ -65,6 +71,8 @@ struct BackendCapabilitiesTests {
         )
 
         #expect(capabilities.canCreateTransactions)
+        #expect(capabilities.canCategorizeTransactions)
+        #expect(capabilities.canUpdateSimpleTransactions)
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
@@ -89,13 +97,15 @@ struct BackendCapabilitiesTests {
                 #expect(capabilities.isLocalFirst)
                 #expect(capabilities.isReadOnly)
                 #expect(!capabilities.canCreateTransactions)
+                #expect(!capabilities.canCategorizeTransactions)
+                #expect(!capabilities.canUpdateSimpleTransactions)
                 #expect(!capabilities.canEditTransactions)
                 #expect(!capabilities.showsAddAccount)
             }
         }
     }
 
-    @Test func appStateDeveloperCreateGateAllowsOnlyTransactionCreation() {
+    @Test func appStateDeveloperWriteGateAllowsCreateAndCategorizeOnly() {
         let state = makeAppState()
         state.updateLocalFirstTransactionCreationEnabled(true)
 
@@ -103,6 +113,8 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.isLocalFirst)
         #expect(capabilities.isReadOnly)
         #expect(capabilities.canCreateTransactions)
+        #expect(capabilities.canCategorizeTransactions)
+        #expect(capabilities.canUpdateSimpleTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canBankSync)
@@ -118,6 +130,8 @@ struct BackendCapabilitiesTests {
         #expect(!state.settings.developerModeUnlocked)
         #expect(!state.settings.localFirstTransactionCreationEnabled)
         #expect(!state.capabilities.canCreateTransactions)
+        #expect(!state.capabilities.canCategorizeTransactions)
+        #expect(!state.capabilities.canUpdateSimpleTransactions)
     }
 
     private func makeAppState() -> AppState {

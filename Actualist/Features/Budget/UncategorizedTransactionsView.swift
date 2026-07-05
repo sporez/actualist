@@ -153,7 +153,7 @@ struct UncategorizedTransactionsView: View {
         showsBottomSeparator: Bool
     ) -> some View {
         Button {
-            guard appState.capabilities.canEditTransactions, viewModel.categorizingTransactionID == nil else {
+            guard appState.capabilities.canCategorizeTransactions, viewModel.categorizingTransactionID == nil else {
                 return
             }
             selectedTransaction = SelectedUncategorizedTransaction(transaction: transaction)

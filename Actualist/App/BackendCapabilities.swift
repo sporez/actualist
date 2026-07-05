@@ -6,7 +6,7 @@ import Foundation
 /// state directly, so the read-only contract lives in one place. Local-first is the only
 /// backend; these two flags stay constant today but keep the seam for the CRDT write phase:
 /// - `isLocalFirst`: the native local-first sync backend is active (always true).
-/// - `isReadOnly`: no write may be attempted right now — always true until CRDT writes land.
+/// - `isReadOnly`: broad write surfaces are blocked while local-first mutations land in phases.
 struct BackendCapabilities: Equatable {
     let isLocalFirst: Bool
     let isReadOnly: Bool
@@ -22,14 +22,19 @@ struct BackendCapabilities: Equatable {
         self.allowsLocalFirstTransactionCreation = allowsLocalFirstTransactionCreation
     }
 
-    // MARK: Write gates (blocked whenever read-only)
+    // MARK: Write gates
 
     /// Create simple transactions. Local-first can expose this behind a developer gate while
-    /// the rest of the write surface remains read-only.
+    /// most of the write surface remains read-only.
     var canCreateTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    /// Categorize existing uncategorized transactions. This is the first transaction mutation
+    /// parity slice after create and uses the same developer write gate.
+    var canCategorizeTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    /// Update basic fields on a non-split, non-transfer transaction.
+    var canUpdateSimpleTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
     /// Assign budget, move money, and apply budget templates.
     var canAssignBudget: Bool { !isReadOnly }
-    /// Edit, delete, and categorize existing transactions.
+    /// Edit and delete existing transactions.
     var canEditTransactions: Bool { !isReadOnly }
     /// Trigger a bank sync for a linked account.
     var canBankSync: Bool { !isReadOnly }

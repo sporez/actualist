@@ -605,6 +605,142 @@ final class BudgetDatabase: @unchecked Sendable {
         return messages
     }
 
+    func updateSimpleTransactionMessages(
+        transactionID: String,
+        draft: TransactionDraft,
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        try validateSimpleTransactionDraft(draft)
+        let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTransactionID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+
+        return try queue.read { db in
+            let columns = try requiredColumns(
+                table: "transactions",
+                required: ["date", "amount", "category"],
+                db: db
+            )
+            guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing transaction")
+            }
+
+            let accountColumn = try firstExistingColumn(["acct", "account"], in: columns, table: "transactions")
+            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
+            try validateSimpleTransactionRow(
+                transactionID: trimmedTransactionID,
+                columns: columns,
+                payeeColumn: payeeColumn,
+                db: db
+            )
+            try validateSimpleTransactionReferences(draft: draft, payeeID: payeeID, db: db)
+
+            let dateValue = try Self.actualDateValue(draft.date)
+            var messages: [ActualSyncDecodedMessage] = [
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: trimmedTransactionID,
+                    column: accountColumn,
+                    value: .string(draft.accountID)
+                ),
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: trimmedTransactionID,
+                    column: "date",
+                    value: .int(Int64(dateValue))
+                ),
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: trimmedTransactionID,
+                    column: "amount",
+                    value: .int(Int64(draft.amountMinorUnits))
+                ),
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: trimmedTransactionID,
+                    column: payeeColumn,
+                    value: .string(payeeID)
+                ),
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: trimmedTransactionID,
+                    column: "category",
+                    value: draft.categoryID.map(LocalFirstSyncValue.string) ?? .null
+                )
+            ]
+            if columns.contains("notes") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "transactions",
+                        row: trimmedTransactionID,
+                        column: "notes",
+                        value: draft.notes.map(LocalFirstSyncValue.string) ?? .null
+                    )
+                )
+            }
+            if columns.contains("cleared") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "transactions",
+                        row: trimmedTransactionID,
+                        column: "cleared",
+                        value: .bool(draft.cleared)
+                    )
+                )
+            }
+            return messages
+        }
+    }
+
+    func categorizeTransactionMessages(
+        transactionID: String,
+        categoryID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCategoryID = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTransactionID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+        guard !trimmedCategoryID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+
+        return try queue.read { db in
+            let transactionColumns = try requiredColumns(
+                table: "transactions",
+                required: ["category"],
+                db: db
+            )
+            guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing transaction")
+            }
+
+            let payeeColumn = try firstExistingColumn(["description", "payee"], in: transactionColumns, table: "transactions")
+            try validateSimpleTransactionRow(
+                transactionID: trimmedTransactionID,
+                columns: transactionColumns,
+                payeeColumn: payeeColumn,
+                db: db
+            )
+            if try tableExists("categories", db: db),
+               try !rowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
+                throw LocalFirstError.invalidLocalWrite("missing category")
+            }
+
+            return [
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: trimmedTransactionID,
+                    column: "category",
+                    value: .string(trimmedCategoryID)
+                )
+            ]
+        }
+    }
+
     private func accountBalances() throws -> [String: Int] {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
@@ -1062,12 +1198,93 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
+    private func validateSimpleTransactionRow(
+        transactionID: String,
+        columns: Set<String>,
+        payeeColumn: String,
+        db: Database
+    ) throws {
+        let isParentColumn = column(
+            "is_parent",
+            fallback: column("isParent", fallback: "0", columns: columns),
+            columns: columns
+        )
+        if let isParent = try Int.fetchOne(
+            db,
+            sql: "SELECT \(isParentColumn) FROM transactions WHERE id = ?",
+            arguments: [transactionID]
+        ), isParent != 0 {
+            throw LocalFirstError.unsupportedSplitWrite
+        }
+        if columns.contains("parent_id"),
+           let parentID = try String.fetchOne(
+            db,
+            sql: "SELECT parent_id FROM transactions WHERE id = ?",
+            arguments: [transactionID]
+           ),
+           !parentID.isEmpty {
+            throw LocalFirstError.unsupportedSplitWrite
+        }
+        if try tableExists("payees", db: db),
+           let payeeID = try String.fetchOne(
+            db,
+            sql: "SELECT \(payeeColumn) FROM transactions WHERE id = ?",
+            arguments: [transactionID]
+           ) {
+            try validatePayeeIsNotTransfer(payeeID: payeeID, db: db)
+        }
+    }
+
+    private func validateSimpleTransactionReferences(
+        draft: TransactionDraft,
+        payeeID: String,
+        db: Database
+    ) throws {
+        if try tableExists("accounts", db: db),
+           try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing account")
+        }
+        if let categoryID = draft.categoryID,
+           try tableExists("categories", db: db),
+           try !rowExists(table: "categories", rowID: categoryID, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+        if try tableExists("payees", db: db) {
+            guard try rowExists(table: "payees", rowID: payeeID, db: db) else {
+                return
+            }
+            try validatePayeeIsNotTransfer(payeeID: payeeID, db: db)
+        }
+    }
+
+    private func validatePayeeIsNotTransfer(payeeID: String, db: Database) throws {
+        guard try tableExists("payees", db: db) else {
+            return
+        }
+        let payeeColumns = try columnSet(for: "payees", db: db)
+        let transferColumn = column(
+            "transfer_acct",
+            fallback: column("transferAccount", fallback: "NULL", columns: payeeColumns),
+            columns: payeeColumns
+        )
+        guard transferColumn != "NULL" else {
+            return
+        }
+        if let transferAccount = try String.fetchOne(
+            db,
+            sql: "SELECT \(transferColumn) FROM payees WHERE id = ?",
+            arguments: [payeeID]
+        ), !transferAccount.isEmpty {
+            throw LocalFirstError.unsupportedTransferWrite
+        }
+    }
+
     private func validateSimpleTransactionDraft(_ draft: TransactionDraft) throws {
         guard !draft.isSplit else {
-            throw LocalFirstError.unsupportedWrite
+            throw LocalFirstError.unsupportedSplitWrite
         }
         guard !draft.isTransfer else {
-            throw LocalFirstError.unsupportedWrite
+            throw LocalFirstError.unsupportedTransferWrite
         }
         guard !draft.accountID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account")

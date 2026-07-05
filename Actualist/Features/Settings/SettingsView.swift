@@ -487,9 +487,9 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                 .settingsSectionChrome()
 
                 Section("Local-First Writes") {
-                    Toggle("Create Transactions", isOn: $localFirstTransactionCreationSelection)
+                    Toggle("Transaction Writes", isOn: $localFirstTransactionCreationSelection)
 
-                    Text("Enables simple new transactions for fake-budget testing. Edits, deletes, splits, transfers, budget moves, rules, and account writes stay disabled.")
+                    Text("Enables simple transaction create, basic field edits, and uncategorized categorization for fake-budget testing. Deletes, splits, transfers, budget moves, rules, and account writes stay disabled.")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }

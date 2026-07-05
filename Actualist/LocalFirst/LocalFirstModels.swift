@@ -6,6 +6,8 @@ enum LocalFirstError: LocalizedError, Equatable {
     case missingSyncToken
     case missingBudgetFileID
     case unsupportedWrite
+    case unsupportedTransferWrite
+    case unsupportedSplitWrite
     case encryptedBudgetRequiresPassword
     case missingImportedDatabase
     case invalidDownloadedBudget
@@ -23,7 +25,11 @@ enum LocalFirstError: LocalizedError, Equatable {
         case .missingBudgetFileID:
             "The selected Actual budget does not include a file ID."
         case .unsupportedWrite:
-            "Local-first mode is read-only in this proof."
+            "This local-first write is not available yet."
+        case .unsupportedTransferWrite:
+            "Transfers are not available in local-first write testing yet."
+        case .unsupportedSplitWrite:
+            "Split transactions are not available in local-first write testing yet."
         case .encryptedBudgetRequiresPassword:
             "This encrypted budget needs an encryption password before Actualist can open it."
         case .missingImportedDatabase:

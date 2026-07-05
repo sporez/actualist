@@ -416,8 +416,11 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         didCreate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        guard !draft.isTransfer, !draft.isSplit else {
-            throw LocalFirstError.unsupportedWrite
+        guard !draft.isTransfer else {
+            throw LocalFirstError.unsupportedTransferWrite
+        }
+        guard !draft.isSplit else {
+            throw LocalFirstError.unsupportedSplitWrite
         }
         guard let nodeID = openedNodeID else {
             throw LocalFirstError.budgetNotOpened
@@ -473,7 +476,59 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         originalMonth: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        throw LocalFirstError.unsupportedWrite
+        guard !draft.isTransfer else {
+            throw LocalFirstError.unsupportedTransferWrite
+        }
+        guard !draft.isSplit else {
+            throw LocalFirstError.unsupportedSplitWrite
+        }
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+
+        let database = try requireDatabase(for: budgetID)
+        let latestTimestamp = try database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let payeeResolution = try database.resolveOrCreatePayeeMessages(
+            selectedPayeeID: draft.payeeID,
+            payeeName: draft.payeeName,
+            builder: &builder
+        )
+        let transactionMessages = try database.updateSimpleTransactionMessages(
+            transactionID: transactionID,
+            draft: draft,
+            payeeID: payeeResolution.payeeID,
+            builder: &builder
+        )
+
+        let messages = payeeResolution.messages + transactionMessages
+        try await pushLocalMessagesIfPossible(
+            database: database,
+            messages: messages,
+            since: latestTimestamp
+        )
+        _ = try database.applyLocalSyncMessages(messages)
+        await didUpdate()
+
+        let changedAccounts = Array(Set([originalAccountID, draft.accountID]))
+        let changedMonths = Array(Set([originalMonth, draft.month.rawValue]))
+        try reloadAfterTransactionMutation(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: changedAccounts,
+            monthIDs: changedMonths
+        )
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: changedAccounts,
+                months: changedMonths,
+                transactions: [transactionID]
+            )
+        )
     }
 
     func categorizeTransactionAndRefresh(
@@ -482,7 +537,49 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        throw LocalFirstError.unsupportedWrite
+        guard let transactionID = transaction.id, !transactionID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+        guard let monthID = transaction.date.actualYearMonth else {
+            throw LocalFirstError.invalidLocalWrite("invalid transaction date")
+        }
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+
+        let database = try requireDatabase(for: budgetID)
+        let latestTimestamp = try database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let messages = try database.categorizeTransactionMessages(
+            transactionID: transactionID,
+            categoryID: categoryID,
+            builder: &builder
+        )
+
+        try await pushLocalMessagesIfPossible(
+            database: database,
+            messages: messages,
+            since: latestTimestamp
+        )
+        _ = try database.applyLocalSyncMessages(messages)
+        await didUpdate()
+        try reloadAfterTransactionMutation(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: [transaction.account],
+            monthIDs: [monthID]
+        )
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [transaction.account],
+                months: [monthID],
+                transactions: [transactionID]
+            )
+        )
     }
 
     func deleteTransactionAndRefresh(

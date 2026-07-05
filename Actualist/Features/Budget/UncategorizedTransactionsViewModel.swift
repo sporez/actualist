@@ -70,9 +70,27 @@ final class UncategorizedTransactionsViewModel {
         month: String,
         using appState: AppState
     ) async -> CategorizationResult {
-        guard appState.capabilities.canEditTransactions,
-              let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
+        return await categorize(
+            transaction,
+            as: option,
+            month: month,
+            capabilities: appState.capabilities,
+            budgetID: appState.settings.selectedBudgetID,
+            repository: appState.makeTransactionRepository()
+        )
+    }
+
+    func categorize(
+        _ transaction: ActualTransaction,
+        as option: TransactionEditorCategoryOption,
+        month: String,
+        capabilities: BackendCapabilities,
+        budgetID: String?,
+        repository: (any TransactionRepositoryProtocol)?
+    ) async -> CategorizationResult {
+        guard capabilities.canCategorizeTransactions,
+              let budgetID,
+              let repository else {
             return .failed
         }
 
@@ -90,7 +108,7 @@ final class UncategorizedTransactionsViewModel {
         as option: TransactionEditorCategoryOption,
         using appState: AppState
     ) async -> Bool {
-        guard appState.capabilities.canEditTransactions,
+        guard appState.capabilities.canCategorizeTransactions,
               let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {
             return false
