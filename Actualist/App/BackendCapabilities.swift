@@ -10,47 +10,43 @@ import Foundation
 struct BackendCapabilities: Equatable {
     let isLocalFirst: Bool
     let isReadOnly: Bool
-    let allowsLocalFirstTransactionCreation: Bool
-    let allowsLocalFirstBudgetAssignment: Bool
-    let allowsLocalFirstMoveMoney: Bool
+    /// Single developer gate for every local-first write. Local-first is the only backend, so
+    /// while `isReadOnly` stays true this flag is what actually enables writes for testing.
+    let allowsLocalFirstWrites: Bool
 
     init(
         isLocalFirst: Bool,
         isReadOnly: Bool,
-        allowsLocalFirstTransactionCreation: Bool = false,
-        allowsLocalFirstBudgetAssignment: Bool = false,
-        allowsLocalFirstMoveMoney: Bool = false
+        allowsLocalFirstWrites: Bool = false
     ) {
         self.isLocalFirst = isLocalFirst
         self.isReadOnly = isReadOnly
-        self.allowsLocalFirstTransactionCreation = allowsLocalFirstTransactionCreation
-        self.allowsLocalFirstBudgetAssignment = allowsLocalFirstBudgetAssignment
-        self.allowsLocalFirstMoveMoney = allowsLocalFirstMoveMoney
+        self.allowsLocalFirstWrites = allowsLocalFirstWrites
     }
 
     // MARK: Write gates
 
     /// Create simple transactions. Local-first can expose this behind a developer gate while
     /// most of the write surface remains read-only.
-    var canCreateTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    var canCreateTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Categorize existing uncategorized transactions. This is the first transaction mutation
     /// parity slice after create and uses the same developer write gate.
-    var canCategorizeTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    var canCategorizeTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Update basic fields on a non-split, non-transfer transaction.
-    var canUpdateSimpleTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    var canUpdateSimpleTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Delete a non-split, non-transfer transaction via Actual tombstone semantics. Uses the
     /// same developer write gate as the other local-first transaction mutations.
-    var canDeleteTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    var canDeleteTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Create, edit, and delete transfer transactions (paired rows across two accounts). Uses
     /// the same developer write gate as the other local-first transaction mutations.
-    var canWriteTransfers: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    var canWriteTransfers: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Create, edit, and delete split transactions (a parent with category children). Uses the
     /// same developer write gate as the other local-first transaction mutations.
-    var canWriteSplits: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    var canWriteSplits: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Assign a category's budgeted amount.
-    var canAssignCategoryBudget: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstBudgetAssignment) }
+    var canAssignCategoryBudget: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Move money between categories and To Budget.
-    var canMoveMoney: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstMoveMoney) }
+    var canMoveMoney: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Apply category or month budget templates.
     var canApplyBudgetTemplates: Bool { !isReadOnly }
     /// Broad compatibility gate for budget write surfaces not split yet.

@@ -58,9 +58,7 @@ final class AppState {
         BackendCapabilities(
             isLocalFirst: true,
             isReadOnly: true,
-            allowsLocalFirstTransactionCreation: settings.localFirstTransactionCreationEnabled,
-            allowsLocalFirstBudgetAssignment: settings.localFirstTransactionCreationEnabled,
-            allowsLocalFirstMoveMoney: settings.localFirstTransactionCreationEnabled
+            allowsLocalFirstWrites: settings.localFirstWritesEnabled
         )
     }
 
@@ -191,8 +189,8 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    func updateLocalFirstTransactionCreationEnabled(_ isEnabled: Bool) {
-        settings.localFirstTransactionCreationEnabled = isEnabled
+    func updateLocalFirstWritesEnabled(_ isEnabled: Bool) {
+        settings.localFirstWritesEnabled = isEnabled
         settingsStore.save(settings)
     }
 
@@ -200,7 +198,7 @@ final class AppState {
         settings.developerModeUnlocked = isUnlocked
         if !isUnlocked {
             settings.randomizedDisplayValuesEnabled = false
-            settings.localFirstTransactionCreationEnabled = false
+            settings.localFirstWritesEnabled = false
         }
         resetDeveloperUnlockProgress()
         settingsStore.save(settings)

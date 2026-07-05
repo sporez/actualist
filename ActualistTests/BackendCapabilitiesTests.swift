@@ -81,22 +81,26 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.supportsTransactionNotifications)
     }
 
-    @Test func localFirstDeveloperWriteGateAllowsCreateAndCategorizeOnly() {
+    @Test func localFirstWriteGateEnablesEveryImplementedWrite() {
+        // One developer flag now gates all local-first writes together.
         let capabilities = BackendCapabilities(
             isLocalFirst: true,
             isReadOnly: true,
-            allowsLocalFirstTransactionCreation: true
+            allowsLocalFirstWrites: true
         )
 
+        // Implemented local-first writes.
         #expect(capabilities.canCreateTransactions)
         #expect(capabilities.canCategorizeTransactions)
         #expect(capabilities.canUpdateSimpleTransactions)
         #expect(capabilities.canDeleteTransactions)
         #expect(capabilities.canWriteTransfers)
         #expect(capabilities.canWriteSplits)
-        #expect(!capabilities.canAssignBudget)
-        #expect(!capabilities.canAssignCategoryBudget)
-        #expect(!capabilities.canMoveMoney)
+        #expect(capabilities.canAssignCategoryBudget)
+        #expect(capabilities.canMoveMoney)
+        #expect(capabilities.canAssignBudget)
+
+        // Not yet implemented for local-first.
         #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
@@ -104,38 +108,6 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canApplyRules)
         #expect(!capabilities.showsAddAccount)
         #expect(!capabilities.canAddAccount)
-    }
-
-    @Test func localFirstBudgetAssignmentGateAllowsOnlyCategoryAssignment() {
-        let capabilities = BackendCapabilities(
-            isLocalFirst: true,
-            isReadOnly: true,
-            allowsLocalFirstBudgetAssignment: true
-        )
-
-        #expect(capabilities.canAssignBudget)
-        #expect(capabilities.canAssignCategoryBudget)
-        #expect(!capabilities.canMoveMoney)
-        #expect(!capabilities.canApplyBudgetTemplates)
-        #expect(!capabilities.canCreateTransactions)
-        #expect(!capabilities.canEditTransactions)
-        #expect(!capabilities.canBankSync)
-    }
-
-    @Test func localFirstMoveMoneyGateAllowsOnlyMoveMoney() {
-        let capabilities = BackendCapabilities(
-            isLocalFirst: true,
-            isReadOnly: true,
-            allowsLocalFirstMoveMoney: true
-        )
-
-        #expect(capabilities.canAssignBudget)
-        #expect(!capabilities.canAssignCategoryBudget)
-        #expect(capabilities.canMoveMoney)
-        #expect(!capabilities.canApplyBudgetTemplates)
-        #expect(!capabilities.canCreateTransactions)
-        #expect(!capabilities.canEditTransactions)
-        #expect(!capabilities.canBankSync)
     }
 
     // MARK: AppState derivation
@@ -169,7 +141,7 @@ struct BackendCapabilitiesTests {
 
     @Test func appStateDeveloperWriteGateAllowsCurrentLocalFirstWrites() {
         let state = makeAppState()
-        state.updateLocalFirstTransactionCreationEnabled(true)
+        state.updateLocalFirstWritesEnabled(true)
 
         let capabilities = state.capabilities
         #expect(capabilities.isLocalFirst)
@@ -191,12 +163,12 @@ struct BackendCapabilitiesTests {
     @Test func hidingDeveloperModeDisablesLocalFirstTransactionCreation() {
         let state = makeAppState()
         state.updateDeveloperModeUnlocked(true)
-        state.updateLocalFirstTransactionCreationEnabled(true)
+        state.updateLocalFirstWritesEnabled(true)
 
         state.updateDeveloperModeUnlocked(false)
 
         #expect(!state.settings.developerModeUnlocked)
-        #expect(!state.settings.localFirstTransactionCreationEnabled)
+        #expect(!state.settings.localFirstWritesEnabled)
         #expect(!state.capabilities.canCreateTransactions)
         #expect(!state.capabilities.canCategorizeTransactions)
         #expect(!state.capabilities.canUpdateSimpleTransactions)

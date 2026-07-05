@@ -263,7 +263,7 @@ struct SettingsView: View {
                 #if DEBUG
                 SettingsDeveloperDiagnosticsSheet(
                     randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
-                    localFirstTransactionCreationSelection: localFirstTransactionCreationSelection,
+                    localFirstWritesSelection: localFirstWritesSelection,
                     hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug,
                     isPostingDebugNotification: $isPostingDebugNotification,
@@ -273,7 +273,7 @@ struct SettingsView: View {
                 #else
                 SettingsDeveloperDiagnosticsSheet(
                     randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
-                    localFirstTransactionCreationSelection: localFirstTransactionCreationSelection,
+                    localFirstWritesSelection: localFirstWritesSelection,
                     hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug
                 )
@@ -415,11 +415,11 @@ struct SettingsView: View {
         }
     }
 
-    private var localFirstTransactionCreationSelection: Binding<Bool> {
+    private var localFirstWritesSelection: Binding<Bool> {
         Binding {
-            appState.settings.localFirstTransactionCreationEnabled
+            appState.settings.localFirstWritesEnabled
         } set: { isEnabled in
-            appState.updateLocalFirstTransactionCreationEnabled(isEnabled)
+            appState.updateLocalFirstWritesEnabled(isEnabled)
         }
     }
 
@@ -481,7 +481,7 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var randomizedDisplayValuesSelection: Bool
-    @Binding var localFirstTransactionCreationSelection: Bool
+    @Binding var localFirstWritesSelection: Bool
     let hideDeveloperMode: () -> Void
     let debug: BackgroundRefreshDebugInfo
     #if DEBUG
@@ -499,7 +499,7 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                 .settingsSectionChrome()
 
                 Section("Local-First Writes") {
-                    Toggle("Write Testing", isOn: $localFirstTransactionCreationSelection)
+                    Toggle("Write Testing", isOn: $localFirstWritesSelection)
 
                     Text("Enables local-first write proofs for fake-budget testing: transactions, category budget assignment, and move money. Templates, rules, and account writes stay disabled.")
                         .font(.footnote)

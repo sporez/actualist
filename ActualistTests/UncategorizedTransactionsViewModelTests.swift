@@ -64,7 +64,7 @@ struct UncategorizedTransactionsViewModelTests {
         let capabilities = BackendCapabilities(
             isLocalFirst: true,
             isReadOnly: true,
-            allowsLocalFirstTransactionCreation: true
+            allowsLocalFirstWrites: true
         )
 
         await model.load(budgetID: "budget", month: "2026-06", repository: repository)

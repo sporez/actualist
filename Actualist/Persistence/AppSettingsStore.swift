@@ -12,7 +12,9 @@ struct AppSettings: Codable, Equatable {
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var backgroundTransactionRefreshEnabled: Bool = false
-    var localFirstTransactionCreationEnabled: Bool = false
+    /// Single developer gate for every local-first write (transactions, budget assign/move,
+    /// and — as they land — templates). Was three redundant flags all wired to this one value.
+    var localFirstWritesEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
     var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
 
@@ -28,7 +30,7 @@ struct AppSettings: Codable, Equatable {
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         backgroundTransactionRefreshEnabled: Bool = false,
-        localFirstTransactionCreationEnabled: Bool = false,
+        localFirstWritesEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
         pendingNewTransactionIDsByAccount: [String: [String]] = [:]
     ) {
@@ -43,7 +45,7 @@ struct AppSettings: Codable, Equatable {
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
-        self.localFirstTransactionCreationEnabled = localFirstTransactionCreationEnabled
+        self.localFirstWritesEnabled = localFirstWritesEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
         self.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
     }
@@ -73,10 +75,16 @@ struct AppSettings: Codable, Equatable {
             Bool.self,
             forKey: .backgroundTransactionRefreshEnabled
         ) ?? false
-        localFirstTransactionCreationEnabled = try container.decodeIfPresent(
-            Bool.self,
-            forKey: .localFirstTransactionCreationEnabled
-        ) ?? false
+        if let writesEnabled = try container.decodeIfPresent(Bool.self, forKey: .localFirstWritesEnabled) {
+            localFirstWritesEnabled = writesEnabled
+        } else {
+            // Fall back to the retired per-feature flag name so existing dev state persists.
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            localFirstWritesEnabled = try legacy.decodeIfPresent(
+                Bool.self,
+                forKey: .localFirstTransactionCreationEnabled
+            ) ?? false
+        }
         backgroundRefreshDebug = try container.decodeIfPresent(
             BackgroundRefreshDebugInfo.self,
             forKey: .backgroundRefreshDebug
@@ -85,6 +93,10 @@ struct AppSettings: Codable, Equatable {
             [String: [String]].self,
             forKey: .pendingNewTransactionIDsByAccount
         ) ?? [:]
+    }
+
+    private enum LegacyCodingKeys: String, CodingKey {
+        case localFirstTransactionCreationEnabled
     }
 }
 
