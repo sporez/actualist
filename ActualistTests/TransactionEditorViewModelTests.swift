@@ -151,6 +151,65 @@ struct TransactionEditorViewModelTests {
         #expect(model.splitRows.isEmpty)
     }
 
+    @Test func editingTransferKeepsPayeeNameAfterOptionsLoad() {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "txn-xfer",
+                account: "checking",
+                date: "2026-07-12",
+                amount: -1000,
+                payee: "xfer-credit",
+                payeeName: "Credit Card",
+                importedPayee: nil,
+                category: nil,
+                notes: nil,
+                cleared: .bool(false)
+            ),
+            payeeName: "Credit Card",
+            categoryName: "Account Transfer"
+        )
+        #expect(model.payeeName == "Credit Card")
+
+        // Loading options must not blank the transfer payee (its raw name is empty).
+        model.apply(
+            TransactionEditorOptions(
+                accounts: [
+                    ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+                    ActualAccount(id: "credit", name: "Credit Card", offbudget: false, closed: false)
+                ],
+                categories: [],
+                categoryGroups: [],
+                payees: [ActualPayee(id: "xfer-credit", name: "", category: nil, transferAccount: "credit")]
+            ),
+            loadedMonth: "2026-07"
+        )
+
+        #expect(model.payeeName == "Credit Card")
+        #expect(model.selectedPayeeName == "Transfer: Credit Card")
+        #expect(model.canSave)
+    }
+
+    @Test func crossBudgetTransferShowsSelectCategoryNotAccountTransfer() {
+        let model = TransactionEditorViewModel()
+        model.accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "tracking", name: "Tracking", offbudget: true, closed: false),
+            ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
+        ]
+        model.selectedAccountID = "checking"
+        let toTracking = ActualPayee(id: "xfer-tracking", name: "", category: nil, transferAccount: "tracking")
+        let toSavings = ActualPayee(id: "xfer-savings", name: "", category: nil, transferAccount: "savings")
+        model.payees = [toTracking, toSavings]
+
+        // On-budget -> off-budget keeps a category, so prompt to pick one.
+        model.selectPayee(toTracking)
+        #expect(model.selectedCategoryName == "Select Category")
+
+        // On-budget -> on-budget is a plain transfer.
+        model.selectPayee(toSavings)
+        #expect(model.selectedCategoryName == "Account Transfer")
+    }
+
     @Test func selectingTransferPayeeUsesLinkedAccountNameAndEnablesSave() {
         let model = TransactionEditorViewModel()
         model.accounts = [

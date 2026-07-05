@@ -243,7 +243,8 @@ final class TransactionEditorViewModel {
 
         guard let selectedCategoryID else {
             if selectedPayeeIsTransfer {
-                return "Account Transfer"
+                // A cross-budget transfer keeps a real category, so prompt to pick one.
+                return isCategoryReadOnly ? "Account Transfer" : "Select Category"
             }
             if let selectedCategoryFallbackName,
                selectedCategoryFallbackName == "Account Transfer" {
@@ -938,7 +939,9 @@ final class TransactionEditorViewModel {
     private func applyLoadedOptionNamesIfNeeded() {
         if let selectedPayeeID,
            let matchedPayee = payees.first(where: { $0.id == selectedPayeeID }) {
-            payeeName = matchedPayee.name
+            // Transfer payees have an empty name; keep the linked account name so the prefilled
+            // payee does not blank out once options finish loading.
+            payeeName = transferAccountName(for: matchedPayee) ?? matchedPayee.name
         }
 
         if let selectedCategoryID,
@@ -957,7 +960,9 @@ final class TransactionEditorViewModel {
         }
     }
 
-    private func apply(_ options: TransactionEditorOptions, loadedMonth: String) {
+    /// Applies loaded editor options (accounts/categories/payees). Internal so tests can verify
+    /// that prefilled names survive option loading without wiring a full load flow.
+    func apply(_ options: TransactionEditorOptions, loadedMonth: String) {
         accounts = options.accounts
         categories = options.categories
         categoryGroups = options.categoryGroups
