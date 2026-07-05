@@ -86,7 +86,7 @@ struct BudgetView: View {
                 .scrollIndicators(.hidden)
                 .background(ActualistTheme.background)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if viewModel.isAssignmentKeypadPresented && appState.capabilities.canAssignBudget {
+                    if viewModel.isAssignmentKeypadPresented && appState.capabilities.canAssignCategoryBudget {
                         BudgetAssignmentKeypad(
                             canSubmit: viewModel.canSubmitAssignment,
                             canApplyTemplate: viewModel.canApplyCategoryTemplate,
@@ -194,14 +194,14 @@ struct BudgetView: View {
                             } label: {
                                 Label("Apply Template", systemImage: "sparkles")
                             }
-                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canAssignBudget)
+                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canApplyBudgetTemplates)
 
                             Button {
                                 pendingTemplateConfirmation = .monthOverwrite
                             } label: {
                                 Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
                             }
-                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canAssignBudget)
+                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canApplyBudgetTemplates)
                         } label: {
                             Image(systemName: "ellipsis")
                         }
@@ -241,7 +241,7 @@ struct BudgetView: View {
                 ) {
                     BudgetOverspentCategoriesView(
                         categories: viewModel.overspentCategoryOptions,
-                        isReadOnly: !appState.capabilities.canAssignBudget,
+                        isReadOnly: !appState.capabilities.canMoveMoney,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
                     ) { category in
                         pendingOverspentCategoryID = category.id
@@ -444,7 +444,7 @@ struct BudgetView: View {
                         viewModel.isEditingAssignment(for: category)
                     },
                     beginAssignmentEditing: { category, categoryFrame in
-                        guard appState.capabilities.canAssignBudget else {
+                        guard appState.capabilities.canAssignCategoryBudget else {
                             return
                         }
                         assignmentEditingCategoryFrame = categoryFrame

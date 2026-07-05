@@ -10,6 +10,9 @@ struct BackendCapabilitiesTests {
         let capabilities = BackendCapabilities(isLocalFirst: false, isReadOnly: false)
 
         #expect(capabilities.canAssignBudget)
+        #expect(capabilities.canAssignCategoryBudget)
+        #expect(capabilities.canMoveMoney)
+        #expect(capabilities.canApplyBudgetTemplates)
         #expect(capabilities.canCreateTransactions)
         #expect(capabilities.canCategorizeTransactions)
         #expect(capabilities.canUpdateSimpleTransactions)
@@ -31,6 +34,9 @@ struct BackendCapabilitiesTests {
 
         // Writes are blocked while offline...
         #expect(!capabilities.canAssignBudget)
+        #expect(!capabilities.canAssignCategoryBudget)
+        #expect(!capabilities.canMoveMoney)
+        #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canCreateTransactions)
         #expect(!capabilities.canCategorizeTransactions)
         #expect(!capabilities.canUpdateSimpleTransactions)
@@ -53,6 +59,9 @@ struct BackendCapabilitiesTests {
         let capabilities = BackendCapabilities(isLocalFirst: true, isReadOnly: true)
 
         #expect(!capabilities.canAssignBudget)
+        #expect(!capabilities.canAssignCategoryBudget)
+        #expect(!capabilities.canMoveMoney)
+        #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canCreateTransactions)
         #expect(!capabilities.canCategorizeTransactions)
         #expect(!capabilities.canUpdateSimpleTransactions)
@@ -86,12 +95,31 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canWriteTransfers)
         #expect(capabilities.canWriteSplits)
         #expect(!capabilities.canAssignBudget)
+        #expect(!capabilities.canAssignCategoryBudget)
+        #expect(!capabilities.canMoveMoney)
+        #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
         #expect(!capabilities.canApplyRules)
         #expect(!capabilities.showsAddAccount)
         #expect(!capabilities.canAddAccount)
+    }
+
+    @Test func localFirstBudgetAssignmentGateAllowsOnlyCategoryAssignment() {
+        let capabilities = BackendCapabilities(
+            isLocalFirst: true,
+            isReadOnly: true,
+            allowsLocalFirstBudgetAssignment: true
+        )
+
+        #expect(capabilities.canAssignBudget)
+        #expect(capabilities.canAssignCategoryBudget)
+        #expect(!capabilities.canMoveMoney)
+        #expect(!capabilities.canApplyBudgetTemplates)
+        #expect(!capabilities.canCreateTransactions)
+        #expect(!capabilities.canEditTransactions)
+        #expect(!capabilities.canBankSync)
     }
 
     // MARK: AppState derivation
@@ -115,12 +143,15 @@ struct BackendCapabilitiesTests {
                 #expect(!capabilities.canWriteTransfers)
                 #expect(!capabilities.canWriteSplits)
                 #expect(!capabilities.canEditTransactions)
+                #expect(!capabilities.canAssignCategoryBudget)
+                #expect(!capabilities.canMoveMoney)
+                #expect(!capabilities.canApplyBudgetTemplates)
                 #expect(!capabilities.showsAddAccount)
             }
         }
     }
 
-    @Test func appStateDeveloperWriteGateAllowsCreateAndCategorizeOnly() {
+    @Test func appStateDeveloperWriteGateAllowsCurrentLocalFirstWrites() {
         let state = makeAppState()
         state.updateLocalFirstTransactionCreationEnabled(true)
 
@@ -133,8 +164,11 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canDeleteTransactions)
         #expect(capabilities.canWriteTransfers)
         #expect(capabilities.canWriteSplits)
+        #expect(capabilities.canAssignBudget)
+        #expect(capabilities.canAssignCategoryBudget)
+        #expect(!capabilities.canMoveMoney)
+        #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canEditTransactions)
-        #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canBankSync)
     }
 
@@ -153,6 +187,7 @@ struct BackendCapabilitiesTests {
         #expect(!state.capabilities.canDeleteTransactions)
         #expect(!state.capabilities.canWriteTransfers)
         #expect(!state.capabilities.canWriteSplits)
+        #expect(!state.capabilities.canAssignCategoryBudget)
     }
 
     private func makeAppState() -> AppState {

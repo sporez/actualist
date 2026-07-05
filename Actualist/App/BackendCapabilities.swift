@@ -11,15 +11,18 @@ struct BackendCapabilities: Equatable {
     let isLocalFirst: Bool
     let isReadOnly: Bool
     let allowsLocalFirstTransactionCreation: Bool
+    let allowsLocalFirstBudgetAssignment: Bool
 
     init(
         isLocalFirst: Bool,
         isReadOnly: Bool,
-        allowsLocalFirstTransactionCreation: Bool = false
+        allowsLocalFirstTransactionCreation: Bool = false,
+        allowsLocalFirstBudgetAssignment: Bool = false
     ) {
         self.isLocalFirst = isLocalFirst
         self.isReadOnly = isReadOnly
         self.allowsLocalFirstTransactionCreation = allowsLocalFirstTransactionCreation
+        self.allowsLocalFirstBudgetAssignment = allowsLocalFirstBudgetAssignment
     }
 
     // MARK: Write gates
@@ -41,8 +44,14 @@ struct BackendCapabilities: Equatable {
     /// Create, edit, and delete split transactions (a parent with category children). Uses the
     /// same developer write gate as the other local-first transaction mutations.
     var canWriteSplits: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
-    /// Assign budget, move money, and apply budget templates.
-    var canAssignBudget: Bool { !isReadOnly }
+    /// Assign a category's budgeted amount.
+    var canAssignCategoryBudget: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstBudgetAssignment) }
+    /// Move money between categories and To Budget.
+    var canMoveMoney: Bool { !isReadOnly }
+    /// Apply category or month budget templates.
+    var canApplyBudgetTemplates: Bool { !isReadOnly }
+    /// Broad compatibility gate for budget write surfaces not split yet.
+    var canAssignBudget: Bool { canAssignCategoryBudget || canMoveMoney || canApplyBudgetTemplates }
     /// Edit and delete existing transactions.
     var canEditTransactions: Bool { !isReadOnly }
     /// Trigger a bank sync for a linked account.

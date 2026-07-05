@@ -499,9 +499,9 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                 .settingsSectionChrome()
 
                 Section("Local-First Writes") {
-                    Toggle("Transaction Writes", isOn: $localFirstTransactionCreationSelection)
+                    Toggle("Write Testing", isOn: $localFirstTransactionCreationSelection)
 
-                    Text("Enables full transaction writes for fake-budget testing: create, edit, categorize, and delete, including transfers and splits. Budget moves, rules, and account writes stay disabled.")
+                    Text("Enables local-first write proofs for fake-budget testing: transactions plus category budget assignment. Money moves, templates, rules, and account writes stay disabled.")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }

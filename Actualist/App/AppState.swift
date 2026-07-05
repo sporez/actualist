@@ -58,7 +58,8 @@ final class AppState {
         BackendCapabilities(
             isLocalFirst: true,
             isReadOnly: true,
-            allowsLocalFirstTransactionCreation: settings.localFirstTransactionCreationEnabled
+            allowsLocalFirstTransactionCreation: settings.localFirstTransactionCreationEnabled,
+            allowsLocalFirstBudgetAssignment: settings.localFirstTransactionCreationEnabled
         )
     }
 

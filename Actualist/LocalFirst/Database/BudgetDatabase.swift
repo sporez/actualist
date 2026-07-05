@@ -1316,6 +1316,77 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
+    func assignCategoryBudgetMessages(
+        categoryID: String,
+        budgeted: Int,
+        month: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        let trimmedCategoryID = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCategoryID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+        let monthValue = try Self.actualMonthValue(month)
+
+        return try queue.read { db in
+            let columns = try requiredColumns(
+                table: "zero_budgets",
+                required: ["month", "category", "amount"],
+                db: db
+            )
+            if try tableExists("categories", db: db),
+               try !rowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
+                throw LocalFirstError.invalidLocalWrite("missing category")
+            }
+
+            let existingRowID = try zeroBudgetRowID(
+                monthValue: monthValue,
+                categoryID: trimmedCategoryID,
+                columns: columns,
+                db: db
+            )
+            let rowID = existingRowID ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: trimmedCategoryID)
+            var messages: [ActualSyncDecodedMessage] = []
+            if existingRowID == nil {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "zero_budgets",
+                        row: rowID,
+                        column: "month",
+                        value: .int(Int64(monthValue))
+                    )
+                )
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "zero_budgets",
+                        row: rowID,
+                        column: "category",
+                        value: .string(trimmedCategoryID)
+                    )
+                )
+                if columns.contains("carryover") {
+                    messages.append(
+                        builder.makeMessage(
+                            dataset: "zero_budgets",
+                            row: rowID,
+                            column: "carryover",
+                            value: .bool(false)
+                        )
+                    )
+                }
+            }
+            messages.append(
+                builder.makeMessage(
+                    dataset: "zero_budgets",
+                    row: rowID,
+                    column: "amount",
+                    value: .int(Int64(budgeted))
+                )
+            )
+            return messages
+        }
+    }
+
     /// Build the tombstone messages that soft-delete a transaction of any shape. Actual
     /// represents deletes as `tombstone = true` so read queries (which filter live rows) stop
     /// returning it and the delete converges through CRDT sync. Mirrors loot-core: a split
@@ -1928,11 +1999,70 @@ final class BudgetDatabase: @unchecked Sendable {
     }
 
     private func rowExists(table: String, rowID: String, db: Database) throws -> Bool {
-        try Row.fetchOne(
+        if table == "zero_budgets",
+           try tableExists("zero_budgets", db: db),
+           try !columnSet(for: "zero_budgets", db: db).contains("id") {
+            let key = try zeroBudgetKey(from: rowID)
+            return try Row.fetchOne(
+                db,
+                sql: "SELECT category FROM zero_budgets WHERE \(normalizedMonthExpression("month")) = ? AND category = ? LIMIT 1",
+                arguments: [key.monthID, key.categoryID]
+            ) != nil
+        }
+
+        return try Row.fetchOne(
             db,
             sql: "SELECT id FROM \(quotedIdentifier(table)) WHERE id = ? LIMIT 1",
             arguments: [rowID]
         ) != nil
+    }
+
+    private func zeroBudgetRowID(
+        monthValue: Int,
+        categoryID: String,
+        columns: Set<String>,
+        db: Database
+    ) throws -> String? {
+        let monthColumn = column("month", fallback: "NULL", columns: columns)
+        let categoryColumn = column("category", fallback: "NULL", columns: columns)
+        let row = try Row.fetchOne(
+            db,
+            sql: """
+                SELECT \(columns.contains("id") ? "id" : "NULL") AS id
+                FROM zero_budgets
+                WHERE \(normalizedMonthExpression(monthColumn)) = ? AND \(categoryColumn) = ?
+                LIMIT 1
+                """,
+            arguments: [monthID(monthValue), categoryID]
+        )
+        if columns.contains("id") {
+            return row?["id"] as String?
+        }
+        return row == nil ? nil : Self.zeroBudgetRowID(monthValue: monthValue, categoryID: categoryID)
+    }
+
+    private static func zeroBudgetRowID(monthValue: Int, categoryID: String) -> String {
+        "\(monthValue)-\(categoryID)"
+    }
+
+    private func zeroBudgetKey(from rowID: String) throws -> (monthValue: Int, monthID: String, categoryID: String) {
+        guard rowID.count > 7 else {
+            throw LocalFirstError.invalidLocalWrite("invalid zero_budgets row")
+        }
+        let monthEnd = rowID.index(rowID.startIndex, offsetBy: 6)
+        guard let monthValue = Int(rowID[..<monthEnd]) else {
+            throw LocalFirstError.invalidLocalWrite("invalid zero_budgets month")
+        }
+        let separator = rowID[monthEnd]
+        guard separator == "-" else {
+            throw LocalFirstError.invalidLocalWrite("invalid zero_budgets row")
+        }
+        let categoryStart = rowID.index(after: monthEnd)
+        let categoryID = String(rowID[categoryStart...])
+        guard !categoryID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+        return (monthValue, monthID(monthValue), categoryID)
     }
 
     private func apply(
@@ -1941,6 +2071,12 @@ final class BudgetDatabase: @unchecked Sendable {
         rowExists: Bool,
         db: Database
     ) throws {
+        if message.dataset == "zero_budgets",
+           try !columnSet(for: "zero_budgets", db: db).contains("id") {
+            try applyZeroBudgetMessageWithoutID(message: message, value: value, rowExists: rowExists, db: db)
+            return
+        }
+
         let table = quotedIdentifier(message.dataset)
         let column = quotedIdentifier(message.column)
         if rowExists {
@@ -1989,6 +2125,73 @@ final class BudgetDatabase: @unchecked Sendable {
                     arguments: [message.row, value]
                 )
             }
+        }
+    }
+
+    private func applyZeroBudgetMessageWithoutID(
+        message: ActualSyncDecodedMessage,
+        value: ActualSyncSQLiteValue,
+        rowExists: Bool,
+        db: Database
+    ) throws {
+        let columns = try columnSet(for: "zero_budgets", db: db)
+        let key = try zeroBudgetKey(from: message.row)
+        let column = quotedIdentifier(message.column)
+        if rowExists {
+            switch value {
+            case .null:
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = NULL WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [key.monthID, key.categoryID]
+                )
+            case .int(let value):
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = ? WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [value, key.monthID, key.categoryID]
+                )
+            case .double(let value):
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = ? WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [value, key.monthID, key.categoryID]
+                )
+            case .string(let value):
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = ? WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [value, key.monthID, key.categoryID]
+                )
+            }
+            return
+        }
+
+        var insertColumns = ["month", "category"]
+        var arguments: [DatabaseValueConvertible] = [key.monthValue, key.categoryID]
+        if columns.contains("carryover") {
+            insertColumns.append("carryover")
+            arguments.append(0)
+        }
+        if message.column != "month", message.column != "category", message.column != "carryover" {
+            insertColumns.append(message.column)
+            arguments.append(databaseValue(for: value))
+        }
+
+        let quotedColumns = insertColumns.map(quotedIdentifier).joined(separator: ", ")
+        let placeholders = Array(repeating: "?", count: insertColumns.count).joined(separator: ", ")
+        try db.execute(
+            sql: "INSERT INTO zero_budgets (\(quotedColumns)) VALUES (\(placeholders))",
+            arguments: StatementArguments(arguments)
+        )
+    }
+
+    private func databaseValue(for value: ActualSyncSQLiteValue) -> DatabaseValueConvertible {
+        switch value {
+        case .null:
+            return DatabaseValue.null
+        case .int(let value):
+            return value
+        case .double(let value):
+            return value
+        case .string(let value):
+            return value
         }
     }
 
@@ -2162,5 +2365,14 @@ final class BudgetDatabase: @unchecked Sendable {
             throw LocalFirstError.invalidLocalWrite("invalid transaction date")
         }
         return year * 10_000 + month * 100 + day
+    }
+
+    private static func actualMonthValue(_ month: String) throws -> Int {
+        let normalized = month.trimmingCharacters(in: .whitespacesAndNewlines)
+        let compact = normalized.replacingOccurrences(of: "-", with: "")
+        guard compact.count == 6, let value = Int(compact) else {
+            throw LocalFirstError.invalidLocalWrite("invalid month")
+        }
+        return value
     }
 }

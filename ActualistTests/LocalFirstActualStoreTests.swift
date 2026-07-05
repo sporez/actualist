@@ -879,6 +879,32 @@ struct LocalFirstActualStoreTests {
         #expect(groceries.spent == -13_070)
     }
 
+    @Test func assignCategoryBudgetLocallyRefreshesBudgetMonth() async throws {
+        let store = try await makeOpenedWritableStore()
+        var didAssign = false
+
+        let loaded = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {
+            didAssign = true
+        }
+
+        let groceries = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+        let reloaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let reloadedGroceries = try #require(reloaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+
+        #expect(didAssign)
+        #expect(groceries.budgeted == 62_500)
+        #expect(groceries.spent == -12_345)
+        #expect(groceries.balance == 50_155)
+        #expect(loaded.month.totalBudgeted == 62_500)
+        #expect(loaded.month.toBudget == -62_500)
+        #expect(reloadedGroceries.budgeted == 62_500)
+    }
+
     @Test func updateSimpleTransactionLocallyRefreshesMovedAccountMonthAndPayeeOptions() async throws {
         let store = try await makeOpenedWritableStore()
         let draft = TransactionDraft(

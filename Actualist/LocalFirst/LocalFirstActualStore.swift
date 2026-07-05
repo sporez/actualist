@@ -337,7 +337,31 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         month: String,
         didAssign: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        throw LocalFirstError.unsupportedWrite
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+        let database = try requireDatabase(for: budgetID)
+        let latestTimestamp = try database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let messages = try database.assignCategoryBudgetMessages(
+            categoryID: categoryID,
+            budgeted: budgeted,
+            month: month,
+            builder: &builder
+        )
+
+        try await pushLocalMessagesIfPossible(
+            database: database,
+            messages: messages,
+            since: latestTimestamp
+        )
+        _ = try database.applyLocalSyncMessages(messages)
+        await didAssign()
+        try reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
     func applyBudgetTemplateAndRefresh(
@@ -1082,6 +1106,19 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         for monthID in Set(monthIDs) {
             _ = try database.fetchBudgetMonth(month: monthID)
         }
+    }
+
+    private func reloadAfterBudgetMutation(
+        database: BudgetDatabase,
+        budgetID: String
+    ) throws {
+        monthsByBudget[budgetID] = nil
+        accountsByBudget[budgetID] = try database.fetchAccountDisplays()
+        spendingTransactionsByBudget[budgetID] = try loadedSpendingTransactions(
+            database: database,
+            budgetID: budgetID,
+            query: nil
+        )
     }
 
     private func pushLocalMessagesIfPossible(
