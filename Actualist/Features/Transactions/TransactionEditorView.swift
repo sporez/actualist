@@ -42,11 +42,18 @@ struct TransactionEditorView: View {
                         splitDetails
                         metadataDetails
                         submissionError
-                        saveButton
+                        if isReadOnly {
+                            readOnlyNotice
+                        } else {
+                            saveButton
+                        }
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 18)
                     .padding(.bottom, 32)
+                    // Read-only viewing: all inputs (amount, pickers, splits, toggles) are
+                    // inert; only the close button and scrolling remain interactive.
+                    .disabled(isReadOnly)
                 }
                 .scrollDismissesKeyboard(.immediately)
             }
@@ -308,6 +315,21 @@ struct TransactionEditorView: View {
             .padding(18)
             .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
+    }
+
+    /// Local-first (and offline REST) is read-only: the editor becomes a detail viewer.
+    private var isReadOnly: Bool {
+        !appState.capabilities.canEditTransactions
+    }
+
+    private var readOnlyNotice: some View {
+        Label("Read-only. Editing is unavailable in this mode.", systemImage: "lock.fill")
+            .font(ActualistTypography.control(for: density))
+            .foregroundStyle(ActualistTheme.secondaryText)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .padding(.top, 4)
     }
 
     private var saveButton: some View {

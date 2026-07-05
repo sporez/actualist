@@ -47,7 +47,7 @@ final class AddAccountViewModel {
 
     func submit(
         budgetID: String?,
-        dataStore: ActualDataStore,
+        repository: (any AccountRepositoryProtocol)?,
         isReadOnly: Bool
     ) async -> Bool {
         errorMessage = nil
@@ -66,6 +66,11 @@ final class AddAccountViewModel {
             return false
         }
 
+        guard let repository else {
+            errorMessage = "Account changes are unavailable right now."
+            return false
+        }
+
         let accountName = trimmedName
         guard !accountName.isEmpty else {
             errorMessage = "Enter an account name."
@@ -76,7 +81,7 @@ final class AddAccountViewModel {
         defer { isSubmitting = false }
 
         do {
-            try await dataStore.createAccountAndRefresh(
+            try await repository.createAccountAndRefresh(
                 budgetID: budgetID,
                 name: accountName,
                 offbudget: kind.offbudget

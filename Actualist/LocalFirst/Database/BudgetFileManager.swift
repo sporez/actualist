@@ -42,6 +42,16 @@ struct BudgetFileManager {
         fileManager.fileExists(atPath: databaseURL(fileID: fileID).path)
     }
 
+    /// Removes the imported budget directory (database + metadata) so the next open
+    /// re-downloads a fresh copy from the server. A no-op when nothing is imported.
+    func deleteImportedBudget(fileID: String) throws {
+        let directory = budgetDirectory(fileID: fileID)
+        guard fileManager.fileExists(atPath: directory.path) else {
+            return
+        }
+        try fileManager.removeItem(at: directory)
+    }
+
     func importBudgetZip(
         _ data: Data,
         remoteFile: ActualSyncRemoteFile,

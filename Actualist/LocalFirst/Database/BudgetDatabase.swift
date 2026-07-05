@@ -169,7 +169,12 @@ final class BudgetDatabase: @unchecked Sendable {
             let totalSpent = expenseGroups.reduce(0) { $0 + $1.spent }
             let totalBalance = expenseGroups.reduce(0) { $0 + $1.balance }
             let totalIncome = incomeGroups.reduce(0) { $0 + $1.spent }
-            let toBudget = totalIncome - totalBudgeted
+            // "To Budget" is the running amount of on-budget money not yet assigned to a
+            // category. Uncategorized rows are intentionally ignored here: Actual leaves them
+            // out of both category balances and To Budget until the user categorizes them.
+            let onBudgetBalance = try onBudgetAccountBalance(through: month, db: db)
+            let uncategorizedActivity = try uncategorizedOnBudgetActivity(through: month, db: db)
+            let toBudget = (onBudgetBalance - uncategorizedActivity) - totalBalance
 
             return BudgetMonth(
                 month: month,
@@ -409,6 +414,71 @@ final class BudgetDatabase: @unchecked Sendable {
                 return (accountID, actualAmountToMinorUnits(row["balance"] ?? 0))
             })
         }
+    }
+
+    /// Net balance of all on-budget accounts using only transactions dated on or before the
+    /// given month. Sums split children (never the parent) so split totals aren't double
+    /// counted, and excludes tombstoned rows and children of tombstoned parents.
+    private func onBudgetAccountBalance(through month: String, db: Database) throws -> Int {
+        guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
+            return 0
+        }
+
+        let columns = try columnSet(for: "transactions", db: db)
+        let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
+        let amount = column("amount", fallback: "0", columns: columns)
+        let date = column("date", fallback: "NULL", columns: columns)
+        let parentID = column("parent_id", fallback: "NULL", columns: columns)
+        let isParent = column("isParent", fallback: column("is_parent", fallback: "0", columns: columns), columns: columns)
+        let budgetMonth = normalizedMonthExpression("t.\(date)")
+        let row = try Row.fetchOne(
+            db,
+            sql: """
+                SELECT SUM(t.\(amount)) AS balance
+                FROM transactions t
+                LEFT JOIN accounts a ON a.id = t.\(account)
+                LEFT JOIN transactions p ON p.id = t.\(parentID)
+                WHERE \(predicateForLiveRows(columns: columns, tableAlias: "t"))
+                  AND (t.\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)
+                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
+                  AND a.offbudget = 0
+                  AND \(budgetMonth) <= ?
+                """,
+            arguments: [month]
+        )
+        return actualAmountToMinorUnits(row?["balance"] ?? 0)
+    }
+
+    private func uncategorizedOnBudgetActivity(through month: String, db: Database) throws -> Int {
+        guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
+            return 0
+        }
+
+        let columns = try columnSet(for: "transactions", db: db)
+        let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
+        let category = column("category", fallback: "NULL", columns: columns)
+        let amount = column("amount", fallback: "0", columns: columns)
+        let date = column("date", fallback: "NULL", columns: columns)
+        let parentID = column("parent_id", fallback: "NULL", columns: columns)
+        let isParent = column("isParent", fallback: column("is_parent", fallback: "0", columns: columns), columns: columns)
+        let budgetMonth = normalizedMonthExpression("t.\(date)")
+        let row = try Row.fetchOne(
+            db,
+            sql: """
+                SELECT SUM(t.\(amount)) AS amount
+                FROM transactions t
+                LEFT JOIN accounts a ON a.id = t.\(account)
+                LEFT JOIN transactions p ON p.id = t.\(parentID)
+                WHERE \(predicateForLiveRows(columns: columns, tableAlias: "t"))
+                  AND (t.\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)
+                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
+                  AND (t.\(category) IS NULL OR t.\(category) = '')
+                  AND a.offbudget = 0
+                  AND \(budgetMonth) <= ?
+                """,
+            arguments: [month]
+        )
+        return actualAmountToMinorUnits(row?["amount"] ?? 0)
     }
 
     private func fetchCategoryGroups(

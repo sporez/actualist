@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var isDeveloperDiagnosticsPresented = false
     @State private var developerUnlockToastTask: Task<Void, Never>?
     @State private var isSyncingNow = false
+    @State private var isReimporting = false
+    @State private var isReimportConfirmationPresented = false
     #if DEBUG
     @State private var isPostingDebugNotification = false
     @State private var debugNotificationMessage: String?
@@ -24,37 +26,27 @@ struct SettingsView: View {
                 settingsHeader
 
                 Section("Connection") {
-                    Picker("Backend", selection: $viewModel.backendMode) {
-                        ForEach(BackendMode.allCases) { mode in
-                            Text(mode.title)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
                     LabeledContent("Server") {
                         TextField(
                             "Required",
                             text: $viewModel.serverURLString,
-                            prompt: Text(viewModel.backendMode == .localFirstSync ? "https://actual.example.com" : "http://host:5007")
+                            prompt: Text("https://actual.example.com")
                         )
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
                             .multilineTextAlignment(.trailing)
                     }
 
-                    if viewModel.backendMode == .restAPI {
-                        LabeledContent("API Key") {
-                            SecureField("Required", text: $viewModel.apiKey)
-                                .textInputAutocapitalization(.never)
-                                .multilineTextAlignment(.trailing)
-                        }
-                    } else {
-                        LabeledContent("Password") {
-                            SecureField("Required", text: $viewModel.actualPassword)
-                                .textInputAutocapitalization(.never)
-                                .multilineTextAlignment(.trailing)
-                        }
+                    LabeledContent("Password") {
+                        SecureField(passwordPrompt, text: $viewModel.actualPassword)
+                            .textInputAutocapitalization(.never)
+                            .multilineTextAlignment(.trailing)
+                    }
+
+                    if appState.canUseAPI {
+                        Text("Your password is not stored. Actualist keeps a sync token and only needs the password again to reconnect.")
+                            .font(.footnote)
+                            .foregroundStyle(ActualistTheme.secondaryText)
                     }
 
                     SettingsStatusRow(status: appState.connectionStatus)
@@ -110,6 +102,16 @@ struct SettingsView: View {
                                 .font(.footnote)
                                 .foregroundStyle(ActualistTheme.danger)
                         }
+
+                        Button(role: .destructive) {
+                            isReimportConfirmationPresented = true
+                        } label: {
+                            SettingsActionLabel(
+                                title: isReimporting ? "Reimporting" : "Reimport Budget",
+                                systemImage: "arrow.down.circle"
+                            )
+                        }
+                        .disabled(isReimporting || appState.settings.selectedBudgetID == nil)
                     }
                 }
                 .settingsSectionChrome()
@@ -218,6 +220,18 @@ struct SettingsView: View {
             .onDisappear {
                 developerUnlockToastTask?.cancel()
             }
+            .confirmationDialog(
+                "Reimport Budget?",
+                isPresented: $isReimportConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Reimport", role: .destructive) {
+                    Task { await reimport() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Actualist will delete the local copy of this budget and download a fresh one from the server. Your server data is not changed.")
+            }
             .sheet(isPresented: $isBudgetPickerPresented) {
                 SettingsBudgetPickerSheet(
                     viewModel: viewModel,
@@ -323,12 +337,7 @@ struct SettingsView: View {
             return false
         }
 
-        switch viewModel.backendMode {
-        case .restAPI:
-            return !viewModel.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .localFirstSync:
-            return !viewModel.actualPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        return !viewModel.actualPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var accountOrderDetail: String {
@@ -336,7 +345,11 @@ struct SettingsView: View {
             return "No Budget"
         }
 
-        return appState.settings.accountOrderByBudgetID[budgetID] == nil ? "API Order" : "Custom"
+        return appState.settings.accountOrderByBudgetID[budgetID] == nil ? "Actual Order" : "Custom"
+    }
+
+    private var passwordPrompt: String {
+        appState.canUseAPI ? "Re-enter to reconnect" : "Required"
     }
 
     private var selectedBudgetDisplayName: String {
@@ -369,6 +382,15 @@ struct SettingsView: View {
         isSyncingNow = true
         await appState.refreshLocalFirstData(budgetID: budgetID)
         isSyncingNow = false
+    }
+
+    private func reimport() async {
+        guard !isReimporting else {
+            return
+        }
+        isReimporting = true
+        await appState.reimportLocalFirstBudget()
+        isReimporting = false
     }
 
     private var randomizedDisplayValuesSelection: Binding<Bool> {

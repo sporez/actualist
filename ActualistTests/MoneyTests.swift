@@ -36,12 +36,6 @@ struct MoneyTests {
         #expect(model.canSubmit == false)
     }
 
-    @Test func serverURLAddsVersionPathWhenMissing() {
-        #expect(ServerURLNormalizer.normalize("http://localhost:5007") == "http://localhost:5007/v1")
-        #expect(ServerURLNormalizer.normalize("localhost:5007") == "http://localhost:5007/v1")
-        #expect(ServerURLNormalizer.normalize("http://localhost:5007/v1") == "http://localhost:5007/v1")
-    }
-
     @Test func budgetSyncIDPrefersGroupID() throws {
         let json = """
         {

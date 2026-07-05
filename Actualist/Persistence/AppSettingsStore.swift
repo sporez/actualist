@@ -1,24 +1,6 @@
 import Foundation
 
-enum BackendMode: String, Codable, CaseIterable, Identifiable, Equatable, Sendable {
-    case restAPI
-    case localFirstSync
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .restAPI:
-            "HTTP API"
-        case .localFirstSync:
-            "Local First"
-        }
-    }
-}
-
 struct AppSettings: Codable, Equatable {
-    var backendMode: BackendMode = .restAPI
-    var serverURLString: String = ""
     var localFirstServerURLString: String = ""
     var selectedBudgetID: String?
     var selectedBudgetName: String?
@@ -34,8 +16,6 @@ struct AppSettings: Codable, Equatable {
     var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
 
     init(
-        serverURLString: String = "",
-        backendMode: BackendMode = .restAPI,
         localFirstServerURLString: String = "",
         selectedBudgetID: String? = nil,
         selectedBudgetName: String? = nil,
@@ -50,8 +30,6 @@ struct AppSettings: Codable, Equatable {
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
         pendingNewTransactionIDsByAccount: [String: [String]] = [:]
     ) {
-        self.backendMode = backendMode
-        self.serverURLString = serverURLString
         self.localFirstServerURLString = localFirstServerURLString
         self.selectedBudgetID = selectedBudgetID
         self.selectedBudgetName = selectedBudgetName
@@ -69,8 +47,6 @@ struct AppSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        backendMode = try container.decodeIfPresent(BackendMode.self, forKey: .backendMode) ?? .restAPI
-        serverURLString = try container.decodeIfPresent(String.self, forKey: .serverURLString) ?? ""
         localFirstServerURLString = try container.decodeIfPresent(String.self, forKey: .localFirstServerURLString) ?? ""
         selectedBudgetID = try container.decodeIfPresent(String.self, forKey: .selectedBudgetID)
         selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)

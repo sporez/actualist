@@ -145,11 +145,36 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
     }
 
+    func openCachedBudget(_ budget: ActualBudget) async throws -> Bool {
+        guard let fileID = budget.localFirstFileID else {
+            throw LocalFirstError.missingBudgetFileID
+        }
+        guard fileManager.importedDatabaseExists(fileID: fileID),
+              let metadata = try fileManager.loadMetadata(fileID: fileID) else {
+            return false
+        }
+
+        try await openImportedBudget(fileID: fileID, metadata: metadata)
+        return true
+    }
+
     /// Lean refresh for an already-open budget: pull CRDT messages and reload native caches.
     /// Does not re-list remote files or reopen the database.
     func refresh(budgetID: String, serverURLString: String) async throws {
         _ = try requireDatabase(for: budgetID)
         try await pullAndReload(budgetID: budgetID, serverURLString: serverURLString)
+    }
+
+    /// Discard the locally imported SQLite database and re-download a fresh copy from the
+    /// server. Used by Settings to recover from a stale or corrupted local budget; the
+    /// backend stays read-only throughout.
+    func reimportBudget(_ budget: ActualBudget, serverURLString: String) async throws {
+        guard let fileID = budget.localFirstFileID else {
+            throw LocalFirstError.missingBudgetFileID
+        }
+        reset()
+        try fileManager.deleteImportedBudget(fileID: fileID)
+        try await openBudget(budget, serverURLString: serverURLString)
     }
 
     func budgets() async throws -> [ActualBudget] {
@@ -172,11 +197,12 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         let database = try requireDatabase(for: budgetID)
         let months = try availableMonths(budgetID: budgetID)
         let monthID = months.contains(selectedMonth) ? selectedMonth : (months.last ?? selectedMonth)
+        let month = try database.fetchBudgetMonth(month: monthID)
         return LoadedBudgetMonth(
             availableMonths: months,
             selectedMonth: monthID,
-            month: try database.fetchBudgetMonth(month: monthID),
-            alerts: []
+            month: month,
+            alerts: try nativeBudgetAlerts(database: database, month: month, monthID: monthID)
         )
     }
 
@@ -187,6 +213,70 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     func refreshAccountsWithBalances(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         accountsByBudget[budgetID] = try database.fetchAccountDisplays()
+    }
+
+    // MARK: - Account mutations / server operations (read-only until CRDT writes land)
+
+    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func syncBankAccountAndRefresh(budgetID: String, accountID: String) async throws -> LoadedAccountTransactions? {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func syncBankAccountAndFindNewTransactions(
+        budgetID: String,
+        account: ActualAccount
+    ) async throws -> BackgroundAccountRefreshResult {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func syncAndFindNewTransactions(
+        budget: ActualBudget,
+        serverURLString: String
+    ) async throws -> [BackgroundAccountRefreshResult] {
+        let hasLocalBaseline = try await openBudgetForBackgroundDiffIfNeeded(
+            budget,
+            serverURLString: serverURLString
+        )
+        guard hasLocalBaseline else {
+            return []
+        }
+
+        let budgetID = budget.syncID
+        let database = try requireDatabase(for: budgetID)
+        let transactionIDsBeforeSync = try transactionIDsByAccount(database: database)
+
+        try await pullAndReload(budgetID: budgetID, serverURLString: serverURLString)
+
+        let refreshedDatabase = try requireDatabase(for: budgetID)
+        let transactionIDsAfterSync = try transactionIDsByAccount(database: refreshedDatabase)
+        let accountDisplays: [AccountDisplay]
+        if let cachedDisplays = accountsByBudget[budgetID] {
+            accountDisplays = cachedDisplays
+        } else {
+            accountDisplays = try refreshedDatabase.fetchAccountDisplays()
+        }
+        let accounts = accountDisplays.map(\.account).filter { !$0.closed }
+
+        return accounts.compactMap { account in
+            let previousIDs = transactionIDsBeforeSync[account.id] ?? []
+            let currentIDs = transactionIDsAfterSync[account.id] ?? []
+            let newIDs = currentIDs.subtracting(previousIDs).sorted()
+            guard !newIDs.isEmpty else {
+                return nil
+            }
+            return BackgroundAccountRefreshResult(account: account, newTransactionIDs: newIDs)
+        }
+    }
+
+    func reconcileAccountAndRefresh(
+        budgetID: String,
+        accountID: String,
+        statementBalance: Int
+    ) async throws -> APIAccountReconciliationResult {
+        throw LocalFirstError.unsupportedWrite
     }
 
     func assignCategoryBudgetAndRefresh(
@@ -292,11 +382,12 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         let database = try requireDatabase(for: budgetID)
         let maps = try nameMaps(database)
         let transactions = try database.fetchTransactions().filter { transaction in
-            transaction.date.hasPrefix(month)
-                && (transaction.category?.isEmpty ?? true)
-                && transaction.subtransactions.isEmpty
-                && !transaction.isParent
-                && !(transaction.payee.map { maps.transferPayeeIDs.contains($0) } ?? false)
+            Self.isUncategorized(
+                transaction,
+                month: month,
+                transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+                offBudgetAccountIDs: maps.offBudgetAccountIDs
+            )
         }
         return LoadedUncategorizedTransactions(
             transactions: transactions,
@@ -384,6 +475,139 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         )
     }
 
+    /// Derives budget banner alerts natively from SQLite, matching the REST server's shapes so
+    /// the UI renders identically across backends. Every alert here is view-only: the sheets
+    /// they open (uncategorized review, overspent categories) present read-only, and the
+    /// to-budget banner is informational. Their embedded write actions stay disabled by the
+    /// backend capability gate, exactly as in offline REST.
+    private func nativeBudgetAlerts(
+        database: BudgetDatabase,
+        month: BudgetMonth,
+        monthID: String
+    ) throws -> [APIBudgetMonthAlert] {
+        let maps = try nameMaps(database)
+        let transactions = try database.fetchTransactions()
+        return Self.budgetAlerts(
+            month: month,
+            monthID: monthID,
+            transactions: transactions,
+            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: maps.offBudgetAccountIDs
+        )
+    }
+
+    /// Pure derivation of the full budget alert list (to-budget, overspending, uncategorized),
+    /// ordered to match the REST server. Exposed for testing.
+    static func budgetAlerts(
+        month: BudgetMonth,
+        monthID: String,
+        transactions: [ActualTransaction],
+        transferAccountIDsByPayeeID: [String: String],
+        offBudgetAccountIDs: Set<String>
+    ) -> [APIBudgetMonthAlert] {
+        var alerts: [APIBudgetMonthAlert] = []
+        if let toBudget = toBudgetAlert(month: month) {
+            alerts.append(toBudget)
+        }
+        if let overspending = overspendingAlert(month: month) {
+            alerts.append(overspending)
+        }
+        alerts.append(contentsOf: uncategorizedAlerts(
+            transactions: transactions,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: offBudgetAccountIDs,
+            month: monthID
+        ))
+        return alerts
+    }
+
+    /// "To Budget" banner showing the amount left to assign this month. Informational only
+    /// (non-actionable). A surplus reads positive; a negative value means the month is
+    /// overbudgeted (Actual allows this) and reads as a warning, carrying the signed amount.
+    static func toBudgetAlert(month: BudgetMonth) -> APIBudgetMonthAlert? {
+        guard month.toBudget != 0 else {
+            return nil
+        }
+        return APIBudgetMonthAlert(
+            kind: "toBudget",
+            severity: month.toBudget > 0 ? "positive" : "warning",
+            title: "To Budget",
+            amount: month.toBudget,
+            count: nil,
+            actionTitle: nil
+        )
+    }
+
+    /// Overspending banner counting categories that ended the month negative. The count mirrors
+    /// the overspent-categories review sheet, which opens read-only in local-first mode.
+    static func overspendingAlert(month: BudgetMonth) -> APIBudgetMonthAlert? {
+        let overspentCount = month.categoryGroups
+            .filter { !$0.isIncome }
+            .flatMap(\.categories)
+            .filter { !($0.hidden ?? false) && $0.balance < 0 }
+            .count
+        guard overspentCount > 0 else {
+            return nil
+        }
+        return APIBudgetMonthAlert(
+            kind: "overspending",
+            severity: "danger",
+            title: "Overspent categories",
+            amount: nil,
+            count: overspentCount,
+            actionTitle: "Cover"
+        )
+    }
+
+    /// Pure derivation of the uncategorized-transactions alert, matching the REST server's
+    /// wording/severity so the UI renders identically across backends. Exposed for testing.
+    static func uncategorizedAlerts(
+        transactions: [ActualTransaction],
+        transferAccountIDsByPayeeID: [String: String],
+        offBudgetAccountIDs: Set<String>,
+        month: String
+    ) -> [APIBudgetMonthAlert] {
+        let count = transactions.filter {
+            isUncategorized(
+                $0,
+                month: month,
+                transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+                offBudgetAccountIDs: offBudgetAccountIDs
+            )
+        }.count
+        guard count > 0 else {
+            return []
+        }
+        return [
+            APIBudgetMonthAlert(
+                kind: "uncategorizedTransactions",
+                severity: "warning",
+                title: "Uncategorized transactions",
+                amount: nil,
+                count: count,
+                actionTitle: "Review"
+            )
+        ]
+    }
+
+    /// A top-level transaction needs categorizing when it falls in the month, carries no
+    /// category, is not a split parent, and is not an on-budget-to-on-budget transfer. Transfers
+    /// between an on-budget account and an off-budget account still need categories in Actual.
+    static func isUncategorized(
+        _ transaction: ActualTransaction,
+        month: String,
+        transferAccountIDsByPayeeID: [String: String],
+        offBudgetAccountIDs: Set<String>
+    ) -> Bool {
+        let destinationAccountID = transaction.payee.flatMap { transferAccountIDsByPayeeID[$0] }
+        let isOnBudgetTransfer = destinationAccountID.map { !offBudgetAccountIDs.contains($0) } ?? false
+        return transaction.date.hasPrefix(month)
+            && (transaction.category?.isEmpty ?? true)
+            && transaction.subtransactions.isEmpty
+            && !transaction.isParent
+            && !isOnBudgetTransfer
+    }
+
     private func editorCategoryGroups(database: BudgetDatabase, month: String) throws -> [TransactionEditorCategoryGroup] {
         let budgetMonth = try database.fetchBudgetMonth(month: month)
         return budgetMonth.categoryGroups.compactMap { group in
@@ -409,7 +633,14 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     private func nameMaps(
         _ database: BudgetDatabase
-    ) throws -> (accountNames: [String: String], categoryNames: [String: String], payeeNames: [String: String], transferPayeeIDs: Set<String>) {
+    ) throws -> (
+        accountNames: [String: String],
+        categoryNames: [String: String],
+        payeeNames: [String: String],
+        transferPayeeIDs: Set<String>,
+        transferAccountIDsByPayeeID: [String: String],
+        offBudgetAccountIDs: Set<String>
+    ) {
         let accounts = try database.fetchAccounts()
         let categories = try database.fetchCategories()
         let payees = try database.fetchPayees()
@@ -430,11 +661,41 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         let transferPayeeIDs = Set(payees.compactMap { payee -> String? in
             payee.transferAccount != nil ? payee.id : nil
         })
-        return (accountNames, categoryNames, payeeNames, transferPayeeIDs)
+        let transferAccountIDsByPayeeID = Dictionary(uniqueKeysWithValues: payees.compactMap { payee -> (String, String)? in
+            guard let id = payee.id, let transferAccount = payee.transferAccount else {
+                return nil
+            }
+            return (id, transferAccount)
+        })
+        let offBudgetAccountIDs = Set(accounts.filter(\.offbudget).map(\.id))
+        return (accountNames, categoryNames, payeeNames, transferPayeeIDs, transferAccountIDsByPayeeID, offBudgetAccountIDs)
     }
 
     private func transactionKey(_ budgetID: String, _ accountID: String) -> String {
         "\(budgetID)|\(accountID)"
+    }
+
+    private func openBudgetForBackgroundDiffIfNeeded(
+        _ budget: ActualBudget,
+        serverURLString: String
+    ) async throws -> Bool {
+        if isOpen(budgetID: budget.syncID) {
+            return true
+        }
+        if openedBudgetID != nil {
+            reset()
+        }
+        guard let fileID = budget.localFirstFileID else {
+            throw LocalFirstError.missingBudgetFileID
+        }
+        if fileManager.importedDatabaseExists(fileID: fileID),
+           let metadata = try fileManager.loadMetadata(fileID: fileID) {
+            try await openImportedBudget(fileID: fileID, metadata: metadata)
+            return true
+        }
+
+        try await openBudget(budget, serverURLString: serverURLString)
+        return false
     }
 
     private func openImportedBudget(fileID: String, metadata: LocalFirstBudgetMetadata) async throws {
@@ -451,6 +712,25 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
                 encryptionKeyID: metadata.encryptionKeyID
             )
         )
+    }
+
+    private func transactionIDsByAccount(database: BudgetDatabase) throws -> [String: Set<String>] {
+        try database.fetchTransactions().reduce(into: [:]) { idsByAccount, transaction in
+            insertTransactionID(transaction, into: &idsByAccount)
+            for child in transaction.subtransactions {
+                insertTransactionID(child, into: &idsByAccount)
+            }
+        }
+    }
+
+    private func insertTransactionID(
+        _ transaction: ActualTransaction,
+        into idsByAccount: inout [String: Set<String>]
+    ) {
+        guard let id = transaction.id, !id.isEmpty, !transaction.account.isEmpty else {
+            return
+        }
+        idsByAccount[transaction.account, default: []].insert(id)
     }
 
     /// Pull remote CRDT messages, apply them, then unconditionally invalidate and reload

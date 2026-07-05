@@ -22,23 +22,13 @@ struct OnboardingView: View {
                             .font(ActualistTypography.sectionTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
 
-                        Text(viewModel.backendMode == .localFirstSync ? "Enter your Actual server credentials." : "Enter the HTTP API server base URL.")
+                        Text("Enter your Actual server credentials.")
                             .font(ActualistTypography.body(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText.opacity(0.82))
                     }
 
                     GlassPanel {
                         VStack(alignment: .leading, spacing: 18) {
-                            Picker("Backend", selection: $viewModel.backendMode) {
-                                ForEach(BackendMode.allCases) { mode in
-                                    Text(mode.title)
-                                        .tag(mode)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-
-                            Divider().overlay(ActualistTheme.separator)
-
                             LabeledContent("Server URL") {
                                 ZStack(alignment: .trailing) {
                                     if viewModel.serverURLString.isEmpty {
@@ -55,26 +45,14 @@ struct OnboardingView: View {
 
                             Divider().overlay(ActualistTheme.separator)
 
-                            if viewModel.backendMode == .restAPI {
-                                LabeledContent("API Key") {
-                                    SecureField(
-                                        "",
-                                        text: $viewModel.apiKey,
-                                        prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
-                                    )
-                                    .textInputAutocapitalization(.never)
-                                    .multilineTextAlignment(.trailing)
-                                }
-                            } else {
-                                LabeledContent("Password") {
-                                    SecureField(
-                                        "",
-                                        text: $viewModel.actualPassword,
-                                        prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
-                                    )
-                                    .textInputAutocapitalization(.never)
-                                    .multilineTextAlignment(.trailing)
-                                }
+                            LabeledContent("Password") {
+                                SecureField(
+                                    "",
+                                    text: $viewModel.actualPassword,
+                                    prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
+                                )
+                                .textInputAutocapitalization(.never)
+                                .multilineTextAlignment(.trailing)
                             }
                         }
                         .foregroundStyle(ActualistTheme.primaryText)

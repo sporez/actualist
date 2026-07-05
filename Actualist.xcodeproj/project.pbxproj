@@ -14,7 +14,6 @@
 		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
 		010000000000000000000005 /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000005 /* GlassPanel.swift */; };
 		010000000000000000000006 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000006 /* APIModels.swift */; };
-		010000000000000000000007 /* ActualAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000007 /* ActualAPIClient.swift */; };
 		010000000000000000000008 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000008 /* KeychainStore.swift */; };
 		010000000000000000000009 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000009 /* AppSettingsStore.swift */; };
 		01000000000000000000002C /* AccountOrderPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002C /* AccountOrderPreference.swift */; };
@@ -39,12 +38,8 @@
 		01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001F /* TransactionEditorViewModelTests.swift */; };
 		01000000000000000000001D /* BudgetAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000020 /* BudgetAPI.swift */; };
 		01000000000000000000001F /* TransactionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000022 /* TransactionRepository.swift */; };
-		010000000000000000000020 /* ActualAPIClientProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000023 /* ActualAPIClientProtocol.swift */; };
-		010000000000000000000021 /* ActualDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000024 /* ActualDataStore.swift */; };
-		010000000000000000000022 /* ActualDataStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000025 /* ActualDataStoreTests.swift */; };
 		010000000000000000000023 /* TransactionGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000026 /* TransactionGrouping.swift */; };
 		010000000000000000000024 /* AddAccountViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000027 /* AddAccountViewModel.swift */; };
-		010000000000000000000025 /* OfflineSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000028 /* OfflineSnapshotStore.swift */; };
 		010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000029 /* UncategorizedTransactionsView.swift */; };
 		010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */; };
 		010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */; };
@@ -86,7 +81,6 @@
 		020000000000000000000004 /* ActualistTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistTheme.swift; sourceTree = "<group>"; };
 		020000000000000000000005 /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassPanel.swift; sourceTree = "<group>"; };
 		020000000000000000000006 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
-		020000000000000000000007 /* ActualAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualAPIClient.swift; sourceTree = "<group>"; };
 		020000000000000000000008 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		020000000000000000000009 /* AppSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStore.swift; sourceTree = "<group>"; };
 		02000000000000000000002C /* AccountOrderPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountOrderPreference.swift; sourceTree = "<group>"; };
@@ -114,12 +108,8 @@
 		02000000000000000000001F /* TransactionEditorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModelTests.swift; sourceTree = "<group>"; };
 		020000000000000000000020 /* BudgetAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAPI.swift; sourceTree = "<group>"; };
 		020000000000000000000022 /* TransactionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionRepository.swift; sourceTree = "<group>"; };
-		020000000000000000000023 /* ActualAPIClientProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualAPIClientProtocol.swift; sourceTree = "<group>"; };
-		020000000000000000000024 /* ActualDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStore.swift; sourceTree = "<group>"; };
-		020000000000000000000025 /* ActualDataStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDataStoreTests.swift; sourceTree = "<group>"; };
 		020000000000000000000026 /* TransactionGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionGrouping.swift; sourceTree = "<group>"; };
 		020000000000000000000027 /* AddAccountViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAccountViewModel.swift; sourceTree = "<group>"; };
-		020000000000000000000028 /* OfflineSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineSnapshotStore.swift; sourceTree = "<group>"; };
 		020000000000000000000029 /* UncategorizedTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsView.swift; sourceTree = "<group>"; };
 		02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModelTests.swift; sourceTree = "<group>"; };
@@ -216,8 +206,6 @@
 			isa = PBXGroup;
 			children = (
 				020000000000000000000006 /* APIModels.swift */,
-				020000000000000000000007 /* ActualAPIClient.swift */,
-				020000000000000000000023 /* ActualAPIClientProtocol.swift */,
 			);
 			path = API;
 			sourceTree = "<group>";
@@ -235,7 +223,6 @@
 			children = (
 				02000000000000000000002C /* AccountOrderPreference.swift */,
 				020000000000000000000009 /* AppSettingsStore.swift */,
-				020000000000000000000028 /* OfflineSnapshotStore.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -269,7 +256,6 @@
 				020000000000000000000013 /* MoneyTests.swift */,
 				02000000000000000000001C /* BudgetViewModelTests.swift */,
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
-				020000000000000000000025 /* ActualDataStoreTests.swift */,
 				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
 				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
 				020000000000000000000037 /* BackendCapabilitiesTests.swift */,
@@ -358,7 +344,6 @@
 		040000000000000000000019 /* Data */ = {
 			isa = PBXGroup;
 			children = (
-				020000000000000000000024 /* ActualDataStore.swift */,
 			);
 			path = Data;
 			sourceTree = "<group>";
@@ -531,11 +516,9 @@
 				010000000000000000000004 /* ActualistTheme.swift in Sources */,
 				010000000000000000000005 /* GlassPanel.swift in Sources */,
 				010000000000000000000006 /* APIModels.swift in Sources */,
-				010000000000000000000007 /* ActualAPIClient.swift in Sources */,
 				010000000000000000000008 /* KeychainStore.swift in Sources */,
 				010000000000000000000009 /* AppSettingsStore.swift in Sources */,
 				01000000000000000000002C /* AccountOrderPreference.swift in Sources */,
-				010000000000000000000025 /* OfflineSnapshotStore.swift in Sources */,
 				01000000000000000000000A /* RootView.swift in Sources */,
 				01000000000000000000000B /* MainTabView.swift in Sources */,
 				01000000000000000000000C /* OnboardingView.swift in Sources */,
@@ -551,8 +534,6 @@
 				01000000000000000000002D /* AccountRepository.swift in Sources */,
 				01000000000000000000001D /* BudgetAPI.swift in Sources */,
 				01000000000000000000001F /* TransactionRepository.swift in Sources */,
-				010000000000000000000020 /* ActualAPIClientProtocol.swift in Sources */,
-				010000000000000000000021 /* ActualDataStore.swift in Sources */,
 				01000000000000000000002E /* LocalFirstModels.swift in Sources */,
 				01000000000000000000002F /* ActualServerSyncClient.swift in Sources */,
 				010000000000000000000030 /* BudgetFileManager.swift in Sources */,
@@ -578,7 +559,6 @@
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
-				010000000000000000000022 /* ActualDataStoreTests.swift in Sources */,
 				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
 				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,
 				01000000000000000000003B /* BackendCapabilitiesTests.swift in Sources */,

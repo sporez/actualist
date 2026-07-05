@@ -1,18 +1,17 @@
 import Foundation
 
-/// The single source of truth for what the active backend can do right now.
+/// The single source of truth for what the backend can do right now.
 ///
-/// Views and view models must consult these named flags instead of reading
-/// `backendMode`/connection state directly, so the read-only contract lives in one place.
-/// Two orthogonal facts drive every flag:
-/// - `isLocalFirst`: the native local-first sync backend is active (permanently read-only in v1).
-/// - `isReadOnly`: no write may be attempted right now — always true in local-first, and
-///   transiently true when a REST session is offline.
+/// Views and view models must consult these named flags instead of inspecting connection
+/// state directly, so the read-only contract lives in one place. Local-first is the only
+/// backend; these two flags stay constant today but keep the seam for the CRDT write phase:
+/// - `isLocalFirst`: the native local-first sync backend is active (always true).
+/// - `isReadOnly`: no write may be attempted right now — always true until CRDT writes land.
 struct BackendCapabilities: Equatable {
     let isLocalFirst: Bool
     let isReadOnly: Bool
 
-    // MARK: Write gates (blocked whenever read-only, including a REST session that is offline)
+    // MARK: Write gates (blocked whenever read-only)
 
     /// Assign budget, move money, and apply budget templates.
     var canAssignBudget: Bool { !isReadOnly }
@@ -25,14 +24,14 @@ struct BackendCapabilities: Equatable {
     /// Preview and apply rules.
     var canApplyRules: Bool { !isReadOnly }
 
-    // MARK: Structural gates (feature is entirely absent in local-first, not merely disabled)
+    // MARK: Structural gates
 
-    /// The Add Account affordance is offered at all (hidden in local-first).
+    /// Whether the Add Account affordance is offered at all (hidden until re-enabled locally).
     var showsAddAccount: Bool { !isLocalFirst }
-    /// Add Account can be tapped (hidden in local-first, disabled while a REST session is offline).
+    /// Add Account can be tapped.
     var canAddAccount: Bool { !isLocalFirst && !isReadOnly }
-    /// Background transaction refresh runs for this backend.
-    var supportsBackgroundRefresh: Bool { !isLocalFirst }
-    /// New-transaction notifications are posted and routed for this backend.
-    var supportsTransactionNotifications: Bool { !isLocalFirst }
+    /// Background transaction refresh is read-only in local-first: pull sync, diff rows, alert.
+    var supportsBackgroundRefresh: Bool { true }
+    /// New-transaction notifications are posted and routed after a read-only local-first sync.
+    var supportsTransactionNotifications: Bool { true }
 }

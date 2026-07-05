@@ -112,9 +112,6 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         if !appState.settings.backgroundTransactionRefreshEnabled {
             reasons.append("alerts disabled")
         }
-        if !appState.capabilities.supportsBackgroundRefresh {
-            reasons.append("local-first mode")
-        }
         if appState.settings.selectedBudgetID == nil {
             reasons.append("no selected budget")
         }

@@ -120,7 +120,10 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
             ?? container.decodeFlexibleBoolIfPresent(for: .tombstone)
             ?? false
         encryptKeyID = try container.decodeFirstPresentString(for: [.encryptKeyID, .encryptionKeyID])
-        requiresEncryptionPassword = container.contains(.encryptMeta)
+        let hasEncryptMeta = container.contains(.encryptMeta)
+            ? !(try container.decodeNil(forKey: .encryptMeta))
+            : false
+        requiresEncryptionPassword = hasEncryptMeta
     }
 
     var actualBudget: ActualBudget {

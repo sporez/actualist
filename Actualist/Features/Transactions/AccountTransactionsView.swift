@@ -495,9 +495,8 @@ struct AccountTransactionsView: View {
         showsBottomSeparator: Bool
     ) -> some View {
         Button {
-            guard appState.capabilities.canEditTransactions else {
-                return
-            }
+            // Opens the editor. When read-only (local-first / offline REST) the editor
+            // presents as a detail viewer with all mutation controls disabled.
             transactionEditorPresentation = .edit(
                 transaction,
                 payeeName: payeeName(for: transaction),
@@ -698,7 +697,8 @@ struct AccountTransactionsView: View {
         guard let budgetID,
               let account = scope.account,
               !isSyncingBank,
-              appState.capabilities.canBankSync else {
+              appState.capabilities.canBankSync,
+              let repository = appState.makeAccountRepository() else {
             return
         }
 
@@ -706,7 +706,7 @@ struct AccountTransactionsView: View {
         isLoading = true
         errorMessage = nil
         do {
-            _ = try await appState.dataStore.syncBankAccountAndRefresh(budgetID: budgetID, accountID: account.id)
+            _ = try await repository.syncBankAccountAndRefresh(budgetID: budgetID, accountID: account.id)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -976,16 +976,21 @@ final class AccountReconciliationViewModel {
     func submit(
         budgetID: String,
         accountID: String,
-        dataStore: ActualDataStore
+        repository: (any AccountRepositoryProtocol)?
     ) async {
         guard let statementBalance = statementBalanceMinorUnits else {
             submissionState = .failed("Enter a valid statement balance.")
             return
         }
 
+        guard let repository else {
+            submissionState = .failed("Reconciliation is unavailable right now.")
+            return
+        }
+
         submissionState = .submitting
         do {
-            let result = try await dataStore.reconcileAccountAndRefresh(
+            let result = try await repository.reconcileAccountAndRefresh(
                 budgetID: budgetID,
                 accountID: accountID,
                 statementBalance: statementBalance
@@ -1191,7 +1196,7 @@ struct AccountReconciliationSheet: View {
                 await viewModel.submit(
                     budgetID: budgetID,
                     accountID: account.id,
-                    dataStore: appState.dataStore
+                    repository: appState.makeAccountRepository()
                 )
             }
         } label: {

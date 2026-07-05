@@ -323,3 +323,54 @@ actor ActualServerSyncClient {
         let password: String
     }
 }
+
+/// Errors surfaced by the Actual sync server over HTTP (login, file listing, CRDT sync).
+enum ActualAPIError: LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case missingTransactionID
+    case httpStatus(Int, String?)
+    case decoding(String)
+    case transport(URLError?)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            "The server URL is invalid."
+        case .invalidResponse:
+            "The server returned an invalid response."
+        case .missingTransactionID:
+            "This transaction cannot be changed because the server did not provide its transaction ID."
+        case .httpStatus(let status, let message):
+            if let message, !message.isEmpty {
+                "The server returned HTTP \(status): \(message)"
+            } else {
+                "The server returned HTTP \(status)."
+            }
+        case .decoding(let message):
+            "Actualist could not read the server response: \(message)"
+        case .transport(let error):
+            if error?.code == .timedOut {
+                "The server did not respond. Check that this phone is on the same Wi-Fi as your Actual server and that the URL is correct."
+            } else if error?.code == .notConnectedToInternet {
+                "This device is not connected to the network."
+            } else if let error {
+                "Actualist could not reach the server: \(error.localizedDescription)"
+            } else {
+                "Actualist could not reach the server."
+            }
+        }
+    }
+}
+
+extension JSONDecoder {
+    static var actual: JSONDecoder {
+        JSONDecoder()
+    }
+}
+
+extension JSONEncoder {
+    static var actual: JSONEncoder {
+        JSONEncoder()
+    }
+}

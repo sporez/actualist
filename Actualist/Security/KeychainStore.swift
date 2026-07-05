@@ -2,33 +2,21 @@ import Foundation
 import Security
 
 struct KeychainStore {
-    static let actualist = KeychainStore(service: "com.sporez.actualist", account: "actual-http-api-key")
+    static let actualist = KeychainStore(service: "com.sporez.actualist", account: "actual-sync-token")
 
     let service: String
     let account: String
 
-    func readAPIKey() -> String {
+    func readActualSyncToken() -> String {
         readValue()
     }
 
-    func saveAPIKey(_ apiKey: String) {
-        saveValue(apiKey)
-    }
-
-    func readActualSyncToken() -> String {
-        scoped(account: "actual-sync-token").readValue()
-    }
-
     func saveActualSyncToken(_ token: String) {
-        scoped(account: "actual-sync-token").saveValue(token.trimmingCharacters(in: .whitespacesAndNewlines))
+        saveValue(token.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     func removeActualSyncToken() {
-        SecItemDelete(scoped(account: "actual-sync-token").baseQuery() as CFDictionary)
-    }
-
-    private func scoped(account: String) -> KeychainStore {
-        KeychainStore(service: service, account: account)
+        SecItemDelete(baseQuery() as CFDictionary)
     }
 
     private func readValue() -> String {

@@ -37,7 +37,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.supportsTransactionNotifications)
     }
 
-    @Test func localFirstBlocksWritesAndStructuralFeatures() {
+    @Test func localFirstBlocksWritesButAllowsReadOnlyRefreshNotifications() {
         let capabilities = BackendCapabilities(isLocalFirst: true, isReadOnly: true)
 
         #expect(!capabilities.canAssignBudget)
@@ -46,49 +46,32 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canReconcile)
         #expect(!capabilities.canApplyRules)
 
-        // Local-first hides these features entirely, not merely disabled.
+        // Local-first keeps write affordances hidden, but background refresh is read-only:
+        // it pulls sync messages and notifies if new transaction rows appear.
         #expect(!capabilities.showsAddAccount)
         #expect(!capabilities.canAddAccount)
-        #expect(!capabilities.supportsBackgroundRefresh)
-        #expect(!capabilities.supportsTransactionNotifications)
+        #expect(capabilities.supportsBackgroundRefresh)
+        #expect(capabilities.supportsTransactionNotifications)
     }
 
     // MARK: AppState derivation
 
-    @Test func localFirstModeIsAlwaysReadOnly() {
-        let state = makeAppState()
-        state.settings.backendMode = .localFirstSync
-        state.setupPhase = .ready
-        state.connectionStatus = .online
+    @Test func appStateIsAlwaysLocalFirstReadOnly() {
+        // Local-first is the only backend, and it stays read-only until the CRDT write phase,
+        // regardless of setup phase or connection status.
+        for phase in [SetupPhase.needsConnection, .selectingBudget, .ready] {
+            for status in [ServerConnectionStatus.online, .connecting, .offline] {
+                let state = makeAppState()
+                state.setupPhase = phase
+                state.connectionStatus = status
 
-        let capabilities = state.capabilities
-        #expect(capabilities.isLocalFirst)
-        #expect(capabilities.isReadOnly)
-    }
-
-    @Test func restReadyOnlineAllowsWrites() {
-        let state = makeAppState()
-        state.settings.backendMode = .restAPI
-        state.setupPhase = .ready
-        state.connectionStatus = .online
-
-        let capabilities = state.capabilities
-        #expect(!capabilities.isLocalFirst)
-        #expect(!capabilities.isReadOnly)
-        #expect(capabilities.canEditTransactions)
-    }
-
-    @Test func restReadyOfflineIsTransientlyReadOnly() {
-        let state = makeAppState()
-        state.settings.backendMode = .restAPI
-        state.setupPhase = .ready
-        state.connectionStatus = .offline
-
-        let capabilities = state.capabilities
-        #expect(!capabilities.isLocalFirst)
-        #expect(capabilities.isReadOnly)
-        // Offline is not local-first, so Add Account stays visible.
-        #expect(capabilities.showsAddAccount)
+                let capabilities = state.capabilities
+                #expect(capabilities.isLocalFirst)
+                #expect(capabilities.isReadOnly)
+                #expect(!capabilities.canEditTransactions)
+                #expect(!capabilities.showsAddAccount)
+            }
+        }
     }
 
     private func makeAppState() -> AppState {

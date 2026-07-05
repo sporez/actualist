@@ -5,18 +5,22 @@ import Testing
 
 @MainActor
 struct LocalFirstActualStoreTests {
-    @Test func settingsDecodeDefaultsToRestBackend() throws {
+    @Test func settingsDecodeIgnoresRetiredRestKeysAndKeepsLocalFirst() throws {
+        // Old persisted settings may still carry retired REST keys; they must be ignored while
+        // local-first fields decode normally.
         let data = Data("""
         {
+          "backendMode": "restAPI",
           "serverURLString": "http://localhost:5007/v1",
+          "localFirstServerURLString": "https://actual.example.com",
           "selectedBudgetID": "budget"
         }
         """.utf8)
 
         let settings = try JSONDecoder.actual.decode(AppSettings.self, from: data)
 
-        #expect(settings.backendMode == .restAPI)
-        #expect(settings.localFirstServerURLString == "")
+        #expect(settings.localFirstServerURLString == "https://actual.example.com")
+        #expect(settings.selectedBudgetID == "budget")
         #expect(settings.selectedLocalFirstFileID == nil)
     }
 
@@ -128,6 +132,24 @@ struct LocalFirstActualStoreTests {
         #expect(response.file?.requiresEncryptionPassword == false)
     }
 
+    @Test func userFileInfoTreatsNullEncryptMetaAsUnencrypted() throws {
+        let data = Data("""
+        {
+          "status": "ok",
+          "data": {
+            "fileId": "file-1",
+            "groupId": "group-1",
+            "name": "My Budget",
+            "encryptMeta": null
+          }
+        }
+        """.utf8)
+
+        let response = try JSONDecoder.actual.decode(ActualUserFileInfoResponse.self, from: data)
+
+        #expect(response.file?.requiresEncryptionPassword == false)
+    }
+
     @Test func userFileInfoDetectsEncryptedDownloadMetadata() throws {
         let data = Data("""
         {
@@ -165,6 +187,45 @@ struct LocalFirstActualStoreTests {
         #expect(month.categoryGroups.first?.categories.first?.carryover == true)
     }
 
+    @Test func toBudgetIsCumulativeAcrossMonthsNotJustCurrentMonth() throws {
+        // June: assign 50000 to groceries, receive 200000 income, spend 40000 on groceries.
+        // July: assign another 50000 to groceries (the fixture's -12345 July spend also applies).
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 1);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO zero_budgets VALUES (202606, 'groceries', 50000, 1);
+            INSERT INTO transactions VALUES ('inc-jun', 'checking', 20260615, 200000, 'salary', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('gro-jun', 'checking', 20260620, -40000, 'groceries', 0, NULL, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let month = try database.fetchBudgetMonth(month: "2026-07")
+
+        // On-budget balance through July = 200000 - 40000 - 12345 = 147655.
+        // Groceries balance carries June's 10000 leftover into July: 50000 - 12345 + 10000 = 47655.
+        // To Budget = 147655 - 47655 = 100000 (i.e., total income 200000 - total budgeted 100000).
+        // The old current-month-only formula would have reported 0 - 50000 = -50000.
+        #expect(month.toBudget == 100_000)
+    }
+
+    @Test func toBudgetIgnoresUncategorizedActivityUntilCategorized() throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 1);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO transactions VALUES ('income', 'checking', 20260701, 200000, 'salary', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('mystery', 'checking', 20260705, -1000, NULL, 0, NULL, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let month = try database.fetchBudgetMonth(month: "2026-07")
+
+        // Uncategorized spending changes account balance, but Actual does not let it reduce
+        // To Budget until it is assigned to a category.
+        #expect(month.toBudget == 150_000)
+    }
+
     @Test func budgetDatabaseUsesActualiSpendingSemanticsForMappedSplits() throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             UPDATE zero_budgets SET amount = 0, carryover = 0 WHERE month = 202607 AND category = 'groceries';
@@ -197,15 +258,14 @@ struct LocalFirstActualStoreTests {
         }
     }
 
-    @Test func refreshLocalFirstDataIsNoOpInRestMode() async {
+    @Test func refreshLocalFirstDataIsNoOpWithoutOpenBudget() async {
         let state = makeAppState()
-        state.settings.backendMode = .restAPI
         state.setupPhase = .ready
         state.connectionStatus = .online
 
+        // No budget has been opened, so the guard returns immediately without mutating state.
         await state.refreshLocalFirstData(budgetID: "any")
 
-        // REST mode: guard returns immediately, nothing mutated.
         #expect(state.connectionStatus == .online)
         #expect(state.localFirstSyncStatus == nil)
     }
@@ -323,6 +383,254 @@ struct LocalFirstActualStoreTests {
         await #expect(throws: LocalFirstError.unsupportedWrite) {
             _ = try await store.deleteTransactionAndRefresh(transaction, budgetID: "b") {}
         }
+    }
+
+    @Test func uncategorizedAlertCountsOnlyReviewableTransactions() {
+        let transferAccountIDsByPayeeID = ["on-budget-xfer": "checking"]
+        let transactions = [
+            makeTransaction(id: "needs-category", category: nil),
+            makeTransaction(id: "also-needs", category: ""),
+            makeTransaction(id: "categorized", category: "groceries"),
+            makeTransaction(id: "transfer", category: nil, payee: "on-budget-xfer"),
+            makeTransaction(id: "split-parent", category: nil, isParent: true),
+            makeTransaction(id: "other-month", category: nil, date: "2026-06-30"),
+            makeTransaction(
+                id: "split-with-children",
+                category: nil,
+                subtransactions: [makeTransaction(id: "child", category: "groceries")]
+            )
+        ]
+
+        let alerts = LocalFirstActualStore.uncategorizedAlerts(
+            transactions: transactions,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: [],
+            month: "2026-07"
+        )
+
+        #expect(alerts.count == 1)
+        let alert = try! #require(alerts.first)
+        #expect(alert.kind == "uncategorizedTransactions")
+        #expect(alert.severity == "warning")
+        #expect(alert.title == "Uncategorized transactions")
+        #expect(alert.actionTitle == "Review")
+        #expect(alert.count == 2)
+    }
+
+    @Test func uncategorizedAlertEmptyWhenEverythingCategorized() {
+        let transactions = [
+            makeTransaction(id: "a", category: "groceries"),
+            makeTransaction(id: "b", category: "rent")
+        ]
+
+        let alerts = LocalFirstActualStore.uncategorizedAlerts(
+            transactions: transactions,
+            transferAccountIDsByPayeeID: [:],
+            offBudgetAccountIDs: [],
+            month: "2026-07"
+        )
+
+        #expect(alerts.isEmpty)
+    }
+
+    @Test func uncategorizedAlertIncludesOnBudgetTransferToOffBudgetAccount() {
+        let transactions = [
+            makeTransaction(id: "off-budget-transfer", category: nil, payee: "off-budget-xfer"),
+            makeTransaction(id: "on-budget-transfer", category: nil, payee: "on-budget-xfer")
+        ]
+
+        let alerts = LocalFirstActualStore.uncategorizedAlerts(
+            transactions: transactions,
+            transferAccountIDsByPayeeID: [
+                "off-budget-xfer": "savings",
+                "on-budget-xfer": "checking"
+            ],
+            offBudgetAccountIDs: ["savings"],
+            month: "2026-07"
+        )
+
+        #expect(alerts.first?.count == 1)
+    }
+
+    @Test func toBudgetAlertShowsSurplusAndOverbudgetButNotZero() {
+        let surplus = try! #require(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: 1500)))
+        #expect(surplus.kind == "toBudget")
+        #expect(surplus.severity == "positive")
+        #expect(surplus.title == "To Budget")
+        #expect(surplus.amount == 1500)
+        #expect(surplus.actionTitle == nil)
+
+        // Actual allows a negative "To Budget" (overbudgeted); it must still be shown, signed.
+        let overbudgeted = try! #require(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: -500)))
+        #expect(overbudgeted.severity == "warning")
+        #expect(overbudgeted.amount == -500)
+
+        #expect(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: 0)) == nil)
+    }
+
+    @Test func overspendingAlertCountsVisibleNegativeCategoriesInSpendingGroups() {
+        let month = makeBudgetMonth(
+            toBudget: 0,
+            groups: [
+                makeGroup(id: "everyday", isIncome: false, categories: [
+                    makeCategory(id: "groceries", balance: -2000),
+                    makeCategory(id: "rent", balance: 500),
+                    makeCategory(id: "hidden-over", balance: -100, hidden: true)
+                ]),
+                // Income groups and their categories never count as overspending.
+                makeGroup(id: "income", isIncome: true, categories: [
+                    makeCategory(id: "paycheck", balance: -9999)
+                ])
+            ]
+        )
+
+        let alert = try! #require(LocalFirstActualStore.overspendingAlert(month: month))
+        #expect(alert.kind == "overspending")
+        #expect(alert.severity == "danger")
+        #expect(alert.title == "Overspent categories")
+        #expect(alert.actionTitle == "Cover")
+        #expect(alert.count == 1)
+    }
+
+    @Test func budgetAlertsAreOrderedToBudgetThenOverspendingThenUncategorized() {
+        let month = makeBudgetMonth(
+            toBudget: 1500,
+            groups: [
+                makeGroup(id: "everyday", isIncome: false, categories: [
+                    makeCategory(id: "groceries", balance: -2000)
+                ])
+            ]
+        )
+        let transactions = [makeTransaction(id: "needs-category", category: nil)]
+
+        let alerts = LocalFirstActualStore.budgetAlerts(
+            month: month,
+            monthID: "2026-07",
+            transactions: transactions,
+            transferAccountIDsByPayeeID: [:],
+            offBudgetAccountIDs: []
+        )
+
+        #expect(alerts.map(\.kind) == ["toBudget", "overspending", "uncategorizedTransactions"])
+    }
+
+    @Test func openCachedBudgetUsesImportedDatabaseWithoutTokenOrNetwork() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistCachedBudget-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let fixtureURL = try makeSQLiteFixture()
+        let fileID = "file-1"
+        let budgetDirectory = fileManager.budgetDirectory(fileID: fileID)
+        try FileManager.default.createDirectory(at: budgetDirectory, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: fixtureURL, to: fileManager.databaseURL(fileID: fileID))
+        let metadata = LocalFirstBudgetMetadata(
+            localBudgetID: fileID,
+            cloudFileID: fileID,
+            groupID: "group-1",
+            budgetName: "Cached Budget",
+            encryptionKeyID: nil,
+            nodeID: "node-1"
+        )
+        try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
+        let store = LocalFirstActualStore(
+            keychain: KeychainStore(
+                service: "com.sporez.actualist.tests",
+                account: UUID().uuidString
+            ),
+            fileManager: fileManager
+        )
+        let budget = ActualBudget(
+            budgetID: fileID,
+            cloudFileId: fileID,
+            groupId: "group-1",
+            name: "Cached Budget",
+            state: nil
+        )
+
+        let didOpen = try await store.openCachedBudget(budget)
+
+        #expect(didOpen)
+        #expect(store.isOpen(budgetID: "group-1"))
+        let loaded = try await store.currentBudgetMonth(budgetID: "group-1", preferredMonth: "2026-07")
+        #expect(loaded.month.month == "2026-07")
+    }
+
+    private func makeBudgetMonth(
+        toBudget: Int,
+        groups: [BudgetMonthCategoryGroup] = []
+    ) -> BudgetMonth {
+        BudgetMonth(
+            month: "2026-07",
+            incomeAvailable: 0,
+            lastMonthOverspent: 0,
+            forNextMonth: 0,
+            totalBudgeted: 0,
+            toBudget: toBudget,
+            fromLastMonth: 0,
+            totalIncome: 0,
+            totalSpent: 0,
+            totalBalance: 0,
+            categoryGroups: groups
+        )
+    }
+
+    private func makeGroup(
+        id: String,
+        isIncome: Bool,
+        categories: [BudgetMonthCategory]
+    ) -> BudgetMonthCategoryGroup {
+        BudgetMonthCategoryGroup(
+            id: id,
+            name: id,
+            isIncome: isIncome,
+            hidden: false,
+            budgeted: 0,
+            spent: 0,
+            balance: 0,
+            categories: categories
+        )
+    }
+
+    private func makeCategory(
+        id: String,
+        balance: Int,
+        hidden: Bool = false
+    ) -> BudgetMonthCategory {
+        BudgetMonthCategory(
+            id: id,
+            name: id,
+            isIncome: false,
+            hidden: hidden,
+            groupID: "group",
+            budgeted: 0,
+            spent: 0,
+            balance: balance,
+            carryover: false
+        )
+    }
+
+    private func makeTransaction(
+        id: String,
+        category: String?,
+        payee: String? = nil,
+        date: String = "2026-07-03",
+        isParent: Bool = false,
+        subtransactions: [ActualTransaction] = []
+    ) -> ActualTransaction {
+        ActualTransaction(
+            id: id,
+            account: "checking",
+            date: date,
+            amount: -1000,
+            payee: payee,
+            payeeName: nil,
+            importedPayee: nil,
+            category: category,
+            notes: nil,
+            cleared: nil,
+            subtransactions: subtransactions,
+            isParent: isParent
+        )
     }
 
     private func makeStore() -> LocalFirstActualStore {

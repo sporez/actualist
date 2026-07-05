@@ -310,7 +310,7 @@ private struct AddAccountSheet: View {
     private func submit() async {
         guard await viewModel.submit(
             budgetID: appState.settings.selectedBudgetID,
-            dataStore: appState.dataStore,
+            repository: appState.makeAccountRepository(),
             isReadOnly: !appState.capabilities.canAddAccount
         ) else {
             return
