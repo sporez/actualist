@@ -59,7 +59,8 @@ final class AppState {
             isLocalFirst: true,
             isReadOnly: true,
             allowsLocalFirstTransactionCreation: settings.localFirstTransactionCreationEnabled,
-            allowsLocalFirstBudgetAssignment: settings.localFirstTransactionCreationEnabled
+            allowsLocalFirstBudgetAssignment: settings.localFirstTransactionCreationEnabled,
+            allowsLocalFirstMoveMoney: settings.localFirstTransactionCreationEnabled
         )
     }
 

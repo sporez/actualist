@@ -12,17 +12,20 @@ struct BackendCapabilities: Equatable {
     let isReadOnly: Bool
     let allowsLocalFirstTransactionCreation: Bool
     let allowsLocalFirstBudgetAssignment: Bool
+    let allowsLocalFirstMoveMoney: Bool
 
     init(
         isLocalFirst: Bool,
         isReadOnly: Bool,
         allowsLocalFirstTransactionCreation: Bool = false,
-        allowsLocalFirstBudgetAssignment: Bool = false
+        allowsLocalFirstBudgetAssignment: Bool = false,
+        allowsLocalFirstMoveMoney: Bool = false
     ) {
         self.isLocalFirst = isLocalFirst
         self.isReadOnly = isReadOnly
         self.allowsLocalFirstTransactionCreation = allowsLocalFirstTransactionCreation
         self.allowsLocalFirstBudgetAssignment = allowsLocalFirstBudgetAssignment
+        self.allowsLocalFirstMoveMoney = allowsLocalFirstMoveMoney
     }
 
     // MARK: Write gates
@@ -47,7 +50,7 @@ struct BackendCapabilities: Equatable {
     /// Assign a category's budgeted amount.
     var canAssignCategoryBudget: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstBudgetAssignment) }
     /// Move money between categories and To Budget.
-    var canMoveMoney: Bool { !isReadOnly }
+    var canMoveMoney: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstMoveMoney) }
     /// Apply category or month budget templates.
     var canApplyBudgetTemplates: Bool { !isReadOnly }
     /// Broad compatibility gate for budget write surfaces not split yet.

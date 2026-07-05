@@ -501,7 +501,7 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                 Section("Local-First Writes") {
                     Toggle("Write Testing", isOn: $localFirstTransactionCreationSelection)
 
-                    Text("Enables local-first write proofs for fake-budget testing: transactions plus category budget assignment. Money moves, templates, rules, and account writes stay disabled.")
+                    Text("Enables local-first write proofs for fake-budget testing: transactions, category budget assignment, and move money. Templates, rules, and account writes stay disabled.")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }

@@ -122,6 +122,22 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canBankSync)
     }
 
+    @Test func localFirstMoveMoneyGateAllowsOnlyMoveMoney() {
+        let capabilities = BackendCapabilities(
+            isLocalFirst: true,
+            isReadOnly: true,
+            allowsLocalFirstMoveMoney: true
+        )
+
+        #expect(capabilities.canAssignBudget)
+        #expect(!capabilities.canAssignCategoryBudget)
+        #expect(capabilities.canMoveMoney)
+        #expect(!capabilities.canApplyBudgetTemplates)
+        #expect(!capabilities.canCreateTransactions)
+        #expect(!capabilities.canEditTransactions)
+        #expect(!capabilities.canBankSync)
+    }
+
     // MARK: AppState derivation
 
     @Test func appStateIsAlwaysLocalFirstReadOnly() {
@@ -166,7 +182,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canWriteSplits)
         #expect(capabilities.canAssignBudget)
         #expect(capabilities.canAssignCategoryBudget)
-        #expect(!capabilities.canMoveMoney)
+        #expect(capabilities.canMoveMoney)
         #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
@@ -188,6 +204,7 @@ struct BackendCapabilitiesTests {
         #expect(!state.capabilities.canWriteTransfers)
         #expect(!state.capabilities.canWriteSplits)
         #expect(!state.capabilities.canAssignCategoryBudget)
+        #expect(!state.capabilities.canMoveMoney)
     }
 
     private func makeAppState() -> AppState {

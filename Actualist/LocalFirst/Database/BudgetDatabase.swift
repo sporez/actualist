@@ -1339,50 +1339,67 @@ final class BudgetDatabase: @unchecked Sendable {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
 
-            let existingRowID = try zeroBudgetRowID(
-                monthValue: monthValue,
+            return try assignCategoryBudgetMessages(
                 categoryID: trimmedCategoryID,
+                budgeted: budgeted,
+                monthValue: monthValue,
                 columns: columns,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
+
+    func moveMoneyMessages(
+        commands: [BudgetMoveMoneyCommand],
+        month: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        guard !commands.isEmpty else {
+            return []
+        }
+        let monthValue = try Self.actualMonthValue(month)
+
+        return try queue.read { db in
+            let columns = try requiredColumns(
+                table: "zero_budgets",
+                required: ["month", "category", "amount"],
                 db: db
             )
-            let rowID = existingRowID ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: trimmedCategoryID)
-            var messages: [ActualSyncDecodedMessage] = []
-            if existingRowID == nil {
-                messages.append(
-                    builder.makeMessage(
-                        dataset: "zero_budgets",
-                        row: rowID,
-                        column: "month",
-                        value: .int(Int64(monthValue))
-                    )
-                )
-                messages.append(
-                    builder.makeMessage(
-                        dataset: "zero_budgets",
-                        row: rowID,
-                        column: "category",
-                        value: .string(trimmedCategoryID)
-                    )
-                )
-                if columns.contains("carryover") {
-                    messages.append(
-                        builder.makeMessage(
-                            dataset: "zero_budgets",
-                            row: rowID,
-                            column: "carryover",
-                            value: .bool(false)
-                        )
-                    )
+            let initialBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
+            var budgetedByCategory = initialBudgets.mapValues(\.budgeted)
+            var affectedCategoryIDs: Set<String> = []
+
+            for command in commands {
+                guard command.amount > 0 else {
+                    throw LocalFirstError.invalidLocalWrite("missing amount")
+                }
+                guard command.fromCategoryID != nil || command.toCategoryID != nil else {
+                    throw LocalFirstError.invalidLocalWrite("missing category")
+                }
+                if let fromCategoryID = command.fromCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                    try validateBudgetCategoryID(fromCategoryID, db: db)
+                    budgetedByCategory[fromCategoryID, default: 0] -= command.amount
+                    affectedCategoryIDs.insert(fromCategoryID)
+                }
+                if let toCategoryID = command.toCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                    try validateBudgetCategoryID(toCategoryID, db: db)
+                    budgetedByCategory[toCategoryID, default: 0] += command.amount
+                    affectedCategoryIDs.insert(toCategoryID)
                 }
             }
-            messages.append(
-                builder.makeMessage(
-                    dataset: "zero_budgets",
-                    row: rowID,
-                    column: "amount",
-                    value: .int(Int64(budgeted))
-                )
-            )
+
+            var messages: [ActualSyncDecodedMessage] = []
+            for categoryID in affectedCategoryIDs.sorted() {
+                messages.append(contentsOf: try assignCategoryBudgetMessages(
+                    categoryID: categoryID,
+                    budgeted: budgetedByCategory[categoryID] ?? 0,
+                    monthValue: monthValue,
+                    columns: columns,
+                    db: db,
+                    builder: &builder
+                ))
+            }
             return messages
         }
     }
@@ -2015,6 +2032,72 @@ final class BudgetDatabase: @unchecked Sendable {
             sql: "SELECT id FROM \(quotedIdentifier(table)) WHERE id = ? LIMIT 1",
             arguments: [rowID]
         ) != nil
+    }
+
+    private func validateBudgetCategoryID(_ categoryID: String, db: Database) throws {
+        let trimmed = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+        if try tableExists("categories", db: db),
+           try !rowExists(table: "categories", rowID: trimmed, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+    }
+
+    private func assignCategoryBudgetMessages(
+        categoryID: String,
+        budgeted: Int,
+        monthValue: Int,
+        columns: Set<String>,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        let existingRowID = try zeroBudgetRowID(
+            monthValue: monthValue,
+            categoryID: categoryID,
+            columns: columns,
+            db: db
+        )
+        let rowID = existingRowID ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: categoryID)
+        var messages: [ActualSyncDecodedMessage] = []
+        if existingRowID == nil {
+            messages.append(
+                builder.makeMessage(
+                    dataset: "zero_budgets",
+                    row: rowID,
+                    column: "month",
+                    value: .int(Int64(monthValue))
+                )
+            )
+            messages.append(
+                builder.makeMessage(
+                    dataset: "zero_budgets",
+                    row: rowID,
+                    column: "category",
+                    value: .string(categoryID)
+                )
+            )
+            if columns.contains("carryover") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "zero_budgets",
+                        row: rowID,
+                        column: "carryover",
+                        value: .bool(false)
+                    )
+                )
+            }
+        }
+        messages.append(
+            builder.makeMessage(
+                dataset: "zero_budgets",
+                row: rowID,
+                column: "amount",
+                value: .int(Int64(budgeted))
+            )
+        )
+        return messages
     }
 
     private func zeroBudgetRowID(

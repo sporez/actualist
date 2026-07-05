@@ -905,6 +905,56 @@ struct LocalFirstActualStoreTests {
         #expect(reloadedGroceries.budgeted == 62_500)
     }
 
+    @Test func moveMoneyLocallyMovesBudgetBetweenCategories() async throws {
+        let store = try await makeOpenedWritableStore()
+        var didMove = false
+
+        let loaded = try await store.moveMoneyAndRefresh(
+            command: BudgetMoveMoneyCommand(
+                fromCategoryID: "groceries",
+                toCategoryID: "utilities",
+                amount: 10_000
+            ),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {
+            didMove = true
+        }
+
+        let categories = Dictionary(uniqueKeysWithValues: loaded.month.categoryGroups.flatMap(\.categories).map { ($0.id, $0) })
+        let groceries = try #require(categories["groceries"])
+        let utilities = try #require(categories["utilities"])
+
+        #expect(didMove)
+        #expect(groceries.budgeted == 40_000)
+        #expect(groceries.balance == 27_655)
+        #expect(utilities.budgeted == 10_000)
+        #expect(utilities.balance == 10_000)
+        #expect(loaded.month.totalBudgeted == 50_000)
+        #expect(loaded.month.toBudget == -50_000)
+    }
+
+    @Test func moveMoneyLocallyMovesBudgetBackToToBudget() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        let loaded = try await store.moveMoneyAndRefresh(
+            command: BudgetMoveMoneyCommand(
+                fromCategoryID: "groceries",
+                toCategoryID: nil,
+                amount: 10_000
+            ),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let groceries = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+
+        #expect(groceries.budgeted == 40_000)
+        #expect(groceries.balance == 27_655)
+        #expect(loaded.month.totalBudgeted == 40_000)
+        #expect(loaded.month.toBudget == -40_000)
+    }
+
     @Test func updateSimpleTransactionLocallyRefreshesMovedAccountMonthAndPayeeOptions() async throws {
         let store = try await makeOpenedWritableStore()
         let draft = TransactionDraft(
@@ -1614,6 +1664,9 @@ struct LocalFirstActualStoreTests {
             CREATE TABLE payee_mapping (id TEXT PRIMARY KEY, targetId TEXT);
             INSERT INTO payees VALUES ('coffee', 'Coffee Shop', NULL, 0);
             INSERT INTO payee_mapping VALUES ('coffee', 'coffee');
+            INSERT INTO categories VALUES ('utilities', 'Utilities', 'group', 0, 0, 0, 2);
+            INSERT INTO category_mapping VALUES ('utilities', 'utilities');
+            INSERT INTO zero_budgets VALUES (202607, 'utilities', 0, 0);
             INSERT INTO accounts VALUES ('credit', 'Credit Card', 0, 0, 0, 2);
             INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 3);
             INSERT INTO accounts VALUES ('tracking', 'Tracking', 1, 0, 0, 4);
