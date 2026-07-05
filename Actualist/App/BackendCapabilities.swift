@@ -32,6 +32,9 @@ struct BackendCapabilities: Equatable {
     var canCategorizeTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
     /// Update basic fields on a non-split, non-transfer transaction.
     var canUpdateSimpleTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
+    /// Delete a non-split, non-transfer transaction via Actual tombstone semantics. Uses the
+    /// same developer write gate as the other local-first transaction mutations.
+    var canDeleteTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
     /// Assign budget, move money, and apply budget templates.
     var canAssignBudget: Bool { !isReadOnly }
     /// Edit and delete existing transactions.

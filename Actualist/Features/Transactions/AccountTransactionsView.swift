@@ -340,7 +340,7 @@ struct AccountTransactionsView: View {
                 Button("Delete Transaction", role: .destructive) {
                     Task { await delete(deletePresentation.transaction) }
                 }
-                .disabled(!appState.capabilities.canEditTransactions)
+                .disabled(!canOfferDelete(deletePresentation.transaction))
             }
 
             Button("Cancel", role: .cancel) {}
@@ -516,7 +516,7 @@ struct AccountTransactionsView: View {
         .buttonStyle(.plain)
         .disabled(deletingTransactionID == transaction.rowID)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            if appState.capabilities.canEditTransactions {
+            if canOfferDelete(transaction) {
                 Button(role: .destructive) {
                     requestDelete(transaction)
                 } label: {
@@ -528,8 +528,31 @@ struct AccountTransactionsView: View {
         }
     }
 
+    /// Whether the delete affordance should be shown for a given row. Full-write backends can
+    /// delete anything, but local-first write testing only supports simple (non-split,
+    /// non-transfer) tombstone deletes, so those complex rows stay non-deletable there.
+    private func canOfferDelete(_ transaction: ActualTransaction) -> Bool {
+        guard appState.capabilities.canDeleteTransactions else {
+            return false
+        }
+        if appState.capabilities.isReadOnly, !isSimpleTransaction(transaction) {
+            return false
+        }
+        return true
+    }
+
+    private func isSimpleTransaction(_ transaction: ActualTransaction) -> Bool {
+        guard !transaction.isParent, !transaction.isChild else {
+            return false
+        }
+        if let payee = transaction.payee, activeTransferPayeeIDs.contains(payee) {
+            return false
+        }
+        return true
+    }
+
     private func requestDelete(_ transaction: ActualTransaction) {
-        guard appState.capabilities.canEditTransactions else {
+        guard canOfferDelete(transaction) else {
             deletePresentation = nil
             errorMessage = offlineMutationMessage
             return
@@ -548,7 +571,7 @@ struct AccountTransactionsView: View {
     }
 
     private func delete(_ transaction: ActualTransaction) async {
-        guard appState.capabilities.canEditTransactions else {
+        guard canOfferDelete(transaction) else {
             deletePresentation = nil
             errorMessage = offlineMutationMessage
             return

@@ -587,7 +587,48 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         didDelete: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        throw LocalFirstError.unsupportedWrite
+        guard let transactionID = transaction.id, !transactionID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+        guard let monthID = transaction.date.actualYearMonth else {
+            throw LocalFirstError.invalidLocalWrite("invalid transaction date")
+        }
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+
+        let database = try requireDatabase(for: budgetID)
+        let latestTimestamp = try database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let messages = try database.deleteSimpleTransactionMessages(
+            transactionID: transactionID,
+            builder: &builder
+        )
+
+        try await pushLocalMessagesIfPossible(
+            database: database,
+            messages: messages,
+            since: latestTimestamp
+        )
+        _ = try database.applyLocalSyncMessages(messages)
+        await didDelete()
+        try reloadAfterTransactionMutation(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: [transaction.account],
+            monthIDs: [monthID]
+        )
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [transaction.account],
+                months: [monthID],
+                transactions: [transactionID]
+            )
+        )
     }
 
     private func loadedAccountTransactions(

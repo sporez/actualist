@@ -13,6 +13,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canCreateTransactions)
         #expect(capabilities.canCategorizeTransactions)
         #expect(capabilities.canUpdateSimpleTransactions)
+        #expect(capabilities.canDeleteTransactions)
         #expect(capabilities.canEditTransactions)
         #expect(capabilities.canBankSync)
         #expect(capabilities.canReconcile)
@@ -31,6 +32,7 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canCreateTransactions)
         #expect(!capabilities.canCategorizeTransactions)
         #expect(!capabilities.canUpdateSimpleTransactions)
+        #expect(!capabilities.canDeleteTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
@@ -50,6 +52,7 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canCreateTransactions)
         #expect(!capabilities.canCategorizeTransactions)
         #expect(!capabilities.canUpdateSimpleTransactions)
+        #expect(!capabilities.canDeleteTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
@@ -73,6 +76,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canCreateTransactions)
         #expect(capabilities.canCategorizeTransactions)
         #expect(capabilities.canUpdateSimpleTransactions)
+        #expect(capabilities.canDeleteTransactions)
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
@@ -99,6 +103,7 @@ struct BackendCapabilitiesTests {
                 #expect(!capabilities.canCreateTransactions)
                 #expect(!capabilities.canCategorizeTransactions)
                 #expect(!capabilities.canUpdateSimpleTransactions)
+                #expect(!capabilities.canDeleteTransactions)
                 #expect(!capabilities.canEditTransactions)
                 #expect(!capabilities.showsAddAccount)
             }
@@ -115,6 +120,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canCreateTransactions)
         #expect(capabilities.canCategorizeTransactions)
         #expect(capabilities.canUpdateSimpleTransactions)
+        #expect(capabilities.canDeleteTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canBankSync)
@@ -132,6 +138,7 @@ struct BackendCapabilitiesTests {
         #expect(!state.capabilities.canCreateTransactions)
         #expect(!state.capabilities.canCategorizeTransactions)
         #expect(!state.capabilities.canUpdateSimpleTransactions)
+        #expect(!state.capabilities.canDeleteTransactions)
     }
 
     private func makeAppState() -> AppState {

@@ -464,13 +464,13 @@ struct LocalFirstActualStoreTests {
         }
     }
 
-    @Test func deleteTransactionThrowsUnsupportedWriteInLocalFirst() async {
+    @Test func deleteTransactionWithoutOpenBudgetThrows() async {
         let store = makeStore()
         let transaction = ActualTransaction(
             id: "x", account: "a", date: "2026-07-03", amount: -1,
             payee: nil, payeeName: nil, importedPayee: nil, category: nil, notes: nil, cleared: nil
         )
-        await #expect(throws: LocalFirstError.unsupportedWrite) {
+        await #expect(throws: LocalFirstError.budgetNotOpened) {
             _ = try await store.deleteTransactionAndRefresh(transaction, budgetID: "b") {}
         }
     }
@@ -830,6 +830,53 @@ struct LocalFirstActualStoreTests {
         #expect(updated.notes == "updated note")
         #expect(updated.cleared?.boolValue == true)
         #expect(options.payees.contains { $0.name == "Edited Payee" })
+    }
+
+    @Test func deleteSimpleTransactionLocallyTombstonesAndRefreshesCaches() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let createResult = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(createResult.changed.transactions.first)
+        let created = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        // Groceries baseline is the single seeded -12345 transaction; the created -725 adds to it.
+        let monthBeforeDelete = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceriesBeforeDelete = try #require(
+            monthBeforeDelete.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceriesBeforeDelete.spent == -13_070)
+        var didDelete = false
+
+        let deleteResult = try await store.deleteTransactionAndRefresh(
+            created,
+            budgetID: "group-1"
+        ) {
+            didDelete = true
+        }
+
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+
+        #expect(didDelete)
+        #expect(deleteResult.ok)
+        #expect(deleteResult.changed.accounts == ["checking"])
+        #expect(deleteResult.changed.months == ["2026-07"])
+        #expect(deleteResult.changed.transactions == [transactionID])
+        #expect(!loaded.transactions.contains { $0.id == transactionID })
+        #expect(groceries.spent == -12_345)
     }
 
     private func makeBudgetMonth(

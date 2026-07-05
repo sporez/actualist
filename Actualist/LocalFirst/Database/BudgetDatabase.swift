@@ -741,6 +741,48 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
+    /// Build the tombstone message that soft-deletes a simple transaction. Actual represents
+    /// deletes as `tombstone = true` so read queries (which filter live rows) stop returning it
+    /// and the delete converges through CRDT sync. Split and transfer rows are rejected because
+    /// their deletes require paired/child handling that lands in later phases.
+    func deleteSimpleTransactionMessages(
+        transactionID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTransactionID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+
+        return try queue.read { db in
+            let columns = try requiredColumns(
+                table: "transactions",
+                required: ["tombstone"],
+                db: db
+            )
+            guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing transaction")
+            }
+
+            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
+            try validateSimpleTransactionRow(
+                transactionID: trimmedTransactionID,
+                columns: columns,
+                payeeColumn: payeeColumn,
+                db: db
+            )
+
+            return [
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: trimmedTransactionID,
+                    column: "tombstone",
+                    value: .bool(true)
+                )
+            ]
+        }
+    }
+
     private func accountBalances() throws -> [String: Int] {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
