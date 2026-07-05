@@ -317,9 +317,13 @@ struct TransactionEditorView: View {
         }
     }
 
-    /// Local-first (and offline REST) is read-only: the editor becomes a detail viewer.
+    /// Local-first stays read-only for existing rows, but developer builds can expose
+    /// create-only transaction testing without enabling edits or deletes.
     private var isReadOnly: Bool {
-        !appState.capabilities.canEditTransactions
+        if viewModel.isEditing {
+            return !appState.capabilities.canEditTransactions
+        }
+        return !appState.capabilities.canCreateTransactions
     }
 
     private var readOnlyNotice: some View {

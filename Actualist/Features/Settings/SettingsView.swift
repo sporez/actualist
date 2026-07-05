@@ -258,6 +258,7 @@ struct SettingsView: View {
                 #if DEBUG
                 SettingsDeveloperDiagnosticsSheet(
                     randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
+                    localFirstTransactionCreationSelection: localFirstTransactionCreationSelection,
                     hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug,
                     isPostingDebugNotification: $isPostingDebugNotification,
@@ -267,6 +268,7 @@ struct SettingsView: View {
                 #else
                 SettingsDeveloperDiagnosticsSheet(
                     randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
+                    localFirstTransactionCreationSelection: localFirstTransactionCreationSelection,
                     hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug
                 )
@@ -401,6 +403,14 @@ struct SettingsView: View {
         }
     }
 
+    private var localFirstTransactionCreationSelection: Binding<Bool> {
+        Binding {
+            appState.settings.localFirstTransactionCreationEnabled
+        } set: { isEnabled in
+            appState.updateLocalFirstTransactionCreationEnabled(isEnabled)
+        }
+    }
+
     private func recordDeveloperUnlockTap() {
         if let message = appState.recordDeveloperUnlockTap() {
             showDeveloperUnlockToast(message)
@@ -459,6 +469,7 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var randomizedDisplayValuesSelection: Bool
+    @Binding var localFirstTransactionCreationSelection: Bool
     let hideDeveloperMode: () -> Void
     let debug: BackgroundRefreshDebugInfo
     #if DEBUG
@@ -472,6 +483,15 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
             List {
                 Section("Privacy") {
                     Toggle("Generic Screenshot Data", isOn: $randomizedDisplayValuesSelection)
+                }
+                .settingsSectionChrome()
+
+                Section("Local-First Writes") {
+                    Toggle("Create Transactions", isOn: $localFirstTransactionCreationSelection)
+
+                    Text("Enables simple new transactions for fake-budget testing. Edits, deletes, splits, transfers, budget moves, rules, and account writes stay disabled.")
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.secondaryText)
                 }
                 .settingsSectionChrome()
 

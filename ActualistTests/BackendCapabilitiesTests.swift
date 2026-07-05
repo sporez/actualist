@@ -10,6 +10,7 @@ struct BackendCapabilitiesTests {
         let capabilities = BackendCapabilities(isLocalFirst: false, isReadOnly: false)
 
         #expect(capabilities.canAssignBudget)
+        #expect(capabilities.canCreateTransactions)
         #expect(capabilities.canEditTransactions)
         #expect(capabilities.canBankSync)
         #expect(capabilities.canReconcile)
@@ -25,6 +26,7 @@ struct BackendCapabilitiesTests {
 
         // Writes are blocked while offline...
         #expect(!capabilities.canAssignBudget)
+        #expect(!capabilities.canCreateTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
@@ -41,6 +43,7 @@ struct BackendCapabilitiesTests {
         let capabilities = BackendCapabilities(isLocalFirst: true, isReadOnly: true)
 
         #expect(!capabilities.canAssignBudget)
+        #expect(!capabilities.canCreateTransactions)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
@@ -52,6 +55,23 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canAddAccount)
         #expect(capabilities.supportsBackgroundRefresh)
         #expect(capabilities.supportsTransactionNotifications)
+    }
+
+    @Test func localFirstDeveloperCreateGateOnlyAllowsNewTransactions() {
+        let capabilities = BackendCapabilities(
+            isLocalFirst: true,
+            isReadOnly: true,
+            allowsLocalFirstTransactionCreation: true
+        )
+
+        #expect(capabilities.canCreateTransactions)
+        #expect(!capabilities.canAssignBudget)
+        #expect(!capabilities.canEditTransactions)
+        #expect(!capabilities.canBankSync)
+        #expect(!capabilities.canReconcile)
+        #expect(!capabilities.canApplyRules)
+        #expect(!capabilities.showsAddAccount)
+        #expect(!capabilities.canAddAccount)
     }
 
     // MARK: AppState derivation
@@ -68,10 +88,36 @@ struct BackendCapabilitiesTests {
                 let capabilities = state.capabilities
                 #expect(capabilities.isLocalFirst)
                 #expect(capabilities.isReadOnly)
+                #expect(!capabilities.canCreateTransactions)
                 #expect(!capabilities.canEditTransactions)
                 #expect(!capabilities.showsAddAccount)
             }
         }
+    }
+
+    @Test func appStateDeveloperCreateGateAllowsOnlyTransactionCreation() {
+        let state = makeAppState()
+        state.updateLocalFirstTransactionCreationEnabled(true)
+
+        let capabilities = state.capabilities
+        #expect(capabilities.isLocalFirst)
+        #expect(capabilities.isReadOnly)
+        #expect(capabilities.canCreateTransactions)
+        #expect(!capabilities.canEditTransactions)
+        #expect(!capabilities.canAssignBudget)
+        #expect(!capabilities.canBankSync)
+    }
+
+    @Test func hidingDeveloperModeDisablesLocalFirstTransactionCreation() {
+        let state = makeAppState()
+        state.updateDeveloperModeUnlocked(true)
+        state.updateLocalFirstTransactionCreationEnabled(true)
+
+        state.updateDeveloperModeUnlocked(false)
+
+        #expect(!state.settings.developerModeUnlocked)
+        #expect(!state.settings.localFirstTransactionCreationEnabled)
+        #expect(!state.capabilities.canCreateTransactions)
     }
 
     private func makeAppState() -> AppState {

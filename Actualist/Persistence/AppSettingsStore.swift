@@ -12,6 +12,7 @@ struct AppSettings: Codable, Equatable {
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var backgroundTransactionRefreshEnabled: Bool = false
+    var localFirstTransactionCreationEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
     var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
 
@@ -27,6 +28,7 @@ struct AppSettings: Codable, Equatable {
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         backgroundTransactionRefreshEnabled: Bool = false,
+        localFirstTransactionCreationEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
         pendingNewTransactionIDsByAccount: [String: [String]] = [:]
     ) {
@@ -41,6 +43,7 @@ struct AppSettings: Codable, Equatable {
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
+        self.localFirstTransactionCreationEnabled = localFirstTransactionCreationEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
         self.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
     }
@@ -69,6 +72,10 @@ struct AppSettings: Codable, Equatable {
         backgroundTransactionRefreshEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .backgroundTransactionRefreshEnabled
+        ) ?? false
+        localFirstTransactionCreationEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .localFirstTransactionCreationEnabled
         ) ?? false
         backgroundRefreshDebug = try container.decodeIfPresent(
             BackgroundRefreshDebugInfo.self,

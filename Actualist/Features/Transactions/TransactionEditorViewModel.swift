@@ -607,8 +607,13 @@ final class TransactionEditorViewModel {
     }
 
     func submit(using appState: AppState) async -> Bool {
-        guard appState.capabilities.canEditTransactions else {
-            errorMessage = "Server is offline. Transaction changes are read-only until it reconnects."
+        let canSubmit = isEditing
+            ? appState.capabilities.canEditTransactions
+            : appState.capabilities.canCreateTransactions
+        guard canSubmit else {
+            errorMessage = isEditing
+                ? "Server is offline. Transaction edits are read-only until it reconnects."
+                : "Transaction creation is disabled. Enable it in Developer settings to test local-first writes."
             return false
         }
 

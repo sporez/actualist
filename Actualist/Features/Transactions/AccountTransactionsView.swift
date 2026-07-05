@@ -264,7 +264,7 @@ struct AccountTransactionsView: View {
                 }
                 .actualistToolbarGlassButton()
                 .accessibilityLabel("Add Transaction")
-                .disabled(!appState.capabilities.canEditTransactions)
+                .disabled(!appState.capabilities.canCreateTransactions)
 
                 if scope.supportsAccountActions {
                     Menu {

@@ -22,6 +22,7 @@ struct LocalFirstActualStoreTests {
         #expect(settings.localFirstServerURLString == "https://actual.example.com")
         #expect(settings.selectedBudgetID == "budget")
         #expect(settings.selectedLocalFirstFileID == nil)
+        #expect(!settings.localFirstTransactionCreationEnabled)
     }
 
     @Test func loginResponseDecodesTopLevelAndNestedToken() throws {

@@ -150,7 +150,7 @@ struct BudgetView: View {
                             Image(systemName: "plus")
                         }
                         .actualistToolbarGlassButton()
-                        .disabled(!appState.capabilities.canAssignBudget)
+                        .disabled(!appState.capabilities.canCreateTransactions)
                     }
 
                     ToolbarItem(placement: .principal) {

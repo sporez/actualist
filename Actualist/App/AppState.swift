@@ -55,7 +55,11 @@ final class AppState {
     /// backend is the only sync path and stays read-only until the CRDT write phase lands, so
     /// every write capability is gated off here.
     var capabilities: BackendCapabilities {
-        BackendCapabilities(isLocalFirst: true, isReadOnly: true)
+        BackendCapabilities(
+            isLocalFirst: true,
+            isReadOnly: true,
+            allowsLocalFirstTransactionCreation: settings.localFirstTransactionCreationEnabled
+        )
     }
 
     func saveLocalFirstConnection(serverURLString: String, password: String) async {
@@ -183,10 +187,16 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateLocalFirstTransactionCreationEnabled(_ isEnabled: Bool) {
+        settings.localFirstTransactionCreationEnabled = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
         settings.developerModeUnlocked = isUnlocked
         if !isUnlocked {
             settings.randomizedDisplayValuesEnabled = false
+            settings.localFirstTransactionCreationEnabled = false
         }
         resetDeveloperUnlockProgress()
         settingsStore.save(settings)

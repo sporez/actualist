@@ -10,12 +10,26 @@ import Foundation
 struct BackendCapabilities: Equatable {
     let isLocalFirst: Bool
     let isReadOnly: Bool
+    let allowsLocalFirstTransactionCreation: Bool
+
+    init(
+        isLocalFirst: Bool,
+        isReadOnly: Bool,
+        allowsLocalFirstTransactionCreation: Bool = false
+    ) {
+        self.isLocalFirst = isLocalFirst
+        self.isReadOnly = isReadOnly
+        self.allowsLocalFirstTransactionCreation = allowsLocalFirstTransactionCreation
+    }
 
     // MARK: Write gates (blocked whenever read-only)
 
+    /// Create simple transactions. Local-first can expose this behind a developer gate while
+    /// the rest of the write surface remains read-only.
+    var canCreateTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstTransactionCreation) }
     /// Assign budget, move money, and apply budget templates.
     var canAssignBudget: Bool { !isReadOnly }
-    /// Create, edit, delete, and categorize transactions.
+    /// Edit, delete, and categorize existing transactions.
     var canEditTransactions: Bool { !isReadOnly }
     /// Trigger a bank sync for a linked account.
     var canBankSync: Bool { !isReadOnly }
