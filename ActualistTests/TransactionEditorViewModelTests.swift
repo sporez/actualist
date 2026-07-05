@@ -48,6 +48,19 @@ struct TransactionEditorViewModelTests {
         #expect(sections.last?.options.map(\.title) == ["Ally Checking"])
     }
 
+    @Test func payeeSectionsHideUnresolvedBlankTransferPayees() {
+        let model = TransactionEditorViewModel()
+        model.payees = [
+            ActualPayee(id: "store", name: "Corner Store", category: nil, transferAccount: nil),
+            ActualPayee(id: "blank-transfer", name: "", category: nil, transferAccount: "missing-account")
+        ]
+
+        let sections = model.payeeSections(matching: "")
+
+        #expect(sections.map(\.kind) == [.payees])
+        #expect(sections.first?.options.map(\.title) == ["Corner Store"])
+    }
+
     @Test func payeeSectionsLiftMatchingTransfersDuringSearch() {
         let model = TransactionEditorViewModel()
         model.accounts = [
@@ -61,7 +74,7 @@ struct TransactionEditorViewModelTests {
         let sections = model.payeeSections(matching: "ally")
 
         #expect(sections.map(\.kind) == [.transfers, .payees])
-        #expect(sections.first?.options.map(\.title) == ["Transfer Payee"])
+        #expect(sections.first?.options.map(\.title) == ["Ally Checking"])
         #expect(sections.last?.options.map(\.title) == ["Ally Auto"])
     }
 
@@ -718,6 +731,18 @@ struct TransactionEditorViewModelTests {
         #expect(draft.notes == "old note")
     }
 
+    @Test func unsupportedLocalFirstRulePreviewIsSilent() async {
+        let model = configuredModel()
+        model.selectedPayeeID = "target"
+        model.payeeName = "Target"
+        let repository = RecordingTransactionRepository(previewError: LocalFirstError.unsupportedWrite)
+
+        await model.previewRules(budgetID: "budget", repository: repository)
+
+        #expect(model.errorMessage == nil)
+        #expect(model.selectedCategoryID == nil)
+    }
+
     @Test func batchUpdatePayloadDisablesLearningAndTransferAutomation() throws {
         let payload = APITransactionBatchUpdatePayload(
             added: [
@@ -921,6 +946,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
     private var deletes: [ActualTransaction] = []
     private var rulePreviewDrafts: [TransactionDraft] = []
     private let rulePreview: TransactionRulePreview
+    private let previewError: Error?
     private let createError: Error?
     private let refreshError: Error?
     private let pauseBeforeDidCreate: Bool
@@ -932,12 +958,14 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
 
     init(
         rulePreview: TransactionRulePreview = TransactionRulePreview(categoryID: nil, notes: nil),
+        previewError: Error? = nil,
         createError: Error? = nil,
         refreshError: Error? = nil,
         pauseBeforeDidCreate: Bool = false,
         pauseAfterDidCreate: Bool = false
     ) {
         self.rulePreview = rulePreview
+        self.previewError = previewError
         self.createError = createError
         self.refreshError = refreshError
         self.pauseBeforeDidCreate = pauseBeforeDidCreate
@@ -967,6 +995,9 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         budgetID: String
     ) async throws -> TransactionRulePreview {
         rulePreviewDrafts.append(draft)
+        if let previewError {
+            throw previewError
+        }
         return rulePreview
     }
 

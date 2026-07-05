@@ -442,12 +442,12 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         )
 
         let messages = payeeResolution.messages + transactionMessages
-        _ = try database.applyLocalSyncMessages(messages)
         try await pushLocalMessagesIfPossible(
             database: database,
             messages: messages,
             since: latestTimestamp
         )
+        _ = try database.applyLocalSyncMessages(messages)
         await didCreate()
         try reloadAfterTransactionMutation(
             database: database,

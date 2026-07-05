@@ -276,10 +276,35 @@ actor ActualServerSyncClient {
         let singleLine = text
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\r", with: " ")
+        if let htmlMessage = readableHTMLMessage(from: singleLine) {
+            return htmlMessage
+        }
         if singleLine.count > 800 {
             return "\(singleLine.prefix(800))..."
         }
         return singleLine
+    }
+
+    private static func readableHTMLMessage(from text: String) -> String? {
+        let lowercased = text.lowercased()
+        guard lowercased.contains("<html")
+            || lowercased.contains("<!doctype html")
+            || lowercased.contains("<body")
+            || lowercased.contains("<pre") else {
+            return nil
+        }
+
+        let withoutTags = text
+            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !withoutTags.isEmpty else {
+            return "HTML error response"
+        }
+        return withoutTags.count > 180 ? "\(withoutTags.prefix(180))..." : withoutTags
     }
 
     private static func sanitizedJSONData(_ data: Data) -> Data? {

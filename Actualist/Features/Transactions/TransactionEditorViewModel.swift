@@ -47,11 +47,11 @@ struct TransactionEditorPayeeOption: Identifiable, Hashable {
     }
 
     var title: String {
-        payee.name
+        transferAccountName ?? payee.name
     }
 
     var isTransfer: Bool {
-        transferAccountName != nil
+        payee.transferAccount != nil
     }
 }
 
@@ -626,6 +626,10 @@ final class TransactionEditorViewModel {
     }
 
     func previewRules(using appState: AppState) async {
+        guard !appState.capabilities.isLocalFirst else {
+            return
+        }
+
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeTransactionRepository() else {
             return
@@ -663,6 +667,12 @@ final class TransactionEditorViewModel {
             }
         } catch {
             if requestSequence == rulePreviewSequence {
+                if let localFirstError = error as? LocalFirstError,
+                   localFirstError == .unsupportedWrite {
+                    errorMessage = nil
+                    isPreviewingRules = false
+                    return
+                }
                 errorMessage = "Could not apply payee rules: \(error.localizedDescription)"
             }
         }
@@ -853,9 +863,15 @@ final class TransactionEditorViewModel {
     }
 
     private func payeeOption(for payee: ActualPayee) -> TransactionEditorPayeeOption? {
-        TransactionEditorPayeeOption(
+        let transferAccountName = transferAccountName(for: payee)
+        let title = transferAccountName ?? payee.name
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        return TransactionEditorPayeeOption(
             payee: payee,
-            transferAccountName: transferAccountName(for: payee)
+            transferAccountName: transferAccountName
         )
     }
 
@@ -864,7 +880,13 @@ final class TransactionEditorViewModel {
             return nil
         }
 
-        return accounts.first(where: { $0.id == transferAccountID })?.name ?? payee.name
+        if let accountName = accounts.first(where: { $0.id == transferAccountID })?.name,
+           !accountName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return accountName
+        }
+
+        let fallbackName = payee.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return fallbackName.isEmpty ? nil : fallbackName
     }
 
     private func payeeSections(
