@@ -976,6 +976,249 @@ struct LocalFirstActualStoreTests {
         }
     }
 
+    @Test func editSplitLocallyUpdatesAddsAndRemovesChildren() async throws {
+        let store = try await makeOpenedWritableStore()
+        let createDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 13),
+            amountMinorUnits: -3000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false,
+            splits: [
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -2000),
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1000)
+            ]
+        )
+        let created = try await store.createTransactionAndRefresh(createDraft, budgetID: "group-1") {}
+        let parentID = try #require(created.changed.transactions.first)
+        let parent = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == parentID }
+        )
+        let keptChildID = try #require(parent.subtransactions.first?.id)
+        let removedChildID = try #require(parent.subtransactions.last?.id)
+
+        // Keep the first child (re-amounted to -1500), drop the second, add a new -1500 child.
+        let updateDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 13),
+            amountMinorUnits: -3000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false,
+            splits: [
+                TransactionSplitDraft(id: keptChildID, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1500),
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1500)
+            ]
+        )
+
+        _ = try await store.updateTransactionAndRefresh(
+            parentID,
+            with: updateDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let updatedParent = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == parentID }
+        )
+        let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
+
+        #expect(updatedParent.subtransactions.count == 2)
+        #expect(!updatedParent.subtransactions.contains { $0.id == removedChildID })
+        #expect(updatedParent.subtransactions.contains { $0.id == keptChildID })
+        #expect(updatedParent.subtransactions.reduce(0) { $0 + ($1.amount ?? 0) } == -3000)
+        // Baseline -12345 plus the split total -3000 (unchanged across the edit).
+        #expect(groceries.spent == -15_345)
+    }
+
+    @Test func editSimpleToTransferAndBackTogglesPairedRow() async throws {
+        let store = try await makeOpenedWritableStore()
+        let simpleDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+
+        let transferDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-credit",
+            payeeName: "",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: transferDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let creditAfterTransfer = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+        let paired = try #require(creditAfterTransfer.transactions.first { $0.amount == 1000 })
+        let sourceAfterTransfer = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(sourceAfterTransfer.category == nil)
+        #expect(paired.payeeName == "Checking")
+
+        // Now revert to a simple categorized transaction: the paired row must disappear.
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: simpleDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let creditAfterRevert = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+        let sourceAfterRevert = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(!creditAfterRevert.transactions.contains { $0.id == paired.id })
+        #expect(sourceAfterRevert.category == "groceries")
+    }
+
+    @Test func editTransferLocallyRepointsPairedAmountAndDestination() async throws {
+        let store = try await makeOpenedWritableStore()
+        let createDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-credit",
+            payeeName: "",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        let created = try await store.createTransactionAndRefresh(createDraft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+
+        // Repoint to savings and change the amount to -2500.
+        let editDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -2500,
+            payeeID: "xfer-savings",
+            payeeName: "",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: editDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let credit = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+        let savings = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "savings"))
+        let source = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        let paired = try #require(savings.transactions.first { $0.amount == 2500 })
+
+        #expect(source.amount == -2500)
+        #expect(credit.transactions.isEmpty)
+        #expect(paired.account == "savings")
+        #expect(paired.payeeName == "Checking")
+    }
+
+    @Test func editSimpleToSplitAndBackTogglesChildren() async throws {
+        let store = try await makeOpenedWritableStore()
+        let simpleDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 14),
+            amountMinorUnits: -3000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+
+        let splitDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 14),
+            amountMinorUnits: -3000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false,
+            splits: [
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -2000),
+                TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1000)
+            ]
+        )
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: splitDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let asSplit = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(asSplit.isParent)
+        #expect(asSplit.category == nil)
+        #expect(asSplit.subtransactions.count == 2)
+
+        // Revert to simple.
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: simpleDraft,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let asSimple = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(!asSimple.isParent)
+        #expect(asSimple.subtransactions.isEmpty)
+        #expect(asSimple.category == "groceries")
+    }
+
     private func makeBudgetMonth(
         toBudget: Int,
         groups: [BudgetMonthCategoryGroup] = []
@@ -1075,10 +1318,13 @@ struct LocalFirstActualStoreTests {
             INSERT INTO payees VALUES ('coffee', 'Coffee Shop', NULL, 0);
             INSERT INTO payee_mapping VALUES ('coffee', 'coffee');
             INSERT INTO accounts VALUES ('credit', 'Credit Card', 0, 0, 0, 2);
+            INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 3);
             INSERT INTO payees VALUES ('xfer-checking', '', 'checking', 0);
             INSERT INTO payees VALUES ('xfer-credit', '', 'credit', 0);
+            INSERT INTO payees VALUES ('xfer-savings', '', 'savings', 0);
             INSERT INTO payee_mapping VALUES ('xfer-checking', 'xfer-checking');
             INSERT INTO payee_mapping VALUES ('xfer-credit', 'xfer-credit');
+            INSERT INTO payee_mapping VALUES ('xfer-savings', 'xfer-savings');
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)

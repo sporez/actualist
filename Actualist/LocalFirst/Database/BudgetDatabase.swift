@@ -624,6 +624,15 @@ final class BudgetDatabase: @unchecked Sendable {
         var hasParentID: Bool { all.contains("parent_id") }
     }
 
+    /// Messages plus the accounts/transactions a mutation touched, so the store reloads exactly
+    /// the affected read caches (a transfer or split edit can reach a paired row or children in
+    /// other accounts).
+    struct TransactionWriteResult {
+        let messages: [ActualSyncDecodedMessage]
+        let affectedAccountIDs: [String]
+        let affectedTransactionIDs: [String]
+    }
+
     func resolveTransactionRowColumns(db: Database) throws -> TransactionRowColumns {
         let columns = try requiredColumns(
             table: "transactions",
@@ -891,93 +900,301 @@ final class BudgetDatabase: @unchecked Sendable {
         return payeeID
     }
 
-    func updateSimpleTransactionMessages(
+    /// Reconcile an existing transaction to a draft of any shape (simple, transfer, or split),
+    /// including transitions between shapes. Mirrors loot-core `batchUpdateTransactions` +
+    /// `onUpdate`: the main row's fields are rewritten, split children are diffed
+    /// (update/add/tombstone), and the transfer pairing is added, removed, or updated.
+    func updateTransactionMessages(
         transactionID: String,
         draft: TransactionDraft,
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
-        try validateSimpleTransactionDraft(draft)
+    ) throws -> TransactionWriteResult {
         let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTransactionID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
+        guard !draft.accountID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing account")
+        }
+        guard draft.amountMinorUnits != 0 else {
+            throw LocalFirstError.invalidLocalWrite("missing amount")
+        }
+        if draft.isSplit {
+            let splitTotal = draft.splits.reduce(0) { $0 + $1.amountMinorUnits }
+            guard splitTotal == draft.amountMinorUnits else {
+                throw LocalFirstError.invalidLocalWrite("split amounts do not sum to the transaction total")
+            }
+        }
 
         return try queue.read { db in
-            let columns = try requiredColumns(
-                table: "transactions",
-                required: ["date", "amount", "category"],
-                db: db
-            )
+            let columns = try resolveTransactionRowColumns(db: db)
             guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing transaction")
             }
+            if try tableExists("accounts", db: db),
+               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+                throw LocalFirstError.invalidLocalWrite("missing account")
+            }
 
-            let accountColumn = try firstExistingColumn(["acct", "account"], in: columns, table: "transactions")
-            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
-            try validateSimpleTransactionRow(
-                transactionID: trimmedTransactionID,
-                columns: columns,
-                payeeColumn: payeeColumn,
-                db: db
-            )
-            try validateSimpleTransactionReferences(draft: draft, payeeID: payeeID, db: db)
-
+            let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
             let dateValue = try Self.actualDateValue(draft.date)
-            var messages: [ActualSyncDecodedMessage] = [
-                builder.makeMessage(
-                    dataset: "transactions",
-                    row: trimmedTransactionID,
-                    column: accountColumn,
-                    value: .string(draft.accountID)
-                ),
-                builder.makeMessage(
-                    dataset: "transactions",
-                    row: trimmedTransactionID,
-                    column: "date",
-                    value: .int(Int64(dateValue))
-                ),
-                builder.makeMessage(
-                    dataset: "transactions",
-                    row: trimmedTransactionID,
-                    column: "amount",
-                    value: .int(Int64(draft.amountMinorUnits))
-                ),
-                builder.makeMessage(
-                    dataset: "transactions",
-                    row: trimmedTransactionID,
-                    column: payeeColumn,
-                    value: .string(payeeID)
-                ),
-                builder.makeMessage(
-                    dataset: "transactions",
-                    row: trimmedTransactionID,
-                    column: "category",
-                    value: draft.categoryID.map(LocalFirstSyncValue.string) ?? .null
-                )
-            ]
-            if columns.contains("notes") {
-                messages.append(
-                    builder.makeMessage(
-                        dataset: "transactions",
-                        row: trimmedTransactionID,
-                        column: "notes",
-                        value: draft.notes.map(LocalFirstSyncValue.string) ?? .null
-                    )
-                )
+            let mainCategory: String? = (draft.isTransfer || draft.isSplit) ? nil : draft.categoryID
+            if let mainCategory,
+               try tableExists("categories", db: db),
+               try !rowExists(table: "categories", rowID: mainCategory, db: db) {
+                throw LocalFirstError.invalidLocalWrite("missing category")
             }
-            if columns.contains("cleared") {
-                messages.append(
-                    builder.makeMessage(
-                        dataset: "transactions",
-                        row: trimmedTransactionID,
-                        column: "cleared",
-                        value: .bool(draft.cleared)
+
+            var messages: [ActualSyncDecodedMessage] = []
+            var affectedAccounts: Set<String> = [existing.account, draft.accountID]
+            var affectedTransactions: Set<String> = [trimmedTransactionID]
+
+            // Main row.
+            messages += transactionRowMessages(
+                rowID: trimmedTransactionID,
+                accountID: draft.accountID,
+                dateValue: dateValue,
+                amountMinorUnits: draft.amountMinorUnits,
+                payeeID: payeeID,
+                categoryID: mainCategory,
+                notes: draft.notes,
+                cleared: draft.cleared,
+                isParent: draft.isSplit,
+                parentID: nil,
+                isChild: false,
+                transferID: nil,
+                sortOrder: nil,
+                columns: columns,
+                builder: &builder
+            )
+
+            // Split children: diff against existing when the target is a split, else tombstone all.
+            if draft.isSplit {
+                var keptChildIDs = Set<String>()
+                for (index, split) in draft.splits.enumerated() {
+                    if let categoryID = split.categoryID,
+                       try tableExists("categories", db: db),
+                       try !rowExists(table: "categories", rowID: categoryID, db: db) {
+                        throw LocalFirstError.invalidLocalWrite("missing category")
+                    }
+                    let childID: String
+                    let sortOrder: Double?
+                    if let existingID = split.id, existing.childIDs.contains(existingID) {
+                        childID = existingID
+                        sortOrder = nil
+                        keptChildIDs.insert(existingID)
+                    } else {
+                        childID = UUID().uuidString
+                        sortOrder = Double(-(index + 1))
+                    }
+                    affectedTransactions.insert(childID)
+                    messages += transactionRowMessages(
+                        rowID: childID,
+                        accountID: draft.accountID,
+                        dateValue: dateValue,
+                        amountMinorUnits: split.amountMinorUnits,
+                        payeeID: payeeID,
+                        categoryID: split.categoryID,
+                        notes: nil,
+                        cleared: draft.cleared,
+                        isParent: false,
+                        parentID: trimmedTransactionID,
+                        isChild: true,
+                        transferID: nil,
+                        sortOrder: sortOrder,
+                        columns: columns,
+                        builder: &builder
                     )
-                )
+                }
+                for childID in existing.childIDs where !keptChildIDs.contains(childID) {
+                    affectedTransactions.insert(childID)
+                    messages.append(tombstoneMessage(rowID: childID, builder: &builder))
+                }
+            } else {
+                for childID in existing.childIDs {
+                    affectedTransactions.insert(childID)
+                    messages.append(tombstoneMessage(rowID: childID, builder: &builder))
+                }
             }
-            return messages
+
+            // Transfer pairing transition (mirror loot-core onUpdate).
+            messages += try transferTransitionMessages(
+                mainID: trimmedTransactionID,
+                draft: draft,
+                payeeID: payeeID,
+                dateValue: dateValue,
+                existing: existing,
+                columns: columns,
+                affectedAccounts: &affectedAccounts,
+                affectedTransactions: &affectedTransactions,
+                db: db,
+                builder: &builder
+            )
+
+            return TransactionWriteResult(
+                messages: messages,
+                affectedAccountIDs: Array(affectedAccounts),
+                affectedTransactionIDs: Array(affectedTransactions)
+            )
         }
+    }
+
+    private struct ExistingTransactionState {
+        let account: String
+        let isParent: Bool
+        let transferID: String?
+        let childIDs: [String]
+        let pairedAccount: String?
+        let pairedIsChild: Bool
+    }
+
+    private func existingTransactionState(
+        id: String,
+        columns: TransactionRowColumns,
+        db: Database
+    ) throws -> ExistingTransactionState {
+        let account = try String.fetchOne(
+            db,
+            sql: "SELECT \(columns.account) FROM transactions WHERE id = ?",
+            arguments: [id]
+        ) ?? ""
+        var isParent = false
+        if let isParentColumn = columns.isParent,
+           let value = try Int.fetchOne(
+            db,
+            sql: "SELECT \(isParentColumn) FROM transactions WHERE id = ?",
+            arguments: [id]
+           ) {
+            isParent = value != 0
+        }
+        var transferID: String?
+        if let transferColumn = columns.transferID {
+            transferID = try String.fetchOne(
+                db,
+                sql: "SELECT \(transferColumn) FROM transactions WHERE id = ?",
+                arguments: [id]
+            ).flatMap { $0.isEmpty ? nil : $0 }
+        }
+        let childIDs = columns.hasParentID
+            ? try String.fetchAll(
+                db,
+                sql: "SELECT id FROM transactions WHERE parent_id = ? AND \(predicateForLiveRows(columns: columns.all))",
+                arguments: [id]
+            )
+            : []
+
+        var pairedAccount: String?
+        var pairedIsChild = false
+        if let pairedID = transferID {
+            pairedAccount = try String.fetchOne(
+                db,
+                sql: "SELECT \(columns.account) FROM transactions WHERE id = ?",
+                arguments: [pairedID]
+            )
+            if let isChildColumn = columns.isChild,
+               let value = try Int.fetchOne(
+                db,
+                sql: "SELECT \(isChildColumn) FROM transactions WHERE id = ?",
+                arguments: [pairedID]
+               ) {
+                pairedIsChild = value != 0
+            }
+        }
+
+        return ExistingTransactionState(
+            account: account,
+            isParent: isParent,
+            transferID: transferID,
+            childIDs: childIDs,
+            pairedAccount: pairedAccount,
+            pairedIsChild: pairedIsChild
+        )
+    }
+
+    private func transferTransitionMessages(
+        mainID: String,
+        draft: TransactionDraft,
+        payeeID: String,
+        dateValue: Int,
+        existing: ExistingTransactionState,
+        columns: TransactionRowColumns,
+        affectedAccounts: inout Set<String>,
+        affectedTransactions: inout Set<String>,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        // A split parent can never be a transfer, so a split draft always removes any pairing.
+        let nowTransfer = draft.isTransfer && !draft.isSplit
+        var messages: [ActualSyncDecodedMessage] = []
+
+        if nowTransfer {
+            guard let transferColumn = columns.transferID else {
+                throw LocalFirstError.invalidLocalWrite("missing column transactions.transferred_id")
+            }
+            let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
+            let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
+            affectedAccounts.insert(destination)
+            if let oldPaired = existing.pairedAccount {
+                affectedAccounts.insert(oldPaired)
+            }
+
+            if let pairedID = existing.transferID {
+                // Update the paired row: account, payee, notes, negated amount (matches
+                // loot-core updateTransfer, which intentionally leaves paired date/cleared).
+                affectedTransactions.insert(pairedID)
+                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
+                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
+                if columns.hasNotes {
+                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: draft.notes.map(LocalFirstSyncValue.string) ?? .null))
+                }
+                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
+            } else {
+                // Add a new paired row and link the main row to it.
+                let pairedID = UUID().uuidString
+                affectedTransactions.insert(pairedID)
+                messages += transactionRowMessages(
+                    rowID: pairedID,
+                    accountID: destination,
+                    dateValue: dateValue,
+                    amountMinorUnits: -draft.amountMinorUnits,
+                    payeeID: fromPayeeID,
+                    categoryID: nil,
+                    notes: draft.notes,
+                    cleared: false,
+                    isParent: false,
+                    parentID: nil,
+                    isChild: false,
+                    transferID: mainID,
+                    sortOrder: nil,
+                    columns: columns,
+                    builder: &builder
+                )
+                messages.append(builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .string(pairedID)))
+            }
+        } else if let pairedID = existing.transferID, let transferColumn = columns.transferID {
+            // No longer a transfer: unlink the main row and drop/detach the paired row.
+            affectedTransactions.insert(pairedID)
+            if let oldPaired = existing.pairedAccount {
+                affectedAccounts.insert(oldPaired)
+            }
+            if existing.pairedIsChild {
+                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
+                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
+            } else if columns.hasTombstone {
+                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "tombstone", value: .bool(true)))
+            }
+            messages.append(builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .null))
+        }
+
+        return messages
+    }
+
+    private func tombstoneMessage(
+        rowID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) -> ActualSyncDecodedMessage {
+        builder.makeMessage(dataset: "transactions", row: rowID, column: "tombstone", value: .bool(true))
     }
 
     func categorizeTransactionMessages(
@@ -1559,28 +1776,6 @@ final class BudgetDatabase: @unchecked Sendable {
             sql: "SELECT \(payeeColumn) FROM transactions WHERE id = ?",
             arguments: [transactionID]
            ) {
-            try validatePayeeIsNotTransfer(payeeID: payeeID, db: db)
-        }
-    }
-
-    private func validateSimpleTransactionReferences(
-        draft: TransactionDraft,
-        payeeID: String,
-        db: Database
-    ) throws {
-        if try tableExists("accounts", db: db),
-           try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
-            throw LocalFirstError.invalidLocalWrite("missing account")
-        }
-        if let categoryID = draft.categoryID,
-           try tableExists("categories", db: db),
-           try !rowExists(table: "categories", rowID: categoryID, db: db) {
-            throw LocalFirstError.invalidLocalWrite("missing category")
-        }
-        if try tableExists("payees", db: db) {
-            guard try rowExists(table: "payees", rowID: payeeID, db: db) else {
-                return
-            }
             try validatePayeeIsNotTransfer(payeeID: payeeID, db: db)
         }
     }

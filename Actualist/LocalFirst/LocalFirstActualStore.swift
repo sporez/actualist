@@ -493,12 +493,6 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         originalMonth: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        guard !draft.isTransfer else {
-            throw LocalFirstError.unsupportedTransferWrite
-        }
-        guard !draft.isSplit else {
-            throw LocalFirstError.unsupportedSplitWrite
-        }
         guard let nodeID = openedNodeID else {
             throw LocalFirstError.budgetNotOpened
         }
@@ -514,14 +508,14 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             payeeName: draft.payeeName,
             builder: &builder
         )
-        let transactionMessages = try database.updateSimpleTransactionMessages(
+        let update = try database.updateTransactionMessages(
             transactionID: transactionID,
             draft: draft,
             payeeID: payeeResolution.payeeID,
             builder: &builder
         )
 
-        let messages = payeeResolution.messages + transactionMessages
+        let messages = payeeResolution.messages + update.messages
         try await pushLocalMessagesIfPossible(
             database: database,
             messages: messages,
@@ -530,7 +524,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         _ = try database.applyLocalSyncMessages(messages)
         await didUpdate()
 
-        let changedAccounts = Array(Set([originalAccountID, draft.accountID]))
+        let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))
         let changedMonths = Array(Set([originalMonth, draft.month.rawValue]))
         try reloadAfterTransactionMutation(
             database: database,
@@ -543,7 +537,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             changed: ChangedResources(
                 accounts: changedAccounts,
                 months: changedMonths,
-                transactions: [transactionID]
+                transactions: update.affectedTransactionIDs
             )
         )
     }
