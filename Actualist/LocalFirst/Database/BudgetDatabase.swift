@@ -430,6 +430,181 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
+    func resolveOrCreatePayeeMessages(
+        selectedPayeeID: String?,
+        payeeName: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> (payeeID: String, messages: [ActualSyncDecodedMessage]) {
+        if let selectedPayeeID, !selectedPayeeID.isEmpty {
+            return (selectedPayeeID, [])
+        }
+
+        let trimmedName = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing payee name")
+        }
+
+        if let existing = try fetchPayees().first(where: {
+            $0.transferAccount == nil && $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame
+        }), let id = existing.id, !id.isEmpty {
+            return (id, [])
+        }
+
+        let payeeID = UUID().uuidString
+        var messages: [ActualSyncDecodedMessage] = []
+        try queue.read { db in
+            let payeeColumns = try requiredColumns(
+                table: "payees",
+                required: ["name"],
+                db: db
+            )
+            messages.append(
+                builder.makeMessage(
+                    dataset: "payees",
+                    row: payeeID,
+                    column: "name",
+                    value: .string(trimmedName)
+                )
+            )
+            if payeeColumns.contains("tombstone") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "payees",
+                        row: payeeID,
+                        column: "tombstone",
+                        value: .bool(false)
+                    )
+                )
+            }
+
+            if try tableExists("payee_mapping", db: db) {
+                _ = try requiredColumns(table: "payee_mapping", required: ["targetId"], db: db)
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "payee_mapping",
+                        row: payeeID,
+                        column: "targetId",
+                        value: .string(payeeID)
+                    )
+                )
+            }
+        }
+        return (payeeID, messages)
+    }
+
+    func createSimpleTransactionMessages(
+        _ draft: TransactionDraft,
+        transactionID: String,
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        try validateSimpleTransactionDraft(draft)
+        var messages: [ActualSyncDecodedMessage] = []
+        try queue.read { db in
+            let columns = try requiredColumns(
+                table: "transactions",
+                required: ["date", "amount"],
+                db: db
+            )
+            let accountColumn = try firstExistingColumn(["acct", "account"], in: columns, table: "transactions")
+            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
+            let isParentColumn = columns.contains("is_parent") ? "is_parent" : (columns.contains("isParent") ? "isParent" : nil)
+            let dateValue = try Self.actualDateValue(draft.date)
+
+            messages.append(
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: transactionID,
+                    column: accountColumn,
+                    value: .string(draft.accountID)
+                )
+            )
+            messages.append(
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: transactionID,
+                    column: "date",
+                    value: .int(Int64(dateValue))
+                )
+            )
+            messages.append(
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: transactionID,
+                    column: "amount",
+                    value: .int(Int64(draft.amountMinorUnits))
+                )
+            )
+            messages.append(
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: transactionID,
+                    column: payeeColumn,
+                    value: .string(payeeID)
+                )
+            )
+            messages.append(
+                builder.makeMessage(
+                    dataset: "transactions",
+                    row: transactionID,
+                    column: "category",
+                    value: draft.categoryID.map(LocalFirstSyncValue.string) ?? .null
+                )
+            )
+            if columns.contains("notes") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "notes",
+                        value: draft.notes.map(LocalFirstSyncValue.string) ?? .null
+                    )
+                )
+            }
+            if columns.contains("cleared") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "cleared",
+                        value: .bool(draft.cleared)
+                    )
+                )
+            }
+            if columns.contains("tombstone") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "tombstone",
+                        value: .bool(false)
+                    )
+                )
+            }
+            if let isParentColumn {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: isParentColumn,
+                        value: .bool(false)
+                    )
+                )
+            }
+            if columns.contains("parent_id") {
+                messages.append(
+                    builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "parent_id",
+                        value: .null
+                    )
+                )
+            }
+        }
+        return messages
+    }
+
     private func accountBalances() throws -> [String: Int] {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
@@ -887,6 +1062,47 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
+    private func validateSimpleTransactionDraft(_ draft: TransactionDraft) throws {
+        guard !draft.isSplit else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        guard !draft.isTransfer else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        guard !draft.accountID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing account")
+        }
+        guard draft.amountMinorUnits != 0 else {
+            throw LocalFirstError.invalidLocalWrite("missing amount")
+        }
+    }
+
+    private func requiredColumns(
+        table: String,
+        required: [String],
+        db: Database
+    ) throws -> Set<String> {
+        guard try tableExists(table, db: db) else {
+            throw LocalFirstError.invalidLocalWrite("missing \(table) table")
+        }
+        let columns = try columnSet(for: table, db: db)
+        for column in required where !columns.contains(column) {
+            throw LocalFirstError.invalidLocalWrite("missing column \(table).\(column)")
+        }
+        return columns
+    }
+
+    private func firstExistingColumn(
+        _ candidates: [String],
+        in columns: Set<String>,
+        table: String
+    ) throws -> String {
+        for candidate in candidates where columns.contains(candidate) {
+            return candidate
+        }
+        throw LocalFirstError.invalidLocalWrite("missing column \(table).\(candidates.joined(separator: "|"))")
+    }
+
     private func rowExists(table: String, rowID: String, db: Database) throws -> Bool {
         try Row.fetchOne(
             db,
@@ -1114,5 +1330,13 @@ final class BudgetDatabase: @unchecked Sendable {
 
     private func actualAmountToMinorUnits(_ amount: Int) -> Int {
         amount
+    }
+
+    private static func actualDateValue(_ date: Date) throws -> Int {
+        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+        guard let year = components.year, let month = components.month, let day = components.day else {
+            throw LocalFirstError.invalidLocalWrite("invalid transaction date")
+        }
+        return year * 10_000 + month * 100 + day
     }
 }

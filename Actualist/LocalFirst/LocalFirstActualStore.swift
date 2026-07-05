@@ -11,6 +11,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     private var openedBudgetID: String?
     private var openedGroupID: String?
     private var database: BudgetDatabase?
+    private var openedNodeID: String?
+    private var openedServerURLString: String?
     private var cachedBudgets: [ActualBudget] = []
     private var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
     private var accountsByBudget: [String: [AccountDisplay]] = [:]
@@ -38,6 +40,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     func reset() {
         openedBudgetID = nil
         openedGroupID = nil
+        openedNodeID = nil
+        openedServerURLString = nil
         database = nil
         cachedBudgets = []
         remoteFilesByFileID = [:]
@@ -96,6 +100,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         // Already open for this budget: refresh in place instead of reopening the DB
         // connection and re-listing files.
         if openedBudgetID == budget.syncID, database != nil {
+            openedServerURLString = serverURLString
             try await refresh(budgetID: budget.syncID, serverURLString: serverURLString)
             return
         }
@@ -103,6 +108,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         if fileManager.importedDatabaseExists(fileID: fileID),
            let metadata = try fileManager.loadMetadata(fileID: fileID) {
             try await openImportedBudget(fileID: fileID, metadata: metadata)
+            openedServerURLString = serverURLString
             try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
             return
         }
@@ -142,6 +148,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         )
         _ = try fileManager.importBudgetZip(data, remoteFile: remote, metadata: metadata)
         try await openImportedBudget(fileID: fileID, metadata: metadata)
+        openedServerURLString = serverURLString
         try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
     }
 
@@ -162,6 +169,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     /// Does not re-list remote files or reopen the database.
     func refresh(budgetID: String, serverURLString: String) async throws {
         _ = try requireDatabase(for: budgetID)
+        openedServerURLString = serverURLString
         try await pullAndReload(budgetID: budgetID, serverURLString: serverURLString)
     }
 
@@ -408,7 +416,53 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         didCreate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        throw LocalFirstError.unsupportedWrite
+        guard !draft.isTransfer, !draft.isSplit else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+        let database = try requireDatabase(for: budgetID)
+        let transactionID = UUID().uuidString
+        let latestTimestamp = try database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let payeeResolution = try database.resolveOrCreatePayeeMessages(
+            selectedPayeeID: draft.payeeID,
+            payeeName: draft.payeeName,
+            builder: &builder
+        )
+        let transactionMessages = try database.createSimpleTransactionMessages(
+            draft,
+            transactionID: transactionID,
+            payeeID: payeeResolution.payeeID,
+            builder: &builder
+        )
+
+        let messages = payeeResolution.messages + transactionMessages
+        _ = try database.applyLocalSyncMessages(messages)
+        try await pushLocalMessagesIfPossible(
+            database: database,
+            messages: messages,
+            since: latestTimestamp
+        )
+        await didCreate()
+        try reloadAfterTransactionMutation(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: [draft.accountID],
+            monthIDs: [draft.month.rawValue]
+        )
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: [draft.accountID],
+                months: [draft.month.rawValue],
+                transactions: [transactionID]
+            )
+        )
     }
 
     func updateTransactionAndRefresh(
@@ -703,6 +757,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         self.database = database
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID
+        openedNodeID = metadata.nodeID
         try? accountsByBudget[metadata.groupID ?? metadata.cloudFileID] = database.fetchAccountDisplays()
         await syncClient.configure(
             LocalFirstSyncConfiguration(
@@ -731,6 +786,59 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             return
         }
         idsByAccount[transaction.account, default: []].insert(id)
+    }
+
+    private func reloadAfterTransactionMutation(
+        database: BudgetDatabase,
+        budgetID: String,
+        accountIDs: [String],
+        monthIDs: [String]
+    ) throws {
+        monthsByBudget[budgetID] = nil
+        accountsByBudget[budgetID] = try database.fetchAccountDisplays()
+        spendingTransactionsByBudget[budgetID] = try loadedSpendingTransactions(
+            database: database,
+            budgetID: budgetID,
+            query: nil
+        )
+        for accountID in Set(accountIDs) {
+            accountTransactionsByKey[transactionKey(budgetID, accountID)] = try loadedAccountTransactions(
+                database: database,
+                budgetID: budgetID,
+                accountID: accountID,
+                query: nil
+            )
+        }
+        for monthID in Set(monthIDs) {
+            _ = try database.fetchBudgetMonth(month: monthID)
+        }
+    }
+
+    private func pushLocalMessagesIfPossible(
+        database: BudgetDatabase,
+        messages: [ActualSyncDecodedMessage],
+        since: String
+    ) async throws {
+        guard !messages.isEmpty,
+              let serverURLString = openedServerURLString,
+              !serverURLString.isEmpty else {
+            return
+        }
+        let token = keychain.readActualSyncToken()
+        guard !token.isEmpty else {
+            return
+        }
+        guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
+            throw ActualAPIError.invalidURL
+        }
+        let client = ActualServerSyncClient(baseURL: baseURL)
+        _ = try await syncClient.pushAndPull(
+            database: database,
+            client: client,
+            token: token,
+            messages: messages,
+            since: since
+        )
     }
 
     /// Pull remote CRDT messages, apply them, then unconditionally invalidate and reload

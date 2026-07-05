@@ -634,6 +634,91 @@ struct LocalFirstActualStoreTests {
         #expect(loaded.month.month == "2026-07")
     }
 
+    @Test func createTransactionLocallyWithExistingPayeeRefreshesCaches() async throws {
+        let store = try await makeOpenedWritableStore()
+        var didCreate = false
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 8),
+            amountMinorUnits: -450,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: "morning",
+            cleared: true,
+            isTransfer: false
+        )
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {
+            didCreate = true
+        }
+
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
+        #expect(didCreate)
+        #expect(result.ok)
+        #expect(result.changed.accounts == ["checking"])
+        #expect(result.changed.months == ["2026-07"])
+        #expect(created.amount == -450)
+        #expect(created.payee == "coffee")
+        #expect(created.payeeName == "Coffee Shop")
+        #expect(created.category == "groceries")
+        #expect(created.notes == "morning")
+        #expect(created.cleared == .bool(true))
+        #expect(loaded.balance == -12_795)
+    }
+
+    @Test func createTransactionLocallyCreatesTypedNewPayee() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 9),
+            amountMinorUnits: -725,
+            payeeID: nil,
+            payeeName: "New Cafe",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
+        let options = try await store.editorOptions(budgetID: "group-1", month: "2026-07")
+        let newPayee = try #require(options.payees.first { $0.name == "New Cafe" })
+        #expect(created.payee == newPayee.id)
+        #expect(created.payeeName == "New Cafe")
+        #expect(created.category == nil)
+        #expect(created.cleared == .bool(false))
+        #expect(loaded.payeeNames[newPayee.id ?? ""] == "New Cafe")
+    }
+
+    @Test func createTransactionLocallyReusesTypedPayeeNameCaseInsensitively() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 10),
+            amountMinorUnits: -900,
+            payeeID: nil,
+            payeeName: "coffee shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
+        let options = try await store.editorOptions(budgetID: "group-1", month: "2026-07")
+        #expect(created.payee == "coffee")
+        #expect(created.payeeName == "Coffee Shop")
+        #expect(options.payees.filter { $0.name.caseInsensitiveCompare("coffee shop") == .orderedSame }.count == 1)
+    }
+
     private func makeBudgetMonth(
         toBudget: Int,
         groups: [BudgetMonthCategoryGroup] = []
@@ -719,6 +804,61 @@ struct LocalFirstActualStoreTests {
                 account: UUID().uuidString
             )
         )
+    }
+
+    private func makeOpenedWritableStore() async throws -> LocalFirstActualStore {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE transactions ADD COLUMN description TEXT;
+            ALTER TABLE transactions ADD COLUMN notes TEXT;
+            ALTER TABLE transactions ADD COLUMN cleared INTEGER;
+            CREATE TABLE payees (id TEXT PRIMARY KEY, name TEXT, transfer_acct TEXT, tombstone INTEGER);
+            CREATE TABLE payee_mapping (id TEXT PRIMARY KEY, targetId TEXT);
+            INSERT INTO payees VALUES ('coffee', 'Coffee Shop', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('coffee', 'coffee');
+            """)
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let fileID = "file-1"
+        let budgetDirectory = fileManager.budgetDirectory(fileID: fileID)
+        try FileManager.default.createDirectory(at: budgetDirectory, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: fixtureURL, to: fileManager.databaseURL(fileID: fileID))
+        let metadata = LocalFirstBudgetMetadata(
+            localBudgetID: fileID,
+            cloudFileID: fileID,
+            groupID: "group-1",
+            budgetName: "Writable Budget",
+            encryptionKeyID: nil,
+            nodeID: "node-1"
+        )
+        try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
+        let store = LocalFirstActualStore(
+            keychain: KeychainStore(
+                service: "com.sporez.actualist.tests",
+                account: UUID().uuidString
+            ),
+            fileManager: fileManager
+        )
+        let budget = ActualBudget(
+            budgetID: fileID,
+            cloudFileId: fileID,
+            groupId: "group-1",
+            name: "Writable Budget",
+            state: nil
+        )
+        _ = try await store.openCachedBudget(budget)
+        return store
+    }
+
+    private func makeDate(year: Int, month: Int, day: Int) throws -> Date {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = 12
+        return try #require(components.date)
     }
 
     private func makeSQLiteFixture(extraSQL: String = "") throws -> URL {
