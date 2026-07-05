@@ -174,13 +174,28 @@ check.
 - [x] Collapse 3 write flags → `allowsLocalFirstWrites`; rename setting w/ fallback.
 - [x] Capabilities reference single flag; Settings toggle/copy + tests updated.
 
-**Phase T1 — constants + allocation core**
-- [ ] `readCategoryGoalDefs` + decode model.
-- [ ] Engine skeleton: context, priorities, remainder, limits, modes.
-- [ ] `runSimple` / `runCopy` / `runPeriodic`.
-- [ ] `applyBudgetTemplateAndRefresh` wired; `canApplyBudgetTemplates` → flag.
-- [ ] Refusal guard for unported types.
-- [ ] Unit tests + Actual-web parity for T1.
+**Phase T1a — `simple` fixed amount** (sha 37a6f45)
+- [x] `BudgetTemplateEntry`/`Limit` decode `goal_def` (in `LocalFirstModels.swift`).
+- [x] `budgetTemplateMessages`: scope (whole-month non-income / targeted), modes
+      (overwrite force vs fillEmpty only-zero), writes via existing assign primitive.
+- [x] `runSimple` equivalent: priority-0 `simple` with `monthly`, no limit → summed
+      minor units (`amount * 100`, 2-decimal money model).
+- [x] `applyBudgetTemplateAndRefresh` wired; `canApplyBudgetTemplates` → write gate.
+- [x] Refusal guard: any category that WOULD be written using a non-ported
+      type/feature throws `unsupportedTemplate` and writes nothing.
+- [x] Unit tests (category overwrite, fill-empty skip, whole-month + targeted refusal).
+- [ ] Actual-web parity pass for fixed-amount templates (owner: user).
+
+T1a notes: currency decimals hardcoded to 2 (revisit non-2-decimal currencies);
+goal-directive entries ignored for budget (goals set in T4); whole-month apply
+refuses if ANY would-be-written category is unsupported (parity-safe but coarse —
+category-targeted applies still work per-category).
+
+**Phase T1b — allocation core (remaining constants)**
+- [ ] `copy` (prior-month budget) + `periodic`.
+- [ ] Non-zero priorities + the available-clamp loop.
+- [ ] `remainder` (weight split) + `limit`/"up to" (hold/carryover).
+- [ ] Shrink the refusal guard as each lands; tests + parity.
 
 **Phase T2 — aggregates**
 - [ ] `runAverage` (+ N-month spend query).
