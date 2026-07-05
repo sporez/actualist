@@ -151,6 +151,26 @@ struct TransactionEditorViewModelTests {
         #expect(model.splitRows.isEmpty)
     }
 
+    @Test func selectingTransferPayeeUsesLinkedAccountNameAndEnablesSave() {
+        let model = TransactionEditorViewModel()
+        model.accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "credit", name: "Credit Card", offbudget: false, closed: false)
+        ]
+        model.selectedAccountID = "checking"
+        model.setAmountInput("1000")
+        let toCredit = ActualPayee(id: "xfer-credit", name: "", category: nil, transferAccount: "credit")
+        model.payees = [toCredit]
+
+        model.selectPayee(toCredit)
+
+        // Transfer payee's empty name resolves to the linked account name, so it reads as
+        // selected and Save enables.
+        #expect(model.payeeName == "Credit Card")
+        #expect(model.selectedPayeeName == "Transfer: Credit Card")
+        #expect(model.canSave)
+    }
+
     @Test func crossBudgetTransferAllowsCategoryButSameBudgetDoesNot() {
         let model = TransactionEditorViewModel()
         model.accounts = [

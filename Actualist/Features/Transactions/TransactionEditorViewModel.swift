@@ -369,7 +369,9 @@ final class TransactionEditorViewModel {
 
     func selectPayee(_ payee: ActualPayee) {
         selectedPayeeID = payee.id
-        payeeName = payee.name
+        // Transfer payees have an empty name; their display name is the linked account's name.
+        // Use the resolved account name so the payee reads as selected and Save can enable.
+        payeeName = transferAccountName(for: payee) ?? payee.name
         if payee.transferAccount != nil {
             // A transfer is never a split, but a cross-budget transfer may keep its category.
             splitRows = []
