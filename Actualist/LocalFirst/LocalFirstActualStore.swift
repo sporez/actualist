@@ -3,7 +3,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, TransactionRepositoryProtocol {
+final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol {
     private let keychain: KeychainStore
     private let fileManager: BudgetFileManager
     private let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport

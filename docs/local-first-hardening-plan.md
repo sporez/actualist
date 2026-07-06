@@ -81,6 +81,11 @@ until there is an explicit opt-in setting.
 
 ## Phase 5: Documentation And Drift
 
+Status: complete. Stale template-gate copy now reflects fixed-amount template
+support, and `docs/local-first-current-write-model.md` documents the local
+transaction-first write flow, durable outbox, sync retry behavior, remote merge
+model, and current limitations.
+
 1. Update stale comments around budget-template support.
 2. Document the write model:
    - Local transaction first.
@@ -90,6 +95,12 @@ until there is an explicit opt-in setting.
 3. Add a short developer note for current limitations.
 
 ## Phase 6: File Splits
+
+Status: complete for the first mechanical split pass. The worst view/test
+support clusters now live in companion files, and the Xcode project includes the
+new sources. `BudgetDatabase.swift` still deserves deeper read/write/template
+extension extraction, but that is now a focused follow-up rather than mixed with
+hardening and warning cleanup.
 
 Split large files after behavior fixes so review stays clean:
 

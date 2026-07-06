@@ -392,7 +392,7 @@ final class AppState {
     }
 
     private func selectedBudgetFromSettings() -> ActualBudget? {
-        guard let budgetID = settings.selectedBudgetID,
+        guard settings.selectedBudgetID != nil,
               let fileID = settings.selectedLocalFirstFileID else {
             return nil
         }

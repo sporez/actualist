@@ -12,42 +12,6 @@ struct LocalFirstActualStoreTests {
         let budget: ActualBudget
     }
 
-    private enum TestSyncError: Error, Equatable {
-        case failed
-    }
-
-    private actor RecordingSyncTransport: ActualSyncTransport {
-        private var shouldFail = false
-        private var capturedMessageCounts: [Int] = []
-        private var capturedSinceValues: [String] = []
-
-        init(shouldFail: Bool = false) {
-            self.shouldFail = shouldFail
-        }
-
-        func sync(data: Data, token: String) async throws -> Data {
-            if shouldFail {
-                throw TestSyncError.failed
-            }
-
-            let request = try ActualSync_SyncRequest(serializedData: data)
-            capturedMessageCounts.append(request.messages.count)
-            capturedSinceValues.append(request.since)
-
-            var response = ActualSync_SyncResponse()
-            response.messages = []
-            return try response.serializedData()
-        }
-
-        func messageCounts() -> [Int] {
-            capturedMessageCounts
-        }
-
-        func sinceValues() -> [String] {
-            capturedSinceValues
-        }
-    }
-
     @Test func settingsDecodeIgnoresRetiredRestKeysAndKeepsLocalFirst() throws {
         // Old persisted settings may still carry retired REST keys; they must be ignored while
         // local-first fields decode normally.
@@ -444,7 +408,7 @@ struct LocalFirstActualStoreTests {
         )
 
         let envelope = try LocalFirstSyncMessageBuilder.envelope(for: message)
-        let decoded = try ActualSync_Message(serializedData: envelope.content)
+        let decoded = try ActualSync_Message(serializedBytes: envelope.content)
 
         #expect(envelope.timestamp == message.timestamp)
         #expect(envelope.isEncrypted == false)
@@ -466,7 +430,7 @@ struct LocalFirstActualStoreTests {
         wireData.append(contentsOf: [0x1a, UInt8(data.count)])
         wireData.append(data)
 
-        let encryptedData = try ActualSync_EncryptedData(serializedData: wireData)
+        let encryptedData = try ActualSync_EncryptedData(serializedBytes: wireData)
 
         #expect(encryptedData.iv == iv)
         #expect(encryptedData.authTag == authTag)
@@ -490,7 +454,7 @@ struct LocalFirstActualStoreTests {
             for: message,
             encryptionContext: context
         )
-        let encryptedData = try ActualSync_EncryptedData(serializedData: envelope.content)
+        let encryptedData = try ActualSync_EncryptedData(serializedBytes: envelope.content)
         let decrypted = try ActualBudgetCrypto.decrypt(
             ActualEncryptedData(
                 data: encryptedData.data,
@@ -499,7 +463,7 @@ struct LocalFirstActualStoreTests {
             ),
             keyData: context.keyData
         )
-        let decoded = try ActualSync_Message(serializedData: decrypted)
+        let decoded = try ActualSync_Message(serializedBytes: decrypted)
 
         #expect(envelope.timestamp == message.timestamp)
         #expect(envelope.isEncrypted)
@@ -1168,7 +1132,7 @@ struct LocalFirstActualStoreTests {
         ) {}
         let pendingCount = try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
-        await #expect(throws: TestSyncError.failed) {
+        await #expect(throws: LocalFirstTestSyncError.failed) {
             try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
         }
         let fileID = try #require(bundle.budget.localFirstFileID)

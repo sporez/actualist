@@ -59,6 +59,11 @@
 		010000000000000000000037 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000002 /* SwiftProtobuf */; };
 		010000000000000000000038 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000003 /* ZIPFoundation */; };
 		010000000000000000000039 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000001 /* GRDB */; };
+		01000000000000000000003E /* BudgetDraftModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000003E /* BudgetDraftModels.swift */; };
+		01000000000000000000003F /* BudgetViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000003F /* BudgetViewSupport.swift */; };
+		010000000000000000000040 /* AccountTransactionPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000040 /* AccountTransactionPresentation.swift */; };
+		010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000041 /* BudgetDatabaseModels.swift */; };
+		010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000042 /* LocalFirstTestSupport.swift */; };
 		28C36EBD2FE377C800A9F4A8 /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* icon.icon */; };
 		28C36EC02FE377C800A9F4A8 /* icon_blue.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */; };
 		28C36EC22FE377C800A9F4A8 /* icon_orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC12FE377C800A9F4A8 /* icon_orange.icon */; };
@@ -127,6 +132,11 @@
 		020000000000000000000034 /* LocalFirstActualStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStore.swift; sourceTree = "<group>"; };
 		020000000000000000000035 /* LocalFirstActualStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreTests.swift; sourceTree = "<group>"; };
 		020000000000000000000037 /* BackendCapabilitiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendCapabilitiesTests.swift; sourceTree = "<group>"; };
+		02000000000000000000003E /* BudgetDraftModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDraftModels.swift; sourceTree = "<group>"; };
+		02000000000000000000003F /* BudgetViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewSupport.swift; sourceTree = "<group>"; };
+		020000000000000000000040 /* AccountTransactionPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionPresentation.swift; sourceTree = "<group>"; };
+		020000000000000000000041 /* BudgetDatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDatabaseModels.swift; sourceTree = "<group>"; };
+		020000000000000000000042 /* LocalFirstTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstTestSupport.swift; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_blue.icon; sourceTree = "<group>"; };
 		28C36EC12FE377C800A9F4A8 /* icon_orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_orange.icon; sourceTree = "<group>"; };
@@ -262,6 +272,7 @@
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
 				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
 				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
+				020000000000000000000042 /* LocalFirstTestSupport.swift */,
 				020000000000000000000037 /* BackendCapabilitiesTests.swift */,
 			);
 			path = ActualistTests;
@@ -298,7 +309,9 @@
 			isa = PBXGroup;
 			children = (
 				02000000000000000000000E /* BudgetView.swift */,
+				02000000000000000000003F /* BudgetViewSupport.swift */,
 				020000000000000000000019 /* BudgetViewModel.swift */,
+				02000000000000000000003E /* BudgetDraftModels.swift */,
 				020000000000000000000029 /* UncategorizedTransactionsView.swift */,
 				02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */,
 			);
@@ -318,6 +331,7 @@
 			isa = PBXGroup;
 			children = (
 				020000000000000000000010 /* AccountTransactionsView.swift */,
+				020000000000000000000040 /* AccountTransactionPresentation.swift */,
 				02000000000000000000001D /* TransactionEditorView.swift */,
 				02000000000000000000001E /* TransactionEditorViewModel.swift */,
 			);
@@ -379,6 +393,7 @@
 			children = (
 				020000000000000000000030 /* BudgetFileManager.swift */,
 				020000000000000000000031 /* BudgetDatabase.swift */,
+				020000000000000000000041 /* BudgetDatabaseModels.swift */,
 			);
 			path = Database;
 			sourceTree = "<group>";
@@ -531,9 +546,11 @@
 				01000000000000000000000D /* SettingsView.swift in Sources */,
 				28C36EC42FE377C800A9F4A8 /* AppIcon.swift in Sources */,
 				01000000000000000000000E /* BudgetView.swift in Sources */,
+				01000000000000000000003F /* BudgetViewSupport.swift in Sources */,
 				01000000000000000000000F /* AccountsView.swift in Sources */,
 				010000000000000000000024 /* AddAccountViewModel.swift in Sources */,
 				010000000000000000000010 /* AccountTransactionsView.swift in Sources */,
+				010000000000000000000040 /* AccountTransactionPresentation.swift in Sources */,
 				010000000000000000000011 /* Money.swift in Sources */,
 				010000000000000000000014 /* CategoryNameParts.swift in Sources */,
 				010000000000000000000015 /* BudgetRepository.swift in Sources */,
@@ -545,12 +562,14 @@
 				01000000000000000000002F /* ActualServerSyncClient.swift in Sources */,
 				010000000000000000000030 /* BudgetFileManager.swift in Sources */,
 				010000000000000000000031 /* BudgetDatabase.swift in Sources */,
+				010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */,
 				010000000000000000000032 /* SyncClient.swift in Sources */,
 				01000000000000000000003C /* LocalFirstSyncMessageBuilder.swift in Sources */,
 				010000000000000000000033 /* Sync.pb.swift in Sources */,
 				010000000000000000000034 /* LocalFirstActualStore.swift in Sources */,
 				010000000000000000000023 /* TransactionGrouping.swift in Sources */,
 				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
+				01000000000000000000003E /* BudgetDraftModels.swift in Sources */,
 				010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */,
 				010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */,
 				010000000000000000000017 /* OnboardingViewModel.swift in Sources */,
@@ -569,6 +588,7 @@
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
 				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
 				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,
+				010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */,
 				01000000000000000000003B /* BackendCapabilitiesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

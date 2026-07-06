@@ -37,7 +37,7 @@ actor SyncClient {
         request.since = try database.latestSyncTimestamp()
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
-        let response = try ActualSync_SyncResponse(serializedData: responseData)
+        let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let messages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
         return try database.applyRemoteSyncMessages(messages)
     }
@@ -68,7 +68,7 @@ actor SyncClient {
         }
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
-        let response = try ActualSync_SyncResponse(serializedData: responseData)
+        let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let remoteMessages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
         let appliedCount = try database.applyRemoteSyncMessages(remoteMessages)
 
@@ -88,7 +88,7 @@ actor SyncClient {
                 guard let encryptionContext else {
                     throw LocalFirstError.encryptedBudgetRequiresPassword
                 }
-                let encryptedData = try ActualSync_EncryptedData(serializedData: envelope.content)
+                let encryptedData = try ActualSync_EncryptedData(serializedBytes: envelope.content)
                 messageData = try ActualBudgetCrypto.decrypt(
                     ActualEncryptedData(
                         data: encryptedData.data,
@@ -100,7 +100,7 @@ actor SyncClient {
             } else {
                 messageData = envelope.content
             }
-            let message = try ActualSync_Message(serializedData: messageData)
+            let message = try ActualSync_Message(serializedBytes: messageData)
             return ActualSyncDecodedMessage(
                 timestamp: envelope.timestamp,
                 dataset: message.dataset,
