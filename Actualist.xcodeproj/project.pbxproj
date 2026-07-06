@@ -64,6 +64,11 @@
 		010000000000000000000040 /* AccountTransactionPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000040 /* AccountTransactionPresentation.swift */; };
 		010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000041 /* BudgetDatabaseModels.swift */; };
 		010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000042 /* LocalFirstTestSupport.swift */; };
+		010000000000000000000043 /* BudgetDatabase+Reads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000043 /* BudgetDatabase+Reads.swift */; };
+		010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000044 /* BudgetDatabase+Sync.swift */; };
+		010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */; };
+		010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */; };
+		010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000047 /* BudgetDatabase+Schema.swift */; };
 		28C36EBD2FE377C800A9F4A8 /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* icon.icon */; };
 		28C36EC02FE377C800A9F4A8 /* icon_blue.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */; };
 		28C36EC22FE377C800A9F4A8 /* icon_orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC12FE377C800A9F4A8 /* icon_orange.icon */; };
@@ -137,6 +142,11 @@
 		020000000000000000000040 /* AccountTransactionPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionPresentation.swift; sourceTree = "<group>"; };
 		020000000000000000000041 /* BudgetDatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDatabaseModels.swift; sourceTree = "<group>"; };
 		020000000000000000000042 /* LocalFirstTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstTestSupport.swift; sourceTree = "<group>"; };
+		020000000000000000000043 /* BudgetDatabase+Reads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Reads.swift"; sourceTree = "<group>"; };
+		020000000000000000000044 /* BudgetDatabase+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Sync.swift"; sourceTree = "<group>"; };
+		020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionWrites.swift"; sourceTree = "<group>"; };
+		020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BudgetWrites.swift"; sourceTree = "<group>"; };
+		020000000000000000000047 /* BudgetDatabase+Schema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Schema.swift"; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_blue.icon; sourceTree = "<group>"; };
 		28C36EC12FE377C800A9F4A8 /* icon_orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_orange.icon; sourceTree = "<group>"; };
@@ -394,6 +404,11 @@
 				020000000000000000000030 /* BudgetFileManager.swift */,
 				020000000000000000000031 /* BudgetDatabase.swift */,
 				020000000000000000000041 /* BudgetDatabaseModels.swift */,
+				020000000000000000000043 /* BudgetDatabase+Reads.swift */,
+				020000000000000000000044 /* BudgetDatabase+Sync.swift */,
+				020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */,
+				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
+				020000000000000000000047 /* BudgetDatabase+Schema.swift */,
 			);
 			path = Database;
 			sourceTree = "<group>";
@@ -563,6 +578,11 @@
 				010000000000000000000030 /* BudgetFileManager.swift in Sources */,
 				010000000000000000000031 /* BudgetDatabase.swift in Sources */,
 				010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */,
+				010000000000000000000043 /* BudgetDatabase+Reads.swift in Sources */,
+				010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */,
+				010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */,
+				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
+				010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */,
 				010000000000000000000032 /* SyncClient.swift in Sources */,
 				01000000000000000000003C /* LocalFirstSyncMessageBuilder.swift in Sources */,
 				010000000000000000000033 /* Sync.pb.swift in Sources */,

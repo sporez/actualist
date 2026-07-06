@@ -1,0 +1,444 @@
+import Foundation
+import GRDB
+
+extension BudgetDatabase {
+
+    func latestSyncTimestamp() throws -> String {
+        try queue.read { db in
+            guard try tableExists("messages_crdt", db: db) else {
+                return "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+            }
+            let row = try Row.fetchOne(db, sql: "SELECT MAX(timestamp) AS timestamp FROM messages_crdt")
+            return row?["timestamp"] as String? ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        }
+    }
+
+    func applyRemoteSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
+        guard !messages.isEmpty else {
+            return 0
+        }
+
+        return try queue.write { db in
+            guard try tableExists("messages_crdt", db: db) else {
+                return 0
+            }
+
+            var appliedCount = 0
+            let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
+            var insertedRows = Set<String>()
+
+            for message in sortedMessages {
+                guard try tableExists(message.dataset, db: db) else {
+                    continue
+                }
+
+                if try hasSameOrNewerMessage(message, db: db) {
+                    continue
+                }
+
+                let rowWasInserted = insertedRows.contains(message.dataset + message.row)
+                let hasRow: Bool
+                if rowWasInserted {
+                    hasRow = true
+                } else {
+                    hasRow = try rowExists(table: message.dataset, rowID: message.row, db: db)
+                }
+                let value = try deserializeSyncValue(message.serializedValue)
+                if message.dataset != "prefs" {
+                    try apply(message: message, value: value, rowExists: hasRow, db: db)
+                    insertedRows.insert(message.dataset + message.row)
+                }
+                try insertCRDTMessage(message, db: db)
+                appliedCount += 1
+            }
+
+            return appliedCount
+        }
+    }
+
+    func applyLocalSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
+        try applyLocalSyncMessages(messages, outboxBaseTimestamp: nil)
+    }
+
+    func applyLocalSyncMessagesAndEnqueue(
+        _ messages: [ActualSyncDecodedMessage],
+        baseTimestamp: String
+    ) throws -> Int {
+        try applyLocalSyncMessages(messages, outboxBaseTimestamp: baseTimestamp)
+    }
+
+    func applyLocalSyncMessages(
+        _ messages: [ActualSyncDecodedMessage],
+        outboxBaseTimestamp: String?
+    ) throws -> Int {
+        guard !messages.isEmpty else {
+            return 0
+        }
+
+        return try queue.write { db in
+            guard try tableExists("messages_crdt", db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
+            }
+            if outboxBaseTimestamp != nil {
+                try ensureLocalSyncOutbox(db)
+            }
+
+            var appliedCount = 0
+            let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
+            var insertedRows = Set<String>()
+
+            for message in sortedMessages {
+                try validateLocalMessage(message, db: db)
+
+                if try hasSameOrNewerMessage(message, db: db) {
+                    continue
+                }
+
+                let rowWasInserted = insertedRows.contains(message.dataset + message.row)
+                let hasRow: Bool
+                if rowWasInserted {
+                    hasRow = true
+                } else {
+                    hasRow = try rowExists(table: message.dataset, rowID: message.row, db: db)
+                }
+
+                let value = try deserializeSyncValue(message.serializedValue)
+                try apply(message: message, value: value, rowExists: hasRow, db: db)
+                insertedRows.insert(message.dataset + message.row)
+                try insertCRDTMessage(message, db: db)
+                if let outboxBaseTimestamp {
+                    try insertLocalSyncOutboxMessage(message, baseTimestamp: outboxBaseTimestamp, db: db)
+                }
+                appliedCount += 1
+            }
+
+            return appliedCount
+        }
+    }
+
+    func pendingLocalSyncMessageCount() throws -> Int {
+        try queue.read { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return 0
+            }
+            return try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM actualist_outbox") ?? 0
+        }
+    }
+
+    func pendingLocalSyncMessages(limit: Int = 500) throws -> [PendingLocalSyncMessage] {
+        try queue.read { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return []
+            }
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT timestamp, dataset, row, column, value, base_timestamp,
+                           attempt_count, last_error
+                    FROM actualist_outbox
+                    ORDER BY timestamp ASC
+                    LIMIT ?
+                    """,
+                arguments: [limit]
+            )
+            return rows.map { row in
+                PendingLocalSyncMessage(
+                    message: ActualSyncDecodedMessage(
+                        timestamp: row["timestamp"] ?? "",
+                        dataset: row["dataset"] ?? "",
+                        row: row["row"] ?? "",
+                        column: row["column"] ?? "",
+                        serializedValue: row["value"] ?? ""
+                    ),
+                    baseTimestamp: row["base_timestamp"] ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000",
+                    attemptCount: row["attempt_count"] ?? 0,
+                    lastError: row["last_error"]
+                )
+            }
+        }
+    }
+
+    func deletePendingLocalSyncMessages(_ messages: [PendingLocalSyncMessage]) throws {
+        guard !messages.isEmpty else {
+            return
+        }
+        try queue.write { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return
+            }
+            for pending in messages {
+                try db.execute(
+                    sql: "DELETE FROM actualist_outbox WHERE timestamp = ?",
+                    arguments: [pending.message.timestamp]
+                )
+            }
+        }
+    }
+
+    func markPendingLocalSyncMessagesFailed(_ messages: [PendingLocalSyncMessage], error: Error) throws {
+        guard !messages.isEmpty else {
+            return
+        }
+        let message = error.localizedDescription
+        try queue.write { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return
+            }
+            for pending in messages {
+                try db.execute(
+                    sql: """
+                        UPDATE actualist_outbox
+                        SET attempt_count = attempt_count + 1,
+                            last_attempt_at = ?,
+                            last_error = ?
+                        WHERE timestamp = ?
+                        """,
+                    arguments: [Self.outboxDateString(Date()), message, pending.message.timestamp]
+                )
+            }
+        }
+    }
+
+    func hasSameOrNewerMessage(_ message: ActualSyncDecodedMessage, db: Database) throws -> Bool {
+        let row = try Row.fetchOne(
+            db,
+            sql: """
+                SELECT timestamp FROM messages_crdt
+                WHERE dataset = ? AND row = ? AND column = ? AND timestamp >= ?
+                ORDER BY timestamp ASC
+                LIMIT 1
+                """,
+            arguments: [message.dataset, message.row, message.column, message.timestamp]
+        )
+        return row != nil
+    }
+
+    func validateLocalMessage(_ message: ActualSyncDecodedMessage, db: Database) throws {
+        guard try tableExists(message.dataset, db: db) else {
+            throw LocalFirstError.invalidLocalWrite("unknown dataset \(message.dataset)")
+        }
+        let columns = try columnSet(for: message.dataset, db: db)
+        guard columns.contains(message.column) else {
+            throw LocalFirstError.invalidLocalWrite("unknown column \(message.dataset).\(message.column)")
+        }
+    }
+
+    func apply(
+        message: ActualSyncDecodedMessage,
+        value: ActualSyncSQLiteValue,
+        rowExists: Bool,
+        db: Database
+    ) throws {
+        if message.dataset == "zero_budgets",
+           try !columnSet(for: "zero_budgets", db: db).contains("id") {
+            try applyZeroBudgetMessageWithoutID(message: message, value: value, rowExists: rowExists, db: db)
+            return
+        }
+
+        let table = quotedIdentifier(message.dataset)
+        let column = quotedIdentifier(message.column)
+        if rowExists {
+            switch value {
+            case .null:
+                try db.execute(
+                    sql: "UPDATE \(table) SET \(column) = NULL WHERE id = ?",
+                    arguments: [message.row]
+                )
+            case .int(let value):
+                try db.execute(
+                    sql: "UPDATE \(table) SET \(column) = ? WHERE id = ?",
+                    arguments: [value, message.row]
+                )
+            case .double(let value):
+                try db.execute(
+                    sql: "UPDATE \(table) SET \(column) = ? WHERE id = ?",
+                    arguments: [value, message.row]
+                )
+            case .string(let value):
+                try db.execute(
+                    sql: "UPDATE \(table) SET \(column) = ? WHERE id = ?",
+                    arguments: [value, message.row]
+                )
+            }
+        } else {
+            switch value {
+            case .null:
+                try db.execute(
+                    sql: "INSERT INTO \(table) (id, \(column)) VALUES (?, NULL)",
+                    arguments: [message.row]
+                )
+            case .int(let value):
+                try db.execute(
+                    sql: "INSERT INTO \(table) (id, \(column)) VALUES (?, ?)",
+                    arguments: [message.row, value]
+                )
+            case .double(let value):
+                try db.execute(
+                    sql: "INSERT INTO \(table) (id, \(column)) VALUES (?, ?)",
+                    arguments: [message.row, value]
+                )
+            case .string(let value):
+                try db.execute(
+                    sql: "INSERT INTO \(table) (id, \(column)) VALUES (?, ?)",
+                    arguments: [message.row, value]
+                )
+            }
+        }
+    }
+
+    func applyZeroBudgetMessageWithoutID(
+        message: ActualSyncDecodedMessage,
+        value: ActualSyncSQLiteValue,
+        rowExists: Bool,
+        db: Database
+    ) throws {
+        let columns = try columnSet(for: "zero_budgets", db: db)
+        let key = try zeroBudgetKey(from: message.row)
+        let column = quotedIdentifier(message.column)
+        if rowExists {
+            switch value {
+            case .null:
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = NULL WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [key.monthID, key.categoryID]
+                )
+            case .int(let value):
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = ? WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [value, key.monthID, key.categoryID]
+                )
+            case .double(let value):
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = ? WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [value, key.monthID, key.categoryID]
+                )
+            case .string(let value):
+                try db.execute(
+                    sql: "UPDATE zero_budgets SET \(column) = ? WHERE \(normalizedMonthExpression("month")) = ? AND category = ?",
+                    arguments: [value, key.monthID, key.categoryID]
+                )
+            }
+            return
+        }
+
+        var insertColumns = ["month", "category"]
+        var arguments: [DatabaseValueConvertible] = [key.monthValue, key.categoryID]
+        if columns.contains("carryover") {
+            insertColumns.append("carryover")
+            arguments.append(0)
+        }
+        if message.column != "month", message.column != "category", message.column != "carryover" {
+            insertColumns.append(message.column)
+            arguments.append(databaseValue(for: value))
+        }
+
+        let quotedColumns = insertColumns.map(quotedIdentifier).joined(separator: ", ")
+        let placeholders = Array(repeating: "?", count: insertColumns.count).joined(separator: ", ")
+        try db.execute(
+            sql: "INSERT INTO zero_budgets (\(quotedColumns)) VALUES (\(placeholders))",
+            arguments: StatementArguments(arguments)
+        )
+    }
+
+    func databaseValue(for value: ActualSyncSQLiteValue) -> DatabaseValueConvertible {
+        switch value {
+        case .null:
+            return DatabaseValue.null
+        case .int(let value):
+            return value
+        case .double(let value):
+            return value
+        case .string(let value):
+            return value
+        }
+    }
+
+    func insertCRDTMessage(_ message: ActualSyncDecodedMessage, db: Database) throws {
+        try db.execute(
+            sql: """
+                INSERT INTO messages_crdt (timestamp, dataset, row, column, value)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+            arguments: [
+                message.timestamp,
+                message.dataset,
+                message.row,
+                message.column,
+                message.serializedValue
+            ]
+        )
+    }
+
+    func ensureLocalSyncOutbox(_ db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE IF NOT EXISTS actualist_outbox (
+                timestamp TEXT PRIMARY KEY,
+                dataset TEXT NOT NULL,
+                row TEXT NOT NULL,
+                column TEXT NOT NULL,
+                value TEXT NOT NULL,
+                base_timestamp TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                last_attempt_at TEXT,
+                last_error TEXT
+            )
+            """)
+    }
+
+    func insertLocalSyncOutboxMessage(
+        _ message: ActualSyncDecodedMessage,
+        baseTimestamp: String,
+        db: Database
+    ) throws {
+        try db.execute(
+            sql: """
+                INSERT OR REPLACE INTO actualist_outbox
+                    (timestamp, dataset, row, column, value, base_timestamp, created_at,
+                     attempt_count, last_attempt_at, last_error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL)
+                """,
+            arguments: [
+                message.timestamp,
+                message.dataset,
+                message.row,
+                message.column,
+                message.serializedValue,
+                baseTimestamp,
+                Self.outboxDateString(Date())
+            ]
+        )
+    }
+
+    static func outboxDateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+        return formatter.string(from: date)
+    }
+
+    func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {
+        guard let type = value.first else {
+            throw LocalFirstError.invalidDownloadedBudget
+        }
+        let payload = String(value.dropFirst(2))
+        switch type {
+        case "0":
+            return .null
+        case "N":
+            guard let number = Double(payload) else {
+                throw LocalFirstError.invalidDownloadedBudget
+            }
+            if number.rounded() == number {
+                return .int(Int64(number))
+            }
+            return .double(number)
+        case "S":
+            return .string(payload)
+        default:
+            throw LocalFirstError.invalidDownloadedBudget
+        }
+    }
+}

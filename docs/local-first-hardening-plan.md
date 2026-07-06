@@ -96,11 +96,10 @@ model, and current limitations.
 
 ## Phase 6: File Splits
 
-Status: complete for the first mechanical split pass. The worst view/test
-support clusters now live in companion files, and the Xcode project includes the
-new sources. `BudgetDatabase.swift` still deserves deeper read/write/template
-extension extraction, but that is now a focused follow-up rather than mixed with
-hardening and warning cleanup.
+Status: complete. The worst view/test support clusters live in companion files,
+and `BudgetDatabase.swift` is split into focused read, sync/outbox, transaction
+write, budget/template write, and schema/date helper extension files. The Xcode
+project includes all new sources.
 
 Split large files after behavior fixes so review stays clean:
 
