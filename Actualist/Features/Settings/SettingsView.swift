@@ -492,8 +492,8 @@ struct SettingsView: View {
         defer { isPostingDebugNotification = false }
 
         do {
-            let accountName = try await appState.postDebugNewTransactionNotification()
-            debugNotificationMessage = "Test alert for \(accountName) will post in 5 seconds. Send Actualist to the background, then tap the notification."
+            try await appState.postDebugNewTransactionNotification()
+            debugNotificationMessage = "Test alert will post in 5 seconds. Send Actualist to the background, then tap the notification."
         } catch {
             debugNotificationMessage = error.localizedDescription
         }

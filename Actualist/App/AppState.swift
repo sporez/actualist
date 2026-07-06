@@ -524,7 +524,7 @@ final class AppState {
     }
 
     #if DEBUG
-    func postDebugNewTransactionNotification() async throws -> String {
+    func postDebugNewTransactionNotification() async throws {
         guard capabilities.supportsTransactionNotifications else {
             throw LocalFirstError.unsupportedWrite
         }
@@ -566,7 +566,6 @@ final class AppState {
             count: 1,
             trigger: trigger
         )
-        return account.name
     }
     #endif
 
@@ -676,12 +675,12 @@ final class AppState {
     private func postNewTransactionsNotification(
         account: ActualAccount,
         budgetID: String,
-        count: Int,
+        count _: Int,
         trigger: UNNotificationTrigger? = nil
     ) async throws {
         let content = UNMutableNotificationContent()
-        content.title = account.name
-        content.body = count == 1 ? "1 new transaction" : "\(count) new transactions"
+        content.title = NewTransactionsNotificationCopy.title
+        content.body = NewTransactionsNotificationCopy.body
         content.sound = .default
         content.userInfo = [
             "budgetID": budgetID,
@@ -733,4 +732,9 @@ enum ServerConnectionStatus: Equatable {
     case online
     case connecting
     case offline
+}
+
+enum NewTransactionsNotificationCopy {
+    static let title = "Actualist"
+    static let body = "New transactions found"
 }

@@ -110,6 +110,11 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canAddAccount)
     }
 
+    @Test func newTransactionNotificationCopyIsGeneric() {
+        #expect(NewTransactionsNotificationCopy.title == "Actualist")
+        #expect(NewTransactionsNotificationCopy.body == "New transactions found")
+    }
+
     // MARK: AppState derivation
 
     @Test func appStateIsAlwaysLocalFirstReadOnly() {

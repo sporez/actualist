@@ -67,6 +67,12 @@ headers values, or body snippets by default.
 
 ## Phase 4: Privacy
 
+Status: complete. Background new-transaction notifications now use generic
+preview content (`Actualist` / `New transactions found`) while preserving routing
+metadata in `userInfo`; the debug notification confirmation no longer displays a
+real account name. Detailed notification previews remain intentionally deferred
+until there is an explicit opt-in setting.
+
 1. Make background notification content generic by default:
    - Title: `Actualist`
    - Body: `New transactions found`
