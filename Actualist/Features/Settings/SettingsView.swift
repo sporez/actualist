@@ -49,6 +49,12 @@ struct SettingsView: View {
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
 
+                    if let warning = viewModel.connectionSecurityWarning {
+                        Text(warning)
+                            .font(.footnote)
+                            .foregroundStyle(ActualistTheme.warning)
+                    }
+
                     SettingsStatusRow(status: appState.connectionStatus)
 
                     if let message = appState.lastErrorMessage {

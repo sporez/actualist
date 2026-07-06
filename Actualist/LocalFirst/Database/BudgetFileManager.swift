@@ -59,15 +59,18 @@ struct BudgetFileManager {
     ) throws -> URL {
         let directory = budgetDirectory(fileID: remoteFile.fileID)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        try hardenBudgetArtifact(at: directory, excludeFromBackup: true)
 
         let zipURL = directory.appending(path: "download.zip")
         try data.write(to: zipURL, options: .atomic)
+        try hardenBudgetArtifact(at: zipURL, excludeFromBackup: true)
 
         let extractionURL = directory.appending(path: "import", directoryHint: .isDirectory)
         if fileManager.fileExists(atPath: extractionURL.path) {
             try fileManager.removeItem(at: extractionURL)
         }
         try fileManager.createDirectory(at: extractionURL, withIntermediateDirectories: true)
+        try hardenBudgetArtifact(at: extractionURL, excludeFromBackup: true)
         try fileManager.unzipItem(at: zipURL, to: extractionURL)
 
         guard let importedDatabase = try findDatabase(in: extractionURL) else {
@@ -79,9 +82,11 @@ struct BudgetFileManager {
             try fileManager.removeItem(at: databaseURL)
         }
         try fileManager.moveItem(at: importedDatabase, to: databaseURL)
+        try hardenBudgetArtifact(at: databaseURL, excludeFromBackup: true)
 
         let metadataData = try JSONEncoder.actual.encode(metadata)
         try metadataData.write(to: metadataURL(fileID: remoteFile.fileID), options: .atomic)
+        try hardenBudgetArtifact(at: metadataURL(fileID: remoteFile.fileID), excludeFromBackup: true)
         try? fileManager.removeItem(at: zipURL)
         try? fileManager.removeItem(at: extractionURL)
         return databaseURL
@@ -111,5 +116,18 @@ struct BudgetFileManager {
     private func sanitized(_ value: String) -> String {
         value.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
+    }
+
+    private func hardenBudgetArtifact(at url: URL, excludeFromBackup: Bool) throws {
+        var resourceURL = url
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = excludeFromBackup
+        try resourceURL.setResourceValues(values)
+        #if os(iOS)
+        try fileManager.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: url.path
+        )
+        #endif
     }
 }

@@ -229,38 +229,30 @@ actor ActualServerSyncClient: ActualSyncTransport {
     private static func debugLogRequest(_ request: URLRequest) {
         #if DEBUG
         let method = request.httpMethod ?? "GET"
-        let url = request.url?.absoluteString ?? "<missing URL>"
-        let headers = sanitizedHeaders(request.allHTTPHeaderFields ?? [:])
-        let body = sanitizedBodySnippet(
-            data: request.httpBody,
-            contentType: request.value(forHTTPHeaderField: "Content-Type")
-        )
-        print("[Actualist LocalFirst] -> \(method) \(url)")
-        print("[Actualist LocalFirst] -> headers: \(headers)")
-        if body != "<empty>" {
-            print("[Actualist LocalFirst] -> body: \(body)")
+        let endpoint = redactedEndpoint(request.url)
+        let byteCount = request.httpBody?.count ?? 0
+        let headerNames = (request.allHTTPHeaderFields ?? [:]).keys.sorted()
+        print("[Actualist LocalFirst] -> \(method) \(endpoint) (\(byteCount) bytes)")
+        if !headerNames.isEmpty {
+            print("[Actualist LocalFirst] -> headers: \(headerNames.joined(separator: ", "))")
         }
         #endif
     }
 
     private static func debugLogResponse(_ response: HTTPURLResponse, data: Data) {
         #if DEBUG
-        let url = response.url?.absoluteString ?? "<missing URL>"
-        let contentType = response.value(forHTTPHeaderField: "Content-Type")
-        let body = sanitizedBodySnippet(data: data, contentType: contentType)
-        print("[Actualist LocalFirst] <- \(response.statusCode) \(url)")
-        print("[Actualist LocalFirst] <- body: \(body)")
+        let endpoint = redactedEndpoint(response.url)
+        print("[Actualist LocalFirst] <- \(response.statusCode) \(endpoint) (\(data.count) bytes)")
         #endif
     }
 
-    private static func sanitizedHeaders(_ headers: [String: String]) -> [String: String] {
-        headers.reduce(into: [:]) { result, pair in
-            if isSensitiveKey(pair.key) {
-                result[pair.key] = "<redacted>"
-            } else {
-                result[pair.key] = pair.value
-            }
+    private static func redactedEndpoint(_ url: URL?) -> String {
+        guard let url else {
+            return "<missing URL>"
         }
+        var components = URLComponents()
+        components.path = url.path.isEmpty ? "/" : url.path
+        return components.string ?? url.path
     }
 
     private static func sanitizedBodySnippet(data: Data?, contentType: String?) -> String {

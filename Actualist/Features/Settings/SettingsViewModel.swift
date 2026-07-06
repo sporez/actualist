@@ -54,4 +54,8 @@ final class SettingsViewModel {
         await appState.loadBudgets()
         isLoadingBudgets = false
     }
+
+    var connectionSecurityWarning: String? {
+        ActualServerConnectionSecurity.warningMessage(for: serverURLString)
+    }
 }

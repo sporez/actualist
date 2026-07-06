@@ -68,6 +68,11 @@ final class AppState {
             lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
             return
         }
+        if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
+            lastErrorMessage = blockedMessage
+            connectionStatus = .offline
+            return
+        }
 
         settings.localFirstServerURLString = normalized
         settings.pendingNewTransactionIDsByAccount = [:]

@@ -22,6 +22,10 @@ final class OnboardingViewModel {
     var canConnect: Bool {
         !serverURLString.isEmpty && !actualPassword.isEmpty && !isConnecting
     }
+
+    var connectionSecurityWarning: String? {
+        ActualServerConnectionSecurity.warningMessage(for: serverURLString)
+    }
 }
 
 @MainActor

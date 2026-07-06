@@ -58,6 +58,12 @@ struct OnboardingView: View {
                         .foregroundStyle(ActualistTheme.primaryText)
                     }
 
+                    if let warning = viewModel.connectionSecurityWarning {
+                        Text(warning)
+                            .font(ActualistTypography.rowLabel(for: density))
+                            .foregroundStyle(ActualistTheme.warning)
+                    }
+
                     if let message = appState.lastErrorMessage {
                         Text(message)
                             .font(ActualistTypography.rowTitle(for: density))

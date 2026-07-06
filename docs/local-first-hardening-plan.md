@@ -50,6 +50,12 @@ Acceptance:
 
 ## Phase 3: Security Hardening
 
+Status: complete. ATS now allows cleartext only for local networking, remote HTTP
+connection attempts are rejected before persistence, local HTTP shows a connection
+warning, imported local-first budget artifacts are protected and excluded from
+backups, and DEBUG network logs no longer include URLs with query strings,
+headers values, or body snippets by default.
+
 1. Replace global `NSAllowsArbitraryLoads` with a narrower App Transport Security policy.
 2. Prefer HTTPS by default. Allow HTTP only for explicit local-network use, ideally with an insecure-connection warning.
 3. Add file protection to imported budget databases, metadata, and temporary zip/import directories.

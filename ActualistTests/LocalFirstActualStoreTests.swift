@@ -82,6 +82,27 @@ struct LocalFirstActualStoreTests {
         #expect(nested.token == "def")
     }
 
+    @Test func serverConnectionSecurityAllowsHTTPSWithoutWarning() {
+        #expect(ActualServerConnectionSecurity.warningMessage(for: "actual.example.com") == nil)
+        #expect(ActualServerConnectionSecurity.blockedMessage(for: "actual.example.com") == nil)
+    }
+
+    @Test func serverConnectionSecurityWarnsForLocalHTTP() {
+        #expect(
+            ActualServerConnectionSecurity.warningMessage(for: "http://192.168.1.16:5007")
+                == ActualServerConnectionSecurity.localHTTPWarning
+        )
+        #expect(ActualServerConnectionSecurity.blockedMessage(for: "http://192.168.1.16:5007") == nil)
+    }
+
+    @Test func serverConnectionSecurityBlocksRemoteHTTP() {
+        #expect(ActualServerConnectionSecurity.warningMessage(for: "http://actual.example.com") == nil)
+        #expect(
+            ActualServerConnectionSecurity.blockedMessage(for: "http://actual.example.com")
+                == ActualServerConnectionSecurity.remoteHTTPBlockedMessage
+        )
+    }
+
     @Test func loginMethodsDecodeActualServerObjectShape() throws {
         let response = try JSONDecoder.actual.decode(
             ActualLoginMethodsResponse.self,

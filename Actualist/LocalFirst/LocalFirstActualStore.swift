@@ -1313,3 +1313,53 @@ enum ActualServerURLNormalizer {
         return components.string ?? withScheme
     }
 }
+
+enum ActualServerConnectionSecurity {
+    static let localHTTPWarning = "This local HTTP connection is unencrypted. Only use it on a trusted local network."
+    static let remoteHTTPBlockedMessage = "HTTP is only allowed for local network Actual servers. Use HTTPS for remote servers."
+
+    static func warningMessage(for input: String) -> String? {
+        guard let components = normalizedComponents(input),
+              components.scheme?.lowercased() == "http",
+              let host = components.host,
+              isLocalNetworkHost(host) else {
+            return nil
+        }
+        return localHTTPWarning
+    }
+
+    static func blockedMessage(for input: String) -> String? {
+        guard let components = normalizedComponents(input),
+              components.scheme?.lowercased() == "http",
+              let host = components.host,
+              !isLocalNetworkHost(host) else {
+            return nil
+        }
+        return remoteHTTPBlockedMessage
+    }
+
+    private static func normalizedComponents(_ input: String) -> URLComponents? {
+        URLComponents(string: ActualServerURLNormalizer.normalize(input))
+    }
+
+    private static func isLocalNetworkHost(_ host: String) -> Bool {
+        let normalized = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]")).lowercased()
+        if normalized == "localhost" || normalized == "::1" || normalized == "0:0:0:0:0:0:0:1" {
+            return true
+        }
+        if normalized.hasSuffix(".local") {
+            return true
+        }
+
+        let parts = normalized.split(separator: ".").compactMap { Int($0) }
+        guard parts.count == 4 else {
+            return false
+        }
+
+        return parts[0] == 10
+            || parts[0] == 127
+            || (parts[0] == 172 && (16...31).contains(parts[1]))
+            || (parts[0] == 192 && parts[1] == 168)
+            || (parts[0] == 169 && parts[1] == 254)
+    }
+}
