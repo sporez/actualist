@@ -71,6 +71,7 @@ struct BudgetView: View {
                 ScrollView {
                     VStack(spacing: BudgetLayout.sectionSpacing) {
                         if viewModel.budgetMonth != nil {
+                            operationErrorBanner
                             budgetAlertBanners
                             categoryGroups
                         } else if viewModel.isLoading {
@@ -170,7 +171,8 @@ struct BudgetView: View {
                         .popover(isPresented: $isMonthPickerPresented, arrowEdge: .top) {
                             BudgetMonthPicker(
                                 availableMonths: viewModel.availableMonths,
-                                selectedMonth: viewModel.selectedMonth
+                                selectedMonth: viewModel.selectedMonth,
+                                allowsUnlistedMonths: appState.capabilities.isLocalFirst
                             ) { month in
                                 isMonthPickerPresented = false
                                 Task { await viewModel.selectMonth(month, using: appState) }
@@ -304,6 +306,26 @@ struct BudgetView: View {
         }
 
         return max(assignmentKeypadHeight + BudgetLayout.assignmentScrollBottomClearance, 360)
+    }
+
+    @ViewBuilder
+    private var operationErrorBanner: some View {
+        if let message = viewModel.errorMessage {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.body.weight(.bold))
+
+                Text(message)
+                    .font(ActualistTypography.body(for: density))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(ActualistTheme.danger)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(ActualistTheme.danger.opacity(0.14), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
     }
 
     private var budgetAlertBanners: some View {
@@ -758,6 +780,7 @@ private struct BudgetMonthPicker: View {
 
     let availableMonths: [String]
     let selectedMonth: String?
+    let allowsUnlistedMonths: Bool
     let onSelect: (String) -> Void
 
     @State private var displayedYear: Int
@@ -765,10 +788,12 @@ private struct BudgetMonthPicker: View {
     init(
         availableMonths: [String],
         selectedMonth: String?,
+        allowsUnlistedMonths: Bool,
         onSelect: @escaping (String) -> Void
     ) {
         self.availableMonths = availableMonths
         self.selectedMonth = selectedMonth
+        self.allowsUnlistedMonths = allowsUnlistedMonths
         self.onSelect = onSelect
         _displayedYear = State(initialValue: Self.initialYear(
             selectedMonth: selectedMonth,
@@ -825,7 +850,7 @@ private struct BudgetMonthPicker: View {
                             .background(monthBackground(monthID), in: Capsule())
                     }
                     .buttonStyle(.plain)
-                    .disabled(!availableMonthSet.contains(monthID))
+                    .disabled(!canSelect(monthID))
                 }
             }
             .padding(20)
@@ -843,11 +868,15 @@ private struct BudgetMonthPicker: View {
     }
 
     private var hasPreviousYear: Bool {
-        availableYears.contains(where: { $0 < displayedYear })
+        allowsUnlistedMonths || availableYears.contains(where: { $0 < displayedYear })
     }
 
     private var hasNextYear: Bool {
-        availableYears.contains(where: { $0 > displayedYear })
+        allowsUnlistedMonths || availableYears.contains(where: { $0 > displayedYear })
+    }
+
+    private func canSelect(_ monthID: String) -> Bool {
+        allowsUnlistedMonths || availableMonthSet.contains(monthID)
     }
 
     private func monthTextColor(_ monthID: String) -> Color {
@@ -855,7 +884,7 @@ private struct BudgetMonthPicker: View {
             return ActualistTheme.primaryText
         }
 
-        return availableMonthSet.contains(monthID) ? ActualistTheme.primaryText : ActualistTheme.secondaryText.opacity(0.36)
+        return canSelect(monthID) ? ActualistTheme.primaryText : ActualistTheme.secondaryText.opacity(0.36)
     }
 
     private func monthBackground(_ monthID: String) -> Color {

@@ -830,6 +830,7 @@ final class BudgetViewModel {
             }
             apply(loadedMonth, preservingExpansion: true)
             monthTemplateSubmissionState = .draft
+            errorMessage = nil
             return true
         } catch {
             let message = error.localizedDescription
@@ -883,6 +884,7 @@ final class BudgetViewModel {
             }
             apply(loadedMonth, preservingExpansion: true)
             assignmentDraft = nil
+            errorMessage = nil
             return true
         } catch {
             let message = error.localizedDescription
@@ -1026,7 +1028,7 @@ final class BudgetViewModel {
         preservingExpansion: Bool
     ) {
         let previousExpandedGroupIDs = expandedGroupIDs
-        availableMonths = loadedMonth.availableMonths
+        availableMonths = Self.monthPickerMonths(for: loadedMonth)
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
         budgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
@@ -1036,6 +1038,51 @@ final class BudgetViewModel {
         } else {
             expandedGroupIDs = Set(loadedMonth.month.categoryGroups.prefix(3).map(\.id))
         }
+    }
+
+    private static func monthPickerMonths(for loadedMonth: LoadedBudgetMonth) -> [String] {
+        let loadedIDs = loadedMonth.availableMonths.compactMap(canonicalMonthID)
+        let selectedIDs = [loadedMonth.selectedMonth, loadedMonth.month.month].compactMap(canonicalMonthID)
+        return Array(Set(loadedIDs + selectedIDs)).sorted()
+    }
+
+    private static func canonicalMonthID(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        let parts = trimmed.split { character in
+            character == "-" || character == "/" || character == "."
+        }
+        if parts.count >= 2,
+           let year = Int(parts[0]),
+           let month = Int(parts[1]),
+           let monthID = canonicalMonthID(year: year, month: month) {
+            return monthID
+        }
+
+        let digits = String(trimmed.prefix { $0.isNumber })
+        guard digits.count >= 6 else {
+            return nil
+        }
+
+        let yearEnd = digits.index(digits.startIndex, offsetBy: 4)
+        let monthEnd = digits.index(yearEnd, offsetBy: 2)
+        guard let year = Int(digits[..<yearEnd]),
+              let month = Int(digits[yearEnd..<monthEnd]) else {
+            return nil
+        }
+
+        return canonicalMonthID(year: year, month: month)
+    }
+
+    private static func canonicalMonthID(year: Int, month: Int) -> String? {
+        guard (1900...9999).contains(year), (1...12).contains(month) else {
+            return nil
+        }
+
+        return String(format: "%04d-%02d", year, month)
     }
 
     private var editableAssignmentDraft: BudgetAssignmentDraft? {

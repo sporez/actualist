@@ -145,14 +145,12 @@ final class BudgetDatabase: @unchecked Sendable {
         try queue.read { db in
             var months = Set<String>()
             if try tableExists("zero_budgets", db: db), try columnSet(for: "zero_budgets", db: db).contains("month") {
-                let month = normalizedMonthExpression("month")
-                let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT \(month) AS month FROM zero_budgets WHERE month IS NOT NULL")
-                months.formUnion(rows.compactMap { flexibleString($0["month"]) })
+                let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT month FROM zero_budgets WHERE month IS NOT NULL")
+                months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["month"])) })
             }
             if try tableExists("transactions", db: db), try columnSet(for: "transactions", db: db).contains("date") {
-                let month = normalizedMonthExpression("date")
-                let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT \(month) AS month FROM transactions WHERE date IS NOT NULL")
-                months.formUnion(rows.compactMap { flexibleString($0["month"]) })
+                let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT date FROM transactions WHERE date IS NOT NULL")
+                months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["date"])) })
             }
             return months.sorted()
         }
@@ -1499,22 +1497,26 @@ final class BudgetDatabase: @unchecked Sendable {
             let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
 
             var unsupported: [String] = []
-            var writes: [(categoryID: String, amount: Int)] = []
+            var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
+            var availableBudget = try monthToBudget(month: monthID(monthValue), db: db)
             for categoryID in scope {
                 guard let json = goalDefsRaw[categoryID] else { continue }
                 let currentBudgeted = currentBudgets[categoryID]?.budgeted ?? 0
                 // fillEmpty skips already-budgeted categories, so they never need a support check.
                 guard force || currentBudgeted == 0 else { continue }
 
-                let computedAmount: Int?
                 do {
-                    computedAmount = try computeSimpleTemplateAmount(json: json)
+                    if let entries = try decodeSupportedTemplateEntries(json: json) {
+                        categoryTemplates[categoryID] = entries
+                        availableBudget += currentBudgeted
+                    }
+                } catch LocalFirstError.unsupportedTemplate(let reason) {
+                    unsupported.append("\(categoryID) (\(reason))")
+                    continue
                 } catch {
-                    unsupported.append(categoryID)
+                    unsupported.append("\(categoryID) (unreadable template definition)")
                     continue
                 }
-                guard let amount = computedAmount else { continue } // goal-only: nothing to budget.
-                writes.append((categoryID, amount))
             }
 
             guard unsupported.isEmpty else {
@@ -1522,6 +1524,13 @@ final class BudgetDatabase: @unchecked Sendable {
                     "categories use template types not supported yet: \(unsupported.sorted().joined(separator: ", "))"
                 )
             }
+
+            let writes = try computeTemplateWrites(
+                categoryTemplates: categoryTemplates,
+                monthValue: monthValue,
+                availableBudget: availableBudget,
+                db: db
+            )
 
             var messages: [ActualSyncDecodedMessage] = []
             for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
@@ -1538,12 +1547,11 @@ final class BudgetDatabase: @unchecked Sendable {
         }
     }
 
-    /// Decode a category's `goal_def` and, if every budget-setting entry is a supported priority-0
-    /// `simple` fixed-amount template, return their summed minor-unit amount. Returns nil when the
-    /// category has no budget-setting entries (goal-only). Throws `unsupportedTemplate` when any
-    /// budget entry uses a not-yet-ported type/feature (limit, non-zero priority, non-simple, or
-    /// an undecodable definition).
-    private func computeSimpleTemplateAmount(json: String) throws -> Int? {
+    /// Decode a category's `goal_def` and, if every budget-setting entry is a supported constant
+    /// template, return the entries. Returns nil when the category has no budget-setting entries
+    /// (goal-only). Throws `unsupportedTemplate` when any budget entry uses a not-yet-ported
+    /// type/feature.
+    private func decodeSupportedTemplateEntries(json: String) throws -> [BudgetTemplateEntry]? {
         guard let data = json.data(using: .utf8),
               let entries = try? JSONDecoder().decode([BudgetTemplateEntry].self, from: data) else {
             throw LocalFirstError.unsupportedTemplate("unreadable template definition")
@@ -1552,17 +1560,180 @@ final class BudgetDatabase: @unchecked Sendable {
         guard !budgetEntries.isEmpty else {
             return nil
         }
-        var total = 0
         for entry in budgetEntries {
-            guard entry.type == "simple",
-                  let monthly = entry.monthly,
-                  entry.limit == nil,
-                  (entry.priority ?? 0) == 0 else {
-                throw LocalFirstError.unsupportedTemplate(entry.type)
+            try validateTemplateEntryIsT1Constant(entry)
+        }
+        return budgetEntries
+    }
+
+    private func validateTemplateEntryIsT1Constant(_ entry: BudgetTemplateEntry) throws {
+        guard entry.limit == nil,
+              (entry.priority ?? 0) >= 0 else {
+            throw LocalFirstError.unsupportedTemplate(entry.type)
+        }
+        switch entry.type {
+        case "simple":
+            guard entry.monthly != nil else {
+                throw LocalFirstError.unsupportedTemplate("simple without monthly amount")
             }
-            total += Self.templateAmountToMinorUnits(monthly)
+        case "periodic":
+            guard entry.amount != nil,
+                  entry.period?.amount != nil,
+                  entry.period?.period != nil else {
+                throw LocalFirstError.unsupportedTemplate("periodic")
+            }
+        case "copy":
+            guard entry.lookBack != nil else {
+                throw LocalFirstError.unsupportedTemplate("copy")
+            }
+        default:
+            throw LocalFirstError.unsupportedTemplate(entry.type)
+        }
+    }
+
+    private func computeTemplateWrites(
+        categoryTemplates: [String: [BudgetTemplateEntry]],
+        monthValue: Int,
+        availableBudget: Int,
+        db: Database
+    ) throws -> [(categoryID: String, amount: Int)] {
+        guard !categoryTemplates.isEmpty else {
+            return []
+        }
+
+        var remainingAvailable = availableBudget
+        var budgetedByCategory = Dictionary(uniqueKeysWithValues: categoryTemplates.keys.map { ($0, 0) })
+        let priorities = Set(categoryTemplates.values.flatMap { entries in
+            entries.map { $0.priority ?? 0 }
+        }).sorted()
+
+        for priority in priorities {
+            for categoryID in categoryTemplates.keys.sorted() {
+                let entries = categoryTemplates[categoryID, default: []].filter { ($0.priority ?? 0) == priority }
+                guard !entries.isEmpty else { continue }
+
+                var amount = 0
+                for entry in entries {
+                    amount += try computeTemplateEntryAmount(
+                        entry,
+                        categoryID: categoryID,
+                        monthValue: monthValue,
+                        db: db
+                    )
+                }
+
+                if priority > 0, amount > 0, remainingAvailable < amount {
+                    amount = max(0, remainingAvailable)
+                }
+
+                budgetedByCategory[categoryID, default: 0] += amount
+                remainingAvailable -= amount
+            }
+        }
+
+        return budgetedByCategory.map { (categoryID: $0.key, amount: $0.value) }
+    }
+
+    private func computeTemplateEntryAmount(
+        _ entry: BudgetTemplateEntry,
+        categoryID: String,
+        monthValue: Int,
+        db: Database
+    ) throws -> Int {
+        switch entry.type {
+        case "simple":
+            return Self.templateAmountToMinorUnits(entry.monthly ?? 0)
+        case "periodic":
+            return try computePeriodicTemplateAmount(entry, monthValue: monthValue)
+        case "copy":
+            return try copyTemplateAmount(entry, categoryID: categoryID, monthValue: monthValue, db: db)
+        default:
+            throw LocalFirstError.unsupportedTemplate(entry.type)
+        }
+    }
+
+    private func computePeriodicTemplateAmount(
+        _ entry: BudgetTemplateEntry,
+        monthValue: Int
+    ) throws -> Int {
+        guard let amount = entry.amount,
+              let periodAmount = entry.period?.amount,
+              let period = entry.period?.period,
+              periodAmount > 0 else {
+            throw LocalFirstError.unsupportedTemplate("periodic")
+        }
+
+        let templateAmount = Self.templateAmountToMinorUnits(amount)
+        let monthStart = "\(monthID(monthValue))-01"
+        let nextMonthStart = "\(monthID(nextMonth(after: monthValue)))-01"
+        let starting = entry.starting?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var currentDateID = monthStart
+        if let starting, !starting.isEmpty {
+            guard let startingDate = date(fromDayID: starting) else {
+                throw LocalFirstError.unsupportedTemplate("periodic start date")
+            }
+            currentDateID = dayIDString(from: startingDate)
+        }
+
+        while compareDayID(currentDateID, monthStart) == .orderedAscending {
+            currentDateID = try shiftedPeriodicDate(currentDateID, by: periodAmount, period: period)
+        }
+        guard compareDayID(currentDateID, nextMonthStart) == .orderedAscending else {
+            return 0
+        }
+
+        var total = 0
+        while compareDayID(currentDateID, nextMonthStart) == .orderedAscending {
+            total += templateAmount
+            currentDateID = try shiftedPeriodicDate(currentDateID, by: periodAmount, period: period)
         }
         return total
+    }
+
+    private func copyTemplateAmount(
+        _ entry: BudgetTemplateEntry,
+        categoryID: String,
+        monthValue: Int,
+        db: Database
+    ) throws -> Int {
+        guard let lookBack = entry.lookBack, lookBack >= 0 else {
+            throw LocalFirstError.unsupportedTemplate("copy")
+        }
+        let sourceMonth = monthID(shiftedMonth(monthValue, by: -lookBack))
+        return try categoryBudgets(month: sourceMonth, db: db)[categoryID]?.budgeted ?? 0
+    }
+
+    private func shiftedPeriodicDate(_ dayID: String, by amount: Int, period: String) throws -> String {
+        guard let date = date(fromDayID: dayID) else {
+            throw LocalFirstError.unsupportedTemplate("periodic start date")
+        }
+        var components = DateComponents()
+        switch period {
+        case "day":
+            components.day = amount
+        case "week":
+            components.day = amount * 7
+        case "month":
+            components.month = amount
+        case "year":
+            components.year = amount
+        default:
+            throw LocalFirstError.unsupportedTemplate("periodic \(period)")
+        }
+        guard let shifted = Calendar(identifier: .gregorian).date(byAdding: components, to: date) else {
+            throw LocalFirstError.unsupportedTemplate("periodic date")
+        }
+        return dayIDString(from: shifted)
+    }
+
+    private func monthToBudget(month: String, db: Database) throws -> Int {
+        let categoryValues = try envelopeCategoryValues(through: month, db: db)
+        let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
+        let expenseGroups = groups.filter { !$0.isIncome }
+        let totalBalance = expenseGroups.reduce(0) { $0 + $1.balance }
+        let onBudgetBalance = try onBudgetAccountBalance(through: month, db: db)
+        let uncategorizedActivity = try uncategorizedOnBudgetActivity(through: month, db: db)
+        return (onBudgetBalance - uncategorizedActivity) - totalBalance
     }
 
     private func readCategoryGoalDefsRaw(db: Database) throws -> [String: String] {
@@ -2107,6 +2278,19 @@ final class BudgetDatabase: @unchecked Sendable {
         return String(format: "%04d-%02d", year, monthNumber)
     }
 
+    private func compareDayID(_ lhs: String, _ rhs: String) -> ComparisonResult {
+        lhs.compare(rhs)
+    }
+
+    private func shiftedMonth(_ month: Int, by offset: Int) -> Int {
+        let year = month / 100
+        let monthNumber = month % 100
+        let zeroBased = year * 12 + (monthNumber - 1) + offset
+        let shiftedYear = zeroBased / 12
+        let shiftedMonth = zeroBased % 12 + 1
+        return shiftedYear * 100 + shiftedMonth
+    }
+
     private func nextMonth(after month: Int) -> Int {
         let year = month / 100
         let monthNumber = month % 100
@@ -2114,6 +2298,29 @@ final class BudgetDatabase: @unchecked Sendable {
             return (year + 1) * 100 + 1
         }
         return year * 100 + monthNumber + 1
+    }
+
+    private func date(fromDayID dayID: String) -> Date? {
+        let parts = dayID.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else {
+            return nil
+        }
+        return Calendar(identifier: .gregorian).date(
+            from: DateComponents(year: year, month: month, day: day)
+        )
+    }
+
+    private func dayIDString(from date: Date) -> String {
+        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0
+        )
     }
 
     private func transactionBudgetSource(db: Database) throws -> TransactionBudgetSource {
@@ -2735,6 +2942,49 @@ final class BudgetDatabase: @unchecked Sendable {
             return String(value)
         }
         return nil
+    }
+
+    private func canonicalMonthID(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        let parts = trimmed.split { character in
+            character == "-" || character == "/" || character == "."
+        }
+        if parts.count >= 2,
+           let year = Int(parts[0]),
+           let month = Int(parts[1]),
+           let monthID = canonicalMonthID(year: year, month: month) {
+            return monthID
+        }
+
+        let digits = String(trimmed.prefix { $0.isNumber })
+        guard digits.count >= 6 else {
+            return nil
+        }
+
+        let yearEnd = digits.index(digits.startIndex, offsetBy: 4)
+        let monthEnd = digits.index(yearEnd, offsetBy: 2)
+        guard let year = Int(digits[..<yearEnd]),
+              let month = Int(digits[yearEnd..<monthEnd]) else {
+            return nil
+        }
+
+        return canonicalMonthID(year: year, month: month)
+    }
+
+    private func canonicalMonthID(year: Int, month: Int) -> String? {
+        guard (1900...9999).contains(year), (1...12).contains(month) else {
+            return nil
+        }
+
+        return String(format: "%04d-%02d", year, month)
     }
 
     private func flexibleBool(_ value: DatabaseValueConvertible?) -> Bool {

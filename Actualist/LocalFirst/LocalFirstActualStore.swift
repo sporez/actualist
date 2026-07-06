@@ -250,7 +250,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let months = try availableMonths(budgetID: budgetID)
-        let monthID = months.contains(selectedMonth) ? selectedMonth : (months.last ?? selectedMonth)
+        let monthID = selectedMonth
         let month = try database.fetchBudgetMonth(month: monthID)
         return LoadedBudgetMonth(
             availableMonths: months,

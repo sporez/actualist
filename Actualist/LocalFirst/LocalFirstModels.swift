@@ -68,11 +68,20 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let directive: String?
     let priority: Int?
     let monthly: Double?
+    let amount: Double?
+    let period: BudgetTemplatePeriod?
+    let starting: String?
+    let lookBack: Int?
     let limit: BudgetTemplateLimit?
 
     /// `directive` defaults to "template" (sets the budget); "goal" entries set a display target
     /// only and do not affect the budgeted amount.
     var setsBudget: Bool { (directive ?? "template") == "template" }
+}
+
+struct BudgetTemplatePeriod: Decodable, Equatable, Sendable {
+    let amount: Int?
+    let period: String?
 }
 
 struct BudgetTemplateLimit: Decodable, Equatable, Sendable {

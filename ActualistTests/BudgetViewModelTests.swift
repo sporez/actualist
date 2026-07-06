@@ -91,6 +91,43 @@ struct BudgetViewModelTests {
         #expect(alert == nil)
     }
 
+    @Test func loadIncludesSelectedMonthWhenRepositoryOmitsAvailableMonths() async throws {
+        let loadedMonth = LoadedBudgetMonth(
+            availableMonths: [],
+            selectedMonth: "2026-06",
+            month: try Self.decodeBudgetMonth(
+                visibleCategoryBalance: 1_000,
+                hiddenCategoryBalance: 0,
+                lastMonthOverspent: 0
+            ),
+            alerts: []
+        )
+        let model = BudgetViewModel()
+
+        await model.load(budgetID: "budget", repository: RecordingBudgetRepository(loadedMonth: loadedMonth))
+
+        #expect(model.selectedMonth == "2026-06")
+        #expect(model.availableMonths == ["2026-06"])
+    }
+
+    @Test func loadCanonicalizesAvailableMonthsForPicker() async throws {
+        let loadedMonth = LoadedBudgetMonth(
+            availableMonths: ["202606", "2026-7", "2026/08/15", "not-a-month"],
+            selectedMonth: "2026-06",
+            month: try Self.decodeBudgetMonth(
+                visibleCategoryBalance: 1_000,
+                hiddenCategoryBalance: 0,
+                lastMonthOverspent: 0
+            ),
+            alerts: []
+        )
+        let model = BudgetViewModel()
+
+        await model.load(budgetID: "budget", repository: RecordingBudgetRepository(loadedMonth: loadedMonth))
+
+        #expect(model.availableMonths == ["2026-06", "2026-07", "2026-08"])
+    }
+
     @Test func omitsZeroToBudgetAlert() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try Self.decodeBudgetMonth(

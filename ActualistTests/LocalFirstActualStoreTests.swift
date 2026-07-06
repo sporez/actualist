@@ -285,6 +285,45 @@ struct LocalFirstActualStoreTests {
         #expect(month.categoryGroups.first?.categories.first?.carryover == true)
     }
 
+    @Test func budgetDatabaseCanonicalizesAvailableMonthValues() throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            INSERT INTO zero_budgets VALUES ('2026-8', 'groceries', 50000, 1);
+            INSERT INTO transactions VALUES ('sept', 'checking', '2026/09/03', -12345, 'groceries', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('invalid-month', 'checking', '2026-13-03', -12345, 'groceries', 0, NULL, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        #expect(try database.fetchAvailableMonths() == ["2026-07", "2026-08", "2026-09"])
+    }
+
+    @Test func budgetTemplateMessagesAppliesPriorityPeriodicWhenAvailable() throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-group', 1, 0, 0, 0, NULL);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO transactions VALUES ('salary-july', 'checking', 20260701, 100000, 'salary', 0, NULL, 0);
+            INSERT INTO categories VALUES ('priority-food', 'Food', 'group', 0, 0, 0, 2, '[{"directive":"template","type":"periodic","amount":5,"period":{"period":"month","amount":1},"starting":"2026-07-01","priority":1}]');
+            INSERT INTO category_mapping VALUES ('priority-food', 'priority-food');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let messages = try database.budgetTemplateMessages(
+            command: .category("priority-food"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try database.applyLocalSyncMessages(messages)
+        let month = try database.fetchBudgetMonth(month: "2026-07")
+        let food = try #require(month.categoryGroups.flatMap(\.categories).first { $0.id == "priority-food" })
+
+        #expect(food.budgeted == 500)
+    }
+
     @Test func toBudgetIsCumulativeAcrossMonthsNotJustCurrentMonth() throws {
         // June: assign 50000 to groceries, receive 200000 income, spend 40000 on groceries.
         // July: assign another 50000 to groceries (the fixture's -12345 July spend also applies).
@@ -834,6 +873,66 @@ struct LocalFirstActualStoreTests {
         #expect(loaded.month.month == "2026-07")
     }
 
+    @Test func budgetMonthHonorsExplicitSelectionOutsideDiscoveredMonths() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-06")
+
+        #expect(loaded.selectedMonth == "2026-06")
+        #expect(loaded.month.month == "2026-06")
+        #expect(loaded.availableMonths.contains("2026-07"))
+    }
+
+    @Test func openedStoreRejectsMismatchedBudgetReads() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        await #expect(throws: LocalFirstError.budgetNotOpened) {
+            _ = try await store.budgetMonth(budgetID: "group-2", selectedMonth: "2026-07")
+        }
+        await #expect(throws: LocalFirstError.budgetNotOpened) {
+            try await store.refreshAccountsWithBalances(budgetID: "group-2")
+        }
+        await #expect(throws: LocalFirstError.budgetNotOpened) {
+            try await store.refreshAccountTransactions(budgetID: "group-2", accountID: "checking")
+        }
+    }
+
+    @Test func openedStoreRejectsMismatchedBudgetWrites() async throws {
+        let store = try await makeOpenedWritableStore()
+        var didAssign = false
+        var didCreate = false
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 8),
+            amountMinorUnits: -450,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+
+        await #expect(throws: LocalFirstError.budgetNotOpened) {
+            _ = try await store.assignCategoryBudgetAndRefresh(
+                categoryID: "groceries",
+                budgeted: 10_000,
+                budgetID: "group-2",
+                month: "2026-07"
+            ) {
+                didAssign = true
+            }
+        }
+        await #expect(throws: LocalFirstError.budgetNotOpened) {
+            _ = try await store.createTransactionAndRefresh(draft, budgetID: "group-2") {
+                didCreate = true
+            }
+        }
+
+        #expect(!didAssign)
+        #expect(!didCreate)
+    }
+
     @Test func createTransactionLocallyWithExistingPayeeRefreshesCaches() async throws {
         let store = try await makeOpenedWritableStore()
         var didCreate = false
@@ -1112,6 +1211,42 @@ struct LocalFirstActualStoreTests {
         #expect(loaded.month.toBudget == -40_000)
     }
 
+    @Test func moveMoneyLocallyCoversOverspentCategory() async throws {
+        let store = try await makeOpenedWritableStore()
+        let overspend = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -10_000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "utilities",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        _ = try await store.createTransactionAndRefresh(overspend, budgetID: "group-1") {}
+        let before = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let beforeUtilities = try #require(before.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
+
+        let loaded = try await store.moveMoneyAndRefresh(
+            command: BudgetMoveMoneyCommand(
+                fromCategoryID: "groceries",
+                toCategoryID: "utilities",
+                amount: 10_000
+            ),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let utilities = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
+
+        #expect(beforeUtilities.balance == -10_000)
+        #expect(before.alerts.contains { $0.kind == "overspending" })
+        #expect(utilities.budgeted == 10_000)
+        #expect(utilities.balance == 0)
+        #expect(!loaded.alerts.contains { $0.kind == "overspending" })
+    }
+
     @Test func applyCategoryTemplateSetsFixedSimpleAmount() async throws {
         let store = try await makeOpenedWritableStore()
         // utilities has a `#template 300` goal_def and a current budget of 0.
@@ -1123,6 +1258,36 @@ struct LocalFirstActualStoreTests {
 
         let utilities = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
         #expect(utilities.budgeted == 30_000)
+    }
+
+    @Test func applyCategoryTemplateSetsPeriodicAmount() async throws {
+        let store = try await makeOpenedWritableStore()
+        let loaded = try await store.applyBudgetTemplateAndRefresh(
+            command: .category("subscriptions"),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let subscriptions = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "subscriptions" })
+        #expect(subscriptions.budgeted == 4_500)
+    }
+
+    @Test func applyCategoryTemplateCopiesPreviousMonthBudget() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "copycat",
+            budgeted: 2_500,
+            budgetID: "group-1",
+            month: "2026-06"
+        ) {}
+        let loaded = try await store.applyBudgetTemplateAndRefresh(
+            command: .category("copycat"),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let copycat = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "copycat" })
+        #expect(copycat.budgeted == 2_500)
     }
 
     @Test func applyMonthTemplateFillEmptyOnlyFillsUnbudgetedAndSkipsUnsupported() async throws {
@@ -1914,6 +2079,14 @@ struct LocalFirstActualStoreTests {
             INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
                 VALUES ('dining', 'Dining', 'group', 0, 0, 0, 3, '[{"type":"average","numMonths":3,"priority":null,"directive":"template"}]');
             INSERT INTO category_mapping VALUES ('dining', 'dining');
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+                VALUES ('subscriptions', 'Subscriptions', 'group', 0, 0, 0, 4, '[{"type":"periodic","amount":45,"period":{"amount":1,"period":"month"},"starting":"2026-07-01","limit":null,"priority":null,"directive":"template"}]');
+            INSERT INTO category_mapping VALUES ('subscriptions', 'subscriptions');
+            INSERT INTO zero_budgets VALUES (202607, 'subscriptions', 0, 0);
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+                VALUES ('copycat', 'Copycat', 'group', 0, 0, 0, 5, '[{"type":"copy","lookBack":1,"limit":null,"priority":null,"directive":"template"}]');
+            INSERT INTO category_mapping VALUES ('copycat', 'copycat');
+            INSERT INTO zero_budgets VALUES (202607, 'copycat', 0, 0);
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)
