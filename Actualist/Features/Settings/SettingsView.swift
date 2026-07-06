@@ -97,6 +97,11 @@ struct SettingsView: View {
                                 .foregroundStyle(ActualistTheme.secondaryText)
                         }
 
+                        LabeledContent("Pending Sync") {
+                            Text(localFirstPendingSyncText)
+                                .foregroundStyle(localFirstPendingSyncForeground)
+                        }
+
                         LabeledContent("Security") {
                             Text(localFirstSecurityText)
                                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -380,6 +385,19 @@ struct SettingsView: View {
         }
         let relative = lastSyncedAt.formatted(.relative(presentation: .named))
         return "\(relative) · \(status.lastAppliedMessageCount) applied"
+    }
+
+    private var localFirstPendingSyncText: String {
+        let count = appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
+        if count == 0 {
+            return "None"
+        }
+        return count == 1 ? "1 change" : "\(count) changes"
+    }
+
+    private var localFirstPendingSyncForeground: Color {
+        let count = appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
+        return count == 0 ? ActualistTheme.secondaryText : ActualistTheme.warning
     }
 
     private var localFirstSecurityText: String {

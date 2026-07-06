@@ -23,7 +23,7 @@ actor SyncClient {
 
     func pullAndApply(
         database: BudgetDatabase,
-        client: ActualServerSyncClient,
+        client: any ActualSyncTransport,
         token: String
     ) async throws -> Int {
         guard let configuration else {
@@ -44,7 +44,7 @@ actor SyncClient {
 
     func pushAndPull(
         database: BudgetDatabase,
-        client: ActualServerSyncClient,
+        client: any ActualSyncTransport,
         token: String,
         messages: [ActualSyncDecodedMessage],
         since: String? = nil

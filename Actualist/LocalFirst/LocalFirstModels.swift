@@ -89,6 +89,7 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
     var lastAppliedMessageCount: Int
     var lastError: String?
     var encryptionKeyID: String?
+    var pendingLocalMessageCount: Int
 
     init(
         fileID: String,
@@ -96,7 +97,8 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
         lastSyncedAt: Date? = nil,
         lastAppliedMessageCount: Int = 0,
         lastError: String? = nil,
-        encryptionKeyID: String? = nil
+        encryptionKeyID: String? = nil,
+        pendingLocalMessageCount: Int = 0
     ) {
         self.fileID = fileID
         self.groupID = groupID
@@ -104,6 +106,7 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
         self.lastAppliedMessageCount = lastAppliedMessageCount
         self.lastError = lastError
         self.encryptionKeyID = encryptionKeyID
+        self.pendingLocalMessageCount = pendingLocalMessageCount
     }
 }
 

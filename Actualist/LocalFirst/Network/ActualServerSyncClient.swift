@@ -1,6 +1,10 @@
 import Foundation
 
-actor ActualServerSyncClient {
+protocol ActualSyncTransport: Sendable {
+    func sync(data: Data, token: String) async throws -> Data
+}
+
+actor ActualServerSyncClient: ActualSyncTransport {
     let baseURL: URL
     private let session: URLSession
 

@@ -26,6 +26,13 @@ struct ActualSyncDecodedMessage: Equatable, Sendable {
     let serializedValue: String
 }
 
+struct PendingLocalSyncMessage: Equatable, Sendable {
+    let message: ActualSyncDecodedMessage
+    let baseTimestamp: String
+    let attemptCount: Int
+    let lastError: String?
+}
+
 private enum ActualSyncSQLiteValue {
     case null
     case int(Int64)
@@ -391,6 +398,20 @@ final class BudgetDatabase: @unchecked Sendable {
     }
 
     func applyLocalSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
+        try applyLocalSyncMessages(messages, outboxBaseTimestamp: nil)
+    }
+
+    func applyLocalSyncMessagesAndEnqueue(
+        _ messages: [ActualSyncDecodedMessage],
+        baseTimestamp: String
+    ) throws -> Int {
+        try applyLocalSyncMessages(messages, outboxBaseTimestamp: baseTimestamp)
+    }
+
+    private func applyLocalSyncMessages(
+        _ messages: [ActualSyncDecodedMessage],
+        outboxBaseTimestamp: String?
+    ) throws -> Int {
         guard !messages.isEmpty else {
             return 0
         }
@@ -398,6 +419,9 @@ final class BudgetDatabase: @unchecked Sendable {
         return try queue.write { db in
             guard try tableExists("messages_crdt", db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
+            }
+            if outboxBaseTimestamp != nil {
+                try ensureLocalSyncOutbox(db)
             }
 
             var appliedCount = 0
@@ -423,10 +447,96 @@ final class BudgetDatabase: @unchecked Sendable {
                 try apply(message: message, value: value, rowExists: hasRow, db: db)
                 insertedRows.insert(message.dataset + message.row)
                 try insertCRDTMessage(message, db: db)
+                if let outboxBaseTimestamp {
+                    try insertLocalSyncOutboxMessage(message, baseTimestamp: outboxBaseTimestamp, db: db)
+                }
                 appliedCount += 1
             }
 
             return appliedCount
+        }
+    }
+
+    func pendingLocalSyncMessageCount() throws -> Int {
+        try queue.read { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return 0
+            }
+            return try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM actualist_outbox") ?? 0
+        }
+    }
+
+    func pendingLocalSyncMessages(limit: Int = 500) throws -> [PendingLocalSyncMessage] {
+        try queue.read { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return []
+            }
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT timestamp, dataset, row, column, value, base_timestamp,
+                           attempt_count, last_error
+                    FROM actualist_outbox
+                    ORDER BY timestamp ASC
+                    LIMIT ?
+                    """,
+                arguments: [limit]
+            )
+            return rows.map { row in
+                PendingLocalSyncMessage(
+                    message: ActualSyncDecodedMessage(
+                        timestamp: row["timestamp"] ?? "",
+                        dataset: row["dataset"] ?? "",
+                        row: row["row"] ?? "",
+                        column: row["column"] ?? "",
+                        serializedValue: row["value"] ?? ""
+                    ),
+                    baseTimestamp: row["base_timestamp"] ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000",
+                    attemptCount: row["attempt_count"] ?? 0,
+                    lastError: row["last_error"]
+                )
+            }
+        }
+    }
+
+    func deletePendingLocalSyncMessages(_ messages: [PendingLocalSyncMessage]) throws {
+        guard !messages.isEmpty else {
+            return
+        }
+        try queue.write { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return
+            }
+            for pending in messages {
+                try db.execute(
+                    sql: "DELETE FROM actualist_outbox WHERE timestamp = ?",
+                    arguments: [pending.message.timestamp]
+                )
+            }
+        }
+    }
+
+    func markPendingLocalSyncMessagesFailed(_ messages: [PendingLocalSyncMessage], error: Error) throws {
+        guard !messages.isEmpty else {
+            return
+        }
+        let message = error.localizedDescription
+        try queue.write { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return
+            }
+            for pending in messages {
+                try db.execute(
+                    sql: """
+                        UPDATE actualist_outbox
+                        SET attempt_count = attempt_count + 1,
+                            last_attempt_at = ?,
+                            last_error = ?
+                        WHERE timestamp = ?
+                        """,
+                    arguments: [Self.outboxDateString(Date()), message, pending.message.timestamp]
+                )
+            }
         }
     }
 
@@ -2447,6 +2557,56 @@ final class BudgetDatabase: @unchecked Sendable {
                 message.serializedValue
             ]
         )
+    }
+
+    private func ensureLocalSyncOutbox(_ db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE IF NOT EXISTS actualist_outbox (
+                timestamp TEXT PRIMARY KEY,
+                dataset TEXT NOT NULL,
+                row TEXT NOT NULL,
+                column TEXT NOT NULL,
+                value TEXT NOT NULL,
+                base_timestamp TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                last_attempt_at TEXT,
+                last_error TEXT
+            )
+            """)
+    }
+
+    private func insertLocalSyncOutboxMessage(
+        _ message: ActualSyncDecodedMessage,
+        baseTimestamp: String,
+        db: Database
+    ) throws {
+        try db.execute(
+            sql: """
+                INSERT OR REPLACE INTO actualist_outbox
+                    (timestamp, dataset, row, column, value, base_timestamp, created_at,
+                     attempt_count, last_attempt_at, last_error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL)
+                """,
+            arguments: [
+                message.timestamp,
+                message.dataset,
+                message.row,
+                message.column,
+                message.serializedValue,
+                baseTimestamp,
+                Self.outboxDateString(Date())
+            ]
+        )
+    }
+
+    private static func outboxDateString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+        return formatter.string(from: date)
     }
 
     private func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {

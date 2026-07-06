@@ -5,6 +5,49 @@ import Testing
 
 @MainActor
 struct LocalFirstActualStoreTests {
+    private struct OpenedWritableStoreBundle {
+        let store: LocalFirstActualStore
+        let fileManager: BudgetFileManager
+        let keychain: KeychainStore
+        let budget: ActualBudget
+    }
+
+    private enum TestSyncError: Error, Equatable {
+        case failed
+    }
+
+    private actor RecordingSyncTransport: ActualSyncTransport {
+        private var shouldFail = false
+        private var capturedMessageCounts: [Int] = []
+        private var capturedSinceValues: [String] = []
+
+        init(shouldFail: Bool = false) {
+            self.shouldFail = shouldFail
+        }
+
+        func sync(data: Data, token: String) async throws -> Data {
+            if shouldFail {
+                throw TestSyncError.failed
+            }
+
+            let request = try ActualSync_SyncRequest(serializedData: data)
+            capturedMessageCounts.append(request.messages.count)
+            capturedSinceValues.append(request.since)
+
+            var response = ActualSync_SyncResponse()
+            response.messages = []
+            return try response.serializedData()
+        }
+
+        func messageCounts() -> [Int] {
+            capturedMessageCounts
+        }
+
+        func sinceValues() -> [String] {
+            capturedSinceValues
+        }
+    }
+
     @Test func settingsDecodeIgnoresRetiredRestKeysAndKeepsLocalFirst() throws {
         // Old persisted settings may still carry retired REST keys; they must be ignored while
         // local-first fields decode normally.
@@ -423,6 +466,46 @@ struct LocalFirstActualStoreTests {
         #expect(appliedCount == 1)
         #expect(transaction.category == "gas")
         #expect(try database.latestSyncTimestamp() == message.timestamp)
+    }
+
+    @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let baseTimestamp = try database.latestSyncTimestamp()
+        let message = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("gas").serialized
+        )
+
+        let appliedCount = try database.applyLocalSyncMessagesAndEnqueue([message], baseTimestamp: baseTimestamp)
+        let pending = try database.pendingLocalSyncMessages()
+        let transaction = try #require(database.fetchTransactions(accountID: "checking").first { $0.id == "txn" })
+
+        #expect(appliedCount == 1)
+        #expect(transaction.category == "gas")
+        #expect(pending.map(\.message) == [message])
+        #expect(pending.first?.baseTimestamp == baseTimestamp)
+        #expect(try database.pendingLocalSyncMessageCount() == 1)
+    }
+
+    @Test func failedLocalSyncApplyDoesNotLeaveOutboxRows() throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let message = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
+            dataset: "transactions",
+            row: "txn",
+            column: "bogus",
+            serializedValue: LocalFirstSyncValue.string("nope").serialized
+        )
+
+        #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
+            _ = try database.applyLocalSyncMessagesAndEnqueue([message], baseTimestamp: database.latestSyncTimestamp())
+        }
+        #expect(try database.pendingLocalSyncMessageCount() == 0)
     }
 
     @Test func applyLocalSyncMessagesRejectsUnknownColumns() throws {
@@ -903,6 +986,80 @@ struct LocalFirstActualStoreTests {
         #expect(loaded.month.totalBudgeted == 62_500)
         #expect(loaded.month.toBudget == -62_500)
         #expect(reloadedGroceries.budgeted == 62_500)
+        #expect(try store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
+    }
+
+    @Test func localWriteOutboxSurvivesReopeningCachedBudget() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let pendingCount = try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+
+        let reopened = LocalFirstActualStore(
+            keychain: KeychainStore(
+                service: "com.sporez.actualist.tests",
+                account: UUID().uuidString
+            ),
+            fileManager: bundle.fileManager
+        )
+        _ = try await reopened.openCachedBudget(bundle.budget)
+
+        #expect(pendingCount > 0)
+        #expect(try reopened.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingCount)
+    }
+
+    @Test func refreshDrainsPendingLocalOutboxMessages() async throws {
+        let transport = RecordingSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        bundle.keychain.saveActualSyncToken("token")
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let pendingCount = try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+
+        try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
+
+        #expect(pendingCount > 0)
+        #expect(try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == 0)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == nil)
+        #expect(await transport.messageCounts() == [pendingCount, 0])
+    }
+
+    @Test func failedRefreshKeepsPendingOutboxRowsForRetry() async throws {
+        let transport = RecordingSyncTransport(shouldFail: true)
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        bundle.keychain.saveActualSyncToken("token")
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let pendingCount = try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+
+        await #expect(throws: TestSyncError.failed) {
+            try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
+        }
+        let fileID = try #require(bundle.budget.localFirstFileID)
+        let database = try BudgetDatabase(databaseURL: bundle.fileManager.databaseURL(fileID: fileID))
+        let pending = try database.pendingLocalSyncMessages()
+
+        #expect(pendingCount > 0)
+        #expect(pending.count == pendingCount)
+        #expect(pending.allSatisfy { $0.attemptCount == 1 })
+        #expect(pending.allSatisfy { ($0.lastError ?? "").isEmpty == false })
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == pendingCount)
     }
 
     @Test func moveMoneyLocallyMovesBudgetBetweenCategories() async throws {
@@ -1721,6 +1878,12 @@ struct LocalFirstActualStoreTests {
     }
 
     private func makeOpenedWritableStore() async throws -> LocalFirstActualStore {
+        try await makeOpenedWritableStoreBundle().store
+    }
+
+    private func makeOpenedWritableStoreBundle(
+        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) }
+    ) async throws -> OpenedWritableStoreBundle {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;
             ALTER TABLE transactions ADD COLUMN notes TEXT;
@@ -1768,12 +1931,14 @@ struct LocalFirstActualStoreTests {
             nodeID: "node1"
         )
         try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString
+        )
         let store = LocalFirstActualStore(
-            keychain: KeychainStore(
-                service: "com.sporez.actualist.tests",
-                account: UUID().uuidString
-            ),
-            fileManager: fileManager
+            keychain: keychain,
+            fileManager: fileManager,
+            syncTransportFactory: syncTransportFactory
         )
         let budget = ActualBudget(
             budgetID: fileID,
@@ -1783,7 +1948,7 @@ struct LocalFirstActualStoreTests {
             state: nil
         )
         _ = try await store.openCachedBudget(budget)
-        return store
+        return OpenedWritableStoreBundle(store: store, fileManager: fileManager, keychain: keychain, budget: budget)
     }
 
     private func makeDate(year: Int, month: Int, day: Int) throws -> Date {
