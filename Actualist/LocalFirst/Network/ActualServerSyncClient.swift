@@ -121,6 +121,42 @@ actor ActualServerSyncClient: ActualSyncTransport {
         fileID: String? = nil,
         body: (any Encodable)? = nil
     ) async throws -> Data {
+        var request = try URLRequest(url: endpointURL(path: path, queryItems: queryItems))
+        request.httpMethod = method
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token {
+            addAuthorizationHeaders(to: &request, token: token)
+        }
+        if let fileID {
+            request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
+        }
+        if let body {
+            request.httpBody = try JSONEncoder.actual.encode(body)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        return try await execute(request)
+    }
+
+    private func binaryRequest(
+        path: String,
+        token: String,
+        body: Data
+    ) async throws -> Data {
+        var request = try URLRequest(url: endpointURL(path: path))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.httpBody = body
+        request.setValue("application/actual-sync", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/actual-sync", forHTTPHeaderField: "Accept")
+        request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
+        addAuthorizationHeaders(to: &request, token: token)
+
+        return try await execute(request)
+    }
+
+    private func endpointURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
         let endpointPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -133,73 +169,15 @@ actor ActualServerSyncClient: ActualSyncTransport {
         guard let url = components?.url else {
             throw ActualAPIError.invalidURL
         }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.timeoutInterval = 30
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token {
-            request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        if let fileID {
-            request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
-        }
-        if let body {
-            request.httpBody = try JSONEncoder.actual.encode(body)
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-
-        Self.debugLogRequest(request)
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch let error as URLError {
-            throw ActualAPIError.transport(error)
-        } catch {
-            throw ActualAPIError.transport(nil)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw ActualAPIError.invalidResponse
-        }
-        Self.debugLogResponse(httpResponse, data: data)
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            let message = Self.sanitizedBodySnippet(
-                data: data,
-                contentType: httpResponse.value(forHTTPHeaderField: "Content-Type")
-            )
-            throw ActualAPIError.httpStatus(httpResponse.statusCode, message)
-        }
-        return data
+        return url
     }
 
-    private func binaryRequest(
-        path: String,
-        token: String,
-        body: Data
-    ) async throws -> Data {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
-        let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-        let endpointPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        components?.path = "/" + [basePath, endpointPath].filter { !$0.isEmpty }.joined(separator: "/")
-
-        guard let url = components?.url else {
-            throw ActualAPIError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.httpBody = body
-        request.setValue("application/actual-sync", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/actual-sync", forHTTPHeaderField: "Accept")
-        request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
+    private func addAuthorizationHeaders(to request: inout URLRequest, token: String) {
         request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    }
 
+    private func execute(_ request: URLRequest) async throws -> Data {
         Self.debugLogRequest(request)
 
         let data: Data

@@ -54,6 +54,10 @@
 		010000000000000000000033 /* Sync.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000033 /* Sync.pb.swift */; };
 		010000000000000000000034 /* LocalFirstActualStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000034 /* LocalFirstActualStore.swift */; };
 		010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000035 /* LocalFirstActualStoreTests.swift */; };
+		010000000000000000000048 /* LocalFirstActualStore+Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000048 /* LocalFirstActualStore+Connection.swift */; };
+		010000000000000000000049 /* LocalFirstActualStore+Reads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000049 /* LocalFirstActualStore+Reads.swift */; };
+		01000000000000000000004A /* LocalFirstActualStore+Mutations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */; };
+		01000000000000000000004B /* LocalFirstActualStore+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004B /* LocalFirstActualStore+Sync.swift */; };
 		01000000000000000000003B /* BackendCapabilitiesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000037 /* BackendCapabilitiesTests.swift */; };
 		010000000000000000000036 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000001 /* GRDB */; };
 		010000000000000000000037 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 0D0000000000000000000002 /* SwiftProtobuf */; };
@@ -136,6 +140,10 @@
 		020000000000000000000033 /* Sync.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sync.pb.swift; sourceTree = "<group>"; };
 		020000000000000000000034 /* LocalFirstActualStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStore.swift; sourceTree = "<group>"; };
 		020000000000000000000035 /* LocalFirstActualStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreTests.swift; sourceTree = "<group>"; };
+		020000000000000000000048 /* LocalFirstActualStore+Connection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Connection.swift"; sourceTree = "<group>"; };
+		020000000000000000000049 /* LocalFirstActualStore+Reads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Reads.swift"; sourceTree = "<group>"; };
+		02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Mutations.swift"; sourceTree = "<group>"; };
+		02000000000000000000004B /* LocalFirstActualStore+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Sync.swift"; sourceTree = "<group>"; };
 		020000000000000000000037 /* BackendCapabilitiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendCapabilitiesTests.swift; sourceTree = "<group>"; };
 		02000000000000000000003E /* BudgetDraftModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDraftModels.swift; sourceTree = "<group>"; };
 		02000000000000000000003F /* BudgetViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewSupport.swift; sourceTree = "<group>"; };
@@ -382,6 +390,10 @@
 					02000000000000000000002E /* LocalFirstModels.swift */,
 					020000000000000000000039 /* ActualBudgetCrypto.swift */,
 					020000000000000000000034 /* LocalFirstActualStore.swift */,
+					020000000000000000000048 /* LocalFirstActualStore+Connection.swift */,
+					020000000000000000000049 /* LocalFirstActualStore+Reads.swift */,
+					02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */,
+					02000000000000000000004B /* LocalFirstActualStore+Sync.swift */,
 				04000000000000000000001B /* Network */,
 				04000000000000000000001C /* Database */,
 				04000000000000000000001D /* Sync */,
@@ -587,6 +599,10 @@
 				01000000000000000000003C /* LocalFirstSyncMessageBuilder.swift in Sources */,
 				010000000000000000000033 /* Sync.pb.swift in Sources */,
 				010000000000000000000034 /* LocalFirstActualStore.swift in Sources */,
+				010000000000000000000048 /* LocalFirstActualStore+Connection.swift in Sources */,
+				010000000000000000000049 /* LocalFirstActualStore+Reads.swift in Sources */,
+				01000000000000000000004A /* LocalFirstActualStore+Mutations.swift in Sources */,
+				01000000000000000000004B /* LocalFirstActualStore+Sync.swift in Sources */,
 				010000000000000000000023 /* TransactionGrouping.swift in Sources */,
 				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
 				01000000000000000000003E /* BudgetDraftModels.swift in Sources */,
