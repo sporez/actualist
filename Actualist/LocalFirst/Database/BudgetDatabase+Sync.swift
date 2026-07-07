@@ -28,11 +28,18 @@ extension BudgetDatabase {
             var insertedRows = Set<String>()
 
             for message in sortedMessages {
-                guard try tableExists(message.dataset, db: db) else {
+                if try hasSameOrNewerMessage(message, db: db) {
                     continue
                 }
 
-                if try hasSameOrNewerMessage(message, db: db) {
+                guard try tableExists(message.dataset, db: db) else {
+                    try insertCRDTMessage(message, db: db)
+                    appliedCount += 1
+                    continue
+                }
+                guard try columnSet(for: message.dataset, db: db).contains(message.column) else {
+                    try insertCRDTMessage(message, db: db)
+                    appliedCount += 1
                     continue
                 }
 
@@ -411,13 +418,20 @@ extension BudgetDatabase {
     }
 
     static func outboxDateString(_ date: Date) -> String {
+        outboxDateFormatterLock.lock()
+        defer { outboxDateFormatterLock.unlock() }
+        return outboxDateFormatter.string(from: date)
+    }
+
+    private static let outboxDateFormatterLock = NSLock()
+    private static let outboxDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .iso8601)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        return formatter.string(from: date)
-    }
+        return formatter
+    }()
 
     func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {
         guard let type = value.first else {
@@ -431,8 +445,11 @@ extension BudgetDatabase {
             guard let number = Double(payload) else {
                 throw LocalFirstError.invalidDownloadedBudget
             }
-            if number.rounded() == number {
-                return .int(Int64(number))
+            guard number.isFinite else {
+                throw LocalFirstError.invalidDownloadedBudget
+            }
+            if number.rounded() == number, let int = Int64(exactly: number) {
+                return .int(int)
             }
             return .double(number)
         case "S":

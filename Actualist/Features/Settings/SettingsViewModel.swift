@@ -40,7 +40,10 @@ final class SettingsViewModel {
     func saveAndTest(using appState: AppState) async {
         isTesting = true
         appState.lastErrorMessage = nil
-        await appState.saveLocalFirstConnection(serverURLString: serverURLString, password: actualPassword)
+        let succeeded = await appState.saveLocalFirstConnection(serverURLString: serverURLString, password: actualPassword)
+        if succeeded {
+            actualPassword = ""
+        }
         isTesting = false
     }
 

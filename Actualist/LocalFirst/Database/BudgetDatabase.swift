@@ -1,9 +1,11 @@
 import Foundation
 import GRDB
 
-final class BudgetDatabase: @unchecked Sendable {
+actor BudgetDatabase {
     let databaseURL: URL
     let queue: DatabaseQueue
+    var tableExistsCache: [String: Bool] = [:]
+    var columnSetCache: [String: Set<String>] = [:]
 
     init(databaseURL: URL) throws {
         self.databaseURL = databaseURL

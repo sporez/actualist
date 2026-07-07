@@ -1,11 +1,37 @@
 import Foundation
 import Security
 
+protocol KeychainBackend {
+    func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus
+    func update(_ query: CFDictionary, attributes: CFDictionary) -> OSStatus
+    func add(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus
+    func delete(_ query: CFDictionary) -> OSStatus
+}
+
+struct SystemKeychainBackend: KeychainBackend {
+    func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus {
+        SecItemCopyMatching(query, result)
+    }
+
+    func update(_ query: CFDictionary, attributes: CFDictionary) -> OSStatus {
+        SecItemUpdate(query, attributes)
+    }
+
+    func add(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus {
+        SecItemAdd(query, result)
+    }
+
+    func delete(_ query: CFDictionary) -> OSStatus {
+        SecItemDelete(query)
+    }
+}
+
 struct KeychainStore {
     static let actualist = KeychainStore(service: "com.sporez.actualist", account: "actual-sync-token")
 
     let service: String
     let account: String
+    var backend: any KeychainBackend = SystemKeychainBackend()
 
     func readActualSyncToken() -> String {
         guard let data = readData(),
@@ -15,28 +41,62 @@ struct KeychainStore {
         return value
     }
 
-    func saveActualSyncToken(_ token: String) {
-        saveData(Data(token.trimmingCharacters(in: .whitespacesAndNewlines).utf8))
+    func saveActualSyncToken(_ token: String) throws {
+        try saveData(Data(token.trimmingCharacters(in: .whitespacesAndNewlines).utf8))
     }
 
-    func removeActualSyncToken() {
-        SecItemDelete(baseQuery() as CFDictionary)
+    func removeActualSyncToken() throws {
+        try deleteData(operation: "remove the sync token")
     }
 
     func readLocalFirstEncryptionKey(fileID: String, keyID: String) -> Data? {
         scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID)).readData()
     }
 
-    func saveLocalFirstEncryptionKey(_ keyData: Data, fileID: String, keyID: String) {
-        scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID)).saveData(keyData)
+    func saveLocalFirstEncryptionKey(_ keyData: Data, fileID: String, keyID: String) throws {
+        try scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID)).saveData(keyData)
+    }
+
+    func removeLocalFirstEncryptionKey(fileID: String, keyID: String) throws {
+        try scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID))
+            .deleteData(operation: "remove the budget encryption key")
+    }
+
+    func removeAllLocalFirstEncryptionKeys() throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll
+        ]
+
+        var result: AnyObject?
+        let status = backend.copyMatching(query as CFDictionary, result: &result)
+        if status == errSecItemNotFound {
+            return
+        }
+        guard status == errSecSuccess else {
+            throw LocalFirstError.keychainFailure("list budget encryption keys", status)
+        }
+
+        let items = result as? [[String: Any]] ?? []
+        for item in items {
+            guard let account = item[kSecAttrAccount as String] as? String,
+                  account.hasPrefix(Self.encryptionKeyAccountPrefix) else {
+                continue
+            }
+            try scoped(account: account).deleteData(operation: "remove budget encryption keys")
+        }
     }
 
     private func scoped(account: String) -> KeychainStore {
-        KeychainStore(service: service, account: account)
+        KeychainStore(service: service, account: account, backend: backend)
     }
 
+    private static let encryptionKeyAccountPrefix = "actual-encryption-key:"
+
     private static func encryptionKeyAccount(fileID: String, keyID: String) -> String {
-        "actual-encryption-key:\(fileID):\(keyID)"
+        "\(encryptionKeyAccountPrefix)\(fileID):\(keyID)"
     }
 
     private func readData() -> Data? {
@@ -45,7 +105,7 @@ struct KeychainStore {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = backend.copyMatching(query as CFDictionary, result: &result)
         guard status == errSecSuccess, let data = result as? Data else {
             return nil
         }
@@ -54,19 +114,34 @@ struct KeychainStore {
         return data
     }
 
-    private func saveData(_ data: Data) {
+    private func saveData(_ data: Data) throws {
         let query = baseQuery()
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = backend.update(query as CFDictionary, attributes: attributes as CFDictionary)
         if status == errSecItemNotFound {
             var addQuery = query
             addQuery[kSecValueData as String] = data
             addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            SecItemAdd(addQuery as CFDictionary, nil)
+            let addStatus = backend.add(addQuery as CFDictionary, result: nil)
+            guard addStatus == errSecSuccess else {
+                throw LocalFirstError.keychainFailure("save Keychain data", addStatus)
+            }
+            return
+        }
+
+        guard status == errSecSuccess else {
+            throw LocalFirstError.keychainFailure("save Keychain data", status)
+        }
+    }
+
+    private func deleteData(operation: String) throws {
+        let status = backend.delete(baseQuery() as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw LocalFirstError.keychainFailure(operation, status)
         }
     }
 
@@ -74,7 +149,7 @@ struct KeychainStore {
         let attributes = [
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
-        SecItemUpdate(baseQuery() as CFDictionary, attributes as CFDictionary)
+        _ = backend.update(baseQuery() as CFDictionary, attributes: attributes as CFDictionary)
     }
 
     private func baseQuery() -> [String: Any] {

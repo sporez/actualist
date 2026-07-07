@@ -18,6 +18,8 @@ enum LocalFirstError: LocalizedError, Equatable {
     case invalidLocalWrite(String)
     case budgetNotOpened
     case unsupportedTemplate(String)
+    case keychainFailure(String, OSStatus)
+    case hybridLogicalClockOverflow
 
     var errorDescription: String? {
         switch self {
@@ -55,6 +57,10 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Open a local-first budget before loading this screen."
         case .unsupportedTemplate(let reason):
             "This budget template can't be applied locally yet: \(reason)"
+        case .keychainFailure(let operation, let status):
+            "Actualist could not \(operation) Keychain data. OSStatus: \(status)"
+        case .hybridLogicalClockOverflow:
+            "Actualist could not create a local sync timestamp because the clock counter overflowed."
         }
     }
 }

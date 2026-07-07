@@ -34,12 +34,12 @@ actor SyncClient {
         request.fileID = configuration.fileID
         request.groupID = configuration.groupID ?? ""
         request.keyID = configuration.encryptionKeyID ?? ""
-        request.since = try database.latestSyncTimestamp()
+        request.since = try await database.latestSyncTimestamp()
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let messages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
-        return try database.applyRemoteSyncMessages(messages)
+        return try await database.applyRemoteSyncMessages(messages)
     }
 
     func pushAndPull(
@@ -64,13 +64,13 @@ actor SyncClient {
         if let since {
             request.since = since
         } else {
-            request.since = try database.latestSyncTimestamp()
+            request.since = try await database.latestSyncTimestamp()
         }
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let remoteMessages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
-        let appliedCount = try database.applyRemoteSyncMessages(remoteMessages)
+        let appliedCount = try await database.applyRemoteSyncMessages(remoteMessages)
 
         return LocalFirstSyncResult(
             pushedMessageCount: messages.count,

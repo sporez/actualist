@@ -15,6 +15,8 @@ struct SettingsView: View {
     @State private var isSyncingNow = false
     @State private var isReimporting = false
     @State private var isReimportConfirmationPresented = false
+    @State private var isEraseLocalDataConfirmationPresented = false
+    @State private var isErasingLocalData = false
     #if DEBUG
     @State private var isPostingDebugNotification = false
     @State private var debugNotificationMessage: String?
@@ -72,6 +74,16 @@ struct SettingsView: View {
                         )
                     }
                     .disabled(!canSaveConnection)
+
+                    Button(role: .destructive) {
+                        isEraseLocalDataConfirmationPresented = true
+                    } label: {
+                        SettingsActionLabel(
+                            title: isErasingLocalData ? "Erasing" : "Disconnect & Erase Local Data",
+                            systemImage: "trash"
+                        )
+                    }
+                    .disabled(isErasingLocalData)
                 }
                 .settingsSectionChrome()
 
@@ -247,6 +259,18 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Actualist will delete the local copy of this budget and download a fresh one from the server. Your server data is not changed.")
+            }
+            .confirmationDialog(
+                "Disconnect & Erase Local Data?",
+                isPresented: $isEraseLocalDataConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Disconnect & Erase", role: .destructive) {
+                    eraseLocalData()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Actualist will remove the sync token, cached encryption keys, imported budget files, and local selections from this device. Your server data is not changed.")
             }
             .sheet(isPresented: $isBudgetPickerPresented) {
                 SettingsBudgetPickerSheet(
@@ -429,6 +453,17 @@ struct SettingsView: View {
         isReimporting = true
         await appState.reimportLocalFirstBudget()
         isReimporting = false
+    }
+
+    private func eraseLocalData() {
+        guard !isErasingLocalData else {
+            return
+        }
+        isErasingLocalData = true
+        appState.disconnectAndEraseLocalData()
+        viewModel.actualPassword = ""
+        viewModel.serverURLString = appState.settings.localFirstServerURLString
+        isErasingLocalData = false
     }
 
     private var randomizedDisplayValuesSelection: Binding<Bool> {

@@ -42,6 +42,25 @@ struct BudgetFileManager {
         fileManager.fileExists(atPath: databaseURL(fileID: fileID).path)
     }
 
+    func importedBudgetFileIDs() throws -> [String] {
+        let budgetsDirectory = applicationSupportURL.appending(path: "Budgets", directoryHint: .isDirectory)
+        guard fileManager.fileExists(atPath: budgetsDirectory.path) else {
+            return []
+        }
+        let urls = try fileManager.contentsOfDirectory(
+            at: budgetsDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
+        return try urls.compactMap { url in
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey])
+            guard values.isDirectory == true else {
+                return nil
+            }
+            return url.lastPathComponent
+        }
+    }
+
     /// Removes the imported budget directory (database + metadata) so the next open
     /// re-downloads a fresh copy from the server. A no-op when nothing is imported.
     func deleteImportedBudget(fileID: String) throws {
@@ -50,6 +69,14 @@ struct BudgetFileManager {
             return
         }
         try fileManager.removeItem(at: directory)
+    }
+
+    func deleteAllImportedBudgets() throws {
+        let budgetsDirectory = applicationSupportURL.appending(path: "Budgets", directoryHint: .isDirectory)
+        guard fileManager.fileExists(atPath: budgetsDirectory.path) else {
+            return
+        }
+        try fileManager.removeItem(at: budgetsDirectory)
     }
 
     func importBudgetZip(

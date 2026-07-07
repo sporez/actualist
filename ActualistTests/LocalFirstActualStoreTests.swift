@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import Security
 import Testing
 @testable import Actualist
 
@@ -12,7 +13,7 @@ struct LocalFirstActualStoreTests {
         let budget: ActualBudget
     }
 
-    @Test func settingsDecodeIgnoresRetiredRestKeysAndKeepsLocalFirst() throws {
+    @Test func settingsDecodeIgnoresRetiredRestKeysAndKeepsLocalFirst() async throws {
         // Old persisted settings may still carry retired REST keys; they must be ignored while
         // local-first fields decode normally.
         let data = Data("""
@@ -32,7 +33,7 @@ struct LocalFirstActualStoreTests {
         #expect(!settings.localFirstWritesEnabled)
     }
 
-    @Test func loginResponseDecodesTopLevelAndNestedToken() throws {
+    @Test func loginResponseDecodesTopLevelAndNestedToken() async throws {
         let topLevel = try JSONDecoder.actual.decode(
             ActualLoginResponse.self,
             from: Data(#"{"token":"abc"}"#.utf8)
@@ -46,12 +47,12 @@ struct LocalFirstActualStoreTests {
         #expect(nested.token == "def")
     }
 
-    @Test func serverConnectionSecurityAllowsHTTPSWithoutWarning() {
+    @Test func serverConnectionSecurityAllowsHTTPSWithoutWarning() async {
         #expect(ActualServerConnectionSecurity.warningMessage(for: "actual.example.com") == nil)
         #expect(ActualServerConnectionSecurity.blockedMessage(for: "actual.example.com") == nil)
     }
 
-    @Test func serverConnectionSecurityWarnsForLocalHTTP() {
+    @Test func serverConnectionSecurityWarnsForLocalHTTP() async {
         #expect(
             ActualServerConnectionSecurity.warningMessage(for: "http://192.168.1.16:5007")
                 == ActualServerConnectionSecurity.localHTTPWarning
@@ -59,7 +60,7 @@ struct LocalFirstActualStoreTests {
         #expect(ActualServerConnectionSecurity.blockedMessage(for: "http://192.168.1.16:5007") == nil)
     }
 
-    @Test func serverConnectionSecurityBlocksRemoteHTTP() {
+    @Test func serverConnectionSecurityBlocksRemoteHTTP() async {
         #expect(ActualServerConnectionSecurity.warningMessage(for: "http://actual.example.com") == nil)
         #expect(
             ActualServerConnectionSecurity.blockedMessage(for: "http://actual.example.com")
@@ -67,7 +68,7 @@ struct LocalFirstActualStoreTests {
         )
     }
 
-    @Test func loginMethodsDecodeActualServerObjectShape() throws {
+    @Test func loginMethodsDecodeActualServerObjectShape() async throws {
         let response = try JSONDecoder.actual.decode(
             ActualLoginMethodsResponse.self,
             from: Data("""
@@ -84,7 +85,7 @@ struct LocalFirstActualStoreTests {
         #expect(response.methods == ["password"])
     }
 
-    @Test func userFilesDecodeDeletedFilteringInputs() throws {
+    @Test func userFilesDecodeDeletedFilteringInputs() async throws {
         let data = Data("""
         {
           "groupId": "group-1",
@@ -102,7 +103,7 @@ struct LocalFirstActualStoreTests {
         #expect(visible.first?.name == "Main")
     }
 
-    @Test func userFilesDecodeActualServerDataArrayShape() throws {
+    @Test func userFilesDecodeActualServerDataArrayShape() async throws {
         let data = Data("""
         {
           "status": "ok",
@@ -140,7 +141,7 @@ struct LocalFirstActualStoreTests {
         #expect(response.files.first?.syncEncryptionKeyID == nil)
     }
 
-    @Test func userFileInfoDecodesActualServerDataObjectShape() throws {
+    @Test func userFileInfoDecodesActualServerDataObjectShape() async throws {
         let data = Data("""
         {
           "status": "ok",
@@ -163,7 +164,7 @@ struct LocalFirstActualStoreTests {
         #expect(response.file?.syncEncryptionKeyID == nil)
     }
 
-    @Test func userFileInfoTreatsNullEncryptMetaAsUnencrypted() throws {
+    @Test func userFileInfoTreatsNullEncryptMetaAsUnencrypted() async throws {
         let data = Data("""
         {
           "status": "ok",
@@ -181,7 +182,7 @@ struct LocalFirstActualStoreTests {
         #expect(response.file?.requiresEncryptionPassword == false)
     }
 
-    @Test func userFileInfoDetectsEncryptedDownloadMetadata() throws {
+    @Test func userFileInfoDetectsEncryptedDownloadMetadata() async throws {
         let data = Data("""
         {
           "status": "ok",
@@ -202,7 +203,7 @@ struct LocalFirstActualStoreTests {
         #expect(response.file?.syncEncryptionKeyID == "key-1")
     }
 
-    @Test func userKeyResponseDecodesNestedActualServerShape() throws {
+    @Test func userKeyResponseDecodesNestedActualServerShape() async throws {
         let data = Data("""
         {
           "status": "ok",
@@ -221,13 +222,13 @@ struct LocalFirstActualStoreTests {
         #expect(response.test?.contains("aes-256-gcm") == true)
     }
 
-    @Test func actualBudgetCryptoDerivesActualCompatibleKey() throws {
+    @Test func actualBudgetCryptoDerivesActualCompatibleKey() async throws {
         let key = try ActualBudgetCrypto.deriveKey(password: "correct horse", salt: "actual-salt")
 
         #expect(key.base64EncodedString() == "uXkIgygcn1EQ8xhItpxCuiICM9BxkdD5e0ZbBM+9nwE=")
     }
 
-    @Test func actualBudgetCryptoValidatesUserKeyTestPayload() throws {
+    @Test func actualBudgetCryptoValidatesUserKeyTestPayload() async throws {
         let password = "budget password"
         let salt = "server-salt"
         let keyData = try ActualBudgetCrypto.deriveKey(password: password, salt: salt)
@@ -253,13 +254,65 @@ struct LocalFirstActualStoreTests {
         #expect(validated == context)
     }
 
-    @Test func budgetDatabaseMapsAccountsBalancesAndBudgetMonth() throws {
+    @Test func keychainStoreSurfacesFailuresAndRemovesOnlyBudgetEncryptionKeys() throws {
+        let backend = FakeKeychainBackend()
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: "actual-sync-token",
+            backend: backend
+        )
+
+        try keychain.saveActualSyncToken(" token ")
+        try keychain.saveLocalFirstEncryptionKey(Data([1, 2, 3]), fileID: "file-1", keyID: "key-1")
+        try keychain.removeAllLocalFirstEncryptionKeys()
+
+        #expect(keychain.readActualSyncToken() == "token")
+        #expect(keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1") == nil)
+
+        backend.updateFailureStatus = errSecAuthFailed
+        #expect(throws: LocalFirstError.keychainFailure("save Keychain data", errSecAuthFailed)) {
+            try keychain.saveActualSyncToken("next")
+        }
+    }
+
+    @Test func eraseLocalDataRemovesCredentialsKeysAndImportedBudgetDirectories() async throws {
+        let backend = FakeKeychainBackend()
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: "actual-sync-token",
+            backend: backend
+        )
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistErase-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let store = LocalFirstActualStore(keychain: keychain, fileManager: fileManager)
+
+        try keychain.saveActualSyncToken("token")
+        try keychain.saveLocalFirstEncryptionKey(Data([4, 5, 6]), fileID: "file-1", keyID: "key-1")
+        try FileManager.default.createDirectory(
+            at: fileManager.budgetDirectory(fileID: "file-1"),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: fileManager.budgetDirectory(fileID: "file-2"),
+            withIntermediateDirectories: true
+        )
+
+        try store.eraseLocalData()
+
+        #expect(keychain.readActualSyncToken().isEmpty)
+        #expect(keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1") == nil)
+        #expect(try fileManager.importedBudgetFileIDs().isEmpty)
+        #expect(!store.hasOpenBudget)
+    }
+
+    @Test func budgetDatabaseMapsAccountsBalancesAndBudgetMonth() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let accounts = try database.fetchAccountDisplays()
-        let months = try database.fetchAvailableMonths()
-        let month = try database.fetchBudgetMonth(month: "2026-07")
+        let accounts = try await database.fetchAccountDisplays()
+        let months = try await database.fetchAvailableMonths()
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
 
         #expect(accounts.map(\.account.id) == ["checking"])
         #expect(accounts.first?.balance == -12_345)
@@ -270,7 +323,7 @@ struct LocalFirstActualStoreTests {
         #expect(month.categoryGroups.first?.categories.first?.carryover == true)
     }
 
-    @Test func budgetDatabaseCanonicalizesAvailableMonthValues() throws {
+    @Test func budgetDatabaseCanonicalizesAvailableMonthValues() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             INSERT INTO zero_budgets VALUES ('2026-8', 'groceries', 50000, 1);
             INSERT INTO transactions VALUES ('sept', 'checking', '2026/09/03', -12345, 'groceries', 0, NULL, 0);
@@ -278,10 +331,10 @@ struct LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        #expect(try database.fetchAvailableMonths() == ["2026-07", "2026-08", "2026-09"])
+        #expect(try await database.fetchAvailableMonths() == ["2026-07", "2026-08", "2026-09"])
     }
 
-    @Test func budgetTemplateMessagesAppliesPriorityPeriodicWhenAvailable() throws {
+    @Test func budgetTemplateMessagesAppliesPriorityPeriodicWhenAvailable() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
             INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
@@ -297,19 +350,19 @@ struct LocalFirstActualStoreTests {
             latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
         )
 
-        let messages = try database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateMessages(
             command: .category("priority-food"),
             month: "2026-07",
             builder: &builder
         )
-        _ = try database.applyLocalSyncMessages(messages)
-        let month = try database.fetchBudgetMonth(month: "2026-07")
+        _ = try await database.applyLocalSyncMessages(messages)
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
         let food = try #require(month.categoryGroups.flatMap(\.categories).first { $0.id == "priority-food" })
 
         #expect(food.budgeted == 500)
     }
 
-    @Test func toBudgetIsCumulativeAcrossMonthsNotJustCurrentMonth() throws {
+    @Test func toBudgetIsCumulativeAcrossMonthsNotJustCurrentMonth() async throws {
         // June: assign 50000 to groceries, receive 200000 income, spend 40000 on groceries.
         // July: assign another 50000 to groceries (the fixture's -12345 July spend also applies).
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
@@ -322,7 +375,7 @@ struct LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let month = try database.fetchBudgetMonth(month: "2026-07")
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
 
         // On-budget balance through July = 200000 - 40000 - 12345 = 147655.
         // Groceries balance carries June's 10000 leftover into July: 50000 - 12345 + 10000 = 47655.
@@ -331,7 +384,7 @@ struct LocalFirstActualStoreTests {
         #expect(month.toBudget == 100_000)
     }
 
-    @Test func toBudgetIgnoresUncategorizedActivityUntilCategorized() throws {
+    @Test func toBudgetIgnoresUncategorizedActivityUntilCategorized() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
             INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 1);
@@ -341,14 +394,14 @@ struct LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let month = try database.fetchBudgetMonth(month: "2026-07")
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
 
         // Uncategorized spending changes account balance, but Actual does not let it reduce
         // To Budget until it is assigned to a category.
         #expect(month.toBudget == 150_000)
     }
 
-    @Test func budgetDatabaseUsesActualiSpendingSemanticsForMappedSplits() throws {
+    @Test func budgetDatabaseUsesActualiSpendingSemanticsForMappedSplits() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             UPDATE zero_budgets SET amount = 0, carryover = 0 WHERE month = 202607 AND category = 'groceries';
             INSERT INTO category_mapping VALUES ('old-groceries', 'groceries');
@@ -359,7 +412,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('split-child-2', 'checking', 20260804, -10000, 'groceries', 0, 'split-parent', 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let month = try database.fetchBudgetMonth(month: "2026-08")
+        let month = try await database.fetchBudgetMonth(month: "2026-08")
         let groceries = month.categoryGroups.first?.categories.first
 
         #expect(groceries?.budgeted == 50_000)
@@ -367,7 +420,7 @@ struct LocalFirstActualStoreTests {
         #expect(groceries?.balance == 10_000)
     }
 
-    @Test func localFirstSyncValueSerializesActualWireValues() {
+    @Test func localFirstSyncValueSerializesActualWireValues() async {
         #expect(LocalFirstSyncValue.null.serialized == "0:")
         #expect(LocalFirstSyncValue.int(42).serialized == "N:42")
         #expect(LocalFirstSyncValue.double(12.5).serialized == "N:12.5")
@@ -376,29 +429,40 @@ struct LocalFirstActualStoreTests {
         #expect(LocalFirstSyncValue.bool(false).serialized == "N:0")
     }
 
-    @Test func hybridLogicalClockUsesNodeIDAndIncrementsWhenWallClockDoesNotAdvance() {
+    @Test func hybridLogicalClockUsesNodeIDAndIncrementsWhenWallClockDoesNotAdvance() async throws {
         var clock = HybridLogicalClock(
             nodeID: "node1",
             lastTimestamp: "1970-01-01T00:00:01.234Z-0000-node1"
         )
 
-        let first = clock.next(now: Date(timeIntervalSince1970: 1.0))
-        let second = clock.next(now: Date(timeIntervalSince1970: 1.0))
-        let advanced = clock.next(now: Date(timeIntervalSince1970: 2.0))
+        let first = try clock.next(now: Date(timeIntervalSince1970: 1.0))
+        let second = try clock.next(now: Date(timeIntervalSince1970: 1.0))
+        let advanced = try clock.next(now: Date(timeIntervalSince1970: 2.0))
 
         #expect(first == "1970-01-01T00:00:01.234Z-0001-node1")
         #expect(second == "1970-01-01T00:00:01.234Z-0002-node1")
         #expect(advanced == "1970-01-01T00:00:02.000Z-0000-node1")
     }
 
-    @Test func hybridLogicalClockUsesActualClientIDShape() {
+    @Test func hybridLogicalClockThrowsWhenCounterOverflows() async {
+        var clock = HybridLogicalClock(
+            nodeID: "node1",
+            lastTimestamp: "1970-01-01T00:00:01.234Z-ffff-node1"
+        )
+
+        #expect(throws: LocalFirstError.hybridLogicalClockOverflow) {
+            _ = try clock.next(now: Date(timeIntervalSince1970: 1.0))
+        }
+    }
+
+    @Test func hybridLogicalClockUsesActualClientIDShape() async {
         let uuid = UUID(uuidString: "A219E7A7-1CC1-8912-ABCD-0123456789AB")!
 
         #expect(HybridLogicalClock.makeClientID(uuid: uuid) == "abcd0123456789ab")
         #expect(HybridLogicalClock.normalizedNodeID("node-1") == "node1")
     }
 
-    @Test func localFirstSyncMessageEnvelopeRoundTripsThroughProtobuf() throws {
+    @Test func localFirstSyncMessageEnvelopeRoundTripsThroughProtobuf() async throws {
         let message = ActualSyncDecodedMessage(
             timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
             dataset: "transactions",
@@ -418,7 +482,7 @@ struct LocalFirstActualStoreTests {
         #expect(decoded.value == "S:groceries")
     }
 
-    @Test func encryptedDataDecodesActualWireFieldOrder() throws {
+    @Test func encryptedDataDecodesActualWireFieldOrder() async throws {
         let iv = Data("123456789012".utf8)
         let authTag = Data("abcdefghijklmnop".utf8)
         let data = Data("ciphertext".utf8)
@@ -437,7 +501,7 @@ struct LocalFirstActualStoreTests {
         #expect(encryptedData.data == data)
     }
 
-    @Test func localFirstSyncMessageEnvelopeCanBeEncrypted() throws {
+    @Test func localFirstSyncMessageEnvelopeCanBeEncrypted() async throws {
         let context = ActualBudgetEncryptionContext(
             keyID: "key-1",
             keyData: try ActualBudgetCrypto.deriveKey(password: "password", salt: "salt")
@@ -473,7 +537,7 @@ struct LocalFirstActualStoreTests {
         #expect(decoded.value == "S:groceries")
     }
 
-    @Test func applyLocalSyncMessagesUpdatesSQLiteAndMessagesTable() throws {
+    @Test func applyLocalSyncMessagesUpdatesSQLiteAndMessagesTable() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let message = ActualSyncDecodedMessage(
@@ -484,18 +548,19 @@ struct LocalFirstActualStoreTests {
             serializedValue: LocalFirstSyncValue.string("gas").serialized
         )
 
-        let appliedCount = try database.applyLocalSyncMessages([message])
+        let appliedCount = try await database.applyLocalSyncMessages([message])
 
-        let transaction = try #require(database.fetchTransactions(accountID: "checking").first { $0.id == "txn" })
+        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transaction = try #require(transactions.first { $0.id == "txn" })
         #expect(appliedCount == 1)
         #expect(transaction.category == "gas")
-        #expect(try database.latestSyncTimestamp() == message.timestamp)
+        #expect(try await database.latestSyncTimestamp() == message.timestamp)
     }
 
-    @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() throws {
+    @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let baseTimestamp = try database.latestSyncTimestamp()
+        let baseTimestamp = try await database.latestSyncTimestamp()
         let message = ActualSyncDecodedMessage(
             timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
             dataset: "transactions",
@@ -504,18 +569,19 @@ struct LocalFirstActualStoreTests {
             serializedValue: LocalFirstSyncValue.string("gas").serialized
         )
 
-        let appliedCount = try database.applyLocalSyncMessagesAndEnqueue([message], baseTimestamp: baseTimestamp)
-        let pending = try database.pendingLocalSyncMessages()
-        let transaction = try #require(database.fetchTransactions(accountID: "checking").first { $0.id == "txn" })
+        let appliedCount = try await database.applyLocalSyncMessagesAndEnqueue([message], baseTimestamp: baseTimestamp)
+        let pending = try await database.pendingLocalSyncMessages()
+        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transaction = try #require(transactions.first { $0.id == "txn" })
 
         #expect(appliedCount == 1)
         #expect(transaction.category == "gas")
         #expect(pending.map(\.message) == [message])
         #expect(pending.first?.baseTimestamp == baseTimestamp)
-        #expect(try database.pendingLocalSyncMessageCount() == 1)
+        #expect(try await database.pendingLocalSyncMessageCount() == 1)
     }
 
-    @Test func failedLocalSyncApplyDoesNotLeaveOutboxRows() throws {
+    @Test func failedLocalSyncApplyDoesNotLeaveOutboxRows() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let message = ActualSyncDecodedMessage(
@@ -526,13 +592,16 @@ struct LocalFirstActualStoreTests {
             serializedValue: LocalFirstSyncValue.string("nope").serialized
         )
 
-        #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
-            _ = try database.applyLocalSyncMessagesAndEnqueue([message], baseTimestamp: database.latestSyncTimestamp())
+        await #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
+            _ = try await database.applyLocalSyncMessagesAndEnqueue(
+                [message],
+                baseTimestamp: try await database.latestSyncTimestamp()
+            )
         }
-        #expect(try database.pendingLocalSyncMessageCount() == 0)
+        #expect(try await database.pendingLocalSyncMessageCount() == 0)
     }
 
-    @Test func applyLocalSyncMessagesRejectsUnknownColumns() throws {
+    @Test func applyLocalSyncMessagesRejectsUnknownColumns() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let message = ActualSyncDecodedMessage(
@@ -543,9 +612,56 @@ struct LocalFirstActualStoreTests {
             serializedValue: LocalFirstSyncValue.string("nope").serialized
         )
 
-        #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
-            _ = try database.applyLocalSyncMessages([message])
+        await #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
+            _ = try await database.applyLocalSyncMessages([message])
         }
+    }
+
+    @Test func deserializeRemoteNumericPayloadsRejectNonFiniteButPreservesHugeDoubles() async throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let huge = try await database.deserializeSyncValue("N:1e300")
+        switch huge {
+        case .double(let value):
+            #expect(value == 1e300)
+        default:
+            Issue.record("Expected 1e300 to decode as a Double")
+        }
+
+        await #expect(throws: LocalFirstError.invalidDownloadedBudget) {
+            _ = try await database.deserializeSyncValue("N:inf")
+        }
+        await #expect(throws: LocalFirstError.invalidDownloadedBudget) {
+            _ = try await database.deserializeSyncValue("N:not-a-number")
+        }
+    }
+
+    @Test func remoteUnknownDatasetOrColumnAdvancesSyncWithoutMutatingLocalTables() async throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let unknownDataset = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
+            dataset: "future_table",
+            row: "row-1",
+            column: "name",
+            serializedValue: LocalFirstSyncValue.string("ignored").serialized
+        )
+        let unknownColumn = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:57.789Z-0000-node1",
+            dataset: "transactions",
+            row: "txn",
+            column: "future_column",
+            serializedValue: LocalFirstSyncValue.string("ignored").serialized
+        )
+
+        let appliedCount = try await database.applyRemoteSyncMessages([unknownColumn, unknownDataset])
+        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transaction = try #require(transactions.first { $0.id == "txn" })
+
+        #expect(appliedCount == 2)
+        #expect(transaction.category == "groceries")
+        #expect(try await database.latestSyncTimestamp() == unknownColumn.timestamp)
     }
 
     @Test func refreshWithoutOpenBudgetThrowsBudgetNotOpened() async {
@@ -573,7 +689,7 @@ struct LocalFirstActualStoreTests {
         #expect(state.localFirstSyncStatus == nil)
     }
 
-    @Test func syncStatusDefaultsAndEquality() {
+    @Test func syncStatusDefaultsAndEquality() async {
         let base = LocalFirstSyncStatus(fileID: "file", groupID: "group")
         #expect(base.lastSyncedAt == nil)
         #expect(base.lastAppliedMessageCount == 0)
@@ -594,7 +710,7 @@ struct LocalFirstActualStoreTests {
         )
     }
 
-    @Test func accountFeedExcludesTombstonedAndAttachesSplits() throws {
+    @Test func accountFeedExcludesTombstonedAndAttachesSplits() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             INSERT INTO transactions VALUES ('dead', 'checking', 20260702, -999, 'groceries', 1, NULL, 0);
             INSERT INTO transactions VALUES ('split', 'checking', 20260701, -5000, NULL, 0, NULL, 1);
@@ -603,7 +719,7 @@ struct LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let transactions = try database.fetchTransactions(accountID: "checking")
+        let transactions = try await database.fetchTransactions(accountID: "checking")
         let ids = transactions.compactMap(\.id)
 
         #expect(!ids.contains("dead"))     // tombstoned excluded
@@ -621,21 +737,39 @@ struct LocalFirstActualStoreTests {
         #expect(txn?.category == "groceries")
     }
 
-    @Test func spendingFeedSpansAccountsAndSearchFilters() throws {
+    @Test func spendingFeedSpansAccountsAndSearchFilters() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 2);
             INSERT INTO transactions VALUES ('txn2', 'savings', 20260704, -55500, 'groceries', 0, NULL, 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let all = try database.fetchTransactions()
+        let all = try await database.fetchTransactions()
         #expect(Set(all.compactMap(\.id)) == ["txn", "txn2"])
 
-        let search = try database.fetchTransactions(matching: "55500")
+        let search = try await database.fetchTransactions(matching: "55500")
         #expect(search.compactMap(\.id) == ["txn2"])
     }
 
-    @Test func accountFeedResolvesPayeeThroughPayeeMapping() throws {
+    @Test func transactionSearchTreatsPercentAndUnderscoreAsLiteralCharacters() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE transactions ADD COLUMN notes TEXT;
+            UPDATE transactions SET notes = 'plain note' WHERE id = 'txn';
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, notes)
+                VALUES ('percent', 'checking', 20260704, -1000, 'groceries', 0, NULL, 0, '100% real');
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, notes)
+                VALUES ('underscore', 'checking', 20260705, -1000, 'groceries', 0, NULL, 0, 'under_score');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let percent = try await database.fetchTransactions(matching: "%")
+        let underscore = try await database.fetchTransactions(matching: "_")
+
+        #expect(percent.compactMap(\.id) == ["percent"])
+        #expect(underscore.compactMap(\.id) == ["underscore"])
+    }
+
+    @Test func accountFeedResolvesPayeeThroughPayeeMapping() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;
             CREATE TABLE payees (id TEXT PRIMARY KEY, name TEXT, transfer_acct TEXT, tombstone INTEGER);
@@ -648,13 +782,13 @@ struct LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let amazon = try database.fetchTransactions(accountID: "checking").first { $0.id == "amz" }
+        let amazon = try await database.fetchTransactions(accountID: "checking").first { $0.id == "amz" }
         // The payee id lives in `description`; `amazon-src` remaps to the canonical `amazon` payee.
         #expect(amazon?.payee == "amazon")
         #expect(amazon?.payeeName == "Amazon")
     }
 
-    @Test func feedResolvesTransferPayeeToAccountName() throws {
+    @Test func feedResolvesTransferPayeeToAccountName() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;
             INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 2);
@@ -665,7 +799,7 @@ struct LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let transfer = try database.fetchTransactions(accountID: "checking").first { $0.id == "t-xfer" }
+        let transfer = try await database.fetchTransactions(accountID: "checking").first { $0.id == "t-xfer" }
         // Transfer payee has an empty name; the feed shows the linked account's name.
         #expect(transfer?.payeeName == "Savings")
     }
@@ -688,7 +822,7 @@ struct LocalFirstActualStoreTests {
         }
     }
 
-    @Test func uncategorizedAlertCountsOnlyReviewableTransactions() {
+    @Test func uncategorizedAlertCountsOnlyReviewableTransactions() async {
         let transferAccountIDsByPayeeID = ["on-budget-xfer": "checking"]
         let transactions = [
             makeTransaction(id: "needs-category", category: nil),
@@ -720,7 +854,7 @@ struct LocalFirstActualStoreTests {
         #expect(alert.count == 2)
     }
 
-    @Test func uncategorizedAlertEmptyWhenEverythingCategorized() {
+    @Test func uncategorizedAlertEmptyWhenEverythingCategorized() async {
         let transactions = [
             makeTransaction(id: "a", category: "groceries"),
             makeTransaction(id: "b", category: "rent")
@@ -736,7 +870,7 @@ struct LocalFirstActualStoreTests {
         #expect(alerts.isEmpty)
     }
 
-    @Test func uncategorizedAlertIncludesOnBudgetTransferToOffBudgetAccount() {
+    @Test func uncategorizedAlertIncludesOnBudgetTransferToOffBudgetAccount() async {
         let transactions = [
             makeTransaction(id: "off-budget-transfer", category: nil, payee: "off-budget-xfer"),
             makeTransaction(id: "on-budget-transfer", category: nil, payee: "on-budget-xfer")
@@ -755,7 +889,7 @@ struct LocalFirstActualStoreTests {
         #expect(alerts.first?.count == 1)
     }
 
-    @Test func toBudgetAlertShowsSurplusAndOverbudgetButNotZero() {
+    @Test func toBudgetAlertShowsSurplusAndOverbudgetButNotZero() async {
         let surplus = try! #require(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: 1500)))
         #expect(surplus.kind == "toBudget")
         #expect(surplus.severity == "positive")
@@ -771,7 +905,7 @@ struct LocalFirstActualStoreTests {
         #expect(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: 0)) == nil)
     }
 
-    @Test func overspendingAlertCountsVisibleNegativeCategoriesInSpendingGroups() {
+    @Test func overspendingAlertCountsVisibleNegativeCategoriesInSpendingGroups() async {
         let month = makeBudgetMonth(
             toBudget: 0,
             groups: [
@@ -795,7 +929,7 @@ struct LocalFirstActualStoreTests {
         #expect(alert.count == 1)
     }
 
-    @Test func budgetAlertsAreOrderedToBudgetThenOverspendingThenUncategorized() {
+    @Test func budgetAlertsAreOrderedToBudgetThenOverspendingThenUncategorized() async {
         let month = makeBudgetMonth(
             toBudget: 1500,
             groups: [
@@ -1070,7 +1204,7 @@ struct LocalFirstActualStoreTests {
         #expect(loaded.month.totalBudgeted == 62_500)
         #expect(loaded.month.toBudget == -62_500)
         #expect(reloadedGroceries.budgeted == 62_500)
-        #expect(try store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
     }
 
     @Test func localWriteOutboxSurvivesReopeningCachedBudget() async throws {
@@ -1082,7 +1216,7 @@ struct LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let pendingCount = try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+        let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
         let reopened = LocalFirstActualStore(
             keychain: KeychainStore(
@@ -1094,13 +1228,13 @@ struct LocalFirstActualStoreTests {
         _ = try await reopened.openCachedBudget(bundle.budget)
 
         #expect(pendingCount > 0)
-        #expect(try reopened.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingCount)
+        #expect(try await reopened.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingCount)
     }
 
     @Test func refreshDrainsPendingLocalOutboxMessages() async throws {
         let transport = RecordingSyncTransport()
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
-        bundle.keychain.saveActualSyncToken("token")
+        try bundle.keychain.saveActualSyncToken("token")
 
         _ = try await bundle.store.assignCategoryBudgetAndRefresh(
             categoryID: "groceries",
@@ -1108,12 +1242,12 @@ struct LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let pendingCount = try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+        let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
         try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
 
         #expect(pendingCount > 0)
-        #expect(try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
+        #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == 0)
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == nil)
         #expect(await transport.messageCounts() == [pendingCount, 0])
@@ -1122,7 +1256,7 @@ struct LocalFirstActualStoreTests {
     @Test func failedRefreshKeepsPendingOutboxRowsForRetry() async throws {
         let transport = RecordingSyncTransport(shouldFail: true)
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
-        bundle.keychain.saveActualSyncToken("token")
+        try bundle.keychain.saveActualSyncToken("token")
 
         _ = try await bundle.store.assignCategoryBudgetAndRefresh(
             categoryID: "groceries",
@@ -1130,20 +1264,72 @@ struct LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let pendingCount = try bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+        let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
         await #expect(throws: LocalFirstTestSyncError.failed) {
             try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
         }
         let fileID = try #require(bundle.budget.localFirstFileID)
         let database = try BudgetDatabase(databaseURL: bundle.fileManager.databaseURL(fileID: fileID))
-        let pending = try database.pendingLocalSyncMessages()
+        let pending = try await database.pendingLocalSyncMessages()
 
         #expect(pendingCount > 0)
         #expect(pending.count == pendingCount)
         #expect(pending.allSatisfy { $0.attemptCount == 1 })
         #expect(pending.allSatisfy { ($0.lastError ?? "").isEmpty == false })
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == pendingCount)
+    }
+
+    @Test func concurrentRefreshesCoalescePendingOutboxFlushes() async throws {
+        let transport = RecordingSyncTransport(delayNanoseconds: 80_000_000)
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        _ = try await bundle.store.moveMoneyAndRefresh(
+            command: BudgetMoveMoneyCommand(
+                fromCategoryID: "groceries",
+                toCategoryID: "utilities",
+                amount: 2_500
+            ),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        _ = try await bundle.store.createTransactionAndRefresh(
+            TransactionDraft(
+                accountID: "checking",
+                date: try makeDate(year: 2026, month: 7, day: 16),
+                amountMinorUnits: -450,
+                payeeID: "coffee",
+                payeeName: "Coffee Shop",
+                categoryID: "groceries",
+                notes: nil,
+                cleared: false,
+                isTransfer: false
+            ),
+            budgetID: "group-1"
+        ) {}
+        let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+
+        let firstRefresh = Task { @MainActor in
+            try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
+        }
+        let secondRefresh = Task { @MainActor in
+            try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
+        }
+        try await firstRefresh.value
+        try await secondRefresh.value
+
+        let messageCounts = await transport.messageCounts()
+        let nonEmptyFlushes = messageCounts.filter { $0 > 0 }
+        #expect(pendingCount > 0)
+        #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
+        #expect(nonEmptyFlushes == [pendingCount])
     }
 
     @Test func moveMoneyLocallyMovesBudgetBetweenCategories() async throws {

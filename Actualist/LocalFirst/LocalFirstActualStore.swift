@@ -22,6 +22,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     private var accountTransactionsByKey: [String: LoadedAccountTransactions] = [:]
     private var spendingTransactionsByBudget: [String: LoadedAccountTransactions] = [:]
     private(set) var syncStatus: LocalFirstSyncStatus?
+    private var isFlushingPendingLocalMessages = false
+    private var shouldFlushPendingLocalMessagesAgain = false
+    private var pendingLocalMessageFlushWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(
         keychain: KeychainStore = .actualist,
@@ -55,6 +58,16 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         accountTransactionsByKey = [:]
         spendingTransactionsByBudget = [:]
         syncStatus = nil
+        isFlushingPendingLocalMessages = false
+        shouldFlushPendingLocalMessagesAgain = false
+        resumePendingLocalMessageFlushWaiters()
+    }
+
+    func eraseLocalData() throws {
+        reset()
+        try keychain.removeActualSyncToken()
+        try keychain.removeAllLocalFirstEncryptionKeys()
+        try fileManager.deleteAllImportedBudgets()
     }
 
     func syncStatus(budgetID: String) -> LocalFirstSyncStatus? {
@@ -76,7 +89,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         let client = ActualServerSyncClient(baseURL: baseURL)
         _ = try await client.loginMethods()
         let response = try await client.login(password: password)
-        keychain.saveActualSyncToken(response.token)
+        try keychain.saveActualSyncToken(response.token)
     }
 
     func loadBudgets(serverURLString: String) async throws -> [ActualBudget] {
@@ -239,7 +252,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         preferredMonth: String
     ) async throws -> LoadedBudgetMonth {
-        let months = try availableMonths(budgetID: budgetID)
+        let months = try await availableMonths(budgetID: budgetID)
         let selected = months.contains(preferredMonth) ? preferredMonth : (months.last ?? preferredMonth)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: selected)
     }
@@ -249,14 +262,14 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         selectedMonth: String
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
-        let months = try availableMonths(budgetID: budgetID)
+        let months = try await availableMonths(budgetID: budgetID)
         let monthID = selectedMonth
-        let month = try database.fetchBudgetMonth(month: monthID)
+        let month = try await database.fetchBudgetMonth(month: monthID)
         return LoadedBudgetMonth(
             availableMonths: months,
             selectedMonth: monthID,
             month: month,
-            alerts: try nativeBudgetAlerts(database: database, month: month, monthID: monthID)
+            alerts: try await nativeBudgetAlerts(database: database, month: month, monthID: monthID)
         )
     }
 
@@ -266,7 +279,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     func refreshAccountsWithBalances(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        accountsByBudget[budgetID] = try database.fetchAccountDisplays()
+        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
     }
 
     // MARK: - Account mutations / server operations (read-only until CRDT writes land)
@@ -300,17 +313,17 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
         let budgetID = budget.syncID
         let database = try requireDatabase(for: budgetID)
-        let transactionIDsBeforeSync = try transactionIDsByAccount(database: database)
+        let transactionIDsBeforeSync = try await transactionIDsByAccount(database: database)
 
         try await pullAndReload(budgetID: budgetID, serverURLString: serverURLString)
 
         let refreshedDatabase = try requireDatabase(for: budgetID)
-        let transactionIDsAfterSync = try transactionIDsByAccount(database: refreshedDatabase)
+        let transactionIDsAfterSync = try await transactionIDsByAccount(database: refreshedDatabase)
         let accountDisplays: [AccountDisplay]
         if let cachedDisplays = accountsByBudget[budgetID] {
             accountDisplays = cachedDisplays
         } else {
-            accountDisplays = try refreshedDatabase.fetchAccountDisplays()
+            accountDisplays = try await refreshedDatabase.fetchAccountDisplays()
         }
         let accounts = accountDisplays.map(\.account).filter { !$0.closed }
 
@@ -344,22 +357,22 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             throw LocalFirstError.budgetNotOpened
         }
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try database.latestSyncTimestamp()
+        let latestTimestamp = try await database.latestSyncTimestamp()
         var builder = LocalFirstSyncMessageBuilder(
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let messages = try database.assignCategoryBudgetMessages(
+        let messages = try await database.assignCategoryBudgetMessages(
             categoryID: categoryID,
             budgeted: budgeted,
             month: month,
             builder: &builder
         )
 
-        _ = try database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
         await didAssign()
-        try reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
@@ -373,21 +386,21 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             throw LocalFirstError.budgetNotOpened
         }
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try database.latestSyncTimestamp()
+        let latestTimestamp = try await database.latestSyncTimestamp()
         var builder = LocalFirstSyncMessageBuilder(
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let messages = try database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateMessages(
             command: command,
             month: month,
             builder: &builder
         )
 
-        _ = try database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
         await didApply()
-        try reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
@@ -415,21 +428,21 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             throw LocalFirstError.budgetNotOpened
         }
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try database.latestSyncTimestamp()
+        let latestTimestamp = try await database.latestSyncTimestamp()
         var builder = LocalFirstSyncMessageBuilder(
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let messages = try database.moveMoneyMessages(
+        let messages = try await database.moveMoneyMessages(
             commands: commands,
             month: month,
             builder: &builder
         )
 
-        _ = try database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
         await didMove()
-        try reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
@@ -445,14 +458,14 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        accountTransactionsByKey[transactionKey(budgetID, accountID)] = try loadedAccountTransactions(
+        accountTransactionsByKey[transactionKey(budgetID, accountID)] = try await loadedAccountTransactions(
             database: database, budgetID: budgetID, accountID: accountID, query: nil
         )
     }
 
     func refreshSpendingTransactions(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        spendingTransactionsByBudget[budgetID] = try loadedSpendingTransactions(
+        spendingTransactionsByBudget[budgetID] = try await loadedSpendingTransactions(
             database: database, budgetID: budgetID, query: nil
         )
     }
@@ -469,7 +482,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         offset: Int
     ) async throws -> LoadedAccountTransactions {
         let database = try requireDatabase(for: budgetID)
-        return try loadedAccountTransactions(database: database, budgetID: budgetID, accountID: accountID, query: query)
+        return try await loadedAccountTransactions(database: database, budgetID: budgetID, accountID: accountID, query: query)
     }
 
     func searchSpendingTransactions(
@@ -479,16 +492,16 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         offset: Int
     ) async throws -> LoadedAccountTransactions {
         let database = try requireDatabase(for: budgetID)
-        return try loadedSpendingTransactions(database: database, budgetID: budgetID, query: query)
+        return try await loadedSpendingTransactions(database: database, budgetID: budgetID, query: query)
     }
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
         let database = try requireDatabase(for: budgetID)
         return TransactionEditorOptions(
-            accounts: try database.fetchAccounts().filter { !$0.closed },
-            categories: try database.fetchCategories().filter { !($0.hidden ?? false) && !($0.isIncome ?? false) },
-            categoryGroups: try editorCategoryGroups(database: database, month: month),
-            payees: try database.fetchPayees()
+            accounts: try await database.fetchAccounts().filter { !$0.closed },
+            categories: try await database.fetchCategories().filter { !($0.hidden ?? false) && !($0.isIncome ?? false) },
+            categoryGroups: try await editorCategoryGroups(database: database, month: month),
+            payees: try await database.fetchPayees()
         )
     }
 
@@ -497,8 +510,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         month: String
     ) async throws -> LoadedUncategorizedTransactions {
         let database = try requireDatabase(for: budgetID)
-        let maps = try nameMaps(database)
-        let transactions = try database.fetchTransactions().filter { transaction in
+        let maps = try await nameMaps(database)
+        let transactions = try await database.fetchTransactions().filter { transaction in
             Self.isUncategorized(
                 transaction,
                 month: month,
@@ -512,7 +525,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             categoryNames: maps.categoryNames,
             payeeNames: maps.payeeNames,
             transferPayeeIDs: maps.transferPayeeIDs,
-            categoryGroups: try editorCategoryGroups(database: database, month: month)
+            categoryGroups: try await editorCategoryGroups(database: database, month: month)
         )
     }
 
@@ -530,12 +543,12 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         }
         let database = try requireDatabase(for: budgetID)
         let transactionID = UUID().uuidString
-        let latestTimestamp = try database.latestSyncTimestamp()
+        let latestTimestamp = try await database.latestSyncTimestamp()
         var builder = LocalFirstSyncMessageBuilder(
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let payeeResolution = try database.resolveOrCreatePayeeMessages(
+        let payeeResolution = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,
             payeeName: draft.payeeName,
             builder: &builder
@@ -544,7 +557,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         let transactionMessages: [ActualSyncDecodedMessage]
         var changedAccounts = [draft.accountID]
         if draft.isTransfer {
-            let transfer = try database.createTransferTransactionMessages(
+            let transfer = try await database.createTransferTransactionMessages(
                 draft: draft,
                 sourceTransactionID: transactionID,
                 payeeID: payeeResolution.payeeID,
@@ -553,14 +566,14 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             transactionMessages = transfer.messages
             changedAccounts.append(transfer.destinationAccountID)
         } else if draft.isSplit {
-            transactionMessages = try database.createSplitTransactionMessages(
+            transactionMessages = try await database.createSplitTransactionMessages(
                 draft: draft,
                 parentTransactionID: transactionID,
                 payeeID: payeeResolution.payeeID,
                 builder: &builder
             )
         } else {
-            transactionMessages = try database.createSimpleTransactionMessages(
+            transactionMessages = try await database.createSimpleTransactionMessages(
                 draft,
                 transactionID: transactionID,
                 payeeID: payeeResolution.payeeID,
@@ -569,17 +582,17 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         }
 
         let messages = payeeResolution.messages + transactionMessages
-        _ = try database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
         await didCreate()
 
         let uniqueAccounts = Array(Set(changedAccounts))
-        try reloadAfterTransactionMutation(
+        try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
             accountIDs: uniqueAccounts,
             monthIDs: [draft.month.rawValue]
         )
-        schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
@@ -603,17 +616,17 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         }
 
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try database.latestSyncTimestamp()
+        let latestTimestamp = try await database.latestSyncTimestamp()
         var builder = LocalFirstSyncMessageBuilder(
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let payeeResolution = try database.resolveOrCreatePayeeMessages(
+        let payeeResolution = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,
             payeeName: draft.payeeName,
             builder: &builder
         )
-        let update = try database.updateTransactionMessages(
+        let update = try await database.updateTransactionMessages(
             transactionID: transactionID,
             draft: draft,
             payeeID: payeeResolution.payeeID,
@@ -621,18 +634,18 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         )
 
         let messages = payeeResolution.messages + update.messages
-        _ = try database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
         await didUpdate()
 
         let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))
         let changedMonths = Array(Set([originalMonth, draft.month.rawValue]))
-        try reloadAfterTransactionMutation(
+        try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
             accountIDs: changedAccounts,
             monthIDs: changedMonths
         )
-        schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
@@ -660,26 +673,26 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         }
 
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try database.latestSyncTimestamp()
+        let latestTimestamp = try await database.latestSyncTimestamp()
         var builder = LocalFirstSyncMessageBuilder(
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let messages = try database.categorizeTransactionMessages(
+        let messages = try await database.categorizeTransactionMessages(
             transactionID: transactionID,
             categoryID: categoryID,
             builder: &builder
         )
 
-        _ = try database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
         await didUpdate()
-        try reloadAfterTransactionMutation(
+        try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
             accountIDs: [transaction.account],
             monthIDs: [monthID]
         )
-        schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
@@ -706,27 +719,27 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         }
 
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try database.latestSyncTimestamp()
+        let latestTimestamp = try await database.latestSyncTimestamp()
         var builder = LocalFirstSyncMessageBuilder(
             nodeID: nodeID,
             latestTimestamp: latestTimestamp
         )
-        let delete = try database.deleteTransactionMessages(
+        let delete = try await database.deleteTransactionMessages(
             transactionID: transactionID,
             builder: &builder
         )
 
-        _ = try database.applyLocalSyncMessagesAndEnqueue(delete.messages, baseTimestamp: latestTimestamp)
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(delete.messages, baseTimestamp: latestTimestamp)
         await didDelete()
 
         let changedAccounts = Array(Set(delete.affectedAccountIDs + [transaction.account]))
-        try reloadAfterTransactionMutation(
+        try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
             accountIDs: changedAccounts,
             monthIDs: [monthID]
         )
-        schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
@@ -742,11 +755,11 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         accountID: String,
         query: String?
-    ) throws -> LoadedAccountTransactions {
-        let maps = try nameMaps(database)
+    ) async throws -> LoadedAccountTransactions {
+        let maps = try await nameMaps(database)
         let balance = accountsByBudget[budgetID]?.first(where: { $0.account.id == accountID })?.balance
         return LoadedAccountTransactions(
-            transactions: try database.fetchTransactions(accountID: accountID, matching: query),
+            transactions: try await database.fetchTransactions(accountID: accountID, matching: query),
             balance: balance,
             accountNames: maps.accountNames,
             categoryNames: maps.categoryNames,
@@ -760,10 +773,10 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         database: BudgetDatabase,
         budgetID: String,
         query: String?
-    ) throws -> LoadedAccountTransactions {
-        let maps = try nameMaps(database)
+    ) async throws -> LoadedAccountTransactions {
+        let maps = try await nameMaps(database)
         return LoadedAccountTransactions(
-            transactions: try database.fetchTransactions(matching: query),
+            transactions: try await database.fetchTransactions(matching: query),
             balance: nil,
             accountNames: maps.accountNames,
             categoryNames: maps.categoryNames,
@@ -782,9 +795,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         database: BudgetDatabase,
         month: BudgetMonth,
         monthID: String
-    ) throws -> [APIBudgetMonthAlert] {
-        let maps = try nameMaps(database)
-        let transactions = try database.fetchTransactions()
+    ) async throws -> [APIBudgetMonthAlert] {
+        let maps = try await nameMaps(database)
+        let transactions = try await database.fetchTransactions()
         return Self.budgetAlerts(
             month: month,
             monthID: monthID,
@@ -906,8 +919,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             && !isOnBudgetTransfer
     }
 
-    private func editorCategoryGroups(database: BudgetDatabase, month: String) throws -> [TransactionEditorCategoryGroup] {
-        let budgetMonth = try database.fetchBudgetMonth(month: month)
+    private func editorCategoryGroups(database: BudgetDatabase, month: String) async throws -> [TransactionEditorCategoryGroup] {
+        let budgetMonth = try await database.fetchBudgetMonth(month: month)
         return budgetMonth.categoryGroups.compactMap { group in
             guard !group.isIncome else {
                 return nil
@@ -931,7 +944,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     private func nameMaps(
         _ database: BudgetDatabase
-    ) throws -> (
+    ) async throws -> (
         accountNames: [String: String],
         categoryNames: [String: String],
         payeeNames: [String: String],
@@ -939,9 +952,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         transferAccountIDsByPayeeID: [String: String],
         offBudgetAccountIDs: Set<String>
     ) {
-        let accounts = try database.fetchAccounts()
-        let categories = try database.fetchCategories()
-        let payees = try database.fetchPayees()
+        let accounts = try await database.fetchAccounts()
+        let categories = try await database.fetchCategories()
+        let payees = try await database.fetchPayees()
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
         let categoryNames = Dictionary(uniqueKeysWithValues: categories.compactMap { category in
             category.id.map { ($0, category.name) }
@@ -1008,7 +1021,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         openedGroupID = metadata.groupID
         openedNodeID = metadata.nodeID
         openedEncryptionContext = encryptionContext
-        try? accountsByBudget[metadata.groupID ?? metadata.cloudFileID] = database.fetchAccountDisplays()
+        accountsByBudget[metadata.groupID ?? metadata.cloudFileID] = try? await database.fetchAccountDisplays()
         await syncClient.configure(
             LocalFirstSyncConfiguration(
                 fileID: metadata.cloudFileID,
@@ -1050,7 +1063,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         guard context.keyID == keyID else {
             throw LocalFirstError.invalidEncryptionKey
         }
-        keychain.saveLocalFirstEncryptionKey(
+        try keychain.saveLocalFirstEncryptionKey(
             context.keyData,
             fileID: metadata.cloudFileID,
             keyID: keyID
@@ -1085,12 +1098,12 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         guard context.keyID == keyID else {
             throw LocalFirstError.invalidEncryptionKey
         }
-        keychain.saveLocalFirstEncryptionKey(context.keyData, fileID: remote.fileID, keyID: keyID)
+        try keychain.saveLocalFirstEncryptionKey(context.keyData, fileID: remote.fileID, keyID: keyID)
         return context
     }
 
-    private func transactionIDsByAccount(database: BudgetDatabase) throws -> [String: Set<String>] {
-        try database.fetchTransactions().reduce(into: [:]) { idsByAccount, transaction in
+    private func transactionIDsByAccount(database: BudgetDatabase) async throws -> [String: Set<String>] {
+        try await database.fetchTransactions().reduce(into: [:]) { idsByAccount, transaction in
             insertTransactionID(transaction, into: &idsByAccount)
             for child in transaction.subtransactions {
                 insertTransactionID(child, into: &idsByAccount)
@@ -1113,47 +1126,48 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         accountIDs: [String],
         monthIDs: [String]
-    ) throws {
+    ) async throws {
         monthsByBudget[budgetID] = nil
-        accountsByBudget[budgetID] = try database.fetchAccountDisplays()
-        spendingTransactionsByBudget[budgetID] = try loadedSpendingTransactions(
+        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
+        spendingTransactionsByBudget[budgetID] = try await loadedSpendingTransactions(
             database: database,
             budgetID: budgetID,
             query: nil
         )
         for accountID in Set(accountIDs) {
-            accountTransactionsByKey[transactionKey(budgetID, accountID)] = try loadedAccountTransactions(
+            accountTransactionsByKey[transactionKey(budgetID, accountID)] = try await loadedAccountTransactions(
                 database: database,
                 budgetID: budgetID,
                 accountID: accountID,
                 query: nil
             )
         }
-        for monthID in Set(monthIDs) {
-            _ = try database.fetchBudgetMonth(month: monthID)
-        }
     }
 
     private func reloadAfterBudgetMutation(
         database: BudgetDatabase,
         budgetID: String
-    ) throws {
+    ) async throws {
         monthsByBudget[budgetID] = nil
-        accountsByBudget[budgetID] = try database.fetchAccountDisplays()
-        spendingTransactionsByBudget[budgetID] = try loadedSpendingTransactions(
+        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
+        spendingTransactionsByBudget[budgetID] = try await loadedSpendingTransactions(
             database: database,
             budgetID: budgetID,
             query: nil
         )
     }
 
-    func pendingLocalSyncMessageCount(budgetID: String) throws -> Int {
-        try requireDatabase(for: budgetID).pendingLocalSyncMessageCount()
+    func pendingLocalSyncMessageCount(budgetID: String) async throws -> Int {
+        try await requireDatabase(for: budgetID).pendingLocalSyncMessageCount()
     }
 
-    private func schedulePendingLocalMessageFlush(database: BudgetDatabase, budgetID: String) {
-        recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: nil)
+    private func schedulePendingLocalMessageFlush(database: BudgetDatabase, budgetID: String) async {
+        await recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: nil)
         guard let serverURLString = openedServerURLString, !serverURLString.isEmpty else {
+            return
+        }
+        if isFlushingPendingLocalMessages {
+            shouldFlushPendingLocalMessagesAgain = true
             return
         }
         Task { [weak self] in
@@ -1171,18 +1185,59 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         serverURLString: String
     ) async {
         do {
-            let appliedCount = try await flushPendingLocalMessages(
+            let appliedCount = try await flushPendingLocalMessagesSerialized(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
             if appliedCount > 0 {
-                try reloadAfterRemoteSync(database: database, budgetID: budgetID)
+                try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
             }
-            recordSyncStatus(budgetID: budgetID, appliedCount: appliedCount, error: nil)
+            await recordSyncStatus(budgetID: budgetID, appliedCount: appliedCount, error: nil)
         } catch {
-            recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: error)
+            await recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: error)
         }
+    }
+
+    private func flushPendingLocalMessagesSerialized(
+        database: BudgetDatabase,
+        budgetID: String,
+        serverURLString: String
+    ) async throws -> Int {
+        while isFlushingPendingLocalMessages {
+            shouldFlushPendingLocalMessagesAgain = true
+            await waitForPendingLocalMessageFlushToFinish()
+        }
+
+        isFlushingPendingLocalMessages = true
+        defer {
+            isFlushingPendingLocalMessages = false
+            resumePendingLocalMessageFlushWaiters()
+        }
+
+        var totalAppliedCount = 0
+        repeat {
+            shouldFlushPendingLocalMessagesAgain = false
+            totalAppliedCount += try await flushPendingLocalMessages(
+                database: database,
+                budgetID: budgetID,
+                serverURLString: serverURLString
+            )
+        } while shouldFlushPendingLocalMessagesAgain && openedBudgetID == budgetID
+
+        return totalAppliedCount
+    }
+
+    private func waitForPendingLocalMessageFlushToFinish() async {
+        await withCheckedContinuation { continuation in
+            pendingLocalMessageFlushWaiters.append(continuation)
+        }
+    }
+
+    private func resumePendingLocalMessageFlushWaiters() {
+        let waiters = pendingLocalMessageFlushWaiters
+        pendingLocalMessageFlushWaiters = []
+        waiters.forEach { $0.resume() }
     }
 
     private func flushPendingLocalMessages(
@@ -1190,7 +1245,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         budgetID: String,
         serverURLString: String
     ) async throws -> Int {
-        let pending = try database.pendingLocalSyncMessages()
+        let pending = try await database.pendingLocalSyncMessages()
         guard !pending.isEmpty else {
             return 0
         }
@@ -1210,10 +1265,10 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
                 messages: pending.map(\.message),
                 since: pending.map(\.baseTimestamp).min()
             )
-            try database.deletePendingLocalSyncMessages(pending)
+            try await database.deletePendingLocalSyncMessages(pending)
             return result.appliedRemoteMessageCount
         } catch {
-            try? database.markPendingLocalSyncMessagesFailed(pending, error: error)
+            try? await database.markPendingLocalSyncMessagesFailed(pending, error: error)
             throw error
         }
     }
@@ -1232,7 +1287,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
         let client = syncTransportFactory(baseURL)
         do {
-            let flushedAppliedCount = try await flushPendingLocalMessages(
+            let flushedAppliedCount = try await flushPendingLocalMessagesSerialized(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
@@ -1246,27 +1301,29 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             print("[Actualist LocalFirst] Applied \(appliedCount) remote sync messages for \(budgetID)")
             #endif
 
-            try reloadAfterRemoteSync(database: database, budgetID: budgetID)
-            recordSyncStatus(budgetID: budgetID, appliedCount: flushedAppliedCount + appliedCount, error: nil)
+            try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
+            await recordSyncStatus(budgetID: budgetID, appliedCount: flushedAppliedCount + appliedCount, error: nil)
         } catch {
-            recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: error)
+            await recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: error)
             throw error
         }
     }
 
-    private func reloadAfterRemoteSync(database: BudgetDatabase, budgetID: String) throws {
+    private func reloadAfterRemoteSync(database: BudgetDatabase, budgetID: String) async throws {
         monthsByBudget[budgetID] = nil
-        accountsByBudget[budgetID] = try database.fetchAccountDisplays()
+        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
         accountTransactionsByKey = accountTransactionsByKey.filter { !$0.key.hasPrefix("\(budgetID)|") }
         spendingTransactionsByBudget[budgetID] = nil
     }
 
-    private func recordSyncStatus(budgetID: String, appliedCount: Int?, error: Error?) {
+    private func recordSyncStatus(budgetID: String, appliedCount: Int?, error: Error?) async {
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.fileID = budgetID
         status.groupID = openedGroupID
         status.encryptionKeyID = openedEncryptionContext?.keyID
-        status.pendingLocalMessageCount = (try? database?.pendingLocalSyncMessageCount()) ?? status.pendingLocalMessageCount
+        if let database {
+            status.pendingLocalMessageCount = (try? await database.pendingLocalSyncMessageCount()) ?? status.pendingLocalMessageCount
+        }
         if let appliedCount {
             status.lastSyncedAt = Date()
             status.lastAppliedMessageCount = appliedCount
@@ -1277,11 +1334,11 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         syncStatus = status
     }
 
-    private func availableMonths(budgetID: String) throws -> [String] {
+    private func availableMonths(budgetID: String) async throws -> [String] {
         if let months = monthsByBudget[budgetID] {
             return months
         }
-        let months = try requireDatabase(for: budgetID).fetchAvailableMonths()
+        let months = try await requireDatabase(for: budgetID).fetchAvailableMonths()
         monthsByBudget[budgetID] = months
         return months
     }

@@ -27,6 +27,15 @@ enum LocalFirstSyncValue: Equatable, Sendable {
 struct HybridLogicalClock: Equatable, Sendable {
     private static let timestampLength = 24
     private static let nodeIDLength = 16
+    private static let wallTimeFormatterLock = NSLock()
+    private static let wallTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+        return formatter
+    }()
 
     let nodeID: String
     private(set) var lastTimestamp: String
@@ -53,7 +62,7 @@ struct HybridLogicalClock: Equatable, Sendable {
         return String(compact.suffix(nodeIDLength))
     }
 
-    mutating func next(now: Date = Date()) -> String {
+    mutating func next(now: Date = Date()) throws -> String {
         let nowWallTime = Self.wallTimeString(for: now)
         let parsedLast = Self.parse(lastTimestamp)
         let nextWallTime: String
@@ -66,6 +75,9 @@ struct HybridLogicalClock: Equatable, Sendable {
             nextWallTime = nowWallTime
             counter = 0
         }
+        guard counter <= 0xffff else {
+            throw LocalFirstError.hybridLogicalClockOverflow
+        }
 
         let timestamp = "\(nextWallTime)-\(String(format: "%04x", counter))-\(nodeID)"
         lastTimestamp = timestamp
@@ -73,12 +85,9 @@ struct HybridLogicalClock: Equatable, Sendable {
     }
 
     private static func wallTimeString(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        return formatter.string(from: date)
+        wallTimeFormatterLock.lock()
+        defer { wallTimeFormatterLock.unlock() }
+        return wallTimeFormatter.string(from: date)
     }
 
     private static func parse(_ timestamp: String) -> (wallTime: String, counter: Int)? {
@@ -110,8 +119,8 @@ struct LocalFirstSyncMessageBuilder: Sendable {
         column: String,
         value: LocalFirstSyncValue,
         now: Date = Date()
-    ) -> ActualSyncDecodedMessage {
-        ActualSyncDecodedMessage(
+    ) throws -> ActualSyncDecodedMessage {
+        try ActualSyncDecodedMessage(
             timestamp: clock.next(now: now),
             dataset: dataset,
             row: row,

@@ -32,7 +32,7 @@ extension BudgetDatabase {
                 db: db
             )
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "payees",
                     row: payeeID,
                     column: "name",
@@ -41,7 +41,7 @@ extension BudgetDatabase {
             )
             if payeeColumns.contains("tombstone") {
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "payees",
                         row: payeeID,
                         column: "tombstone",
@@ -53,7 +53,7 @@ extension BudgetDatabase {
             if try tableExists("payee_mapping", db: db) {
                 _ = try requiredColumns(table: "payee_mapping", required: ["targetId"], db: db)
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "payee_mapping",
                         row: payeeID,
                         column: "targetId",
@@ -85,7 +85,7 @@ extension BudgetDatabase {
             let dateValue = try Self.actualDateValue(draft.date)
 
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "transactions",
                     row: transactionID,
                     column: accountColumn,
@@ -93,7 +93,7 @@ extension BudgetDatabase {
                 )
             )
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "transactions",
                     row: transactionID,
                     column: "date",
@@ -101,7 +101,7 @@ extension BudgetDatabase {
                 )
             )
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "transactions",
                     row: transactionID,
                     column: "amount",
@@ -109,7 +109,7 @@ extension BudgetDatabase {
                 )
             )
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "transactions",
                     row: transactionID,
                     column: payeeColumn,
@@ -117,7 +117,7 @@ extension BudgetDatabase {
                 )
             )
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "transactions",
                     row: transactionID,
                     column: "category",
@@ -126,7 +126,7 @@ extension BudgetDatabase {
             )
             if columns.contains("notes") {
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "transactions",
                         row: transactionID,
                         column: "notes",
@@ -136,7 +136,7 @@ extension BudgetDatabase {
             }
             if columns.contains("cleared") {
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "transactions",
                         row: transactionID,
                         column: "cleared",
@@ -146,7 +146,7 @@ extension BudgetDatabase {
             }
             if columns.contains("tombstone") {
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "transactions",
                         row: transactionID,
                         column: "tombstone",
@@ -156,7 +156,7 @@ extension BudgetDatabase {
             }
             if let isParentColumn {
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "transactions",
                         row: transactionID,
                         column: isParentColumn,
@@ -166,7 +166,7 @@ extension BudgetDatabase {
             }
             if columns.contains("parent_id") {
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "transactions",
                         row: transactionID,
                         column: "parent_id",
@@ -211,7 +211,7 @@ extension BudgetDatabase {
         sortOrder: Double?,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder
-    ) -> [ActualSyncDecodedMessage] {
+    ) throws -> [ActualSyncDecodedMessage] {
         var fields: [(String, LocalFirstSyncValue)] = [
             (columns.account, .string(accountID)),
             ("date", .int(Int64(dateValue))),
@@ -247,7 +247,7 @@ extension BudgetDatabase {
         var messages: [ActualSyncDecodedMessage] = []
         for (column, value) in fields {
             messages.append(
-                builder.makeMessage(dataset: "transactions", row: rowID, column: column, value: value)
+                try builder.makeMessage(dataset: "transactions", row: rowID, column: column, value: value)
             )
         }
         return messages
@@ -288,7 +288,7 @@ extension BudgetDatabase {
                 db: db
             )
 
-            let sourceMessages = transactionRowMessages(
+            let sourceMessages = try transactionRowMessages(
                 rowID: sourceTransactionID,
                 accountID: draft.accountID,
                 dateValue: dateValue,
@@ -305,7 +305,7 @@ extension BudgetDatabase {
                 columns: columns,
                 builder: &builder
             )
-            let pairedMessages = transactionRowMessages(
+            let pairedMessages = try transactionRowMessages(
                 rowID: pairedTransactionID,
                 accountID: destinationAccountID,
                 dateValue: dateValue,
@@ -351,7 +351,7 @@ extension BudgetDatabase {
             }
             let dateValue = try Self.actualDateValue(draft.date)
 
-            var messages = transactionRowMessages(
+            var messages = try transactionRowMessages(
                 rowID: parentTransactionID,
                 accountID: draft.accountID,
                 dateValue: dateValue,
@@ -374,7 +374,7 @@ extension BudgetDatabase {
                    try !rowExists(table: "categories", rowID: categoryID, db: db) {
                     throw LocalFirstError.invalidLocalWrite("missing category")
                 }
-                messages.append(contentsOf: transactionRowMessages(
+                messages.append(contentsOf: try transactionRowMessages(
                     rowID: UUID().uuidString,
                     accountID: draft.accountID,
                     dateValue: dateValue,
@@ -540,7 +540,7 @@ extension BudgetDatabase {
             var affectedTransactions: Set<String> = [trimmedTransactionID]
 
             // Main row.
-            messages += transactionRowMessages(
+            messages += try transactionRowMessages(
                 rowID: trimmedTransactionID,
                 accountID: draft.accountID,
                 dateValue: dateValue,
@@ -578,7 +578,7 @@ extension BudgetDatabase {
                         sortOrder = Double(-(index + 1))
                     }
                     affectedTransactions.insert(childID)
-                    messages += transactionRowMessages(
+                    messages += try transactionRowMessages(
                         rowID: childID,
                         accountID: draft.accountID,
                         dateValue: dateValue,
@@ -598,12 +598,12 @@ extension BudgetDatabase {
                 }
                 for childID in existing.childIDs where !keptChildIDs.contains(childID) {
                     affectedTransactions.insert(childID)
-                    messages.append(tombstoneMessage(rowID: childID, builder: &builder))
+                    messages.append(try tombstoneMessage(rowID: childID, builder: &builder))
                 }
             } else {
                 for childID in existing.childIDs {
                     affectedTransactions.insert(childID)
-                    messages.append(tombstoneMessage(rowID: childID, builder: &builder))
+                    messages.append(try tombstoneMessage(rowID: childID, builder: &builder))
                 }
             }
 
@@ -723,22 +723,22 @@ extension BudgetDatabase {
                 // Update the paired row: account, payee, notes, negated amount (matches
                 // loot-core updateTransfer, which intentionally leaves paired date/cleared).
                 affectedTransactions.insert(pairedID)
-                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
-                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
+                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
+                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
                 if columns.hasNotes {
-                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: draft.notes.map(LocalFirstSyncValue.string) ?? .null))
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: draft.notes.map(LocalFirstSyncValue.string) ?? .null))
                 }
-                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
+                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
                 // Same-budget transfers clear both categories (loot-core clearCategory); a
                 // cross-budget paired row keeps its own category.
                 if try accountOffBudget(draft.accountID, db: db) == accountOffBudget(destination, db: db) {
-                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
                 }
             } else {
                 // Add a new paired row and link the main row to it.
                 let pairedID = UUID().uuidString
                 affectedTransactions.insert(pairedID)
-                messages += transactionRowMessages(
+                messages += try transactionRowMessages(
                     rowID: pairedID,
                     accountID: destination,
                     dateValue: dateValue,
@@ -755,7 +755,7 @@ extension BudgetDatabase {
                     columns: columns,
                     builder: &builder
                 )
-                messages.append(builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .string(pairedID)))
+                messages.append(try builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .string(pairedID)))
             }
         } else if let pairedID = existing.transferID, let transferColumn = columns.transferID {
             // No longer a transfer: unlink the main row and drop/detach the paired row.
@@ -764,12 +764,12 @@ extension BudgetDatabase {
                 affectedAccounts.insert(oldPaired)
             }
             if existing.pairedIsChild {
-                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
-                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
+                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
+                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
             } else if columns.hasTombstone {
-                messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: "tombstone", value: .bool(true)))
+                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "tombstone", value: .bool(true)))
             }
-            messages.append(builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .null))
+            messages.append(try builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .null))
         }
 
         return messages
@@ -778,8 +778,8 @@ extension BudgetDatabase {
     func tombstoneMessage(
         rowID: String,
         builder: inout LocalFirstSyncMessageBuilder
-    ) -> ActualSyncDecodedMessage {
-        builder.makeMessage(dataset: "transactions", row: rowID, column: "tombstone", value: .bool(true))
+    ) throws -> ActualSyncDecodedMessage {
+        try builder.makeMessage(dataset: "transactions", row: rowID, column: "tombstone", value: .bool(true))
     }
 
     func categorizeTransactionMessages(
@@ -819,7 +819,7 @@ extension BudgetDatabase {
             }
 
             return [
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "transactions",
                     row: trimmedTransactionID,
                     column: "category",
@@ -850,11 +850,11 @@ extension BudgetDatabase {
             let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
             var affectedAccounts: Set<String> = [existing.account]
             var affectedTransactions: Set<String> = [trimmedTransactionID]
-            var messages = [tombstoneMessage(rowID: trimmedTransactionID, builder: &builder)]
+            var messages = [try tombstoneMessage(rowID: trimmedTransactionID, builder: &builder)]
 
             for childID in existing.childIDs {
                 affectedTransactions.insert(childID)
-                messages.append(tombstoneMessage(rowID: childID, builder: &builder))
+                messages.append(try tombstoneMessage(rowID: childID, builder: &builder))
             }
 
             if let pairedID = existing.transferID, let transferColumn = columns.transferID {
@@ -863,10 +863,10 @@ extension BudgetDatabase {
                     affectedAccounts.insert(oldPaired)
                 }
                 if existing.pairedIsChild {
-                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
-                    messages.append(builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
                 } else {
-                    messages.append(tombstoneMessage(rowID: pairedID, builder: &builder))
+                    messages.append(try tombstoneMessage(rowID: pairedID, builder: &builder))
                 }
             }
 

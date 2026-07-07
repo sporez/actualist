@@ -217,8 +217,8 @@ extension BudgetDatabase {
                 arguments.append(accountID)
             }
             if let query, !query.isEmpty {
-                conditions.append("(\(payeeNameSelect) LIKE ? OR \(notes) LIKE ? OR CAST(\(amount) AS TEXT) LIKE ?)")
-                let like = "%\(query)%"
+                conditions.append("(\(payeeNameSelect) LIKE ? ESCAPE '\\' OR \(notes) LIKE ? ESCAPE '\\' OR CAST(\(amount) AS TEXT) LIKE ? ESCAPE '\\')")
+                let like = "%\(escapeLikePattern(query))%"
                 arguments.append(contentsOf: [like, like, like])
             }
 
@@ -247,6 +247,13 @@ extension BudgetDatabase {
             let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
             return assembleTransactions(from: rows)
         }
+    }
+
+    func escapeLikePattern(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
     }
 
     func assembleTransactions(from rows: [Row]) -> [ActualTransaction] {

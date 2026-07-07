@@ -62,33 +62,83 @@ final class AppState {
         )
     }
 
-    func saveLocalFirstConnection(serverURLString: String, password: String) async {
+    func saveLocalFirstConnection(serverURLString: String, password: String) async -> Bool {
         let normalized = ActualServerURLNormalizer.normalize(serverURLString)
         guard !normalized.isEmpty else {
             lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
-            return
+            return false
         }
         if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
             lastErrorMessage = blockedMessage
             connectionStatus = .offline
-            return
+            return false
+        }
+
+        let previousServerURLString = settings.localFirstServerURLString
+        let serverChanged = !previousServerURLString.isEmpty && previousServerURLString != normalized
+
+        if serverChanged {
+            do {
+                try keychain.removeActualSyncToken()
+                try keychain.removeAllLocalFirstEncryptionKeys()
+            } catch {
+                lastErrorMessage = error.localizedDescription
+                connectionStatus = .offline
+                return false
+            }
         }
 
         settings.localFirstServerURLString = normalized
-        settings.pendingNewTransactionIDsByAccount = [:]
-        settings.backgroundTransactionRefreshEnabled = false
+        if serverChanged {
+            settings.pendingNewTransactionIDsByAccount = [:]
+            settings.backgroundTransactionRefreshEnabled = false
+            settings.selectedBudgetID = nil
+            settings.selectedBudgetName = nil
+            settings.selectedLocalFirstFileID = nil
+            settings.selectedLocalFirstGroupID = nil
+            localFirstStore.reset()
+            accountNavigationPath = []
+            selectedBudget = nil
+        }
         settingsStore.save(settings)
-        localFirstStore.reset()
-        accountNavigationPath = []
         connectionStatus = .connecting
 
         do {
             try await localFirstStore.login(serverURLString: normalized, password: password)
             await loadBudgets()
+            return true
         } catch {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
+            if !canUseAPI {
+                setupPhase = .needsConnection
+            }
+            return false
+        }
+    }
+
+    func disconnectAndEraseLocalData() {
+        do {
+            try localFirstStore.eraseLocalData()
+            settings.localFirstServerURLString = ""
+            settings.selectedBudgetID = nil
+            settings.selectedBudgetName = nil
+            settings.selectedLocalFirstFileID = nil
+            settings.selectedLocalFirstGroupID = nil
+            settings.pendingNewTransactionIDsByAccount = [:]
+            settings.backgroundTransactionRefreshEnabled = false
+            settings.localFirstWritesEnabled = false
+            settingsStore.save(settings)
+            selectedBudget = nil
+            budgets = []
+            accountNavigationPath = []
             setupPhase = .needsConnection
+            connectionStatus = .offline
+            lastErrorMessage = nil
+            BackgroundTransactionRefreshCoordinator.shared.cancel()
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            connectionStatus = .offline
         }
     }
 
@@ -304,6 +354,15 @@ final class AppState {
     func performBackgroundTransactionRefresh() async -> Bool {
         let debugRunID = recordBackgroundRefreshWake()
 
+        if Task.isCancelled {
+            recordBackgroundRefreshCompletion(
+                runID: debugRunID,
+                success: false,
+                message: "Cancelled before sync"
+            )
+            return false
+        }
+
         if let skipReason = backgroundRefreshSkipReason() {
             recordBackgroundRefreshCompletion(
                 runID: debugRunID,
@@ -332,13 +391,22 @@ final class AppState {
         }
 
         do {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
             let results = try await localFirstStore.syncAndFindNewTransactions(
                 budget: budget,
                 serverURLString: settings.localFirstServerURLString
             )
             var newTransactionCount = 0
 
+            if Task.isCancelled {
+                throw CancellationError()
+            }
             for result in results where !result.newTransactionIDs.isEmpty {
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
                 recordPendingNewTransactionIDs(
                     result.newTransactionIDs,
                     budgetID: budgetID,
@@ -361,6 +429,13 @@ final class AppState {
                 )
             )
             return true
+        } catch is CancellationError {
+            recordBackgroundRefreshCompletion(
+                runID: debugRunID,
+                success: false,
+                message: "Cancelled"
+            )
+            return false
         } catch {
             lastErrorMessage = error.localizedDescription
             recordBackgroundRefreshCompletion(

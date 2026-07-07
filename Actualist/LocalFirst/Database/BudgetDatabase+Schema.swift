@@ -108,16 +108,26 @@ extension BudgetDatabase {
     }
 
     func tableExists(_ table: String, db: Database) throws -> Bool {
-        try Row.fetchOne(
+        if let cached = tableExistsCache[table] {
+            return cached
+        }
+        let exists = try Row.fetchOne(
             db,
             sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
             arguments: [table]
         ) != nil
+        tableExistsCache[table] = exists
+        return exists
     }
 
     func columnSet(for table: String, db: Database) throws -> Set<String> {
-        let rows = try Row.fetchAll(db, sql: "PRAGMA table_info(\(table))")
-        return Set(rows.compactMap { $0["name"] as String? })
+        if let cached = columnSetCache[table] {
+            return cached
+        }
+        let rows = try Row.fetchAll(db, sql: "PRAGMA table_info(\(quotedIdentifier(table)))")
+        let columns = Set(rows.compactMap { $0["name"] as String? })
+        columnSetCache[table] = columns
+        return columns
     }
 
     func column(_ name: String, fallback: String, columns: Set<String>) -> String {

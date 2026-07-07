@@ -17,6 +17,7 @@ struct ActualistApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
+                // Actualist is intentionally dark-only until light theme QA catches up.
                 .preferredColorScheme(.dark)
                 .onAppear {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
@@ -132,7 +133,12 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
             }
         }
 
-        let refresh = Task { [weak self] in
+        var refresh: Task<Void, Never>?
+        task.expirationHandler = {
+            refresh?.cancel()
+        }
+
+        refresh = Task { [weak self] in
             guard let appState = self?.appState else {
                 task.setTaskCompleted(success: false)
                 return
@@ -140,10 +146,6 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
 
             let success = await appState.performBackgroundTransactionRefresh()
             task.setTaskCompleted(success: success)
-        }
-
-        task.expirationHandler = {
-            refresh.cancel()
         }
     }
 

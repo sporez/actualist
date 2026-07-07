@@ -434,7 +434,7 @@ extension BudgetDatabase {
         var messages: [ActualSyncDecodedMessage] = []
         if existingRowID == nil {
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "zero_budgets",
                     row: rowID,
                     column: "month",
@@ -442,7 +442,7 @@ extension BudgetDatabase {
                 )
             )
             messages.append(
-                builder.makeMessage(
+                try builder.makeMessage(
                     dataset: "zero_budgets",
                     row: rowID,
                     column: "category",
@@ -451,7 +451,7 @@ extension BudgetDatabase {
             )
             if columns.contains("carryover") {
                 messages.append(
-                    builder.makeMessage(
+                    try builder.makeMessage(
                         dataset: "zero_budgets",
                         row: rowID,
                         column: "carryover",
@@ -461,7 +461,7 @@ extension BudgetDatabase {
             }
         }
         messages.append(
-            builder.makeMessage(
+            try builder.makeMessage(
                 dataset: "zero_budgets",
                 row: rowID,
                 column: "amount",

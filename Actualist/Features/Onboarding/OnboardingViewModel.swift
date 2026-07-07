@@ -15,7 +15,10 @@ final class OnboardingViewModel {
     func connect(using appState: AppState) async {
         isConnecting = true
         appState.lastErrorMessage = nil
-        await appState.saveLocalFirstConnection(serverURLString: serverURLString, password: actualPassword)
+        let succeeded = await appState.saveLocalFirstConnection(serverURLString: serverURLString, password: actualPassword)
+        if succeeded {
+            actualPassword = ""
+        }
         isConnecting = false
     }
 
