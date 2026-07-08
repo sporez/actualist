@@ -82,7 +82,10 @@ Compare Actual web vs Actualist:
 - [ ] `Emergency Savings` appears in the expected off-budget grouping.
 - [ ] `Old Closed Checking` appears or stays collapsed according to the UI design.
 - [ ] Account ordering matches the selected Actualist ordering.
-- [ ] Add Account is hidden or blocked in local-first mode.
+- [ ] Add Account is hidden while local writes are disabled.
+- [ ] With local writes enabled on a throwaway budget, Add Account creates a
+      budget or off-budget account that appears with a zero balance after local
+      reload.
 
 Notes:
 

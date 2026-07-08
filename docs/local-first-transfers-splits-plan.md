@@ -61,7 +61,9 @@ Also `transferDestinationAccountID` / `transferPayeeID(forAccount:)` resolvers.
 
 ## Source Of Truth
 
-All semantics below are taken from the bundled Actual engine (loot-core) at:
+All semantics below were taken from the bundled Actual engine (loot-core) during
+source inspection. This path is a historical reference only; Actualist does not
+depend on `actual-http-api` at runtime:
 
 `/Users/neil/CC/actual-http-api/node_modules/@actual-app/api/dist/index.js`
 

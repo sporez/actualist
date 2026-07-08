@@ -10,8 +10,10 @@ The first write proof should be narrow: create a transaction in Actualist, sync 
 
 - `LocalFirstActualStore` already conforms to the budget, account, and transaction repository protocols.
 - Local-first reads load from `BudgetDatabase`, and sync currently pulls remote CRDT messages into SQLite.
-- Local-first mutation methods still throw `LocalFirstError.unsupportedWrite`.
-- `BackendCapabilities` keeps write affordances hidden or disabled while the backend is read-only.
+- Supported local-first mutation methods apply CRDT messages locally, enqueue
+  outbox rows, reload local caches, and then opportunistically flush.
+- `BackendCapabilities` keeps write affordances hidden or disabled until each
+  surface is implemented and the developer local-write gate is enabled.
 - The existing transaction editor supports selecting an existing payee or typing a new payee name on the fly.
 
 ## Non-Negotiables
@@ -137,6 +139,24 @@ Order:
 3. Delete a transaction using Actual's tombstone semantics.
 4. Create and edit transfers.
 5. Create and edit split transactions.
+
+## Phase 4: Account Creation
+
+Status: implemented for the existing Add Account sheet.
+
+Scope:
+
+- Create budget and off-budget accounts from `AccountsView`.
+- Generate the `accounts` row through local CRDT messages.
+- Generate the linked empty-name transfer payee when the budget schema supports
+  `payees.transfer_acct`, plus payee mapping when present.
+- Reload account displays from SQLite and enqueue pending sync messages.
+
+Still out of scope:
+
+- Initial balance entry.
+- Bank linking or provider sync setup.
+- Account edit, close, delete, reconcile, and bank sync actions.
 
 Acceptance for each step:
 

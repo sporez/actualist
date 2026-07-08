@@ -17,6 +17,8 @@ we *do* apply matches Actual web exactly and partial support never mis-budgets.
 
 ## Source Of Truth
 
+Historical source-inspection reference only; this app does not depend on
+`actual-http-api` at runtime:
 `/Users/neil/CC/actual-http-api/node_modules/@actual-app/api/dist/index.js`
 (loot-core), regions:
 
@@ -27,8 +29,9 @@ we *do* apply matches Actual web exactly and partial support never mis-budgets.
   `runSimple`/`runCopy`/`runPeriodic`/`runSpend`/`runPercentage`/`runBy`/
   `runSchedule`/`runAverage`/`runRefill`; limits (`limitToString`, `getLimitExcess`).
 - schemaConfig — `categories.goal_def` (structured template JSON).
-- REST proxy: `actual-http-api/src/v1/budget.js` `applyBudgetTemplates` →
-  `budget/apply-goal-template` etc. (confirms REST runs the same engine).
+- Historical REST proxy: `actual-http-api/src/v1/budget.js`
+  `applyBudgetTemplates` → `budget/apply-goal-template` etc. (used only to
+  confirm the old wrapper ran the same engine).
 
 **Frozen contract. Do not re-derive from memory.**
 

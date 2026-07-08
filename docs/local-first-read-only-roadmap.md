@@ -2,32 +2,36 @@
 
 ## Summary
 
-Status: complete. Local-first read parity is considered good enough to begin the write roadmap.
+Status: historical and complete. Local-first read parity passed, write work has
+begun, and the main app is now local-first only.
 
-This roadmap extends the local-first proving work after Budget and Accounts parity. The next goal is to make every existing Actualist view work in `BackendMode.localFirstSync` from the native Actual SQLite plus CRDT sync path, while keeping the entire local-first backend read-only.
-
-REST mode must remain intact. Local-first mode should treat the normal Actual server, downloaded SQLite database, and applied CRDT messages as its source of truth. No write path should be attempted until read parity is solid across the app.
+This roadmap records the completed read-only migration work after Budget and
+Accounts parity. Its REST-mode constraints were migration-era guardrails; they
+are not current architecture. The current app treats the normal Actual server,
+downloaded SQLite database, and applied CRDT messages as its source of truth.
+Supported writes now live in `docs/local-first-current-write-model.md` and
+`docs/local-first-write-plan.md`.
 
 ## Phased Plan
 
 ### Phase 0: Lock The Read-Only Contract
 
 - Define local-first v1 as native read parity only: Budget, Accounts, Spending, account transactions, transaction detail/editor display, uncategorized review, Settings, budget switching, account ordering, theme, privacy mode, and diagnostics all render without REST.
-- Keep all writes unavailable in local-first mode: budget assignment, move money, templates, add account, transaction create/edit/delete/categorize, bank sync, reconcile, rule preview/apply, and background refresh.
+- Keep all writes unavailable during this historical read-only phase: budget assignment, move money, templates, add account, transaction create/edit/delete/categorize, bank sync, reconcile, rule preview/apply, and background refresh.
 - Add a single local-first capability helper so views check one source for read-only availability instead of scattering backend checks.
 
 ### Phase 1: Harden Native Sync/Open As The Shared Read Refresh
 
 - Make open-budget always follow this sequence: open imported SQLite, configure sync, pull/apply CRDT messages, refresh native caches.
 - Add an explicit local-first refresh method used by Budget, Accounts, Spending, and Settings. It should pull CRDT messages, then invalidate and reload native read caches.
-- Keep token, server URL, selected file/group id, metadata, and node id separate from REST settings and keychain storage.
+- Keep token, server URL, selected file/group id, metadata, and node id separate from retired REST settings and keychain storage.
 
 ### Phase 2: Finish Repository Seams
 
-- Extend `TransactionRepositoryProtocol` to cover read surfaces currently coupled to `ActualDataStore`: cached account/spending pages, refresh, load older, search, editor options, and uncategorized transactions.
-- Route `AppState.makeTransactionRepository()` to `LocalFirstActualStore` in local-first mode.
-- Move `AccountTransactionsView`, `SpendingTransactionsView`, `UncategorizedTransactionsViewModel`, and transaction editor option loading off direct `appState.dataStore` access.
-- Keep mutation methods on existing protocols for REST compatibility, but local-first implementations must throw `LocalFirstError.unsupportedWrite`.
+- Extend `TransactionRepositoryProtocol` to cover read surfaces that were coupled to the retired data store: cached account/spending pages, refresh, load older, search, editor options, and uncategorized transactions.
+- Route `AppState.makeTransactionRepository()` to `LocalFirstActualStore`.
+- Move `AccountTransactionsView`, `SpendingTransactionsView`, `UncategorizedTransactionsViewModel`, and transaction editor option loading off direct store internals.
+- Keep mutation methods on existing protocols but leave them unsupported until each local-first write slice is implemented.
 
 ### Phase 3: Native Transaction And Lookup Reads
 
@@ -38,7 +42,7 @@ REST mode must remain intact. Local-first mode should treat the normal Actual se
 ### Phase 4: Make Every View Read-Only Functional
 
 - Budget: keep current native month parity, add local alert derivation only for view-only alerts that can open read-only sheets, and leave write actions hidden or disabled.
-- Accounts: keep native balances and ordering; hide Add Account in local-first mode.
+- Accounts: keep native balances and ordering; during this historical read-only phase, hide Add Account.
 - Spending and Account Transactions: show transaction feeds, search, load older, balances, category/payee/account labels, split rows, transfer labels, and empty/loading/error states from SQLite.
 - Transaction editor/detail: allow viewing transaction details using existing presentation where practical, but disable save, delete, payee/category mutation, rule preview, and split editing in local-first mode.
 - Settings: show backend, selected native budget, sync status, last CRDT applied count/timestamp, account ordering, display density, theme, privacy mode, and local-first reset/reimport actions.
@@ -54,7 +58,7 @@ Status: complete. The read-only gate has passed and follow-up work should move t
 
 ## Interface Changes To Plan
 
-- `TransactionRepositoryProtocol` becomes the single transaction read/write seam for both REST and local-first.
+- `TransactionRepositoryProtocol` becomes the single transaction read/write seam for local-first.
 - `LocalFirstActualStore` conforms to `BudgetRepositoryProtocol`, `AccountRepositoryProtocol`, and `TransactionRepositoryProtocol`.
 - `BudgetDatabase` remains the only local-first SQLite reader; SwiftUI views and view models never query GRDB directly.
 - Add a small local-first sync status model for Settings with selected file, group id, last sync timestamp, last applied message count, and last error.
@@ -70,5 +74,5 @@ Status: complete. The read-only gate has passed and follow-up work should move t
 
 - The existing Budget and Accounts local-first proof remains the baseline and should not be rewritten except to share refresh/status plumbing.
 - All existing Actualist tabs and reachable sheets should render safely, but write-only workflows may be hidden in local-first mode.
-- No local-first writes, rule application, bank sync, reconcile, or background refresh are attempted until the read-only parity checklist passes.
+- No local-first writes, rule application, bank sync, reconcile, or background refresh were attempted until the read-only parity checklist passed.
 - Actual core remains the behavioral reference whenever SQLite interpretation is unclear.

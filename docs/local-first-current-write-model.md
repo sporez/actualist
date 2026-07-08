@@ -44,6 +44,7 @@ after a concrete conflict case is observed.
 
 The developer write gate currently enables:
 
+- Account creation, including the account row and its transfer payee.
 - Simple transaction creation.
 - Basic non-split, non-transfer transaction edits.
 - Simple transaction deletion through Actual tombstone semantics.
@@ -56,8 +57,8 @@ The developer write gate currently enables:
 ## Current Limitations
 
 - Local-first writes are still behind the developer write gate.
-- Bank sync, reconcile, account creation, and rule preview/apply remain disabled
-  in local-first write testing.
+- Bank sync, reconcile, and rule preview/apply remain disabled in local-first
+  write testing.
 - Budget templates only support the ported deterministic fixed-amount behavior;
   unsupported template types are refused instead of approximated.
 - Physical-device airplane-mode validation is still useful before broad shipping.

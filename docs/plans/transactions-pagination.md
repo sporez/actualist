@@ -1,6 +1,9 @@
 # Plan: Paginated transactions (large-feed performance)
 
-Status: local-first row-count windowing implemented; older REST/date-window notes retained as historical context.
+Status: local-first row-count windowing implemented. Older REST/date-window notes
+below are retained only as historical context and should not be implemented
+against `ActualAPIClient` or `ActualDataStore`; the app backend is local-first
+only.
 
 ## Local-first implementation
 
@@ -13,7 +16,7 @@ The local-first app now loads account and Spending feeds as bounded SQLite windo
 - Account mutation paths still populate affected account caches with a bounded first page so write flows can immediately show fresh local state.
 - Screen load order is local-first: the local window is rendered before network sync/revalidation runs.
 
-## Context
+## Historical REST Context
 
 `ActualAPIClient.transactions(budgetID:accountID:)` fetches an account's **entire history**
 with `since_date=1900-01-01` — no window, no paging. For accounts with tens of thousands of

@@ -17,7 +17,7 @@ Use Xcode's standard iOS App template:
 - Interface: `SwiftUI`
 - Language: `Swift`
 - Minimum Deployment: `iOS 26.0`
-- Storage: none for the first pass
+- Storage: local SQLite budget files managed by the local-first store
 - Tests: include unit tests
 
 Keep dependencies light:
@@ -25,7 +25,8 @@ Keep dependencies light:
 - Use Apple frameworks first: SwiftUI, Observation, Foundation, Security, os.log.
 - Add packages only when they clearly reduce maintenance cost.
 - Avoid UIKit entirely for application UI.
-- Avoid a database until offline support or large local caching becomes necessary.
+- Keep database access inside `Actualist/LocalFirst/Database`; views and feature
+  view models should stay behind repository/store seams.
 
 ## Build
 
@@ -116,15 +117,15 @@ For each meaningful UI change:
 - Check first-launch onboarding, loading, error, and populated states when applicable.
 - Keep screenshot artifacts out of git unless intentionally adding reference images.
 
-For each API/data change:
+For each sync/data change:
 
-- Add or update decoding fixtures.
+- Add or update SQLite/CRDT fixtures.
 - Test money formatting and date grouping.
 - Keep money as integer minor units internally. Do not use `Double` for money.
-- Verify API key redaction in logs.
+- Verify sync token, password, encryption-key, and budget-data redaction in logs.
 - Verify failures produce actionable settings/onboarding errors.
-- For write actions, test the conservative flow: draft, submitting, refetching, clean, and failed/retry.
-- After successful writes, verify the affected account/month/category data is refetched from the API before the UI returns to clean state.
+- For write actions, test the conservative flow: draft, submitting, local reload, clean, and failed/retry.
+- After successful writes, verify the affected account/month/category data is reloaded from SQLite before the UI returns to clean state.
 
 ## Future CI
 

@@ -1,6 +1,13 @@
 # Local-First Actualist Proving Plan
 
-This fork is for testing whether Actualist can keep its existing SwiftUI experience while replacing the REST-backed data plane with Actual Budget's native local-first sync model.
+Status: historical migration/proving document. Actualist has moved to the native
+local-first data plane as the only app backend. References below to the retired
+REST-backed data plane, `ActualAPIClient`, or `ActualDataStore` describe the
+original migration baseline and are not current architecture.
+
+This fork was for testing whether Actualist could keep its existing SwiftUI
+experience while replacing the REST-backed data plane with Actual Budget's
+native local-first sync model.
 
 The proving target is intentionally narrow:
 

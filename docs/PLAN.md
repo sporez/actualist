@@ -2,19 +2,19 @@
 
 ## Product Direction
 
-Actualist will be a native iOS 26+ app for browsing and eventually managing an Actual Budget file through the Actual HTTP API. The app should be a polished native UI for Actual, not a second budgeting engine. The app should feel like the screenshots in `reference/`: dark, dense, rounded, thumb-friendly, Liquid Glass-aware, with bold money states and native floating-feeling tab chrome.
+Actualist is a native iOS 26+ local-first app for browsing and managing an Actual Budget file through Actual's native sync model. It connects to a normal Actual server, imports the budget SQLite database, applies CRDT messages, and renders from local data. It no longer relies on the sibling `actual-http-api` REST wrapper or its OpenAPI contract. The app should be a polished native UI for Actual, not a second budgeting engine. The app should feel like the screenshots in `reference/`: dark, dense, rounded, thumb-friendly, Liquid Glass-aware, with bold money states and native floating-feeling tab chrome.
 
-Initial scope is a connected read experience:
+Current scope is a local-first budget companion with developer-gated writes:
 
-- First launch presents onboarding for the server URL and API key.
-- Connect to the Actual HTTP API and validate credentials.
-- Pull available budgets and let the user choose which budget to load.
+- First launch presents onboarding for the Actual server URL and password.
+- Connect to the normal Actual server, fetch remote file metadata, and import the selected budget.
+- Persist the imported SQLite budget locally and keep it current with Actual CRDT sync messages.
 - Show the current month budget envelope view.
 - Show accounts grouped into open/off-budget/closed sections, with closed accounts collapsed by default.
+- Show all-account spending and account-specific transaction feeds.
 - Drill into an account and show transactions grouped by date.
-- Allow server details, API key, and selected budget to be changed from Settings.
-- Keep the view models and action surfaces ready for later write operations such as category transfers, covering overspending, editing transactions, and adding transactions.
-- Avoid optimistic writes in the first write phases. Write flows should submit to the API, wait for success, refetch affected API-backed data, and only then return to a clean UI state.
+- Allow server details, selected budget, sync controls, account ordering, theme, privacy mode, and developer-gated writes to be changed from Settings.
+- Implement writes by generating Actual-compatible CRDT messages, applying them to SQLite, enqueueing them in `actualist_outbox`, reloading affected local caches, and opportunistically flushing.
 
 Confirmed platform decisions:
 
@@ -48,28 +48,29 @@ Confirmed platform decisions:
 Initial tabs:
 
 - Budget: planning/envelope style icon, for the category envelope view.
+- Spending: `creditcard.fill`, for the all-account transaction feed.
 - Accounts: `building.columns.fill`, for account lists and transaction drill-in.
-- Settings: `gearshape.fill`, for server details, API key, budget selection, and later theme controls.
+- Settings: `gearshape.fill`, for server details, budget selection, sync controls, and app preferences.
 
-Do not include placeholder tabs for Home, Spending, or Reflect until those features exist.
+Do not include placeholder tabs for Home or Reflect until those features exist.
 
 ### First Launch And Settings
 
 - First launch shows a focused setup screen before the main app shell.
 - Required setup fields:
-  - Server URL.
-  - API key.
-- After server details are entered, the app tests the connection.
-- If the connection succeeds, the app fetches budgets and presents a budget picker.
-- Settings includes the same server URL and API key controls, plus a change-budget action.
-- API key entry should use secure text entry and clear save/test states.
+  - Actual server URL.
+  - Password.
+- After server details are entered, the app logs in and fetches remote budget files.
+- If login succeeds, the app presents a budget picker/import flow.
+- Settings includes the same server URL controls, a password re-auth path, sync status, and a change-budget action.
+- Password entry should use secure text entry and clear save/test states. Tokens and encryption keys stay in Keychain.
 - Settings should eventually expose color/theme choices. The first build uses the screenshot palette.
 
 ### Budget View
 
 Reference: `reference/Budget.PNG`
 
-- Top navigation includes compact native toolbar buttons with a centered month dropdown. Tapping the month opens a compact year/month picker, and selecting a month refetches that month from the API.
+- Top navigation includes compact native toolbar buttons with a centered month dropdown. Tapping the month opens a compact year/month picker, and selecting a month reloads that month from local SQLite-backed data.
 - Primary alert: large green `Ready to Assign` / Actual `toBudget` amount.
 - Secondary alert: overspending count with `Cover` action.
 - Category groups are expandable.
@@ -92,7 +93,7 @@ Reference: `reference/Accounts.PNG`
 - Group sections with disclosure control and group total.
 - Account rows show account icon, name, current balance, and drill-in chevron.
 - Closed accounts collapse into a summary row by default.
-- Add Account button is present but can be disabled or placeholder in the first read-only build.
+- Add Account is available when the developer local-write gate is enabled. It creates the account row and linked transfer payee through CRDT messages, then reloads local accounts.
 
 ### Account Transactions View
 
@@ -105,180 +106,137 @@ Reference: `reference/Account Transactions.PNG`
 - Transaction row shows payee/imported payee, category chip, amount, and cleared status.
 - First write phase can add transaction edit and create screens.
 
-## API Mapping
+## Local-First Data Mapping
 
-OpenAPI source: `reference/openapi.json`.
+The current backend is Actual's native local-first stack:
 
-Base server template from the OpenAPI file:
+- `ActualServerSyncClient` talks to the normal Actual server login, file, download, and `/sync/sync` endpoints.
+- `BudgetFileManager` owns imported budget files and metadata.
+- `BudgetDatabase` reads Actual's SQLite tables and applies CRDT row/column messages.
+- `LocalFirstActualStore` is the app source of truth and conforms to the repository protocols used by view models.
+- `LocalFirstSyncMessageBuilder` emits Actual-compatible CRDT messages for supported local writes.
+- `actualist_outbox` stores pending local sync messages until they are pushed successfully.
 
-```text
-{protocol}://{host}:{port}/{basePath}
-```
+The app stores these connection/session values:
 
-The app should store these connection settings:
-
-- Server URL, entered as one URL field with no default value. If the user enters only a scheme/host/port, normalize it by appending `/v1`.
-- API key.
-- Selected `budgetSyncId`.
+- Actual server URL in app settings.
+- Actual sync token and local encryption keys in Keychain.
+- Selected budget file/group identifiers and display name in app settings.
 
 Security:
 
-- Store API key in Keychain.
-- Store non-secret server URL and selected budget ID in app settings.
-- Never log the API key.
-- Redact secrets in diagnostics and screenshots.
-
-API requests authenticate with the `x-api-key` HTTP header. Budget API paths should use `cloudFileId` from the budget list when it is present, because the REST endpoints expect the budget sync ID:
-
-```sh
-curl -fsS \
-  -X POST \
-  -H "x-api-key: $API_KEY_HERE" \
-  http://localhost:5007/v1/budgets/9e5a0d5b-7b6b-40d2-a752-1f7da0516288/accounts/banksync
-```
-
-Model this as an `APIKeyAuthenticator` so the transport stays isolated from feature code.
+- Never log passwords, sync tokens, encryption keys, budget IDs, imported databases, or personal financial data.
+- Keep imported budget databases out of git.
+- Redact connection and budget identifiers in diagnostics and screenshots unless the user explicitly asks otherwise.
 
 ### Startup
 
-- `GET /actualhttpapiversion`
-- `GET /budgets`
-- `GET /budgets/{budgetSyncId}/actualserverversion`
-
 Startup flow:
 
-1. If server URL or API key is missing, show onboarding.
-2. User enters server URL and API key.
-3. Test connection with version and budget endpoints.
-4. Fetch budgets.
-5. If one budget exists, optionally select it automatically after confirmation.
-6. If multiple budgets exist, show budget picker.
-7. Persist selected budget and enter the main tab shell.
-8. Settings can repeat the connection test and budget selection later.
+1. If server URL or sync token is missing, show onboarding.
+2. User enters Actual server URL and password.
+3. Log in to the Actual server and store the sync token in Keychain.
+4. Fetch remote budget files.
+5. User selects a budget.
+6. Download/decrypt/import the budget file when needed and open the local SQLite database.
+7. Enter the main tab shell.
+8. Later refreshes pull CRDT messages and reload local caches.
 
 ### Budget View
 
-- `GET /budgets/{budgetSyncId}/months`
-- `GET /budgets/{budgetSyncId}/months/{month}`
+Budget data is derived from SQLite:
 
-Use `BudgetMonth` as the primary payload because it includes:
+- `accounts`, `transactions`, `categories`, `category_groups`, and `zero_budgets` drive `BudgetMonth`.
+- `toBudget`, category balances, spending, and totals are computed from local rows using Actual semantics.
+- Alerts such as uncategorized transactions and overspent categories are derived natively.
+- Hidden/income categories are excluded unless the screen intentionally exposes them.
 
-- `toBudget`
-- `lastMonthOverspent`
-- `incomeAvailable`
-- `totalBudgeted`
-- `totalSpent`
-- `totalBalance`
-- nested `categoryGroups`
-
-Overspending display logic should be derived from:
-
-- `lastMonthOverspent` for month-level prior overspending.
-- Current categories where `balance < 0`.
-- Hidden/income categories excluded unless settings request them.
-
-Later write actions:
-
-- `PATCH /budgets/{budgetSyncId}/months/{month}/categories/{categoryId}`
-- `POST /budgets/{budgetSyncId}/months/{month}/categorytransfers`
-- `POST` and `DELETE /budgets/{budgetSyncId}/months/{month}/nextmonthbudgethold`
+Supported local-first budget writes currently include category budget assignment,
+move money, and fixed-amount budget templates.
 
 ### Accounts View
 
-- `GET /budgets/{budgetSyncId}/accounts`
-- `GET /budgets/{budgetSyncId}/accounts/{accountId}/balance`
+Accounts are read from `accounts` and balances are derived from local transaction rows. Grouping is:
 
-The account list response does not include balances, so the data store enriches accounts by fetching each balance in parallel (a task group, not serial). Balances are cached per account and surfaced through the store's composed `accountDisplays`.
+- Open budget accounts.
+- Open off-budget accounts.
+- Closed accounts.
 
-Account grouping needs a confirmed data source. The OpenAPI `Account` schema includes `offbudget` and `closed`, but does not include a clear account type such as checking/credit. First implementation can group by:
+Add Account is implemented behind the developer local-write gate. It creates:
 
-- Closed
-- Off budget
-- Open budget accounts
+- An `accounts` row with `name`, `offbudget`, `closed = false`, `tombstone = false`, and `sort_order` when available.
+- A linked empty-name transfer payee through `payees.transfer_acct` when the schema supports it.
+- A `payee_mapping` row when that table is present.
 
-To match the reference more closely, investigate whether `run-query` or another API field can expose account type. If it cannot, provide local user-defined account groups later.
+Initial balance, bank linking, account edit/close/delete, reconcile, and provider bank sync remain out of scope.
 
-Closed accounts should be collapsed by default when present.
+### Transaction Views
 
-### Account Transactions View
+Transactions are read from SQLite with payee/category/account lookup maps:
 
-- `GET /budgets/{budgetSyncId}/accounts/{accountId}/transactions`
-- `GET /budgets/{budgetSyncId}/payees`
-- `GET /budgets/{budgetSyncId}/categories`
+- Account feeds filter by account.
+- Spending uses the same transaction presentation across all accounts.
+- Payee display resolves through `payee_mapping` and transfer payees.
+- Split parents and children are handled according to Actual's table semantics.
 
-Transactions include IDs for payee and category. Load payees/categories into lookup maps so rows can display names and category chips. Prefer `payee_name`, then lookup by `payee`, then `imported_payee`, then fallback text.
-
-Later write actions:
-
-- `POST /budgets/{budgetSyncId}/accounts/{accountId}/transactions`
-- `POST /budgets/{budgetSyncId}/accounts/{accountId}/transactions/batch`
-- `PATCH /budgets/{budgetSyncId}/transactions/{transactionId}`
-- `DELETE /budgets/{budgetSyncId}/transactions/{transactionId}`
+Supported local-first transaction writes include simple transaction create/edit/delete, categorization, transfers, and splits. Rule preview/apply is still disabled.
 
 ### Write And Refresh Rules
 
-The Swift app should never calculate final account balances, budget balances, category availability, or ready-to-assign amounts locally except for temporary display previews while the user is editing a draft. Actual remains the source of truth.
+The Swift app should not hand-roll final financial truth outside the local-first database layer. Feature code builds explicit commands; `BudgetDatabase` and `LocalFirstActualStore` apply Actual-compatible local writes and reload from SQLite.
 
-Use a conservative write state machine for the first write phases:
+Use a conservative write state machine:
 
 ```text
-draft -> submitting -> refetching -> clean
+draft -> submitting -> local reload -> clean
 draft -> submitting -> failed/retry
 ```
 
-After any successful write, the data store invalidates the affected cache keys and refetches them before the feature returns to a clean state (driven by the write's `ChangedResources`):
+After any successful write:
 
-- Transaction create/edit/delete: invalidate + refetch the affected account balance, affected account transactions, and affected budget month (and alerts). A new payee also invalidates the cached payee list.
-- Categorize or clear/unclear transaction: same account/month invalidation as above.
-- Category transfer, move money, or cover overspending: invalidate + refetch the affected budget month and categories.
-
-The Actual HTTP API currently returns a simple general response for transaction creation, so `TransactionMutationResult.changed` is app-side metadata synthesized by the data store from the submitted draft unless the server later exposes richer mutation results.
-
-Suggested Swift boundary:
-
-```swift
-protocol BudgetAPI {
-    func getBudgetMonth(_ month: YearMonth) async throws -> BudgetMonth
-    func getAccounts() async throws -> [BudgetAccount]
-    func getTransactions(accountID: String) async throws -> [ActualTransaction]
-    func createTransaction(_ draft: TransactionDraft) async throws -> TransactionMutationResult
-}
-```
+- Build CRDT messages with `LocalFirstSyncMessageBuilder`.
+- Apply messages to SQLite and insert the same messages into `actualist_outbox` in one database transaction.
+- Reload affected local caches before the feature returns to a clean state.
+- Opportunistically flush pending messages through `/sync/sync`.
+- Keep failed remote pushes queued for later retry; do not roll back a successful local transaction.
 
 ## Architecture
 
-Recommended first implementation:
+Current implementation:
 
 - Native SwiftUI iOS app.
 - iOS 26+ target.
-- `URLSession` networking with `async/await`.
-- Codable API models with an adapter layer for display models.
-- Clean app-native models at view/view-model boundaries; keep ugly or inconsistent API payload shapes isolated in the API client and repositories.
+- `URLSession` networking with `async/await` for Actual server login, file download, and sync.
+- Local SQLite budget storage through GRDB.
+- SwiftProtobuf for Actual sync message envelopes.
+- Clean app-native models at view/view-model boundaries; keep schema variation and CRDT details isolated in the local-first database/store layer.
 - Swift Testing or XCTest for formatting, decoding, and view-model logic.
-- No database in the first pass; use the in-memory `ActualDataStore` (SWR cache), `UserDefaults`/`AppStorage` for non-secret preferences, and Keychain for the API key.
+- `LocalFirstActualStore` is the in-memory source of truth over the local database. Use `UserDefaults`/`AppStorage` for non-secret preferences and Keychain for tokens/encryption keys.
 - Use Observation (`@Observable`) for app/view model state where appropriate.
 - Use Swift concurrency and keep UI mutations on the main actor.
 - Keep the app dependency-light at first. Add Swift packages only when they remove meaningful complexity.
 
-Suggested module layout once the Xcode project is created:
+Current module layout:
 
 ```text
 Actualist/
   App/
     ActualistApp.swift
     AppState.swift
-    AppRoute.swift
+    AppTab.swift
   DesignSystem/
     ActualistTheme.swift
     ActualistGlass.swift
     MoneyText.swift
     PillButton.swift
   API/
-    ActualAPIClient.swift
-    ActualAPIClientProtocol.swift   # client seam (real client + test fakes)
-    APIModels.swift
-  Data/
-    ActualDataStore.swift           # SWR cache + composition + write invalidation (source of truth)
+    APIModels.swift                 # shared/domain payload models retained for app boundaries
+  LocalFirst/
+    LocalFirstActualStore.swift     # app source of truth over local SQLite and sync
+    Sync/
+    Network/
+    Database/
+    Generated/
   Repositories/
     BudgetRepository.swift          # BudgetRepositoryProtocol + LoadedBudgetMonth
     TransactionRepository.swift     # TransactionRepositoryProtocol + Loaded/Options types
@@ -305,19 +263,19 @@ ActualistTests/
 
 ### Data Flow
 
-All fetched data flows through a single `ActualDataStore` (an `@MainActor @Observable` cache).
-It implements stale-while-revalidate: views read its cached snapshots for instant display and
-trigger a background `refresh`; every write invalidates the affected cache keys and refetches
-them so dependent screens never show pre-write data. The cache is memory-only and is cleared on
-budget switch / connection change. The store conforms to the `BudgetRepositoryProtocol` /
-`TransactionRepositoryProtocol` seams, so view models inject it in production and inject fakes in
-tests.
+All fetched data flows through `LocalFirstActualStore` (an `@MainActor @Observable` store).
+Views read cached snapshots for instant display and trigger refresh/sync when appropriate.
+Every supported write applies CRDT messages locally, enqueues them for sync, and reloads the
+affected local caches so dependent screens never show pre-write data. The store conforms to
+`BudgetRepositoryProtocol`, `AccountRepositoryProtocol`, and `TransactionRepositoryProtocol`, so
+view models inject it in production and inject fakes in tests.
 
 ```mermaid
 flowchart LR
-  Settings["Connection Settings"] --> Client["ActualAPIClient"]
-  Keychain["Keychain API Key"] --> Client
-  Client --> Store["ActualDataStore (SWR cache)"]
+  Settings["Actual Server Settings"] --> Sync["ActualServerSyncClient"]
+  Keychain["Keychain Token/Keys"] --> Sync
+  Sync --> Database["BudgetDatabase SQLite + CRDT"]
+  Database --> Store["LocalFirstActualStore"]
   Store --> BudgetVM["BudgetViewModel"]
   Store --> AccountsView["Accounts View"]
   Store --> TransactionsView["Account Transactions View"]
@@ -329,121 +287,58 @@ flowchart LR
 
 Current foundation status:
 
-- Phases 0-2 are functionally established for the read-only app foundation.
-- Phase 3 is established for the current-month budget read path, expandable category groups, hidden category filtering, `toBudget`, overspending display, loading/error states, and the initial reference-style layout.
-- Phases 0-3 now use repositories and feature view models so SwiftUI views stay layout-focused and future budget actions can attach to view-model intents.
-- Account and transaction loading have repository boundaries, and transaction creation has a conservative mutation scaffold that submits, refetches changed resources, and avoids local balance calculation.
-- The native SwiftUI tab bar is the accepted implementation of the planned floating menu bar. Earlier custom floating-glass tab experiments were removed to avoid nested Liquid Glass controls.
-- Phase 3 now includes the centered month dropdown and month picker interaction. Deeper category action flows remain planned.
+- Local-first is the only backend path.
+- Budget, Accounts, Spending, account transaction feeds, Settings, onboarding, budget import/open, and background sync notifications are implemented through the native store.
+- The native SwiftUI tab bar is the accepted app shell. Earlier custom floating-glass tab experiments were removed to avoid nested Liquid Glass controls.
+- Repository protocols are the feature seams; production injects `LocalFirstActualStore`, tests inject fakes.
+- Most common write flows are developer-gated and implemented through local CRDT messages plus outbox sync.
 
-### Phase 0: Project Foundation
+Implemented local-first write slices:
 
-- Create Xcode SwiftUI project named `Actualist`.
-- Set deployment target to iOS 26+.
-- Add app icons/placeholders.
-- Add design tokens matching the reference screenshots.
-- Add Liquid Glass navigation/control style tokens.
-- Add connection settings model.
-- Add first-launch onboarding shell.
-- Add basic tab shell with Budget, Accounts, and Settings only.
-- Add collapsed-by-default states for hidden/closed sections.
-
-### Phase 1: API Client And Security
-
-- Implement `ActualAPIClient`.
-- Implement API key authentication.
-- Decode startup endpoints and budget list.
-- Build a reusable response wrapper for `{ "data": ... }`.
-- Add tolerant decoding where OpenAPI has known mismatches.
-- Add money formatting for Actual integer amounts.
-- Add API error types and connection test screen.
-- Add Keychain-backed API key storage.
-
-### Phase 2: Onboarding And Budget Selection
-
-- Show server URL and API key entry on first launch.
-- Validate connection.
-- Fetch budgets.
-- Show budget picker.
-- Persist selected budget.
-- Let Settings re-run connection and budget selection.
-
-### Phase 3: Budget View
-
-- Fetch current month budget.
-- Render ready-to-assign alert from `toBudget`.
-- Render overspending alert from category balances.
-- Render expandable category groups and category rows.
-- Add month picker scaffolding.
-- Add loading, empty, and error states.
-- Hidden categories collapsed by default when supported.
-
-### Phase 4: Accounts View
-
-- Fetch accounts and enrich with balances.
-- Group open/closed/off-budget accounts.
-- Render account list matching the reference.
-- Navigate to account transactions.
-- Add closed-account collapse behavior.
-
-### Phase 5: Account Transactions View
-
-- Fetch transactions for selected account.
-- Fetch payee/category lookup data.
-- Group rows by transaction date.
-- Show working balance from account balance endpoint.
-- Add search/select/action placeholders.
-
-### Phase 6: Month Switching
-
-- Show the budget month as the centered toolbar title between compact toolbar buttons.
-- Open a compact month picker when the month title is tapped.
-- Disable months not reported by the API.
-- Refetch the selected `BudgetMonth` from the API and replace screen state only after the request succeeds.
-
-### Phase 7: First Write Features
-
-- Add transaction creation.
-- Categorize uncategorized transactions.
-- Clear and unclear transactions.
-- Add transaction edit and delete flows.
-- Add move-money/category transfer flow.
-- Add cover-overspending flow.
-- Keep account payment flow for credit accounts behind confirmed credit-account semantics.
-- Use conservative mutation/refetch rules for every write.
-
-### Later Write And Management Features
-
-- Reconciliation.
-- Split transactions.
 - Account creation.
-- Full reporting.
-- Advanced budget configuration.
+- Simple transaction creation.
+- Basic non-split, non-transfer transaction edits.
+- Simple transaction deletion through tombstones.
+- Categorizing existing transactions.
+- Transfer and split transaction create/edit/delete.
+- Category budget assignment.
+- Move money.
+- Fixed-amount budget templates.
+
+Still guarded or not implemented:
+
+- Bank sync/provider import triggers.
+- Reconcile.
+- Rule preview/apply.
+- Account edit, close, and delete.
+- Initial balance entry on account creation.
+- Unsupported budget template types.
 
 ## Technical Notes
 
-- Actual HTTP amount values are integer minor units in the checked-in OpenAPI, where a USD amount of `$120.30` is represented as `12030`. Keep amounts as `Int` internally and format as currency only at the display boundary. Do not use `Double` for money.
-- The OpenAPI schema marks `BudgetMonthCategoryGroup.name` and `BudgetMonthCategory.name` as integers, but examples show strings. Generated Swift models may need schema correction or custom tolerant decoding.
-- Some transaction fields are inconsistent in the schema and examples. For example, `cleared` is typed as a string but examples show boolean. Decode defensively.
-- Avoid placing API secrets in source control. Store API keys in Keychain.
-- Local container access from a physical iPhone may require host LAN IP and HTTP transport exceptions. Simulator can often use `localhost`; physical devices cannot.
+- Actual amount values are integer minor units where a USD amount of `$120.30` is represented as `12030`. Keep amounts as `Int` internally and format as currency only at the display boundary. Do not use `Double` for money.
+- Actual SQLite schemas vary across versions and migrations. Probe tables/columns defensively and keep schema variation in `BudgetDatabase`.
+- CRDT writes are row/column messages. Do not bypass the message/outbox path with ad hoc SQL for user-facing writes.
+- Avoid placing secrets or personal budget data in source control. Store sync tokens and encryption keys in Keychain.
+- Local network Actual server access from a physical iPhone may require a LAN host or HTTPS route. Simulator and device behavior differ.
 
 ## Testing And Verification
 
-- Decode fixtures from representative API responses.
-- Unit test money formatting, date grouping, overspending detection, and account grouping.
-- Unit test mutation draft encoding, conservative submission state transitions, and refetch target synthesis before enabling each write action.
+- Test SQLite/CRDT fixtures for budget, account, transaction, and write behavior.
+- Unit test money formatting, date grouping, overspending detection, account grouping, and local-write cache reloads.
+- Unit test conservative submission state transitions before enabling each write action.
 - Add screenshot or preview coverage for dark theme states.
-- Manually verify against the running API container:
-  - First launch requires server URL and API key.
-  - Budget picker loads after connection succeeds.
+- Manually verify against a throwaway Actual budget:
+  - First launch requires Actual server URL and password.
+  - Budget picker/import loads after login succeeds.
   - Budget screen loads current month.
   - Ready-to-assign alert appears only when `toBudget != 0`.
   - Overspending alert appears when category balances are negative.
-  - Accounts display enriched balances.
+  - Accounts display local balances.
   - Closed accounts are collapsed by default.
   - Transaction rows display human-readable payee and category names.
-  - API key is not visible in logs.
+  - Local writes appear immediately after SQLite reload and later converge through sync.
+  - Sync tokens, passwords, encryption keys, budget IDs, and personal data are not visible in logs.
 
 Development pipeline details live in `docs/DEVELOPMENT.md`. The intended loop is:
 
@@ -455,9 +350,9 @@ Development pipeline details live in `docs/DEVELOPMENT.md`. The intended loop is
 
 ## Open Questions
 
-1. Should API keys sync through iCloud Keychain or remain device-local?
-2. Should one-budget setups auto-select after a successful connection, or always show the budget picker?
-3. Should theme colors appear in Settings during the first build or after the three core screens work?
+1. When should the developer local-write gate become a normal user-facing capability?
+2. What is the right native/server-side design for bank sync provider triggers without restoring a dependency on `actual-http-api`?
+3. Which reports are worth implementing first from local SQLite?
 
 ## External Apple References
 
