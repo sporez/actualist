@@ -3,8 +3,8 @@ import Foundation
 /// The single source of truth for what the backend can do right now.
 ///
 /// Views and view models must consult these named flags instead of inspecting connection
-/// state directly, so the read-only contract lives in one place. Local-first is the only
-/// backend; these two flags stay constant today but keep the seam for the CRDT write phase:
+/// state directly, so the backend capability contract lives in one place. Local-first is the
+/// only backend; these two flags stay constant today while individual write surfaces are gated:
 /// - `isLocalFirst`: the native local-first sync backend is active (always true).
 /// - `isReadOnly`: broad write surfaces are blocked while local-first mutations land in phases.
 struct BackendCapabilities: Equatable {
@@ -26,8 +26,7 @@ struct BackendCapabilities: Equatable {
 
     // MARK: Write gates
 
-    /// Create simple transactions. Local-first can expose this behind a developer gate while
-    /// most of the write surface remains read-only.
+    /// Create simple transactions. Local-first exposes this behind a developer gate.
     var canCreateTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Categorize existing uncategorized transactions. This is the first transaction mutation
     /// parity slice after create and uses the same developer write gate.
@@ -63,10 +62,10 @@ struct BackendCapabilities: Equatable {
 
     // MARK: Structural gates
 
-    /// Whether the Add Account affordance is offered at all (hidden until re-enabled locally).
-    var showsAddAccount: Bool { !isLocalFirst }
+    /// Whether the Add Account affordance is offered at all.
+    var showsAddAccount: Bool { !isLocalFirst || canAddAccount }
     /// Add Account can be tapped.
-    var canAddAccount: Bool { !isLocalFirst && !isReadOnly }
+    var canAddAccount: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Background transaction refresh is read-only in local-first: pull sync, diff rows, alert.
     var supportsBackgroundRefresh: Bool { true }
     /// New-transaction notifications are posted and routed after a read-only local-first sync.

@@ -51,9 +51,9 @@ final class AppState {
         !settings.localFirstServerURLString.isEmpty && !keychain.readActualSyncToken().isEmpty
     }
 
-    /// The single source of truth for backend read-only availability. The local-first CRDT
-    /// backend is the only sync path and stays read-only until the CRDT write phase lands, so
-    /// every write capability is gated off here.
+    /// The single source of truth for backend availability. The local-first CRDT backend is
+    /// the only sync path; write capabilities stay behind the developer local-write gate until
+    /// each mutation surface is proven.
     var capabilities: BackendCapabilities {
         BackendCapabilities(
             isLocalFirst: true,

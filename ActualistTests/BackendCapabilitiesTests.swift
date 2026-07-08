@@ -101,13 +101,13 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canApplyBudgetTemplates)
         #expect(capabilities.canAssignBudget)
 
-        // Not yet implemented for local-first.
+        // Still not implemented for local-first.
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
         #expect(!capabilities.canApplyRules)
-        #expect(!capabilities.showsAddAccount)
-        #expect(!capabilities.canAddAccount)
+        #expect(capabilities.showsAddAccount)
+        #expect(capabilities.canAddAccount)
     }
 
     @Test func newTransactionNotificationCopyIsGeneric() {
@@ -118,8 +118,8 @@ struct BackendCapabilitiesTests {
     // MARK: AppState derivation
 
     @Test func appStateIsAlwaysLocalFirstReadOnly() {
-        // Local-first is the only backend, and it stays read-only until the CRDT write phase,
-        // regardless of setup phase or connection status.
+        // Local-first is the only backend. Write surfaces stay gated unless the developer
+        // local write switch is enabled, regardless of setup phase or connection status.
         for phase in [SetupPhase.needsConnection, .selectingBudget, .ready] {
             for status in [ServerConnectionStatus.online, .connecting, .offline] {
                 let state = makeAppState()
@@ -140,6 +140,7 @@ struct BackendCapabilitiesTests {
                 #expect(!capabilities.canMoveMoney)
                 #expect(!capabilities.canApplyBudgetTemplates)
                 #expect(!capabilities.showsAddAccount)
+                #expect(!capabilities.canAddAccount)
             }
         }
     }
@@ -161,6 +162,8 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canAssignCategoryBudget)
         #expect(capabilities.canMoveMoney)
         #expect(capabilities.canApplyBudgetTemplates)
+        #expect(capabilities.showsAddAccount)
+        #expect(capabilities.canAddAccount)
         #expect(!capabilities.canEditTransactions)
         #expect(!capabilities.canBankSync)
     }
@@ -182,6 +185,7 @@ struct BackendCapabilitiesTests {
         #expect(!state.capabilities.canWriteSplits)
         #expect(!state.capabilities.canAssignCategoryBudget)
         #expect(!state.capabilities.canMoveMoney)
+        #expect(!state.capabilities.canAddAccount)
     }
 
     @Test func transactionNotificationRoutingSelectsSpending() async {

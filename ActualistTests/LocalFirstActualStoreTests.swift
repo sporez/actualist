@@ -1224,6 +1224,47 @@ struct LocalFirstActualStoreTests {
         #expect(groceries.spent == -13_070)
     }
 
+    @Test func createAccountLocallyWritesAccountTransferPayeeAndOutboxMessages() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        try await store.createAccountAndRefresh(
+            budgetID: "group-1",
+            name: "Travel Checking",
+            offbudget: false
+        )
+
+        let accounts = store.accountDisplays(budgetID: "group-1")
+        let account = try #require(accounts.map(\.account).first { $0.name == "Travel Checking" })
+        let accountDisplay = try #require(accounts.first { $0.account.id == account.id })
+        let database = try #require(store.database)
+        let transferPayee = try #require(
+            try await database.fetchPayees().first { $0.transferAccount == account.id }
+        )
+
+        #expect(!account.offbudget)
+        #expect(!account.closed)
+        #expect(accountDisplay.balance == 0)
+        #expect(transferPayee.name.isEmpty)
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
+    }
+
+    @Test func createOffBudgetAccountLocallyMarksAccountAsOffBudget() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        try await store.createAccountAndRefresh(
+            budgetID: "group-1",
+            name: "Brokerage",
+            offbudget: true
+        )
+
+        let account = try #require(
+            store.accountDisplays(budgetID: "group-1").map(\.account).first { $0.name == "Brokerage" }
+        )
+
+        #expect(account.offbudget)
+        #expect(!account.closed)
+    }
+
     @Test func assignCategoryBudgetLocallyRefreshesBudgetMonth() async throws {
         let store = try await makeOpenedWritableStore()
         var didAssign = false

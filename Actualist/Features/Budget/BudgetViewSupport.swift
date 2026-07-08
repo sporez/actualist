@@ -81,7 +81,7 @@ struct ConnectionStatusDot: View {
         case .connecting:
             "Server connecting"
         case .offline:
-            "Server offline, read only"
+            "Server offline"
         }
     }
 }

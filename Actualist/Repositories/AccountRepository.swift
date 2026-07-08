@@ -8,9 +8,6 @@ protocol AccountRepositoryProtocol: Sendable {
     func refreshAccountsWithBalances(budgetID: String) async throws
 
     // MARK: - Account mutations / server operations
-    //
-    // These once flowed through the HTTP REST backend. Local-first is read-only until the
-    // CRDT write phase re-enables them, so its implementation throws `unsupportedWrite`.
 
     @MainActor
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws

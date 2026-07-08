@@ -57,7 +57,7 @@ final class AddAccountViewModel {
         }
 
         guard !isReadOnly else {
-            errorMessage = "Server is offline. Account changes are read-only until it reconnects."
+            errorMessage = "Account changes are not enabled for this budget."
             return false
         }
 

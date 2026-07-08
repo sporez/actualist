@@ -1,10 +1,29 @@
 import Foundation
 
 extension LocalFirstActualStore {
-    // MARK: - Account mutations / server operations (read-only until CRDT writes land)
+    // MARK: - Account mutations / server operations
 
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
-        throw LocalFirstError.unsupportedWrite
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+        let database = try requireDatabase(for: budgetID)
+        let accountID = UUID().uuidString
+        let latestTimestamp = try await database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let messages = try await database.createAccountMessages(
+            accountID: accountID,
+            name: name,
+            offbudget: offbudget,
+            builder: &builder
+        )
+
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 
     func syncBankAccountAndRefresh(budgetID: String, accountID: String) async throws -> LoadedAccountTransactions? {
@@ -401,6 +420,13 @@ extension LocalFirstActualStore {
                 )
             )
         }
+    }
+
+    func reloadAfterAccountMutation(
+        database: BudgetDatabase,
+        budgetID: String
+    ) async throws {
+        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
     }
 
 }

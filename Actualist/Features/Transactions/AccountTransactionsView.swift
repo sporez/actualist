@@ -85,7 +85,7 @@ struct AccountTransactionsView: View {
         appState.settings.selectedBudgetID
     }
 
-    /// The active read backend (REST data store or local-first store) behind the shared seam.
+    /// The active transaction repository behind the shared seam.
     private var transactionRepository: (any TransactionRepositoryProtocol)? {
         appState.makeTransactionRepository()
     }
@@ -501,8 +501,8 @@ struct AccountTransactionsView: View {
         showsBottomSeparator: Bool
     ) -> some View {
         Button {
-            // Opens the editor. When read-only (local-first / offline REST) the editor
-            // presents as a detail viewer with all mutation controls disabled.
+            // Opens the editor. When a write is unavailable, the editor presents as a detail
+            // viewer with mutation controls disabled.
             transactionEditorPresentation = .edit(
                 transaction,
                 payeeName: payeeName(for: transaction),
@@ -556,7 +556,7 @@ struct AccountTransactionsView: View {
         }
 
         guard transaction.id != nil else {
-            errorMessage = "This transaction cannot be deleted because the API did not provide its transaction ID."
+            errorMessage = "This transaction cannot be deleted because it is missing its transaction ID."
             return
         }
 
@@ -586,8 +586,8 @@ struct AccountTransactionsView: View {
             guard let repository = transactionRepository else {
                 return
             }
-            // The store invalidates and refetches the affected account + month, so the reactive
-            // snapshot (and the Budget tab) refresh without a second round trip here.
+            // The store reloads the affected account + month, so the reactive snapshot (and the
+            // Budget tab) refresh without a second round trip here.
             _ = try await repository.deleteTransactionAndRefresh(
                 transaction,
                 budgetID: budgetID
@@ -602,7 +602,7 @@ struct AccountTransactionsView: View {
     }
 
     private var offlineMutationMessage: String {
-        "Server is offline. Transaction changes are read-only until it reconnects."
+        "Transaction changes are not enabled for this row."
     }
 
     private func payeeName(for transaction: ActualTransaction) -> String {

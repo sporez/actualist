@@ -263,11 +263,8 @@ extension LocalFirstActualStore {
         transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(transaction.importedPayee ?? "")"
     }
 
-    /// Derives budget banner alerts natively from SQLite, matching the REST server's shapes so
-    /// the UI renders identically across backends. Every alert here is view-only: the sheets
-    /// they open (uncategorized review, overspent categories) present read-only, and the
-    /// to-budget banner is informational. Their embedded write actions stay disabled by the
-    /// backend capability gate, exactly as in offline REST.
+    /// Derives budget banner alerts natively from SQLite, matching Actual's alert shapes so the
+    /// UI renders consistently from the local-first store.
     func nativeBudgetAlerts(
         database: BudgetDatabase,
         month: BudgetMonth,
@@ -284,8 +281,8 @@ extension LocalFirstActualStore {
         )
     }
 
-    /// Pure derivation of the full budget alert list (to-budget, overspending, uncategorized),
-    /// ordered to match the REST server. Exposed for testing.
+    /// Pure derivation of the full budget alert list (to-budget, overspending, uncategorized).
+    /// Exposed for testing.
     static func budgetAlerts(
         month: BudgetMonth,
         monthID: String,
@@ -327,7 +324,7 @@ extension LocalFirstActualStore {
     }
 
     /// Overspending banner counting categories that ended the month negative. The count mirrors
-    /// the overspent-categories review sheet, which opens read-only in local-first mode.
+    /// the overspent-categories review sheet.
     static func overspendingAlert(month: BudgetMonth) -> APIBudgetMonthAlert? {
         let overspentCount = month.categoryGroups
             .filter { !$0.isIncome }
@@ -347,8 +344,7 @@ extension LocalFirstActualStore {
         )
     }
 
-    /// Pure derivation of the uncategorized-transactions alert, matching the REST server's
-    /// wording/severity so the UI renders identically across backends. Exposed for testing.
+    /// Pure derivation of the uncategorized-transactions alert. Exposed for testing.
     static func uncategorizedAlerts(
         transactions: [ActualTransaction],
         transferAccountIDsByPayeeID: [String: String],

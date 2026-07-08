@@ -157,8 +157,7 @@ extension LocalFirstActualStore {
     }
 
     /// Discard the locally imported SQLite database and re-download a fresh copy from the
-    /// server. Used by Settings to recover from a stale or corrupted local budget; the
-    /// backend stays read-only throughout.
+    /// server. Used by Settings to recover from a stale or corrupted local budget.
     func reimportBudget(_ budget: ActualBudget, serverURLString: String) async throws {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
