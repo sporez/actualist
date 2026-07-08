@@ -8,8 +8,6 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleDisplayName</key>
-	<string>Actualist LF</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -31,7 +29,7 @@
 	<string>Actualist connects to your Actual Budget server on your local network.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.sporez.actualist.localfirst.transactions.refresh</string>
+		<string>com.sporez.actualist.transactions.refresh</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
