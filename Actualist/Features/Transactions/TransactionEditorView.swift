@@ -284,13 +284,16 @@ struct TransactionEditorView: View {
                             .padding(.vertical, 7)
                             .background(ActualistTheme.control, in: Capsule())
 
-                        Button {
-                            viewModel.removeSplit(rowID: row.id)
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .foregroundStyle(ActualistTheme.secondaryText)
+                        if viewModel.canRemoveSplitRow {
+                            Button {
+                                viewModel.removeSplit(rowID: row.id)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(ActualistTheme.danger)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove split category")
                         }
-                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 13)

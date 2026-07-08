@@ -597,6 +597,37 @@ struct TransactionEditorViewModelTests {
         #expect(model.splitRemainingCents == 0)
     }
 
+    @Test func splitRowRemovalCollapsesTwoCategoriesToRemainingCategory() {
+        let model = configuredModel()
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
+        model.finalizeSplitSelection()
+
+        #expect(model.canRemoveSplitRow)
+
+        model.removeSplit(rowID: "groceries")
+
+        #expect(model.isSplit == false)
+        #expect(model.splitRows.isEmpty)
+        #expect(model.selectedCategoryID == "household")
+        #expect(model.selectedCategoryName == "Household")
+    }
+
+    @Test func splitRowRemovalKeepsRemainingSplitWhenMoreThanTwoCategories() {
+        let model = configuredModel()
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
+
+        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "utilities", title: "Utilities", amount: nil, valueText: nil))
+        model.finalizeSplitSelection()
+
+        #expect(model.canRemoveSplitRow)
+
+        model.removeSplit(rowID: "utilities")
+
+        #expect(model.splitRows.map(\.categoryID) == ["groceries", "household"])
+    }
+
     @Test func editingExistingSplitPrefillsChildRows() {
         let model = TransactionEditorViewModel(
             editing: ActualTransaction(

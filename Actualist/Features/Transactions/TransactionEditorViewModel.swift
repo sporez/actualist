@@ -179,6 +179,10 @@ final class TransactionEditorViewModel {
         splitRows.count >= 2
     }
 
+    var canRemoveSplitRow: Bool {
+        splitRows.count >= 2
+    }
+
     /// Whether the backend permits writing this draft's shape. Transfers and splits are gated by
     /// their own capabilities so they can be enabled independently of simple create/edit.
     func writesAllowed(_ capabilities: BackendCapabilities) -> Bool {
@@ -533,6 +537,10 @@ final class TransactionEditorViewModel {
 
     func removeSplit(rowID: String) {
         guard !isCategoryReadOnly else {
+            return
+        }
+
+        guard canRemoveSplitRow else {
             return
         }
 
