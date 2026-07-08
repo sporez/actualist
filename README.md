@@ -16,5 +16,4 @@ four core surfaces:
 - Account Transactions: transaction timeline for a selected account, with payee/category context and cleared status.
 - Settings: Actual server connection, budget selection, sync controls, display density, theme, privacy mode, and developer-gated local writes.
 
-See [docs/PLAN.md](docs/PLAN.md) for the current product direction and architecture notes.
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the Xcode/simulator development loop.
+See [docs/README.md](docs/README.md) for the current documentation map.

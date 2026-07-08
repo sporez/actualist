@@ -9,8 +9,8 @@ This roadmap records the completed read-only migration work after Budget and
 Accounts parity. Its REST-mode constraints were migration-era guardrails; they
 are not current architecture. The current app treats the normal Actual server,
 downloaded SQLite database, and applied CRDT messages as its source of truth.
-Supported writes now live in `docs/local-first-current-write-model.md` and
-`docs/local-first-write-plan.md`.
+Supported writes now live in `docs/local-first-current-write-model.md`; the old
+write plan is archived at `docs/old/local-first-write-plan.md`.
 
 ## Phased Plan
 
@@ -49,10 +49,12 @@ Supported writes now live in `docs/local-first-current-write-model.md` and
 
 ### Phase 5: Parity Audit Before Writes
 
-Status: complete. The read-only gate has passed and follow-up work should move to `docs/local-first-write-plan.md`.
+Status: complete. The read-only gate has passed and the follow-up write plan is
+archived at `docs/old/local-first-write-plan.md`.
 
 - Add a documented parity checklist comparing Actual web vs Actualist local-first for budget month totals, account balances, account transaction lists, spending feed, search results, uncategorized transactions, transfers, splits, hidden/closed/off-budget accounts, tombstones, and multiple months.
-- Use `docs/local-first-parity-checklist.md` as the manual throwaway-budget walkthrough for this audit.
+- Use `docs/old/local-first-parity-checklist.md` as the historical manual
+  throwaway-budget walkthrough for this audit.
 - Add a read parity gate before any local-first write work begins.
 - Keep write-design notes in a later section only: CRDT message generation, HLC/node id, conflict behavior, sync retry, and rollback strategy are out of implementation scope until the read gate passes.
 

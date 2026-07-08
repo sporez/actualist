@@ -338,7 +338,7 @@ Unit tests (LocalFirstActualStoreTests):
 9. Delete transfer → row tombstoned and paired unlinked/tombstoned.
 10. Capability truth-table updates for `canWriteTransfers` / `canWriteSplits`.
 
-Verification ladder (per `local-first-write-plan.md`): focused tests → full
+Verification ladder (per archived `local-first-write-plan.md`): focused tests → full
 `ActualistTests` → simulator smoke on a throwaway budget → Actual web comparison
 for each of create/edit/delete of transfer and split → Airy install only after
 simulator proof.

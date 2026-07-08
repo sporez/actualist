@@ -52,6 +52,29 @@ xcodebuild \
   test
 ```
 
+## TestFlight Releases
+
+Use the local release helper menu for TestFlight versioning, release-note
+generation, archives, and App Store Connect uploads:
+
+```sh
+scripts/testflight-release.sh
+```
+
+The same flow is available with explicit commands:
+
+```sh
+scripts/testflight-release.sh plan
+scripts/testflight-release.sh prepare
+git add Actualist.xcodeproj/project.pbxproj
+git commit -m "chore: prepare TestFlight <version> (<build>)"
+scripts/testflight-release.sh upload
+scripts/testflight-release.sh tag
+```
+
+See `docs/testflight-releases.md` for version bump options, generated artifact
+paths, and App Store Connect authentication environment variables.
+
 ## Liquid Glass Checks
 
 Actualist targets iOS 26+ and uses real SwiftUI Liquid Glass APIs for glass-like

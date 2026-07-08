@@ -11,6 +11,8 @@ build/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/
+*.xcworkspace/xcshareddata/swiftpm/configuration/
 *.xcuserstate
 *.xcscmblueprint
 
@@ -43,8 +45,13 @@ Local.xcconfig
 
 # Local development artifacts
 .artifacts/
-scripts/
+.release/
+scripts/*
+!scripts/lint-liquid-glass.sh
+!scripts/run-ios-simulator.sh
+!scripts/testflight-release.sh
 .xcode-ota.yml
+.xcode-ota/
 .xcode-ota/builds/
 
 # Environment files
@@ -56,3 +63,4 @@ scripts/
 reference/
 AGENTS.md
 CLAUDE.md
+.claude/
