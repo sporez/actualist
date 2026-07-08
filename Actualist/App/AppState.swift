@@ -412,12 +412,14 @@ final class AppState {
                     budgetID: budgetID,
                     accountID: result.account.id
                 )
-                try await postNewTransactionsNotification(
-                    account: result.account,
-                    budgetID: budgetID,
-                    count: result.newTransactionIDs.count
-                )
                 newTransactionCount += result.newTransactionIDs.count
+            }
+
+            if newTransactionCount > 0 {
+                try await postNewTransactionsNotification(
+                    budgetID: budgetID,
+                    count: newTransactionCount
+                )
             }
 
             recordBackgroundRefreshCompletion(
@@ -575,27 +577,25 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    func routeToAccountFromNotification(budgetID: String, accountID: String) async {
+    func clearPendingNewTransactionIDs(budgetID: String) {
+        let prefix = "\(budgetID)|"
+        let keys = settings.pendingNewTransactionIDsByAccount.keys.filter { $0.hasPrefix(prefix) }
+        guard !keys.isEmpty else {
+            return
+        }
+        for key in keys {
+            settings.pendingNewTransactionIDsByAccount[key] = nil
+        }
+        settingsStore.save(settings)
+    }
+
+    func routeToSpendingFromNotification(budgetID: String) async {
         guard capabilities.supportsTransactionNotifications else {
             accountNavigationPath = []
             return
         }
-        selectedTab = .accounts
-        guard settings.selectedBudgetID == budgetID, let repository = makeAccountRepository() else {
-            accountNavigationPath = []
-            return
-        }
-
-        if repository.accountDisplays(budgetID: budgetID).isEmpty {
-            try? await repository.refreshAccountsWithBalances(budgetID: budgetID)
-        }
-
-        let displays = repository.accountDisplays(budgetID: budgetID)
-        guard let account = displays.first(where: { $0.account.id == accountID })?.account else {
-            accountNavigationPath = []
-            return
-        }
-        accountNavigationPath = [account]
+        accountNavigationPath = []
+        selectedTab = .spending
     }
 
     #if DEBUG
@@ -624,19 +624,12 @@ final class AppState {
         }
 
         let accounts = repository.accountDisplays(budgetID: budgetID).map(\.account)
-        guard let account = accounts.first(where: { account in
-            account.bankSyncLinked
-                && !account.closed
-                && account.name.localizedCaseInsensitiveContains("amex")
-        }) ?? accounts.first(where: { $0.bankSyncLinked && !$0.closed })
-            ?? accounts.first(where: { !$0.closed })
-            ?? accounts.first else {
+        guard accounts.contains(where: { !$0.closed }) || !accounts.isEmpty else {
             throw DebugNotificationError.noAccounts
         }
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
         try await postNewTransactionsNotification(
-            account: account,
             budgetID: budgetID,
             count: 1,
             trigger: trigger
@@ -748,7 +741,6 @@ final class AppState {
     }
 
     private func postNewTransactionsNotification(
-        account: ActualAccount,
         budgetID: String,
         count _: Int,
         trigger: UNNotificationTrigger? = nil
@@ -758,12 +750,11 @@ final class AppState {
         content.body = NewTransactionsNotificationCopy.body
         content.sound = .default
         content.userInfo = [
-            "budgetID": budgetID,
-            "accountID": account.id
+            "budgetID": budgetID
         ]
 
         let request = UNNotificationRequest(
-            identifier: "actualist.new-transactions.\(budgetID).\(account.id).\(Date().timeIntervalSince1970)",
+            identifier: "actualist.new-transactions.\(budgetID).\(Date().timeIntervalSince1970)",
             content: content,
             trigger: trigger
         )

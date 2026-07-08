@@ -184,6 +184,34 @@ struct BackendCapabilitiesTests {
         #expect(!state.capabilities.canMoveMoney)
     }
 
+    @Test func transactionNotificationRoutingSelectsSpending() async {
+        let state = makeAppState()
+        state.selectedTab = .accounts
+        state.accountNavigationPath = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)
+        ]
+
+        await state.routeToSpendingFromNotification(budgetID: "budget")
+
+        #expect(state.selectedTab == .spending)
+        #expect(state.accountNavigationPath.isEmpty)
+    }
+
+    @Test func clearingBudgetPendingNewTransactionsClearsEveryAccountInBudgetOnly() {
+        let state = makeAppState()
+        state.settings.pendingNewTransactionIDsByAccount = [
+            "budget|checking": ["txn-1"],
+            "budget|credit": ["txn-2"],
+            "other|checking": ["txn-3"]
+        ]
+
+        state.clearPendingNewTransactionIDs(budgetID: "budget")
+
+        #expect(state.settings.pendingNewTransactionIDsByAccount["budget|checking"] == nil)
+        #expect(state.settings.pendingNewTransactionIDsByAccount["budget|credit"] == nil)
+        #expect(state.settings.pendingNewTransactionIDsByAccount["other|checking"] == ["txn-3"])
+    }
+
     private func makeAppState() -> AppState {
         let defaultsName = "ActualistTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: defaultsName)!

@@ -156,11 +156,10 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
     ) async {
         let userInfo = response.notification.request.content.userInfo
         guard let budgetID = userInfo["budgetID"] as? String,
-              let accountID = userInfo["accountID"] as? String,
               let appState else {
             return
         }
 
-        await appState.routeToAccountFromNotification(budgetID: budgetID, accountID: accountID)
+        await appState.routeToSpendingFromNotification(budgetID: budgetID)
     }
 }

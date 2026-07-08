@@ -298,8 +298,14 @@ struct AccountTransactionsView: View {
         }
         .onDisappear {
             searchTask?.cancel()
-            if let budgetID, let account = scope.account {
+            guard let budgetID else {
+                return
+            }
+            switch scope {
+            case .account(let account):
                 appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
+            case .spending:
+                appState.clearPendingNewTransactionIDs(budgetID: budgetID)
             }
         }
         .sensoryFeedback(.selection, trigger: deleteIntentHaptic)
