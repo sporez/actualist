@@ -152,9 +152,18 @@ extension BudgetDatabase {
     }
 
     func fetchTransactions(accountID: String? = nil, matching query: String? = nil) throws -> [ActualTransaction] {
+        try fetchTransactionPage(accountID: accountID, matching: query, limit: nil, offset: 0).transactions
+    }
+
+    func fetchTransactionPage(
+        accountID: String? = nil,
+        matching query: String? = nil,
+        limit: Int?,
+        offset: Int = 0
+    ) throws -> TransactionFetchResult {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
-                return []
+                return TransactionFetchResult(transactions: [], reachedEnd: true)
             }
 
             let columns = try columnSet(for: "transactions", db: db)
@@ -222,6 +231,54 @@ extension BudgetDatabase {
                 arguments.append(contentsOf: [like, like, like])
             }
 
+            let rowLimit = limit.map { max(1, $0) }
+            let rowOffset = max(0, offset)
+            let topLevelIDs: [String]?
+            let reachedEnd: Bool
+            if let rowLimit {
+                var topLevelConditions = conditions
+                topLevelConditions.append("\(parentID) IS NULL")
+                var topLevelArguments = arguments
+                topLevelArguments.append(rowLimit + 1)
+                topLevelArguments.append(rowOffset)
+                let topLevelSQL = """
+                    SELECT t.id AS id
+                    FROM transactions t
+                    \(categoryMappingJoin)
+                    \(payeeMappingJoin)
+                    \(payeeNameJoin)
+                    LEFT JOIN transactions p ON p.id = \(parentID)
+                    WHERE \(topLevelConditions.joined(separator: " AND "))
+                    ORDER BY \(normalizedDate) DESC, t.id DESC
+                    LIMIT ? OFFSET ?
+                    """
+                let fetchedIDs = try Row.fetchAll(
+                    db,
+                    sql: topLevelSQL,
+                    arguments: StatementArguments(topLevelArguments)
+                ).compactMap { $0["id"] as String? }
+                reachedEnd = fetchedIDs.count <= rowLimit
+                topLevelIDs = Array(fetchedIDs.prefix(rowLimit))
+                if topLevelIDs?.isEmpty != false {
+                    return TransactionFetchResult(transactions: [], reachedEnd: true)
+                }
+            } else {
+                topLevelIDs = nil
+                reachedEnd = true
+            }
+
+            var rowConditions = conditions
+            var rowArguments = arguments
+            if let topLevelIDs {
+                let placeholders = Array(repeating: "?", count: topLevelIDs.count).joined(separator: ", ")
+                rowConditions = [
+                    predicateForLiveRows(columns: columns, tableAlias: "t"),
+                    "(\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)",
+                    "(t.id IN (\(placeholders)) OR \(parentID) IN (\(placeholders)))"
+                ]
+                rowArguments = (topLevelIDs + topLevelIDs).map { $0 as DatabaseValueConvertible }
+            }
+
             let sql = """
                 SELECT t.id AS id,
                        \(account) AS account_id,
@@ -240,12 +297,12 @@ extension BudgetDatabase {
                 \(payeeMappingJoin)
                 \(payeeNameJoin)
                 LEFT JOIN transactions p ON p.id = \(parentID)
-                WHERE \(conditions.joined(separator: " AND "))
-                ORDER BY \(date) DESC, t.id DESC
+                WHERE \(rowConditions.joined(separator: " AND "))
+                ORDER BY \(normalizedDate) DESC, t.id DESC
                 """
 
-            let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
-            return assembleTransactions(from: rows)
+            let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(rowArguments))
+            return TransactionFetchResult(transactions: assembleTransactions(from: rows), reachedEnd: reachedEnd)
         }
     }
 

@@ -688,12 +688,22 @@ struct AccountTransactionsView: View {
             return
         }
 
-        isLoading = true
+        let hadLoadedSnapshot = loaded != nil
+        isLoading = !hadLoadedSnapshot
         errorMessage = nil
         do {
             guard let repository = transactionRepository else {
+                isLoading = false
                 return
             }
+            switch scope {
+            case .account(let account):
+                try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
+            case .spending:
+                try await repository.refreshSpendingTransactions(budgetID: budgetID)
+            }
+            isLoading = false
+
             await appState.refreshLocalFirstData(budgetID: budgetID)
             switch scope {
             case .account(let account):

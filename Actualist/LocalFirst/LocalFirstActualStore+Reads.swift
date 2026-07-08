@@ -40,30 +40,88 @@ extension LocalFirstActualStore {
     }
 
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
-        accountTransactionsByKey[transactionKey(budgetID, accountID)]
+        accountTransactionsByKey[transactionKey(budgetID, accountID)]?.loaded
     }
 
     func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? {
-        spendingTransactionsByBudget[budgetID]
+        spendingTransactionsByBudget[budgetID]?.loaded
     }
 
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        accountTransactionsByKey[transactionKey(budgetID, accountID)] = try await loadedAccountTransactions(
-            database: database, budgetID: budgetID, accountID: accountID, query: nil
+        let key = transactionKey(budgetID, accountID)
+        let limit = max(accountTransactionsByKey[key]?.nextOffset ?? transactionPageSize, transactionPageSize)
+        accountTransactionsByKey[key] = TransactionFeedPage(
+            loaded: try await loadedAccountTransactions(
+                database: database,
+                budgetID: budgetID,
+                accountID: accountID,
+                query: nil,
+                limit: limit,
+                offset: 0
+            )
         )
     }
 
     func refreshSpendingTransactions(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        spendingTransactionsByBudget[budgetID] = try await loadedSpendingTransactions(
-            database: database, budgetID: budgetID, query: nil
+        let limit = max(spendingTransactionsByBudget[budgetID]?.nextOffset ?? transactionPageSize, transactionPageSize)
+        spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
+            loaded: try await loadedSpendingTransactions(
+                database: database,
+                budgetID: budgetID,
+                query: nil,
+                limit: limit,
+                offset: 0
+            )
         )
     }
 
-    // Local SQLite loads the full live set at once, so there are no older pages to fetch.
-    func loadOlderTransactions(budgetID: String, accountID: String) async throws {}
-    func loadOlderSpendingTransactions(budgetID: String) async throws {}
+    func loadOlderTransactions(budgetID: String, accountID: String) async throws {
+        let database = try requireDatabase(for: budgetID)
+        let key = transactionKey(budgetID, accountID)
+        guard let current = accountTransactionsByKey[key] else {
+            try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID)
+            return
+        }
+        guard !current.loaded.reachedEnd else {
+            return
+        }
+
+        let older = try await loadedAccountTransactions(
+            database: database,
+            budgetID: budgetID,
+            accountID: accountID,
+            query: nil,
+            limit: transactionPageSize,
+            offset: current.nextOffset
+        )
+        accountTransactionsByKey[key] = TransactionFeedPage(
+            loaded: combinedTransactions(current.loaded, older)
+        )
+    }
+
+    func loadOlderSpendingTransactions(budgetID: String) async throws {
+        let database = try requireDatabase(for: budgetID)
+        guard let current = spendingTransactionsByBudget[budgetID] else {
+            try await refreshSpendingTransactions(budgetID: budgetID)
+            return
+        }
+        guard !current.loaded.reachedEnd else {
+            return
+        }
+
+        let older = try await loadedSpendingTransactions(
+            database: database,
+            budgetID: budgetID,
+            query: nil,
+            limit: transactionPageSize,
+            offset: current.nextOffset
+        )
+        spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
+            loaded: combinedTransactions(current.loaded, older)
+        )
+    }
 
     func searchAccountTransactions(
         budgetID: String,
@@ -73,7 +131,14 @@ extension LocalFirstActualStore {
         offset: Int
     ) async throws -> LoadedAccountTransactions {
         let database = try requireDatabase(for: budgetID)
-        return try await loadedAccountTransactions(database: database, budgetID: budgetID, accountID: accountID, query: query)
+        return try await loadedAccountTransactions(
+            database: database,
+            budgetID: budgetID,
+            accountID: accountID,
+            query: query,
+            limit: limit,
+            offset: offset
+        )
     }
 
     func searchSpendingTransactions(
@@ -83,7 +148,13 @@ extension LocalFirstActualStore {
         offset: Int
     ) async throws -> LoadedAccountTransactions {
         let database = try requireDatabase(for: budgetID)
-        return try await loadedSpendingTransactions(database: database, budgetID: budgetID, query: query)
+        return try await loadedSpendingTransactions(
+            database: database,
+            budgetID: budgetID,
+            query: query,
+            limit: limit,
+            offset: offset
+        )
     }
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
@@ -124,36 +195,72 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         accountID: String,
-        query: String?
+        query: String?,
+        limit: Int? = nil,
+        offset: Int = 0
     ) async throws -> LoadedAccountTransactions {
         let maps = try await nameMaps(database)
         let balance = accountsByBudget[budgetID]?.first(where: { $0.account.id == accountID })?.balance
+        let page = try await database.fetchTransactionPage(
+            accountID: accountID,
+            matching: query,
+            limit: limit,
+            offset: offset
+        )
         return LoadedAccountTransactions(
-            transactions: try await database.fetchTransactions(accountID: accountID, matching: query),
+            transactions: page.transactions,
             balance: balance,
             accountNames: maps.accountNames,
             categoryNames: maps.categoryNames,
             payeeNames: maps.payeeNames,
             transferPayeeIDs: maps.transferPayeeIDs,
-            reachedEnd: true
+            reachedEnd: page.reachedEnd
         )
     }
 
     func loadedSpendingTransactions(
         database: BudgetDatabase,
         budgetID: String,
-        query: String?
+        query: String?,
+        limit: Int? = nil,
+        offset: Int = 0
     ) async throws -> LoadedAccountTransactions {
         let maps = try await nameMaps(database)
+        let page = try await database.fetchTransactionPage(
+            matching: query,
+            limit: limit,
+            offset: offset
+        )
         return LoadedAccountTransactions(
-            transactions: try await database.fetchTransactions(matching: query),
+            transactions: page.transactions,
             balance: nil,
             accountNames: maps.accountNames,
             categoryNames: maps.categoryNames,
             payeeNames: maps.payeeNames,
             transferPayeeIDs: maps.transferPayeeIDs,
-            reachedEnd: true
+            reachedEnd: page.reachedEnd
         )
+    }
+
+    func combinedTransactions(
+        _ current: LoadedAccountTransactions,
+        _ older: LoadedAccountTransactions
+    ) -> LoadedAccountTransactions {
+        let existingIDs = Set(current.transactions.map(transactionIdentity))
+        let appended = older.transactions.filter { !existingIDs.contains(transactionIdentity($0)) }
+        return LoadedAccountTransactions(
+            transactions: current.transactions + appended,
+            balance: older.balance ?? current.balance,
+            accountNames: older.accountNames.isEmpty ? current.accountNames : older.accountNames,
+            categoryNames: older.categoryNames.isEmpty ? current.categoryNames : older.categoryNames,
+            payeeNames: older.payeeNames.isEmpty ? current.payeeNames : older.payeeNames,
+            transferPayeeIDs: older.transferPayeeIDs.isEmpty ? current.transferPayeeIDs : older.transferPayeeIDs,
+            reachedEnd: older.reachedEnd
+        )
+    }
+
+    func transactionIdentity(_ transaction: ActualTransaction) -> String {
+        transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(transaction.importedPayee ?? "")"
     }
 
     /// Derives budget banner alerts natively from SQLite, matching the REST server's shapes so

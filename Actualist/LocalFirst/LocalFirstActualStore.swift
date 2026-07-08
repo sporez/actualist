@@ -19,8 +19,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
     var accountsByBudget: [String: [AccountDisplay]] = [:]
     var monthsByBudget: [String: [String]] = [:]
-    var accountTransactionsByKey: [String: LoadedAccountTransactions] = [:]
-    var spendingTransactionsByBudget: [String: LoadedAccountTransactions] = [:]
+    var accountTransactionsByKey: [String: TransactionFeedPage] = [:]
+    var spendingTransactionsByBudget: [String: TransactionFeedPage] = [:]
     var syncStatus: LocalFirstSyncStatus?
     var isFlushingPendingLocalMessages = false
     var shouldFlushPendingLocalMessagesAgain = false
@@ -35,6 +35,16 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         self.fileManager = fileManager
         self.syncTransportFactory = syncTransportFactory
     }
+
+    struct TransactionFeedPage: Sendable {
+        let loaded: LoadedAccountTransactions
+
+        var nextOffset: Int {
+            loaded.transactions.count
+        }
+    }
+
+    let transactionPageSize = 100
 
     var hasOpenBudget: Bool {
         database != nil

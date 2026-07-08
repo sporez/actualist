@@ -175,8 +175,9 @@ extension LocalFirstActualStore {
         }
     }
 
-    /// Pull remote CRDT messages, apply them, then unconditionally invalidate and reload
-    /// native read caches so they are authoritative after any refresh. Records sync status.
+    /// Pull remote CRDT messages, apply them, then reload native read caches so they are
+    /// authoritative after any refresh. Transaction feeds preserve their loaded windows rather
+    /// than falling back to full-history loads.
     func pullAndReload(budgetID: String, serverURLString: String) async throws {
         let token = keychain.readActualSyncToken()
         guard !token.isEmpty else {
@@ -214,8 +215,35 @@ extension LocalFirstActualStore {
     func reloadAfterRemoteSync(database: BudgetDatabase, budgetID: String) async throws {
         monthsByBudget[budgetID] = nil
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
-        accountTransactionsByKey = accountTransactionsByKey.filter { !$0.key.hasPrefix("\(budgetID)|") }
-        spendingTransactionsByBudget[budgetID] = nil
+
+        let prefix = "\(budgetID)|"
+        for (key, page) in Array(accountTransactionsByKey) where key.hasPrefix(prefix) {
+            let accountID = String(key.dropFirst(prefix.count))
+            let limit = max(page.nextOffset, transactionPageSize)
+            accountTransactionsByKey[key] = TransactionFeedPage(
+                loaded: try await loadedAccountTransactions(
+                    database: database,
+                    budgetID: budgetID,
+                    accountID: accountID,
+                    query: nil,
+                    limit: limit,
+                    offset: 0
+                )
+            )
+        }
+
+        if let currentSpending = spendingTransactionsByBudget[budgetID] {
+            let limit = max(currentSpending.nextOffset, transactionPageSize)
+            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
+                loaded: try await loadedSpendingTransactions(
+                    database: database,
+                    budgetID: budgetID,
+                    query: nil,
+                    limit: limit,
+                    offset: 0
+                )
+            )
+        }
     }
 
     func recordSyncStatus(budgetID: String, appliedCount: Int?, error: Error?) async {

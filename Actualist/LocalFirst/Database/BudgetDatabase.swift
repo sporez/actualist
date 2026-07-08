@@ -39,6 +39,11 @@ actor BudgetDatabase {
         let affectedTransactionIDs: [String]
     }
 
+    struct TransactionFetchResult: Sendable {
+        let transactions: [ActualTransaction]
+        let reachedEnd: Bool
+    }
+
     struct ExistingTransactionState {
         let account: String
         let isParent: Bool

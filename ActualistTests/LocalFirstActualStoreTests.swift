@@ -751,6 +751,50 @@ struct LocalFirstActualStoreTests {
         #expect(search.compactMap(\.id) == ["txn2"])
     }
 
+    @Test func transactionPageLimitsTopLevelRowsAndKeepsSplitChildren() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            INSERT INTO transactions VALUES ('older-a', 'checking', 20260702, -1000, 'groceries', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('older-b', 'checking', 20260701, -1000, 'groceries', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('split', 'checking', 20260706, -3000, NULL, 0, NULL, 1);
+            INSERT INTO transactions VALUES ('split-a', 'checking', 20260706, -1000, 'groceries', 0, 'split', 0);
+            INSERT INTO transactions VALUES ('split-b', 'checking', 20260706, -2000, 'groceries', 0, 'split', 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let firstPage = try await database.fetchTransactionPage(accountID: "checking", limit: 2)
+        let secondPage = try await database.fetchTransactionPage(accountID: "checking", limit: 2, offset: 2)
+
+        #expect(firstPage.transactions.compactMap(\.id) == ["split", "txn"])
+        #expect(firstPage.transactions.first?.subtransactions.count == 2)
+        #expect(!firstPage.reachedEnd)
+        #expect(secondPage.transactions.compactMap(\.id) == ["older-a", "older-b"])
+        #expect(secondPage.reachedEnd)
+    }
+
+    @Test func localFirstTransactionFeedsLoadInitialPageThenOlderRows() async throws {
+        let bulkSQL = (0..<105).map { index in
+            "INSERT INTO transactions VALUES ('bulk-\(String(format: "%03d", index))', 'checking', 20260701, -1000, 'groceries', 0, NULL, 0);"
+        }.joined(separator: "\n")
+        let fixtureURL = try makeSQLiteFixture(extraSQL: bulkSQL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let store = makeStore()
+        store.openedBudgetID = "group-1"
+        store.database = database
+        store.accountsByBudget["group-1"] = try await database.fetchAccountDisplays()
+
+        try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
+        let firstPage = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+
+        #expect(firstPage.transactions.count == 100)
+        #expect(!firstPage.reachedEnd)
+
+        try await store.loadOlderTransactions(budgetID: "group-1", accountID: "checking")
+        let fullWindow = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+
+        #expect(fullWindow.transactions.count == 106)
+        #expect(fullWindow.reachedEnd)
+    }
+
     @Test func transactionSearchTreatsPercentAndUnderscoreAsLiteralCharacters() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN notes TEXT;

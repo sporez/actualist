@@ -1,6 +1,17 @@
-# Plan: Paginated account transactions (large-account performance)
+# Plan: Paginated transactions (large-feed performance)
 
-Status: proposed (not started). Owner: TBD.
+Status: local-first row-count windowing implemented; older REST/date-window notes retained as historical context.
+
+## Local-first implementation
+
+The local-first app now loads account and Spending feeds as bounded SQLite windows:
+
+- Initial account and Spending loads fetch 100 top-level rows.
+- Split children are included with a selected split parent, so paged feeds do not render incomplete split rows.
+- `loadOlderTransactions` and `loadOlderSpendingTransactions` append the next 100-row window and update `reachedEnd`.
+- Refreshes, remote-sync reloads, and post-write reloads replace the currently loaded window instead of rebuilding full history.
+- Account mutation paths still populate affected account caches with a bounded first page so write flows can immediately show fresh local state.
+- Screen load order is local-first: the local window is rendered before network sync/revalidation runs.
 
 ## Context
 

@@ -355,17 +355,30 @@ extension LocalFirstActualStore {
     ) async throws {
         monthsByBudget[budgetID] = nil
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
-        spendingTransactionsByBudget[budgetID] = try await loadedSpendingTransactions(
-            database: database,
-            budgetID: budgetID,
-            query: nil
-        )
+        if let currentSpending = spendingTransactionsByBudget[budgetID] {
+            let limit = max(currentSpending.nextOffset, transactionPageSize)
+            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
+                loaded: try await loadedSpendingTransactions(
+                    database: database,
+                    budgetID: budgetID,
+                    query: nil,
+                    limit: limit,
+                    offset: 0
+                )
+            )
+        }
         for accountID in Set(accountIDs) {
-            accountTransactionsByKey[transactionKey(budgetID, accountID)] = try await loadedAccountTransactions(
-                database: database,
-                budgetID: budgetID,
-                accountID: accountID,
-                query: nil
+            let key = transactionKey(budgetID, accountID)
+            let limit = max(accountTransactionsByKey[key]?.nextOffset ?? transactionPageSize, transactionPageSize)
+            accountTransactionsByKey[key] = TransactionFeedPage(
+                loaded: try await loadedAccountTransactions(
+                    database: database,
+                    budgetID: budgetID,
+                    accountID: accountID,
+                    query: nil,
+                    limit: limit,
+                    offset: 0
+                )
             )
         }
     }
@@ -376,11 +389,18 @@ extension LocalFirstActualStore {
     ) async throws {
         monthsByBudget[budgetID] = nil
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
-        spendingTransactionsByBudget[budgetID] = try await loadedSpendingTransactions(
-            database: database,
-            budgetID: budgetID,
-            query: nil
-        )
+        if let currentSpending = spendingTransactionsByBudget[budgetID] {
+            let limit = max(currentSpending.nextOffset, transactionPageSize)
+            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
+                loaded: try await loadedSpendingTransactions(
+                    database: database,
+                    budgetID: budgetID,
+                    query: nil,
+                    limit: limit,
+                    offset: 0
+                )
+            )
+        }
     }
 
 }
