@@ -93,23 +93,7 @@ struct SettingsView: View {
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
 
-                    Button {
-                        isBudgetPickerPresented = true
-                    } label: {
-                        SettingsActionLabel(title: "Change Budget", systemImage: "folder")
-                    }
-
                     if appState.capabilities.isLocalFirst {
-                        Button {
-                            Task { await syncNow() }
-                        } label: {
-                            SettingsActionLabel(
-                                title: isSyncingNow ? "Syncing" : "Sync Now",
-                                systemImage: "arrow.triangle.2.circlepath"
-                            )
-                        }
-                        .disabled(isSyncingNow || appState.settings.selectedBudgetID == nil)
-
                         LabeledContent("Last Synced") {
                             Text(localFirstLastSyncedText)
                                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -130,6 +114,24 @@ struct SettingsView: View {
                                 .font(.footnote)
                                 .foregroundStyle(ActualistTheme.danger)
                         }
+                    }
+
+                    Button {
+                        isBudgetPickerPresented = true
+                    } label: {
+                        SettingsActionLabel(title: "Change Budget", systemImage: "folder")
+                    }
+
+                    if appState.capabilities.isLocalFirst {
+                        Button {
+                            Task { await syncNow() }
+                        } label: {
+                            SettingsActionLabel(
+                                title: isSyncingNow ? "Syncing" : "Sync Now",
+                                systemImage: "arrow.triangle.2.circlepath"
+                            )
+                        }
+                        .disabled(isSyncingNow || appState.settings.selectedBudgetID == nil)
 
                         Button(role: .destructive) {
                             isReimportConfirmationPresented = true
