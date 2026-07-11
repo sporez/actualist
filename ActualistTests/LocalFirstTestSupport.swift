@@ -7,13 +7,21 @@ enum LocalFirstTestSyncError: Error, Equatable {
 }
 
 actor RecordingSyncTransport: ActualSyncTransport {
-    private var shouldFail = false
+    private var remainingFailureCount = 0
+    private var dropsUploadedMessages = false
     private var delayNanoseconds: UInt64 = 0
     private var capturedMessageCounts: [Int] = []
     private var capturedSinceValues: [String] = []
+    private var serverMessagesByTimestamp: [String: ActualSync_MessageEnvelope] = [:]
 
-    init(shouldFail: Bool = false, delayNanoseconds: UInt64 = 0) {
-        self.shouldFail = shouldFail
+    init(
+        shouldFail: Bool = false,
+        failureCount: Int = 0,
+        dropsUploadedMessages: Bool = false,
+        delayNanoseconds: UInt64 = 0
+    ) {
+        self.remainingFailureCount = shouldFail ? .max : max(0, failureCount)
+        self.dropsUploadedMessages = dropsUploadedMessages
         self.delayNanoseconds = delayNanoseconds
     }
 
@@ -21,7 +29,8 @@ actor RecordingSyncTransport: ActualSyncTransport {
         if delayNanoseconds > 0 {
             try await Task.sleep(nanoseconds: delayNanoseconds)
         }
-        if shouldFail {
+        if remainingFailureCount > 0 {
+            remainingFailureCount -= 1
             throw LocalFirstTestSyncError.failed
         }
 
@@ -30,7 +39,14 @@ actor RecordingSyncTransport: ActualSyncTransport {
         capturedSinceValues.append(request.since)
 
         var response = ActualSync_SyncResponse()
-        response.messages = []
+        response.messages = serverMessagesByTimestamp.values
+            .filter { $0.timestamp > request.since }
+            .sorted { $0.timestamp < $1.timestamp }
+        if !dropsUploadedMessages {
+            for message in request.messages {
+                serverMessagesByTimestamp[message.timestamp] = message
+            }
+        }
         return try response.serializedData()
     }
 

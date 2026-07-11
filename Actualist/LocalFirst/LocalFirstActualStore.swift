@@ -7,6 +7,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport
+    let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
+    let pendingLocalMessageFlushRetryDelays: [Duration]
     let syncClient = SyncClient()
 
     var openedBudgetID: String?
@@ -25,15 +27,20 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var isFlushingPendingLocalMessages = false
     var shouldFlushPendingLocalMessagesAgain = false
     var pendingLocalMessageFlushWaiters: [CheckedContinuation<Void, Never>] = []
+    var pendingLocalMessageFlushTask: Task<Void, Never>?
 
     init(
         keychain: KeychainStore = .actualist,
         fileManager: BudgetFileManager = BudgetFileManager(),
-        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) }
+        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
+        syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
+        pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)]
     ) {
         self.keychain = keychain
         self.fileManager = fileManager
         self.syncTransportFactory = syncTransportFactory
+        self.syncDebugRecorder = syncDebugRecorder
+        self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
     }
 
     struct TransactionFeedPage: Sendable {
@@ -55,6 +62,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     }
 
     func reset() {
+        pendingLocalMessageFlushTask?.cancel()
+        pendingLocalMessageFlushTask = nil
         openedBudgetID = nil
         openedGroupID = nil
         openedNodeID = nil

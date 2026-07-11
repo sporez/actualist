@@ -31,6 +31,28 @@ struct LocalFirstActualStoreTests {
         #expect(settings.selectedBudgetID == "budget")
         #expect(settings.selectedLocalFirstFileID == nil)
         #expect(!settings.localFirstWritesEnabled)
+        #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
+    }
+
+    @Test func localFirstSyncDiagnosticsPersistInSettings() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+        let event = LocalFirstSyncDebugEvent(
+            id: UUID(),
+            date: Date(timeIntervalSince1970: 1_788_000_000),
+            outcome: .failed,
+            pendingBefore: 5,
+            uploadedCount: 0,
+            downloadedCount: 0,
+            pendingAfter: 5,
+            message: "Network unavailable"
+        )
+        var settings = AppSettings()
+        settings.localFirstSyncDebug = LocalFirstSyncDebugInfo(totalEventCount: 1, recentEvents: [event])
+
+        store.save(settings)
+
+        #expect(store.load().localFirstSyncDebug == settings.localFirstSyncDebug)
     }
 
     @Test func loginResponseDecodesTopLevelAndNestedToken() async throws {
@@ -560,6 +582,9 @@ struct LocalFirstActualStoreTests {
     @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
+        // Match a real imported budget: status/refresh probes the optional outbox before the
+        // first write creates it. This used to cache `false` permanently for the DB session.
+        #expect(try await database.pendingLocalSyncMessageCount() == 0)
         let baseTimestamp = try await database.latestSyncTimestamp()
         let message = ActualSyncDecodedMessage(
             timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
@@ -1335,6 +1360,29 @@ struct LocalFirstActualStoreTests {
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == 0)
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == nil)
+        #expect(await transport.messageCounts() == [pendingCount, 0, 0])
+    }
+
+    @Test func successfulHTTPWithoutServerConfirmationKeepsPendingOutboxRows() async throws {
+        let transport = RecordingSyncTransport(dropsUploadedMessages: true)
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+
+        await #expect(throws: LocalFirstError.syncUploadNotConfirmed(pendingCount)) {
+            try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
+        }
+
+        #expect(pendingCount > 0)
+        #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingCount)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError?.contains("did not confirm") == true)
         #expect(await transport.messageCounts() == [pendingCount, 0])
     }
 
@@ -1363,6 +1411,32 @@ struct LocalFirstActualStoreTests {
         #expect(pending.allSatisfy { $0.attemptCount == 1 })
         #expect(pending.allSatisfy { ($0.lastError ?? "").isEmpty == false })
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == pendingCount)
+    }
+
+    @Test func scheduledFlushRetriesTransientFailureAndConfirmsUpload() async throws {
+        let transport = RecordingSyncTransport(failureCount: 1)
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in transport },
+            pendingLocalMessageFlushRetryDelays: [.zero, .milliseconds(50)]
+        )
+        try bundle.keychain.saveActualSyncToken("token")
+        bundle.store.openedServerURLString = "https://sync.example"
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+
+        try await Task.sleep(for: .milliseconds(150))
+
+        #expect(pendingCount > 0)
+        #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastUploadedMessageCount == pendingCount)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == nil)
+        #expect(await transport.messageCounts() == [pendingCount, 0])
     }
 
     @Test func concurrentRefreshesCoalescePendingOutboxFlushes() async throws {
@@ -2310,7 +2384,8 @@ struct LocalFirstActualStoreTests {
     }
 
     private func makeOpenedWritableStoreBundle(
-        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) }
+        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
+        pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)]
     ) async throws -> OpenedWritableStoreBundle {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;
@@ -2374,7 +2449,8 @@ struct LocalFirstActualStoreTests {
         let store = LocalFirstActualStore(
             keychain: keychain,
             fileManager: fileManager,
-            syncTransportFactory: syncTransportFactory
+            syncTransportFactory: syncTransportFactory,
+            pendingLocalMessageFlushRetryDelays: pendingLocalMessageFlushRetryDelays
         )
         let budget = ActualBudget(
             budgetID: fileID,

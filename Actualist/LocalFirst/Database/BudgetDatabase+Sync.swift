@@ -391,6 +391,11 @@ extension BudgetDatabase {
                 last_error TEXT
             )
             """)
+        // `tableExists` caches both positive and negative lookups. A budget opened before its
+        // first local write therefore has a cached `false` for this lazily-created table unless
+        // creation invalidates the cache. Do not cache `true` here: this call is inside the local
+        // write transaction, and a later validation error could roll the table creation back.
+        tableExistsCache["actualist_outbox"] = nil
     }
 
     func insertLocalSyncOutboxMessage(

@@ -16,6 +16,7 @@ struct AppSettings: Codable, Equatable {
     /// and — as they land — templates). Was three redundant flags all wired to this one value.
     var localFirstWritesEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
+    var localFirstSyncDebug = LocalFirstSyncDebugInfo()
     var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
 
     init(
@@ -32,6 +33,7 @@ struct AppSettings: Codable, Equatable {
         backgroundTransactionRefreshEnabled: Bool = false,
         localFirstWritesEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
+        localFirstSyncDebug: LocalFirstSyncDebugInfo = LocalFirstSyncDebugInfo(),
         pendingNewTransactionIDsByAccount: [String: [String]] = [:]
     ) {
         self.localFirstServerURLString = localFirstServerURLString
@@ -47,6 +49,7 @@ struct AppSettings: Codable, Equatable {
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
         self.localFirstWritesEnabled = localFirstWritesEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
+        self.localFirstSyncDebug = localFirstSyncDebug
         self.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
     }
 
@@ -89,6 +92,10 @@ struct AppSettings: Codable, Equatable {
             BackgroundRefreshDebugInfo.self,
             forKey: .backgroundRefreshDebug
         ) ?? BackgroundRefreshDebugInfo()
+        localFirstSyncDebug = try container.decodeIfPresent(
+            LocalFirstSyncDebugInfo.self,
+            forKey: .localFirstSyncDebug
+        ) ?? LocalFirstSyncDebugInfo()
         pendingNewTransactionIDsByAccount = try container.decodeIfPresent(
             [String: [String]].self,
             forKey: .pendingNewTransactionIDsByAccount
@@ -129,6 +136,28 @@ struct BackgroundRefreshScheduleAttempt: Codable, Equatable, Identifiable {
     var earliestBeginDate: Date?
     var succeeded: Bool
     var message: String
+}
+
+struct LocalFirstSyncDebugInfo: Codable, Equatable {
+    var totalEventCount: Int = 0
+    var recentEvents: [LocalFirstSyncDebugEvent] = []
+}
+
+struct LocalFirstSyncDebugEvent: Codable, Equatable, Identifiable, Sendable {
+    enum Outcome: String, Codable, Equatable, Sendable {
+        case queued
+        case succeeded
+        case failed
+    }
+
+    let id: UUID
+    let date: Date
+    let outcome: Outcome
+    let pendingBefore: Int
+    let uploadedCount: Int
+    let downloadedCount: Int
+    let pendingAfter: Int
+    let message: String
 }
 
 struct AppSettingsStore {

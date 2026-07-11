@@ -64,16 +64,24 @@ extension LocalFirstActualStore {
     }
 
     func schedulePendingLocalMessageFlush(database: BudgetDatabase, budgetID: String) async {
-        await recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: nil)
+        let pendingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
+        await recordSyncStatus(budgetID: budgetID, uploadedCount: nil, appliedCount: nil, error: nil)
+        recordSyncDebugEvent(
+            outcome: .queued,
+            pendingBefore: pendingCount,
+            pendingAfter: pendingCount,
+            message: pendingCount == 1 ? "Queued 1 local change" : "Queued \(pendingCount) local changes"
+        )
         guard let serverURLString = openedServerURLString, !serverURLString.isEmpty else {
             return
         }
-        if isFlushingPendingLocalMessages {
+        if pendingLocalMessageFlushTask != nil || isFlushingPendingLocalMessages {
             shouldFlushPendingLocalMessagesAgain = true
             return
         }
-        Task { [weak self] in
-            await self?.flushPendingLocalMessagesIfPossible(
+
+        pendingLocalMessageFlushTask = Task { [weak self] in
+            await self?.runScheduledPendingLocalMessageFlush(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
@@ -81,23 +89,66 @@ extension LocalFirstActualStore {
         }
     }
 
-    func flushPendingLocalMessagesIfPossible(
+    func runScheduledPendingLocalMessageFlush(
         database: BudgetDatabase,
         budgetID: String,
         serverURLString: String
     ) async {
+        for delay in pendingLocalMessageFlushRetryDelays {
+            guard !Task.isCancelled,
+                  openedBudgetID == budgetID,
+                  openedServerURLString == serverURLString else {
+                break
+            }
+            if delay != .zero {
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    break
+                }
+            }
+            if await flushPendingLocalMessagesIfPossible(
+                database: database,
+                budgetID: budgetID,
+                serverURLString: serverURLString
+            ) {
+                break
+            }
+        }
+        pendingLocalMessageFlushTask = nil
+    }
+
+    func flushPendingLocalMessagesIfPossible(
+        database: BudgetDatabase,
+        budgetID: String,
+        serverURLString: String
+    ) async -> Bool {
         do {
-            let appliedCount = try await flushPendingLocalMessagesSerialized(
+            let result = try await flushPendingLocalMessagesSerialized(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
-            if appliedCount > 0 {
+            if result.appliedRemoteMessageCount > 0 {
                 try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
             }
-            await recordSyncStatus(budgetID: budgetID, appliedCount: appliedCount, error: nil)
+            if result.pushedMessageCount > 0 || result.appliedRemoteMessageCount > 0 {
+                await recordSyncStatus(
+                    budgetID: budgetID,
+                    uploadedCount: result.pushedMessageCount,
+                    appliedCount: result.appliedRemoteMessageCount,
+                    error: nil
+                )
+            }
+            return true
         } catch {
-            await recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: error)
+            await recordSyncStatus(
+                budgetID: budgetID,
+                uploadedCount: nil,
+                appliedCount: nil,
+                error: error
+            )
+            return false
         }
     }
 
@@ -105,7 +156,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         serverURLString: String
-    ) async throws -> Int {
+    ) async throws -> LocalFirstSyncResult {
         while isFlushingPendingLocalMessages {
             shouldFlushPendingLocalMessagesAgain = true
             await waitForPendingLocalMessageFlushToFinish()
@@ -117,17 +168,21 @@ extension LocalFirstActualStore {
             resumePendingLocalMessageFlushWaiters()
         }
 
-        var totalAppliedCount = 0
+        var totalResult = LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
         repeat {
             shouldFlushPendingLocalMessagesAgain = false
-            totalAppliedCount += try await flushPendingLocalMessages(
+            let result = try await flushPendingLocalMessages(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
+            totalResult = LocalFirstSyncResult(
+                pushedMessageCount: totalResult.pushedMessageCount + result.pushedMessageCount,
+                appliedRemoteMessageCount: totalResult.appliedRemoteMessageCount + result.appliedRemoteMessageCount
+            )
         } while shouldFlushPendingLocalMessagesAgain && openedBudgetID == budgetID
 
-        return totalAppliedCount
+        return totalResult
     }
 
     func waitForPendingLocalMessageFlushToFinish() async {
@@ -146,10 +201,10 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         serverURLString: String
-    ) async throws -> Int {
+    ) async throws -> LocalFirstSyncResult {
         let pending = try await database.pendingLocalSyncMessages()
         guard !pending.isEmpty else {
-            return 0
+            return LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
         }
         let token = keychain.readActualSyncToken()
         guard !token.isEmpty else {
@@ -159,6 +214,9 @@ extension LocalFirstActualStore {
             throw ActualAPIError.invalidURL
         }
         let client = syncTransportFactory(baseURL)
+        var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
+        status.lastSyncAttemptAt = Date()
+        syncStatus = status
         do {
             let result = try await syncClient.pushAndPull(
                 database: database,
@@ -168,9 +226,25 @@ extension LocalFirstActualStore {
                 since: pending.map(\.baseTimestamp).min()
             )
             try await database.deletePendingLocalSyncMessages(pending)
-            return result.appliedRemoteMessageCount
+            let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
+            recordSyncDebugEvent(
+                outcome: .succeeded,
+                pendingBefore: pending.count,
+                uploadedCount: result.pushedMessageCount,
+                downloadedCount: result.appliedRemoteMessageCount,
+                pendingAfter: remainingCount,
+                message: "Server confirmed \(result.pushedMessageCount) uploaded sync message\(result.pushedMessageCount == 1 ? "" : "s")"
+            )
+            return result
         } catch {
             try? await database.markPendingLocalSyncMessagesFailed(pending, error: error)
+            let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? pending.count
+            recordSyncDebugEvent(
+                outcome: .failed,
+                pendingBefore: pending.count,
+                pendingAfter: remainingCount,
+                message: error.localizedDescription
+            )
             throw error
         }
     }
@@ -189,8 +263,11 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
 
         let client = syncTransportFactory(baseURL)
+        var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
+        status.lastSyncAttemptAt = Date()
+        syncStatus = status
         do {
-            let flushedAppliedCount = try await flushPendingLocalMessagesSerialized(
+            let flushedResult = try await flushPendingLocalMessagesSerialized(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
@@ -205,9 +282,19 @@ extension LocalFirstActualStore {
             #endif
 
             try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
-            await recordSyncStatus(budgetID: budgetID, appliedCount: flushedAppliedCount + appliedCount, error: nil)
+            await recordSyncStatus(
+                budgetID: budgetID,
+                uploadedCount: flushedResult.pushedMessageCount,
+                appliedCount: flushedResult.appliedRemoteMessageCount + appliedCount,
+                error: nil
+            )
         } catch {
-            await recordSyncStatus(budgetID: budgetID, appliedCount: nil, error: error)
+            await recordSyncStatus(
+                budgetID: budgetID,
+                uploadedCount: nil,
+                appliedCount: nil,
+                error: error
+            )
             throw error
         }
     }
@@ -246,7 +333,12 @@ extension LocalFirstActualStore {
         }
     }
 
-    func recordSyncStatus(budgetID: String, appliedCount: Int?, error: Error?) async {
+    func recordSyncStatus(
+        budgetID: String,
+        uploadedCount: Int?,
+        appliedCount: Int?,
+        error: Error?
+    ) async {
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.fileID = budgetID
         status.groupID = openedGroupID
@@ -254,14 +346,57 @@ extension LocalFirstActualStore {
         if let database {
             status.pendingLocalMessageCount = (try? await database.pendingLocalSyncMessageCount()) ?? status.pendingLocalMessageCount
         }
-        if let appliedCount {
+        if let appliedCount, let uploadedCount {
             status.lastSyncedAt = Date()
             status.lastAppliedMessageCount = appliedCount
+            if uploadedCount > 0 {
+                status.lastUploadedMessageCount = uploadedCount
+            }
             status.lastError = nil
-        } else {
-            status.lastError = error?.localizedDescription
+        } else if let error {
+            status.lastError = error.localizedDescription
         }
         syncStatus = status
+    }
+
+    func recordSyncDebugEvent(
+        outcome: LocalFirstSyncDebugEvent.Outcome,
+        pendingBefore: Int,
+        uploadedCount: Int = 0,
+        downloadedCount: Int = 0,
+        pendingAfter: Int,
+        message: String
+    ) {
+        syncDebugRecorder(
+            LocalFirstSyncDebugEvent(
+                id: UUID(),
+                date: Date(),
+                outcome: outcome,
+                pendingBefore: pendingBefore,
+                uploadedCount: uploadedCount,
+                downloadedCount: downloadedCount,
+                pendingAfter: pendingAfter,
+                message: message
+            )
+        )
+    }
+
+    func retryPendingLocalMessageFlush() async {
+        guard let database,
+              let budgetID = openedBudgetID,
+              let serverURLString = openedServerURLString,
+              !serverURLString.isEmpty else {
+            return
+        }
+        let pendingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
+        guard pendingCount > 0 else {
+            return
+        }
+        _ = await flushPendingLocalMessagesIfPossible(
+            database: database,
+            budgetID: budgetID,
+            serverURLString: serverURLString
+        )
     }
 
 }

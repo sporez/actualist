@@ -25,7 +25,12 @@ final class AppState {
     private let developerUnlockResetInterval: TimeInterval = 20
 
     /// The native local-first CRDT store: the app's only sync backend and source of truth.
-    @ObservationIgnored lazy var localFirstStore = LocalFirstActualStore(keychain: keychain)
+    @ObservationIgnored lazy var localFirstStore = LocalFirstActualStore(
+        keychain: keychain,
+        syncDebugRecorder: { [weak self] event in
+            self?.recordLocalFirstSyncDebugEvent(event)
+        }
+    )
 
     init(
         settingsStore: AppSettingsStore = .live,
@@ -172,6 +177,19 @@ final class AppState {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
         }
+    }
+
+    func retryPendingLocalFirstSync() async {
+        await localFirstStore.retryPendingLocalMessageFlush()
+    }
+
+    private func recordLocalFirstSyncDebugEvent(_ event: LocalFirstSyncDebugEvent) {
+        settings.localFirstSyncDebug.totalEventCount += 1
+        settings.localFirstSyncDebug.recentEvents.insert(event, at: 0)
+        settings.localFirstSyncDebug.recentEvents = Array(
+            settings.localFirstSyncDebug.recentEvents.prefix(50)
+        )
+        settingsStore.save(settings)
     }
 
     /// Discard the locally imported budget and re-download a fresh copy from the server.

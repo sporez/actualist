@@ -50,7 +50,7 @@ actor SyncClient {
         since: String? = nil
     ) async throws -> LocalFirstSyncResult {
         guard let configuration else {
-            return LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
+            throw LocalFirstError.budgetNotOpened
         }
 
         var request = ActualSync_SyncRequest()
@@ -69,7 +69,50 @@ actor SyncClient {
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
-        let remoteMessages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
+        var responseEnvelopes = response.messages
+        let pushedEnvelopesByTimestamp = Dictionary(
+            request.messages.map { ($0.timestamp, $0) },
+            uniquingKeysWith: { _, newest in newest }
+        )
+        var confirmedTimestamps = Set(responseEnvelopes.compactMap { envelope in
+            pushedEnvelopesByTimestamp[envelope.timestamp] == envelope ? envelope.timestamp : nil
+        })
+
+        // The official Actual server reads messages newer than `since` before inserting this
+        // request's upload, so the first response normally does not echo what was just pushed.
+        // Read once more from the same base timestamp and only acknowledge the durable outbox
+        // after every uploaded timestamp is visible from the server.
+        if confirmedTimestamps.count != pushedEnvelopesByTimestamp.count {
+            var confirmationRequest = ActualSync_SyncRequest()
+            confirmationRequest.fileID = configuration.fileID
+            confirmationRequest.groupID = configuration.groupID ?? ""
+            confirmationRequest.keyID = configuration.encryptionKeyID ?? ""
+            confirmationRequest.since = request.since
+
+            let confirmationData = try await client.sync(
+                data: try confirmationRequest.serializedData(),
+                token: token
+            )
+            let confirmationResponse = try ActualSync_SyncResponse(serializedBytes: confirmationData)
+            responseEnvelopes.append(contentsOf: confirmationResponse.messages)
+            confirmedTimestamps.formUnion(confirmationResponse.messages.compactMap { envelope in
+                pushedEnvelopesByTimestamp[envelope.timestamp] == envelope ? envelope.timestamp : nil
+            })
+        }
+
+        let unconfirmedCount = pushedEnvelopesByTimestamp.keys.filter {
+            !confirmedTimestamps.contains($0)
+        }.count
+        guard unconfirmedCount == 0 else {
+            throw LocalFirstError.syncUploadNotConfirmed(unconfirmedCount)
+        }
+
+        var combinedResponse = ActualSync_SyncResponse()
+        combinedResponse.messages = Dictionary(
+            responseEnvelopes.map { ($0.timestamp, $0) },
+            uniquingKeysWith: { _, newest in newest }
+        ).values.sorted { $0.timestamp < $1.timestamp }
+        let remoteMessages = try decodedMessages(from: combinedResponse, encryptionContext: configuration.encryptionContext)
         let appliedCount = try await database.applyRemoteSyncMessages(remoteMessages)
 
         return LocalFirstSyncResult(

@@ -20,6 +20,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case unsupportedTemplate(String)
     case keychainFailure(String, OSStatus)
     case hybridLogicalClockOverflow
+    case syncUploadNotConfirmed(Int)
 
     var errorDescription: String? {
         switch self {
@@ -61,6 +62,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not \(operation) Keychain data. OSStatus: \(status)"
         case .hybridLogicalClockOverflow:
             "Actualist could not create a local sync timestamp because the clock counter overflowed."
+        case .syncUploadNotConfirmed(let count):
+            "The Actual server did not confirm \(count) uploaded sync message\(count == 1 ? "" : "s"). The changes remain pending on this device."
         }
     }
 }
@@ -102,6 +105,8 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
     var groupID: String?
     var lastSyncedAt: Date?
     var lastAppliedMessageCount: Int
+    var lastUploadedMessageCount: Int
+    var lastSyncAttemptAt: Date?
     var lastError: String?
     var encryptionKeyID: String?
     var pendingLocalMessageCount: Int
@@ -111,6 +116,8 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
         groupID: String?,
         lastSyncedAt: Date? = nil,
         lastAppliedMessageCount: Int = 0,
+        lastUploadedMessageCount: Int = 0,
+        lastSyncAttemptAt: Date? = nil,
         lastError: String? = nil,
         encryptionKeyID: String? = nil,
         pendingLocalMessageCount: Int = 0
@@ -119,6 +126,8 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
         self.groupID = groupID
         self.lastSyncedAt = lastSyncedAt
         self.lastAppliedMessageCount = lastAppliedMessageCount
+        self.lastUploadedMessageCount = lastUploadedMessageCount
+        self.lastSyncAttemptAt = lastSyncAttemptAt
         self.lastError = lastError
         self.encryptionKeyID = encryptionKeyID
         self.pendingLocalMessageCount = pendingLocalMessageCount

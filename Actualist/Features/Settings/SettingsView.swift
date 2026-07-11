@@ -260,7 +260,7 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Actualist will delete the local copy of this budget and download a fresh one from the server. Your server data is not changed.")
+                Text(reimportConfirmationMessage)
             }
             .confirmationDialog(
                 "Disconnect & Erase Local Data?",
@@ -272,7 +272,7 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Actualist will remove the sync token, cached encryption keys, imported budget files, and local selections from this device. Your server data is not changed.")
+                Text(eraseLocalDataConfirmationMessage)
             }
             .sheet(isPresented: $isBudgetPickerPresented) {
                 SettingsBudgetPickerSheet(
@@ -303,6 +303,9 @@ struct SettingsView: View {
                     localFirstWritesSelection: localFirstWritesSelection,
                     hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug,
+                    syncStatus: appState.localFirstSyncStatus,
+                    syncDebug: appState.settings.localFirstSyncDebug,
+                    retryPendingSync: appState.retryPendingLocalFirstSync,
                     isPostingDebugNotification: $isPostingDebugNotification,
                     debugNotificationMessage: $debugNotificationMessage,
                     postDebugNotification: postDebugNotification
@@ -312,7 +315,10 @@ struct SettingsView: View {
                     randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
                     localFirstWritesSelection: localFirstWritesSelection,
                     hideDeveloperMode: hideDeveloperMode,
-                    debug: appState.settings.backgroundRefreshDebug
+                    debug: appState.settings.backgroundRefreshDebug,
+                    syncStatus: appState.localFirstSyncStatus,
+                    syncDebug: appState.settings.localFirstSyncDebug,
+                    retryPendingSync: appState.retryPendingLocalFirstSync
                 )
                 #endif
             }
@@ -416,7 +422,7 @@ struct SettingsView: View {
             return "Never"
         }
         let relative = lastSyncedAt.formatted(.relative(presentation: .named))
-        return "\(relative) · \(status.lastAppliedMessageCount) applied"
+        return "\(relative) · \(status.lastUploadedMessageCount) up · \(status.lastAppliedMessageCount) down"
     }
 
     private var localFirstPendingSyncText: String {
@@ -437,6 +443,27 @@ struct SettingsView: View {
             return "Encrypted · Unlocked"
         }
         return "Not encrypted"
+    }
+
+    private var reimportConfirmationMessage: String {
+        destructiveLocalDataMessage(
+            base: "Actualist will delete the local copy of this budget and download a fresh one from the server."
+        )
+    }
+
+    private var eraseLocalDataConfirmationMessage: String {
+        destructiveLocalDataMessage(
+            base: "Actualist will remove the sync token, cached encryption keys, imported budget files, and local selections from this device."
+        )
+    }
+
+    private func destructiveLocalDataMessage(base: String) -> String {
+        let pendingCount = appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
+        guard pendingCount > 0 else {
+            return "\(base) Your server data is not changed."
+        }
+        let noun = pendingCount == 1 ? "change" : "changes"
+        return "\(base) Warning: \(pendingCount) local \(noun) have not been confirmed by the server and will be permanently lost."
     }
 
     private func syncNow() async {
@@ -545,6 +572,10 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
     @Binding var localFirstWritesSelection: Bool
     let hideDeveloperMode: () -> Void
     let debug: BackgroundRefreshDebugInfo
+    let syncStatus: LocalFirstSyncStatus?
+    let syncDebug: LocalFirstSyncDebugInfo
+    let retryPendingSync: () async -> Void
+    @State private var isRetryingSync = false
     #if DEBUG
     @Binding var isPostingDebugNotification: Bool
     @Binding var debugNotificationMessage: String?
@@ -565,6 +596,21 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                     Text("Enables local-first write proofs for fake-budget testing: transactions, budget assignment, move money, and fixed-amount templates. Rules and account writes stay disabled.")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .settingsSectionChrome()
+
+                Section("Local-First Sync") {
+                    LocalFirstSyncDiagnosticRows(status: syncStatus, debug: syncDebug)
+
+                    Button {
+                        Task { await retrySync() }
+                    } label: {
+                        SettingsActionLabel(
+                            title: isRetryingSync ? "Retrying Sync" : "Retry Pending Sync",
+                            systemImage: "arrow.triangle.2.circlepath"
+                        )
+                    }
+                    .disabled(isRetryingSync || syncStatus?.pendingLocalMessageCount == 0)
                 }
                 .settingsSectionChrome()
 
@@ -616,6 +662,128 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
                     }
                 }
             }
+        }
+    }
+
+    private func retrySync() async {
+        guard !isRetryingSync else {
+            return
+        }
+        isRetryingSync = true
+        await retryPendingSync()
+        isRetryingSync = false
+    }
+}
+
+private struct LocalFirstSyncDiagnosticRows: View {
+    let status: LocalFirstSyncStatus?
+    let debug: LocalFirstSyncDebugInfo
+
+    var body: some View {
+        LabeledContent("Pending Changes") {
+            Text((status?.pendingLocalMessageCount ?? 0).formatted())
+                .foregroundStyle(pendingColor)
+        }
+
+        LabeledContent("Last Attempt") {
+            Text(formattedDate(status?.lastSyncAttemptAt))
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+
+        LabeledContent("Last Success") {
+            Text(formattedDate(status?.lastSyncedAt))
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+
+        if let status {
+            LabeledContent("Last Upload") {
+                Text(status.lastUploadedMessageCount.formatted())
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+
+            LabeledContent("Last Download") {
+                Text(status.lastAppliedMessageCount.formatted())
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+
+            if let error = status.lastError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+            }
+        }
+
+        LabeledContent("Recorded Events") {
+            Text(debug.totalEventCount.formatted())
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+
+        if debug.recentEvents.isEmpty {
+            Text("No local-first sync events recorded yet")
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        } else {
+            ForEach(debug.recentEvents.prefix(20)) { event in
+                LocalFirstSyncDebugEventRow(event: event)
+            }
+        }
+    }
+
+    private var pendingColor: Color {
+        (status?.pendingLocalMessageCount ?? 0) == 0
+            ? ActualistTheme.secondaryText
+            : ActualistTheme.warning
+    }
+
+    private func formattedDate(_ date: Date?) -> String {
+        guard let date else {
+            return "Never"
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
+    }
+}
+
+private struct LocalFirstSyncDebugEventRow: View {
+    let event: LocalFirstSyncDebugEvent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second()))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                Spacer(minLength: 8)
+
+                Text(outcomeTitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(outcomeColor)
+            }
+
+            Text(event.message)
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+
+            Text("Pending \(event.pendingBefore) → \(event.pendingAfter) · Uploaded \(event.uploadedCount) · Downloaded \(event.downloadedCount)")
+                .font(.caption)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var outcomeTitle: String {
+        switch event.outcome {
+        case .queued: "Queued"
+        case .succeeded: "Confirmed"
+        case .failed: "Failed"
+        }
+    }
+
+    private var outcomeColor: Color {
+        switch event.outcome {
+        case .queued: ActualistTheme.warning
+        case .succeeded: ActualistTheme.positive
+        case .failed: ActualistTheme.danger
         }
     }
 }
