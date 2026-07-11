@@ -582,33 +582,35 @@ extension BudgetDatabase {
         )
         let rowID = existingRowID ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: categoryID)
         var messages: [ActualSyncDecodedMessage] = []
-        if existingRowID == nil {
+        // A local imported budget can contain zero_budgets rows that the sync server does not
+        // yet have as identified CRDT rows. Include the identity columns with every amount write
+        // so a remote receiver can attach the row to the correct month/category if it has to
+        // create the row from these messages.
+        messages.append(
+            try builder.makeMessage(
+                dataset: "zero_budgets",
+                row: rowID,
+                column: "month",
+                value: .int(Int64(monthValue))
+            )
+        )
+        messages.append(
+            try builder.makeMessage(
+                dataset: "zero_budgets",
+                row: rowID,
+                column: "category",
+                value: .string(categoryID)
+            )
+        )
+        if existingRowID == nil, columns.contains("carryover") {
             messages.append(
                 try builder.makeMessage(
                     dataset: "zero_budgets",
                     row: rowID,
-                    column: "month",
-                    value: .int(Int64(monthValue))
+                    column: "carryover",
+                    value: .bool(false)
                 )
             )
-            messages.append(
-                try builder.makeMessage(
-                    dataset: "zero_budgets",
-                    row: rowID,
-                    column: "category",
-                    value: .string(categoryID)
-                )
-            )
-            if columns.contains("carryover") {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "zero_budgets",
-                        row: rowID,
-                        column: "carryover",
-                        value: .bool(false)
-                    )
-                )
-            }
         }
         messages.append(
             try builder.makeMessage(

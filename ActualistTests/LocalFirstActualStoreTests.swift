@@ -1513,7 +1513,14 @@ struct LocalFirstActualStoreTests {
         ) {}
 
         let utilities = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
+        let database = try #require(store.database)
+        let pendingMessages = try await database.pendingLocalSyncMessages().map(\.message)
+        let utilityBudgetMessages = pendingMessages.filter {
+            $0.dataset == "zero_budgets" && $0.row == "202607-utilities"
+        }
         #expect(utilities.budgeted == 30_000)
+        #expect(utilityBudgetMessages.map(\.column) == ["month", "category", "amount"])
+        #expect(utilityBudgetMessages.map(\.serializedValue) == ["N:202607", "S:utilities", "N:30000"])
     }
 
     @Test func applyCategoryTemplateSetsPeriodicAmount() async throws {
