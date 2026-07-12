@@ -17,8 +17,7 @@ struct ActualistApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
-                // Actualist is intentionally dark-only until light theme QA catches up.
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(appState.settings.theme.colorScheme)
                 .onAppear {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }

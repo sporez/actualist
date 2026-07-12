@@ -2,6 +2,8 @@ import SwiftUI
 
 enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable {
     case actualPurple
+    case actualPurpleLight
+    case coastalSageLight
     case amethystHaze
     case emberAmber
     case blueCurrent
@@ -12,12 +14,21 @@ enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .actualPurple: "Actual Purple"
-        case .amethystHaze: "Amethyst Haze"
-        case .emberAmber: "Ember Amber"
-        case .blueCurrent: "Blue Current"
-        case .roseQuartz: "Rose Quartz"
-        case .whyNab: "Why Nab"
+        case .actualPurple: "Actual Purple (dark)"
+        case .actualPurpleLight: "Actual Purple (light)"
+        case .coastalSageLight: "Coastal Sage (light)"
+        case .amethystHaze: "Amethyst Haze (dark)"
+        case .emberAmber: "Ember Amber (dark)"
+        case .blueCurrent: "Blue Current (dark)"
+        case .roseQuartz: "Rose Quartz (dark)"
+        case .whyNab: "Why Nab (dark)"
+        }
+    }
+
+    var colorScheme: ColorScheme {
+        switch self {
+        case .actualPurpleLight, .coastalSageLight: .light
+        default: .dark
         }
     }
 }
@@ -98,6 +109,36 @@ enum ActualistTheme {
                 primaryText: Color(hex: 0xF9F6FE),
                 secondaryText: Color(hex: 0xC7B6DF),
                 separator: Color(hex: 0x7E65A8).opacity(0.16)
+            )
+        case .actualPurpleLight:
+            return ActualistThemePalette(
+                background: Color(hex: 0xF8F5FC),
+                surface: Color(hex: 0xFFFFFF),
+                elevatedSurface: Color(hex: 0xF0EAF7),
+                control: Color(hex: 0xE7DDF1),
+                accent: Color(hex: 0x6D4C91),
+                positive: Color(hex: 0x3F742E),
+                warning: Color(hex: 0x9A6712),
+                danger: Color(hex: 0xB33A4A),
+                neutral: Color(hex: 0xB8AEC2),
+                primaryText: Color(hex: 0x241B2D),
+                secondaryText: Color(hex: 0x675A73),
+                separator: Color(hex: 0x6D4C91).opacity(0.16)
+            )
+        case .coastalSageLight:
+            return ActualistThemePalette(
+                background: Color(hex: 0xF3F8F6),
+                surface: Color(hex: 0xFFFFFF),
+                elevatedSurface: Color(hex: 0xE5F0EC),
+                control: Color(hex: 0xD7E8E2),
+                accent: Color(hex: 0x27766E),
+                positive: Color(hex: 0x34734B),
+                warning: Color(hex: 0xA46B17),
+                danger: Color(hex: 0xB84E4B),
+                neutral: Color(hex: 0xA7B9B3),
+                primaryText: Color(hex: 0x18302D),
+                secondaryText: Color(hex: 0x526C67),
+                separator: Color(hex: 0x27766E).opacity(0.16)
             )
         case .amethystHaze:
             return ActualistThemePalette(
