@@ -42,7 +42,8 @@ struct BudgetView: View {
                     if viewModel.isAssignmentKeypadPresented && appState.capabilities.canAssignCategoryBudget {
                         BudgetAssignmentKeypad(
                             canSubmit: viewModel.canSubmitAssignment,
-                            canApplyTemplate: viewModel.canApplyCategoryTemplate,
+                            showsTemplateAction: appState.isExperimentalFeatureEnabled(.budgetTemplates),
+                            canApplyTemplate: viewModel.canApplyCategoryTemplate && appState.canApplyBudgetTemplates,
                             isSubmitting: viewModel.isSubmittingAssignment,
                             errorMessage: viewModel.activeAssignmentErrorMessage,
                             appendDigit: { viewModel.appendAssignmentDigit($0) },
@@ -141,21 +142,23 @@ struct BudgetView: View {
                                 Label("Refresh", systemImage: "arrow.clockwise")
                             }
 
-                            Divider()
+                            if appState.isExperimentalFeatureEnabled(.budgetTemplates) {
+                                Divider()
 
-                            Button {
-                                pendingTemplateConfirmation = .monthFillEmpty
-                            } label: {
-                                Label("Apply Template", systemImage: "sparkles")
-                            }
-                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canApplyBudgetTemplates)
+                                Button {
+                                    pendingTemplateConfirmation = .monthFillEmpty
+                                } label: {
+                                    Label("Apply Template", systemImage: "sparkles")
+                                }
+                                .disabled(viewModel.isApplyingMonthTemplate || !appState.canApplyBudgetTemplates)
 
-                            Button {
-                                pendingTemplateConfirmation = .monthOverwrite
-                            } label: {
-                                Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
+                                Button {
+                                    pendingTemplateConfirmation = .monthOverwrite
+                                } label: {
+                                    Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
+                                }
+                                .disabled(viewModel.isApplyingMonthTemplate || !appState.canApplyBudgetTemplates)
                             }
-                            .disabled(viewModel.isApplyingMonthTemplate || !appState.capabilities.canApplyBudgetTemplates)
                         } label: {
                             Image(systemName: "ellipsis")
                         }
@@ -1958,6 +1961,7 @@ private struct BudgetAssignmentKeypad: View {
     @Environment(\.actualistDensity) private var density
 
     let canSubmit: Bool
+    let showsTemplateAction: Bool
     let canApplyTemplate: Bool
     let isSubmitting: Bool
     let errorMessage: String?
@@ -1975,8 +1979,10 @@ private struct BudgetAssignmentKeypad: View {
     var body: some View {
         VStack(spacing: BudgetKeypadLayout.stackSpacing) {
             HStack(spacing: 12) {
-                keypadToolbarButton(title: "Apply Category Template", systemImage: "sparkles", isEnabled: canApplyTemplate) {
-                    applyTemplate()
+                if showsTemplateAction {
+                    keypadToolbarButton(title: "Apply Category Template", systemImage: "sparkles", isEnabled: canApplyTemplate) {
+                        applyTemplate()
+                    }
                 }
                 keypadToolbarButton(title: "Move Money", systemImage: "arrow.right", isEnabled: true) {
                     moveMoney()

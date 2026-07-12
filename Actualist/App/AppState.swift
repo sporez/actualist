@@ -262,6 +262,23 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func isExperimentalFeatureEnabled(_ feature: ExperimentalFeature) -> Bool {
+        settings.enabledExperimentalFeatures.contains(feature)
+    }
+
+    func updateExperimentalFeature(_ feature: ExperimentalFeature, isEnabled: Bool) {
+        if isEnabled {
+            settings.enabledExperimentalFeatures.insert(feature)
+        } else {
+            settings.enabledExperimentalFeatures.remove(feature)
+        }
+        settingsStore.save(settings)
+    }
+
+    var canApplyBudgetTemplates: Bool {
+        isExperimentalFeatureEnabled(.budgetTemplates) && capabilities.canApplyBudgetTemplates
+    }
+
     func updateLocalFirstWritesEnabled(_ isEnabled: Bool) {
         settings.localFirstWritesEnabled = isEnabled
         settingsStore.save(settings)

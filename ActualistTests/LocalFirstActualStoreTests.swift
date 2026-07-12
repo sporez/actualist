@@ -21,7 +21,8 @@ struct LocalFirstActualStoreTests {
           "backendMode": "restAPI",
           "serverURLString": "http://localhost:5007/v1",
           "localFirstServerURLString": "https://actual.example.com",
-          "selectedBudgetID": "budget"
+          "selectedBudgetID": "budget",
+          "enabledExperimentalFeatures": ["retiredFeature"]
         }
         """.utf8)
 
@@ -31,6 +32,7 @@ struct LocalFirstActualStoreTests {
         #expect(settings.selectedBudgetID == "budget")
         #expect(settings.selectedLocalFirstFileID == nil)
         #expect(!settings.localFirstWritesEnabled)
+        #expect(settings.enabledExperimentalFeatures.isEmpty)
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
     }
 
@@ -53,6 +55,17 @@ struct LocalFirstActualStoreTests {
         store.save(settings)
 
         #expect(store.load().localFirstSyncDebug == settings.localFirstSyncDebug)
+    }
+
+    @Test func experimentalFeaturesPersistInSettings() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+        var settings = AppSettings()
+        settings.enabledExperimentalFeatures = [.budgetTemplates]
+
+        store.save(settings)
+
+        #expect(store.load().enabledExperimentalFeatures == [.budgetTemplates])
     }
 
     @Test func loginResponseDecodesTopLevelAndNestedToken() async throws {

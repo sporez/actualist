@@ -188,6 +188,20 @@ struct BackendCapabilitiesTests {
         #expect(!state.capabilities.canAddAccount)
     }
 
+    @Test func budgetTemplatesRequireExperimentalFeatureAndWriteCapability() {
+        let state = makeAppState()
+        state.updateLocalFirstWritesEnabled(true)
+
+        #expect(state.capabilities.canApplyBudgetTemplates)
+        #expect(!state.canApplyBudgetTemplates)
+
+        state.updateExperimentalFeature(.budgetTemplates, isEnabled: true)
+        #expect(state.canApplyBudgetTemplates)
+
+        state.updateExperimentalFeature(.budgetTemplates, isEnabled: false)
+        #expect(!state.canApplyBudgetTemplates)
+    }
+
     @Test func transactionNotificationRoutingSelectsSpending() async {
         let state = makeAppState()
         state.selectedTab = .accounts

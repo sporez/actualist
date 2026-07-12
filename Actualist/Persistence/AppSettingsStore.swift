@@ -1,5 +1,23 @@
 import Foundation
 
+enum ExperimentalFeature: String, Codable, CaseIterable, Identifiable {
+    case budgetTemplates
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .budgetTemplates: "Budget Templates"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .budgetTemplates: "Shows template actions on the Budget screen."
+        }
+    }
+}
+
 struct AppSettings: Codable, Equatable {
     var localFirstServerURLString: String = ""
     var selectedBudgetID: String?
@@ -9,6 +27,7 @@ struct AppSettings: Codable, Equatable {
     var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
     var randomizedDisplayValuesEnabled: Bool = false
+    var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var backgroundTransactionRefreshEnabled: Bool = false
@@ -28,6 +47,7 @@ struct AppSettings: Codable, Equatable {
         theme: ActualistThemeOption = .actualPurple,
         displayDensity: ActualistDisplayDensity = .compact,
         randomizedDisplayValuesEnabled: Bool = false,
+        enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         backgroundTransactionRefreshEnabled: Bool = false,
@@ -44,6 +64,7 @@ struct AppSettings: Codable, Equatable {
         self.theme = theme
         self.displayDensity = displayDensity
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
+        self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
@@ -66,6 +87,13 @@ struct AppSettings: Codable, Equatable {
             Bool.self,
             forKey: .randomizedDisplayValuesEnabled
         ) ?? false
+        let persistedExperimentalFeatures = try container.decodeIfPresent(
+            [String].self,
+            forKey: .enabledExperimentalFeatures
+        ) ?? []
+        enabledExperimentalFeatures = Set(
+            persistedExperimentalFeatures.compactMap(ExperimentalFeature.init(rawValue:))
+        )
         developerModeUnlocked = try container.decodeIfPresent(
             Bool.self,
             forKey: .developerModeUnlocked

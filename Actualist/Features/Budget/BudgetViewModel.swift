@@ -598,7 +598,7 @@ final class BudgetViewModel {
         _ mode: BudgetTemplateApplicationMode,
         using appState: AppState
     ) async -> Bool {
-        guard appState.capabilities.canApplyBudgetTemplates else {
+        guard appState.canApplyBudgetTemplates else {
             return false
         }
 
@@ -647,7 +647,7 @@ final class BudgetViewModel {
     }
 
     func applyCategoryTemplate(using appState: AppState) async -> Bool {
-        guard appState.capabilities.canApplyBudgetTemplates else {
+        guard appState.canApplyBudgetTemplates else {
             return false
         }
 
