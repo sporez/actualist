@@ -18,7 +18,7 @@ struct RootView: View {
         }
         .id("\(appState.settings.theme.rawValue)-\(appState.themeRevision)")
         .background(theme.background.ignoresSafeArea())
-        .tint(.white)
+        .tint(theme.chromeForeground)
         .environment(\.actualistDensity, appState.settings.displayDensity)
     }
 }

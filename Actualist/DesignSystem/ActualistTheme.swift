@@ -46,6 +46,7 @@ struct ActualistThemePalette {
     let primaryText: Color
     let secondaryText: Color
     let separator: Color
+    let chromeForeground: Color
 
     init(
         background: Color,
@@ -59,7 +60,8 @@ struct ActualistThemePalette {
         neutral: Color = Color.gray.opacity(0.45),
         primaryText: Color,
         secondaryText: Color,
-        separator: Color
+        separator: Color,
+        chromeForeground: Color? = nil
     ) {
         self.background = background
         self.surface = surface
@@ -73,6 +75,7 @@ struct ActualistThemePalette {
         self.primaryText = primaryText
         self.secondaryText = secondaryText
         self.separator = separator
+        self.chromeForeground = chromeForeground ?? primaryText
     }
 }
 
@@ -89,6 +92,7 @@ enum ActualistTheme {
     static var primaryText: Color { current.primaryText }
     static var secondaryText: Color { current.secondaryText }
     static var separator: Color { current.separator }
+    static var chromeForeground: Color { current.chromeForeground }
 
     static func activate(_ option: ActualistThemeOption) {
         activeOption = option
@@ -112,33 +116,33 @@ enum ActualistTheme {
             )
         case .actualPurpleLight:
             return ActualistThemePalette(
-                background: Color(hex: 0xF8F5FC),
-                surface: Color(hex: 0xFFFFFF),
-                elevatedSurface: Color(hex: 0xF0EAF7),
-                control: Color(hex: 0xE7DDF1),
-                accent: Color(hex: 0x6D4C91),
+                background: Color(hex: 0xECE5F3),
+                surface: Color(hex: 0xFCFAFE),
+                elevatedSurface: Color(hex: 0xDED3E9),
+                control: Color(hex: 0xD1C1DF),
+                accent: Color(hex: 0x624183),
                 positive: Color(hex: 0x3F742E),
-                warning: Color(hex: 0x9A6712),
+                warning: Color(hex: 0x8A5908),
                 danger: Color(hex: 0xB33A4A),
-                neutral: Color(hex: 0xB8AEC2),
-                primaryText: Color(hex: 0x241B2D),
-                secondaryText: Color(hex: 0x675A73),
-                separator: Color(hex: 0x6D4C91).opacity(0.16)
+                neutral: Color(hex: 0x91849D),
+                primaryText: Color(hex: 0x211629),
+                secondaryText: Color(hex: 0x5B4B67),
+                separator: Color(hex: 0x624183).opacity(0.30)
             )
         case .coastalSageLight:
             return ActualistThemePalette(
-                background: Color(hex: 0xF3F8F6),
-                surface: Color(hex: 0xFFFFFF),
-                elevatedSurface: Color(hex: 0xE5F0EC),
-                control: Color(hex: 0xD7E8E2),
-                accent: Color(hex: 0x27766E),
-                positive: Color(hex: 0x34734B),
-                warning: Color(hex: 0xA46B17),
+                background: Color(hex: 0xE4EFEB),
+                surface: Color(hex: 0xFBFEFD),
+                elevatedSurface: Color(hex: 0xD2E3DD),
+                control: Color(hex: 0xC1D9D1),
+                accent: Color(hex: 0x1F6B64),
+                positive: Color(hex: 0x28663F),
+                warning: Color(hex: 0x8C5908),
                 danger: Color(hex: 0xB84E4B),
-                neutral: Color(hex: 0xA7B9B3),
-                primaryText: Color(hex: 0x18302D),
-                secondaryText: Color(hex: 0x526C67),
-                separator: Color(hex: 0x27766E).opacity(0.16)
+                neutral: Color(hex: 0x81978F),
+                primaryText: Color(hex: 0x102925),
+                secondaryText: Color(hex: 0x45615B),
+                separator: Color(hex: 0x1F6B64).opacity(0.30)
             )
         case .amethystHaze:
             return ActualistThemePalette(
@@ -475,8 +479,8 @@ extension View {
     func actualistToolbarGlassButton() -> some View {
         self
             .font(.body.weight(.semibold))
-            .foregroundStyle(.white)
-            .tint(.white)
+            .foregroundStyle(ActualistTheme.chromeForeground)
+            .tint(ActualistTheme.chromeForeground)
             .controlSize(.small)
     }
 }
