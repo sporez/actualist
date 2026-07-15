@@ -128,6 +128,80 @@ struct BudgetViewModelTests {
         #expect(model.availableMonths == ["2026-06", "2026-07", "2026-08"])
     }
 
+    @Test func allVisibleGroupsStartExpandedAndManualCollapseSurvivesSameMonthReload() async throws {
+        let baseMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 1_000,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+        let lowerGroups = [
+            BudgetMonthCategoryGroup(
+                id: "food",
+                name: "Food",
+                isIncome: false,
+                hidden: false,
+                budgeted: 0,
+                spent: 0,
+                balance: 0,
+                categories: []
+            ),
+            BudgetMonthCategoryGroup(
+                id: "savings",
+                name: "Savings",
+                isIncome: false,
+                hidden: false,
+                budgeted: 0,
+                spent: 0,
+                balance: 0,
+                categories: []
+            ),
+            BudgetMonthCategoryGroup(
+                id: "last-group",
+                name: "Last Group",
+                isIncome: false,
+                hidden: false,
+                budgeted: 0,
+                spent: 0,
+                balance: 0,
+                categories: []
+            )
+        ]
+        let month = BudgetMonth(
+            month: baseMonth.month,
+            incomeAvailable: baseMonth.incomeAvailable,
+            lastMonthOverspent: baseMonth.lastMonthOverspent,
+            forNextMonth: baseMonth.forNextMonth,
+            totalBudgeted: baseMonth.totalBudgeted,
+            toBudget: baseMonth.toBudget,
+            fromLastMonth: baseMonth.fromLastMonth,
+            totalIncome: baseMonth.totalIncome,
+            totalSpent: baseMonth.totalSpent,
+            totalBalance: baseMonth.totalBalance,
+            categoryGroups: baseMonth.categoryGroups + lowerGroups
+        )
+        let loadedMonth = LoadedBudgetMonth(
+            availableMonths: ["2026-06"],
+            selectedMonth: "2026-06",
+            month: month,
+            alerts: []
+        )
+        let repository = RecordingBudgetRepository(loadedMonth: loadedMonth)
+        let model = BudgetViewModel()
+
+        await model.load(budgetID: "budget", repository: repository)
+        #expect(model.expandedGroupIDs == ["bills", "food", "savings", "last-group"])
+
+        let savings = try #require(model.budgetMonth?.categoryGroups.first { $0.id == "savings" })
+        #expect(model.isExpanded(savings))
+        model.toggle(savings)
+        #expect(!model.isExpanded(savings))
+
+        await model.load(budgetID: "budget", repository: repository)
+
+        #expect(!model.isExpanded(savings))
+        #expect(model.expandedGroupIDs == ["bills", "food", "last-group"])
+    }
+
     @Test func omitsZeroToBudgetAlert() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try Self.decodeBudgetMonth(

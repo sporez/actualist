@@ -583,7 +583,7 @@ final class BudgetViewModel {
                     self?.assignmentDraft = currentDraft
                 }
             }
-            apply(loadedMonth, preservingExpansion: true)
+            apply(loadedMonth)
             assignmentDraft = nil
             return true
         } catch {
@@ -634,7 +634,7 @@ final class BudgetViewModel {
                     self?.monthTemplateSubmissionState = .refetching
                 }
             }
-            apply(loadedMonth, preservingExpansion: true)
+            apply(loadedMonth)
             monthTemplateSubmissionState = .draft
             errorMessage = nil
             return true
@@ -688,7 +688,7 @@ final class BudgetViewModel {
                     self?.assignmentDraft = currentDraft
                 }
             }
-            apply(loadedMonth, preservingExpansion: true)
+            apply(loadedMonth)
             assignmentDraft = nil
             errorMessage = nil
             return true
@@ -747,7 +747,7 @@ final class BudgetViewModel {
                     self?.moveMoneyDraft = currentDraft
                 }
             }
-            apply(loadedMonth, preservingExpansion: true)
+            apply(loadedMonth)
             moveMoneyDraft = nil
             assignmentDraft = nil
             return true
@@ -826,23 +826,22 @@ final class BudgetViewModel {
     }
 
     private func apply(_ loadedMonth: LoadedBudgetMonth) {
-        apply(loadedMonth, preservingExpansion: false)
-    }
-
-    private func apply(
-        _ loadedMonth: LoadedBudgetMonth,
-        preservingExpansion: Bool
-    ) {
+        let currentMonth = budgetMonth?.month ?? selectedMonth
+        let isSameMonth = currentMonth == loadedMonth.month.month
         let previousExpandedGroupIDs = expandedGroupIDs
         availableMonths = Self.monthPickerMonths(for: loadedMonth)
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
         budgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
-        if preservingExpansion {
+        if isSameMonth {
             let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
             expandedGroupIDs = previousExpandedGroupIDs.intersection(loadedGroupIDs)
         } else {
-            expandedGroupIDs = Set(loadedMonth.month.categoryGroups.prefix(3).map(\.id))
+            expandedGroupIDs = Set(
+                loadedMonth.month.categoryGroups
+                    .filter { !$0.isIncome }
+                    .map(\.id)
+            )
         }
     }
 
