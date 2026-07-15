@@ -806,6 +806,7 @@ private struct PayeeSelectionView: View {
     @Environment(\.actualistDensity) private var density
     @Bindable var viewModel: TransactionEditorViewModel
     @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
 
     private var trimmedSearchText: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -895,6 +896,12 @@ private struct PayeeSelectionView: View {
             }
         }
         .presentationDetents([.large])
+        .onAppear {
+            Task {
+                await Task.yield()
+                isSearchFocused = true
+            }
+        }
     }
 
     private var searchField: some View {
@@ -906,6 +913,7 @@ private struct PayeeSelectionView: View {
                 .textInputAutocapitalization(.words)
                 .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
+                .focused($isSearchFocused)
 
             if !searchText.isEmpty {
                 Button {

@@ -6,6 +6,7 @@ struct UncategorizedTransactionsView: View {
     @Environment(\.actualistDensity) private var density
     @State private var viewModel = UncategorizedTransactionsViewModel()
     @State private var selectedTransaction: SelectedUncategorizedTransaction?
+    @State private var selectedDetent: PresentationDetent = .medium
 
     let month: String
     let onChanged: () -> Void
@@ -19,7 +20,6 @@ struct UncategorizedTransactionsView: View {
                 content
                     .padding(.horizontal, 18)
                     .padding(.top, 18)
-                    .padding(.bottom, 28)
             }
             .navigationTitle("Uncategorized")
             .navigationBarTitleDisplayMode(.inline)
@@ -42,10 +42,13 @@ struct UncategorizedTransactionsView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $selectedDetent)
         .presentationDragIndicator(.visible)
         .task {
             await viewModel.load(month: month, using: appState)
+            if viewModel.transactions.count >= 4 {
+                selectedDetent = .large
+            }
         }
         .sheet(item: $selectedTransaction) { selection in
             TransactionCategorySelectionView(
@@ -143,6 +146,7 @@ struct UncategorizedTransactionsView: View {
                         }
                     }
                 }
+                .padding(.bottom, 28)
             }
             .scrollIndicators(.hidden)
         }
