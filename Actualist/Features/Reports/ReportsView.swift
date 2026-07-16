@@ -286,13 +286,21 @@ private struct MonthComparisonReportCard: View {
                                 endPoint: .bottom
                             )
                         )
-                    LineMark(x: .value("Day", point.day), y: .value("Current", current))
+                    LineMark(
+                        x: .value("Day", point.day),
+                        y: .value("Current", current),
+                        series: .value("Series", "Current")
+                    )
                         .interpolationMethod(.catmullRom)
                         .foregroundStyle(ActualistTheme.positive)
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 }
 
-                LineMark(x: .value("Day", point.day), y: .value("Previous", point.comparison))
+                LineMark(
+                    x: .value("Day", point.day),
+                    y: .value("Previous", point.comparison),
+                    series: .value("Series", "Previous")
+                )
                     .interpolationMethod(.catmullRom)
                     .foregroundStyle(ActualistTheme.secondaryText.opacity(0.62))
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 5]))
@@ -326,17 +334,25 @@ private struct BudgetOverviewReportCard: View {
                                 endPoint: .bottom
                             )
                         )
-                    LineMark(x: .value("Date", point.date), y: .value("Actual", point.value))
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Actual", point.value),
+                        series: .value("Series", "Actual")
+                    )
                         .foregroundStyle(ActualistTheme.positive)
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 }
                 ForEach(snapshot.budgetOverview.budgetPoints) { point in
-                    LineMark(x: .value("Date", point.date), y: .value("Budgeted", point.value))
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Budgeted", point.value),
+                        series: .value("Series", "Budgeted")
+                    )
                         .foregroundStyle(ActualistTheme.secondaryText.opacity(0.58))
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 5]))
                 }
             }
-            .reportChartAxes(viewModel: viewModel, showsDates: true)
+            .reportChartAxes(viewModel: viewModel, showsDates: true, showsDayOfMonth: true)
             .frame(height: 190)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(viewModel.budgetOverviewAccessibility)
@@ -365,11 +381,19 @@ private struct ThreeMonthAverageReportCard: View {
                                 endPoint: .bottom
                             )
                         )
-                    LineMark(x: .value("Day", point.day), y: .value("Current", current))
+                    LineMark(
+                        x: .value("Day", point.day),
+                        y: .value("Current", current),
+                        series: .value("Series", "Current")
+                    )
                         .foregroundStyle(ActualistTheme.positive)
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 }
-                LineMark(x: .value("Day", point.day), y: .value("Average", point.comparison))
+                LineMark(
+                    x: .value("Day", point.day),
+                    y: .value("Average", point.comparison),
+                    series: .value("Series", "Average")
+                )
                     .foregroundStyle(ActualistTheme.secondaryText.opacity(0.58))
                     .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 5]))
             }
@@ -477,7 +501,11 @@ private extension ReportValueTone {
 }
 
 private extension View {
-    func reportChartAxes(viewModel: ReportsViewModel, showsDates: Bool) -> some View {
+    func reportChartAxes(
+        viewModel: ReportsViewModel,
+        showsDates: Bool,
+        showsDayOfMonth: Bool = false
+    ) -> some View {
         self
             .chartLegend(.hidden)
             .chartYAxis {
@@ -495,9 +523,15 @@ private extension View {
             .chartXAxis {
                 if showsDates {
                     AxisMarks(values: .automatic(desiredCount: 3)) { value in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated), anchor: .top)
-                            .font(.caption2)
-                            .foregroundStyle(ActualistTheme.secondaryText)
+                        if showsDayOfMonth {
+                            AxisValueLabel(format: .dateTime.day(), anchor: .top)
+                                .font(.caption2)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        } else {
+                            AxisValueLabel(format: .dateTime.month(.abbreviated), anchor: .top)
+                                .font(.caption2)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
                     }
                 } else {
                     AxisMarks { _ in
