@@ -9,29 +9,99 @@ struct SpendingTransactionsView: View {
     }
 }
 
+struct CategoryMonthDetails: Identifiable, Hashable {
+    let category: BudgetMonthCategory
+    let month: String
+
+    var id: String { "\(month)|\(category.id)" }
+    var budgetedAmount: Int { category.budgeted }
+    var spentAmount: Int { -category.spent }
+    var remainingAmount: Int { category.balance }
+
+    var monthTitle: String {
+        let parts = month.split(separator: "-")
+        guard parts.count == 2,
+              let year = Int(parts[0]),
+              let monthNumber = Int(parts[1]),
+              let date = Calendar(identifier: .gregorian).date(
+                from: DateComponents(year: year, month: monthNumber, day: 1)
+              ) else {
+            return month
+        }
+        return date.formatted(.dateTime.month(.abbreviated).year())
+    }
+}
+
+struct CategoryMonthDetailsView: View {
+    @Environment(AppState.self) private var appState
+    @State private var details: CategoryMonthDetails
+
+    init(details: CategoryMonthDetails) {
+        _details = State(initialValue: details)
+    }
+
+    var body: some View {
+        NavigationStack {
+            AccountTransactionsView(scope: .category(details)) {
+                Task { await refreshSummary() }
+            }
+        }
+        .task { await refreshSummary() }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func refreshSummary() async {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeBudgetRepository() else {
+            return
+        }
+
+        do {
+            let loaded = try await repository.budgetMonth(
+                budgetID: budgetID,
+                selectedMonth: details.month
+            )
+            guard let category = loaded.month.categoryGroups
+                .flatMap(\.categories)
+                .first(where: { $0.id == details.category.id }) else {
+                return
+            }
+            details = CategoryMonthDetails(category: category, month: details.month)
+        } catch {
+            // The transaction feed owns the visible load/error state. Keep the last local summary
+            // available when a background summary refresh cannot complete.
+        }
+    }
+}
+
 enum TransactionFeedScope: Hashable {
     case account(ActualAccount)
     case spending
+    case category(CategoryMonthDetails)
 
     var title: String {
         switch self {
         case .account(let account): account.name
         case .spending: "Spending"
+        case .category(let details): details.category.name
         }
     }
 
     var account: ActualAccount? {
         switch self {
         case .account(let account): account
-        case .spending: nil
+        case .spending, .category: nil
         }
     }
 
-    var showsBalanceHeader: Bool {
-        if case .account = self {
-            return true
+    var showsSummaryHeader: Bool {
+        switch self {
+        case .account, .category:
+            true
+        case .spending:
+            false
         }
-        return false
     }
 
     var supportsAccountActions: Bool {
@@ -45,14 +115,31 @@ enum TransactionFeedScope: Hashable {
         switch self {
         case .account: "this account"
         case .spending: "Spending"
+        case .category: "this category"
         }
+    }
+
+    var categoryDetails: CategoryMonthDetails? {
+        guard case .category(let details) = self else { return nil }
+        return details
+    }
+
+    var prefilledCategoryName: String? {
+        categoryDetails?.category.name
+    }
+
+    var showsAccountNames: Bool {
+        if case .account = self { return false }
+        return true
     }
 }
 
 struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.dismiss) private var dismiss
     let scope: TransactionFeedScope
+    let onChanged: () -> Void
 
     @FocusState private var isSearchFieldFocused: Bool
 
@@ -75,10 +162,12 @@ struct AccountTransactionsView: View {
 
     init(account: ActualAccount) {
         self.scope = .account(account)
+        self.onChanged = {}
     }
 
-    init(scope: TransactionFeedScope) {
+    init(scope: TransactionFeedScope, onChanged: @escaping () -> Void = {}) {
         self.scope = scope
+        self.onChanged = onChanged
     }
 
     private var budgetID: String? {
@@ -100,6 +189,12 @@ struct AccountTransactionsView: View {
             return repository.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
         case .spending:
             return repository.cachedSpendingTransactions(budgetID: budgetID)
+        case .category(let details):
+            return repository.cachedCategoryTransactions(
+                budgetID: budgetID,
+                categoryID: details.category.id,
+                month: details.month
+            )
         }
     }
 
@@ -138,7 +233,7 @@ struct AccountTransactionsView: View {
         switch scope {
         case .account(let account):
             return appState.pendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
-        case .spending:
+        case .spending, .category:
             return appState.pendingNewTransactionIDs(budgetID: budgetID)
         }
     }
@@ -206,7 +301,7 @@ struct AccountTransactionsView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            if scope.showsBalanceHeader {
+            if scope.showsSummaryHeader {
                 Section {
                     header
                         .listRowInsets(EdgeInsets())
@@ -248,6 +343,17 @@ struct AccountTransactionsView: View {
         .navigationTitle(scopeTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if scope.categoryDetails != nil {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Close Category Details")
+                }
+            }
+
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     showSearch()
@@ -304,7 +410,7 @@ struct AccountTransactionsView: View {
             switch scope {
             case .account(let account):
                 appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
-            case .spending:
+            case .spending, .category:
                 appState.clearPendingNewTransactionIDs(budgetID: budgetID)
             }
         }
@@ -315,7 +421,7 @@ struct AccountTransactionsView: View {
                 prefilledAccount: scope.account,
                 editingTransaction: presentation.transaction,
                 prefilledPayeeName: presentation.payeeName,
-                prefilledCategoryName: presentation.categoryName
+                prefilledCategoryName: presentation.categoryName ?? scope.prefilledCategoryName
             ) {
                 Task { await load() }
             }
@@ -358,17 +464,80 @@ struct AccountTransactionsView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 6) {
-            Text(balanceText)
-                .font(ActualistTypography.workScreenAmount(for: density))
-                .foregroundStyle(ActualistTheme.primaryText)
-            Text("Working Balance")
-                .font(ActualistTypography.body(for: density))
-                .foregroundStyle(ActualistTheme.secondaryText)
+        Group {
+            if let details = scope.categoryDetails {
+                categorySummary(details)
+            } else {
+                VStack(spacing: 6) {
+                    Text(balanceText)
+                        .font(ActualistTypography.workScreenAmount(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                    Text("Working Balance")
+                        .font(ActualistTypography.body(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 10)
         .padding(.horizontal, 16)
+    }
+
+    private func categorySummary(_ details: CategoryMonthDetails) -> some View {
+        VStack(spacing: 0) {
+            Text(details.monthTitle)
+                .font(ActualistTypography.sectionTitle(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 8)
+
+            categorySummaryRow(label: "Budgeted", amount: details.budgetedAmount)
+            Divider().overlay(ActualistTheme.separator)
+            categorySummaryRow(label: "Spent", amount: details.spentAmount)
+            Divider().overlay(ActualistTheme.separator)
+            categorySummaryRow(
+                label: "Remaining",
+                amount: details.remainingAmount,
+                foreground: remainingForeground(details.remainingAmount)
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func categorySummaryRow(
+        label: String,
+        amount: Int,
+        foreground: Color = ActualistTheme.primaryText
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(ActualistTypography.body(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+            Spacer()
+            Text(summaryAmountText(amount, label: label))
+                .font(ActualistTypography.rowValue(for: density))
+                .foregroundStyle(foreground)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func summaryAmountText(_ amount: Int, label: String) -> String {
+        guard appState.settings.randomizedDisplayValuesEnabled else {
+            return amount.actualMoney.formatted()
+        }
+        return PrivacyDisplay.money(
+            amount,
+            seed: "category-summary-\(scope.categoryDetails?.id ?? label)-\(label)",
+            maximumDollars: 2_500
+        )
+    }
+
+    private func remainingForeground(_ amount: Int) -> Color {
+        if amount < 0 { return ActualistTheme.danger }
+        if amount == 0 { return ActualistTheme.secondaryText }
+        return ActualistTheme.positive
     }
 
     private var searchBar: some View {
@@ -592,6 +761,14 @@ struct AccountTransactionsView: View {
                 transaction,
                 budgetID: budgetID
             ) {}
+            if case .category(let details) = scope {
+                try await repository.refreshCategoryTransactions(
+                    budgetID: budgetID,
+                    categoryID: details.category.id,
+                    month: details.month
+                )
+                onChanged()
+            }
             deleteSuccessHaptic += 1
         } catch {
             errorMessage = error.localizedDescription
@@ -647,7 +824,7 @@ struct AccountTransactionsView: View {
     }
 
     private func accountName(for transaction: ActualTransaction) -> String? {
-        guard case .spending = scope else {
+        guard scope.showsAccountNames else {
             return nil
         }
 
@@ -707,6 +884,12 @@ struct AccountTransactionsView: View {
                 try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
             case .spending:
                 try await repository.refreshSpendingTransactions(budgetID: budgetID)
+            case .category(let details):
+                try await repository.refreshCategoryTransactions(
+                    budgetID: budgetID,
+                    categoryID: details.category.id,
+                    month: details.month
+                )
             }
             isLoading = false
 
@@ -716,7 +899,14 @@ struct AccountTransactionsView: View {
                 try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
             case .spending:
                 try await repository.refreshSpendingTransactions(budgetID: budgetID)
+            case .category(let details):
+                try await repository.refreshCategoryTransactions(
+                    budgetID: budgetID,
+                    categoryID: details.category.id,
+                    month: details.month
+                )
             }
+            onChanged()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -760,6 +950,8 @@ struct AccountTransactionsView: View {
                 try await repository.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
             case .spending:
                 try await repository.loadOlderSpendingTransactions(budgetID: budgetID)
+            case .category:
+                break
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -774,6 +966,13 @@ struct AccountTransactionsView: View {
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else {
+            isSearching = false
+            return
+        }
+
+        if case .category = scope {
+            // Category-month feeds are complete local snapshots, so the immediate local filter
+            // already searches every row without a second database request.
             isSearching = false
             return
         }
@@ -817,6 +1016,9 @@ struct AccountTransactionsView: View {
                     limit: 50,
                     offset: 0
                 )
+            case .category:
+                isSearching = false
+                return
             }
             guard !Task.isCancelled, query == trimmedSearchText else {
                 return
@@ -841,6 +1043,8 @@ struct AccountTransactionsView: View {
             return PrivacyDisplay.name(for: .account, seed: account.id)
         case .spending:
             return scope.title
+        case .category(let details):
+            return PrivacyDisplay.name(for: .category, seed: details.category.id)
         }
     }
 
@@ -880,7 +1084,7 @@ struct AccountTransactionsView: View {
             return accountName(for: transaction)
         }
 
-        guard case .spending = scope else {
+        guard scope.showsAccountNames else {
             return nil
         }
 

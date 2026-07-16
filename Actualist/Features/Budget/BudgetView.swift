@@ -7,6 +7,7 @@ struct BudgetView: View {
     @State private var isTransactionEditorPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
+    @State private var categoryDetailsPresentation: CategoryMonthDetails?
     @State private var isOverspentCategoriesPresented = false
     @State private var pendingOverspentCategoryID: String?
     @State private var activeOverspentCoverCategoryID: String?
@@ -54,6 +55,15 @@ struct BudgetView: View {
                             moveMoney: {
                                 withAnimation(BudgetLayout.assignmentKeypadAnimation) {
                                     viewModel.beginMoveMoney()
+                                }
+                            },
+                            details: {
+                                guard let details = viewModel.activeCategoryMonthDetails else {
+                                    return
+                                }
+                                categoryDetailsPresentation = details
+                                withAnimation(BudgetLayout.assignmentKeypadAnimation) {
+                                    viewModel.cancelAssignmentEditing()
                                 }
                             },
                             deleteDigit: { viewModel.deleteAssignmentDigit() },
@@ -191,6 +201,12 @@ struct BudgetView: View {
                         }
                     )
                     .environment(appState)
+                }
+                .sheet(item: $categoryDetailsPresentation, onDismiss: {
+                    Task { await viewModel.refreshSelectedMonth(using: appState) }
+                }) { details in
+                    CategoryMonthDetailsView(details: details)
+                        .environment(appState)
                 }
                 .sheet(
                     isPresented: $isOverspentCategoriesPresented,
@@ -1969,6 +1985,7 @@ private struct BudgetAssignmentKeypad: View {
     let setMode: (BudgetAssignmentInputMode) -> Void
     let applyTemplate: () -> Void
     let moveMoney: () -> Void
+    let details: () -> Void
     let deleteDigit: () -> Void
     let clearOrCancel: () -> Void
     let cancel: () -> Void
@@ -1987,7 +2004,7 @@ private struct BudgetAssignmentKeypad: View {
                 keypadToolbarButton(title: "Move Money", systemImage: "arrow.right", isEnabled: true) {
                     moveMoney()
                 }
-                keypadToolbarButton(title: "Details", systemImage: "ellipsis") {}
+                keypadToolbarButton(title: "Details", systemImage: "ellipsis", isEnabled: true, action: details)
 
                 Button(action: cancel) {
                     Image(systemName: "keyboard.chevron.compact.down")
@@ -2079,7 +2096,7 @@ private struct BudgetAssignmentKeypad: View {
     private func keypadToolbarButton(
         title: String,
         systemImage: String,
-        isEnabled: Bool = false,
+        isEnabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {

@@ -4,6 +4,28 @@ import Testing
 
 @MainActor
 struct BudgetViewModelTests {
+    @Test func exposesActiveCategoryMonthDetailsForTheAssignmentSheet() throws {
+        let model = BudgetViewModel()
+        model.selectedMonth = "2026-06"
+        model.budgetMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 37_655,
+            hiddenCategoryBalance: 0,
+            categoryBudgeted: 50_000,
+            categorySpent: -12_345,
+            lastMonthOverspent: 0
+        )
+        let category = try #require(model.visibleGroups.first?.visibleCategories.first)
+
+        model.beginAssignmentEditing(for: category)
+
+        let details = try #require(model.activeCategoryMonthDetails)
+        #expect(details.category.id == "mortgage")
+        #expect(details.month == "2026-06")
+        #expect(details.budgetedAmount == 50_000)
+        #expect(details.spentAmount == 12_345)
+        #expect(details.remainingAmount == 37_655)
+    }
+
     @Test func derivesVisibleGroupsAndOverspendingCount() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try Self.decodeBudgetMonth(
@@ -730,6 +752,7 @@ struct BudgetViewModelTests {
         visibleCategoryBalance: Int,
         hiddenCategoryBalance: Int,
         categoryBudgeted: Int = 0,
+        categorySpent: Int = 0,
         toBudget: Int = 0,
         counterpartyCategoryBalance: Int? = nil,
         lastMonthOverspent: Int
@@ -789,7 +812,7 @@ struct BudgetViewModelTests {
                   "hidden": false,
                   "group_id": "bills",
                   "budgeted": \(categoryBudgeted),
-                  "spent": 0,
+                  "spent": \(categorySpent),
                   "balance": \(visibleCategoryBalance),
                   "carryover": false
                 },

@@ -13,6 +13,55 @@ struct LocalFirstActualStoreTests {
         let budget: ActualBudget
     }
 
+    @Test func categoryMonthFilterIncludesDirectAndSplitTransactionsOnlyForRequestedMonth() throws {
+        let direct = makeTransaction(id: "direct", category: "groceries")
+        let otherCategory = makeTransaction(id: "utilities", category: "utilities")
+        let otherMonth = makeTransaction(id: "old", category: "groceries", date: "2026-06-30")
+        let splitChild = makeTransaction(id: "split-child", category: "groceries")
+        let splitParent = makeTransaction(
+            id: "split-parent",
+            category: nil,
+            isParent: true,
+            subtransactions: [splitChild]
+        )
+        let loaded = LoadedAccountTransactions(
+            transactions: [direct, otherCategory, otherMonth, splitParent],
+            balance: 99,
+            accountNames: ["checking": "Checking"],
+            categoryNames: ["groceries": "Groceries"],
+            payeeNames: [:],
+            transferPayeeIDs: [],
+            reachedEnd: true
+        )
+
+        let filtered = loaded.filtering(categoryID: "groceries", month: "2026-07")
+
+        #expect(filtered.transactions.map(\.id) == ["direct", "split-parent"])
+        #expect(filtered.balance == nil)
+        #expect(filtered.accountNames == loaded.accountNames)
+        #expect(filtered.reachedEnd)
+    }
+
+    @Test func categoryMonthFeedLoadsACompleteLocalSnapshot() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        try await store.refreshCategoryTransactions(
+            budgetID: "group-1",
+            categoryID: "groceries",
+            month: "2026-07"
+        )
+
+        let loaded = try #require(store.cachedCategoryTransactions(
+            budgetID: "group-1",
+            categoryID: "groceries",
+            month: "2026-07"
+        ))
+        #expect(loaded.transactions.map(\.id) == ["txn"])
+        #expect(loaded.categoryNames["groceries"] == "Groceries")
+        #expect(loaded.accountNames["checking"] == "Checking")
+        #expect(loaded.reachedEnd)
+    }
+
     @Test func settingsDecodeIgnoresRetiredRestKeysAndKeepsLocalFirst() async throws {
         // Old persisted settings may still carry retired REST keys; they must be ignored while
         // local-first fields decode normally.

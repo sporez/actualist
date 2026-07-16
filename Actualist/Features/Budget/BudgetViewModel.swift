@@ -72,6 +72,15 @@ final class BudgetViewModel {
         assignmentDraft?.categoryID
     }
 
+    var activeCategoryMonthDetails: CategoryMonthDetails? {
+        guard let categoryID = activeAssignmentCategoryID,
+              let selectedMonth,
+              let category = category(for: categoryID) else {
+            return nil
+        }
+        return CategoryMonthDetails(category: category, month: selectedMonth)
+    }
+
     var canSubmitAssignment: Bool {
         guard let assignmentDraft else {
             return false

@@ -47,6 +47,14 @@ extension LocalFirstActualStore {
         spendingTransactionsByBudget[budgetID]?.loaded
     }
 
+    func cachedCategoryTransactions(
+        budgetID: String,
+        categoryID: String,
+        month: String
+    ) -> LoadedAccountTransactions? {
+        categoryTransactionsByKey[categoryTransactionKey(budgetID, categoryID, month)]?.loaded
+    }
+
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         let key = transactionKey(budgetID, accountID)
@@ -73,6 +81,29 @@ extension LocalFirstActualStore {
                 query: nil,
                 limit: limit,
                 offset: 0
+            )
+        )
+    }
+
+    func refreshCategoryTransactions(
+        budgetID: String,
+        categoryID: String,
+        month: String
+    ) async throws {
+        let database = try requireDatabase(for: budgetID)
+        let maps = try await nameMaps(database)
+        let transactions = try await database.fetchTransactions().filter { transaction in
+            transaction.belongs(toCategory: categoryID, month: month)
+        }
+        categoryTransactionsByKey[categoryTransactionKey(budgetID, categoryID, month)] = TransactionFeedPage(
+            loaded: LoadedAccountTransactions(
+                transactions: transactions,
+                balance: nil,
+                accountNames: maps.accountNames,
+                categoryNames: maps.categoryNames,
+                payeeNames: maps.payeeNames,
+                transferPayeeIDs: maps.transferPayeeIDs,
+                reachedEnd: true
             )
         )
     }
@@ -457,6 +488,10 @@ extension LocalFirstActualStore {
 
     func transactionKey(_ budgetID: String, _ accountID: String) -> String {
         "\(budgetID)|\(accountID)"
+    }
+
+    func categoryTransactionKey(_ budgetID: String, _ categoryID: String, _ month: String) -> String {
+        "\(budgetID)|\(categoryID)|\(month)"
     }
 
     func availableMonths(budgetID: String) async throws -> [String] {

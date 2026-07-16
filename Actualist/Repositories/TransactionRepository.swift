@@ -3,8 +3,18 @@ import Foundation
 protocol TransactionRepositoryProtocol: Sendable {
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions?
     func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions?
+    func cachedCategoryTransactions(
+        budgetID: String,
+        categoryID: String,
+        month: String
+    ) -> LoadedAccountTransactions?
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws
     func refreshSpendingTransactions(budgetID: String) async throws
+    func refreshCategoryTransactions(
+        budgetID: String,
+        categoryID: String,
+        month: String
+    ) async throws
     func loadOlderTransactions(budgetID: String, accountID: String) async throws
     func loadOlderSpendingTransactions(budgetID: String) async throws
     func searchAccountTransactions(
@@ -55,6 +65,24 @@ protocol TransactionRepositoryProtocol: Sendable {
     ) async throws -> TransactionMutationResult
 }
 
+extension TransactionRepositoryProtocol {
+    func cachedCategoryTransactions(
+        budgetID: String,
+        categoryID: String,
+        month: String
+    ) -> LoadedAccountTransactions? {
+        cachedSpendingTransactions(budgetID: budgetID)?.filtering(categoryID: categoryID, month: month)
+    }
+
+    func refreshCategoryTransactions(
+        budgetID: String,
+        categoryID: String,
+        month: String
+    ) async throws {
+        try await refreshSpendingTransactions(budgetID: budgetID)
+    }
+}
+
 struct TransactionEditorOptions: Hashable, Sendable {
     let accounts: [ActualAccount]
     let categories: [ActualCategory]
@@ -100,6 +128,31 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         self.payeeNames = payeeNames
         self.transferPayeeIDs = transferPayeeIDs
         self.reachedEnd = reachedEnd
+    }
+}
+
+extension LoadedAccountTransactions {
+    func filtering(categoryID: String, month: String) -> LoadedAccountTransactions {
+        LoadedAccountTransactions(
+            transactions: transactions.filter { transaction in
+                transaction.belongs(toCategory: categoryID, month: month)
+            },
+            balance: nil,
+            accountNames: accountNames,
+            categoryNames: categoryNames,
+            payeeNames: payeeNames,
+            transferPayeeIDs: transferPayeeIDs,
+            reachedEnd: reachedEnd
+        )
+    }
+}
+
+extension ActualTransaction {
+    func belongs(toCategory categoryID: String, month: String) -> Bool {
+        guard date.hasPrefix("\(month)-") else {
+            return false
+        }
+        return category == categoryID || subtransactions.contains { $0.category == categoryID }
     }
 }
 

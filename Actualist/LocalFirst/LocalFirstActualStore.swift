@@ -23,6 +23,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var monthsByBudget: [String: [String]] = [:]
     var accountTransactionsByKey: [String: TransactionFeedPage] = [:]
     var spendingTransactionsByBudget: [String: TransactionFeedPage] = [:]
+    var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
     var syncStatus: LocalFirstSyncStatus?
     var isFlushingPendingLocalMessages = false
     var shouldFlushPendingLocalMessagesAgain = false
@@ -76,6 +77,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         monthsByBudget = [:]
         accountTransactionsByKey = [:]
         spendingTransactionsByBudget = [:]
+        categoryTransactionsByKey = [:]
         syncStatus = nil
         isFlushingPendingLocalMessages = false
         shouldFlushPendingLocalMessagesAgain = false
