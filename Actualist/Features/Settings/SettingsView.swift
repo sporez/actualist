@@ -32,8 +32,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                settingsHeader
-
                 Section("Connection") {
                     LabeledContent("Server") {
                         TextField(
@@ -235,7 +233,24 @@ struct SettingsView: View {
                 .settingsSectionChrome()
 
                 Section("Reports") {
-                    DisclosureGroup(isExpanded: $isReportOrderExpanded) {
+                    Button {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            isReportOrderExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Label("Chart Order", systemImage: "chart.xyaxis.line")
+                                .foregroundStyle(ActualistTheme.primaryText)
+                            Spacer(minLength: 8)
+                            Image(systemName: isReportOrderExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if isReportOrderExpanded {
                         Text("Drag the handles to change the order of cards on the Reports screen.")
                             .font(.caption)
                             .foregroundStyle(ActualistTheme.secondaryText)
@@ -257,15 +272,8 @@ struct SettingsView: View {
                         .disabled(
                             appState.settings.reportCardOrder == ReportCardOrderPreference.defaultOrder
                         )
-                    } label: {
-                        Label("Chart Order", systemImage: "chart.xyaxis.line")
-                            .foregroundStyle(ActualistTheme.primaryText)
                     }
                 }
-                .environment(
-                    \.editMode,
-                    .constant(isReportOrderExpanded ? .active : .inactive)
-                )
                 .settingsSectionChrome()
 
                 Section("Experimental Features") {
@@ -307,9 +315,24 @@ struct SettingsView: View {
             .background(ActualistTheme.background)
             .foregroundStyle(ActualistTheme.primaryText)
             .tint(ActualistTheme.accent)
-            .navigationTitle("")
+            .environment(
+                \.editMode,
+                .constant(isReportOrderExpanded ? .active : .inactive)
+            )
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Button {
+                        recordDeveloperUnlockTap()
+                    } label: {
+                        Text("Settings")
+                            .font(.headline)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(.isHeader)
+                }
+
                 if showsDismissButton {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -403,28 +426,6 @@ struct SettingsView: View {
         .overlay(alignment: .bottom) {
             developerUnlockToast
         }
-    }
-
-    private var settingsHeader: some View {
-        Button {
-            recordDeveloperUnlockTap()
-        } label: {
-            HStack(spacing: 0) {
-                Text("Settings")
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(ActualistTheme.primaryText)
-
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityLabel("Settings")
-        .listRowInsets(EdgeInsets(top: 18, leading: 20, bottom: 6, trailing: 20))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
     @ViewBuilder
