@@ -73,6 +73,13 @@
 		010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */; };
 		010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */; };
 		010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000047 /* BudgetDatabase+Schema.swift */; };
+		01000000000000000000004C /* ReportsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004C /* ReportsModels.swift */; };
+		01000000000000000000004D /* ReportsRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004D /* ReportsRepository.swift */; };
+		01000000000000000000004E /* BudgetDatabase+Reports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004E /* BudgetDatabase+Reports.swift */; };
+		01000000000000000000004F /* LocalFirstActualStore+Reports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004F /* LocalFirstActualStore+Reports.swift */; };
+		010000000000000000000050 /* ReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000050 /* ReportsViewModel.swift */; };
+		010000000000000000000051 /* ReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000051 /* ReportsView.swift */; };
+		010000000000000000000052 /* ReportsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000052 /* ReportsTests.swift */; };
 		28C36EBD2FE377C800A9F4A8 /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* icon.icon */; };
 		28C36EC02FE377C800A9F4A8 /* icon_blue.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */; };
 		28C36EC22FE377C800A9F4A8 /* icon_orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC12FE377C800A9F4A8 /* icon_orange.icon */; };
@@ -155,6 +162,13 @@
 		020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionWrites.swift"; sourceTree = "<group>"; };
 		020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BudgetWrites.swift"; sourceTree = "<group>"; };
 		020000000000000000000047 /* BudgetDatabase+Schema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Schema.swift"; sourceTree = "<group>"; };
+		02000000000000000000004C /* ReportsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsModels.swift; sourceTree = "<group>"; };
+		02000000000000000000004D /* ReportsRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsRepository.swift; sourceTree = "<group>"; };
+		02000000000000000000004E /* BudgetDatabase+Reports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Reports.swift"; sourceTree = "<group>"; };
+		02000000000000000000004F /* LocalFirstActualStore+Reports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Reports.swift"; sourceTree = "<group>"; };
+		020000000000000000000050 /* ReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsViewModel.swift; sourceTree = "<group>"; };
+		020000000000000000000051 /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
+		020000000000000000000052 /* ReportsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsTests.swift; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon.icon; sourceTree = "<group>"; };
 		28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_blue.icon; sourceTree = "<group>"; };
 		28C36EC12FE377C800A9F4A8 /* icon_orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_orange.icon; sourceTree = "<group>"; };
@@ -268,6 +282,7 @@
 				040000000000000000000015 /* Accounts */,
 				040000000000000000000016 /* Transactions */,
 				040000000000000000000017 /* Settings */,
+				04000000000000000000001F /* Reports */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -292,6 +307,7 @@
 				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
 				020000000000000000000042 /* LocalFirstTestSupport.swift */,
 				020000000000000000000037 /* BackendCapabilitiesTests.swift */,
+				020000000000000000000052 /* ReportsTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -366,6 +382,16 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
+		04000000000000000000001F /* Reports */ = {
+			isa = PBXGroup;
+			children = (
+				02000000000000000000004C /* ReportsModels.swift */,
+				020000000000000000000050 /* ReportsViewModel.swift */,
+				020000000000000000000051 /* ReportsView.swift */,
+			);
+			path = Reports;
+			sourceTree = "<group>";
+		};
 		040000000000000000000018 /* Repositories */ = {
 			isa = PBXGroup;
 			children = (
@@ -373,6 +399,7 @@
 				020000000000000000000018 /* BudgetRepository.swift */,
 				02000000000000000000002D /* AccountRepository.swift */,
 				020000000000000000000022 /* TransactionRepository.swift */,
+				02000000000000000000004D /* ReportsRepository.swift */,
 			);
 			path = Repositories;
 			sourceTree = "<group>";
@@ -394,6 +421,7 @@
 					020000000000000000000049 /* LocalFirstActualStore+Reads.swift */,
 					02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */,
 					02000000000000000000004B /* LocalFirstActualStore+Sync.swift */,
+					02000000000000000000004F /* LocalFirstActualStore+Reports.swift */,
 				04000000000000000000001B /* Network */,
 				04000000000000000000001C /* Database */,
 				04000000000000000000001D /* Sync */,
@@ -421,6 +449,7 @@
 				020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */,
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
 				020000000000000000000047 /* BudgetDatabase+Schema.swift */,
+				02000000000000000000004E /* BudgetDatabase+Reports.swift */,
 			);
 			path = Database;
 			sourceTree = "<group>";
@@ -603,6 +632,12 @@
 				010000000000000000000049 /* LocalFirstActualStore+Reads.swift in Sources */,
 				01000000000000000000004A /* LocalFirstActualStore+Mutations.swift in Sources */,
 				01000000000000000000004B /* LocalFirstActualStore+Sync.swift in Sources */,
+				01000000000000000000004C /* ReportsModels.swift in Sources */,
+				01000000000000000000004D /* ReportsRepository.swift in Sources */,
+				01000000000000000000004E /* BudgetDatabase+Reports.swift in Sources */,
+				01000000000000000000004F /* LocalFirstActualStore+Reports.swift in Sources */,
+				010000000000000000000050 /* ReportsViewModel.swift in Sources */,
+				010000000000000000000051 /* ReportsView.swift in Sources */,
 				010000000000000000000023 /* TransactionGrouping.swift in Sources */,
 				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
 				01000000000000000000003E /* BudgetDraftModels.swift in Sources */,
@@ -626,6 +661,7 @@
 				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,
 				010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */,
 				01000000000000000000003B /* BackendCapabilitiesTests.swift in Sources */,
+				010000000000000000000052 /* ReportsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -300,6 +300,7 @@ extension LocalFirstActualStore {
     }
 
     func reloadAfterRemoteSync(database: BudgetDatabase, budgetID: String) async throws {
+        invalidateReports(budgetID: budgetID)
         monthsByBudget[budgetID] = nil
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
 

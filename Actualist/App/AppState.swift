@@ -734,6 +734,10 @@ final class AppState {
         localFirstStore
     }
 
+    func makeReportsRepository() -> (any ReportsRepositoryProtocol)? {
+        localFirstStore
+    }
+
     private func pendingNewTransactionKey(budgetID: String, accountID: String) -> String {
         "\(budgetID)|\(accountID)"
     }

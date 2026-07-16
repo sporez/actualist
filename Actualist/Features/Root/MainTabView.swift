@@ -41,17 +41,3 @@ struct MainTabView: View {
         }
     }
 }
-
-private struct ReportsView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Preparing Reports",
-                systemImage: "chart.xyaxis.line",
-                description: Text("Reading the local budget history.")
-            )
-            .navigationTitle("Reports")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-}

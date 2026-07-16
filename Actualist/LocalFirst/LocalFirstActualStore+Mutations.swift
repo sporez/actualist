@@ -372,6 +372,7 @@ extension LocalFirstActualStore {
         accountIDs: [String],
         monthIDs: [String]
     ) async throws {
+        invalidateReports(budgetID: budgetID)
         monthsByBudget[budgetID] = nil
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
         if let currentSpending = spendingTransactionsByBudget[budgetID] {
@@ -406,6 +407,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String
     ) async throws {
+        invalidateReports(budgetID: budgetID)
         monthsByBudget[budgetID] = nil
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
         if let currentSpending = spendingTransactionsByBudget[budgetID] {
@@ -426,6 +428,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String
     ) async throws {
+        invalidateReports(budgetID: budgetID)
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
     }
 

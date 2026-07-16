@@ -3,7 +3,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol {
+final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol, ReportsRepositoryProtocol {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport
@@ -24,6 +24,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var accountTransactionsByKey: [String: TransactionFeedPage] = [:]
     var spendingTransactionsByBudget: [String: TransactionFeedPage] = [:]
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
+    var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     var syncStatus: LocalFirstSyncStatus?
     var isFlushingPendingLocalMessages = false
     var shouldFlushPendingLocalMessagesAgain = false
@@ -78,6 +79,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         accountTransactionsByKey = [:]
         spendingTransactionsByBudget = [:]
         categoryTransactionsByKey = [:]
+        reportsByKey = [:]
         syncStatus = nil
         isFlushingPendingLocalMessages = false
         shouldFlushPendingLocalMessagesAgain = false
