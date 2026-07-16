@@ -9,14 +9,15 @@ This directory is split by how current the information is.
 - `local-first-current-write-model.md`: current local-first write behavior, outbox model, supported writes, and limitations.
 - `ROADMAP.md`: product roadmap for closing the gap with Actual Budget web/PWA while keeping Actualist native.
 
-## Active Plans
+## Implementation Plans And Records
 
 Active implementation notes live in `plans/`:
 
 - `plans/budget-templates.md`: remaining local-first budget template work.
 - `plans/budget-keypad-followups.md`: deferred Budget keypad polish.
-- `plans/reports-dashboard.md`: Settings-menu navigation change and the local
-  SQLite-backed Swift Charts reports dashboard.
+- `plans/reports-dashboard.md`: implemented Settings-menu navigation change and
+  local SQLite-backed Swift Charts reports dashboard; retained as the financial
+  semantics and verification record.
 
 ## Release Notes
 

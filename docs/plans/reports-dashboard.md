@@ -1,6 +1,25 @@
 # Native Reports Dashboard Plan
 
-Status: planned; no implementation has started.
+Status: implemented on 2026-07-16. The final Airy interaction check remains a
+device-availability release check, not an implementation dependency.
+
+## Implementation Result
+
+- Settings now opens as a native sheet from the Budget toolbar ellipsis menu;
+  the fourth native tab is Reports.
+- `BudgetDatabase+Reports.swift` produces one consistent local SQLite snapshot
+  for Net Worth, Cash Flow, This Month, Budget Overview, Three-Month Average,
+  and Transaction Calendar.
+- `LocalFirstActualStore` owns the cached report snapshot and invalidates it for
+  local mutations, remote sync reloads, reset, and budget changes.
+- `ReportsViewModel` provides cached-first/offline behavior, empty/error/loading
+  states, app money formatting, accessibility summaries, and privacy-mode chart
+  sanitization.
+- `ReportsView` renders all six cards with SwiftUI and Swift Charts; it contains
+  no REST or write path and uses native tab/toolbar chrome.
+- `ReportsTests` covers transaction semantics, date boundaries, cache behavior,
+  offline retention, privacy, sign/tone behavior, empty state, a 5,000-row
+  performance guard, and phone-width rendering of the complete card stack.
 
 ## Goal
 

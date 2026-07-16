@@ -36,8 +36,11 @@ Actualist is already beyond the original read-only plan. The current app has:
 
 - Local-first budget opening, sync, and offline read behavior.
 - Encrypted budget support.
-- Budget, Spending, Accounts, account transaction feeds, Settings, and
-  uncategorized review surfaces.
+- Budget, Spending, Accounts, Reports, account transaction feeds, Settings, and
+  uncategorized review surfaces. Settings is reached from the Budget menu.
+- A native local-SQLite Reports dashboard with net worth, cash flow, current
+  month comparison, budget overview, three-month average, and transaction
+  calendar cards.
 - Search and pagination for transaction feeds.
 - Background refresh alerts based on local-first sync plus transaction diffs.
 - A durable local-first write outbox.
@@ -234,14 +237,20 @@ Release gate:
 
 ### Phase 6: Reports
 
-Start with mobile-native reports instead of cloning the full dashboard builder.
-The implementation-ready dashboard and navigation plan is in
-`docs/plans/reports-dashboard.md`.
+The first mobile-native reports dashboard is complete. Its financial semantics,
+architecture, and verification record are in `docs/plans/reports-dashboard.md`.
 
-Goals:
+Delivered:
 
 - Net worth.
 - Cash flow.
+- Current month versus prior month.
+- Budget overview versus budgeted expenses.
+- Three-month expense average.
+- Three-month transaction calendar.
+
+Remaining goals:
+
 - Spending by category.
 - Spending by payee.
 - Spending by account.
