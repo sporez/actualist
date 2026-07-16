@@ -23,11 +23,11 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.accounts)
 
-            SettingsView()
+            ReportsView()
                 .tabItem {
-                    Label(AppTab.settings.title, systemImage: AppTab.settings.symbolName)
+                    Label(AppTab.reports.title, systemImage: AppTab.reports.symbolName)
                 }
-                .tag(AppTab.settings)
+                .tag(AppTab.reports)
         }
     }
 
@@ -38,6 +38,20 @@ struct MainTabView: View {
             withAnimation(.smooth(duration: 0.2)) {
                 appState.selectedTab = newValue
             }
+        }
+    }
+}
+
+private struct ReportsView: View {
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView(
+                "Preparing Reports",
+                systemImage: "chart.xyaxis.line",
+                description: Text("Reading the local budget history.")
+            )
+            .navigationTitle("Reports")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

@@ -4,14 +4,14 @@ enum AppTab: String, CaseIterable, Hashable {
     case budget
     case spending
     case accounts
-    case settings
+    case reports
 
     var title: String {
         switch self {
         case .budget: "Budget"
         case .spending: "Spending"
         case .accounts: "Accounts"
-        case .settings: "Settings"
+        case .reports: "Reports"
         }
     }
 
@@ -20,7 +20,7 @@ enum AppTab: String, CaseIterable, Hashable {
         case .budget: "list.bullet.rectangle.portrait.fill"
         case .spending: "creditcard.fill"
         case .accounts: "building.columns.fill"
-        case .settings: "gearshape.fill"
+        case .reports: "chart.xyaxis.line"
         }
     }
 }

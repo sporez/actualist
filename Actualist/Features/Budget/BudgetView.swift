@@ -5,6 +5,7 @@ struct BudgetView: View {
     @Environment(\.actualistDensity) private var density
     @State private var viewModel = BudgetViewModel()
     @State private var isTransactionEditorPresented = false
+    @State private var isSettingsPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
     @State private var categoryDetailsPresentation: CategoryMonthDetails?
@@ -169,6 +170,14 @@ struct BudgetView: View {
                                 }
                                 .disabled(viewModel.isApplyingMonthTemplate || !appState.canApplyBudgetTemplates)
                             }
+
+                            Divider()
+
+                            Button {
+                                isSettingsPresented = true
+                            } label: {
+                                Label("Settings", systemImage: "gearshape")
+                            }
                         } label: {
                             Image(systemName: "ellipsis")
                         }
@@ -188,6 +197,10 @@ struct BudgetView: View {
                     TransactionEditorView(prefilledAccount: nil) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
+                        .environment(appState)
+                }
+                .sheet(isPresented: $isSettingsPresented) {
+                    SettingsView(showsDismissButton: true)
                         .environment(appState)
                 }
                 .sheet(isPresented: $isUncategorizedTransactionsPresented) {

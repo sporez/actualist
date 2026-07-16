@@ -6,6 +6,8 @@ private enum SettingsDeveloperUnlock {
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
+    let showsDismissButton: Bool
     @State private var viewModel = SettingsViewModel()
     @State private var isBudgetPickerPresented = false
     @State private var isAppIconPickerPresented = false
@@ -21,6 +23,10 @@ struct SettingsView: View {
     @State private var isPostingDebugNotification = false
     @State private var debugNotificationMessage: String?
     #endif
+
+    init(showsDismissButton: Bool = false) {
+        self.showsDismissButton = showsDismissButton
+    }
 
     var body: some View {
         NavigationStack {
@@ -268,6 +274,18 @@ struct SettingsView: View {
             .tint(ActualistTheme.accent)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if showsDismissButton {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .accessibilityLabel("Close Settings")
+                    }
+                }
+            }
             .onAppear {
                 viewModel.hydrate(from: appState)
             }

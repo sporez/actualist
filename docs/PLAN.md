@@ -50,9 +50,10 @@ Initial tabs:
 - Budget: planning/envelope style icon, for the category envelope view.
 - Spending: `creditcard.fill`, for the all-account transaction feed.
 - Accounts: `building.columns.fill`, for account lists and transaction drill-in.
-- Settings: `gearshape.fill`, for server details, budget selection, sync controls, and app preferences.
+- Reports: `chart.xyaxis.line`, for local SQLite-backed financial charts and summaries.
 
-Do not include placeholder tabs for Home or Reflect until those features exist.
+Settings is presented from the Budget toolbar ellipsis menu. Do not include
+placeholder tabs for Home or Reflect until those features exist.
 
 ### First Launch And Settings
 
