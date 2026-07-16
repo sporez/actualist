@@ -82,6 +82,7 @@ struct LocalFirstActualStoreTests {
         #expect(settings.selectedLocalFirstFileID == nil)
         #expect(!settings.localFirstWritesEnabled)
         #expect(settings.enabledExperimentalFeatures.isEmpty)
+        #expect(settings.reportCardOrder == ReportCardOrderPreference.defaultOrder)
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
     }
 
@@ -115,6 +116,23 @@ struct LocalFirstActualStoreTests {
         store.save(settings)
 
         #expect(store.load().enabledExperimentalFeatures == [.budgetTemplates])
+    }
+
+    @Test func reportCardOrderPersistsAndRepairsMissingCards() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+        let customOrder = Array(ReportCardOrderPreference.defaultOrder.reversed())
+        let settings = AppSettings(reportCardOrder: customOrder)
+
+        store.save(settings)
+
+        #expect(store.load().reportCardOrder == customOrder)
+
+        let partialData = Data(#"{"reportCardOrder":["cashFlow","unknown","cashFlow"]}"#.utf8)
+        let repaired = try JSONDecoder.actual.decode(AppSettings.self, from: partialData)
+        #expect(repaired.reportCardOrder.first == .cashFlow)
+        #expect(repaired.reportCardOrder.count == ReportCardKind.allCases.count)
+        #expect(Set(repaired.reportCardOrder) == Set(ReportCardKind.allCases))
     }
 
     @Test func loginResponseDecodesTopLevelAndNestedToken() async throws {

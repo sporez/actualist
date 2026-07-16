@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var isBudgetPickerPresented = false
     @State private var isAppIconPickerPresented = false
     @State private var isAccountOrderPresented = false
+    @State private var isReportOrderExpanded = false
     @State private var isDeveloperDiagnosticsPresented = false
     @State private var developerUnlockToastTask: Task<Void, Never>?
     @State private var isSyncingNow = false
@@ -233,6 +234,40 @@ struct SettingsView: View {
                 }
                 .settingsSectionChrome()
 
+                Section("Reports") {
+                    DisclosureGroup(isExpanded: $isReportOrderExpanded) {
+                        Text("Drag the handles to change the order of cards on the Reports screen.")
+                            .font(.caption)
+                            .foregroundStyle(ActualistTheme.secondaryText)
+
+                        ForEach(appState.settings.reportCardOrder) { reportCard in
+                            Label(reportCard.title, systemImage: reportCard.symbolName)
+                                .foregroundStyle(ActualistTheme.primaryText)
+                        }
+                        .onMove(perform: moveReportCards)
+
+                        Button {
+                            appState.resetReportCardOrder()
+                        } label: {
+                            SettingsActionLabel(
+                                title: "Reset Report Order",
+                                systemImage: "arrow.counterclockwise"
+                            )
+                        }
+                        .disabled(
+                            appState.settings.reportCardOrder == ReportCardOrderPreference.defaultOrder
+                        )
+                    } label: {
+                        Label("Chart Order", systemImage: "chart.xyaxis.line")
+                            .foregroundStyle(ActualistTheme.primaryText)
+                    }
+                }
+                .environment(
+                    \.editMode,
+                    .constant(isReportOrderExpanded ? .active : .inactive)
+                )
+                .settingsSectionChrome()
+
                 Section("Experimental Features") {
                     Label {
                         Text("Experimental features are unfinished and may break or corrupt your budget. Enable them only if you accept that risk.")
@@ -438,6 +473,12 @@ struct SettingsView: View {
         }
 
         return appState.settings.accountOrderByBudgetID[budgetID] == nil ? "Actual Order" : "Custom"
+    }
+
+    private func moveReportCards(from source: IndexSet, to destination: Int) {
+        var reportCardOrder = appState.settings.reportCardOrder
+        reportCardOrder.move(fromOffsets: source, toOffset: destination)
+        appState.updateReportCardOrder(reportCardOrder)
     }
 
     private var passwordPrompt: String {

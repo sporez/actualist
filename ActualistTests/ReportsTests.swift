@@ -172,7 +172,11 @@ struct ReportsTests {
             now: try reportNow()
         )
         let snapshot = try #require(viewModel.displaySnapshot)
-        let content = ReportsDashboardContent(snapshot: snapshot, viewModel: viewModel)
+        let content = ReportsDashboardContent(
+            snapshot: snapshot,
+            viewModel: viewModel,
+            reportCardOrder: Array(ReportCardOrderPreference.defaultOrder.reversed())
+        )
             .frame(width: 390)
             .padding(14)
             .background(ActualistTheme.background)

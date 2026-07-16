@@ -1,5 +1,49 @@
 import Foundation
 
+enum ReportCardKind: String, Codable, CaseIterable, Identifiable, Sendable {
+    case netWorth
+    case cashFlow
+    case monthComparison
+    case budgetOverview
+    case threeMonthAverage
+    case transactionCalendar
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .netWorth: "Net Worth"
+        case .cashFlow: "Cash Flow"
+        case .monthComparison: "This Month"
+        case .budgetOverview: "Budget Overview"
+        case .threeMonthAverage: "3-Month Average"
+        case .transactionCalendar: "Transaction Calendar"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .netWorth: "chart.line.uptrend.xyaxis"
+        case .cashFlow: "chart.bar.fill"
+        case .monthComparison: "calendar"
+        case .budgetOverview: "list.bullet.rectangle.portrait"
+        case .threeMonthAverage: "chart.xyaxis.line"
+        case .transactionCalendar: "calendar.day.timeline.leading"
+        }
+    }
+}
+
+enum ReportCardOrderPreference {
+    static let defaultOrder = ReportCardKind.allCases
+
+    static func normalized(_ preferredOrder: [ReportCardKind]) -> [ReportCardKind] {
+        var seen = Set<ReportCardKind>()
+        let preferred = preferredOrder.filter { seen.insert($0).inserted }
+        let missing = defaultOrder.filter { seen.insert($0).inserted }
+        return preferred + missing
+    }
+}
+
 struct ReportDateRange: Hashable, Sendable {
     let anchorMonth: String
     let startDay: String

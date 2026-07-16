@@ -30,6 +30,7 @@ struct AppSettings: Codable, Equatable {
     var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
+    var reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
     var backgroundTransactionRefreshEnabled: Bool = false
     /// Single developer gate for every local-first write (transactions, budget assign/move,
     /// and — as they land — templates). Was three redundant flags all wired to this one value.
@@ -50,6 +51,7 @@ struct AppSettings: Codable, Equatable {
         enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
+        reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder,
         backgroundTransactionRefreshEnabled: Bool = false,
         localFirstWritesEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
@@ -67,6 +69,7 @@ struct AppSettings: Codable, Equatable {
         self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
+        self.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
         self.localFirstWritesEnabled = localFirstWritesEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
@@ -102,6 +105,13 @@ struct AppSettings: Codable, Equatable {
             [String: [String]].self,
             forKey: .accountOrderByBudgetID
         ) ?? [:]
+        let persistedReportCardOrder = try container.decodeIfPresent(
+            [String].self,
+            forKey: .reportCardOrder
+        ) ?? []
+        reportCardOrder = ReportCardOrderPreference.normalized(
+            persistedReportCardOrder.compactMap(ReportCardKind.init(rawValue:))
+        )
         backgroundTransactionRefreshEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .backgroundTransactionRefreshEnabled

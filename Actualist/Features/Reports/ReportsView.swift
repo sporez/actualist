@@ -15,7 +15,11 @@ struct ReportsView: View {
                     }
 
                     if let snapshot = viewModel.displaySnapshot, snapshot.hasData {
-                        ReportsDashboardContent(snapshot: snapshot, viewModel: viewModel)
+                        ReportsDashboardContent(
+                            snapshot: snapshot,
+                            viewModel: viewModel,
+                            reportCardOrder: appState.settings.reportCardOrder
+                        )
                     } else if viewModel.isLoading {
                         ReportsLoadingView()
                     } else {
@@ -71,15 +75,36 @@ struct ReportsView: View {
 struct ReportsDashboardContent: View {
     let snapshot: ReportsDashboardSnapshot
     let viewModel: ReportsViewModel
+    let reportCardOrder: [ReportCardKind]
+
+    init(
+        snapshot: ReportsDashboardSnapshot,
+        viewModel: ReportsViewModel,
+        reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
+    ) {
+        self.snapshot = snapshot
+        self.viewModel = viewModel
+        self.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
+    }
 
     var body: some View {
         VStack(spacing: 14) {
-            NetWorthReportCard(snapshot: snapshot, viewModel: viewModel)
-            CashFlowReportCard(snapshot: snapshot, viewModel: viewModel)
-            MonthComparisonReportCard(snapshot: snapshot, viewModel: viewModel)
-            BudgetOverviewReportCard(snapshot: snapshot, viewModel: viewModel)
-            ThreeMonthAverageReportCard(snapshot: snapshot, viewModel: viewModel)
-            TransactionCalendarReportCard(snapshot: snapshot, viewModel: viewModel)
+            ForEach(reportCardOrder) { reportCard in
+                switch reportCard {
+                case .netWorth:
+                    NetWorthReportCard(snapshot: snapshot, viewModel: viewModel)
+                case .cashFlow:
+                    CashFlowReportCard(snapshot: snapshot, viewModel: viewModel)
+                case .monthComparison:
+                    MonthComparisonReportCard(snapshot: snapshot, viewModel: viewModel)
+                case .budgetOverview:
+                    BudgetOverviewReportCard(snapshot: snapshot, viewModel: viewModel)
+                case .threeMonthAverage:
+                    ThreeMonthAverageReportCard(snapshot: snapshot, viewModel: viewModel)
+                case .transactionCalendar:
+                    TransactionCalendarReportCard(snapshot: snapshot, viewModel: viewModel)
+                }
+            }
         }
     }
 }

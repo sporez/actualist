@@ -358,6 +358,16 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateReportCardOrder(_ reportCardOrder: [ReportCardKind]) {
+        settings.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
+        settingsStore.save(settings)
+    }
+
+    func resetReportCardOrder() {
+        settings.reportCardOrder = ReportCardOrderPreference.defaultOrder
+        settingsStore.save(settings)
+    }
+
     func updateBackgroundTransactionRefreshEnabled(_ isEnabled: Bool) async {
         if isEnabled {
             do {
