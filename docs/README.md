@@ -15,6 +15,8 @@ Active implementation notes live in `plans/`:
 
 - `plans/budget-templates.md`: remaining local-first budget template work.
 - `plans/budget-keypad-followups.md`: deferred Budget keypad polish.
+- `plans/reports-dashboard.md`: Settings-menu navigation change and the local
+  SQLite-backed Swift Charts reports dashboard.
 
 ## Release Notes
 

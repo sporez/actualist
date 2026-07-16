@@ -235,6 +235,8 @@ Release gate:
 ### Phase 6: Reports
 
 Start with mobile-native reports instead of cloning the full dashboard builder.
+The implementation-ready dashboard and navigation plan is in
+`docs/plans/reports-dashboard.md`.
 
 Goals:
 
