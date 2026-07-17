@@ -8,8 +8,8 @@ device-availability release check, not an implementation dependency.
 - Settings now opens as a native sheet from the Budget toolbar ellipsis menu;
   the fourth native tab is Reports.
 - `BudgetDatabase+Reports.swift` produces one consistent local SQLite snapshot
-  for Net Worth, Cash Flow, This Month, Budget Overview, Three-Month Average,
-  and Transaction Calendar.
+  while preserving each Actual widget's distinct transaction filters for Net
+  Worth, Cash Flow, Monthly Spending, and Transaction Calendar.
 - `LocalFirstActualStore` owns the cached report snapshot and invalidates it for
   local mutations, remote sync reloads, reset, and budget changes.
 - `ReportsViewModel` provides cached-first/offline behavior, empty/error/loading
@@ -62,11 +62,13 @@ empty state, and accessible textual summary.
 
 ### 1. Net Worth
 
-- Default range: trailing six calendar months through today.
-- Series: end-of-day cumulative balance across included accounts.
+- Default range: trailing six displayed calendar months.
+- Series: monthly cumulative balance across included accounts, including the
+  preceding month-end point that Actual uses as the change baseline.
 - Default account scope: all non-tombstoned accounts, including off-budget and
   closed accounts for the dates on which they had balances.
-- Display the latest balance and change from the first point in the range.
+- Display the latest balance and change from the preceding month-end baseline,
+  matching Actual's monthly Net Worth spreadsheet.
 - Use a `LineMark` plus `AreaMark`; positive and negative regions must remain
   legible without relying only on color.
 - Transfers between included accounts naturally net to zero. If account filters
@@ -77,51 +79,54 @@ empty state, and accessible textual summary.
 
 - Default range: selected/current calendar month.
 - Show Income and Expenses as two bars and show net cash flow as the headline.
-- Income is positive categorized activity in income categories.
-- Expenses are the positive magnitude of negative categorized activity in
-  expense categories; refunds reduce the expense total.
-- Reuse the budget engine's category-mapping behavior so on-budget transfers are
-  excluded while a transfer to or from an off-budget account is treated the same
-  way the local budget treats that mapped category.
-- Show uncategorized activity as a warning/footnote when present rather than
-  silently classifying it as income or expense.
+- Income is every positive transaction in an on-budget account after excluding
+  transfer payees; expenses are the positive magnitude of every negative one.
+- Classify by transaction sign, not income-category membership. This includes
+  uncategorized inflows and outflows in the bars exactly as Actual does.
+- Show net uncategorized activity as an additional warning/footnote without
+  removing it from the Income or Expenses totals.
 
 ### 3. This Month
 
-- Compare cumulative daily net cash flow for the current month with the previous
-  month, aligned by day number.
+- Compare cumulative Monthly Spending for the current month with the previous
+  month, using Actual's report semantics: all non-income activity in on-budget
+  accounts, aligned into Actual's 28 daily buckets.
 - Render current month as a solid line/area and the prior month as a dashed line.
-- Headline comparison is current net cash flow minus prior-month net cash flow at
-  the comparable day. If the current month is incomplete, do not compare it with
-  future days from the prior month.
+- Headline comparison is current spending minus prior-month spending at the
+  comparable day. Positive variance is danger, matching Actual's card.
 
 ### 4. Budget Overview
 
 - Default range: current budget month.
-- Compare cumulative actual expense activity with cumulative budgeted expense
-  categories for the month.
-- Headline variance is actual expenses minus budgeted expenses. Positive
+- Compare cumulative Actual Monthly Spending with the selected budget table's
+  complete monthly amount (`zero_budgets`, or `reflect_budgets` for tracking
+  budgets).
+- Headline variance is actual spending-to-date minus budgeted-to-date. Positive
   variance is caution/danger; remaining budget is positive.
-- The chart uses a solid actual series and a clearly labelled dashed budget
-  reference. A flat monthly budget should be represented as a day-proportional
-  reference so the two cumulative series are comparable.
-- Exclude income category groups. Preserve hidden-category amounts in totals
-  unless a later explicit filter says otherwise.
+- The chart uses Actual's solid actual series and dashed day-proportional budget
+  reference. Calendar days 28 through month-end fold into bucket 28.
+- Preserve the budget spreadsheet's complete amount; category filters are only
+  applied when the Actual widget itself defines them.
 
 ### 5. Three-Month Average
 
-- Compare current-month cumulative expenses with the average cumulative expense
-  curve from the previous three complete months, aligned by day number.
+- Compare current-month cumulative spending with the average cumulative spending
+  curve from the previous three complete months, aligned in Actual's 28 buckets.
 - Headline variance is current comparable-to-date expenses minus the historical
   average. Spending above average is danger; below average is positive.
-- Months with fewer days contribute through their last day without fabricating
-  transactions on nonexistent dates.
+- Calendar days 28 through month-end fold into bucket 28 exactly as they do in
+  Actual's Monthly Spending report.
 
 ### 6. Transaction Calendar
 
 - Default range: current month plus the prior two months.
-- Each day cell shows separate income and expense intensity, with the monthly
-  income/expense totals shown beside the month label.
+- Each day cell splits raw transactions by sign, with the monthly income/expense
+  totals shown beside the month label.
+- Apply the active PWA calendar widget's saved conditions. In the current Main
+  dashboard, `transfer is false` maps exactly to `transferred_id IS NULL`; it is
+  intentionally not the same test as “payee is not a transfer payee.”
+- Query each complete displayed month, as Actual's Calendar spreadsheet does,
+  rather than truncating the final month at today.
 - Use a real Gregorian calendar grid, locale-aware weekday labels, and correct
   month starts/lengths. Do not position cells from transaction count.
 - Empty days remain visible. Color intensity is normalized within the visible
@@ -130,8 +135,9 @@ empty state, and accessible textual summary.
 
 ## Shared Financial Semantics
 
-Create one report-query layer rather than letting each card reinterpret raw
-transactions independently.
+Create one report-query layer, but preserve the different semantics of each
+Actual spreadsheet instead of forcing all cards through one generic activity
+classification.
 
 - Keep values as Actual integer minor units through SQL, models, and chart
   calculations. Convert only for display/axis labels.
@@ -140,7 +146,10 @@ transactions independently.
 - Exclude children whose parent is tombstoned.
 - Respect `category_mapping` exactly as the existing budget-month spending
   queries do.
-- Avoid double-counting same-budget transfers in income/expense reports.
+- Cash Flow excludes transfer payees; Calendar follows its saved
+  `transfer_id` condition; Monthly Spending includes transfer sides and lets
+  included-account totals naturally cancel. These rules are deliberately
+  distinct.
 - Include starting-balance transactions in net worth.
 - Use calendar dates/month keys, not device-local timestamps, because Actual
   transaction dates are date-only values.

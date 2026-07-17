@@ -108,7 +108,7 @@ final class ReportsViewModel {
         return "Compare \(ReportCalendar.shortMonthTitle(report.currentMonth)) to \(ReportCalendar.shortMonthTitle(report.comparisonMonth))"
     }
     var monthComparisonHeadline: String { signedMoney(displaySnapshot?.monthComparison.variance ?? 0) }
-    var monthComparisonTone: ReportValueTone { comparisonTone(displaySnapshot?.monthComparison.variance ?? 0) }
+    var monthComparisonTone: ReportValueTone { overspendingTone(displaySnapshot?.monthComparison.variance ?? 0) }
 
     var budgetOverviewSubtitle: String {
         guard let month = displaySnapshot?.budgetOverview.month else { return "" }
@@ -216,7 +216,8 @@ final class ReportsViewModel {
                 comparison: masked(point.comparison, seed: "reports-month-previous-\(point.day)", maximumDollars: 25_000)
             )
         }
-        let monthVariance = (monthPoints.last?.current ?? 0) - (monthPoints.last?.comparison ?? 0)
+        let lastComparableMonth = monthPoints.last(where: { $0.current != nil })
+        let monthVariance = (lastComparableMonth?.current ?? 0) - (lastComparableMonth?.comparison ?? 0)
 
         let budgetActual = snapshot.budgetOverview.actualPoints.map {
             ReportValuePoint(dayID: $0.dayID, value: masked($0.value, seed: "reports-budget-actual-\($0.dayID)", maximumDollars: 25_000))
@@ -225,7 +226,7 @@ final class ReportsViewModel {
             ReportValuePoint(dayID: $0.dayID, value: masked($0.value, seed: "reports-budget-reference-\($0.dayID)", maximumDollars: 25_000))
         }
         let budgetActualTotal = budgetActual.last?.value ?? 0
-        let budgetReferenceTotal = budgetReference.last?.value ?? 0
+        let budgetReferenceTotal = budgetActual.indices.last.map { budgetReference[$0].value } ?? 0
 
         let averagePoints = snapshot.threeMonthAverage.points.map { point in
             DailyComparisonPoint(

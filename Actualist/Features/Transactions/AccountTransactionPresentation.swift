@@ -369,6 +369,12 @@ extension ActualTransaction {
     }
 }
 
+enum TransactionAmountPresentation {
+    static func shouldHighlightAsIncome(amount: Int?, preferenceEnabled: Bool) -> Bool {
+        preferenceEnabled && (amount ?? 0) > 0
+    }
+}
+
 struct TransactionRow: View {
     @Environment(\.actualistDensity) private var density
 
@@ -377,6 +383,7 @@ struct TransactionRow: View {
     let categoryNames: [String]
     let accountName: String?
     let isPrivacyModeEnabled: Bool
+    let highlightsIncomeAmounts: Bool
     let isNew: Bool
     let showsBottomSeparator: Bool
 
@@ -386,6 +393,7 @@ struct TransactionRow: View {
         categoryNames: [String],
         accountName: String? = nil,
         isPrivacyModeEnabled: Bool = false,
+        highlightsIncomeAmounts: Bool = false,
         isNew: Bool = false,
         showsBottomSeparator: Bool = true
     ) {
@@ -394,6 +402,7 @@ struct TransactionRow: View {
         self.categoryNames = categoryNames
         self.accountName = accountName
         self.isPrivacyModeEnabled = isPrivacyModeEnabled
+        self.highlightsIncomeAmounts = highlightsIncomeAmounts
         self.isNew = isNew
         self.showsBottomSeparator = showsBottomSeparator
     }
@@ -414,7 +423,7 @@ struct TransactionRow: View {
             HStack(alignment: .center, spacing: 7) {
                 Text(amountText)
                     .font(ActualistTypography.transactionAmount(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
+                    .foregroundStyle(amountColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
 
@@ -512,6 +521,13 @@ struct TransactionRow: View {
             seed: "transaction-amount-\(transaction.rowID)",
             maximumDollars: 275
         )
+    }
+
+    private var amountColor: Color {
+        TransactionAmountPresentation.shouldHighlightAsIncome(
+            amount: transaction.amount,
+            preferenceEnabled: highlightsIncomeAmounts
+        ) ? ActualistTheme.incomeTransactionAmount : ActualistTheme.primaryText
     }
 
     private var displayCategoryNames: [String] {

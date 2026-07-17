@@ -29,43 +29,48 @@ struct ReportsTests {
         let database = try BudgetDatabase(databaseURL: makeReportsFixture())
         let snapshot = try await database.fetchReportsDashboard(range: reportRange)
 
-        #expect(snapshot.netWorth.balance == 1_448_300)
-        #expect(snapshot.netWorth.change == 1_328_300)
-        #expect(snapshot.netWorth.points.first?.dayID == "2026-02-01")
-        #expect(snapshot.netWorth.points.last?.dayID == "2026-07-16")
+        #expect(snapshot.netWorth.balance == 1_545_799)
+        #expect(snapshot.netWorth.change == 1_425_799)
+        #expect(snapshot.netWorth.points.count == 7)
+        #expect(snapshot.netWorth.points.first?.dayID == "2026-01-01")
+        #expect(snapshot.netWorth.points.last?.dayID == "2026-07-01")
 
-        #expect(snapshot.cashFlow.income == 500_000)
-        #expect(snapshot.cashFlow.expenses == 21_000)
-        #expect(snapshot.cashFlow.net == 479_000)
-        #expect(snapshot.cashFlow.uncategorized == -700)
+        #expect(snapshot.cashFlow.income == 503_500)
+        #expect(snapshot.cashFlow.expenses == 13_700)
+        #expect(snapshot.cashFlow.net == 489_800)
+        #expect(snapshot.cashFlow.uncategorized == 800)
 
         #expect(snapshot.monthComparison.comparisonMonth == "2026-06")
-        #expect(snapshot.monthComparison.variance == 109_000)
-        #expect(snapshot.monthComparison.points.count == 16)
+        #expect(snapshot.monthComparison.variance == -9_800)
+        #expect(snapshot.monthComparison.points.count == 28)
+        #expect(snapshot.monthComparison.points[15].current == 20_200)
+        #expect(snapshot.monthComparison.points[16].current == nil)
+        #expect(snapshot.monthComparison.points.last?.comparison == 30_000)
 
-        #expect(snapshot.budgetOverview.budgetedExpenses == 60_000)
-        #expect(snapshot.budgetOverview.actualExpenses == 21_000)
-        #expect(snapshot.budgetOverview.variance == -39_000)
-        #expect(snapshot.budgetOverview.budgetPoints.count == 31)
+        #expect(snapshot.budgetOverview.budgetedExpenses == 30_968)
+        #expect(snapshot.budgetOverview.actualExpenses == 20_200)
+        #expect(snapshot.budgetOverview.variance == -10_768)
+        #expect(snapshot.budgetOverview.budgetPoints.count == 28)
+        #expect(snapshot.budgetOverview.budgetPoints.last?.value == 60_000)
         #expect(snapshot.budgetOverview.actualPoints.count == 16)
 
-        #expect(snapshot.threeMonthAverage.currentExpenses == 21_000)
+        #expect(snapshot.threeMonthAverage.currentExpenses == 20_200)
         #expect(snapshot.threeMonthAverage.averageExpenses == 20_000)
-        #expect(snapshot.threeMonthAverage.variance == 1_000)
-        #expect(snapshot.threeMonthAverage.points.count == 31)
-        #expect(snapshot.threeMonthAverage.points[15].current == 21_000)
+        #expect(snapshot.threeMonthAverage.variance == 200)
+        #expect(snapshot.threeMonthAverage.points.count == 28)
+        #expect(snapshot.threeMonthAverage.points[15].current == 20_200)
         #expect(snapshot.threeMonthAverage.points[16].current == nil)
         #expect(snapshot.threeMonthAverage.points.last?.comparison == 20_000)
 
         #expect(snapshot.transactionCalendar.map(\.month) == ["2026-05", "2026-06", "2026-07"])
         #expect(snapshot.transactionCalendar[0].income == 300_000)
         #expect(snapshot.transactionCalendar[0].expenses == 20_000)
-        #expect(snapshot.transactionCalendar[1].income == 400_000)
-        #expect(snapshot.transactionCalendar[1].expenses == 30_000)
-        #expect(snapshot.transactionCalendar[2].income == 500_000)
-        #expect(snapshot.transactionCalendar[2].expenses == 21_000)
+        #expect(snapshot.transactionCalendar[1].income == 405_000)
+        #expect(snapshot.transactionCalendar[1].expenses == 35_000)
+        #expect(snapshot.transactionCalendar[2].income == 603_499)
+        #expect(snapshot.transactionCalendar[2].expenses == 17_700)
         #expect(snapshot.transactionCalendar[2].days.count == 31)
-        #expect(snapshot.transactionCalendar[2].days[19].income == 0)
+        #expect(snapshot.transactionCalendar[2].days[19].income == 99_999)
     }
 
     @Test func storeCachesReportsAndInvalidatesThemExplicitly() async throws {
@@ -227,7 +232,7 @@ struct ReportsTests {
         )
 
         #expect(viewModel.cashFlowTone == .positive)
-        #expect(viewModel.monthComparisonTone == .positive)
+        #expect(viewModel.monthComparisonTone == .danger)
         #expect(viewModel.budgetOverviewTone == .positive)
         #expect(viewModel.threeMonthAverageTone == .danger)
     }
@@ -246,8 +251,28 @@ struct ReportsTests {
 
         let snapshot = try await database.fetchReportsDashboard(range: reportRange)
 
-        #expect(snapshot.netWorth.points.count == 166)
+        #expect(snapshot.netWorth.points.count == 7)
         #expect(started.duration(to: clock.now) < .seconds(5))
+    }
+
+    @Test func monthlySpendingReportsFoldTheEndOfMonthIntoActualsDay28Bucket() async throws {
+        let database = try BudgetDatabase(databaseURL: makeReportsFixture())
+        let range = ReportDateRange(
+            anchorMonth: "2026-07",
+            startDay: "2026-02-01",
+            endDay: "2026-07-31"
+        )
+
+        let snapshot = try await database.fetchReportsDashboard(range: range)
+
+        #expect(snapshot.monthComparison.points.count == 28)
+        #expect(snapshot.monthComparison.points.last?.current == 24_200)
+        #expect(snapshot.budgetOverview.actualPoints.count == 28)
+        #expect(snapshot.budgetOverview.actualPoints.last?.dayID == "2026-07-28")
+        #expect(snapshot.budgetOverview.actualPoints.last?.value == 24_200)
+        #expect(snapshot.budgetOverview.budgetedExpenses == 60_000)
+        #expect(snapshot.threeMonthAverage.points.count == 28)
+        #expect(snapshot.threeMonthAverage.points.last?.current == 24_200)
     }
 
     private var reportRange: ReportDateRange {
@@ -319,6 +344,16 @@ struct ReportsTests {
                     isParent INTEGER,
                     transferred_id TEXT
                 );
+                CREATE TABLE dashboard (
+                    id TEXT PRIMARY KEY,
+                    type TEXT,
+                    width INTEGER,
+                    height INTEGER,
+                    x INTEGER,
+                    y INTEGER,
+                    meta TEXT,
+                    tombstone INTEGER
+                );
 
                 INSERT INTO accounts VALUES ('checking', 'Checking', 0, 0, 0);
                 INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0);
@@ -336,12 +371,19 @@ struct ReportsTests {
                 INSERT INTO category_mapping VALUES ('offbudget-transfer', 'offbudget-transfer');
 
                 INSERT INTO payees VALUES ('same-transfer', 'Savings', 'savings');
+                INSERT INTO payees VALUES ('checking-transfer', 'Checking', 'checking');
                 INSERT INTO payees VALUES ('offbudget-payee', 'Brokerage', 'brokerage');
 
-                INSERT INTO zero_budgets VALUES (202607, 'salary', 999999, 0);
+                INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 0);
                 INSERT INTO zero_budgets VALUES (202607, 'groceries', 50000, 0);
                 INSERT INTO zero_budgets VALUES (202607, 'hidden-expense', 10000, 0);
-                INSERT INTO zero_budgets VALUES (202607, 'deleted-category', 77777, 0);
+                INSERT INTO zero_budgets VALUES (202607, 'deleted-category', 0, 0);
+
+                INSERT INTO dashboard VALUES (
+                    'calendar-widget', 'calendar-card', 8, 4, 0, 8,
+                    '{"conditions":[{"field":"transfer","op":"is","value":false}],"conditionsOp":"and"}',
+                    0
+                );
 
                 INSERT INTO transactions VALUES ('start-checking', 'checking', 20260101, 100000, NULL, NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('start-closed', 'closed', 20260101, 20000, NULL, NULL, 0, NULL, 0, NULL);
@@ -352,12 +394,14 @@ struct ReportsTests {
                 INSERT INTO transactions VALUES ('may-expense', 'checking', 20260505, -20000, 'groceries', NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('jun-income', 'checking', 20260601, 400000, 'salary', NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('jun-expense', 'checking', 20260605, -30000, 'groceries', NULL, 0, NULL, 0, NULL);
+                INSERT INTO transactions VALUES ('jun-unpaired-transfer-in', 'savings', 20260625, 5000, NULL, 'same-transfer', 0, NULL, 0, NULL);
+                INSERT INTO transactions VALUES ('jun-unpaired-transfer-out', 'checking', 20260626, -5000, NULL, 'same-transfer', 0, NULL, 0, NULL);
 
                 INSERT INTO transactions VALUES ('jul-income', 'checking', 20260701, 500000, 'salary', NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('jul-grocery', 'checking', 20260702, -10000, 'groceries', NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('jul-refund', 'checking', 20260703, 2000, 'groceries', NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('same-transfer-out', 'checking', 20260704, -5000, NULL, 'same-transfer', 0, NULL, 0, 'same-transfer-in');
-                INSERT INTO transactions VALUES ('same-transfer-in', 'savings', 20260704, 5000, NULL, NULL, 0, NULL, 0, 'same-transfer-out');
+                INSERT INTO transactions VALUES ('same-transfer-in', 'savings', 20260704, 5000, NULL, 'checking-transfer', 0, NULL, 0, 'same-transfer-out');
                 INSERT INTO transactions VALUES ('offbudget-transfer-out', 'checking', 20260705, -10000, 'offbudget-transfer', 'offbudget-payee', 0, NULL, 0, 'offbudget-transfer-in');
                 INSERT INTO transactions VALUES ('offbudget-transfer-in', 'brokerage', 20260705, 10000, NULL, NULL, 0, NULL, 0, 'offbudget-transfer-out');
 
@@ -366,11 +410,13 @@ struct ReportsTests {
                 INSERT INTO transactions VALUES ('split-hidden', 'checking', 20260706, -2000, 'hidden-expense', NULL, 0, 'split-parent', 0, NULL);
 
                 INSERT INTO transactions VALUES ('uncategorized', 'checking', 20260707, -700, NULL, NULL, 0, NULL, 0, NULL);
+                INSERT INTO transactions VALUES ('uncategorized-inflow', 'checking', 20260707, 1500, NULL, NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('tombstoned', 'checking', 20260708, -999, 'groceries', NULL, 1, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('dead-parent', 'checking', 20260708, -777, NULL, NULL, 1, NULL, 1, NULL);
                 INSERT INTO transactions VALUES ('dead-child', 'checking', 20260708, -777, 'groceries', NULL, 0, 'dead-parent', 0, NULL);
                 INSERT INTO transactions VALUES ('deleted-account-row', 'deleted', 20260709, 99999, 'salary', NULL, 0, NULL, 0, NULL);
                 INSERT INTO transactions VALUES ('future-row', 'checking', 20260720, 99999, 'salary', NULL, 0, NULL, 0, NULL);
+                INSERT INTO transactions VALUES ('jul-late-expense', 'checking', 20260731, -4000, 'groceries', NULL, 0, NULL, 0, NULL);
                 """)
 
             if extraTransactionCount > 0 {

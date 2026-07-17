@@ -156,6 +156,7 @@ struct ReportDailyActivity: Equatable, Sendable {
     var income = 0
     var expenses = 0
     var uncategorized = 0
+    var spending = 0
 
     var net: Int { income - expenses }
 }
@@ -248,6 +249,19 @@ enum ReportCalendar {
                 break
             }
             cursor = next
+        }
+        return result
+    }
+
+    static func monthIDs(from startMonth: String, through endMonth: String) -> [String] {
+        guard startMonth <= endMonth else { return [] }
+        var result: [String] = []
+        var month = startMonth
+        while month <= endMonth {
+            result.append(month)
+            let next = shiftedMonth(month, by: 1)
+            guard next > month else { break }
+            month = next
         }
         return result
     }

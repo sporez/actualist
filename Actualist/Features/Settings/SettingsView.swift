@@ -168,6 +168,15 @@ struct SettingsView: View {
 
                     ThemePreviewStrip(theme: appState.settings.theme)
 
+                    Toggle(isOn: greenIncomeTransactionAmountsSelection) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Green Income Amounts")
+                            Text("Show positive transaction amounts in green.")
+                                .font(.caption)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+                    }
+
                     VStack(alignment: .leading, spacing: 10) {
                         LabeledContent("Display Size") {
                             Text(appState.settings.displayDensity.title)
@@ -456,6 +465,14 @@ struct SettingsView: View {
             appState.settings.theme
         } set: { theme in
             appState.updateTheme(theme)
+        }
+    }
+
+    private var greenIncomeTransactionAmountsSelection: Binding<Bool> {
+        Binding {
+            appState.settings.greenIncomeTransactionAmountsEnabled
+        } set: { isEnabled in
+            appState.updateGreenIncomeTransactionAmountsEnabled(isEnabled)
         }
     }
 

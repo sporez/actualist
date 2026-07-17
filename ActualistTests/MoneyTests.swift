@@ -3,6 +3,14 @@ import Testing
 @testable import Actualist
 
 struct MoneyTests {
+    @Test func incomeAmountHighlightingRequiresAnEnabledPreferenceAndPositiveAmount() {
+        #expect(TransactionAmountPresentation.shouldHighlightAsIncome(amount: 1, preferenceEnabled: true))
+        #expect(!TransactionAmountPresentation.shouldHighlightAsIncome(amount: 0, preferenceEnabled: true))
+        #expect(!TransactionAmountPresentation.shouldHighlightAsIncome(amount: -1, preferenceEnabled: true))
+        #expect(!TransactionAmountPresentation.shouldHighlightAsIncome(amount: 1, preferenceEnabled: false))
+        #expect(!TransactionAmountPresentation.shouldHighlightAsIncome(amount: nil, preferenceEnabled: true))
+    }
+
     @Test func formatsActualMinorUnitsAsCurrency() {
         #expect(123456.actualMoney.formatted().contains("1,234.56"))
     }

@@ -93,6 +93,11 @@ enum ActualistTheme {
     static var secondaryText: Color { current.secondaryText }
     static var separator: Color { current.separator }
     static var chromeForeground: Color { current.chromeForeground }
+    static var incomeTransactionAmount: Color {
+        activeOption.colorScheme == .light
+            ? Color(hex: 0x247A3D)
+            : Color(hex: 0x63D68A)
+    }
 
     static func activate(_ option: ActualistThemeOption) {
         activeOption = option

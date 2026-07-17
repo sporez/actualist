@@ -168,6 +168,7 @@ struct UncategorizedTransactionsView: View {
                     payeeName: displayPayeeName(for: transaction),
                     categoryNames: displayCategoryNames(for: transaction),
                     isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                    highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
                     showsBottomSeparator: showsBottomSeparator
                 )
 

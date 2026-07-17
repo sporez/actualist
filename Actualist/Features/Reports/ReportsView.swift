@@ -198,6 +198,13 @@ private struct NetWorthReportCard: View {
     let snapshot: ReportsDashboardSnapshot
     let viewModel: ReportsViewModel
 
+    private var yDomain: ClosedRange<Int> {
+        let values = snapshot.netWorth.points.map(\.value)
+        let minimum = values.min() ?? 0
+        let maximum = values.max() ?? 0
+        return minimum == maximum ? (minimum - 1)...(maximum + 1) : minimum...maximum
+    }
+
     var body: some View {
         ReportCard(
             title: "Net Worth",
@@ -216,23 +223,19 @@ private struct NetWorthReportCard: View {
                     x: .value("Date", point.date),
                     y: .value("Balance", point.value)
                 )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [ActualistTheme.positive.opacity(0.36), ActualistTheme.positive.opacity(0.05)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .interpolationMethod(.monotone)
+                .foregroundStyle(ActualistTheme.positive.opacity(0.20))
 
                 LineMark(
                     x: .value("Date", point.date),
                     y: .value("Balance", point.value)
                 )
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.monotone)
                 .foregroundStyle(ActualistTheme.positive)
-                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             }
-            .reportChartAxes(viewModel: viewModel, showsDates: true)
+            .actualCompactReportChartStyle()
+            .chartYScale(domain: yDomain)
             .frame(height: 190)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(viewModel.netWorthAccessibility)
@@ -254,7 +257,8 @@ private struct CashFlowReportCard: View {
             Chart {
                 BarMark(
                     x: .value("Type", "Income"),
-                    y: .value("Amount", snapshot.cashFlow.income)
+                    y: .value("Amount", snapshot.cashFlow.income),
+                    width: .fixed(14)
                 )
                 .foregroundStyle(ActualistTheme.positive)
                 .cornerRadius(4)
@@ -266,7 +270,8 @@ private struct CashFlowReportCard: View {
 
                 BarMark(
                     x: .value("Type", "Expenses"),
-                    y: .value("Amount", snapshot.cashFlow.expenses)
+                    y: .value("Amount", snapshot.cashFlow.expenses),
+                    width: .fixed(14)
                 )
                 .foregroundStyle(ActualistTheme.danger)
                 .cornerRadius(4)
@@ -276,7 +281,7 @@ private struct CashFlowReportCard: View {
                         .foregroundStyle(ActualistTheme.danger)
                 }
             }
-            .reportChartAxes(viewModel: viewModel, showsDates: false)
+            .actualCompactReportChartStyle()
             .frame(height: 180)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(viewModel.cashFlowAccessibility)
@@ -303,34 +308,38 @@ private struct MonthComparisonReportCard: View {
         ) {
             Chart(snapshot.monthComparison.points) { point in
                 if let current = point.current {
-                    AreaMark(x: .value("Day", point.day), y: .value("Current", current))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [ActualistTheme.positive.opacity(0.30), ActualistTheme.positive.opacity(0.04)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                    AreaMark(
+                        x: .value("Day", point.day),
+                        y: .value("Current", current),
+                        series: .value("Series", "Current"),
+                        stacking: .unstacked
+                    )
+                        .foregroundStyle(ActualistTheme.positive.opacity(0.20))
                     LineMark(
                         x: .value("Day", point.day),
                         y: .value("Current", current),
                         series: .value("Series", "Current")
                     )
-                        .interpolationMethod(.catmullRom)
                         .foregroundStyle(ActualistTheme.positive)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                 }
 
+                AreaMark(
+                    x: .value("Day", point.day),
+                    y: .value("Previous", point.comparison),
+                    series: .value("Series", "Previous"),
+                    stacking: .unstacked
+                )
+                    .foregroundStyle(ActualistTheme.secondaryText.opacity(0.20))
                 LineMark(
                     x: .value("Day", point.day),
                     y: .value("Previous", point.comparison),
                     series: .value("Series", "Previous")
                 )
-                    .interpolationMethod(.catmullRom)
                     .foregroundStyle(ActualistTheme.secondaryText.opacity(0.62))
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                    .lineStyle(StrokeStyle(lineWidth: 3, dash: [10, 10]))
             }
-            .reportDayComparisonAxes(viewModel: viewModel)
+            .actualCompactReportChartStyle()
             .frame(height: 190)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(viewModel.monthComparisonAccessibility)
@@ -351,33 +360,39 @@ private struct BudgetOverviewReportCard: View {
         ) {
             Chart {
                 ForEach(snapshot.budgetOverview.actualPoints) { point in
-                    AreaMark(x: .value("Date", point.date), y: .value("Actual", point.value))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [ActualistTheme.positive.opacity(0.30), ActualistTheme.positive.opacity(0.04)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                    AreaMark(
+                        x: .value("Date", point.date),
+                        y: .value("Actual", point.value),
+                        series: .value("Series", "Actual"),
+                        stacking: .unstacked
+                    )
+                        .foregroundStyle(ActualistTheme.positive.opacity(0.20))
                     LineMark(
                         x: .value("Date", point.date),
                         y: .value("Actual", point.value),
                         series: .value("Series", "Actual")
                     )
                         .foregroundStyle(ActualistTheme.positive)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                 }
                 ForEach(snapshot.budgetOverview.budgetPoints) { point in
+                    AreaMark(
+                        x: .value("Date", point.date),
+                        y: .value("Budgeted", point.value),
+                        series: .value("Series", "Budgeted"),
+                        stacking: .unstacked
+                    )
+                        .foregroundStyle(ActualistTheme.secondaryText.opacity(0.20))
                     LineMark(
                         x: .value("Date", point.date),
                         y: .value("Budgeted", point.value),
                         series: .value("Series", "Budgeted")
                     )
                         .foregroundStyle(ActualistTheme.secondaryText.opacity(0.58))
-                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                        .lineStyle(StrokeStyle(lineWidth: 3, dash: [10, 10]))
                 }
             }
-            .reportChartAxes(viewModel: viewModel, showsDates: true, showsDayOfMonth: true)
+            .actualCompactReportChartStyle()
             .frame(height: 190)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(viewModel.budgetOverviewAccessibility)
@@ -398,31 +413,37 @@ private struct ThreeMonthAverageReportCard: View {
         ) {
             Chart(snapshot.threeMonthAverage.points) { point in
                 if let current = point.current {
-                    AreaMark(x: .value("Day", point.day), y: .value("Current", current))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [ActualistTheme.positive.opacity(0.30), ActualistTheme.positive.opacity(0.04)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                    AreaMark(
+                        x: .value("Day", point.day),
+                        y: .value("Current", current),
+                        series: .value("Series", "Current"),
+                        stacking: .unstacked
+                    )
+                        .foregroundStyle(ActualistTheme.positive.opacity(0.20))
                     LineMark(
                         x: .value("Day", point.day),
                         y: .value("Current", current),
                         series: .value("Series", "Current")
                     )
                         .foregroundStyle(ActualistTheme.positive)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
                 }
+                AreaMark(
+                    x: .value("Day", point.day),
+                    y: .value("Average", point.comparison),
+                    series: .value("Series", "Average"),
+                    stacking: .unstacked
+                )
+                    .foregroundStyle(ActualistTheme.secondaryText.opacity(0.20))
                 LineMark(
                     x: .value("Day", point.day),
                     y: .value("Average", point.comparison),
                     series: .value("Series", "Average")
                 )
                     .foregroundStyle(ActualistTheme.secondaryText.opacity(0.58))
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                    .lineStyle(StrokeStyle(lineWidth: 3, dash: [10, 10]))
             }
-            .reportDayComparisonAxes(viewModel: viewModel)
+            .actualCompactReportChartStyle()
             .frame(height: 190)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(viewModel.threeMonthAverageAccessibility)
@@ -526,73 +547,10 @@ private extension ReportValueTone {
 }
 
 private extension View {
-    func reportChartAxes(
-        viewModel: ReportsViewModel,
-        showsDates: Bool,
-        showsDayOfMonth: Bool = false
-    ) -> some View {
+    func actualCompactReportChartStyle() -> some View {
         self
             .chartLegend(.hidden)
-            .chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                    AxisGridLine().foregroundStyle(ActualistTheme.separator)
-                    AxisValueLabel(anchor: .trailing) {
-                        if let amount = value.as(Int.self) {
-                            Text(viewModel.axisLabel(amount))
-                                .font(.caption2)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
-                    }
-                }
-            }
-            .chartXAxis {
-                if showsDates {
-                    AxisMarks(values: .automatic(desiredCount: 3)) { value in
-                        if showsDayOfMonth {
-                            AxisValueLabel(format: .dateTime.day(), anchor: .top)
-                                .font(.caption2)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        } else {
-                            AxisValueLabel(format: .dateTime.month(.abbreviated), anchor: .top)
-                                .font(.caption2)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
-                    }
-                } else {
-                    AxisMarks { _ in
-                        AxisValueLabel(anchor: .top)
-                            .font(.caption2)
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                }
-            }
-    }
-
-    func reportDayComparisonAxes(viewModel: ReportsViewModel) -> some View {
-        self
-            .chartLegend(.hidden)
-            .chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                    AxisGridLine().foregroundStyle(ActualistTheme.separator)
-                    AxisValueLabel(anchor: .trailing) {
-                        if let amount = value.as(Int.self) {
-                            Text(viewModel.axisLabel(amount))
-                                .font(.caption2)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
-                    }
-                }
-            }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                    AxisValueLabel(anchor: .top) {
-                        if let day = value.as(Int.self) {
-                            Text("\(day)")
-                                .font(.caption2)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
-                    }
-                }
-            }
+            .chartYAxis(.hidden)
+            .chartXAxis(.hidden)
     }
 }

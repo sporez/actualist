@@ -684,6 +684,7 @@ struct AccountTransactionsView: View {
                 categoryNames: displayCategoryNames(for: transaction),
                 accountName: displayAccountName(for: transaction),
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
                 isNew: transaction.id.map { pendingNewTransactionIDs.contains($0) } ?? false,
                 showsBottomSeparator: showsBottomSeparator
             )

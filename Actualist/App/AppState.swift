@@ -257,6 +257,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateGreenIncomeTransactionAmountsEnabled(_ isEnabled: Bool) {
+        settings.greenIncomeTransactionAmountsEnabled = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateRandomizedDisplayValuesEnabled(_ isEnabled: Bool) {
         settings.randomizedDisplayValuesEnabled = isEnabled
         settingsStore.save(settings)

@@ -26,6 +26,7 @@ struct AppSettings: Codable, Equatable {
     var selectedLocalFirstGroupID: String?
     var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
+    var greenIncomeTransactionAmountsEnabled: Bool = false
     var randomizedDisplayValuesEnabled: Bool = false
     var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
@@ -47,6 +48,7 @@ struct AppSettings: Codable, Equatable {
         selectedLocalFirstGroupID: String? = nil,
         theme: ActualistThemeOption = .actualPurple,
         displayDensity: ActualistDisplayDensity = .compact,
+        greenIncomeTransactionAmountsEnabled: Bool = false,
         randomizedDisplayValuesEnabled: Bool = false,
         enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
@@ -65,6 +67,7 @@ struct AppSettings: Codable, Equatable {
         self.selectedLocalFirstGroupID = selectedLocalFirstGroupID
         self.theme = theme
         self.displayDensity = displayDensity
+        self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
         self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
@@ -86,6 +89,10 @@ struct AppSettings: Codable, Equatable {
         selectedLocalFirstGroupID = try container.decodeIfPresent(String.self, forKey: .selectedLocalFirstGroupID)
         theme = try container.decodeIfPresent(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
         displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
+        greenIncomeTransactionAmountsEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .greenIncomeTransactionAmountsEnabled
+        ) ?? false
         randomizedDisplayValuesEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .randomizedDisplayValuesEnabled

@@ -84,6 +84,17 @@ struct LocalFirstActualStoreTests {
         #expect(settings.enabledExperimentalFeatures.isEmpty)
         #expect(settings.reportCardOrder == ReportCardOrderPreference.defaultOrder)
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
+        #expect(!settings.greenIncomeTransactionAmountsEnabled)
+    }
+
+    @Test func greenIncomeTransactionAmountsPreferencePersists() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+        let settings = AppSettings(greenIncomeTransactionAmountsEnabled: true)
+
+        store.save(settings)
+
+        #expect(store.load().greenIncomeTransactionAmountsEnabled)
     }
 
     @Test func localFirstSyncDiagnosticsPersistInSettings() async throws {
