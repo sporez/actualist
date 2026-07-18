@@ -47,6 +47,9 @@ struct CategoryMonthDetailsView: View {
             }
         }
         .task { await refreshSummary() }
+        .onChange(of: appState.localDataRevision) {
+            Task { await refreshSummary() }
+        }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -143,9 +146,8 @@ struct AccountTransactionsView: View {
 
     @FocusState private var isSearchFieldFocused: Bool
 
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var isLoadingOlder = false
-    @State private var isSyncingBank = false
     @State private var isSearchFieldVisible = false
     @State private var isSearching = false
     @State private var searchText = ""
@@ -379,26 +381,22 @@ struct AccountTransactionsView: View {
                         } label: {
                             Label("Reconcile", systemImage: "checkmark.seal")
                         }
-
-                        Button {
-                            Task { await syncBank() }
-                        } label: {
-                            Label("Sync Bank", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        .disabled(isSyncingBank)
                     } label: {
                         Image(systemName: "ellipsis")
                     }
                     .actualistToolbarGlassButton()
                     .accessibilityLabel("Account Actions")
-                    .disabled(isSyncingBank || appState.capabilities.isReadOnly)
+                    .disabled(appState.capabilities.isReadOnly)
                 }
             }
         }
         .task {
-            await load()
+            await loadLocal()
         }
-        .refreshable { await load() }
+        .refreshable { await refresh() }
+        .onChange(of: appState.localDataRevision) {
+            Task { await loadLocal() }
+        }
         .onChange(of: searchText) { _, updated in
             scheduleSearch(updated)
         }
@@ -423,7 +421,7 @@ struct AccountTransactionsView: View {
                 prefilledPayeeName: presentation.payeeName,
                 prefilledCategoryName: presentation.categoryName ?? scope.prefilledCategoryName
             ) {
-                Task { await load() }
+                Task { await loadLocal() }
             }
                 .environment(appState)
         }
@@ -867,8 +865,9 @@ struct AccountTransactionsView: View {
         }
     }
 
-    private func load() async {
+    private func loadLocal() async {
         guard let budgetID else {
+            isLoading = false
             return
         }
 
@@ -893,46 +892,19 @@ struct AccountTransactionsView: View {
                 )
             }
             isLoading = false
-
-            await appState.refreshLocalFirstData(budgetID: budgetID)
-            switch scope {
-            case .account(let account):
-                try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
-            case .spending:
-                try await repository.refreshSpendingTransactions(budgetID: budgetID)
-            case .category(let details):
-                try await repository.refreshCategoryTransactions(
-                    budgetID: budgetID,
-                    categoryID: details.category.id,
-                    month: details.month
-                )
-            }
-            onChanged()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = loaded == nil ? error.localizedDescription : nil
         }
         isLoading = false
     }
 
-    private func syncBank() async {
-        guard let budgetID,
-              let account = scope.account,
-              !isSyncingBank,
-              appState.capabilities.canBankSync,
-              let repository = appState.makeAccountRepository() else {
+    private func refresh() async {
+        guard let budgetID else {
             return
         }
-
-        isSyncingBank = true
-        isLoading = true
-        errorMessage = nil
-        do {
-            _ = try await repository.syncBankAccountAndRefresh(budgetID: budgetID, accountID: account.id)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
-        isSyncingBank = false
+        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+        await loadLocal()
+        onChanged()
     }
 
     private func loadOlder() async {

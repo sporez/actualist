@@ -1595,6 +1595,82 @@ struct LocalFirstActualStoreTests {
         #expect(nonEmptyFlushes == [pendingCount])
     }
 
+    @Test func appStateConcurrentManualRefreshesJoinOneSync() async throws {
+        let transport = RecordingSyncTransport(delayNanoseconds: 80_000_000)
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+        let appState = try makeAppState(for: bundle)
+
+        let firstRefresh = Task { @MainActor in
+            await appState.refreshLocalFirstData(budgetID: "group-1", force: true)
+        }
+        let secondRefresh = Task { @MainActor in
+            await appState.refreshLocalFirstData(budgetID: "group-1", force: true)
+        }
+
+        #expect(await firstRefresh.value)
+        #expect(await secondRefresh.value)
+        #expect(await transport.messageCounts() == [0])
+        #expect(appState.localDataRevision == 1)
+        #expect(appState.connectionStatus == .online)
+    }
+
+    @Test func appStateAutomaticallySyncsOncePerForegroundSession() async throws {
+        let transport = RecordingSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+        let appState = try makeAppState(for: bundle)
+
+        await appState.beginForegroundSession()
+        await appState.beginForegroundSession()
+
+        #expect(appState.setupPhase == .ready)
+        #expect(await transport.messageCounts() == [0])
+
+        appState.endForegroundSession()
+        await appState.beginForegroundSession()
+
+        #expect(await transport.messageCounts() == [0, 0])
+    }
+
+    @Test func appStateKeepsRestoredSQLiteDataVisibleWhenForegroundSyncFails() async throws {
+        let transport = RecordingSyncTransport(shouldFail: true)
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+        let appState = try makeAppState(for: bundle)
+
+        #expect(appState.setupPhase == .restoringBudget)
+
+        await appState.beginForegroundSession()
+
+        let loaded = try await bundle.store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+        #expect(appState.setupPhase == .ready)
+        #expect(appState.connectionStatus == .offline)
+        #expect(appState.localDataRevision == 1)
+        #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.id == "groceries" })
+    }
+
+    @Test func appStateRestoresSelectedSQLiteBudgetWithoutSyncCredentials() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let appState = try makeAppState(for: bundle)
+
+        #expect(appState.setupPhase == .restoringBudget)
+        #expect(appState.connectionStatus == .offline)
+
+        await appState.beginForegroundSession()
+
+        let loaded = try await bundle.store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+        #expect(appState.setupPhase == .ready)
+        #expect(appState.connectionStatus == .offline)
+        #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.id == "groceries" })
+    }
+
     @Test func moveMoneyLocallyMovesBudgetBetweenCategories() async throws {
         let store = try await makeOpenedWritableStore()
         var didMove = false
@@ -2485,6 +2561,25 @@ struct LocalFirstActualStoreTests {
 
     private func makeOpenedWritableStore() async throws -> LocalFirstActualStore {
         try await makeOpenedWritableStoreBundle().store
+    }
+
+    private func makeAppState(for bundle: OpenedWritableStoreBundle) throws -> AppState {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        settingsStore.save(
+            AppSettings(
+                localFirstServerURLString: "https://sync.example",
+                selectedBudgetID: "group-1",
+                selectedBudgetName: "Writable Budget",
+                selectedLocalFirstFileID: "file-1",
+                selectedLocalFirstGroupID: "group-1"
+            )
+        )
+        return AppState(
+            settingsStore: settingsStore,
+            keychain: bundle.keychain,
+            localFirstStore: bundle.store
+        )
     }
 
     private func makeOpenedWritableStoreBundle(

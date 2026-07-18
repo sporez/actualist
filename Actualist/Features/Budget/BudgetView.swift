@@ -148,7 +148,7 @@ struct BudgetView: View {
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         Menu {
                             Button {
-                                Task { await viewModel.load(using: appState) }
+                                Task { await viewModel.refresh(using: appState) }
                             } label: {
                                 Label("Refresh", systemImage: "arrow.clockwise")
                             }
@@ -185,7 +185,10 @@ struct BudgetView: View {
                     }
                 }
                 .task { await viewModel.load(using: appState) }
-                .refreshable { await viewModel.load(using: appState) }
+                .refreshable { await viewModel.refresh(using: appState) }
+                .onChange(of: appState.localDataRevision) {
+                    Task { await viewModel.refreshSelectedMonth(using: appState) }
+                }
                 .onChange(of: appState.selectedTab) { _, tab in
                     // Edits on other tabs invalidate the cached month; revalidate when the
                     // Budget tab becomes active so its numbers are never stale.
@@ -528,7 +531,7 @@ struct BudgetView: View {
                 Image(systemName: "list.bullet.rectangle.portrait")
                     .font(.title)
                     .foregroundStyle(ActualistTheme.accent)
-                Text(viewModel.errorMessage ?? "Budget data will appear after Actualist connects.")
+                Text(viewModel.errorMessage ?? "No local budget data is available for this month.")
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .multilineTextAlignment(.center)

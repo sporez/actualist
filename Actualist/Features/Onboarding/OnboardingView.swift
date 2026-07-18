@@ -145,6 +145,7 @@ struct BudgetPickerView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                     .actualistToolbarGlassButton()
+                    .accessibilityLabel("Reload Server Budgets")
                 }
             }
             .task {

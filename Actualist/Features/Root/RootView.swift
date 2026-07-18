@@ -12,6 +12,13 @@ struct RootView: View {
                 OnboardingView()
             case .selectingBudget:
                 BudgetPickerView()
+            case .restoringBudget:
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Opening local budget")
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .ready:
                 MainTabView()
             }

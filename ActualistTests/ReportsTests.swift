@@ -106,26 +106,22 @@ struct ReportsTests {
         #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
     }
 
-    @Test func viewModelUsesCacheThenLocalRemoteAndLocalRefresh() async throws {
+    @Test func viewModelUsesCacheThenReadsSQLiteOnceWithoutRemoteWork() async throws {
         let cached = makeSnapshot(netWorth: 100_000)
         let local = makeSnapshot(netWorth: 110_000)
-        let synced = makeSnapshot(netWorth: 125_000)
-        let repository = FakeReportsRepository(cached: cached, refreshed: [local, synced])
+        let repository = FakeReportsRepository(cached: cached, refreshed: [local])
         let viewModel = ReportsViewModel()
-        var remoteRefreshCount = 0
 
         await viewModel.load(
             budgetID: "budget",
             repository: repository,
             privacyModeEnabled: false,
-            now: try reportNow(),
-            refreshRemote: { remoteRefreshCount += 1 }
+            now: try reportNow()
         )
 
-        #expect(repository.refreshCount == 2)
-        #expect(remoteRefreshCount == 1)
-        #expect(viewModel.snapshot == synced)
-        #expect(viewModel.displaySnapshot == synced)
+        #expect(repository.refreshCount == 1)
+        #expect(viewModel.snapshot == local)
+        #expect(viewModel.displaySnapshot == local)
         #expect(viewModel.errorMessage == nil)
         #expect(!viewModel.isLoading)
         #expect(!viewModel.isRefreshing)

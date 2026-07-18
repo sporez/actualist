@@ -10,7 +10,7 @@ final class UncategorizedTransactionsViewModel {
     var payeeNames: [String: String] = [:]
     var transferPayeeIDs: Set<String> = []
     var categoryGroups: [TransactionEditorCategoryGroup] = []
-    var isLoading = false
+    var isLoading = true
     var errorMessage: String?
     var categorizingTransactionID: String?
 
@@ -45,6 +45,15 @@ final class UncategorizedTransactionsViewModel {
         }
 
         await load(budgetID: budgetID, month: month, repository: repository)
+    }
+
+    func refresh(month: String, using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return
+        }
+
+        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+        await load(month: month, using: appState)
     }
 
     func load(

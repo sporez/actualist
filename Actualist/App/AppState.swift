@@ -13,11 +13,18 @@ final class AppState {
     var selectedBudget: ActualBudget?
     var lastErrorMessage: String?
     var connectionStatus: ServerConnectionStatus = .connecting
+    var localDataRevision: UInt64 = 0
     var themeRevision = 0
     var developerUnlockToastMessage: String?
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
+    @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
+    @ObservationIgnored private var foregroundSessionActive = false
+    @ObservationIgnored private var automaticSyncRequestedThisForeground = false
+    @ObservationIgnored private var localFirstRefreshTask: Task<Bool, Never>?
+    @ObservationIgnored private var localFirstRefreshTaskID: UUID?
+    @ObservationIgnored private var localFirstRefreshBudgetID: String?
     private var developerUnlockTapCount = 0
     private var developerUnlockLastTapDate: Date?
     private let developerUnlockRequiredTapCount = 10
@@ -25,30 +32,40 @@ final class AppState {
     private let developerUnlockResetInterval: TimeInterval = 20
 
     /// The native local-first CRDT store: the app's only sync backend and source of truth.
-    @ObservationIgnored lazy var localFirstStore = LocalFirstActualStore(
-        keychain: keychain,
-        syncDebugRecorder: { [weak self] event in
-            self?.recordLocalFirstSyncDebugEvent(event)
+    @ObservationIgnored lazy var localFirstStore: LocalFirstActualStore = {
+        if let providedLocalFirstStore {
+            return providedLocalFirstStore
         }
-    )
+        return LocalFirstActualStore(
+            keychain: keychain,
+            syncDebugRecorder: { [weak self] event in
+                self?.recordLocalFirstSyncDebugEvent(event)
+            }
+        )
+    }()
 
     init(
         settingsStore: AppSettingsStore = .live,
-        keychain: KeychainStore = .actualist
+        keychain: KeychainStore = .actualist,
+        localFirstStore: LocalFirstActualStore? = nil
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
+        self.providedLocalFirstStore = localFirstStore
         let loaded = settingsStore.load()
         self.settings = loaded
         ActualistTheme.activate(loaded.theme)
-        if loaded.localFirstServerURLString.isEmpty
-            || keychain.readActualSyncToken().isEmpty
-            || loaded.selectedBudgetID == nil {
+        if loaded.selectedBudgetID != nil,
+           loaded.selectedLocalFirstFileID != nil {
+            self.setupPhase = .restoringBudget
+            self.connectionStatus = keychain.readActualSyncToken().isEmpty ? .offline : .connecting
+        } else if loaded.localFirstServerURLString.isEmpty
+            || keychain.readActualSyncToken().isEmpty {
             self.setupPhase = .needsConnection
             self.connectionStatus = .offline
         } else {
-            self.setupPhase = .ready
-            self.connectionStatus = .connecting
+            self.setupPhase = .selectingBudget
+            self.connectionStatus = .online
         }
     }
 
@@ -124,6 +141,7 @@ final class AppState {
 
     func disconnectAndEraseLocalData() {
         do {
+            cancelLocalFirstRefresh()
             try localFirstStore.eraseLocalData()
             settings.localFirstServerURLString = ""
             settings.selectedBudgetID = nil
@@ -140,6 +158,7 @@ final class AppState {
             setupPhase = .needsConnection
             connectionStatus = .offline
             lastErrorMessage = nil
+            localDataRevision &+= 1
             BackgroundTransactionRefreshCoordinator.shared.cancel()
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -158,25 +177,96 @@ final class AppState {
         return localFirstStore.syncStatus(budgetID: budgetID)
     }
 
-    /// Explicit local-first read refresh: pull CRDT messages and reload native caches.
-    /// A no-op when no budget is open, so view load paths can call it unconditionally.
-    func refreshLocalFirstData(budgetID: String) async {
-        guard localFirstStore.hasOpenBudget else {
+    /// Starts one foreground session. The selected SQLite budget is restored before the main
+    /// tabs appear, then one coalesced CRDT sync revalidates that local source in the background.
+    func beginForegroundSession() async {
+        guard !foregroundSessionActive else {
+            return
+        }
+        foregroundSessionActive = true
+        automaticSyncRequestedThisForeground = false
+
+        if setupPhase == .restoringBudget {
+            await restoreSelectedBudgetForLaunch()
+        }
+
+        guard setupPhase == .ready,
+              let budgetID = settings.selectedBudgetID else {
             return
         }
 
-        connectionStatus = .connecting
-        do {
-            try await localFirstStore.refresh(
-                budgetID: budgetID,
-                serverURLString: settings.localFirstServerURLString
-            )
-            connectionStatus = .online
-            lastErrorMessage = nil
-        } catch {
-            lastErrorMessage = error.localizedDescription
-            connectionStatus = .offline
+        _ = await refreshLocalFirstData(budgetID: budgetID, force: false)
+    }
+
+    func endForegroundSession() {
+        foregroundSessionActive = false
+        automaticSyncRequestedThisForeground = false
+    }
+
+    /// Pulls CRDT messages and reloads native caches without ever hiding an existing local
+    /// snapshot. Automatic requests run once per foreground; forced requests power every
+    /// pull-to-refresh and refresh button. Concurrent requests join the same in-flight task.
+    @discardableResult
+    func refreshLocalFirstData(budgetID: String, force: Bool = true) async -> Bool {
+        guard localFirstStore.isOpen(budgetID: budgetID) else {
+            return false
         }
+
+        if let task = localFirstRefreshTask,
+           localFirstRefreshBudgetID == budgetID {
+            return await task.value
+        }
+
+        if !force {
+            guard !automaticSyncRequestedThisForeground else {
+                return true
+            }
+            automaticSyncRequestedThisForeground = true
+        }
+
+        let requestID = UUID()
+        localFirstRefreshTaskID = requestID
+        localFirstRefreshBudgetID = budgetID
+        connectionStatus = .connecting
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else {
+                return false
+            }
+
+            do {
+                try await self.localFirstStore.refresh(
+                    budgetID: budgetID,
+                    serverURLString: self.settings.localFirstServerURLString
+                )
+                guard !Task.isCancelled,
+                      self.settings.selectedBudgetID == budgetID,
+                      self.localFirstStore.isOpen(budgetID: budgetID) else {
+                    return false
+                }
+                self.connectionStatus = .online
+                self.lastErrorMessage = nil
+                self.localDataRevision &+= 1
+                return true
+            } catch is CancellationError {
+                return false
+            } catch {
+                guard self.settings.selectedBudgetID == budgetID else {
+                    return false
+                }
+                self.lastErrorMessage = error.localizedDescription
+                self.connectionStatus = .offline
+                return false
+            }
+        }
+        localFirstRefreshTask = task
+        let succeeded = await task.value
+        if localFirstRefreshTaskID == requestID {
+            localFirstRefreshTask = nil
+            localFirstRefreshTaskID = nil
+            localFirstRefreshBudgetID = nil
+        }
+        return succeeded
     }
 
     func retryPendingLocalFirstSync() async {
@@ -199,6 +289,7 @@ final class AppState {
             return
         }
 
+        cancelLocalFirstRefresh()
         connectionStatus = .connecting
         do {
             try await localFirstStore.reimportBudget(
@@ -207,6 +298,7 @@ final class AppState {
             )
             connectionStatus = .online
             lastErrorMessage = nil
+            localDataRevision &+= 1
         } catch {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
@@ -215,6 +307,7 @@ final class AppState {
 
     private func selectLocalFirstBudget(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
         if settings.selectedBudgetID != budget.syncID {
+            cancelLocalFirstRefresh()
             localFirstStore.reset()
             accountNavigationPath = []
         }
@@ -236,6 +329,7 @@ final class AppState {
             setupPhase = .ready
             connectionStatus = .online
             lastErrorMessage = nil
+            localDataRevision &+= 1
         } catch {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
@@ -243,6 +337,7 @@ final class AppState {
     }
 
     func clearSelectionForBudgetChange() {
+        cancelLocalFirstRefresh()
         localFirstStore.reset()
         accountNavigationPath = []
         selectedBudget = nil
@@ -538,6 +633,10 @@ final class AppState {
     }
 
     private func openSelectedCachedBudgetForOfflineUse() async -> Bool {
+        await openSelectedCachedBudget(connectionStatus: .offline)
+    }
+
+    private func openSelectedCachedBudget(connectionStatus restoredStatus: ServerConnectionStatus) async -> Bool {
         guard let budget = selectedBudgetFromSettings() else {
             return false
         }
@@ -548,12 +647,23 @@ final class AppState {
                 return false
             }
             selectedBudget = budget
+            budgets = Self.uniqueBudgets([budget] + budgets)
             setupPhase = .ready
-            connectionStatus = .offline
+            connectionStatus = restoredStatus
+            localDataRevision &+= 1
             return true
         } catch {
             return false
         }
+    }
+
+    private func restoreSelectedBudgetForLaunch() async {
+        if await openSelectedCachedBudget(connectionStatus: .connecting) {
+            lastErrorMessage = nil
+            return
+        }
+
+        await loadBudgets()
     }
 
     private func backgroundSyncCompletionMessage(accountCount: Int, newTransactionCount: Int) -> String {
@@ -826,6 +936,13 @@ final class AppState {
             seenSyncIDs.insert(budget.syncID).inserted
         }
     }
+
+    private func cancelLocalFirstRefresh() {
+        localFirstRefreshTask?.cancel()
+        localFirstRefreshTask = nil
+        localFirstRefreshTaskID = nil
+        localFirstRefreshBudgetID = nil
+    }
 }
 
 #if DEBUG
@@ -850,6 +967,7 @@ private enum DebugNotificationError: LocalizedError {
 enum SetupPhase: Equatable {
     case needsConnection
     case selectingBudget
+    case restoringBudget
     case ready
 }
 

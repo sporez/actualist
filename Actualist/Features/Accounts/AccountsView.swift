@@ -3,7 +3,7 @@ import SwiftUI
 struct AccountsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var expandedSections: Set<AccountSectionKind> = [.budget, .offBudget]
     @State private var isAddAccountPresented = false
@@ -72,15 +72,18 @@ struct AccountsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await load() }
+                        Task { await refresh() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
                     .actualistToolbarGlassButton()
                 }
             }
-            .task { await load() }
-            .refreshable { await load() }
+            .task { await loadLocal() }
+            .refreshable { await refresh() }
+            .onChange(of: appState.localDataRevision) {
+                Task { await loadLocal() }
+            }
             .sheet(isPresented: $isAddAccountPresented) {
                 AddAccountSheet(viewModel: addAccountViewModel)
                     .presentationDetents([.medium, .large])
@@ -178,25 +181,32 @@ struct AccountsView: View {
         )
     }
 
-    private func load() async {
-        await appState.loadBudgets()
-
+    private func loadLocal() async {
         guard let budgetID = appState.settings.selectedBudgetID else {
+            isLoading = false
             return
         }
 
-        isLoading = true
+        isLoading = accounts.isEmpty
         errorMessage = nil
         do {
             guard let repository = appState.makeAccountRepository() else {
+                isLoading = false
                 return
             }
-            await appState.refreshLocalFirstData(budgetID: budgetID)
             try await repository.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
             errorMessage = accounts.isEmpty ? error.localizedDescription : nil
         }
         isLoading = false
+    }
+
+    private func refresh() async {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return
+        }
+        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+        await loadLocal()
     }
 }
 

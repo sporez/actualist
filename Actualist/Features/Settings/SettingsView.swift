@@ -589,7 +589,7 @@ struct SettingsView: View {
             return
         }
         isSyncingNow = true
-        await appState.refreshLocalFirstData(budgetID: budgetID)
+        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
         isSyncingNow = false
     }
 
@@ -1188,6 +1188,7 @@ private struct SettingsBudgetPickerSheet: View {
                     .font(.body.weight(.semibold))
                     .controlSize(.small)
                     .disabled(viewModel.isLoadingBudgets)
+                    .accessibilityLabel("Reload Server Budgets")
                 }
             }
             .task {
@@ -1340,7 +1341,7 @@ private struct SettingsAccountOrderSheet: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await loadAccounts() }
+                        Task { await refreshAccounts() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -1357,6 +1358,9 @@ private struct SettingsAccountOrderSheet: View {
             }
             .task {
                 await loadAccounts()
+            }
+            .refreshable {
+                await refreshAccounts()
             }
         }
     }
@@ -1375,7 +1379,9 @@ private struct SettingsAccountOrderSheet: View {
             return
         }
 
-        isLoading = true
+        let cachedAccounts = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).map(\.account) ?? []
+        accounts = appState.orderedAccounts(cachedAccounts, budgetID: budgetID)
+        isLoading = accounts.isEmpty
         errorMessage = nil
         do {
             guard let repository = appState.makeAccountRepository() else {
@@ -1393,6 +1399,14 @@ private struct SettingsAccountOrderSheet: View {
         let loadedAccounts = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).map(\.account) ?? []
         accounts = appState.orderedAccounts(loadedAccounts, budgetID: budgetID)
         isLoading = false
+    }
+
+    private func refreshAccounts() async {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return
+        }
+        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+        await loadAccounts()
     }
 
     private func moveAccounts(from source: IndexSet, to destination: Int) {

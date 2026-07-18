@@ -9,7 +9,7 @@ final class BudgetViewModel {
     var availableMonths: [String] = []
     private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
-    var isLoading = false
+    var isLoading = true
     var errorMessage: String?
     var assignmentDraft: BudgetAssignmentDraft?
     var moveMoneyDraft: BudgetMoveMoneyDraft?
@@ -228,15 +228,28 @@ final class BudgetViewModel {
     func load(using appState: AppState) async {
         includeCarryoverCategoriesInOverspentAlerts =
             appState.settings.includeCarryoverCategoriesInOverspentAlerts
-        await appState.loadBudgets()
 
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeBudgetRepository() else {
+            isLoading = false
+            return
+        }
+
+        await load(budgetID: budgetID, repository: repository)
+    }
+
+    func refresh(using appState: AppState) async {
         guard let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeBudgetRepository() else {
             return
         }
 
-        await appState.refreshLocalFirstData(budgetID: budgetID)
-        await load(budgetID: budgetID, repository: repository)
+        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+        if let selectedMonth {
+            await selectMonth(selectedMonth, budgetID: budgetID, repository: repository)
+        } else {
+            await load(budgetID: budgetID, repository: repository)
+        }
     }
 
     func load(

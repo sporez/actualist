@@ -21,12 +21,16 @@ struct ActualistApp: App {
                 .onAppear {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }
+                .task {
+                    await appState.beginForegroundSession()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         Task {
-                            await appState.retryPendingLocalFirstSync()
+                            await appState.beginForegroundSession()
                         }
                     } else if phase == .background {
+                        appState.endForegroundSession()
                         BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                     }
                 }

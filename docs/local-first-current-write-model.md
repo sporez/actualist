@@ -3,6 +3,32 @@
 This note records the current local-first write behavior after the hardening work
 from July 6, 2026.
 
+## Read And Refresh Lifecycle
+
+SQLite is the durable local source of truth. `LocalFirstActualStore` keeps
+in-memory projections of data already read from SQLite so repeated view
+appearances can paint without another disk query; those projections are an
+acceleration layer, not a second durable cache.
+
+For a previously imported selected budget:
+
+1. App launch opens the selected local SQLite database before presenting the
+   main tabs.
+2. Each data view paints from its in-memory projection when available and reads
+   SQLite locally on appearance. View appearance never starts its own network
+   request.
+3. The app coordinator starts one coalesced CRDT sync per foreground session.
+4. A successful sync applies remote messages to SQLite, reloads store
+   projections, and publishes one data revision so visible views re-read their
+   local state.
+5. A failed or slow sync leaves the existing local content visible and only
+   changes connection/error status.
+
+Pull-to-refresh and every in-view refresh button use the same forced-refresh
+operation: join any in-flight sync, otherwise pull CRDT messages once, then
+re-read local data. Remote budget discovery is separate and occurs only during
+onboarding, budget selection, or an explicit reimport.
+
 ## Write Flow
 
 Local-first writes are local transaction first:
@@ -57,8 +83,9 @@ The developer write gate currently enables:
 ## Current Limitations
 
 - Local-first writes are still behind the developer write gate.
-- Bank sync, reconcile, and rule preview/apply remain disabled in local-first
-  write testing.
+- Provider bank-sync triggers are outside Actualist's app scope; the former menu
+  action and repository contract have been removed.
+- Reconcile and rule preview/apply remain disabled in local-first write testing.
 - Budget templates only support the ported deterministic fixed-amount behavior;
   unsupported template types are refused instead of approximated.
 - Physical-device airplane-mode validation is still useful before broad shipping.

@@ -43,7 +43,7 @@ struct ReportsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await viewModel.load(using: appState) }
+                        Task { await viewModel.refresh(using: appState) }
                     } label: {
                         if viewModel.isRefreshing {
                             ProgressView()
@@ -57,7 +57,10 @@ struct ReportsView: View {
                 }
             }
             .task { await viewModel.load(using: appState) }
-            .refreshable { await viewModel.load(using: appState) }
+            .refreshable { await viewModel.refresh(using: appState) }
+            .onChange(of: appState.localDataRevision) {
+                Task { await viewModel.load(using: appState) }
+            }
             .onChange(of: appState.selectedTab) { _, tab in
                 if tab == .reports, viewModel.displaySnapshot != nil {
                     Task { await viewModel.load(using: appState) }

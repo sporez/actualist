@@ -26,17 +26,6 @@ extension LocalFirstActualStore {
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 
-    func syncBankAccountAndRefresh(budgetID: String, accountID: String) async throws -> LoadedAccountTransactions? {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func syncBankAccountAndFindNewTransactions(
-        budgetID: String,
-        account: ActualAccount
-    ) async throws -> BackgroundAccountRefreshResult {
-        throw LocalFirstError.unsupportedWrite
-    }
-
     func reconcileAccountAndRefresh(
         budgetID: String,
         accountID: String,

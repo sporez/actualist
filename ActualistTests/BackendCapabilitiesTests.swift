@@ -20,7 +20,6 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canWriteTransfers)
         #expect(capabilities.canWriteSplits)
         #expect(capabilities.canEditTransactions)
-        #expect(capabilities.canBankSync)
         #expect(capabilities.canReconcile)
         #expect(capabilities.canApplyRules)
         #expect(capabilities.showsAddAccount)
@@ -44,7 +43,6 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canWriteTransfers)
         #expect(!capabilities.canWriteSplits)
         #expect(!capabilities.canEditTransactions)
-        #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
         #expect(!capabilities.canApplyRules)
         #expect(!capabilities.canAddAccount)
@@ -69,7 +67,6 @@ struct BackendCapabilitiesTests {
         #expect(!capabilities.canWriteTransfers)
         #expect(!capabilities.canWriteSplits)
         #expect(!capabilities.canEditTransactions)
-        #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
         #expect(!capabilities.canApplyRules)
 
@@ -103,7 +100,6 @@ struct BackendCapabilitiesTests {
 
         // Still not implemented for local-first.
         #expect(!capabilities.canEditTransactions)
-        #expect(!capabilities.canBankSync)
         #expect(!capabilities.canReconcile)
         #expect(!capabilities.canApplyRules)
         #expect(capabilities.showsAddAccount)
@@ -120,7 +116,7 @@ struct BackendCapabilitiesTests {
     @Test func appStateIsAlwaysLocalFirstReadOnly() {
         // Local-first is the only backend. Write surfaces stay gated unless the developer
         // local write switch is enabled, regardless of setup phase or connection status.
-        for phase in [SetupPhase.needsConnection, .selectingBudget, .ready] {
+        for phase in [SetupPhase.needsConnection, .selectingBudget, .restoringBudget, .ready] {
             for status in [ServerConnectionStatus.online, .connecting, .offline] {
                 let state = makeAppState()
                 state.setupPhase = phase
@@ -165,7 +161,6 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.showsAddAccount)
         #expect(capabilities.canAddAccount)
         #expect(!capabilities.canEditTransactions)
-        #expect(!capabilities.canBankSync)
     }
 
     @Test func hidingDeveloperModeDisablesLocalFirstTransactionCreation() {

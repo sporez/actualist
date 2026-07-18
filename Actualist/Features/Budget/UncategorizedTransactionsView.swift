@@ -34,7 +34,7 @@ struct UncategorizedTransactionsView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        Task { await viewModel.load(month: month, using: appState) }
+                        Task { await viewModel.refresh(month: month, using: appState) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
@@ -49,6 +49,12 @@ struct UncategorizedTransactionsView: View {
             if viewModel.transactions.count >= 4 {
                 selectedDetent = .large
             }
+        }
+        .refreshable {
+            await viewModel.refresh(month: month, using: appState)
+        }
+        .onChange(of: appState.localDataRevision) {
+            Task { await viewModel.load(month: month, using: appState) }
         }
         .sheet(item: $selectedTransaction) { selection in
             TransactionCategorySelectionView(

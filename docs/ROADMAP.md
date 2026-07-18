@@ -57,7 +57,8 @@ Actualist is already beyond the original read-only plan. The current app has:
 Current known limitations:
 
 - Local-first writes are still behind the developer write gate.
-- Bank sync remains disabled in the native local-first path.
+- Provider bank-sync triggers are deliberately excluded from the native app;
+  Actualist has no menu or repository surface for them.
 - Reconcile remains disabled.
 - Account lifecycle writes beyond creation remain disabled.
 - Rule preview/apply remains disabled.
@@ -185,10 +186,9 @@ Release gate:
 - Transaction edits must update affected account feeds, Spending, Budget, and
   relaunch/sync state consistently.
 
-### Phase 4: Accounts, Bank Sync, And Reconciliation
+### Phase 4: Accounts And Reconciliation
 
-This phase is important but more coupled to server-owned behavior and provider
-integrations.
+This phase completes native account management and reconciliation behavior.
 
 Goals:
 
@@ -203,11 +203,6 @@ Goals:
   - close
   - reopen
   - delete
-- Bank sync triggers:
-  - sync one linked account
-  - sync all linked accounts
-  - clear provider/server copy that credentials are server-side and not E2E
-    encrypted
 - Prefer local/off-budget account lifecycle before linked-account setup flows.
 
 Release gate:

@@ -14,7 +14,7 @@ final class ReportsViewModel {
     private(set) var snapshot: ReportsDashboardSnapshot?
     private(set) var displaySnapshot: ReportsDashboardSnapshot?
     private(set) var range: ReportDateRange?
-    private(set) var isLoading = false
+    private(set) var isLoading = true
     private(set) var isRefreshing = false
     private(set) var errorMessage: String?
     private(set) var isPrivacyModeEnabled = false
@@ -30,19 +30,26 @@ final class ReportsViewModel {
             budgetID: budgetID,
             repository: repository,
             privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-            now: now,
-            refreshRemote: {
-                await appState.refreshLocalFirstData(budgetID: budgetID)
-            }
+            now: now
         )
+    }
+
+    func refresh(using appState: AppState, now: Date = Date()) async {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return
+        }
+
+        isRefreshing = true
+        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+        await load(using: appState, now: now)
+        isRefreshing = false
     }
 
     func load(
         budgetID: String,
         repository: any ReportsRepositoryProtocol,
         privacyModeEnabled: Bool,
-        now: Date,
-        refreshRemote: @escaping @MainActor () async -> Void = {}
+        now: Date
     ) async {
         let requestedRange = ReportDateRange.dashboard(through: now)
         range = requestedRange
@@ -64,15 +71,6 @@ final class ReportsViewModel {
             return
         }
         isLoading = false
-
-        isRefreshing = true
-        await refreshRemote()
-        do {
-            apply(try await repository.refreshReportsDashboard(budgetID: budgetID, range: requestedRange))
-        } catch {
-            errorMessage = snapshot == nil ? error.localizedDescription : nil
-        }
-        isRefreshing = false
     }
 
     func updatePrivacyMode(_ isEnabled: Bool) {

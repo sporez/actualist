@@ -53,8 +53,6 @@ struct BackendCapabilities: Equatable {
     var canAssignBudget: Bool { canAssignCategoryBudget || canMoveMoney || canApplyBudgetTemplates }
     /// Edit and delete existing transactions.
     var canEditTransactions: Bool { !isReadOnly }
-    /// Trigger a bank sync for a linked account.
-    var canBankSync: Bool { !isReadOnly }
     /// Reconcile an account balance.
     var canReconcile: Bool { !isReadOnly }
     /// Preview and apply rules.

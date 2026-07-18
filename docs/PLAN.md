@@ -134,14 +134,17 @@ Security:
 
 Startup flow:
 
-1. If server URL or sync token is missing, show onboarding.
-2. User enters Actual server URL and password.
-3. Log in to the Actual server and store the sync token in Keychain.
-4. Fetch remote budget files.
-5. User selects a budget.
-6. Download/decrypt/import the budget file when needed and open the local SQLite database.
-7. Enter the main tab shell.
-8. Later refreshes pull CRDT messages and reload local caches.
+1. If a selected imported budget exists, open its local SQLite database before
+   presenting the main tab shell, even when the server is slow or offline.
+2. Paint each view from the store's in-memory projection when available, then
+   read SQLite locally. View appearance does not initiate network work.
+3. Start one shared, coalesced CRDT sync per foreground session and publish a
+   data revision after it updates SQLite and the store projections.
+4. Pull-to-refresh and every in-view refresh button force that same shared sync,
+   join it when already running, then re-read local data without hiding content.
+5. If there is no imported selection, show onboarding or remote budget
+   selection as appropriate. Remote file discovery is limited to onboarding,
+   budget selection, and explicit reimport.
 
 ### Budget View
 
@@ -169,7 +172,9 @@ Add Account is implemented behind the developer local-write gate. It creates:
 - A linked empty-name transfer payee through `payees.transfer_acct` when the schema supports it.
 - A `payee_mapping` row when that table is present.
 
-Initial balance, bank linking, account edit/close/delete, reconcile, and provider bank sync remain out of scope.
+Initial balance, bank linking, account edit/close/delete, and reconcile remain
+out of scope. Provider bank-sync triggers have been removed from the app and
+repository contract.
 
 ### Transaction Views
 
@@ -265,7 +270,10 @@ ActualistTests/
 ### Data Flow
 
 All fetched data flows through `LocalFirstActualStore` (an `@MainActor @Observable` store).
-Views read cached snapshots for instant display and trigger refresh/sync when appropriate.
+SQLite is the durable local source of truth; the store's in-memory projections are only an
+instant-paint acceleration layer. Views read those projections and SQLite on appearance, while
+the app coordinator owns automatic foreground sync. Manual refresh controls all invoke the same
+forced, coalesced sync and then re-read local data.
 Every supported write applies CRDT messages locally, enqueues them for sync, and reloads the
 affected local caches so dependent screens never show pre-write data. The store conforms to
 `BudgetRepositoryProtocol`, `AccountRepositoryProtocol`, and `TransactionRepositoryProtocol`, so
@@ -308,12 +316,16 @@ Implemented local-first write slices:
 
 Still guarded or not implemented:
 
-- Bank sync/provider import triggers.
 - Reconcile.
 - Rule preview/apply.
 - Account edit, close, and delete.
 - Initial balance entry on account creation.
 - Unsupported budget template types.
+
+Explicitly excluded:
+
+- Bank sync/provider import triggers. Actualist does not expose a menu action or
+  repository contract for remotely starting provider imports.
 
 ## Technical Notes
 
@@ -352,8 +364,7 @@ Development pipeline details live in `docs/DEVELOPMENT.md`. The intended loop is
 ## Open Questions
 
 1. When should the developer local-write gate become a normal user-facing capability?
-2. What is the right native/server-side design for bank sync provider triggers without restoring a dependency on `actual-http-api`?
-3. Which reports are worth implementing first from local SQLite?
+2. Which reports are worth implementing first from local SQLite?
 
 ## External Apple References
 
