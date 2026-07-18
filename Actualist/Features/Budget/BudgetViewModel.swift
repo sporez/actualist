@@ -7,13 +7,14 @@ final class BudgetViewModel {
     var budgetMonth: BudgetMonth?
     var selectedMonth: String?
     var availableMonths: [String] = []
-    var budgetAlerts: [BudgetAlert] = []
+    private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
     var isLoading = false
     var errorMessage: String?
     var assignmentDraft: BudgetAssignmentDraft?
     var moveMoneyDraft: BudgetMoveMoneyDraft?
     var monthTemplateSubmissionState: BudgetAssignmentSubmissionState = .draft
+    var includeCarryoverCategoriesInOverspentAlerts = false
 
     var navigationTitle: String {
         guard let selectedMonth else {
@@ -30,7 +31,8 @@ final class BudgetViewModel {
     var overspentCategoryOptions: [BudgetOverspentCategoryOption] {
         visibleGroups.flatMap { group in
             group.visibleCategories.compactMap { category in
-                guard category.balance < 0 else {
+                guard category.balance < 0,
+                      includeCarryoverCategoriesInOverspentAlerts || !category.carryover else {
                     return nil
                 }
 
@@ -43,15 +45,27 @@ final class BudgetViewModel {
         }
     }
 
+    var budgetAlerts: [BudgetAlert] {
+        let overspentCount = overspentCategoryOptions.count
+
+        return loadedBudgetAlerts.compactMap { alert in
+            guard alert.kind == .overspending else {
+                return alert
+            }
+            guard overspentCount > 0 else {
+                return nil
+            }
+
+            return alert.replacingCount(with: overspentCount)
+        }
+    }
+
     var overspendingAlertCount: Int? {
         guard let budgetMonth else {
             return nil
         }
 
-        let overspentCategoryCount = visibleGroups
-            .flatMap(\.visibleCategories)
-            .filter { $0.balance < 0 }
-            .count
+        let overspentCategoryCount = overspentCategoryOptions.count
 
         if overspentCategoryCount > 0 {
             return overspentCategoryCount
@@ -212,6 +226,8 @@ final class BudgetViewModel {
     }
 
     func load(using appState: AppState) async {
+        includeCarryoverCategoriesInOverspentAlerts =
+            appState.settings.includeCarryoverCategoriesInOverspentAlerts
         await appState.loadBudgets()
 
         guard let budgetID = appState.settings.selectedBudgetID,
@@ -841,7 +857,7 @@ final class BudgetViewModel {
         availableMonths = Self.monthPickerMonths(for: loadedMonth)
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
-        budgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
+        loadedBudgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
         if isSameMonth {
             let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
             expandedGroupIDs = previousExpandedGroupIDs.intersection(loadedGroupIDs)
@@ -1128,6 +1144,17 @@ struct BudgetAlert: Identifiable, Equatable {
         count = apiAlert.count
         actionTitle = apiAlert.actionTitle
         severity = Severity(apiValue: apiAlert.severity)
+    }
+
+    func replacingCount(with count: Int) -> BudgetAlert {
+        BudgetAlert(
+            kind: kind,
+            title: title,
+            valueText: valueText,
+            count: count,
+            actionTitle: actionTitle,
+            severity: severity
+        )
     }
 }
 

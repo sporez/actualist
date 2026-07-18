@@ -354,8 +354,9 @@ extension LocalFirstActualStore {
         )
     }
 
-    /// Overspending banner counting categories that ended the month negative. The count mirrors
-    /// the overspent-categories review sheet.
+    /// Raw overspending alert counting categories that ended the month negative. The Budget
+    /// feature applies the user's rollover-category alert preference to this count and its
+    /// overspent-categories review sheet.
     static func overspendingAlert(month: BudgetMonth) -> APIBudgetMonthAlert? {
         let overspentCount = month.categoryGroups
             .filter { !$0.isIncome }

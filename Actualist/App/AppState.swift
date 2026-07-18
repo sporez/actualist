@@ -262,6 +262,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateIncludeCarryoverCategoriesInOverspentAlerts(_ isEnabled: Bool) {
+        settings.includeCarryoverCategoriesInOverspentAlerts = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateRandomizedDisplayValuesEnabled(_ isEnabled: Bool) {
         settings.randomizedDisplayValuesEnabled = isEnabled
         settingsStore.save(settings)

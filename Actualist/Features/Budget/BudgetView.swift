@@ -193,6 +193,9 @@ struct BudgetView: View {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
                 }
+                .onChange(of: appState.settings.includeCarryoverCategoriesInOverspentAlerts) { _, isEnabled in
+                    viewModel.includeCarryoverCategoriesInOverspentAlerts = isEnabled
+                }
                 .sheet(isPresented: $isTransactionEditorPresented) {
                     TransactionEditorView(prefilledAccount: nil) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }

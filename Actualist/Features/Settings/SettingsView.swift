@@ -177,6 +177,15 @@ struct SettingsView: View {
                         }
                     }
 
+                    Toggle(isOn: includeCarryoverCategoriesInOverspentAlertsSelection) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Include Rollover in Alerts")
+                            Text("Show negative rollover categories in the overspent banner and Cover list.")
+                                .font(.caption)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+                    }
+
                     VStack(alignment: .leading, spacing: 10) {
                         LabeledContent("Display Size") {
                             Text(appState.settings.displayDensity.title)
@@ -473,6 +482,14 @@ struct SettingsView: View {
             appState.settings.greenIncomeTransactionAmountsEnabled
         } set: { isEnabled in
             appState.updateGreenIncomeTransactionAmountsEnabled(isEnabled)
+        }
+    }
+
+    private var includeCarryoverCategoriesInOverspentAlertsSelection: Binding<Bool> {
+        Binding {
+            appState.settings.includeCarryoverCategoriesInOverspentAlerts
+        } set: { isEnabled in
+            appState.updateIncludeCarryoverCategoriesInOverspentAlerts(isEnabled)
         }
     }
 

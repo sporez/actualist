@@ -51,6 +51,44 @@ struct BudgetViewModelTests {
         #expect(model.overspendingAlertCount == 1)
     }
 
+    @Test func rolloverOverspendingIsExcludedByDefaultAndCanBeIncluded() async throws {
+        let month = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: -2_500,
+            hiddenCategoryBalance: 0,
+            visibleCategoryCarryover: true,
+            lastMonthOverspent: 0
+        )
+        let loadedMonth = LoadedBudgetMonth(
+            availableMonths: ["2026-06"],
+            selectedMonth: "2026-06",
+            month: month,
+            alerts: [
+                APIBudgetMonthAlert(
+                    kind: "overspending",
+                    severity: "danger",
+                    title: "Overspent categories",
+                    amount: nil,
+                    count: 1,
+                    actionTitle: "Cover"
+                )
+            ]
+        )
+        let model = BudgetViewModel()
+
+        await model.load(
+            budgetID: "budget",
+            repository: RecordingBudgetRepository(loadedMonth: loadedMonth)
+        )
+
+        #expect(model.overspentCategoryOptions.isEmpty)
+        #expect(model.budgetAlerts.allSatisfy { $0.kind != .overspending })
+
+        model.includeCarryoverCategoriesInOverspentAlerts = true
+
+        #expect(model.overspentCategoryOptions.map(\.id) == ["mortgage"])
+        #expect(model.budgetAlerts.first(where: { $0.kind == .overspending })?.count == 1)
+    }
+
     @Test func buildsReusableBudgetAlertsFromAPIPayloads() throws {
         let alerts = [
             BudgetAlert(
@@ -753,6 +791,7 @@ struct BudgetViewModelTests {
         hiddenCategoryBalance: Int,
         categoryBudgeted: Int = 0,
         categorySpent: Int = 0,
+        visibleCategoryCarryover: Bool = false,
         toBudget: Int = 0,
         counterpartyCategoryBalance: Int? = nil,
         lastMonthOverspent: Int
@@ -814,7 +853,7 @@ struct BudgetViewModelTests {
                   "budgeted": \(categoryBudgeted),
                   "spent": \(categorySpent),
                   "balance": \(visibleCategoryBalance),
-                  "carryover": false
+                  "carryover": \(visibleCategoryCarryover)
                 },
                 \(counterpartyCategoryJSON)
                 {

@@ -27,6 +27,7 @@ struct AppSettings: Codable, Equatable {
     var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
     var greenIncomeTransactionAmountsEnabled: Bool = false
+    var includeCarryoverCategoriesInOverspentAlerts: Bool = false
     var randomizedDisplayValuesEnabled: Bool = false
     var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
@@ -49,6 +50,7 @@ struct AppSettings: Codable, Equatable {
         theme: ActualistThemeOption = .actualPurple,
         displayDensity: ActualistDisplayDensity = .compact,
         greenIncomeTransactionAmountsEnabled: Bool = false,
+        includeCarryoverCategoriesInOverspentAlerts: Bool = false,
         randomizedDisplayValuesEnabled: Bool = false,
         enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
@@ -68,6 +70,7 @@ struct AppSettings: Codable, Equatable {
         self.theme = theme
         self.displayDensity = displayDensity
         self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
+        self.includeCarryoverCategoriesInOverspentAlerts = includeCarryoverCategoriesInOverspentAlerts
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
         self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
@@ -92,6 +95,10 @@ struct AppSettings: Codable, Equatable {
         greenIncomeTransactionAmountsEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .greenIncomeTransactionAmountsEnabled
+        ) ?? false
+        includeCarryoverCategoriesInOverspentAlerts = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .includeCarryoverCategoriesInOverspentAlerts
         ) ?? false
         randomizedDisplayValuesEnabled = try container.decodeIfPresent(
             Bool.self,

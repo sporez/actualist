@@ -85,6 +85,7 @@ struct LocalFirstActualStoreTests {
         #expect(settings.reportCardOrder == ReportCardOrderPreference.defaultOrder)
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
         #expect(!settings.greenIncomeTransactionAmountsEnabled)
+        #expect(!settings.includeCarryoverCategoriesInOverspentAlerts)
     }
 
     @Test func greenIncomeTransactionAmountsPreferencePersists() throws {
@@ -95,6 +96,18 @@ struct LocalFirstActualStoreTests {
         store.save(settings)
 
         #expect(store.load().greenIncomeTransactionAmountsEnabled)
+    }
+
+    @Test func carryoverOverspendingAlertPreferenceDefaultsOffAndPersists() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+
+        #expect(!AppSettings().includeCarryoverCategoriesInOverspentAlerts)
+
+        let settings = AppSettings(includeCarryoverCategoriesInOverspentAlerts: true)
+        store.save(settings)
+
+        #expect(store.load().includeCarryoverCategoriesInOverspentAlerts)
     }
 
     @Test func localFirstSyncDiagnosticsPersistInSettings() async throws {
