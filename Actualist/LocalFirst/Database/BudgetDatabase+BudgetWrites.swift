@@ -116,6 +116,78 @@ extension BudgetDatabase {
         }
     }
 
+    /// Matches Actual's native rollover mutation: update every budget month from the selected
+    /// month through the already-created budget horizon, rather than changing only one month.
+    func categoryCarryoverMessages(
+        categoryID: String,
+        carryover: Bool,
+        startMonth: String,
+        throughMonth: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        let trimmedCategoryID = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCategoryID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+        let startMonthValue = try Self.actualMonthValue(startMonth)
+        let throughMonthValue = try Self.actualMonthValue(throughMonth)
+        guard throughMonthValue >= startMonthValue else {
+            throw LocalFirstError.invalidLocalWrite("invalid carryover month range")
+        }
+
+        return try queue.read { db in
+            let columns = try requiredColumns(
+                table: "zero_budgets",
+                required: ["month", "category", "carryover"],
+                db: db
+            )
+            try validateBudgetCategoryID(trimmedCategoryID, db: db)
+
+            var messages: [ActualSyncDecodedMessage] = []
+            var monthValue = startMonthValue
+            while monthValue <= throughMonthValue {
+                let existingRowID = try zeroBudgetRowID(
+                    monthValue: monthValue,
+                    categoryID: trimmedCategoryID,
+                    columns: columns,
+                    db: db
+                )
+                let rowID = existingRowID
+                    ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: trimmedCategoryID)
+
+                // Identity columns travel with the mutation so another Actual client can create
+                // a missing zero_budgets row and still attach it to the correct month/category.
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "zero_budgets",
+                        row: rowID,
+                        column: "month",
+                        value: .int(Int64(monthValue))
+                    )
+                )
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "zero_budgets",
+                        row: rowID,
+                        column: "category",
+                        value: .string(trimmedCategoryID)
+                    )
+                )
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "zero_budgets",
+                        row: rowID,
+                        column: "carryover",
+                        value: .bool(carryover)
+                    )
+                )
+
+                monthValue = nextMonth(after: monthValue)
+            }
+            return messages
+        }
+    }
+
     func budgetTemplateMessages(
         command: BudgetTemplateCommand,
         month: String,

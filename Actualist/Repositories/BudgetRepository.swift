@@ -17,6 +17,13 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didAssign: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
+    func setCategoryCarryoverAndRefresh(
+        categoryID: String,
+        carryover: Bool,
+        budgetID: String,
+        startMonth: String,
+        didSetCarryover: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth
     func applyBudgetTemplateAndRefresh(
         command: BudgetTemplateCommand,
         budgetID: String,

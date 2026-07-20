@@ -11,6 +11,7 @@ struct BackendCapabilitiesTests {
 
         #expect(capabilities.canAssignBudget)
         #expect(capabilities.canAssignCategoryBudget)
+        #expect(capabilities.canSetCategoryCarryover)
         #expect(capabilities.canMoveMoney)
         #expect(capabilities.canApplyBudgetTemplates)
         #expect(capabilities.canCreateTransactions)
@@ -34,6 +35,7 @@ struct BackendCapabilitiesTests {
         // Writes are blocked while offline...
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canAssignCategoryBudget)
+        #expect(!capabilities.canSetCategoryCarryover)
         #expect(!capabilities.canMoveMoney)
         #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canCreateTransactions)
@@ -58,6 +60,7 @@ struct BackendCapabilitiesTests {
 
         #expect(!capabilities.canAssignBudget)
         #expect(!capabilities.canAssignCategoryBudget)
+        #expect(!capabilities.canSetCategoryCarryover)
         #expect(!capabilities.canMoveMoney)
         #expect(!capabilities.canApplyBudgetTemplates)
         #expect(!capabilities.canCreateTransactions)
@@ -94,6 +97,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canWriteTransfers)
         #expect(capabilities.canWriteSplits)
         #expect(capabilities.canAssignCategoryBudget)
+        #expect(capabilities.canSetCategoryCarryover)
         #expect(capabilities.canMoveMoney)
         #expect(capabilities.canApplyBudgetTemplates)
         #expect(capabilities.canAssignBudget)
@@ -133,6 +137,7 @@ struct BackendCapabilitiesTests {
                 #expect(!capabilities.canWriteSplits)
                 #expect(!capabilities.canEditTransactions)
                 #expect(!capabilities.canAssignCategoryBudget)
+                #expect(!capabilities.canSetCategoryCarryover)
                 #expect(!capabilities.canMoveMoney)
                 #expect(!capabilities.canApplyBudgetTemplates)
                 #expect(!capabilities.showsAddAccount)
@@ -156,6 +161,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canWriteSplits)
         #expect(capabilities.canAssignBudget)
         #expect(capabilities.canAssignCategoryBudget)
+        #expect(capabilities.canSetCategoryCarryover)
         #expect(capabilities.canMoveMoney)
         #expect(capabilities.canApplyBudgetTemplates)
         #expect(capabilities.showsAddAccount)
@@ -179,6 +185,7 @@ struct BackendCapabilitiesTests {
         #expect(!state.capabilities.canWriteTransfers)
         #expect(!state.capabilities.canWriteSplits)
         #expect(!state.capabilities.canAssignCategoryBudget)
+        #expect(!state.capabilities.canSetCategoryCarryover)
         #expect(!state.capabilities.canMoveMoney)
         #expect(!state.capabilities.canAddAccount)
     }

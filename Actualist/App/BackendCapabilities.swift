@@ -44,13 +44,17 @@ struct BackendCapabilities: Equatable {
     var canWriteSplits: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Assign a category's budgeted amount.
     var canAssignCategoryBudget: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
+    /// Carry a category's negative balance forward from the selected month.
+    var canSetCategoryCarryover: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Move money between categories and To Budget.
     var canMoveMoney: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Apply category or month budget templates. Local-first supports fixed-amount templates
     /// (T1) behind the write gate and refuses not-yet-ported template types.
     var canApplyBudgetTemplates: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
     /// Broad compatibility gate for budget write surfaces not split yet.
-    var canAssignBudget: Bool { canAssignCategoryBudget || canMoveMoney || canApplyBudgetTemplates }
+    var canAssignBudget: Bool {
+        canAssignCategoryBudget || canSetCategoryCarryover || canMoveMoney || canApplyBudgetTemplates
+    }
     /// Edit and delete existing transactions.
     var canEditTransactions: Bool { !isReadOnly }
     /// Reconcile an account balance.

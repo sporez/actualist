@@ -830,6 +830,10 @@ private enum BudgetLayout {
     static let assignedWidth: CGFloat = 96
     static let availableWidth: CGFloat = 104
     static let availablePillHorizontalPadding: CGFloat = 6
+    static let rolloverIndicatorReservedWidth: CGFloat = 12
+    static let rolloverIndicatorSize: CGFloat = 7
+    static let rolloverIndicatorTopPadding: CGFloat = 3
+    static let rolloverIndicatorTrailingPadding: CGFloat = 4
     static let assignmentScrollBottomClearance: CGFloat = 160
     static let assignmentScrollVisibilityMargin: CGFloat = 20
     static let assignmentKeypadAnimation = Animation.smooth(duration: 0.24)
@@ -1135,15 +1139,7 @@ struct BudgetCategoryRow: View {
                 .foregroundStyle(assignedDisplay.isEditing ? ActualistTheme.accent : ActualistTheme.primaryText)
                 .frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
 
-                Text(availableText)
-                    .font(ActualistTypography.rowValue(for: density))
-                    .foregroundStyle(availableForeground)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                    .padding(.horizontal, BudgetLayout.availablePillHorizontalPadding)
-                    .padding(.vertical, 5)
-                    .background(availableBackground, in: Capsule())
-                    .frame(width: BudgetLayout.availableWidth, alignment: .trailing)
+                availablePill
             }
             .padding(.vertical, 10)
             .padding(.horizontal, BudgetLayout.rowHorizontalPadding)
@@ -1198,6 +1194,38 @@ struct BudgetCategoryRow: View {
 
     private var availableForeground: Color {
         category.balance == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+    }
+
+    private var availablePill: some View {
+        Text(availableText)
+            .font(ActualistTypography.rowValue(for: density))
+            .foregroundStyle(availableForeground)
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .padding(.leading, BudgetLayout.availablePillHorizontalPadding)
+            .padding(
+                .trailing,
+                BudgetLayout.availablePillHorizontalPadding
+                    + (category.carryover ? BudgetLayout.rolloverIndicatorReservedWidth : 0)
+            )
+            .padding(.vertical, 5)
+            .background(availableBackground, in: Capsule())
+            .overlay(alignment: .topTrailing) {
+                if category.carryover {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: BudgetLayout.rolloverIndicatorSize, weight: .black))
+                        .foregroundStyle(availableForeground.opacity(0.82))
+                        .padding(.top, BudgetLayout.rolloverIndicatorTopPadding)
+                        .padding(.trailing, BudgetLayout.rolloverIndicatorTrailingPadding)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(width: BudgetLayout.availableWidth, alignment: .trailing)
+            .accessibilityLabel(
+                category.carryover
+                    ? "\(availableText), rollover enabled"
+                    : availableText
+            )
     }
 
     private var nameParts: CategoryNameParts {

@@ -1421,6 +1421,61 @@ struct LocalFirstActualStoreTests {
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
     }
 
+    @Test func categoryCarryoverPersistsForwardFromTheSelectedMonth() async throws {
+        let store = try await makeOpenedWritableStore()
+        var didSetCarryover = false
+
+        let loaded = try await store.setCategoryCarryoverAndRefresh(
+            categoryID: "utilities",
+            carryover: true,
+            budgetID: "group-1",
+            startMonth: "2026-07"
+        ) {
+            didSetCarryover = true
+        }
+
+        let julyUtilities = try #require(
+            loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" }
+        )
+        let august = try await store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-08"
+        )
+        let augustUtilities = try #require(
+            august.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" }
+        )
+
+        #expect(didSetCarryover)
+        #expect(julyUtilities.carryover)
+        #expect(augustUtilities.carryover)
+
+        _ = try await store.setCategoryCarryoverAndRefresh(
+            categoryID: "utilities",
+            carryover: false,
+            budgetID: "group-1",
+            startMonth: "2026-08"
+        ) {}
+
+        let reloadedJuly = try await store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+        let reloadedAugust = try await store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-08"
+        )
+        let reloadedJulyUtilities = try #require(
+            reloadedJuly.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" }
+        )
+        let reloadedAugustUtilities = try #require(
+            reloadedAugust.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" }
+        )
+
+        #expect(reloadedJulyUtilities.carryover)
+        #expect(!reloadedAugustUtilities.carryover)
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
+    }
+
     @Test func localWriteOutboxSurvivesReopeningCachedBudget() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
 

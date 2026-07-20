@@ -26,6 +26,70 @@ struct BudgetViewModelTests {
         #expect(details.remainingAmount == 37_655)
     }
 
+    @Test func categoryDetailsOptimisticallySetsCarryoverAndAppliesReloadedCategory() async throws {
+        let initialMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: -2_500,
+            hiddenCategoryBalance: 0,
+            visibleCategoryCarryover: false,
+            lastMonthOverspent: 0
+        )
+        let updatedMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: -2_500,
+            hiddenCategoryBalance: 0,
+            visibleCategoryCarryover: true,
+            lastMonthOverspent: 0
+        )
+        let initialCategory = try #require(
+            initialMonth.categoryGroups.flatMap(\.categories).first { $0.id == "mortgage" }
+        )
+        let model = CategoryMonthDetailsViewModel(
+            details: CategoryMonthDetails(category: initialCategory, month: "2026-06")
+        )
+        let repository = RecordingBudgetRepository(
+            loadedMonth: LoadedBudgetMonth(
+                availableMonths: ["2026-06"],
+                selectedMonth: "2026-06",
+                month: updatedMonth,
+                alerts: []
+            )
+        )
+
+        await model.setCarryover(true, budgetID: "budget", repository: repository)
+
+        #expect(model.isCarryoverEnabled)
+        #expect(model.details.category.carryover)
+        #expect(!model.isUpdatingCarryover)
+        #expect(model.carryoverErrorMessage == nil)
+
+        let update = try await repository.onlyCarryoverUpdate()
+        #expect(update.categoryID == "mortgage")
+        #expect(update.carryover)
+        #expect(update.budgetID == "budget")
+        #expect(update.startMonth == "2026-06")
+    }
+
+    @Test func categoryDetailsRestoresCarryoverWhenTheWriteFails() async throws {
+        let month = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: -2_500,
+            hiddenCategoryBalance: 0,
+            visibleCategoryCarryover: false,
+            lastMonthOverspent: 0
+        )
+        let category = try #require(
+            month.categoryGroups.flatMap(\.categories).first { $0.id == "mortgage" }
+        )
+        let model = CategoryMonthDetailsViewModel(
+            details: CategoryMonthDetails(category: category, month: "2026-06")
+        )
+        let repository = RecordingBudgetRepository(carryoverError: TestError("rollover failed"))
+
+        await model.setCarryover(true, budgetID: "budget", repository: repository)
+
+        #expect(!model.isCarryoverEnabled)
+        #expect(!model.isUpdatingCarryover)
+        #expect(model.carryoverErrorMessage == "rollover failed")
+    }
+
     @Test func derivesVisibleGroupsAndOverspendingCount() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try Self.decodeBudgetMonth(
@@ -898,9 +962,11 @@ struct BudgetViewModelTests {
 actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private let loadedMonth: LoadedBudgetMonth
     private let assignError: Error?
+    private let carryoverError: Error?
     private let moveError: Error?
     private let templateError: Error?
     private var assignments: [RecordedBudgetAssignment] = []
+    private var carryoverUpdates: [RecordedBudgetCarryoverUpdate] = []
     private var moves: [RecordedBudgetMove] = []
     private var templates: [RecordedBudgetTemplate] = []
     private var didAssignCallbackFinished = false
@@ -929,11 +995,13 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
             alerts: []
         ),
         assignError: Error? = nil,
+        carryoverError: Error? = nil,
         moveError: Error? = nil,
         templateError: Error? = nil
     ) {
         self.loadedMonth = loadedMonth
         self.assignError = assignError
+        self.carryoverError = carryoverError
         self.moveError = moveError
         self.templateError = templateError
     }
@@ -978,6 +1046,30 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
 
         await didAssign()
         didAssignCallbackFinished = true
+        return loadedMonth
+    }
+
+    func setCategoryCarryoverAndRefresh(
+        categoryID: String,
+        carryover: Bool,
+        budgetID: String,
+        startMonth: String,
+        didSetCarryover: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        carryoverUpdates.append(
+            RecordedBudgetCarryoverUpdate(
+                categoryID: categoryID,
+                carryover: carryover,
+                budgetID: budgetID,
+                startMonth: startMonth
+            )
+        )
+
+        if let carryoverError {
+            throw carryoverError
+        }
+
+        await didSetCarryover()
         return loadedMonth
     }
 
@@ -1051,6 +1143,10 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         try #require(moves.first)
     }
 
+    func onlyCarryoverUpdate() throws -> RecordedBudgetCarryoverUpdate {
+        try #require(carryoverUpdates.first)
+    }
+
     func recordedMoves() -> [RecordedBudgetMove] {
         moves
     }
@@ -1077,6 +1173,13 @@ struct RecordedBudgetAssignment: Sendable {
     let budgeted: Int
     let budgetID: String
     let month: String
+}
+
+struct RecordedBudgetCarryoverUpdate: Sendable {
+    let categoryID: String
+    let carryover: Bool
+    let budgetID: String
+    let startMonth: String
 }
 
 struct RecordedBudgetMove: Sendable {

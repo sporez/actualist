@@ -32,49 +32,126 @@ struct CategoryMonthDetails: Identifiable, Hashable {
     }
 }
 
-struct CategoryMonthDetailsView: View {
-    @Environment(AppState.self) private var appState
-    @State private var details: CategoryMonthDetails
+@MainActor
+@Observable
+final class CategoryMonthDetailsViewModel {
+    var details: CategoryMonthDetails
+    var isCarryoverEnabled: Bool
+    var isUpdatingCarryover = false
+    var carryoverErrorMessage: String?
 
     init(details: CategoryMonthDetails) {
-        _details = State(initialValue: details)
+        self.details = details
+        self.isCarryoverEnabled = details.category.carryover
     }
 
-    var body: some View {
-        NavigationStack {
-            AccountTransactionsView(scope: .category(details)) {
-                Task { await refreshSummary() }
-            }
-        }
-        .task { await refreshSummary() }
-        .onChange(of: appState.localDataRevision) {
-            Task { await refreshSummary() }
-        }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-    }
-
-    private func refreshSummary() async {
-        guard let budgetID = appState.settings.selectedBudgetID,
+    func refresh(using appState: AppState) async {
+        guard !isUpdatingCarryover,
+              let budgetID = appState.settings.selectedBudgetID,
               let repository = appState.makeBudgetRepository() else {
             return
         }
 
+        await refresh(budgetID: budgetID, repository: repository)
+    }
+
+    func refresh(
+        budgetID: String,
+        repository: any BudgetRepositoryProtocol
+    ) async {
         do {
             let loaded = try await repository.budgetMonth(
                 budgetID: budgetID,
                 selectedMonth: details.month
             )
-            guard let category = loaded.month.categoryGroups
-                .flatMap(\.categories)
-                .first(where: { $0.id == details.category.id }) else {
-                return
-            }
-            details = CategoryMonthDetails(category: category, month: details.month)
+            apply(loaded)
         } catch {
-            // The transaction feed owns the visible load/error state. Keep the last local summary
-            // available when a background summary refresh cannot complete.
+            // Keep the local summary visible when a background refresh cannot complete.
         }
+    }
+
+    func setCarryover(_ enabled: Bool, using appState: AppState) async {
+        guard appState.capabilities.canSetCategoryCarryover,
+              let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeBudgetRepository() else {
+            return
+        }
+
+        await setCarryover(enabled, budgetID: budgetID, repository: repository)
+    }
+
+    func setCarryover(
+        _ enabled: Bool,
+        budgetID: String,
+        repository: any BudgetRepositoryProtocol
+    ) async {
+        guard !isUpdatingCarryover, enabled != isCarryoverEnabled else {
+            return
+        }
+
+        let previousValue = isCarryoverEnabled
+        isCarryoverEnabled = enabled
+        isUpdatingCarryover = true
+        carryoverErrorMessage = nil
+
+        do {
+            let loaded = try await repository.setCategoryCarryoverAndRefresh(
+                categoryID: details.category.id,
+                carryover: enabled,
+                budgetID: budgetID,
+                startMonth: details.month
+            ) {}
+            apply(loaded)
+        } catch {
+            isCarryoverEnabled = previousValue
+            carryoverErrorMessage = error.localizedDescription
+        }
+
+        isUpdatingCarryover = false
+    }
+
+    private func apply(_ loaded: LoadedBudgetMonth) {
+        guard let category = loaded.month.categoryGroups
+            .flatMap(\.categories)
+            .first(where: { $0.id == details.category.id }) else {
+            return
+        }
+
+        details = CategoryMonthDetails(category: category, month: details.month)
+        isCarryoverEnabled = category.carryover
+    }
+}
+
+struct CategoryMonthDetailsView: View {
+    @Environment(AppState.self) private var appState
+    @State private var viewModel: CategoryMonthDetailsViewModel
+
+    init(details: CategoryMonthDetails) {
+        _viewModel = State(initialValue: CategoryMonthDetailsViewModel(details: details))
+    }
+
+    var body: some View {
+        NavigationStack {
+            AccountTransactionsView(
+                scope: .category(viewModel.details),
+                onChanged: {
+                    Task { await viewModel.refresh(using: appState) }
+                },
+                categoryCarryoverIsEnabled: viewModel.isCarryoverEnabled,
+                categoryCarryoverIsUpdating: viewModel.isUpdatingCarryover,
+                canEditCategoryCarryover: appState.capabilities.canSetCategoryCarryover,
+                categoryCarryoverErrorMessage: viewModel.carryoverErrorMessage,
+                onCategoryCarryoverChanged: { enabled in
+                    Task { await viewModel.setCarryover(enabled, using: appState) }
+                }
+            )
+        }
+        .task { await viewModel.refresh(using: appState) }
+        .onChange(of: appState.localDataRevision) {
+            Task { await viewModel.refresh(using: appState) }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -143,6 +220,11 @@ struct AccountTransactionsView: View {
     @Environment(\.dismiss) private var dismiss
     let scope: TransactionFeedScope
     let onChanged: () -> Void
+    let categoryCarryoverIsEnabled: Bool?
+    let categoryCarryoverIsUpdating: Bool
+    let canEditCategoryCarryover: Bool
+    let categoryCarryoverErrorMessage: String?
+    let onCategoryCarryoverChanged: (Bool) -> Void
 
     @FocusState private var isSearchFieldFocused: Bool
 
@@ -165,11 +247,29 @@ struct AccountTransactionsView: View {
     init(account: ActualAccount) {
         self.scope = .account(account)
         self.onChanged = {}
+        self.categoryCarryoverIsEnabled = nil
+        self.categoryCarryoverIsUpdating = false
+        self.canEditCategoryCarryover = false
+        self.categoryCarryoverErrorMessage = nil
+        self.onCategoryCarryoverChanged = { _ in }
     }
 
-    init(scope: TransactionFeedScope, onChanged: @escaping () -> Void = {}) {
+    init(
+        scope: TransactionFeedScope,
+        onChanged: @escaping () -> Void = {},
+        categoryCarryoverIsEnabled: Bool? = nil,
+        categoryCarryoverIsUpdating: Bool = false,
+        canEditCategoryCarryover: Bool = false,
+        categoryCarryoverErrorMessage: String? = nil,
+        onCategoryCarryoverChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
         self.scope = scope
         self.onChanged = onChanged
+        self.categoryCarryoverIsEnabled = categoryCarryoverIsEnabled
+        self.categoryCarryoverIsUpdating = categoryCarryoverIsUpdating
+        self.canEditCategoryCarryover = canEditCategoryCarryover
+        self.categoryCarryoverErrorMessage = categoryCarryoverErrorMessage
+        self.onCategoryCarryoverChanged = onCategoryCarryoverChanged
     }
 
     private var budgetID: String? {
@@ -498,10 +598,60 @@ struct AccountTransactionsView: View {
                 amount: details.remainingAmount,
                 foreground: remainingForeground(details.remainingAmount)
             )
+
+            if let categoryCarryoverIsEnabled {
+                Divider().overlay(ActualistTheme.separator)
+
+                categoryCarryoverRow(isEnabled: categoryCarryoverIsEnabled)
+            }
+
+            if let categoryCarryoverErrorMessage {
+                Text(categoryCarryoverErrorMessage)
+                    .font(ActualistTypography.rowLabel(for: density))
+                    .foregroundStyle(ActualistTheme.danger)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func categoryCarryoverRow(isEnabled: Bool) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Rollover Overspending")
+                    .font(ActualistTypography.body(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+
+                Text("Carry this category’s negative balance into following months.")
+                    .font(ActualistTypography.rowLabel(for: density))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            if categoryCarryoverIsUpdating {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(ActualistTheme.accent)
+            }
+
+            Toggle(
+                "Rollover Overspending",
+                isOn: Binding(
+                    get: { isEnabled },
+                    set: onCategoryCarryoverChanged
+                )
+            )
+            .labelsHidden()
+            .tint(ActualistTheme.accent)
+            .disabled(!canEditCategoryCarryover || categoryCarryoverIsUpdating)
+            .accessibilityValue(isEnabled ? "On" : "Off")
+        }
+        .padding(.vertical, 10)
     }
 
     private func categorySummaryRow(

@@ -64,6 +64,48 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
+    func setCategoryCarryoverAndRefresh(
+        categoryID: String,
+        carryover: Bool,
+        budgetID: String,
+        startMonth: String,
+        didSetCarryover: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        guard let nodeID = openedNodeID else {
+            throw LocalFirstError.budgetNotOpened
+        }
+        let database = try requireDatabase(for: budgetID)
+        let latestTimestamp = try await database.latestSyncTimestamp()
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: nodeID,
+            latestTimestamp: latestTimestamp
+        )
+        let messages = try await database.categoryCarryoverMessages(
+            categoryID: categoryID,
+            carryover: carryover,
+            startMonth: startMonth,
+            throughMonth: Self.categoryCarryoverHorizonMonth(startMonth: startMonth),
+            builder: &builder
+        )
+
+        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        await didSetCarryover()
+        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
+    }
+
+    /// Actual creates budget sheets through one year beyond the current month. Its native
+    /// carryover action writes from the selected month through that created horizon.
+    private static func categoryCarryoverHorizonMonth(
+        startMonth: String,
+        now: Date = Date()
+    ) -> String {
+        let calendar = Calendar(identifier: .gregorian)
+        let horizonDate = calendar.date(byAdding: .month, value: 12, to: now) ?? now
+        return max(startMonth, YearMonth(date: horizonDate).rawValue)
+    }
+
     func applyBudgetTemplateAndRefresh(
         command: BudgetTemplateCommand,
         budgetID: String,
