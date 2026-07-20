@@ -35,9 +35,9 @@ enum LocalFirstError: LocalizedError, Equatable {
         case .unsupportedWrite:
             "This local-first write is not available yet."
         case .unsupportedTransferWrite:
-            "Transfers are not available in local-first write testing yet."
+            "This transfer write is not available."
         case .unsupportedSplitWrite:
-            "Split transactions are not available in local-first write testing yet."
+            "This split transaction write is not available."
         case .encryptedBudgetRequiresPassword:
             "This encrypted budget needs an encryption password before Actualist can open it."
         case .invalidEncryptionPassword:

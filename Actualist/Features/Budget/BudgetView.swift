@@ -136,7 +136,7 @@ struct BudgetView: View {
                             BudgetMonthPicker(
                                 availableMonths: viewModel.availableMonths,
                                 selectedMonth: viewModel.selectedMonth,
-                                allowsUnlistedMonths: appState.capabilities.isLocalFirst
+                                allowsUnlistedMonths: true
                             ) { month in
                                 isMonthPickerPresented = false
                                 Task { await viewModel.selectMonth(month, using: appState) }

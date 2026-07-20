@@ -74,14 +74,10 @@ final class AppState {
     }
 
     /// The single source of truth for backend availability. The local-first CRDT backend is
-    /// the only sync path; write capabilities stay behind the developer local-write gate until
-    /// each mutation surface is proven.
+    /// the only sync path; proven mutations are normal product capabilities, while unsupported
+    /// and experimental surfaces remain explicitly unavailable elsewhere.
     var capabilities: BackendCapabilities {
-        BackendCapabilities(
-            isLocalFirst: true,
-            isReadOnly: true,
-            allowsLocalFirstWrites: settings.localFirstWritesEnabled
-        )
+        .localFirst
     }
 
     func saveLocalFirstConnection(serverURLString: String, password: String) async -> Bool {
@@ -150,7 +146,6 @@ final class AppState {
             settings.selectedLocalFirstGroupID = nil
             settings.pendingNewTransactionIDsByAccount = [:]
             settings.backgroundTransactionRefreshEnabled = false
-            settings.localFirstWritesEnabled = false
             settingsStore.save(settings)
             selectedBudget = nil
             budgets = []
@@ -384,16 +379,10 @@ final class AppState {
         isExperimentalFeatureEnabled(.budgetTemplates) && capabilities.canApplyBudgetTemplates
     }
 
-    func updateLocalFirstWritesEnabled(_ isEnabled: Bool) {
-        settings.localFirstWritesEnabled = isEnabled
-        settingsStore.save(settings)
-    }
-
     func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
         settings.developerModeUnlocked = isUnlocked
         if !isUnlocked {
             settings.randomizedDisplayValuesEnabled = false
-            settings.localFirstWritesEnabled = false
         }
         resetDeveloperUnlockProgress()
         settingsStore.save(settings)

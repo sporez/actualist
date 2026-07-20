@@ -44,7 +44,8 @@ Actualist is already beyond the original read-only plan. The current app has:
 - Search and pagination for transaction feeds.
 - Background refresh alerts based on local-first sync plus transaction diffs.
 - A durable local-first write outbox.
-- Developer-gated write support for:
+- Normal product write support for:
+  - Account creation.
   - Simple transaction creation.
   - Basic transaction edits.
   - Transaction deletion through Actual tombstone semantics.
@@ -52,17 +53,16 @@ Actualist is already beyond the original read-only plan. The current app has:
   - Transfer and split transaction create/edit/delete.
   - Category budget assignment.
   - Move money.
-  - Fixed-amount budget templates.
+  - Category carryover changes.
 
 Current known limitations:
 
-- Local-first writes are still behind the developer write gate.
 - Provider bank-sync triggers are deliberately excluded from the native app;
   Actualist has no menu or repository surface for them.
 - Reconcile remains disabled.
 - Account lifecycle writes beyond creation remain disabled.
 - Rule preview/apply remains disabled.
-- Budget templates only support deterministic fixed monthly amounts.
+- Budget templates remain experimental and only support deterministic fixed monthly amounts.
 - Unsupported template types are correctly refused instead of approximated.
 - Physical-device airplane-mode validation is still useful before broad write
   shipping.
@@ -281,5 +281,5 @@ mis-budgeting. The safest rule is:
 Template support either matches Actual web exactly or refuses to write.
 ```
 
-Once template parity is complete, the write gate can be revisited with a much
-stronger foundation.
+Budget templates remain behind their explicit Experimental Features toggle until
+their supported directives match Actual closely enough for normal product use.

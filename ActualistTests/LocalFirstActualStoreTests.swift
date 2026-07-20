@@ -80,7 +80,6 @@ struct LocalFirstActualStoreTests {
         #expect(settings.localFirstServerURLString == "https://actual.example.com")
         #expect(settings.selectedBudgetID == "budget")
         #expect(settings.selectedLocalFirstFileID == nil)
-        #expect(!settings.localFirstWritesEnabled)
         #expect(settings.enabledExperimentalFeatures.isEmpty)
         #expect(settings.reportCardOrder == ReportCardOrderPreference.defaultOrder)
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())

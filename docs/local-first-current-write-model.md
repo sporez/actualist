@@ -66,9 +66,9 @@ local database and refreshes in-memory caches. Actual's CRDT sync semantics rema
 the conflict model. Product-specific conflict resolution should only be added
 after a concrete conflict case is observed.
 
-## Current Write Coverage
+## Current Product Write Coverage
 
-The developer write gate currently enables:
+These native local-first writes are normal product capabilities:
 
 - Account creation, including the account row and its transfer payee.
 - Simple transaction creation.
@@ -78,14 +78,14 @@ The developer write gate currently enables:
 - Transfer and split transaction create/edit/delete.
 - Category budget assignment.
 - Move money.
-- Fixed-amount budget templates.
+- Category carryover changes.
 
 ## Current Limitations
 
-- Local-first writes are still behind the developer write gate.
 - Provider bank-sync triggers are outside Actualist's app scope; the former menu
   action and repository contract have been removed.
-- Reconcile and rule preview/apply remain disabled in local-first write testing.
-- Budget templates only support the ported deterministic fixed-amount behavior;
-  unsupported template types are refused instead of approximated.
+- Reconcile and rule preview/apply remain unavailable.
+- Budget templates remain behind the Experimental Features toggle and only
+  support the ported deterministic fixed-amount behavior; unsupported template
+  types are refused instead of approximated.
 - Physical-device airplane-mode validation is still useful before broad shipping.

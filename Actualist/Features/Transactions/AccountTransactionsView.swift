@@ -486,7 +486,7 @@ struct AccountTransactionsView: View {
                     }
                     .actualistToolbarGlassButton()
                     .accessibilityLabel("Account Actions")
-                    .disabled(appState.capabilities.isReadOnly)
+                    .disabled(!appState.capabilities.canReconcile)
                 }
             }
         }

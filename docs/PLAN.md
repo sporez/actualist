@@ -4,7 +4,7 @@
 
 Actualist is a native iOS 26+ local-first app for browsing and managing an Actual Budget file through Actual's native sync model. It connects to a normal Actual server, imports the budget SQLite database, applies CRDT messages, and renders from local data. It no longer relies on the sibling `actual-http-api` REST wrapper or its OpenAPI contract. The app should be a polished native UI for Actual, not a second budgeting engine. The app should feel like the screenshots in `reference/`: dark, dense, rounded, thumb-friendly, Liquid Glass-aware, with bold money states and native floating-feeling tab chrome.
 
-Current scope is a local-first budget companion with developer-gated writes:
+Current scope is a local-first budget companion with native CRDT writes:
 
 - First launch presents onboarding for the Actual server URL and password.
 - Connect to the normal Actual server, fetch remote file metadata, and import the selected budget.
@@ -13,7 +13,7 @@ Current scope is a local-first budget companion with developer-gated writes:
 - Show accounts grouped into open/off-budget/closed sections, with closed accounts collapsed by default.
 - Show all-account spending and account-specific transaction feeds.
 - Drill into an account and show transactions grouped by date.
-- Allow server details, selected budget, sync controls, account ordering, theme, privacy mode, and developer-gated writes to be changed from Settings.
+- Allow server details, selected budget, sync controls, account ordering, theme, privacy mode, and experimental features to be changed from Settings.
 - Implement writes by generating Actual-compatible CRDT messages, applying them to SQLite, enqueueing them in `actualist_outbox`, reloading affected local caches, and opportunistically flushing.
 
 Confirmed platform decisions:
@@ -94,7 +94,7 @@ Reference: `reference/Accounts.PNG`
 - Group sections with disclosure control and group total.
 - Account rows show account icon, name, current balance, and drill-in chevron.
 - Closed accounts collapse into a summary row by default.
-- Add Account is available when the developer local-write gate is enabled. It creates the account row and linked transfer payee through CRDT messages, then reloads local accounts.
+- Add Account creates the account row and linked transfer payee through CRDT messages, then reloads local accounts.
 
 ### Account Transactions View
 
@@ -166,7 +166,7 @@ Accounts are read from `accounts` and balances are derived from local transactio
 - Open off-budget accounts.
 - Closed accounts.
 
-Add Account is implemented behind the developer local-write gate. It creates:
+Add Account is implemented through the native local-first write path. It creates:
 
 - An `accounts` row with `name`, `offbudget`, `closed = false`, `tombstone = false`, and `sort_order` when available.
 - A linked empty-name transfer payee through `payees.transfer_acct` when the schema supports it.
@@ -363,8 +363,7 @@ Development pipeline details live in `docs/DEVELOPMENT.md`. The intended loop is
 
 ## Open Questions
 
-1. When should the developer local-write gate become a normal user-facing capability?
-2. Which reports are worth implementing first from local SQLite?
+1. Which reports are worth implementing first from local SQLite?
 
 ## External Apple References
 

@@ -655,8 +655,8 @@ final class TransactionEditorViewModel {
     func submit(using appState: AppState) async -> Bool {
         guard writesAllowed(appState.capabilities) else {
             errorMessage = isEditing
-                ? "Transaction edits are disabled. Enable Transaction Writes in Developer settings to test local-first writes."
-                : "Transaction creation is disabled. Enable it in Developer settings to test local-first writes."
+                ? "Editing this transaction type is not available."
+                : "Transaction creation is not available."
             return false
         }
 
@@ -669,7 +669,7 @@ final class TransactionEditorViewModel {
     }
 
     func previewRules(using appState: AppState) async {
-        guard !appState.capabilities.isLocalFirst else {
+        guard appState.capabilities.canApplyRules else {
             return
         }
 

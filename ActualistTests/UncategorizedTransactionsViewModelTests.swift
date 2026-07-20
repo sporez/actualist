@@ -61,11 +61,7 @@ struct UncategorizedTransactionsViewModelTests {
             ]
         )
         let model = UncategorizedTransactionsViewModel()
-        let capabilities = BackendCapabilities(
-            isLocalFirst: true,
-            isReadOnly: true,
-            allowsLocalFirstWrites: true
-        )
+        let capabilities = BackendCapabilities.localFirst
 
         await model.load(budgetID: "budget", month: "2026-06", repository: repository)
         let result = await model.categorize(
@@ -77,7 +73,6 @@ struct UncategorizedTransactionsViewModelTests {
             repository: repository
         )
 
-        #expect(!capabilities.canEditTransactions)
         #expect(capabilities.canCategorizeTransactions)
         #expect(result == .categorized(hasRemainingTransactions: false))
         #expect(model.transactions.isEmpty)

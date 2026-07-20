@@ -98,27 +98,25 @@ struct SettingsView: View {
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
 
-                    if appState.capabilities.isLocalFirst {
-                        LabeledContent("Last Synced") {
-                            Text(localFirstLastSyncedText)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
+                    LabeledContent("Last Synced") {
+                        Text(localFirstLastSyncedText)
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
 
-                        LabeledContent("Pending Sync") {
-                            Text(localFirstPendingSyncText)
-                                .foregroundStyle(localFirstPendingSyncForeground)
-                        }
+                    LabeledContent("Pending Sync") {
+                        Text(localFirstPendingSyncText)
+                            .foregroundStyle(localFirstPendingSyncForeground)
+                    }
 
-                        LabeledContent("Security") {
-                            Text(localFirstSecurityText)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
+                    LabeledContent("Security") {
+                        Text(localFirstSecurityText)
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
 
-                        if let error = appState.localFirstSyncStatus?.lastError {
-                            Text(error)
-                                .font(.footnote)
-                                .foregroundStyle(ActualistTheme.danger)
-                        }
+                    if let error = appState.localFirstSyncStatus?.lastError {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(ActualistTheme.danger)
                     }
 
                     Button {
@@ -127,27 +125,25 @@ struct SettingsView: View {
                         SettingsActionLabel(title: "Change Budget", systemImage: "folder")
                     }
 
-                    if appState.capabilities.isLocalFirst {
-                        Button {
-                            Task { await syncNow() }
-                        } label: {
-                            SettingsActionLabel(
-                                title: isSyncingNow ? "Syncing" : "Sync Now",
-                                systemImage: "arrow.triangle.2.circlepath"
-                            )
-                        }
-                        .disabled(isSyncingNow || appState.settings.selectedBudgetID == nil)
-
-                        Button(role: .destructive) {
-                            isReimportConfirmationPresented = true
-                        } label: {
-                            SettingsActionLabel(
-                                title: isReimporting ? "Reimporting" : "Reimport Budget",
-                                systemImage: "arrow.down.circle"
-                            )
-                        }
-                        .disabled(isReimporting || appState.settings.selectedBudgetID == nil)
+                    Button {
+                        Task { await syncNow() }
+                    } label: {
+                        SettingsActionLabel(
+                            title: isSyncingNow ? "Syncing" : "Sync Now",
+                            systemImage: "arrow.triangle.2.circlepath"
+                        )
                     }
+                    .disabled(isSyncingNow || appState.settings.selectedBudgetID == nil)
+
+                    Button(role: .destructive) {
+                        isReimportConfirmationPresented = true
+                    } label: {
+                        SettingsActionLabel(
+                            title: isReimporting ? "Reimporting" : "Reimport Budget",
+                            systemImage: "arrow.down.circle"
+                        )
+                    }
+                    .disabled(isReimporting || appState.settings.selectedBudgetID == nil)
                 }
                 .settingsSectionChrome()
 
@@ -418,7 +414,6 @@ struct SettingsView: View {
                 #if DEBUG
                 SettingsDeveloperDiagnosticsSheet(
                     randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
-                    localFirstWritesSelection: localFirstWritesSelection,
                     hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug,
                     syncStatus: appState.localFirstSyncStatus,
@@ -431,7 +426,6 @@ struct SettingsView: View {
                 #else
                 SettingsDeveloperDiagnosticsSheet(
                     randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
-                    localFirstWritesSelection: localFirstWritesSelection,
                     hideDeveloperMode: hideDeveloperMode,
                     debug: appState.settings.backgroundRefreshDebug,
                     syncStatus: appState.localFirstSyncStatus,
@@ -621,14 +615,6 @@ struct SettingsView: View {
         }
     }
 
-    private var localFirstWritesSelection: Binding<Bool> {
-        Binding {
-            appState.settings.localFirstWritesEnabled
-        } set: { isEnabled in
-            appState.updateLocalFirstWritesEnabled(isEnabled)
-        }
-    }
-
     private func experimentalFeatureSelection(_ feature: ExperimentalFeature) -> Binding<Bool> {
         Binding {
             appState.isExperimentalFeatureEnabled(feature)
@@ -695,7 +681,6 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @Binding var randomizedDisplayValuesSelection: Bool
-    @Binding var localFirstWritesSelection: Bool
     let hideDeveloperMode: () -> Void
     let debug: BackgroundRefreshDebugInfo
     let syncStatus: LocalFirstSyncStatus?
@@ -713,15 +698,6 @@ private struct SettingsDeveloperDiagnosticsSheet: View {
             List {
                 Section("Privacy") {
                     Toggle("Generic Screenshot Data", isOn: $randomizedDisplayValuesSelection)
-                }
-                .settingsSectionChrome()
-
-                Section("Local-First Writes") {
-                    Toggle("Write Testing", isOn: $localFirstWritesSelection)
-
-                    Text("Enables local-first write proofs for fake-budget testing: transactions, budget assignment, move money, and fixed-amount templates. Rules and account writes stay disabled.")
-                        .font(.footnote)
-                        .foregroundStyle(ActualistTheme.secondaryText)
                 }
                 .settingsSectionChrome()
 

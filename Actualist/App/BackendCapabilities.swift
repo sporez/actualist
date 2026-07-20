@@ -1,75 +1,53 @@
-import Foundation
-
 /// The single source of truth for what the backend can do right now.
 ///
-/// Views and view models must consult these named flags instead of inspecting connection
-/// state directly, so the backend capability contract lives in one place. Local-first is the
-/// only backend; these two flags stay constant today while individual write surfaces are gated:
-/// - `isLocalFirst`: the native local-first sync backend is active (always true).
-/// - `isReadOnly`: broad write surfaces are blocked while local-first mutations land in phases.
+/// Views and view models consult these named capabilities so unsupported mutations stay
+/// unavailable without putting proven local-first writes behind a user or developer setting.
 struct BackendCapabilities: Equatable {
-    let isLocalFirst: Bool
-    let isReadOnly: Bool
-    /// Single developer gate for every local-first write. Local-first is the only backend, so
-    /// while `isReadOnly` stays true this flag is what actually enables writes for testing.
-    let allowsLocalFirstWrites: Bool
+    static let localFirst = BackendCapabilities()
 
-    init(
-        isLocalFirst: Bool,
-        isReadOnly: Bool,
-        allowsLocalFirstWrites: Bool = false
-    ) {
-        self.isLocalFirst = isLocalFirst
-        self.isReadOnly = isReadOnly
-        self.allowsLocalFirstWrites = allowsLocalFirstWrites
-    }
+    private init() {}
 
-    // MARK: Write gates
+    // MARK: Supported writes
 
-    /// Create simple transactions. Local-first exposes this behind a developer gate.
-    var canCreateTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
-    /// Categorize existing uncategorized transactions. This is the first transaction mutation
-    /// parity slice after create and uses the same developer write gate.
-    var canCategorizeTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
+    /// Create simple transactions through the native CRDT/outbox path.
+    var canCreateTransactions: Bool { true }
+    /// Categorize existing uncategorized transactions.
+    var canCategorizeTransactions: Bool { true }
     /// Update basic fields on a non-split, non-transfer transaction.
-    var canUpdateSimpleTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
-    /// Delete a non-split, non-transfer transaction via Actual tombstone semantics. Uses the
-    /// same developer write gate as the other local-first transaction mutations.
-    var canDeleteTransactions: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
-    /// Create, edit, and delete transfer transactions (paired rows across two accounts). Uses
-    /// the same developer write gate as the other local-first transaction mutations.
-    var canWriteTransfers: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
-    /// Create, edit, and delete split transactions (a parent with category children). Uses the
-    /// same developer write gate as the other local-first transaction mutations.
-    var canWriteSplits: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
+    var canUpdateSimpleTransactions: Bool { true }
+    /// Delete a non-split, non-transfer transaction via Actual tombstone semantics.
+    var canDeleteTransactions: Bool { true }
+    /// Create, edit, and delete paired transfer transactions.
+    var canWriteTransfers: Bool { true }
+    /// Create, edit, and delete split transaction parents and children.
+    var canWriteSplits: Bool { true }
     /// Assign a category's budgeted amount.
-    var canAssignCategoryBudget: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
+    var canAssignCategoryBudget: Bool { true }
     /// Carry a category's negative balance forward from the selected month.
-    var canSetCategoryCarryover: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
+    var canSetCategoryCarryover: Bool { true }
     /// Move money between categories and To Budget.
-    var canMoveMoney: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
-    /// Apply category or month budget templates. Local-first supports fixed-amount templates
-    /// (T1) behind the write gate and refuses not-yet-ported template types.
-    var canApplyBudgetTemplates: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
-    /// Broad compatibility gate for budget write surfaces not split yet.
+    var canMoveMoney: Bool { true }
+    /// The fixed-amount template mutation exists, but product exposure remains experimental.
+    var canApplyBudgetTemplates: Bool { true }
+    /// Broad compatibility capability for implemented budget write surfaces.
     var canAssignBudget: Bool {
         canAssignCategoryBudget || canSetCategoryCarryover || canMoveMoney || canApplyBudgetTemplates
     }
-    /// Edit and delete existing transactions.
-    var canEditTransactions: Bool { !isReadOnly }
-    /// Reconcile an account balance.
-    var canReconcile: Bool { !isReadOnly }
-    /// Preview and apply rules.
-    var canApplyRules: Bool { !isReadOnly }
+    /// Create an account and its linked transfer payee.
+    var canAddAccount: Bool { true }
 
-    // MARK: Structural gates
+    // MARK: Unsupported writes
 
-    /// Whether the Add Account affordance is offered at all.
-    var showsAddAccount: Bool { !isLocalFirst || canAddAccount }
-    /// Add Account can be tapped.
-    var canAddAccount: Bool { !isReadOnly || (isLocalFirst && allowsLocalFirstWrites) }
-    /// Background transaction refresh is read-only in local-first: pull sync, diff rows, alert.
+    /// Reconciliation does not yet have a native local-first mutation.
+    var canReconcile: Bool { false }
+    /// Rule preview/apply does not yet have a native local-first implementation.
+    var canApplyRules: Bool { false }
+
+    // MARK: Structural capabilities
+
+    var showsAddAccount: Bool { canAddAccount }
+    /// Background refresh pulls sync messages, diffs rows, and posts alerts.
     var supportsBackgroundRefresh: Bool { true }
-    /// New-transaction notifications are posted and routed after a read-only local-first sync.
+    /// New-transaction notifications are posted and routed after a local-first sync.
     var supportsTransactionNotifications: Bool { true }
 }

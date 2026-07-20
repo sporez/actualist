@@ -35,7 +35,11 @@ Historical source-inspection reference only; this app does not depend on
 
 **Frozen contract. Do not re-derive from memory.**
 
-## Prerequisite (Step 0): Consolidate Write Gates
+## Prerequisite (Step 0): Consolidate Write Gates (Historical)
+
+The shared developer write gate was retired after the native mutation paths
+proved stable. General writes are normal product capabilities; Budget Templates
+remain gated by `ExperimentalFeature.budgetTemplates`.
 
 The three capability flags `allowsLocalFirstTransactionCreation` /
 `allowsLocalFirstBudgetAssignment` / `allowsLocalFirstMoveMoney` are **already all
@@ -183,7 +187,8 @@ check.
       (overwrite force vs fillEmpty only-zero), writes via existing assign primitive.
 - [x] `runSimple` equivalent: priority-0 `simple` with `monthly`, no limit → summed
       minor units (`amount * 100`, 2-decimal money model).
-- [x] `applyBudgetTemplateAndRefresh` wired; `canApplyBudgetTemplates` → write gate.
+- [x] `applyBudgetTemplateAndRefresh` wired; product exposure remains behind the
+      Budget Templates experimental feature.
 - [x] Refusal guard: any category that WOULD be written using a non-ported
       type/feature throws `unsupportedTemplate` and writes nothing.
 - [x] Unit tests (category overwrite, fill-empty skip, whole-month + targeted refusal).
