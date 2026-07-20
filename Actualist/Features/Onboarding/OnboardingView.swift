@@ -29,33 +29,44 @@ struct OnboardingView: View {
 
                     GlassPanel {
                         VStack(alignment: .leading, spacing: 18) {
-                            LabeledContent("Server URL") {
-                                ZStack(alignment: .trailing) {
-                                    if viewModel.serverURLString.isEmpty {
-                                        Text("Required")
-                                            .foregroundStyle(ActualistTheme.secondaryText)
-                                    }
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Server URL")
+                                    .font(ActualistTypography.rowLabel(for: density))
+                                    .foregroundStyle(ActualistTheme.secondaryText)
 
-                                    TextField("", text: $viewModel.serverURLString)
-                                        .textInputAutocapitalization(.never)
-                                        .keyboardType(.URL)
-                                        .multilineTextAlignment(.trailing)
-                                }
+                                TextField(
+                                    "Server URL",
+                                    text: $viewModel.serverURLString,
+                                    prompt: Text("https://actual.example.com")
+                                        .foregroundStyle(ActualistTheme.secondaryText)
+                                )
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.primaryText)
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.URL)
+                                .multilineTextAlignment(.leading)
+                                .accessibilityLabel("Server URL")
                             }
 
                             Divider().overlay(ActualistTheme.separator)
 
-                            LabeledContent("Password") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Password")
+                                    .font(ActualistTypography.rowLabel(for: density))
+                                    .foregroundStyle(ActualistTheme.secondaryText)
+
                                 SecureField(
-                                    "",
+                                    "Password",
                                     text: $viewModel.actualPassword,
                                     prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
                                 )
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.primaryText)
                                 .textInputAutocapitalization(.never)
-                                .multilineTextAlignment(.trailing)
+                                .multilineTextAlignment(.leading)
+                                .accessibilityLabel("Password")
                             }
                         }
-                        .foregroundStyle(ActualistTheme.primaryText)
                     }
 
                     if let warning = viewModel.connectionSecurityWarning {
