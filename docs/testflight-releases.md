@@ -20,6 +20,7 @@ The menu covers the normal paths:
 - Archive, export, or upload the current version.
 - Prepare and upload in one run.
 - Tag the committed release.
+- Optionally publish the tag and generated notes as a GitHub prerelease.
 
 Tagging still requires a clean worktree so the tag points at the committed
 release version.
@@ -73,6 +74,27 @@ scripts/testflight-release.sh tag
 The tag format is `testflight/v<marketing-version>-b<build-number>`. Future
 release notes are generated from the latest tag to `HEAD`. Tagging requires a
 clean worktree so the tag points at the committed release version.
+
+Optionally push that tag and create a GitHub prerelease:
+
+```sh
+scripts/testflight-release.sh github-release
+```
+
+This pushes the current TestFlight tag to `origin`, then uses the GitHub CLI
+with `--verify-tag`, `--prerelease`, and the generated `release-notes.md`. It
+requires `gh` to be installed and authenticated. Set `GITHUB_REMOTE` to push to
+a remote other than `origin`; set `GH_REPO=owner/repository` when `gh` should
+target a repository other than the one inferred from the checkout.
+
+The tagging command can perform the same optional follow-on step:
+
+```sh
+scripts/testflight-release.sh tag --github-release
+```
+
+GitHub release creation remains separate from `all` because the prepared
+version bump must be committed before its tag and release are published.
 
 ## One Command Upload
 

@@ -70,10 +70,12 @@ git add Actualist.xcodeproj/project.pbxproj
 git commit -m "chore: prepare TestFlight <version> (<build>)"
 scripts/testflight-release.sh upload
 scripts/testflight-release.sh tag
+scripts/testflight-release.sh github-release
 ```
 
 See `docs/testflight-releases.md` for version bump options, generated artifact
-paths, and App Store Connect authentication environment variables.
+paths, optional GitHub prereleases, and App Store Connect authentication
+environment variables.
 
 ## Liquid Glass Checks
 

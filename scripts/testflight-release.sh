@@ -9,6 +9,7 @@ TAG_PREFIX="testflight/v"
 RELEASE_ROOT=".release/testflight"
 DERIVED_DATA_PATH=".derivedData/testflight"
 TEST_DESTINATION="${TEST_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
+GITHUB_REMOTE="${GITHUB_REMOTE:-origin}"
 
 if [[ $# -eq 0 && -t 0 && -t 1 ]]; then
   command="menu"
@@ -29,6 +30,7 @@ dry_run=0
 skip_tests=0
 allow_dirty=0
 tag_after_upload=0
+github_release_after_tag=0
 internal_only=0
 notes_limit=80
 
@@ -44,6 +46,7 @@ Usage:
   scripts/testflight-release.sh upload [options]
   scripts/testflight-release.sh all [options]
   scripts/testflight-release.sh tag [options]
+  scripts/testflight-release.sh github-release [options]
 
 Commands:
   menu       Walk through common release tasks with a basic Bash menu.
@@ -54,6 +57,8 @@ Commands:
   upload     Archive if needed, then upload to App Store Connect.
   all        prepare + archive + upload.
   tag        Create the TestFlight git tag for the selected version/build.
+  github-release
+             Push the current TestFlight tag and create a GitHub prerelease.
 
 Options:
   --version X.Y[.Z]       Set MARKETING_VERSION.
@@ -69,6 +74,8 @@ Options:
   --tag                  With upload, tag after a successful upload.
                          Tagging requires a clean worktree and no version
                          mutation in the same command.
+  --github-release       With tag or upload, publish a GitHub prerelease after
+                         confirming the current TestFlight tag exists.
   --dry-run              Print commands and intended edits without executing them.
   --notes-limit N        Max commit lines in what-to-test.txt. Default: 80.
 
@@ -137,6 +144,10 @@ while [[ $# -gt 0 ]]; do
       tag_after_upload=1
       shift
       ;;
+    --github-release)
+      github_release_after_tag=1
+      shift
+      ;;
     --dry-run)
       dry_run=1
       shift
@@ -157,12 +168,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$command" in
-  menu|plan|prepare|archive|export|upload|all|tag) ;;
+  menu|plan|prepare|archive|export|upload|all|tag|github-release) ;;
   *)
     usage
     die "unknown command: $command"
     ;;
 esac
+
+if [[ "$github_release_after_tag" -eq 1 ]]; then
+  case "$command" in
+    upload|tag) ;;
+    *) die "--github-release is only valid with upload or tag" ;;
+  esac
+fi
 
 [[ -d "$PROJECT" ]] || die "run this from the Actualist repository root"
 [[ -f "$PROJECT/project.pbxproj" ]] || die "missing $PROJECT/project.pbxproj"
@@ -515,6 +533,28 @@ create_tag() {
   run git tag -a "$tag_name" -m "TestFlight ${next_version} (${next_build})"
 }
 
+create_github_release() {
+  if [[ "$dry_run" -ne 1 ]]; then
+    command -v gh >/dev/null 2>&1 || die "GitHub CLI (gh) is required to create a GitHub Release"
+    git remote get-url "$GITHUB_REMOTE" >/dev/null 2>&1 || die "git remote not found: $GITHUB_REMOTE"
+    git rev-parse --verify "refs/tags/$tag_name" >/dev/null 2>&1 || die "tag not found: $tag_name; run the tag command first"
+    [[ -f "$notes_markdown" ]] || die "release notes not found: $notes_markdown; run prepare first"
+    if gh release view "$tag_name" >/dev/null 2>&1; then
+      die "GitHub Release already exists: $tag_name"
+    fi
+  fi
+
+  log "Pushing tag $tag_name to $GITHUB_REMOTE"
+  run git push "$GITHUB_REMOTE" "refs/tags/$tag_name"
+
+  log "Creating GitHub prerelease $tag_name"
+  run gh release create "$tag_name" \
+    --verify-tag \
+    --prerelease \
+    --title "Actualist ${next_version} (${next_build}) TestFlight" \
+    --notes-file "$notes_markdown"
+}
+
 print_plan() {
   cat <<PLAN
 Current project version: ${current_version} (${current_build})
@@ -531,6 +571,7 @@ Next commands:
   git commit -m "chore: prepare TestFlight ${next_version} (${next_build})"
   scripts/testflight-release.sh upload
   scripts/testflight-release.sh tag
+  scripts/testflight-release.sh github-release
 
 For a single run:
   scripts/testflight-release.sh all
@@ -713,7 +754,8 @@ run_menu() {
     echo "  5) Upload current version to App Store Connect"
     echo "  6) Prepare version + upload"
     echo "  7) Tag current committed release"
-    echo "  8) Help"
+    echo "  8) Publish GitHub prerelease for current tag"
+    echo "  9) Help"
     echo "  0) Quit"
     echo
 
@@ -763,18 +805,30 @@ run_menu() {
           echo
           echo "Tagging requires a clean worktree. Commit the release version first."
         else
+          if prompt_yes_no "Publish a GitHub prerelease after tagging?" "n"; then
+            menu_args+=(--github-release)
+          fi
           append_common_run_args
           run_menu_command tag
         fi
         ;;
       8)
+        if [[ -n "$(git status --porcelain)" ]]; then
+          echo
+          echo "Publishing requires a clean worktree."
+        else
+          append_common_run_args
+          run_menu_command github-release
+        fi
+        ;;
+      9)
         usage
         ;;
       0|q|Q)
         exit 0
         ;;
       *)
-        echo "Choose 0-8." >&2
+        echo "Choose 0-9." >&2
         ;;
     esac
 
@@ -821,6 +875,9 @@ case "$command" in
     if [[ "$tag_after_upload" -eq 1 ]] && will_mutate_version; then
       die "cannot use --tag while changing version/build; prepare, commit, upload, then tag"
     fi
+    if [[ "$github_release_after_tag" -eq 1 ]] && will_mutate_version; then
+      die "cannot use --github-release while changing version/build; prepare and commit first"
+    fi
     if [[ "$bump" != "none" || -n "$version_override" || -n "$build_override" ]]; then
       update_project_version
       generate_notes
@@ -828,6 +885,9 @@ case "$command" in
     export_app "upload"
     if [[ "$tag_after_upload" -eq 1 ]]; then
       create_tag
+    fi
+    if [[ "$github_release_after_tag" -eq 1 ]]; then
+      create_github_release
     fi
     ;;
   all)
@@ -844,5 +904,12 @@ case "$command" in
     ;;
   tag)
     create_tag
+    if [[ "$github_release_after_tag" -eq 1 ]]; then
+      create_github_release
+    fi
+    ;;
+  github-release)
+    require_clean_worktree
+    create_github_release
     ;;
 esac
