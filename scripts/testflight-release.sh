@@ -291,6 +291,43 @@ require_clean_worktree() {
   fi
 }
 
+worktree_has_only_release_version_changes() {
+  local project_file="$PROJECT/project.pbxproj"
+  local status_line path
+  local status
+  status="$(git status --porcelain)"
+  [[ -n "$status" ]] || return 1
+
+  while IFS= read -r status_line; do
+    path="${status_line:3}"
+    [[ "$path" == "$project_file" ]] || return 1
+  done <<< "$status"
+
+  git diff HEAD --unified=0 -- "$project_file" | awk '
+    /^[+-]/ && !/^(---|\+\+\+)/ {
+      line = substr($0, 2)
+      if (line !~ /^[[:space:]]*(MARKETING_VERSION|CURRENT_PROJECT_VERSION) = [^;]+;$/) {
+        invalid = 1
+      }
+      found = 1
+    }
+    END {
+      exit (!found || invalid)
+    }
+  '
+}
+
+require_build_worktree() {
+  if [[ "$allow_dirty" -eq 1 || -z "$(git status --porcelain)" ]]; then
+    return
+  fi
+  if worktree_has_only_release_version_changes; then
+    log "Using prepared release version changes from $PROJECT/project.pbxproj"
+    return
+  fi
+  die "git worktree has changes beyond the prepared release version; commit/stash first or pass --allow-dirty"
+}
+
 will_mutate_version() {
   [[ "$next_version" != "$current_version" || "$next_build" != "$current_build" ]]
 }
@@ -682,7 +719,11 @@ choose_release_args() {
 }
 
 append_dirty_arg_or_cancel() {
+  local allow_prepared_release="${1:-0}"
   if [[ -z "$(git status --porcelain)" ]]; then
+    return 0
+  fi
+  if [[ "$allow_prepared_release" -eq 1 ]] && worktree_has_only_release_version_changes; then
     return 0
   fi
 
@@ -775,19 +816,19 @@ run_menu() {
         run_menu_command prepare
         ;;
       3)
-        append_dirty_arg_or_cancel || continue
+        append_dirty_arg_or_cancel 1 || continue
         append_archive_args
         append_common_run_args
         run_menu_command archive
         ;;
       4)
-        append_dirty_arg_or_cancel || continue
+        append_dirty_arg_or_cancel 1 || continue
         append_archive_args
         append_common_run_args
         run_menu_command export
         ;;
       5)
-        append_dirty_arg_or_cancel || continue
+        append_dirty_arg_or_cancel 1 || continue
         append_upload_args
         append_common_run_args
         run_menu_command upload
@@ -852,7 +893,7 @@ case "$command" in
     log "Wrote $what_to_test"
     ;;
   archive)
-    require_clean_worktree
+    require_build_worktree
     if [[ "$bump" != "none" || -n "$version_override" || -n "$build_override" ]]; then
       update_project_version
       generate_notes
@@ -860,7 +901,7 @@ case "$command" in
     archive_app
     ;;
   export)
-    require_clean_worktree
+    require_build_worktree
     if [[ "$bump" != "none" || -n "$version_override" || -n "$build_override" ]]; then
       update_project_version
       generate_notes
@@ -868,7 +909,7 @@ case "$command" in
     export_app "export"
     ;;
   upload)
-    require_clean_worktree
+    require_build_worktree
     if [[ "$tag_after_upload" -eq 1 && -n "$(git status --porcelain)" ]]; then
       die "--tag requires a clean worktree before upload"
     fi

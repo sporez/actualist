@@ -52,6 +52,12 @@ git add Actualist.xcodeproj/project.pbxproj
 git commit -m "chore: prepare TestFlight <version> (<build>)"
 ```
 
+You may archive, export, or upload before committing when the only worktree
+changes are the version fields written by `prepare`. The helper recognizes that
+prepared state automatically. Any unrelated change still requires a commit,
+stash, or explicit `--allow-dirty`. Tagging and GitHub publication always
+require a clean worktree.
+
 Upload to App Store Connect:
 
 ```sh
