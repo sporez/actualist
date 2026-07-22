@@ -1,10 +1,12 @@
 import UIKit
 
-/// The selectable app icons. The primary Icon Composer icon (`icon.icon`) has a `nil`
+/// The selectable app icons. The primary Icon Composer icon (`default.icon`) has a `nil`
 /// alternate name; the others map to the `.icon` files registered as alternate app icons
 /// via `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`.
 enum AppIcon: String, CaseIterable, Identifiable {
     case `default`
+    case coin
+    case purple
     case blue
     case orange
 
@@ -14,6 +16,8 @@ enum AppIcon: String, CaseIterable, Identifiable {
     var alternateIconName: String? {
         switch self {
         case .default: nil
+        case .coin: "coin"
+        case .purple: "icon_purple"
         case .blue: "icon_blue"
         case .orange: "icon_orange"
         }
@@ -27,6 +31,8 @@ enum AppIcon: String, CaseIterable, Identifiable {
     var previewImageName: String {
         switch self {
         case .default: "AppIconPreviewDefault"
+        case .coin: "AppIconPreviewCoin"
+        case .purple: "AppIconPreviewPurple"
         case .blue: "AppIconPreviewBlue"
         case .orange: "AppIconPreviewOrange"
         }
@@ -35,6 +41,8 @@ enum AppIcon: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .default: "Default"
+        case .coin: "Coin"
+        case .purple: "Purple"
         case .blue: "Blue"
         case .orange: "Orange"
         }
