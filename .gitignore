@@ -59,8 +59,5 @@ scripts/*
 .env.*
 !.env.example
 
-# Local-only reference material and agent instructions
+# Local-only reference material
 reference/
-AGENTS.md
-CLAUDE.md
-.claude/

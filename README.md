@@ -13,7 +13,8 @@ Liquid Glass controls.
 
 > [!CAUTION]
 > **Actualist is beta software and can modify real financial data.** Before using
-> it, [export and verify a backup of every budget you plan to test](https://actualbudget.org/docs/backup-restore/backup/).
+> it, export and verify
+> [a backup of every budget you plan to test](https://actualbudget.org/docs/backup-restore/backup/).
 > Do not rely on Actualist as the only copy of your data, and only test with a
 > budget you are prepared to restore.
 
@@ -65,19 +66,6 @@ server or web app. It does not use or require an `actual-http-api` REST wrapper.
 Beta testers should install the app through the TestFlight invitation supplied
 for their test group. Developers can also [build from source](#building-from-source).
 
-## Before You Connect
-
-1. Open the budget in the official Actual web or desktop client.
-2. Go to **More → Settings → Export Data**.
-3. Save the exported ZIP somewhere outside the Actual server and confirm that you
-   can locate it.
-4. Repeat this for every budget you intend to test.
-5. Confirm that the server is up to date and reachable from the iPhone.
-
-See Actual's official guides for
-[creating a backup](https://actualbudget.org/docs/backup-restore/backup/) and
-[restoring a backup](https://actualbudget.org/docs/backup-restore/restore/).
-
 ## Connecting to Your Server
 
 1. Launch Actualist.
@@ -110,7 +98,9 @@ screen's gear or overflow menu.
 
 ## Beta Safety
 
-- Keep regular Actual exports and make a new backup before each beta update.
+- Keep regular Actual exports and make a new
+  [backup](https://actualbudget.org/docs/backup-restore/backup/) before each beta
+  update. Know how to [restore it](https://actualbudget.org/docs/backup-restore/restore/).
 - Verify important totals and recent changes in the official Actual client during
   testing.
 - Let a pending offline change finish syncing before deleting the app or erasing
@@ -122,14 +112,9 @@ screen's gear or overflow menu.
 
 ### Experimental Features
 
-Experimental features are opt-in and disabled by default. They are unfinished,
-less thoroughly tested, and may break or corrupt a budget.
-
-**Budget Templates are experimental.** Template actions can change many budget
-assignments at once, including an overwrite operation. Back up immediately before
-enabling or applying them, verify the result in Actual, and be ready to restore
-your export. Unsupported template definitions should be refused rather than
-approximated, but the feature must still be treated as unsafe during beta testing.
+Experimental features are opt-in and disabled by default. **Budget Templates are
+experimental** and can change many assignments at once. Back up before applying
+them and verify the result in Actual.
 
 ## Current Limitations
 
@@ -141,13 +126,17 @@ approximated, but the feature must still be treated as unsafe during beta testin
 - Budget Templates support only a subset of Actual's template behavior and remain
   experimental.
 
-The active roadmap and implementation notes are in [docs/README.md](docs/README.md).
-
 ## Reporting Bugs
 
 Found a problem? Please
 [open a GitHub issue](https://github.com/sporez/actualist/issues/new) rather than
 assuming a failed write or sync will repair itself.
+
+In Actualist, open **Settings → Support → Share Diagnostic Report** and attach
+the generated text file. The report includes app, device, configuration,
+local-store, sync, and background-refresh state while excluding credentials,
+server addresses, identifiers, names, budget contents, transaction details, and
+financial amounts.
 
 Include:
 
@@ -173,25 +162,20 @@ cd actualist
 open Actualist.xcodeproj
 ```
 
-Resolve the Swift packages in Xcode, select the `Actualist` scheme, and run the
-app. To build from the command line:
+Resolve Swift packages in Xcode, select the `Actualist` scheme, and run the app.
+The repository also includes a simulator helper:
 
 ```sh
-xcodebuild \
-  -project Actualist.xcodeproj \
-  -scheme Actualist \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.3.1' \
-  -derivedDataPath .derivedData \
-  build
+scripts/run-ios-simulator.sh --boot
 ```
 
-Run the test suite with the same destination:
+Run the test suite with an installed iOS 26 simulator:
 
 ```sh
 xcodebuild \
   -project Actualist.xcodeproj \
   -scheme Actualist \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.3.1' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -derivedDataPath .derivedData \
   test
 ```

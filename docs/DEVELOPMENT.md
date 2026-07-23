@@ -1,162 +1,89 @@
-# Development Pipeline
+# Development
 
-Actualist should use a standard Xcode Swift/SwiftUI project with an app target named `Actualist`, a unit test target named `ActualistTests`, and a UI test target only when user-flow automation becomes useful.
+Actualist is an iPhone SwiftUI app targeting iOS 26+. Use Xcode 26 or later.
 
-Current local tooling check:
+## Build And Run
 
-- Xcode: `26.3`
-- Available simulator runtime: `iOS 26.3.1`
-- Preferred simulator: `iPhone 17 Pro`
-
-## Project Shape
-
-Use Xcode's standard iOS App template:
-
-- Product Name: `Actualist`
-- Bundle Identifier: `com.sporez.actualist`
-- Interface: `SwiftUI`
-- Language: `Swift`
-- Minimum Deployment: `iOS 26.0`
-- Storage: local SQLite budget files managed by the local-first store
-- Tests: include unit tests
-
-Keep dependencies light:
-
-- Use Apple frameworks first: SwiftUI, Observation, Foundation, Security, os.log.
-- Add packages only when they clearly reduce maintenance cost.
-- Avoid UIKit entirely for application UI.
-- Keep database access inside `Actualist/LocalFirst/Database`; views and feature
-  view models should stay behind repository/store seams.
-
-## Build
-
-Once the Xcode project exists:
+The simulator helper builds, installs, and launches the app. It uses an iPhone
+17 Pro by default and accepts environment overrides documented by `--help`.
 
 ```sh
-xcodebuild \
-  -project Actualist.xcodeproj \
-  -scheme Actualist \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.3.1' \
-  -derivedDataPath .derivedData \
-  build
+scripts/run-ios-simulator.sh --boot
 ```
 
-## Test
+To build without launching:
+
+```sh
+scripts/run-ios-simulator.sh --no-launch
+```
+
+## Tests
+
+Run the unit tests with an installed iOS 26 simulator:
 
 ```sh
 xcodebuild \
   -project Actualist.xcodeproj \
   -scheme Actualist \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.3.1' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -derivedDataPath .derivedData \
   test
 ```
 
-## TestFlight Releases
+## TestFlight
 
-Use the local release helper menu for TestFlight versioning, release-note
-generation, archives, and App Store Connect uploads:
+Use the release helper for versioning, notes, archives, App Store Connect
+uploads, tags, and optional GitHub prereleases:
 
 ```sh
 scripts/testflight-release.sh
 ```
 
-The same flow is available with explicit commands:
+Run `scripts/testflight-release.sh --help` for non-interactive commands and
+authentication options.
+
+## Engineering Boundaries
+
+- Keep sync transport, SQLite/CRDT handling, domain models, feature view models,
+  and SwiftUI views separated.
+- Route production reads and writes through `LocalFirstActualStore` and the
+  repository protocols.
+- Keep financial calculations and mutation values out of SwiftUI views.
+- Keep money as integer minor units; do not use `Double` for stored amounts.
+- Store tokens and encryption keys in Keychain and keep personal budget data out
+  of logs and source control.
+- Add dependencies only when they remove meaningful complexity.
+
+## UI Verification
+
+Actualist uses native SwiftUI Liquid Glass. Native tab bars, toolbars,
+navigation, sheets, menus, and alerts should own their chrome. Do not fake glass
+with `Material`, blur, or custom translucent capsules, and do not stack glass
+surfaces.
+
+After UI or design-system work:
 
 ```sh
-scripts/testflight-release.sh plan
-scripts/testflight-release.sh prepare
-git add Actualist.xcodeproj/project.pbxproj
-git commit -m "chore: prepare TestFlight <version> (<build>)"
-scripts/testflight-release.sh upload
-scripts/testflight-release.sh tag
-scripts/testflight-release.sh github-release
+scripts/lint-liquid-glass.sh
 ```
 
-See `docs/testflight-releases.md` for version bump options, generated artifact
-paths, optional GitHub prereleases, and App Store Connect authentication
-environment variables.
+Also verify:
 
-## Liquid Glass Checks
+- An iPhone-sized simulator or preview.
+- Dark mode and any affected light themes.
+- Dynamic Type and long content.
+- Loading, empty, error, and populated states.
+- No nested rounded control that looks like a button inside another button.
 
-Actualist targets iOS 26+ and uses real SwiftUI Liquid Glass APIs for glass-like
-controls, floating navigation, toolbars, and panels. Do not use Material or blur
-effects to fake glass.
+## Data And Sync Verification
 
-Allowed glass APIs for now:
-
-- `.buttonStyle(.glass)`
-- `.buttonStyle(.glassProminent)`
-- `.buttonStyle(.glass(...))`
-- `.glassEffect(_:in:)`
-
-Do not use `GlassEffectContainer` until it is explicitly re-tested on a physical
-iOS 26 device. The first device run after adding it crashed before app code.
-
-After UI/design-system work, inspect the diff for accidental custom material or
-nested glass usage:
-
-```sh
-git diff -- '*.swift' | rg 'Material|\\.regularMaterial|\\.thinMaterial|\\.ultraThinMaterial|GlassEffectContainer|buttonStyle\\(\\.glass|glassEffect'
-```
-
-## Fast Simulator Loop
-
-Keep Simulator running while iterating:
-
-1. Build the app.
-2. Install the built app into the already-booted simulator.
-3. Launch `Actualist`.
-
-Example:
-
-```sh
-xcodebuild \
-  -project Actualist.xcodeproj \
-  -scheme Actualist \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.3.1' \
-  -derivedDataPath .derivedData \
-  build
-
-xcrun simctl install booted .derivedData/Build/Products/Debug-iphonesimulator/Actualist.app
-xcrun simctl launch booted com.sporez.actualist
-```
-
-For visual QA, capture a screenshot explicitly:
-
-```sh
-xcrun simctl io booted screenshot /tmp/actualist.png
-```
-
-The simulator commands may require full local permissions outside Codex's filesystem sandbox because CoreSimulator writes under `~/Library/Developer/CoreSimulator` and `~/Library/Logs/CoreSimulator`.
-
-## Iteration Standards
-
-For each meaningful UI change:
-
-- Build with `xcodebuild`.
-- Check the SwiftUI diff for custom material or nested glass usage.
-- Launch in the already-running simulator.
-- Capture a screenshot only when visual layout changed or needs verification.
-- Check compact and tall content states.
-- Check first-launch onboarding, loading, error, and populated states when applicable.
-- Keep screenshot artifacts out of git unless intentionally adding reference images.
-
-For each sync/data change:
+For local-first changes:
 
 - Add or update SQLite/CRDT fixtures.
-- Test money formatting and date grouping.
-- Keep money as integer minor units internally. Do not use `Double` for money.
-- Verify sync token, password, encryption-key, and budget-data redaction in logs.
-- Verify failures produce actionable settings/onboarding errors.
-- For write actions, test the conservative flow: draft, submitting, local reload, clean, and failed/retry.
-- After successful writes, verify the affected account/month/category data is reloaded from SQLite before the UI returns to clean state.
-
-## Future CI
-
-When the project is ready for remote CI:
-
-- Add a shared Xcode scheme.
-- Run unit tests with `xcodebuild test`.
-- Keep UI screenshots as optional artifacts, not required for every commit.
-- Consider Xcode Cloud or GitHub Actions with macOS runners once signing and simulator availability are settled.
+- Test affected budget, account, transaction, report, and cache behavior.
+- Verify local writes reload SQLite-backed state before returning success.
+- Verify failed pushes remain queued and retry later.
+- Verify passwords, tokens, encryption keys, budget identifiers, and financial
+  data are redacted.
+- Compare financial behavior with a throwaway budget in Actual before enabling a
+  new write for normal use.

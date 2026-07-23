@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var isReimportConfirmationPresented = false
     @State private var isEraseLocalDataConfirmationPresented = false
     @State private var isErasingLocalData = false
+    @State private var diagnosticReportCopied = false
     #if DEBUG
     @State private var isPostingDebugNotification = false
     @State private var debugNotificationMessage: String?
@@ -28,6 +29,8 @@ struct SettingsView: View {
     init(showsDismissButton: Bool = false) {
         self.showsDismissButton = showsDismissButton
     }
+
+    private static let newIssueURL = URL(string: "https://github.com/sporez/actualist/issues/new")!
 
     var body: some View {
         NavigationStack {
@@ -324,6 +327,49 @@ struct SettingsView: View {
                     }
                     .settingsSectionChrome()
                 }
+
+                Section("Support") {
+                    Text("Actualist is in beta. If something goes wrong, include a diagnostic report with your bug report so the app, sync, and background state can be investigated.")
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+
+                    ShareLink(
+                        item: ActualistDiagnosticReportBuilder.make(appState: appState),
+                        preview: SharePreview(
+                            "Actualist Diagnostic Report",
+                            image: Image(systemName: "doc.text")
+                        )
+                    ) {
+                        SettingsActionLabel(
+                            title: "Share Diagnostic Report",
+                            systemImage: "square.and.arrow.up"
+                        )
+                    }
+
+                    Button {
+                        viewModel.copyDiagnosticReport(using: appState)
+                        diagnosticReportCopied = true
+                    } label: {
+                        SettingsActionLabel(
+                            title: diagnosticReportCopied ? "Diagnostic Report Copied" : "Copy Diagnostic Report",
+                            systemImage: diagnosticReportCopied ? "checkmark" : "doc.on.doc"
+                        )
+                    }
+
+                    Link(destination: Self.newIssueURL) {
+                        SettingsActionLabel(title: "Submit a Bug Report", systemImage: "ladybug")
+                    }
+
+                    Label {
+                        Text("Reports exclude credentials, server addresses, identifiers, names, budget contents, transaction details, and financial amounts.")
+                            .font(.caption)
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    } icon: {
+                        Image(systemName: "lock.shield")
+                            .foregroundStyle(ActualistTheme.positive)
+                    }
+                }
+                .settingsSectionChrome()
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)

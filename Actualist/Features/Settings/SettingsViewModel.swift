@@ -58,6 +58,10 @@ final class SettingsViewModel {
         isLoadingBudgets = false
     }
 
+    func copyDiagnosticReport(using appState: AppState) {
+        UIPasteboard.general.string = ActualistDiagnosticReportBuilder.make(appState: appState).text
+    }
+
     var connectionSecurityWarning: String? {
         ActualServerConnectionSecurity.warningMessage(for: serverURLString)
     }
