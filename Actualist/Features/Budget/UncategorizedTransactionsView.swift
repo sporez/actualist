@@ -17,9 +17,16 @@ struct UncategorizedTransactionsView: View {
             ZStack {
                 ActualistTheme.background.ignoresSafeArea()
 
-                content
-                    .padding(.horizontal, 18)
-                    .padding(.top, 18)
+                ScrollView {
+                    content
+                        .padding(.horizontal, 18)
+                        .padding(.top, 18)
+                        .padding(.bottom, 28)
+                }
+                .scrollIndicators(.hidden)
+                .refreshable {
+                    await viewModel.refresh(month: month, using: appState)
+                }
             }
             .navigationTitle("Uncategorized")
             .navigationBarTitleDisplayMode(.inline)
@@ -31,15 +38,6 @@ struct UncategorizedTransactionsView: View {
                         Image(systemName: "xmark")
                     }
                 }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await viewModel.refresh(month: month, using: appState) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .disabled(viewModel.isLoading)
-                }
             }
         }
         .presentationDetents([.medium, .large], selection: $selectedDetent)
@@ -49,9 +47,6 @@ struct UncategorizedTransactionsView: View {
             if viewModel.transactions.count >= 4 {
                 selectedDetent = .large
             }
-        }
-        .refreshable {
-            await viewModel.refresh(month: month, using: appState)
         }
         .onChange(of: appState.localDataRevision) {
             Task { await viewModel.load(month: month, using: appState) }
@@ -120,41 +115,37 @@ struct UncategorizedTransactionsView: View {
                 .frame(maxWidth: .infinity)
             }
         } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if let errorMessage = viewModel.errorMessage {
-                        Text(errorMessage)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.danger)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                            .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    }
+            VStack(alignment: .leading, spacing: 14) {
+                if let errorMessage = viewModel.errorMessage {
+                    Text(errorMessage)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.danger)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(viewModel.transactionGroups, id: \.date) { group in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(group.title)
-                                    .font(ActualistTypography.sectionTitle(for: density))
-                                    .foregroundStyle(ActualistTheme.primaryText)
-                                    .padding(.horizontal, density.rowHorizontalPadding)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(viewModel.transactionGroups, id: \.date) { group in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(group.title)
+                                .font(ActualistTypography.sectionTitle(for: density))
+                                .foregroundStyle(ActualistTheme.primaryText)
+                                .padding(.horizontal, density.rowHorizontalPadding)
 
-                                VStack(spacing: 0) {
-                                    ForEach(Array(group.transactions.enumerated()), id: \.element.rowID) { index, transaction in
-                                        uncategorizedButton(
-                                            for: transaction,
-                                            showsBottomSeparator: index < group.transactions.count - 1
-                                        )
-                                    }
+                            VStack(spacing: 0) {
+                                ForEach(Array(group.transactions.enumerated()), id: \.element.rowID) { index, transaction in
+                                    uncategorizedButton(
+                                        for: transaction,
+                                        showsBottomSeparator: index < group.transactions.count - 1
+                                    )
                                 }
-                                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                             }
+                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                         }
                     }
                 }
-                .padding(.bottom, 28)
             }
-            .scrollIndicators(.hidden)
         }
     }
 

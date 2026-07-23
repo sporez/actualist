@@ -71,6 +71,26 @@ The upload uses `xcodebuild -exportArchive` with:
 - automatic signing
 - team `BJNL8CJWW6`
 
+The menu optionally asks whether to upload the generated `what-to-test.txt`
+after the build finishes processing. The equivalent command-line flow is:
+
+```sh
+scripts/testflight-release.sh upload --upload-test-metadata
+```
+
+To upload or replace What to Test for a build that is already in TestFlight:
+
+```sh
+scripts/testflight-release.sh metadata
+```
+
+Metadata upload uses the App Store Connect API, waits for the matching marketing
+version and build number to become valid, then creates or updates the `en-US`
+beta build localization. Set `TESTFLIGHT_LOCALE` or pass
+`--testflight-locale <locale>` to use another localization. The metadata step
+requires the API key variables documented below; a signed-in Xcode account by
+itself can upload the binary but cannot authenticate this API step.
+
 After App Store Connect accepts the build, tag the release:
 
 ```sh
@@ -81,17 +101,23 @@ The tag format is `testflight/v<marketing-version>-b<build-number>`. Future
 release notes are generated from the latest tag to `HEAD`. Tagging requires a
 clean worktree so the tag points at the committed release version.
 
-Optionally push that tag and create a GitHub prerelease:
+Optionally push that tag and create a GitHub prerelease with the exported IPA
+attached as a downloadable release asset:
 
 ```sh
 scripts/testflight-release.sh github-release
 ```
 
 This pushes the current TestFlight tag to `origin`, then uses the GitHub CLI
-with `--verify-tag`, `--prerelease`, and the generated `release-notes.md`. It
-requires `gh` to be installed and authenticated. Set `GITHUB_REMOTE` to push to
-a remote other than `origin`; set `GH_REPO=owner/repository` when `gh` should
-target a repository other than the one inferred from the checkout.
+with `--verify-tag`, `--prerelease`, the generated `release-notes.md`, and the
+IPA under `.release/testflight/<version>-<build>/export/`. If the IPA does not
+exist yet, the helper exports it from the archive. Running the command again
+updates the existing prerelease and replaces an asset with the same filename.
+It requires `gh` to be installed and authenticated. Set `GITHUB_REMOTE` to push
+to a remote other than `origin`; set `GH_REPO=owner/repository` when `gh`
+should target a repository other than the one inferred from the checkout.
+The App Store Connect IPA is downloadable for tools that re-sign sideloaded
+apps; it is not a universal direct-install package for unsigned devices.
 
 The tagging command can perform the same optional follow-on step:
 
@@ -154,3 +180,19 @@ export ASC_API_ISSUER_ID=00000000-0000-0000-0000-000000000000
 
 The script also accepts the longer `APP_STORE_CONNECT_API_KEY_PATH`,
 `APP_STORE_CONNECT_API_KEY_ID`, and `APP_STORE_CONNECT_API_ISSUER_ID` names.
+
+`ASC_BUILD_WAIT_SECONDS` controls how long metadata upload waits for App Store
+Connect processing (default: 1200 seconds), and `ASC_BUILD_POLL_SECONDS`
+controls the polling interval (default: 20 seconds).
+
+## TestFlight Screenshots
+
+Screenshots are not required to submit a build for TestFlight testing. TestFlight
+can optionally show screenshots and the app category from the latest approved
+App Store version in its invitation experience. A first build has no approved
+App Store screenshots to reuse, which does not block internal or external beta
+testing.
+
+App Store product-page screenshots are separate Distribution metadata and are
+required later for the public App Store submission. Prepare those before
+submitting the App Store version for review, not before starting TestFlight.

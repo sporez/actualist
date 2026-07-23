@@ -45,6 +45,10 @@ struct ActualistThemePalette {
     let neutral: Color
     let primaryText: Color
     let secondaryText: Color
+    let positiveForeground: Color
+    let warningForeground: Color
+    let dangerForeground: Color
+    let neutralForeground: Color
     let separator: Color
     let chromeForeground: Color
 
@@ -60,6 +64,10 @@ struct ActualistThemePalette {
         neutral: Color = Color.gray.opacity(0.45),
         primaryText: Color,
         secondaryText: Color,
+        positiveForeground: Color = .black.opacity(0.78),
+        warningForeground: Color = .black.opacity(0.78),
+        dangerForeground: Color = .white,
+        neutralForeground: Color? = nil,
         separator: Color,
         chromeForeground: Color? = nil
     ) {
@@ -74,6 +82,10 @@ struct ActualistThemePalette {
         self.neutral = neutral
         self.primaryText = primaryText
         self.secondaryText = secondaryText
+        self.positiveForeground = positiveForeground
+        self.warningForeground = warningForeground
+        self.dangerForeground = dangerForeground
+        self.neutralForeground = neutralForeground ?? secondaryText
         self.separator = separator
         self.chromeForeground = chromeForeground ?? primaryText
     }
@@ -91,6 +103,10 @@ enum ActualistTheme {
     static var neutral: Color { current.neutral }
     static var primaryText: Color { current.primaryText }
     static var secondaryText: Color { current.secondaryText }
+    static var positiveForeground: Color { current.positiveForeground }
+    static var warningForeground: Color { current.warningForeground }
+    static var dangerForeground: Color { current.dangerForeground }
+    static var neutralForeground: Color { current.neutralForeground }
     static var separator: Color { current.separator }
     static var chromeForeground: Color { current.chromeForeground }
     static var incomeTransactionAmount: Color {
@@ -147,6 +163,10 @@ enum ActualistTheme {
                 neutral: Color(hex: 0x81978F),
                 primaryText: Color(hex: 0x102925),
                 secondaryText: Color(hex: 0x45615B),
+                positiveForeground: Color(hex: 0xF2FAF7),
+                warningForeground: Color(hex: 0xFFF6E5),
+                dangerForeground: Color(hex: 0xFFF5F3),
+                neutralForeground: Color(hex: 0xF2FAF7),
                 separator: Color(hex: 0x1F6B64).opacity(0.30)
             )
         case .amethystHaze:

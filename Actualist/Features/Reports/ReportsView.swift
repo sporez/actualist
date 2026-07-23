@@ -40,22 +40,6 @@ struct ReportsView: View {
             .background(ActualistTheme.background)
             .navigationTitle("Reports")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await viewModel.refresh(using: appState) }
-                    } label: {
-                        if viewModel.isRefreshing {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(viewModel.isLoading || viewModel.isRefreshing)
-                    .accessibilityLabel("Refresh Reports")
-                }
-            }
             .task { await viewModel.load(using: appState) }
             .refreshable { await viewModel.refresh(using: appState) }
             .onChange(of: appState.localDataRevision) {
@@ -194,6 +178,7 @@ private struct ReportCard<Content: View>: View {
         }
         .padding(16)
         .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -224,7 +209,8 @@ private struct NetWorthReportCard: View {
             Chart(snapshot.netWorth.points) { point in
                 AreaMark(
                     x: .value("Date", point.date),
-                    y: .value("Balance", point.value)
+                    yStart: .value("Visible Baseline", yDomain.lowerBound),
+                    yEnd: .value("Balance", point.value)
                 )
                 .interpolationMethod(.monotone)
                 .foregroundStyle(ActualistTheme.positive.opacity(0.20))

@@ -69,16 +69,6 @@ struct AccountsView: View {
             .navigationDestination(for: ActualAccount.self) { account in
                 AccountTransactionsView(account: account)
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await refresh() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .actualistToolbarGlassButton()
-                }
-            }
             .task { await loadLocal() }
             .refreshable { await refresh() }
             .onChange(of: appState.localDataRevision) {

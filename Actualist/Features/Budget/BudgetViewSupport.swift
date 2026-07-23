@@ -99,7 +99,7 @@ extension BudgetAlert {
     var foreground: Color {
         switch severity {
         case .positive:
-            .black.opacity(0.78)
+            ActualistTheme.positiveForeground
         case .warning, .danger:
             ActualistTheme.primaryText
         }
@@ -119,11 +119,11 @@ extension BudgetAlert {
     var countForeground: Color {
         switch severity {
         case .positive:
-            .black.opacity(0.78)
+            ActualistTheme.positiveForeground
         case .warning:
-            .black.opacity(0.78)
+            ActualistTheme.warningForeground
         case .danger:
-            .white
+            ActualistTheme.dangerForeground
         }
     }
 

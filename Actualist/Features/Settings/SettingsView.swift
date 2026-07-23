@@ -361,6 +361,9 @@ struct SettingsView: View {
             .onAppear {
                 viewModel.hydrate(from: appState)
             }
+            .refreshable {
+                await syncNow()
+            }
             .onDisappear {
                 developerUnlockToastTask?.cancel()
             }
@@ -1154,20 +1157,11 @@ private struct SettingsBudgetPickerSheet: View {
                         dismiss()
                     }
                 }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await viewModel.loadBudgetsForSelection(using: appState) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .font(.body.weight(.semibold))
-                    .controlSize(.small)
-                    .disabled(viewModel.isLoadingBudgets)
-                    .accessibilityLabel("Reload Server Budgets")
-                }
             }
             .task {
+                await viewModel.loadBudgetsForSelection(using: appState)
+            }
+            .refreshable {
                 await viewModel.loadBudgetsForSelection(using: appState)
             }
             .sheet(item: $encryptedBudgetPrompt) { budget in
@@ -1313,17 +1307,6 @@ private struct SettingsAccountOrderSheet: View {
                         resetOrder()
                     }
                     .disabled(!hasCustomOrder)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await refreshAccounts() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .font(.body.weight(.semibold))
-                    .controlSize(.small)
-                    .disabled(isLoading || appState.settings.selectedBudgetID == nil)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {

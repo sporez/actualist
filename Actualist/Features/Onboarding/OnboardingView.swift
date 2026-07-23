@@ -148,21 +148,13 @@ struct BudgetPickerView: View {
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
             .navigationTitle("Budgets")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await viewModel.reload(using: appState) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .actualistToolbarGlassButton()
-                    .accessibilityLabel("Reload Server Budgets")
-                }
-            }
             .task {
                 if appState.budgets.isEmpty {
                     await viewModel.reload(using: appState)
                 }
+            }
+            .refreshable {
+                await viewModel.reload(using: appState)
             }
             .sheet(item: $encryptedBudgetPrompt) { budget in
                 NavigationStack {

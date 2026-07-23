@@ -796,7 +796,17 @@ struct TransactionCategorySelectionView: View {
     }
 
     private func categoryValueForeground(_ option: TransactionEditorCategoryOption) -> Color {
-        option.amount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+        guard let amount = option.amount else {
+            return ActualistTheme.secondaryText
+        }
+
+        if amount < 0 {
+            return ActualistTheme.dangerForeground
+        } else if amount == 0 {
+            return ActualistTheme.neutralForeground
+        } else {
+            return ActualistTheme.positiveForeground
+        }
     }
 }
 

@@ -145,17 +145,9 @@ struct BudgetView: View {
                         }
                     }
 
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Menu {
-                            Button {
-                                Task { await viewModel.refresh(using: appState) }
-                            } label: {
-                                Label("Refresh", systemImage: "arrow.clockwise")
-                            }
-
-                            if appState.isExperimentalFeatureEnabled(.budgetTemplates) {
-                                Divider()
-
+                    ToolbarItem(placement: .topBarTrailing) {
+                        if appState.isExperimentalFeatureEnabled(.budgetTemplates) {
+                            Menu {
                                 Button {
                                     pendingTemplateConfirmation = .monthFillEmpty
                                 } label: {
@@ -169,19 +161,28 @@ struct BudgetView: View {
                                     Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
                                 }
                                 .disabled(viewModel.isApplyingMonthTemplate || !appState.canApplyBudgetTemplates)
+
+                                Divider()
+
+                                Button {
+                                    isSettingsPresented = true
+                                } label: {
+                                    Label("Settings", systemImage: "gearshape")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
                             }
-
-                            Divider()
-
+                            .actualistToolbarGlassButton()
+                            .accessibilityLabel("Budget Actions")
+                        } else {
                             Button {
                                 isSettingsPresented = true
                             } label: {
-                                Label("Settings", systemImage: "gearshape")
+                                Image(systemName: "gearshape")
                             }
-                        } label: {
-                            Image(systemName: "ellipsis")
+                            .actualistToolbarGlassButton()
+                            .accessibilityLabel("Settings")
                         }
-                        .actualistToolbarGlassButton()
                     }
                 }
                 .task { await viewModel.load(using: appState) }
@@ -1193,7 +1194,13 @@ struct BudgetCategoryRow: View {
     }
 
     private var availableForeground: Color {
-        category.balance == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+        if category.balance < 0 {
+            return ActualistTheme.dangerForeground
+        }
+        if category.balance == 0 {
+            return ActualistTheme.neutralForeground
+        }
+        return ActualistTheme.positiveForeground
     }
 
     private var availablePill: some View {
@@ -1692,7 +1699,14 @@ private struct BudgetMoveMoneyView: View {
     }
 
     private var moveCounterpartyAvailableForeground: Color {
-        viewModel.moveMoneyCounterpartyAvailableDisplayAmount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+        let amount = viewModel.moveMoneyCounterpartyAvailableDisplayAmount
+        if amount < 0 {
+            return ActualistTheme.dangerForeground
+        }
+        if amount == 0 {
+            return ActualistTheme.neutralForeground
+        }
+        return ActualistTheme.positiveForeground
     }
 
     private var moveHeaderAmountForeground: Color {
@@ -1980,9 +1994,15 @@ private struct BudgetMoveMoneyDestinationPicker: View {
     private func destinationValueForeground(_ option: BudgetMoveMoneyDestinationOption) -> Color {
         switch option.destination {
         case .toBudget:
-            .black.opacity(0.78)
+            ActualistTheme.positiveForeground
         case .category:
-            option.amount == 0 ? ActualistTheme.secondaryText : .black.opacity(0.78)
+            if option.amount < 0 {
+                ActualistTheme.dangerForeground
+            } else if option.amount == 0 {
+                ActualistTheme.neutralForeground
+            } else {
+                ActualistTheme.positiveForeground
+            }
         }
     }
 

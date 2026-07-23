@@ -10,6 +10,10 @@ RELEASE_ROOT=".release/testflight"
 DERIVED_DATA_PATH=".derivedData/testflight"
 TEST_DESTINATION="${TEST_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
 GITHUB_REMOTE="${GITHUB_REMOTE:-origin}"
+APP_BUNDLE_ID="${APP_BUNDLE_ID:-com.sporez.actualist}"
+TESTFLIGHT_LOCALE="${TESTFLIGHT_LOCALE:-en-US}"
+ASC_BUILD_WAIT_SECONDS="${ASC_BUILD_WAIT_SECONDS:-1200}"
+ASC_BUILD_POLL_SECONDS="${ASC_BUILD_POLL_SECONDS:-20}"
 
 if [[ $# -eq 0 && -t 0 && -t 1 ]]; then
   command="menu"
@@ -31,6 +35,7 @@ skip_tests=0
 allow_dirty=0
 tag_after_upload=0
 github_release_after_tag=0
+upload_test_metadata=0
 internal_only=0
 notes_limit=80
 
@@ -45,6 +50,7 @@ Usage:
   scripts/testflight-release.sh export [options]
   scripts/testflight-release.sh upload [options]
   scripts/testflight-release.sh all [options]
+  scripts/testflight-release.sh metadata [options]
   scripts/testflight-release.sh tag [options]
   scripts/testflight-release.sh github-release [options]
 
@@ -56,9 +62,11 @@ Commands:
   export     Archive if needed, then export a local App Store Connect IPA.
   upload     Archive if needed, then upload to App Store Connect.
   all        prepare + archive + upload.
+  metadata   Upload What to Test for the current TestFlight build.
   tag        Create the TestFlight git tag for the selected version/build.
   github-release
-             Push the current TestFlight tag and create a GitHub prerelease.
+             Push the current TestFlight tag, create or update a GitHub
+             prerelease, and attach its exported IPA.
 
 Options:
   --version X.Y[.Z]       Set MARKETING_VERSION.
@@ -71,6 +79,9 @@ Options:
   --skip-tests           Do not run the simulator unit tests before archiving.
   --allow-dirty          Allow starting from a dirty git worktree.
   --internal-only        Mark uploaded build as TestFlight internal testing only.
+  --upload-test-metadata
+                         After upload, wait for processing and upload What to Test.
+  --testflight-locale L  Locale for What to Test. Default: en-US.
   --tag                  With upload, tag after a successful upload.
                          Tagging requires a clean worktree and no version
                          mutation in the same command.
@@ -84,6 +95,7 @@ App Store Connect auth:
     ASC_API_KEY_PATH / APP_STORE_CONNECT_API_KEY_PATH
     ASC_API_KEY_ID / APP_STORE_CONNECT_API_KEY_ID
     ASC_API_ISSUER_ID / APP_STORE_CONNECT_API_ISSUER_ID
+  Metadata upload requires all three API key variables.
 USAGE
 }
 
@@ -140,6 +152,15 @@ while [[ $# -gt 0 ]]; do
       internal_only=1
       shift
       ;;
+    --upload-test-metadata)
+      upload_test_metadata=1
+      shift
+      ;;
+    --testflight-locale)
+      TESTFLIGHT_LOCALE="${2:-}"
+      [[ -n "$TESTFLIGHT_LOCALE" ]] || die "--testflight-locale requires a value"
+      shift 2
+      ;;
     --tag)
       tag_after_upload=1
       shift
@@ -168,7 +189,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$command" in
-  menu|plan|prepare|archive|export|upload|all|tag|github-release) ;;
+  menu|plan|prepare|archive|export|upload|all|metadata|tag|github-release) ;;
   *)
     usage
     die "unknown command: $command"
@@ -179,6 +200,13 @@ if [[ "$github_release_after_tag" -eq 1 ]]; then
   case "$command" in
     upload|tag) ;;
     *) die "--github-release is only valid with upload or tag" ;;
+  esac
+fi
+
+if [[ "$upload_test_metadata" -eq 1 ]]; then
+  case "$command" in
+    upload|all) ;;
+    *) die "--upload-test-metadata is only valid with upload or all" ;;
   esac
 fi
 
@@ -203,6 +231,8 @@ esac
 
 [[ "$build_override" =~ ^[0-9]+$ || -z "$build_override" ]] || die "--build must be an integer"
 [[ "$notes_limit" =~ ^[0-9]+$ ]] || die "--notes-limit must be an integer"
+[[ "$ASC_BUILD_WAIT_SECONDS" =~ ^[0-9]+$ ]] || die "ASC_BUILD_WAIT_SECONDS must be an integer"
+[[ "$ASC_BUILD_POLL_SECONDS" =~ ^[1-9][0-9]*$ ]] || die "ASC_BUILD_POLL_SECONDS must be a positive integer"
 
 current_version="$(awk -F'= ' '/MARKETING_VERSION =/ { gsub(/[ ;]/, "", $2); print $2; exit }' "$PROJECT/project.pbxproj")"
 current_build="$(awk -F'= ' '/CURRENT_PROJECT_VERSION =/ { gsub(/[ ;]/, "", $2); print $2; exit }' "$PROJECT/project.pbxproj")"
@@ -530,6 +560,198 @@ if [[ -n "$asc_key_path" || -n "$asc_key_id" || -n "$asc_issuer_id" ]]; then
   auth_args=(-authenticationKeyPath "$asc_key_path" -authenticationKeyID "$asc_key_id" -authenticationKeyIssuerID "$asc_issuer_id")
 fi
 
+require_asc_api_auth() {
+  command -v xcrun >/dev/null 2>&1 || die "xcrun is required for App Store Connect API authentication"
+  command -v curl >/dev/null 2>&1 || die "curl is required for App Store Connect metadata upload"
+  command -v jq >/dev/null 2>&1 || die "jq is required for App Store Connect metadata upload"
+  [[ -n "$asc_key_path" && -n "$asc_key_id" && -n "$asc_issuer_id" ]] \
+    || die "metadata upload requires ASC_API_KEY_PATH, ASC_API_KEY_ID, and ASC_API_ISSUER_ID"
+  [[ -f "$asc_key_path" ]] || die "App Store Connect API key not found: $asc_key_path"
+}
+
+asc_api_token() {
+  local token
+  token="$(
+    xcrun altool \
+      --generate-jwt \
+      --apiKey "$asc_key_id" \
+      --apiIssuer "$asc_issuer_id" \
+      --p8-file-path "$asc_key_path" \
+      2>/dev/null
+  )" || die "could not generate an App Store Connect API token"
+  token="$(printf '%s\n' "$token" | awk 'NF { value = $0 } END { print value }')"
+  [[ "$token" == *.*.* ]] || die "xcrun altool returned an invalid App Store Connect API token"
+  printf '%s' "$token"
+}
+
+asc_api_request() {
+  local method="$1"
+  local url="$2"
+  local payload="${3:-}"
+  local token
+  token="$(asc_api_token)"
+
+  if [[ -n "$payload" ]]; then
+    curl --globoff --fail-with-body --silent --show-error \
+      --request "$method" \
+      --header "Authorization: Bearer $token" \
+      --header "Content-Type: application/json" \
+      --data "$payload" \
+      "$url"
+  else
+    curl --globoff --fail-with-body --silent --show-error \
+      --request "$method" \
+      --header "Authorization: Bearer $token" \
+      "$url"
+  fi
+}
+
+asc_app_id() {
+  local response count app_id
+  response="$(asc_api_request GET \
+    "https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=$APP_BUNDLE_ID&limit=2")"
+  count="$(printf '%s' "$response" | jq '.data | length')"
+  [[ "$count" -eq 1 ]] || die "expected one App Store Connect app for $APP_BUNDLE_ID; found $count"
+  app_id="$(printf '%s' "$response" | jq -r '.data[0].id')"
+  [[ -n "$app_id" && "$app_id" != "null" ]] || die "App Store Connect app ID is missing"
+  printf '%s' "$app_id"
+}
+
+asc_build_record() {
+  local app_id="$1"
+  local response
+  response="$(asc_api_request GET \
+    "https://api.appstoreconnect.apple.com/v1/builds?filter[app]=$app_id&filter[version]=$next_build&include=preReleaseVersion&sort=-uploadedDate&limit=20")"
+
+  printf '%s' "$response" | jq -r \
+    --arg marketing_version "$next_version" \
+    --arg build_number "$next_build" '
+      [.included[]?
+        | select(
+            .type == "preReleaseVersions"
+            and .attributes.version == $marketing_version
+          )
+        | .id
+      ] as $version_ids
+      | [
+          .data[]?
+          | select(
+              .attributes.version == $build_number
+              and (.relationships.preReleaseVersion.data.id as $id | $version_ids | index($id))
+            )
+        ][0]
+      | if . == null then empty else [.id, .attributes.processingState] | @tsv end
+    '
+}
+
+wait_for_asc_build() {
+  local app_id="$1"
+  local started_at now record build_id processing_state
+  started_at="$(date +%s)"
+
+  while true; do
+    record="$(asc_build_record "$app_id")"
+    if [[ -n "$record" ]]; then
+      IFS=$'\t' read -r build_id processing_state <<< "$record"
+      case "$processing_state" in
+        VALID)
+          printf '%s' "$build_id"
+          return
+          ;;
+        FAILED|INVALID)
+          die "App Store Connect build ${next_version} (${next_build}) is $processing_state"
+          ;;
+        *)
+          log "Waiting for App Store Connect build ${next_version} (${next_build}): ${processing_state:-processing}" >&2
+          ;;
+      esac
+    else
+      log "Waiting for App Store Connect to discover build ${next_version} (${next_build})" >&2
+    fi
+
+    now="$(date +%s)"
+    if [[ "$((now - started_at))" -ge "$ASC_BUILD_WAIT_SECONDS" ]]; then
+      die "timed out waiting for App Store Connect build ${next_version} (${next_build})"
+    fi
+    sleep "$ASC_BUILD_POLL_SECONDS"
+  done
+}
+
+upload_testflight_metadata() {
+  [[ -f "$what_to_test" ]] || die "What to Test file not found: $what_to_test; run prepare first"
+
+  local character_count
+  character_count="$(wc -m < "$what_to_test" | tr -d '[:space:]')"
+  [[ "$character_count" -le 4000 ]] \
+    || die "What to Test is $character_count characters; App Store Connect allows 4000"
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    log "Would upload $what_to_test to TestFlight build ${next_version} (${next_build}) for $TESTFLIGHT_LOCALE"
+    return
+  fi
+
+  require_asc_api_auth
+
+  local app_id build_id localizations localization_id whats_new payload
+  app_id="$(asc_app_id)"
+  build_id="$(wait_for_asc_build "$app_id")"
+  localizations="$(asc_api_request GET \
+    "https://api.appstoreconnect.apple.com/v1/builds/$build_id/betaBuildLocalizations")"
+  localization_id="$(
+    printf '%s' "$localizations" | jq -r \
+      --arg locale "$TESTFLIGHT_LOCALE" \
+      '[.data[]? | select(.attributes.locale == $locale)][0].id // empty'
+  )"
+  whats_new="$(<"$what_to_test")"
+
+  if [[ -n "$localization_id" ]]; then
+    payload="$(
+      jq -n \
+        --arg id "$localization_id" \
+        --arg whats_new "$whats_new" \
+        '{
+          data: {
+            type: "betaBuildLocalizations",
+            id: $id,
+            attributes: { whatsNew: $whats_new }
+          }
+        }'
+    )"
+    asc_api_request PATCH \
+      "https://api.appstoreconnect.apple.com/v1/betaBuildLocalizations/$localization_id" \
+      "$payload" >/dev/null
+    log "Updated What to Test for ${next_version} (${next_build}) [$TESTFLIGHT_LOCALE]"
+  else
+    payload="$(
+      jq -n \
+        --arg build_id "$build_id" \
+        --arg locale "$TESTFLIGHT_LOCALE" \
+        --arg whats_new "$whats_new" \
+        '{
+          data: {
+            type: "betaBuildLocalizations",
+            attributes: {
+              locale: $locale,
+              whatsNew: $whats_new
+            },
+            relationships: {
+              build: {
+                data: {
+                  type: "builds",
+                  id: $build_id
+                }
+              }
+            }
+          }
+        }'
+    )"
+    asc_api_request POST \
+      "https://api.appstoreconnect.apple.com/v1/betaBuildLocalizations" \
+      "$payload" >/dev/null
+    log "Created What to Test for ${next_version} (${next_build}) [$TESTFLIGHT_LOCALE]"
+  fi
+}
+
 export_app() {
   local destination="$1"
   local plist="$export_options_export"
@@ -570,26 +792,68 @@ create_tag() {
   run git tag -a "$tag_name" -m "TestFlight ${next_version} (${next_build})"
 }
 
+github_release_ipa=""
+
+resolve_github_release_ipa() {
+  github_release_ipa=""
+  [[ -d "$export_path" ]] || return
+
+  local candidate
+  for candidate in "$export_path"/*.ipa; do
+    [[ -f "$candidate" ]] || continue
+    if [[ -n "$github_release_ipa" ]]; then
+      die "multiple IPA files found in $export_path; keep only the release IPA"
+    fi
+    github_release_ipa="$candidate"
+  done
+}
+
+ensure_github_release_ipa() {
+  resolve_github_release_ipa
+  if [[ -n "$github_release_ipa" ]]; then
+    return
+  fi
+
+  log "No exported IPA found for $tag_name; exporting one from the archive"
+  export_app "export"
+  if [[ "$dry_run" -eq 1 ]]; then
+    github_release_ipa="$export_path/$SCHEME.ipa"
+    return
+  fi
+
+  resolve_github_release_ipa
+  [[ -n "$github_release_ipa" ]] || die "IPA export completed without an IPA in $export_path"
+}
+
 create_github_release() {
+  local release_exists=0
   if [[ "$dry_run" -ne 1 ]]; then
     command -v gh >/dev/null 2>&1 || die "GitHub CLI (gh) is required to create a GitHub Release"
     git remote get-url "$GITHUB_REMOTE" >/dev/null 2>&1 || die "git remote not found: $GITHUB_REMOTE"
     git rev-parse --verify "refs/tags/$tag_name" >/dev/null 2>&1 || die "tag not found: $tag_name; run the tag command first"
-    [[ -f "$notes_markdown" ]] || die "release notes not found: $notes_markdown; run prepare first"
     if gh release view "$tag_name" >/dev/null 2>&1; then
-      die "GitHub Release already exists: $tag_name"
+      release_exists=1
+    else
+      [[ -f "$notes_markdown" ]] || die "release notes not found: $notes_markdown; run prepare first"
     fi
   fi
+
+  ensure_github_release_ipa
 
   log "Pushing tag $tag_name to $GITHUB_REMOTE"
   run git push "$GITHUB_REMOTE" "refs/tags/$tag_name"
 
-  log "Creating GitHub prerelease $tag_name"
-  run gh release create "$tag_name" \
-    --verify-tag \
-    --prerelease \
-    --title "Actualist ${next_version} (${next_build}) TestFlight" \
-    --notes-file "$notes_markdown"
+  if [[ "$release_exists" -eq 1 ]]; then
+    log "Uploading IPA to existing GitHub prerelease $tag_name"
+    run gh release upload "$tag_name" "$github_release_ipa" --clobber
+  else
+    log "Creating GitHub prerelease $tag_name with IPA"
+    run gh release create "$tag_name" "$github_release_ipa" \
+      --verify-tag \
+      --prerelease \
+      --title "Actualist ${next_version} (${next_build}) TestFlight" \
+      --notes-file "$notes_markdown"
+  fi
 }
 
 print_plan() {
@@ -607,6 +871,7 @@ Next commands:
   git add Actualist.xcodeproj/project.pbxproj
   git commit -m "chore: prepare TestFlight ${next_version} (${next_build})"
   scripts/testflight-release.sh upload
+  scripts/testflight-release.sh metadata
   scripts/testflight-release.sh tag
   scripts/testflight-release.sh github-release
 
@@ -755,6 +1020,9 @@ append_upload_args() {
   if prompt_yes_no "Internal TestFlight only?" "n"; then
     menu_args+=(--internal-only)
   fi
+  if prompt_yes_no "Upload What to Test metadata after processing?" "n"; then
+    menu_args+=(--upload-test-metadata)
+  fi
 }
 
 run_script_from_menu() {
@@ -796,7 +1064,8 @@ run_menu() {
     echo "  6) Prepare version + upload"
     echo "  7) Tag current committed release"
     echo "  8) Publish GitHub prerelease for current tag"
-    echo "  9) Help"
+    echo "  9) Upload What to Test for current build"
+    echo " 10) Help"
     echo "  0) Quit"
     echo
 
@@ -863,13 +1132,17 @@ run_menu() {
         fi
         ;;
       9)
+        append_common_run_args
+        run_menu_command metadata
+        ;;
+      10)
         usage
         ;;
       0|q|Q)
         exit 0
         ;;
       *)
-        echo "Choose 0-9." >&2
+        echo "Choose 0-10." >&2
         ;;
     esac
 
@@ -924,6 +1197,9 @@ case "$command" in
       generate_notes
     fi
     export_app "upload"
+    if [[ "$upload_test_metadata" -eq 1 ]]; then
+      upload_testflight_metadata
+    fi
     if [[ "$tag_after_upload" -eq 1 ]]; then
       create_tag
     fi
@@ -939,9 +1215,15 @@ case "$command" in
     update_project_version
     generate_notes
     export_app "upload"
+    if [[ "$upload_test_metadata" -eq 1 ]]; then
+      upload_testflight_metadata
+    fi
     if [[ "$tag_after_upload" -eq 1 ]]; then
       create_tag
     fi
+    ;;
+  metadata)
+    upload_testflight_metadata
     ;;
   tag)
     create_tag
