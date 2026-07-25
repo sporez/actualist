@@ -247,7 +247,13 @@ final class FakeKeychainBackend: KeychainBackend {
     var deleteFailureStatus: OSStatus?
     var copyFailureStatus: OSStatus?
 
-    private var items: [String: Data] = [:]
+    private var items: [String: [String: Any]] = [:]
+
+    func storedItemAttributes(service: String) -> [[String: Any]] {
+        items.values.filter {
+            ($0[kSecAttrService as String] as? String) == service
+        }
+    }
 
     func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus {
         if let copyFailureStatus {
@@ -260,21 +266,31 @@ final class FakeKeychainBackend: KeychainBackend {
         let returnsData = (query[kSecReturnData as String] as? Bool) == true
 
         if returnsAttributes {
-            let rows = items.keys.compactMap { key -> [String: Any]? in
-                let parts = key.split(separator: "\u{1f}", maxSplits: 1).map(String.init)
-                guard parts.first == service, let account = parts.dropFirst().first else {
+            let rows = items.values.compactMap { item -> [String: Any]? in
+                guard (item[kSecAttrService as String] as? String) == service,
+                      account == nil || (item[kSecAttrAccount as String] as? String) == account else {
                     return nil
                 }
-                return [kSecAttrAccount as String: account]
+                var attributes = item
+                attributes[kSecValueData as String] = nil
+                return attributes
             }
             guard !rows.isEmpty else {
                 return errSecItemNotFound
             }
-            result?.pointee = rows as AnyObject
+            let returnsAll = query[kSecMatchLimit as String] as? String == kSecMatchLimitAll as String
+            if returnsAll {
+                result?.pointee = rows as NSArray
+            } else {
+                result?.pointee = rows[0] as NSDictionary
+            }
             return errSecSuccess
         }
 
-        guard returnsData, let account, let data = items[key(service: service, account: account)] else {
+        guard returnsData,
+              let account,
+              let item = items[key(service: service, account: account)],
+              let data = item[kSecValueData as String] as? Data else {
             return errSecItemNotFound
         }
         result?.pointee = data as AnyObject
@@ -289,13 +305,17 @@ final class FakeKeychainBackend: KeychainBackend {
         let service = query[kSecAttrService as String] as? String ?? ""
         let account = query[kSecAttrAccount as String] as? String ?? ""
         let itemKey = key(service: service, account: account)
-        guard items[itemKey] != nil else {
+        guard var item = items[itemKey] else {
             return errSecItemNotFound
         }
         let attributes = attributes as NSDictionary
-        if let data = attributes[kSecValueData as String] as? Data {
-            items[itemKey] = data
+        for (key, value) in attributes {
+            guard let key = key as? String else {
+                continue
+            }
+            item[key] = value
         }
+        items[itemKey] = item
         return errSecSuccess
     }
 
@@ -306,10 +326,15 @@ final class FakeKeychainBackend: KeychainBackend {
         let query = query as NSDictionary
         let service = query[kSecAttrService as String] as? String ?? ""
         let account = query[kSecAttrAccount as String] as? String ?? ""
-        guard let data = query[kSecValueData as String] as? Data else {
+        guard query[kSecValueData as String] is Data,
+              query[kSecAttrAccessible as String] != nil else {
             return errSecParam
         }
-        items[key(service: service, account: account)] = data
+        let itemKey = key(service: service, account: account)
+        guard items[itemKey] == nil else {
+            return errSecDuplicateItem
+        }
+        items[itemKey] = query as? [String: Any] ?? [:]
         return errSecSuccess
     }
 

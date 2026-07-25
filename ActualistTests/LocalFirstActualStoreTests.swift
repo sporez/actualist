@@ -413,6 +413,60 @@ struct LocalFirstActualStoreTests {
         }
     }
 
+    @Test func keychainStorePersistsSecurityAttributesForEveryStoredItem() throws {
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(
+            service: service,
+            account: "actual-sync-token",
+            backend: backend
+        )
+
+        try keychain.saveActualSyncToken("token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([1, 2, 3]),
+            fileID: "file-1",
+            keyID: "key-1"
+        )
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([4, 5, 6]),
+            fileID: "file-2",
+            keyID: "key-2"
+        )
+
+        let items = backend.storedItemAttributes(service: service)
+        #expect(items.count == 3)
+        #expect(
+            Set(items.compactMap { $0[kSecAttrAccount as String] as? String })
+                == [
+                    "actual-sync-token",
+                    "actual-encryption-key:file-1:key-1",
+                    "actual-encryption-key:file-2:key-2"
+                ]
+        )
+        for item in items {
+            #expect(
+                item[kSecAttrAccessible as String] as? String
+                    == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+            )
+            #expect(item[kSecAttrSynchronizable as String] as? Bool == false)
+        }
+    }
+
+    @Test func fakeKeychainRejectsSaveWithoutAccessibility() {
+        let backend = FakeKeychainBackend()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.sporez.actualist.tests",
+            kSecAttrAccount as String: "missing-accessibility",
+            kSecAttrSynchronizable as String: false,
+            kSecValueData as String: Data("secret".utf8)
+        ]
+
+        #expect(backend.add(query as CFDictionary, result: nil) == errSecParam)
+        #expect(backend.storedItemAttributes(service: "com.sporez.actualist.tests").isEmpty)
+    }
+
     @Test func eraseLocalDataRemovesCredentialsKeysAndImportedBudgetDirectories() async throws {
         let backend = FakeKeychainBackend()
         let keychain = KeychainStore(
