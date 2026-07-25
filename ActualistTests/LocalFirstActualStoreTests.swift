@@ -1465,6 +1465,58 @@ struct LocalFirstActualStoreTests {
         #expect(try await database.latestSyncTimestamp() == timestamp)
     }
 
+    @Test func midBatchRollbackKeepsDatabaseAndVisibleBudgetStateInSyncAndShowsError() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: """
+                CREATE TRIGGER fail_budget_amount_message
+                BEFORE INSERT ON messages_crdt
+                WHEN NEW.dataset = 'zero_budgets' AND NEW.column = 'amount'
+                BEGIN
+                    SELECT RAISE(ABORT, 'forced mid-batch failure');
+                END;
+                """
+        )
+        let model = BudgetViewModel()
+        await model.load(budgetID: "group-1", repository: bundle.store)
+        let initialCategory = try #require(
+            model.visibleGroups.flatMap(\.visibleCategories).first { $0.id == "groceries" }
+        )
+        #expect(initialCategory.budgeted == 50_000)
+
+        model.beginAssignmentEditing(for: initialCategory)
+        for digit in [6, 0, 0, 0, 0] {
+            model.appendAssignmentDigit(digit)
+        }
+        let saved = await model.submitAssignment(
+            budgetID: "group-1",
+            repository: bundle.store
+        )
+
+        #expect(!saved)
+        #expect(
+            model.activeAssignmentErrorMessage
+                == LocalFirstError.invalidLocalWrite(
+                    "the database transaction was rolled back"
+                ).localizedDescription
+        )
+        #expect(model.assignmentDraft?.submissionState.isSubmitting == false)
+        #expect(
+            model.visibleGroups.flatMap(\.visibleCategories)
+                .first { $0.id == "groceries" }?.budgeted == 50_000
+        )
+
+        let reloaded = try await bundle.store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+        let persistedCategory = try #require(
+            reloaded.month.categoryGroups.flatMap(\.categories)
+                .first { $0.id == "groceries" }
+        )
+        #expect(persistedCategory.budgeted == 50_000)
+        #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
+    }
+
     @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
@@ -3575,7 +3627,8 @@ struct LocalFirstActualStoreTests {
 
     private func makeOpenedWritableStoreBundle(
         syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
-        pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)]
+        pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
+        additionalFixtureSQL: String = ""
     ) async throws -> OpenedWritableStoreBundle {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;
@@ -3615,6 +3668,7 @@ struct LocalFirstActualStoreTests {
                 VALUES ('copycat', 'Copycat', 'group', 0, 0, 0, 5, '[{"type":"copy","lookBack":1,"limit":null,"priority":null,"directive":"template"}]');
             INSERT INTO category_mapping VALUES ('copycat', 'copycat');
             INSERT INTO zero_budgets VALUES (202607, 'copycat', 0, 0);
+            \(additionalFixtureSQL)
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)

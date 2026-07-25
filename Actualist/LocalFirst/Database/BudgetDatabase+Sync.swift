@@ -96,55 +96,62 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("local clock is not configured")
         }
 
-        let appliedCount = try queue.write { db in
-            guard try tableExists("messages_crdt", db: db) else {
-                throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
-            }
-            try ensureLocalSyncOutbox(db)
-            let baseTimestamp = try String.fetchOne(
-                db,
-                sql: "SELECT MAX(timestamp) FROM messages_crdt"
-            ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-
-            var appliedCount = 0
-            var insertedRows = Set<String>()
-            for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
-                let message = ActualSyncDecodedMessage(
-                    timestamp: try clock.next(now: now),
-                    dataset: draft.dataset,
-                    row: draft.row,
-                    column: draft.column,
-                    serializedValue: draft.serializedValue
-                )
-                try validateLocalMessage(message, db: db)
-
-                if try hasSameOrNewerMessage(message, db: db) {
-                    throw LocalFirstError.localWriteSuperseded
+        let appliedCount: Int
+        do {
+            appliedCount = try queue.write { db in
+                guard try tableExists("messages_crdt", db: db) else {
+                    throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
                 }
+                try ensureLocalSyncOutbox(db)
+                let baseTimestamp = try String.fetchOne(
+                    db,
+                    sql: "SELECT MAX(timestamp) FROM messages_crdt"
+                ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
 
-                let rowKey = message.dataset + message.row
-                let hasRow: Bool
-                if insertedRows.contains(rowKey) {
-                    hasRow = true
-                } else {
-                    hasRow = try rowExists(
-                        table: message.dataset,
-                        rowID: message.row,
+                var appliedCount = 0
+                var insertedRows = Set<String>()
+                for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
+                    let message = ActualSyncDecodedMessage(
+                        timestamp: try clock.next(now: now),
+                        dataset: draft.dataset,
+                        row: draft.row,
+                        column: draft.column,
+                        serializedValue: draft.serializedValue
+                    )
+                    try validateLocalMessage(message, db: db)
+
+                    if try hasSameOrNewerMessage(message, db: db) {
+                        throw LocalFirstError.localWriteSuperseded
+                    }
+
+                    let rowKey = message.dataset + message.row
+                    let hasRow: Bool
+                    if insertedRows.contains(rowKey) {
+                        hasRow = true
+                    } else {
+                        hasRow = try rowExists(
+                            table: message.dataset,
+                            rowID: message.row,
+                            db: db
+                        )
+                    }
+                    let value = try deserializeSyncValue(message.serializedValue)
+                    try apply(message: message, value: value, rowExists: hasRow, db: db)
+                    insertedRows.insert(rowKey)
+                    try insertCRDTMessage(message, db: db)
+                    try insertLocalSyncOutboxMessage(
+                        message,
+                        baseTimestamp: baseTimestamp,
                         db: db
                     )
+                    appliedCount += 1
                 }
-                let value = try deserializeSyncValue(message.serializedValue)
-                try apply(message: message, value: value, rowExists: hasRow, db: db)
-                insertedRows.insert(rowKey)
-                try insertCRDTMessage(message, db: db)
-                try insertLocalSyncOutboxMessage(
-                    message,
-                    baseTimestamp: baseTimestamp,
-                    db: db
-                )
-                appliedCount += 1
+                return appliedCount
             }
-            return appliedCount
+        } catch let error as LocalFirstError {
+            throw error
+        } catch {
+            throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
         }
         localClock = clock
         return appliedCount
