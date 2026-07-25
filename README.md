@@ -112,6 +112,21 @@ screen's gear or overflow menu.
 - Do not post real server URLs, passwords, sync tokens, encryption keys, budget
   IDs, or unredacted financial data in issues or screenshots.
 
+### Local Data and Device Backups
+
+Actualist intentionally excludes its imported budget directory from iPhone and
+iCloud device backups. This includes the local SQLite budget, its sidecar files,
+metadata, reimport recovery copy, and the durable sync outbox. The Actual server
+is the authoritative recovery source for changes that have finished syncing.
+
+An outbox change is not on the server until its upload is confirmed. If the
+iPhone is lost, the app is deleted, or local data is erased while changes are
+still pending, those changes are lost and cannot be recovered from a device
+backup. This is an explicit privacy tradeoff: Actualist does not place a second
+plaintext copy of the budget in the device-backup path. Before replacing or
+erasing a device, open Actualist while online and confirm Settings shows
+**Pending Sync: None**.
+
 ### Experimental Features
 
 Experimental features are opt-in and disabled by default. **Budget Templates are
