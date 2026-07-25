@@ -8,6 +8,10 @@ protocol TransactionRepositoryProtocol: Sendable {
         categoryID: String,
         month: String
     ) -> LoadedAccountTransactions?
+    func cachedUncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) -> LoadedUncategorizedTransactions?
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws
     func refreshSpendingTransactions(budgetID: String) async throws
     func refreshCategoryTransactions(
@@ -66,6 +70,13 @@ protocol TransactionRepositoryProtocol: Sendable {
 }
 
 extension TransactionRepositoryProtocol {
+    func cachedUncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) -> LoadedUncategorizedTransactions? {
+        nil
+    }
+
     func cachedCategoryTransactions(
         budgetID: String,
         categoryID: String,

@@ -45,10 +45,6 @@ struct ActualistApp: App {
                         .zIndex(1)
                 }
             }
-            .transaction { transaction in
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
             .environment(appState)
             .preferredColorScheme(appState.settings.theme.colorScheme)
             .onAppear {

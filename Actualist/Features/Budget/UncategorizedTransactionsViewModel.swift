@@ -15,6 +15,16 @@ final class UncategorizedTransactionsViewModel {
     var isLoading = true
     var errorMessage: String?
     var categorizingTransactionID: String?
+    private(set) var hasLoadedSnapshot = false
+
+    init(cachedSnapshot: LoadedUncategorizedTransactions? = nil) {
+        guard let cachedSnapshot else {
+            return
+        }
+        apply(cachedSnapshot)
+        hasLoadedSnapshot = true
+        isLoading = false
+    }
 
     var isCategorizing: Bool {
         categorizingTransactionID != nil
@@ -49,6 +59,13 @@ final class UncategorizedTransactionsViewModel {
         await load(budgetID: budgetID, month: month, repository: repository)
     }
 
+    func loadIfNeeded(month: String, using appState: AppState) async {
+        guard !hasLoadedSnapshot else {
+            return
+        }
+        await load(month: month, using: appState)
+    }
+
     func refresh(month: String, using appState: AppState) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return
@@ -68,6 +85,7 @@ final class UncategorizedTransactionsViewModel {
 
         do {
             apply(try await repository.uncategorizedTransactions(budgetID: budgetID, month: month))
+            hasLoadedSnapshot = true
         } catch {
             errorMessage = error.localizedDescription
         }

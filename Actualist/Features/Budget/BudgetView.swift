@@ -213,6 +213,7 @@ struct BudgetView: View {
                 .sheet(isPresented: $isUncategorizedTransactionsPresented) {
                     UncategorizedTransactionsView(
                         month: viewModel.selectedMonth ?? viewModel.preferredMonth,
+                        cachedSnapshot: cachedUncategorizedTransactions,
                         onChanged: {
                             Task { await viewModel.refreshSelectedMonth(using: appState) }
                         },
@@ -390,6 +391,17 @@ struct BudgetView: View {
         case .toBudget:
             break
         }
+    }
+
+    private var cachedUncategorizedTransactions: LoadedUncategorizedTransactions? {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let repository = appState.makeTransactionRepository() else {
+            return nil
+        }
+        return repository.cachedUncategorizedTransactions(
+            budgetID: budgetID,
+            month: viewModel.selectedMonth ?? viewModel.preferredMonth
+        )
     }
 
     private func displayAlertValueText(_ alert: BudgetAlert, fallback: String) -> String {

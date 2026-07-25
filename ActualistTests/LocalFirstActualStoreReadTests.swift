@@ -359,6 +359,32 @@ extension LocalFirstActualStoreTests {
         #expect(loaded.availableMonths.contains("2026-07"))
     }
 
+    @Test func budgetMonthRetainsUncategorizedAlertDrillDownSnapshot() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: """
+                UPDATE transactions
+                SET category = NULL, description = 'coffee'
+                WHERE id = 'txn';
+                """
+        )
+
+        let loaded = try await bundle.store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+        let cached = try #require(
+            bundle.store.cachedUncategorizedTransactions(
+                budgetID: "group-1",
+                month: "2026-07"
+            )
+        )
+
+        #expect(loaded.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 1)
+        #expect(cached.transactions.compactMap(\.id) == ["txn"])
+        #expect(cached.payeeNames["coffee"] == "Coffee Shop")
+        #expect(cached.categoryGroups.flatMap(\.options).contains { $0.id == "groceries" })
+    }
+
     @Test func openedStoreRejectsMismatchedBudgetReads() async throws {
         let store = try await makeOpenedWritableStore()
 

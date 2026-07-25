@@ -26,7 +26,12 @@ extension LocalFirstActualStore {
             availableMonths: months,
             selectedMonth: monthID,
             month: month,
-            alerts: try await nativeBudgetAlerts(database: database, month: month, monthID: monthID)
+            alerts: try await nativeBudgetAlerts(
+                database: database,
+                budgetID: budgetID,
+                month: month,
+                monthID: monthID
+            )
         )
     }
 
@@ -53,6 +58,13 @@ extension LocalFirstActualStore {
         month: String
     ) -> LoadedAccountTransactions? {
         categoryTransactionsByKey[categoryTransactionKey(budgetID, categoryID, month)]?.loaded
+    }
+
+    func cachedUncategorizedTransactions(
+        budgetID: String,
+        month: String
+    ) -> LoadedUncategorizedTransactions? {
+        uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)]
     }
 
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
@@ -214,7 +226,7 @@ extension LocalFirstActualStore {
                 offBudgetAccountIDs: maps.offBudgetAccountIDs
             )
         }
-        return LoadedUncategorizedTransactions(
+        let loaded = LoadedUncategorizedTransactions(
             transactions: transactions,
             accountNames: maps.accountNames,
             categoryNames: maps.categoryNames,
@@ -224,6 +236,8 @@ extension LocalFirstActualStore {
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             categoryGroups: try await editorCategoryGroups(database: database, month: month)
         )
+        uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)] = loaded
+        return loaded
     }
 
     func loadedAccountTransactions(
@@ -310,11 +324,31 @@ extension LocalFirstActualStore {
     /// UI renders consistently from the local-first store.
     func nativeBudgetAlerts(
         database: BudgetDatabase,
+        budgetID: String,
         month: BudgetMonth,
         monthID: String
     ) async throws -> [APIBudgetMonthAlert] {
         let maps = try await nameMaps(database)
         let transactions = try await database.fetchTransactions()
+        let uncategorized = transactions.filter { transaction in
+            Self.isUncategorized(
+                transaction,
+                month: monthID,
+                transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+                offBudgetAccountIDs: maps.offBudgetAccountIDs
+            )
+        }
+        uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, monthID)] =
+            LoadedUncategorizedTransactions(
+                transactions: uncategorized,
+                accountNames: maps.accountNames,
+                categoryNames: maps.categoryNames,
+                payeeNames: maps.payeeNames,
+                transferPayeeIDs: maps.transferPayeeIDs,
+                transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+                offBudgetAccountIDs: maps.offBudgetAccountIDs,
+                categoryGroups: editorCategoryGroups(from: month)
+            )
         return Self.budgetAlerts(
             month: month,
             monthID: monthID,
@@ -440,6 +474,10 @@ extension LocalFirstActualStore {
 
     func editorCategoryGroups(database: BudgetDatabase, month: String) async throws -> [TransactionEditorCategoryGroup] {
         let budgetMonth = try await database.fetchBudgetMonth(month: month)
+        return editorCategoryGroups(from: budgetMonth)
+    }
+
+    func editorCategoryGroups(from budgetMonth: BudgetMonth) -> [TransactionEditorCategoryGroup] {
         return budgetMonth.categoryGroups.compactMap { group in
             guard !group.isIncome else {
                 return nil
@@ -507,6 +545,10 @@ extension LocalFirstActualStore {
 
     func categoryTransactionKey(_ budgetID: String, _ categoryID: String, _ month: String) -> String {
         "\(budgetID)|\(categoryID)|\(month)"
+    }
+
+    func uncategorizedTransactionKey(_ budgetID: String, _ month: String) -> String {
+        "\(budgetID)|\(month)"
     }
 
     func availableMonths(budgetID: String) async throws -> [String] {

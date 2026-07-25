@@ -36,20 +36,6 @@ struct AccountsView: View {
                         rows: closedAccounts
                     )
 
-                    if appState.capabilities.showsAddAccount {
-                        Button {
-                            isAddAccountPresented = true
-                        } label: {
-                            Label("Add Account", systemImage: "plus.circle")
-                                .font(ActualistTypography.control(for: density))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.glass)
-                        .tint(ActualistTheme.accent)
-                        .disabled(!appState.capabilities.canAddAccount)
-                        .padding(.top, 8)
-                    }
-
                     if isLoading && accounts.isEmpty {
                         AccountsLoadingView()
                             .padding(.vertical, 48)
@@ -66,6 +52,20 @@ struct AccountsView: View {
             }
             .background(ActualistTheme.background)
             .navigationTitle("Accounts")
+            .toolbar {
+                if appState.capabilities.showsAddAccount {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isAddAccountPresented = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .actualistToolbarGlassButton()
+                        .accessibilityLabel("Add Account")
+                        .disabled(!appState.capabilities.canAddAccount)
+                    }
+                }
+            }
             .navigationDestination(for: ActualAccount.self) { account in
                 AccountTransactionsView(account: account)
             }

@@ -26,6 +26,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var accountTransactionsByKey: [String: TransactionFeedPage] = [:]
     var spendingTransactionsByBudget: [String: TransactionFeedPage] = [:]
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
+    var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     var syncStatus: LocalFirstSyncStatus?
     var isFlushingPendingLocalMessages = false
@@ -85,6 +86,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         accountTransactionsByKey = [:]
         spendingTransactionsByBudget = [:]
         categoryTransactionsByKey = [:]
+        uncategorizedTransactionsByKey = [:]
         reportsByKey = [:]
         syncStatus = nil
         isFlushingPendingLocalMessages = false

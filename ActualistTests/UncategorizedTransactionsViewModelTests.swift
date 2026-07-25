@@ -4,6 +4,25 @@ import Testing
 
 @MainActor
 struct UncategorizedTransactionsViewModelTests {
+    @Test func cachedSnapshotIsAvailableBeforeAnyRepositoryLoad() {
+        let transaction = Self.transaction(id: "cached")
+        let model = UncategorizedTransactionsViewModel(
+            cachedSnapshot: LoadedUncategorizedTransactions(
+                transactions: [transaction],
+                accountNames: ["checking": "Checking"],
+                categoryNames: [:],
+                payeeNames: ["store": "Corner Store"],
+                transferPayeeIDs: [],
+                categoryGroups: []
+            )
+        )
+
+        #expect(model.hasLoadedSnapshot)
+        #expect(!model.isLoading)
+        #expect(model.transactions.map(\.rowID) == ["cached"])
+        #expect(model.payeeName(for: transaction) == "Corner Store")
+    }
+
     @Test func successfulCategorizationRemovesResolvedTransaction() async throws {
         let transaction = Self.transaction(id: "txn1")
         let repository = UncategorizedRecordingTransactionRepository(

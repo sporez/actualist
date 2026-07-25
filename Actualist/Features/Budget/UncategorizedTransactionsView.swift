@@ -12,6 +12,23 @@ struct UncategorizedTransactionsView: View {
     let onChanged: () -> Void
     let onResolvedAll: () -> Void
 
+    init(
+        month: String,
+        cachedSnapshot: LoadedUncategorizedTransactions?,
+        onChanged: @escaping () -> Void,
+        onResolvedAll: @escaping () -> Void
+    ) {
+        self.month = month
+        self.onChanged = onChanged
+        self.onResolvedAll = onResolvedAll
+        _viewModel = State(
+            initialValue: UncategorizedTransactionsViewModel(cachedSnapshot: cachedSnapshot)
+        )
+        _selectedDetent = State(
+            initialValue: (cachedSnapshot?.transactions.count ?? 0) >= 4 ? .large : .medium
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -43,7 +60,7 @@ struct UncategorizedTransactionsView: View {
         .presentationDetents([.medium, .large], selection: $selectedDetent)
         .presentationDragIndicator(.visible)
         .task {
-            await viewModel.load(month: month, using: appState)
+            await viewModel.loadIfNeeded(month: month, using: appState)
             if viewModel.transactions.count >= 4 {
                 selectedDetent = .large
             }
