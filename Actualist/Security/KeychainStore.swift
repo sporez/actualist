@@ -89,6 +89,24 @@ struct KeychainStore {
         }
     }
 
+    func promoteAllItemsForBackgroundRefresh() throws {
+        let attributes = [
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        // Keep promotion all-or-nothing by updating every non-synchronizable item for this
+        // service in one Keychain operation, rather than looping over accounts.
+        let status = backend.update(
+            allServiceItemsQuery() as CFDictionary,
+            attributes: attributes as CFDictionary
+        )
+        guard status == errSecSuccess else {
+            throw LocalFirstError.keychainFailure(
+                "promote credentials for background refresh",
+                status
+            )
+        }
+    }
+
     private func scoped(account: String) -> KeychainStore {
         KeychainStore(service: service, account: account, backend: backend)
     }
@@ -109,23 +127,20 @@ struct KeychainStore {
         guard status == errSecSuccess, let data = result as? Data else {
             return nil
         }
-
-        updateAccessibilityForBackgroundRefresh()
         return data
     }
 
     private func saveData(_ data: Data) throws {
         let query = baseQuery()
         let attributes: [String: Any] = [
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecValueData as String: data
         ]
 
         let status = backend.update(query as CFDictionary, attributes: attributes as CFDictionary)
         if status == errSecItemNotFound {
             var addQuery = query
             addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            addQuery[kSecAttrAccessible as String] = try accessibilityForNewItem()
             let addStatus = backend.add(addQuery as CFDictionary, result: nil)
             guard addStatus == errSecSuccess else {
                 throw LocalFirstError.keychainFailure("save Keychain data", addStatus)
@@ -145,19 +160,45 @@ struct KeychainStore {
         }
     }
 
-    private func updateAccessibilityForBackgroundRefresh() {
-        let attributes = [
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
-        _ = backend.update(baseQuery() as CFDictionary, attributes: attributes as CFDictionary)
+    private func accessibilityForNewItem() throws -> CFString {
+        var query = allServiceItemsQuery()
+        query[kSecReturnAttributes as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitAll
+
+        var result: AnyObject?
+        let status = backend.copyMatching(query as CFDictionary, result: &result)
+        if status == errSecItemNotFound {
+            return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        }
+        guard status == errSecSuccess else {
+            throw LocalFirstError.keychainFailure(
+                "inspect credential accessibility",
+                status
+            )
+        }
+
+        let items = result as? [[String: Any]] ?? []
+        let promotedAccessibility = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+        // Once any credential has been promoted, later credentials inherit that one-way policy.
+        if items.contains(where: {
+            ($0[kSecAttrAccessible as String] as? String) == promotedAccessibility
+        }) {
+            return kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        }
+        return kSecAttrAccessibleWhenUnlockedThisDeviceOnly
     }
 
-    private func baseQuery() -> [String: Any] {
+    private func allServiceItemsQuery() -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
             kSecAttrSynchronizable as String: false
         ]
+    }
+
+    private func baseQuery() -> [String: Any] {
+        var query = allServiceItemsQuery()
+        query[kSecAttrAccount as String] = account
+        return query
     }
 }

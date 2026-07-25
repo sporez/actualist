@@ -246,6 +246,7 @@ final class FakeKeychainBackend: KeychainBackend {
     var addFailureStatus: OSStatus?
     var deleteFailureStatus: OSStatus?
     var copyFailureStatus: OSStatus?
+    private(set) var updateCallCount = 0
 
     private var items: [String: [String: Any]] = [:]
 
@@ -253,6 +254,10 @@ final class FakeKeychainBackend: KeychainBackend {
         items.values.filter {
             ($0[kSecAttrService as String] as? String) == service
         }
+    }
+
+    func resetUpdateCallCount() {
+        updateCallCount = 0
     }
 
     func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus {
@@ -298,24 +303,39 @@ final class FakeKeychainBackend: KeychainBackend {
     }
 
     func update(_ query: CFDictionary, attributes: CFDictionary) -> OSStatus {
+        updateCallCount += 1
         if let updateFailureStatus {
             return updateFailureStatus
         }
         let query = query as NSDictionary
         let service = query[kSecAttrService as String] as? String ?? ""
-        let account = query[kSecAttrAccount as String] as? String ?? ""
-        let itemKey = key(service: service, account: account)
-        guard var item = items[itemKey] else {
+        let account = query[kSecAttrAccount as String] as? String
+        let matchingKeys = items.compactMap { itemKey, item -> String? in
+            guard (item[kSecAttrService as String] as? String) == service,
+                  account == nil || (item[kSecAttrAccount as String] as? String) == account else {
+                return nil
+            }
+            return itemKey
+        }
+        guard !matchingKeys.isEmpty else {
             return errSecItemNotFound
         }
+
         let attributes = attributes as NSDictionary
-        for (key, value) in attributes {
-            guard let key = key as? String else {
-                continue
+        var updatedItems = items
+        for itemKey in matchingKeys {
+            guard var item = updatedItems[itemKey] else {
+                return errSecItemNotFound
             }
-            item[key] = value
+            for (key, value) in attributes {
+                guard let key = key as? String else {
+                    continue
+                }
+                item[key] = value
+            }
+            updatedItems[itemKey] = item
         }
-        items[itemKey] = item
+        items = updatedItems
         return errSecSuccess
     }
 

@@ -32,6 +32,7 @@ final class AppState {
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
+    @ObservationIgnored private let notificationAuthorizationRequester: @MainActor () async throws -> Bool
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
     @ObservationIgnored private var foregroundSessionActive = false
     @ObservationIgnored private var automaticSyncRequestedThisForeground = false
@@ -60,10 +61,14 @@ final class AppState {
     init(
         settingsStore: AppSettingsStore = .live,
         keychain: KeychainStore = .actualist,
-        localFirstStore: LocalFirstActualStore? = nil
+        localFirstStore: LocalFirstActualStore? = nil,
+        notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool = {
+            try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+        }
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
+        self.notificationAuthorizationRequester = notificationAuthorizationRequester
         self.providedLocalFirstStore = localFirstStore
         let loaded = settingsStore.load()
         self.settings = loaded
@@ -490,13 +495,14 @@ final class AppState {
     func updateBackgroundTransactionRefreshEnabled(_ isEnabled: Bool) async {
         if isEnabled {
             do {
-                let granted = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+                let granted = try await notificationAuthorizationRequester()
                 guard granted else {
                     settings.backgroundTransactionRefreshEnabled = false
                     settingsStore.save(settings)
                     BackgroundTransactionRefreshCoordinator.shared.cancel()
                     return
                 }
+                try keychain.promoteAllItemsForBackgroundRefresh()
             } catch {
                 settings.backgroundTransactionRefreshEnabled = false
                 settingsStore.save(settings)

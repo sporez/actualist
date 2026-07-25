@@ -413,7 +413,7 @@ struct LocalFirstActualStoreTests {
         }
     }
 
-    @Test func keychainStorePersistsSecurityAttributesForEveryStoredItem() throws {
+    @Test func keychainStorePersistsDefaultSecurityAttributesForEveryStoredItem() throws {
         let backend = FakeKeychainBackend()
         let service = "com.sporez.actualist.tests"
         let keychain = KeychainStore(
@@ -447,9 +447,213 @@ struct LocalFirstActualStoreTests {
         for item in items {
             #expect(
                 item[kSecAttrAccessible as String] as? String
+                    == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String
+            )
+            #expect(item[kSecAttrSynchronizable as String] as? Bool == false)
+        }
+    }
+
+    @Test func keychainStoreAtomicallyPromotesEveryItemForBackgroundRefresh() throws {
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(
+            service: service,
+            account: "actual-sync-token",
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([1, 2, 3]),
+            fileID: "file-1",
+            keyID: "key-1"
+        )
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([4, 5, 6]),
+            fileID: "file-2",
+            keyID: "key-2"
+        )
+        backend.resetUpdateCallCount()
+
+        try keychain.promoteAllItemsForBackgroundRefresh()
+
+        #expect(backend.updateCallCount == 1)
+        let items = backend.storedItemAttributes(service: service)
+        #expect(items.count == 3)
+        for item in items {
+            #expect(
+                item[kSecAttrAccessible as String] as? String
                     == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
             )
             #expect(item[kSecAttrSynchronizable as String] as? Bool == false)
+        }
+    }
+
+    @Test func readingCredentialsDoesNotPromoteTheirAccessibility() throws {
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(
+            service: service,
+            account: "actual-sync-token",
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([1, 2, 3]),
+            fileID: "file-1",
+            keyID: "key-1"
+        )
+
+        #expect(keychain.readActualSyncToken() == "token")
+        #expect(
+            keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1")
+                == Data([1, 2, 3])
+        )
+
+        for item in backend.storedItemAttributes(service: service) {
+            #expect(
+                item[kSecAttrAccessible as String] as? String
+                    == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String
+            )
+        }
+    }
+
+    @Test func keychainStoreFailedPromotionLeavesEveryItemUnchanged() throws {
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(
+            service: service,
+            account: "actual-sync-token",
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([1, 2, 3]),
+            fileID: "file-1",
+            keyID: "key-1"
+        )
+        backend.resetUpdateCallCount()
+        backend.updateFailureStatus = errSecAuthFailed
+
+        #expect(
+            throws: LocalFirstError.keychainFailure(
+                "promote credentials for background refresh",
+                errSecAuthFailed
+            )
+        ) {
+            try keychain.promoteAllItemsForBackgroundRefresh()
+        }
+
+        #expect(backend.updateCallCount == 1)
+        for item in backend.storedItemAttributes(service: service) {
+            #expect(
+                item[kSecAttrAccessible as String] as? String
+                    == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String
+            )
+        }
+    }
+
+    @Test func keychainStoreNeverDowngradesPromotedOrLaterItems() throws {
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(
+            service: service,
+            account: "actual-sync-token",
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("token")
+        try keychain.promoteAllItemsForBackgroundRefresh()
+
+        try keychain.saveActualSyncToken("replacement-token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([1, 2, 3]),
+            fileID: "later-file",
+            keyID: "later-key"
+        )
+
+        let items = backend.storedItemAttributes(service: service)
+        #expect(items.count == 2)
+        for item in items {
+            #expect(
+                item[kSecAttrAccessible as String] as? String
+                    == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+            )
+        }
+    }
+
+    @Test func backgroundRefreshPromotionFailureDoesNotEnableSetting() async throws {
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(
+            service: service,
+            account: "actual-sync-token",
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([1, 2, 3]),
+            fileID: "file-1",
+            keyID: "key-1"
+        )
+        backend.updateFailureStatus = errSecAuthFailed
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        let state = AppState(
+            settingsStore: settingsStore,
+            keychain: keychain,
+            notificationAuthorizationRequester: { true }
+        )
+
+        await state.updateBackgroundTransactionRefreshEnabled(true)
+
+        #expect(!state.settings.backgroundTransactionRefreshEnabled)
+        #expect(!settingsStore.load().backgroundTransactionRefreshEnabled)
+        #expect(
+            state.lastErrorMessage
+                == LocalFirstError.keychainFailure(
+                    "promote credentials for background refresh",
+                    errSecAuthFailed
+                ).localizedDescription
+        )
+        for item in backend.storedItemAttributes(service: service) {
+            #expect(
+                item[kSecAttrAccessible as String] as? String
+                    == kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String
+            )
+        }
+    }
+
+    @Test func disablingBackgroundRefreshDoesNotDemoteCredentials() async throws {
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(
+            service: service,
+            account: "actual-sync-token",
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data([1, 2, 3]),
+            fileID: "file-1",
+            keyID: "key-1"
+        )
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        let state = AppState(
+            settingsStore: settingsStore,
+            keychain: keychain,
+            notificationAuthorizationRequester: { true }
+        )
+
+        await state.updateBackgroundTransactionRefreshEnabled(true)
+        #expect(state.settings.backgroundTransactionRefreshEnabled)
+        await state.updateBackgroundTransactionRefreshEnabled(false)
+
+        #expect(!state.settings.backgroundTransactionRefreshEnabled)
+        for item in backend.storedItemAttributes(service: service) {
+            #expect(
+                item[kSecAttrAccessible as String] as? String
+                    == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+            )
         }
     }
 
