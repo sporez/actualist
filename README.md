@@ -78,8 +78,10 @@ for their test group. Developers can also [build from source](#building-from-sou
 6. Leave Actualist open while the initial budget download and import completes.
 
 Actualist prefers HTTPS and blocks plain HTTP for remote servers. Local HTTP URLs
-such as `http://192.168.1.20:5006` are allowed for trusted local networks, but the
-connection is not encrypted.
+such as `http://192.168.1.20:5006`, private and link-local IPv6 addresses, and
+Tailscale `100.64.0.0/10` or `*.ts.net` hosts are allowed for trusted local
+networks, but the connection is not encrypted. The inline warning names the
+credentials exposed by plain HTTP before connecting.
 
 After the first successful import, Actualist keeps a local budget copy for fast
 launches and offline use. Connection, budget selection, sync, display, and data

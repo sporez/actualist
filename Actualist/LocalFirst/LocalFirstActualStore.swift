@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Observation
 
@@ -134,7 +135,9 @@ enum ActualServerURLNormalizer {
 }
 
 enum ActualServerConnectionSecurity {
-    static let localHTTPWarning = "This local HTTP connection is unencrypted. Only use it on a trusted local network."
+    static let localHTTPWarning = """
+        This local HTTP connection is unencrypted. Your server password is sent during login, and your long-lived sync token is sent with every request. Anyone who can intercept traffic on this network can read both. Only continue on a trusted local network.
+        """
     static let remoteHTTPBlockedMessage = "HTTP is only allowed for local network Actual servers. Use HTTPS for remote servers."
 
     static func warningMessage(for input: String) -> String? {
@@ -162,23 +165,69 @@ enum ActualServerConnectionSecurity {
     }
 
     private static func isLocalNetworkHost(_ host: String) -> Bool {
-        let normalized = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]")).lowercased()
-        if normalized == "localhost" || normalized == "::1" || normalized == "0:0:0:0:0:0:0:1" {
+        let normalized = host
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .lowercased()
+        if normalized == "localhost" {
             return true
         }
-        if normalized.hasSuffix(".local") {
+        if normalized.hasSuffix(".local") || normalized.hasSuffix(".ts.net") {
             return true
         }
 
-        let parts = normalized.split(separator: ".").compactMap { Int($0) }
-        guard parts.count == 4 else {
+        if let octets = ipv4Octets(normalized) {
+            return isLocalIPv4(octets)
+        }
+
+        if let bytes = ipv6Bytes(normalized) {
+            if bytes.dropLast().allSatisfy({ $0 == 0 }), bytes.last == 1 {
+                return true
+            }
+            if bytes[0] & 0xfe == 0xfc {
+                return true
+            }
+            if bytes[0] == 0xfe, bytes[1] & 0xc0 == 0x80 {
+                return true
+            }
+            if bytes.prefix(10).allSatisfy({ $0 == 0 }),
+               bytes[10] == 0xff,
+               bytes[11] == 0xff {
+                return isLocalIPv4(Array(bytes[12...15]))
+            }
             return false
         }
 
-        return parts[0] == 10
-            || parts[0] == 127
-            || (parts[0] == 172 && (16...31).contains(parts[1]))
-            || (parts[0] == 192 && parts[1] == 168)
-            || (parts[0] == 169 && parts[1] == 254)
+        // Hostnames are classified lexically. Resolving here and allowing a private answer
+        // would leave a DNS-rebinding window when URLSession resolves the hostname again.
+        return false
+    }
+
+    private static func ipv4Octets(_ host: String) -> [UInt8]? {
+        var address = in_addr()
+        guard inet_pton(AF_INET, host, &address) == 1 else {
+            return nil
+        }
+        return withUnsafeBytes(of: &address) { Array($0) }
+    }
+
+    private static func ipv6Bytes(_ host: String) -> [UInt8]? {
+        let addressWithoutZone = String(host.split(separator: "%", maxSplits: 1)[0])
+        var address = in6_addr()
+        guard inet_pton(AF_INET6, addressWithoutZone, &address) == 1 else {
+            return nil
+        }
+        return withUnsafeBytes(of: &address) { Array($0) }
+    }
+
+    private static func isLocalIPv4(_ octets: [UInt8]) -> Bool {
+        guard octets.count == 4 else {
+            return false
+        }
+        return octets[0] == 10
+            || octets[0] == 127
+            || (octets[0] == 172 && (16...31).contains(octets[1]))
+            || (octets[0] == 192 && octets[1] == 168)
+            || (octets[0] == 169 && octets[1] == 254)
+            || (octets[0] == 100 && (64...127).contains(octets[1]))
     }
 }

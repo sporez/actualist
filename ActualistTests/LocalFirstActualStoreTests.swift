@@ -196,12 +196,56 @@ struct LocalFirstActualStoreTests {
                 == ActualServerConnectionSecurity.localHTTPWarning
         )
         #expect(ActualServerConnectionSecurity.blockedMessage(for: "http://192.168.1.16:5007") == nil)
+        #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("server password"))
+        #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("long-lived sync token"))
+        #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("every request"))
+        #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("intercept"))
+    }
+
+    @Test(arguments: [
+        "http://100.64.0.1:5006",
+        "http://100.127.255.254:5006",
+        "http://actual.tailnet-name.ts.net:5006",
+        "http://[fc00::1]:5006",
+        "http://[fd12:3456:789a::1]:5006",
+        "http://[fe80::1]:5006",
+        "http://[fe80::1%25en0]:5006",
+        "http://[::ffff:192.168.1.20]:5006"
+    ])
+    func serverConnectionSecurityAllowsLocalAndTailnetHTTP(_ input: String) {
+        #expect(
+            ActualServerConnectionSecurity.warningMessage(for: input)
+                == ActualServerConnectionSecurity.localHTTPWarning
+        )
+        #expect(ActualServerConnectionSecurity.blockedMessage(for: input) == nil)
+    }
+
+    @Test(arguments: [
+        "http://100.63.255.255:5006",
+        "http://100.128.0.1:5006",
+        "http://[2001:db8::1]:5006",
+        "http://actual.internal:5006"
+    ])
+    func serverConnectionSecurityBlocksNonlocalHTTP(_ input: String) {
+        #expect(ActualServerConnectionSecurity.warningMessage(for: input) == nil)
+        #expect(
+            ActualServerConnectionSecurity.blockedMessage(for: input)
+                == ActualServerConnectionSecurity.remoteHTTPBlockedMessage
+        )
     }
 
     @Test func serverConnectionSecurityBlocksRemoteHTTP() async {
         #expect(ActualServerConnectionSecurity.warningMessage(for: "http://actual.example.com") == nil)
         #expect(
             ActualServerConnectionSecurity.blockedMessage(for: "http://actual.example.com")
+                == ActualServerConnectionSecurity.remoteHTTPBlockedMessage
+        )
+    }
+
+    @Test func serverConnectionSecurityDoesNotResolveUnrecognizedHostnames() {
+        // Even if local DNS maps this name to RFC1918 space, the lexical policy blocks it.
+        #expect(
+            ActualServerConnectionSecurity.blockedMessage(for: "http://budget.home.arpa:5006")
                 == ActualServerConnectionSecurity.remoteHTTPBlockedMessage
         )
     }
