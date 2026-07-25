@@ -2,6 +2,7 @@ import Foundation
 import GRDB
 import Security
 import Testing
+import ZIPFoundation
 @testable import Actualist
 
 @MainActor
@@ -488,6 +489,177 @@ struct LocalFirstActualStoreTests {
         try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
 
         #expect(try fileManager.importedBudgetFileIDs() == [fileID])
+    }
+
+    @Test func budgetArchiveImportAcceptsAValidStagedArchive() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistBudgetArchive-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(
+            applicationSupportURL: rootURL,
+            resourceLimits: testResourceLimits()
+        )
+        let stagingURL = try fileManager.prepareDownloadStaging(fileID: "file-1")
+        try makeArchive(at: stagingURL, entries: [("nested/db.sqlite", Data("sqlite".utf8))])
+
+        let databaseURL = try fileManager.importBudgetZip(
+            at: stagingURL,
+            remoteFile: testRemoteFile(),
+            metadata: testBudgetMetadata()
+        )
+
+        #expect(try Data(contentsOf: databaseURL) == Data("sqlite".utf8))
+        #expect(!FileManager.default.fileExists(atPath: stagingURL.path))
+    }
+
+    @Test func budgetArchiveImportRejectsZipSlipAndEveryArchiveQuota() throws {
+        struct ArchiveCase {
+            let name: String
+            let limits: LocalFirstResourceLimits
+            let entries: [(String, Data)]
+            let expectedError: LocalFirstError
+        }
+
+        let cases = [
+            ArchiveCase(
+                name: "zip-slip",
+                limits: testResourceLimits(),
+                entries: [("../escape/db.sqlite", Data("sqlite".utf8))],
+                expectedError: .invalidDownloadedBudget
+            ),
+            ArchiveCase(
+                name: "absolute",
+                limits: testResourceLimits(),
+                entries: [("/escape/db.sqlite", Data("sqlite".utf8))],
+                expectedError: .invalidDownloadedBudget
+            ),
+            ArchiveCase(
+                name: "entry-size",
+                limits: testResourceLimits(maximumArchiveEntryBytes: 4),
+                entries: [("db.sqlite", Data("12345".utf8))],
+                expectedError: .remoteDataLimitExceeded
+            ),
+            ArchiveCase(
+                name: "expanded-size",
+                limits: testResourceLimits(maximumExpandedBudgetBytes: 6),
+                entries: [("first", Data("1234".utf8)), ("db.sqlite", Data("5678".utf8))],
+                expectedError: .remoteDataLimitExceeded
+            ),
+            ArchiveCase(
+                name: "entry-count",
+                limits: testResourceLimits(maximumArchiveEntryCount: 1),
+                entries: [("first", Data("1".utf8)), ("db.sqlite", Data("2".utf8))],
+                expectedError: .remoteDataLimitExceeded
+            ),
+            ArchiveCase(
+                name: "path-depth",
+                limits: testResourceLimits(maximumArchivePathDepth: 2),
+                entries: [("one/two/db.sqlite", Data("sqlite".utf8))],
+                expectedError: .remoteDataLimitExceeded
+            )
+        ]
+
+        for archiveCase in cases {
+            let rootURL = FileManager.default.temporaryDirectory
+                .appending(
+                    path: "ActualistBudgetArchive-\(archiveCase.name)-\(UUID().uuidString)",
+                    directoryHint: .isDirectory
+                )
+            let fileManager = BudgetFileManager(
+                applicationSupportURL: rootURL,
+                resourceLimits: archiveCase.limits
+            )
+            let stagingURL = try fileManager.prepareDownloadStaging(fileID: "file-1")
+            try makeArchive(at: stagingURL, entries: archiveCase.entries)
+
+            #expect(throws: archiveCase.expectedError) {
+                _ = try fileManager.importBudgetZip(
+                    at: stagingURL,
+                    remoteFile: testRemoteFile(),
+                    metadata: testBudgetMetadata()
+                )
+            }
+        }
+    }
+
+    @Test func stagedBudgetDownloadEnforcesCompressedSizeLimit() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistCompressedLimit-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(
+            applicationSupportURL: rootURL,
+            resourceLimits: testResourceLimits(maximumCompressedBudgetBytes: 4)
+        )
+        let stagingURL = try fileManager.prepareDownloadStaging(fileID: "file-1")
+
+        #expect(throws: LocalFirstError.remoteDataLimitExceeded) {
+            try fileManager.replaceStagedDownload(
+                at: stagingURL,
+                with: Data(repeating: 0x41, count: 5)
+            )
+        }
+    }
+
+    @Test func serverBudgetDownloadStreamsToAFileAndRejectsOversizedResponses() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ResourceLimitURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let limits = testResourceLimits(maximumCompressedBudgetBytes: 8)
+        let destinationURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistDownload-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: destinationURL) }
+
+        let client = ActualServerSyncClient(
+            baseURL: URL(string: "https://small-download.example")!,
+            session: session,
+            resourceLimits: limits
+        )
+        try await client.downloadUserFile(fileID: "file", token: "token", to: destinationURL)
+        #expect(try Data(contentsOf: destinationURL) == Data("small".utf8))
+
+        let oversizedClient = ActualServerSyncClient(
+            baseURL: URL(string: "https://large-download.example")!,
+            session: session,
+            resourceLimits: limits
+        )
+        await #expect(throws: LocalFirstError.remoteDataLimitExceeded) {
+            try await oversizedClient.downloadUserFile(
+                fileID: "file",
+                token: "token",
+                to: destinationURL
+            )
+        }
+
+        let oversizedSyncClient = ActualServerSyncClient(
+            baseURL: URL(string: "https://chunked-sync.example")!,
+            session: session,
+            resourceLimits: testResourceLimits(maximumSyncResponseBytes: 8)
+        )
+        await #expect(throws: LocalFirstError.remoteDataLimitExceeded) {
+            _ = try await oversizedSyncClient.sync(data: Data(), token: "token")
+        }
+    }
+
+    @Test func syncClientRejectsOversizedTransportResponsesBeforeDecoding() async throws {
+        let database = try BudgetDatabase(databaseURL: makeSQLiteFixture())
+        let client = SyncClient(
+            resourceLimits: testResourceLimits(maximumSyncResponseBytes: 4)
+        )
+        await client.configure(
+            LocalFirstSyncConfiguration(
+                fileID: "file",
+                groupID: nil,
+                nodeID: "node",
+                encryptionKeyID: nil,
+                encryptionContext: nil
+            )
+        )
+
+        await #expect(throws: LocalFirstError.remoteDataLimitExceeded) {
+            _ = try await client.pullAndApply(
+                database: database,
+                client: FixedResponseSyncTransport(responseData: Data(repeating: 0, count: 5)),
+                token: "token"
+            )
+        }
     }
 
     @Test func budgetDatabaseMapsAccountsBalancesAndBudgetMonth() async throws {
@@ -3035,6 +3207,60 @@ struct LocalFirstActualStoreTests {
             spent: 0,
             balance: balance,
             carryover: false
+        )
+    }
+
+    private func testResourceLimits(
+        maximumCompressedBudgetBytes: UInt64 = 1_024,
+        maximumExpandedBudgetBytes: UInt64 = 1_024,
+        maximumArchiveEntryBytes: UInt64 = 1_024,
+        maximumArchiveEntryCount: Int = 10,
+        maximumArchivePathDepth: Int = 4,
+        maximumSyncResponseBytes: Int = 1_024
+    ) -> LocalFirstResourceLimits {
+        LocalFirstResourceLimits(
+            maximumCompressedBudgetBytes: maximumCompressedBudgetBytes,
+            maximumExpandedBudgetBytes: maximumExpandedBudgetBytes,
+            maximumArchiveEntryBytes: maximumArchiveEntryBytes,
+            maximumArchiveEntryCount: maximumArchiveEntryCount,
+            maximumArchivePathDepth: maximumArchivePathDepth,
+            minimumFreeDiskReserveBytes: 0,
+            maximumSyncResponseBytes: maximumSyncResponseBytes
+        )
+    }
+
+    private func makeArchive(at url: URL, entries: [(String, Data)]) throws {
+        try FileManager.default.removeItem(at: url)
+        let archive = try Archive(url: url, accessMode: .create)
+        for (path, data) in entries {
+            try archive.addEntry(
+                with: path,
+                type: .file,
+                uncompressedSize: Int64(data.count)
+            ) { position, size in
+                let start = Int(position)
+                let end = min(start + size, data.count)
+                return data.subdata(in: start..<end)
+            }
+        }
+    }
+
+    private func testRemoteFile() -> ActualSyncRemoteFile {
+        ActualSyncRemoteFile(
+            fileID: "file-1",
+            groupID: "group-1",
+            name: "Budget"
+        )
+    }
+
+    private func testBudgetMetadata() -> LocalFirstBudgetMetadata {
+        LocalFirstBudgetMetadata(
+            localBudgetID: "file-1",
+            cloudFileID: "file-1",
+            groupID: "group-1",
+            budgetName: "Budget",
+            encryptionKeyID: nil,
+            nodeID: "node"
         )
     }
 

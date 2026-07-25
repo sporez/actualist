@@ -7,10 +7,16 @@ protocol ActualSyncTransport: Sendable {
 actor ActualServerSyncClient: ActualSyncTransport {
     let baseURL: URL
     private let session: URLSession
+    private let resourceLimits: LocalFirstResourceLimits
 
-    init(baseURL: URL, session: URLSession = .shared) {
+    init(
+        baseURL: URL,
+        session: URLSession = .shared,
+        resourceLimits: LocalFirstResourceLimits = .standard
+    ) {
         self.baseURL = baseURL
         self.session = session
+        self.resourceLimits = resourceLimits
     }
 
     func loginMethods() async throws -> ActualLoginMethodsResponse {
@@ -62,13 +68,14 @@ actor ActualServerSyncClient: ActualSyncTransport {
         return response.file
     }
 
-    func downloadUserFile(fileID: String, token: String) async throws -> Data {
-        try await rawRequest(
-            path: "/sync/download-user-file",
-            method: "GET",
-            token: token,
-            fileID: fileID
-        )
+    func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws {
+        var request = try URLRequest(url: endpointURL(path: "/sync/download-user-file"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
+        addAuthorizationHeaders(to: &request, token: token)
+        request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
+        try await executeDownload(request, to: destinationURL)
     }
 
     func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse {
@@ -135,7 +142,10 @@ actor ActualServerSyncClient: ActualSyncTransport {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
 
-        return try await execute(request)
+        return try await execute(
+            request,
+            responseByteLimit: resourceLimits.maximumSyncResponseBytes
+        )
     }
 
     private func binaryRequest(
@@ -152,7 +162,10 @@ actor ActualServerSyncClient: ActualSyncTransport {
         request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
         addAuthorizationHeaders(to: &request, token: token)
 
-        return try await execute(request)
+        return try await execute(
+            request,
+            responseByteLimit: resourceLimits.maximumSyncResponseBytes
+        )
     }
 
     private func endpointURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
@@ -176,13 +189,22 @@ actor ActualServerSyncClient: ActualSyncTransport {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
-    private func execute(_ request: URLRequest) async throws -> Data {
+    private func execute(_ request: URLRequest, responseByteLimit: Int? = nil) async throws -> Data {
         Self.debugLogRequest(request)
 
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            if let responseByteLimit {
+                (data, response) = try await limitedData(
+                    for: request,
+                    maximumBytes: responseByteLimit
+                )
+            } else {
+                (data, response) = try await session.data(for: request)
+            }
+        } catch let error as LocalFirstError {
+            throw error
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {
@@ -199,6 +221,87 @@ actor ActualServerSyncClient: ActualSyncTransport {
         return data
     }
 
+    private func limitedData(for request: URLRequest, maximumBytes: Int) async throws -> (Data, URLResponse) {
+        let (bytes, response) = try await session.bytes(for: request)
+        if response.expectedContentLength > Int64(maximumBytes) {
+            throw LocalFirstError.remoteDataLimitExceeded
+        }
+
+        var data = Data()
+        if response.expectedContentLength > 0 {
+            data.reserveCapacity(min(Int(response.expectedContentLength), maximumBytes))
+        }
+        for try await byte in bytes {
+            guard data.count < maximumBytes else {
+                throw LocalFirstError.remoteDataLimitExceeded
+            }
+            data.append(byte)
+        }
+        return (data, response)
+    }
+
+    private func executeDownload(_ request: URLRequest, to destinationURL: URL) async throws {
+        Self.debugLogRequest(request)
+
+        let fileManager = FileManager.default
+        if !fileManager.fileExists(atPath: destinationURL.path) {
+            guard fileManager.createFile(atPath: destinationURL.path, contents: nil) else {
+                throw LocalFirstError.invalidDownloadedBudget
+            }
+        }
+        let handle = try FileHandle(forWritingTo: destinationURL)
+        defer { try? handle.close() }
+
+        do {
+            try handle.truncate(atOffset: 0)
+            let (bytes, response) = try await session.bytes(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw ActualAPIError.invalidResponse
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw ActualAPIError.httpStatus(httpResponse.statusCode)
+            }
+            guard httpResponse.expectedContentLength <= 0
+                    || httpResponse.expectedContentLength <= Int64(resourceLimits.maximumCompressedBudgetBytes) else {
+                throw LocalFirstError.remoteDataLimitExceeded
+            }
+
+            var byteCount: UInt64 = 0
+            var buffer = Data()
+            buffer.reserveCapacity(64 * 1_024)
+            for try await byte in bytes {
+                let (nextByteCount, overflow) = byteCount.addingReportingOverflow(1)
+                guard !overflow,
+                      nextByteCount <= resourceLimits.maximumCompressedBudgetBytes else {
+                    throw LocalFirstError.remoteDataLimitExceeded
+                }
+                byteCount = nextByteCount
+                buffer.append(byte)
+                if buffer.count == 64 * 1_024 {
+                    try handle.write(contentsOf: buffer)
+                    buffer.removeAll(keepingCapacity: true)
+                }
+            }
+            if !buffer.isEmpty {
+                try handle.write(contentsOf: buffer)
+            }
+            try handle.synchronize()
+            Self.debugLogResponse(httpResponse, byteCount: byteCount)
+        } catch let error as LocalFirstError {
+            try? fileManager.removeItem(at: destinationURL)
+            throw error
+        } catch let error as ActualAPIError {
+            try? fileManager.removeItem(at: destinationURL)
+            throw error
+        } catch let error as URLError {
+            try? fileManager.removeItem(at: destinationURL)
+            throw ActualAPIError.transport(error.code)
+        } catch {
+            try? fileManager.removeItem(at: destinationURL)
+            throw ActualAPIError.transport(nil)
+        }
+    }
+
     private static func debugLogRequest(_ request: URLRequest) {
         #if DEBUG
         let method = request.httpMethod ?? "GET"
@@ -210,6 +313,12 @@ actor ActualServerSyncClient: ActualSyncTransport {
     private static func debugLogResponse(_ response: HTTPURLResponse, data: Data) {
         #if DEBUG
         print("[Actualist LocalFirst] <- HTTP \(response.statusCode) (\(data.count) bytes)")
+        #endif
+    }
+
+    private static func debugLogResponse(_ response: HTTPURLResponse, byteCount: UInt64) {
+        #if DEBUG
+        print("[Actualist LocalFirst] <- HTTP \(response.statusCode) (\(byteCount) bytes)")
         #endif
     }
 

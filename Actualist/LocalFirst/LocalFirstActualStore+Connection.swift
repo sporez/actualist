@@ -108,18 +108,19 @@ extension LocalFirstActualStore {
             password: encryptionPassword
         )
 
-        let data = try await client.downloadUserFile(fileID: fileID, token: token)
-        let budgetData: Data
+        let stagedArchiveURL = try fileManager.prepareDownloadStaging(fileID: fileID)
+        try await client.downloadUserFile(fileID: fileID, token: token, to: stagedArchiveURL)
+        try fileManager.validateStagedDownload(at: stagedArchiveURL)
         if let encryptMeta = remote.encryptMeta {
             guard let encryptionContext else {
                 throw LocalFirstError.encryptedBudgetRequiresPassword
             }
-            budgetData = try ActualBudgetCrypto.decrypt(
-                encryptMeta.encryptedData(data),
+            let encryptedData = try Data(contentsOf: stagedArchiveURL, options: .mappedIfSafe)
+            let budgetData = try ActualBudgetCrypto.decrypt(
+                encryptMeta.encryptedData(encryptedData),
                 keyData: encryptionContext.keyData
             )
-        } else {
-            budgetData = data
+            try fileManager.replaceStagedDownload(at: stagedArchiveURL, with: budgetData)
         }
         let metadata = LocalFirstBudgetMetadata(
             localBudgetID: fileID,
@@ -129,7 +130,11 @@ extension LocalFirstActualStore {
             encryptionKeyID: remote.syncEncryptionKeyID,
             nodeID: HybridLogicalClock.makeClientID()
         )
-        _ = try fileManager.importBudgetZip(budgetData, remoteFile: remote, metadata: metadata)
+        _ = try fileManager.importBudgetZip(
+            at: stagedArchiveURL,
+            remoteFile: remote,
+            metadata: metadata
+        )
         try await openImportedBudget(fileID: fileID, metadata: metadata, encryptionContext: encryptionContext)
         openedServerURLString = serverURLString
         try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)

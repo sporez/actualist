@@ -16,6 +16,11 @@ struct LocalFirstSyncResult: Equatable, Sendable {
 
 actor SyncClient {
     private(set) var configuration: LocalFirstSyncConfiguration?
+    private let resourceLimits: LocalFirstResourceLimits
+
+    init(resourceLimits: LocalFirstResourceLimits = .standard) {
+        self.resourceLimits = resourceLimits
+    }
 
     func configure(_ configuration: LocalFirstSyncConfiguration) {
         self.configuration = configuration
@@ -37,6 +42,7 @@ actor SyncClient {
         request.since = try await database.latestSyncTimestamp()
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
+        try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let messages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
         return try await database.applyRemoteSyncMessages(messages)
@@ -68,6 +74,7 @@ actor SyncClient {
         }
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
+        try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         var responseEnvelopes = response.messages
         let pushedEnvelopesByTimestamp = Dictionary(
@@ -93,6 +100,7 @@ actor SyncClient {
                 data: try confirmationRequest.serializedData(),
                 token: token
             )
+            try validateResponseSize(confirmationData)
             let confirmationResponse = try ActualSync_SyncResponse(serializedBytes: confirmationData)
             responseEnvelopes.append(contentsOf: confirmationResponse.messages)
             confirmedTimestamps.formUnion(confirmationResponse.messages.compactMap { envelope in
@@ -119,6 +127,12 @@ actor SyncClient {
             pushedMessageCount: messages.count,
             appliedRemoteMessageCount: appliedCount
         )
+    }
+
+    private func validateResponseSize(_ data: Data) throws {
+        guard data.count <= resourceLimits.maximumSyncResponseBytes else {
+            throw LocalFirstError.remoteDataLimitExceeded
+        }
     }
 
     private func decodedMessages(

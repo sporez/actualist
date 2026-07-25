@@ -59,6 +59,49 @@ actor RecordingSyncTransport: ActualSyncTransport {
     }
 }
 
+struct FixedResponseSyncTransport: ActualSyncTransport {
+    let responseData: Data
+
+    func sync(data: Data, token: String) async throws -> Data {
+        responseData
+    }
+}
+
+final class ResourceLimitURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let body: Data
+        switch request.url?.host {
+        case "small-download.example":
+            body = Data("small".utf8)
+        default:
+            body = Data(repeating: 0x41, count: 9)
+        }
+        var headers = ["Content-Type": "application/octet-stream"]
+        if request.url?.host == "small-download.example" {
+            headers["Content-Length"] = String(body.count)
+        }
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: headers
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 final class FakeKeychainBackend: KeychainBackend {
     var updateFailureStatus: OSStatus?
     var addFailureStatus: OSStatus?

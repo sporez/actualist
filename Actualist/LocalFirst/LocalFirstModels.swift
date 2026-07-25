@@ -17,6 +17,8 @@ enum LocalFirstError: LocalizedError, Equatable {
     case unsupportedEncryptionAlgorithm(String)
     case missingImportedDatabase
     case invalidDownloadedBudget
+    case remoteDataLimitExceeded
+    case insufficientStorage
     case invalidLocalWrite(String)
     case budgetNotOpened
     case unsupportedTemplate(String)
@@ -58,6 +60,10 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not find db.sqlite in the imported budget."
         case .invalidDownloadedBudget:
             "The downloaded budget file could not be imported."
+        case .remoteDataLimitExceeded:
+            "The server response exceeded Actualist's safe resource limits."
+        case .insufficientStorage:
+            "This device does not have enough free storage to import the budget safely."
         case .invalidLocalWrite(let reason):
             "Actualist could not apply the local-first write: \(reason)"
         case .budgetNotOpened:
