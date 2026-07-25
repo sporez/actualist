@@ -1246,7 +1246,7 @@ private struct SettingsBudgetPickerSheet: View {
                                 .textInputAutocapitalization(.never)
                                 .textContentType(.password)
                         } footer: {
-                            Text("Enter this budget's encryption password. Actualist stores the unlocked budget key in Keychain, not this password.")
+                            Text(LocalFirstRecoveryGuidance.encryptionPasswordNotice)
                         }
 
                         if let message = appState.lastErrorMessage,

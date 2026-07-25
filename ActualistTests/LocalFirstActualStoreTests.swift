@@ -102,6 +102,16 @@ struct LocalFirstActualStoreTests {
         #expect(settings.appSwitcherPrivacyMode == .whenBackgrounded)
     }
 
+    @Test func encryptionPasswordNoticeExplainsRecoveryResponsibility() {
+        let notice = LocalFirstRecoveryGuidance.encryptionPasswordNotice
+
+        #expect(notice.contains("cannot be recovered by Actualist"))
+        #expect(notice.contains("Store it securely"))
+        #expect(notice.contains("if this iPhone is lost or replaced"))
+        #expect(notice.contains("not the password"))
+        #expect(notice.contains("Neither is included in device backups"))
+    }
+
     @Test func greenIncomeTransactionAmountsPreferencePersists() throws {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let store = AppSettingsStore(defaults: defaults)

@@ -1,5 +1,13 @@
 import Foundation
 
+enum LocalFirstRecoveryGuidance {
+    static let encryptionPasswordNotice = """
+        This encryption password cannot be recovered by Actualist. Store it securely somewhere \
+        you can access if this iPhone is lost or replaced. Actualist stores only the unlocked \
+        budget key on this device, not the password. Neither is included in device backups.
+        """
+}
+
 enum LocalFirstError: LocalizedError, Equatable {
     case missingServerURL
     case missingPassword

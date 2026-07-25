@@ -163,7 +163,7 @@ struct BudgetPickerView: View {
                             SecureField("Encryption Password", text: $encryptionPassword)
                                 .textInputAutocapitalization(.never)
                         } footer: {
-                            Text("This unlocks the selected encrypted Actual budget. Actualist stores the budget key in Keychain, not this password.")
+                            Text(LocalFirstRecoveryGuidance.encryptionPasswordNotice)
                         }
                     }
                     .navigationTitle("Unlock Budget")
