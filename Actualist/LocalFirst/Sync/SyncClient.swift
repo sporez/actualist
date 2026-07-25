@@ -1,4 +1,6 @@
+import CryptoKit
 import Foundation
+import OSLog
 import SwiftProtobuf
 
 struct LocalFirstSyncConfiguration: Equatable, Sendable {
@@ -7,6 +9,15 @@ struct LocalFirstSyncConfiguration: Equatable, Sendable {
     let nodeID: String
     let encryptionKeyID: String?
     let encryptionContext: ActualBudgetEncryptionContext?
+}
+
+struct PlaintextEnvelopeAuditEvent: Equatable, Sendable {
+    let budgetIDHash: String
+    let plaintextMessageCount: Int
+    let totalMessageCount: Int
+    let earliestTimestamp: String
+    let latestTimestamp: String
+    let hasEncryptionContext: Bool
 }
 
 struct LocalFirstSyncResult: Equatable, Sendable {
@@ -26,11 +37,24 @@ struct LocalFirstSyncResult: Equatable, Sendable {
 }
 
 actor SyncClient {
+    private static let securityLogger = Logger(
+        subsystem: "com.sporez.actualist",
+        category: "SyncSecurity"
+    )
+
     private(set) var configuration: LocalFirstSyncConfiguration?
     private let resourceLimits: LocalFirstResourceLimits
+    private let enforcesAuthenticatedEncryptedEnvelopes: Bool
+    private let plaintextEnvelopeAuditRecorder: (@Sendable (PlaintextEnvelopeAuditEvent) -> Void)?
 
-    init(resourceLimits: LocalFirstResourceLimits = .standard) {
+    init(
+        resourceLimits: LocalFirstResourceLimits = .standard,
+        enforcesAuthenticatedEncryptedEnvelopes: Bool = false,
+        plaintextEnvelopeAuditRecorder: (@Sendable (PlaintextEnvelopeAuditEvent) -> Void)? = nil
+    ) {
         self.resourceLimits = resourceLimits
+        self.enforcesAuthenticatedEncryptedEnvelopes = enforcesAuthenticatedEncryptedEnvelopes
+        self.plaintextEnvelopeAuditRecorder = plaintextEnvelopeAuditRecorder
     }
 
     func configure(_ configuration: LocalFirstSyncConfiguration) {
@@ -55,7 +79,7 @@ actor SyncClient {
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
-        let messages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
+        let messages = try decodedMessages(from: response, configuration: configuration)
         return try await database.applyRemoteSyncMessagesTrackingInserts(messages)
     }
 
@@ -131,7 +155,7 @@ actor SyncClient {
             responseEnvelopes.map { ($0.timestamp, $0) },
             uniquingKeysWith: { _, newest in newest }
         ).values.sorted { $0.timestamp < $1.timestamp }
-        let remoteMessages = try decodedMessages(from: combinedResponse, encryptionContext: configuration.encryptionContext)
+        let remoteMessages = try decodedMessages(from: combinedResponse, configuration: configuration)
         let applyResult = try await database.applyRemoteSyncMessagesTrackingInserts(remoteMessages)
 
         return LocalFirstSyncResult(
@@ -149,12 +173,14 @@ actor SyncClient {
 
     private func decodedMessages(
         from response: ActualSync_SyncResponse,
-        encryptionContext: ActualBudgetEncryptionContext?
+        configuration: LocalFirstSyncConfiguration
     ) throws -> [ActualSyncDecodedMessage] {
-        try response.messages.map { envelope in
+        try auditPlaintextEnvelopes(in: response, configuration: configuration)
+
+        return try response.messages.map { envelope in
             let messageData: Data
             if envelope.isEncrypted {
-                guard let encryptionContext else {
+                guard let encryptionContext = configuration.encryptionContext else {
                     throw LocalFirstError.encryptedBudgetRequiresPassword
                 }
                 let encryptedData = try ActualSync_EncryptedData(serializedBytes: envelope.content)
@@ -178,5 +204,55 @@ actor SyncClient {
                 serializedValue: message.value
             )
         }
+    }
+
+    private func auditPlaintextEnvelopes(
+        in response: ActualSync_SyncResponse,
+        configuration: LocalFirstSyncConfiguration
+    ) throws {
+        let budgetUsesEncryption = configuration.encryptionKeyID != nil
+            || configuration.encryptionContext != nil
+        guard budgetUsesEncryption else {
+            return
+        }
+
+        let plaintextTimestamps = response.messages
+            .filter { !$0.isEncrypted }
+            .map(\.timestamp)
+            .sorted()
+        guard let earliestTimestamp = plaintextTimestamps.first,
+              let latestTimestamp = plaintextTimestamps.last else {
+            return
+        }
+
+        let event = PlaintextEnvelopeAuditEvent(
+            budgetIDHash: Self.stableHash(configuration.fileID),
+            plaintextMessageCount: plaintextTimestamps.count,
+            totalMessageCount: response.messages.count,
+            earliestTimestamp: earliestTimestamp,
+            latestTimestamp: latestTimestamp,
+            hasEncryptionContext: configuration.encryptionContext != nil
+        )
+        Self.securityLogger.warning(
+            """
+            Plaintext sync envelopes for encrypted budget: \
+            budget_hash=\(event.budgetIDHash, privacy: .public) \
+            message_count=\(event.plaintextMessageCount, privacy: .public) \
+            total_message_count=\(event.totalMessageCount, privacy: .public) \
+            timestamp_range=\(event.earliestTimestamp, privacy: .public)...\(event.latestTimestamp, privacy: .public) \
+            encryption_context=\(event.hasEncryptionContext, privacy: .public)
+            """
+        )
+        plaintextEnvelopeAuditRecorder?(event)
+
+        guard !enforcesAuthenticatedEncryptedEnvelopes else {
+            throw LocalFirstError.unauthenticatedPlaintextEnvelope
+        }
+    }
+
+    private static func stableHash(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }

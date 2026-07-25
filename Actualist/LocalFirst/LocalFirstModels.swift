@@ -29,6 +29,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case hybridLogicalClockOverflow
     case localWriteSuperseded
     case syncUploadNotConfirmed(Int)
+    case unauthenticatedPlaintextEnvelope
 
     var errorDescription: String? {
         switch self {
@@ -88,6 +89,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist did not save the change because a newer local value already exists."
         case .syncUploadNotConfirmed(let count):
             "The Actual server did not confirm \(count) uploaded sync message\(count == 1 ? "" : "s"). The changes remain pending on this device."
+        case .unauthenticatedPlaintextEnvelope:
+            "The Actual server returned unauthenticated plaintext data for an encrypted budget."
         }
     }
 }

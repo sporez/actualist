@@ -1994,6 +1994,131 @@ struct LocalFirstActualStoreTests {
         #expect(decoded.value == "S:groceries")
     }
 
+    @Test func encryptedBudgetLogsAndAllowsMixedPlaintextEnvelopesByDefault() async throws {
+        let database = try BudgetDatabase(databaseURL: makeSQLiteFixture())
+        let context = ActualBudgetEncryptionContext(
+            keyID: "key-1",
+            keyData: try ActualBudgetCrypto.deriveKey(password: "password", salt: "salt")
+        )
+        let encryptedMessage = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-server",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("utilities").serialized
+        )
+        let plaintextMessage = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0001-server",
+            dataset: "transactions",
+            row: "txn",
+            column: "amount",
+            serializedValue: LocalFirstSyncValue.int(-9_999).serialized
+        )
+        var response = ActualSync_SyncResponse()
+        response.messages = [
+            try LocalFirstSyncMessageBuilder.envelope(
+                for: encryptedMessage,
+                encryptionContext: context
+            ),
+            try LocalFirstSyncMessageBuilder.envelope(for: plaintextMessage)
+        ]
+        let recorder = PlaintextEnvelopeAuditRecorder()
+        let client = SyncClient(plaintextEnvelopeAuditRecorder: recorder.record)
+        await client.configure(
+            LocalFirstSyncConfiguration(
+                fileID: "private-budget-id",
+                groupID: nil,
+                nodeID: "node",
+                encryptionKeyID: context.keyID,
+                encryptionContext: context
+            )
+        )
+
+        let result = try await client.pullAndApply(
+            database: database,
+            client: FixedResponseSyncTransport(responseData: try response.serializedData()),
+            token: "token"
+        )
+
+        let transaction = try #require(
+            try await database.fetchTransactions(accountID: "checking")
+                .first { $0.id == "txn" }
+        )
+        let events = recorder.events()
+        let event = try #require(events.first)
+        #expect(result.appliedMessageCount == 2)
+        #expect(transaction.category == "utilities")
+        #expect(transaction.amount == -9_999)
+        #expect(event.budgetIDHash != "private-budget-id")
+        #expect(event.budgetIDHash.count == 64)
+        #expect(event.plaintextMessageCount == 1)
+        #expect(event.totalMessageCount == 2)
+        #expect(event.earliestTimestamp == plaintextMessage.timestamp)
+        #expect(event.latestTimestamp == plaintextMessage.timestamp)
+        #expect(event.hasEncryptionContext)
+        #expect(events.count == 1)
+    }
+
+    @Test func encryptedBudgetCanRejectMixedPlaintextEnvelopesWithoutApplyingAny() async throws {
+        let database = try BudgetDatabase(databaseURL: makeSQLiteFixture())
+        let context = ActualBudgetEncryptionContext(
+            keyID: "key-1",
+            keyData: try ActualBudgetCrypto.deriveKey(password: "password", salt: "salt")
+        )
+        let encryptedMessage = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-server",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("utilities").serialized
+        )
+        let plaintextMessage = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0001-server",
+            dataset: "transactions",
+            row: "txn",
+            column: "amount",
+            serializedValue: LocalFirstSyncValue.int(-9_999).serialized
+        )
+        var response = ActualSync_SyncResponse()
+        response.messages = [
+            try LocalFirstSyncMessageBuilder.envelope(
+                for: encryptedMessage,
+                encryptionContext: context
+            ),
+            try LocalFirstSyncMessageBuilder.envelope(for: plaintextMessage)
+        ]
+        let recorder = PlaintextEnvelopeAuditRecorder()
+        let client = SyncClient(
+            enforcesAuthenticatedEncryptedEnvelopes: true,
+            plaintextEnvelopeAuditRecorder: recorder.record
+        )
+        await client.configure(
+            LocalFirstSyncConfiguration(
+                fileID: "private-budget-id",
+                groupID: nil,
+                nodeID: "node",
+                encryptionKeyID: context.keyID,
+                encryptionContext: context
+            )
+        )
+
+        await #expect(throws: LocalFirstError.unauthenticatedPlaintextEnvelope) {
+            _ = try await client.pullAndApply(
+                database: database,
+                client: FixedResponseSyncTransport(responseData: try response.serializedData()),
+                token: "token"
+            )
+        }
+
+        let transaction = try #require(
+            try await database.fetchTransactions(accountID: "checking")
+                .first { $0.id == "txn" }
+        )
+        #expect(transaction.category == "groceries")
+        #expect(transaction.amount == -12_345)
+        #expect(recorder.events().count == 1)
+    }
+
     @Test func applyLocalSyncMessagesUpdatesSQLiteAndMessagesTable() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)

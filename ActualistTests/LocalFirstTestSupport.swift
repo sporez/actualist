@@ -144,6 +144,23 @@ struct FixedResponseSyncTransport: ActualSyncTransport {
     }
 }
 
+final class PlaintextEnvelopeAuditRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedEvents: [PlaintextEnvelopeAuditEvent] = []
+
+    func record(_ event: PlaintextEnvelopeAuditEvent) {
+        lock.lock()
+        defer { lock.unlock() }
+        recordedEvents.append(event)
+    }
+
+    func events() -> [PlaintextEnvelopeAuditEvent] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedEvents
+    }
+}
+
 final class ResourceLimitURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool {
         true
