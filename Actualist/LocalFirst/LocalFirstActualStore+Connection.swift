@@ -201,7 +201,10 @@ extension LocalFirstActualStore {
         encryptionContext providedEncryptionContext: ActualBudgetEncryptionContext? = nil
     ) async throws {
         let encryptionContext = try providedEncryptionContext ?? encryptionContext(metadata: metadata)
-        let database = try BudgetDatabase(databaseURL: fileManager.databaseURL(fileID: fileID))
+        let database = try BudgetDatabase(
+            databaseURL: fileManager.databaseURL(fileID: fileID),
+            localNodeID: metadata.nodeID
+        )
         self.database = database
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID

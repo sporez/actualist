@@ -4,16 +4,9 @@ extension LocalFirstActualStore {
     // MARK: - Account mutations / server operations
 
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
         let database = try requireDatabase(for: budgetID)
         let accountID = UUID().uuidString
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.createAccountMessages(
             accountID: accountID,
             name: name,
@@ -21,7 +14,7 @@ extension LocalFirstActualStore {
             builder: &builder
         )
 
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -41,15 +34,8 @@ extension LocalFirstActualStore {
         month: String,
         didAssign: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.assignCategoryBudgetMessages(
             categoryID: categoryID,
             budgeted: budgeted,
@@ -57,7 +43,7 @@ extension LocalFirstActualStore {
             builder: &builder
         )
 
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didAssign()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -71,15 +57,8 @@ extension LocalFirstActualStore {
         startMonth: String,
         didSetCarryover: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.categoryCarryoverMessages(
             categoryID: categoryID,
             carryover: carryover,
@@ -88,7 +67,7 @@ extension LocalFirstActualStore {
             builder: &builder
         )
 
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didSetCarryover()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -112,22 +91,15 @@ extension LocalFirstActualStore {
         month: String,
         didApply: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.budgetTemplateMessages(
             command: command,
             month: month,
             builder: &builder
         )
 
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didApply()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -154,22 +126,15 @@ extension LocalFirstActualStore {
         month: String,
         didMove: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.moveMoneyMessages(
             commands: commands,
             month: month,
             builder: &builder
         )
 
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didMove()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -185,16 +150,9 @@ extension LocalFirstActualStore {
         budgetID: String,
         didCreate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
         let database = try requireDatabase(for: budgetID)
         let transactionID = UUID().uuidString
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let payeeResolution = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,
             payeeName: draft.payeeName,
@@ -229,7 +187,7 @@ extension LocalFirstActualStore {
         }
 
         let messages = payeeResolution.messages + transactionMessages
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didCreate()
 
         let uniqueAccounts = Array(Set(changedAccounts))
@@ -258,16 +216,9 @@ extension LocalFirstActualStore {
         originalMonth: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
 
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let payeeResolution = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,
             payeeName: draft.payeeName,
@@ -281,7 +232,7 @@ extension LocalFirstActualStore {
         )
 
         let messages = payeeResolution.messages + update.messages
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didUpdate()
 
         let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))
@@ -315,23 +266,16 @@ extension LocalFirstActualStore {
         guard let monthID = transaction.date.actualYearMonth else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction date")
         }
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
 
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.categorizeTransactionMessages(
             transactionID: transactionID,
             categoryID: categoryID,
             builder: &builder
         )
 
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didUpdate()
         try await reloadAfterTransactionMutation(
             database: database,
@@ -361,22 +305,15 @@ extension LocalFirstActualStore {
         guard let monthID = transaction.date.actualYearMonth else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction date")
         }
-        guard let nodeID = openedNodeID else {
-            throw LocalFirstError.budgetNotOpened
-        }
 
         let database = try requireDatabase(for: budgetID)
-        let latestTimestamp = try await database.latestSyncTimestamp()
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: nodeID,
-            latestTimestamp: latestTimestamp
-        )
+        var builder = LocalFirstSyncMessageBuilder()
         let delete = try await database.deleteTransactionMessages(
             transactionID: transactionID,
             builder: &builder
         )
 
-        _ = try await database.applyLocalSyncMessagesAndEnqueue(delete.messages, baseTimestamp: latestTimestamp)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(delete.messages)
         await didDelete()
 
         let changedAccounts = Array(Set(delete.affectedAccountIDs + [transaction.account]))

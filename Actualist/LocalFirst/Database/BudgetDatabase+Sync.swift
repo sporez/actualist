@@ -18,7 +18,7 @@ extension BudgetDatabase {
             return 0
         }
 
-        return try queue.write { db in
+        let appliedCount = try queue.write { db in
             guard try tableExists("messages_crdt", db: db) else {
                 return 0
             }
@@ -61,6 +61,13 @@ extension BudgetDatabase {
 
             return appliedCount
         }
+        if var clock = localClock {
+            for message in messages {
+                clock.observe(message.timestamp)
+            }
+            localClock = clock
+        }
+        return appliedCount
     }
 
     func applyLocalSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
@@ -72,6 +79,75 @@ extension BudgetDatabase {
         baseTimestamp: String
     ) throws -> Int {
         try applyLocalSyncMessages(messages, outboxBaseTimestamp: baseTimestamp)
+    }
+
+    /// Finalizes mutation drafts under the database actor. The clock is copied only so a failed
+    /// transaction does not advance in-memory state; the successful value is written back before
+    /// this actor method returns. There is no suspension point between timestamp minting, CRDT
+    /// application, and durable outbox insertion.
+    func commitLocalSyncMessagesAndEnqueue(
+        _ drafts: [ActualSyncDecodedMessage],
+        now: Date = Date()
+    ) throws -> Int {
+        guard !drafts.isEmpty else {
+            return 0
+        }
+        guard var clock = localClock else {
+            throw LocalFirstError.invalidLocalWrite("local clock is not configured")
+        }
+
+        let appliedCount = try queue.write { db in
+            guard try tableExists("messages_crdt", db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
+            }
+            try ensureLocalSyncOutbox(db)
+            let baseTimestamp = try String.fetchOne(
+                db,
+                sql: "SELECT MAX(timestamp) FROM messages_crdt"
+            ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+
+            var appliedCount = 0
+            var insertedRows = Set<String>()
+            for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
+                let message = ActualSyncDecodedMessage(
+                    timestamp: try clock.next(now: now),
+                    dataset: draft.dataset,
+                    row: draft.row,
+                    column: draft.column,
+                    serializedValue: draft.serializedValue
+                )
+                try validateLocalMessage(message, db: db)
+
+                if try hasSameOrNewerMessage(message, db: db) {
+                    continue
+                }
+
+                let rowKey = message.dataset + message.row
+                let hasRow: Bool
+                if insertedRows.contains(rowKey) {
+                    hasRow = true
+                } else {
+                    hasRow = try rowExists(
+                        table: message.dataset,
+                        rowID: message.row,
+                        db: db
+                    )
+                }
+                let value = try deserializeSyncValue(message.serializedValue)
+                try apply(message: message, value: value, rowExists: hasRow, db: db)
+                insertedRows.insert(rowKey)
+                try insertCRDTMessage(message, db: db)
+                try insertLocalSyncOutboxMessage(
+                    message,
+                    baseTimestamp: baseTimestamp,
+                    db: db
+                )
+                appliedCount += 1
+            }
+            return appliedCount
+        }
+        localClock = clock
+        return appliedCount
     }
 
     func applyLocalSyncMessages(
@@ -405,7 +481,7 @@ extension BudgetDatabase {
     ) throws {
         try db.execute(
             sql: """
-                INSERT OR REPLACE INTO actualist_outbox
+                INSERT INTO actualist_outbox
                     (timestamp, dataset, row, column, value, base_timestamp, created_at,
                      attempt_count, last_attempt_at, last_error)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL)

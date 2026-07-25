@@ -84,6 +84,20 @@ struct HybridLogicalClock: Equatable, Sendable {
         return timestamp
     }
 
+    mutating func observe(_ timestamp: String) {
+        guard let observed = Self.parse(timestamp) else {
+            return
+        }
+        guard let current = Self.parse(lastTimestamp) else {
+            lastTimestamp = timestamp
+            return
+        }
+        if observed.wallTime > current.wallTime
+            || (observed.wallTime == current.wallTime && observed.counter > current.counter) {
+            lastTimestamp = timestamp
+        }
+    }
+
     private static func wallTimeString(for date: Date) -> String {
         wallTimeFormatterLock.lock()
         defer { wallTimeFormatterLock.unlock() }
@@ -107,21 +121,22 @@ struct HybridLogicalClock: Equatable, Sendable {
 }
 
 struct LocalFirstSyncMessageBuilder: Sendable {
-    var clock: HybridLogicalClock
+    private var sequence = 0
 
-    init(nodeID: String, latestTimestamp: String) {
-        clock = HybridLogicalClock(nodeID: nodeID, lastTimestamp: latestTimestamp)
-    }
+    init() {}
 
     mutating func makeMessage(
         dataset: String,
         row: String,
         column: String,
         value: LocalFirstSyncValue,
-        now: Date = Date()
+        now _: Date = Date()
     ) throws -> ActualSyncDecodedMessage {
-        try ActualSyncDecodedMessage(
-            timestamp: clock.next(now: now),
+        defer { sequence += 1 }
+        return ActualSyncDecodedMessage(
+            // Draft messages are deliberately not HLC-stamped. The database actor replaces this
+            // stable ordering key while atomically applying and enqueueing the mutation.
+            timestamp: String(format: "actualist-pending-%08x", sequence),
             dataset: dataset,
             row: row,
             column: column,

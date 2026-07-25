@@ -4,12 +4,39 @@ import GRDB
 actor BudgetDatabase {
     let databaseURL: URL
     let queue: DatabaseQueue
+    var localClock: HybridLogicalClock?
     var tableExistsCache: [String: Bool] = [:]
     var columnSetCache: [String: Set<String>] = [:]
 
-    init(databaseURL: URL) throws {
+    init(databaseURL: URL, localNodeID: String? = nil) throws {
         self.databaseURL = databaseURL
         queue = try DatabaseQueue(path: databaseURL.path)
+        if let localNodeID {
+            let latestTimestamp = try queue.read { db in
+                let hasMessagesTable = try Bool.fetchOne(
+                    db,
+                    sql: """
+                        SELECT EXISTS(
+                            SELECT 1 FROM sqlite_master
+                            WHERE type = 'table' AND name = 'messages_crdt'
+                        )
+                        """
+                ) ?? false
+                guard hasMessagesTable else {
+                    return "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+                }
+                return try String.fetchOne(
+                    db,
+                    sql: "SELECT MAX(timestamp) FROM messages_crdt"
+                ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+            }
+            localClock = HybridLogicalClock(
+                nodeID: localNodeID,
+                lastTimestamp: latestTimestamp
+            )
+        } else {
+            localClock = nil
+        }
     }
 
     /// Resolved physical column names for the `transactions` table. Actual's CRDT messages use

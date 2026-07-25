@@ -748,10 +748,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO category_mapping VALUES ('priority-food', 'priority-food');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let messages = try await database.budgetTemplateMessages(
             command: .category("priority-food"),
@@ -779,10 +776,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('buffer-july', 'checking', 20260710, -3000, 'buffer', 0, NULL, 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let julyMessages = try await database.budgetTemplateMessages(
             command: .category("buffer"),
@@ -834,10 +828,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO zero_budgets VALUES (202606, 'hold', 12000, 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let refillMessages = try await database.budgetTemplateMessages(
             command: .category("refill"),
@@ -877,10 +868,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO category_mapping VALUES ('allowance', 'allowance');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let messages = try await database.budgetTemplateMessages(
             command: .category("allowance"),
@@ -905,10 +893,7 @@ struct LocalFirstActualStoreTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let messages = try await database.budgetTemplateMessages(
             command: .category("groceries"),
@@ -943,10 +928,7 @@ struct LocalFirstActualStoreTests {
                 WHERE id = 'groceries';
                 """)
             let database = try BudgetDatabase(databaseURL: fixtureURL)
-            var builder = LocalFirstSyncMessageBuilder(
-                nodeID: "node1",
-                latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-            )
+            var builder = LocalFirstSyncMessageBuilder()
 
             do {
                 _ = try await database.budgetTemplateMessages(
@@ -978,10 +960,7 @@ struct LocalFirstActualStoreTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         await #expect(throws: LocalFirstError.self) {
             _ = try await database.budgetTemplateMessages(
@@ -1012,10 +991,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO zero_budgets VALUES (202606, 'buffer', 8000, 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let messages = try await database.budgetTemplateMessages(
             command: .category("buffer"),
@@ -1043,10 +1019,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO zero_budgets VALUES (202606, 'insurance', 3000, 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let julyMessages = try await database.budgetTemplateMessages(
             command: .category("insurance"),
@@ -1085,10 +1058,7 @@ struct LocalFirstActualStoreTests {
             INSERT INTO category_mapping VALUES ('renewal', 'renewal');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         let messages = try await database.budgetTemplateMessages(
             command: .category("renewal"),
@@ -1113,10 +1083,7 @@ struct LocalFirstActualStoreTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        var builder = LocalFirstSyncMessageBuilder(
-            nodeID: "node1",
-            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-        )
+        var builder = LocalFirstSyncMessageBuilder()
 
         do {
             _ = try await database.budgetTemplateMessages(
@@ -1236,6 +1203,141 @@ struct LocalFirstActualStoreTests {
 
         #expect(HybridLogicalClock.makeClientID(uuid: uuid) == "abcd0123456789ab")
         #expect(HybridLogicalClock.normalizedNodeID("node-1") == "node1")
+    }
+
+    @Test func concurrentLocalMutationsMintDistinctMonotonicTimestampsAfterSuspending() async throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        let mutationCount = 128
+        let fixedNow = Date(timeIntervalSince1970: 1_783_404_000)
+
+        let appliedCount = try await withThrowingTaskGroup(of: Int.self) { group in
+            for index in 0..<mutationCount {
+                group.addTask {
+                    // Force every operation to cross a suspension point before contending for the
+                    // database actor. The old MAX(timestamp)-derived clocks then shared a seed.
+                    await Task.yield()
+                    let draft = ActualSyncDecodedMessage(
+                        timestamp: String(format: "actualist-pending-%08x", index),
+                        dataset: "transactions",
+                        row: "txn",
+                        column: "category",
+                        serializedValue: LocalFirstSyncValue.string("category-\(index)").serialized
+                    )
+                    return try await database.commitLocalSyncMessagesAndEnqueue(
+                        [draft],
+                        now: fixedNow
+                    )
+                }
+            }
+
+            var total = 0
+            for try await count in group {
+                total += count
+            }
+            return total
+        }
+
+        let timestamps = try await database.pendingLocalSyncMessages().map(\.message.timestamp)
+        #expect(appliedCount == mutationCount)
+        #expect(timestamps.count == mutationCount)
+        #expect(Set(timestamps).count == mutationCount)
+        #expect(timestamps == timestamps.sorted())
+        #expect(timestamps.first?.contains("-0000-node1") == true)
+        #expect(timestamps.last?.contains("-007f-node1") == true)
+    }
+
+    @Test func concurrentStoreMutationsAcrossActorSuspensionAllReachTheOutbox() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let mutationCount = 32
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for index in 0..<mutationCount {
+                group.addTask {
+                    await Task.yield()
+                    _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+                        categoryID: "groceries",
+                        budgeted: 60_000 + index,
+                        budgetID: "group-1",
+                        month: "2026-07"
+                    ) {}
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let database = try #require(bundle.store.database)
+        let pending = try await database.pendingLocalSyncMessages()
+        let timestamps = pending.map(\.message.timestamp)
+        // Budget assignments carry month/category identity plus amount.
+        let expectedMessageCount = mutationCount * 3
+        #expect(pending.count == expectedMessageCount)
+        #expect(Set(timestamps).count == expectedMessageCount)
+        #expect(timestamps == timestamps.sorted())
+    }
+
+    @Test func localClockResumesFromPersistedTimestampAcrossDatabaseLifecycles() async throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let fixedNow = Date(timeIntervalSince1970: 1_783_404_000)
+        var database: BudgetDatabase? = try BudgetDatabase(
+            databaseURL: fixtureURL,
+            localNodeID: "node1"
+        )
+        let firstDraft = ActualSyncDecodedMessage(
+            timestamp: "actualist-pending-00000000",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("first").serialized
+        )
+
+        _ = try await database?.commitLocalSyncMessagesAndEnqueue([firstDraft], now: fixedNow)
+        database = nil
+
+        let reopened = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        let secondDraft = ActualSyncDecodedMessage(
+            timestamp: "actualist-pending-00000000",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("second").serialized
+        )
+        _ = try await reopened.commitLocalSyncMessagesAndEnqueue([secondDraft], now: fixedNow)
+
+        let timestamps = try await reopened.pendingLocalSyncMessages().map(\.message.timestamp)
+        #expect(timestamps.count == 2)
+        #expect(timestamps[0].contains("-0000-node1"))
+        #expect(timestamps[1].contains("-0001-node1"))
+    }
+
+    @Test func remoteTimestampAdvancesLoadedLocalClockWithoutStorageReseed() async throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        let remote = ActualSyncDecodedMessage(
+            timestamp: "2026-07-25T12:00:00.000Z-000a-remote",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("remote").serialized
+        )
+        _ = try await database.applyRemoteSyncMessages([remote])
+
+        let draft = ActualSyncDecodedMessage(
+            timestamp: "actualist-pending-00000000",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("local").serialized
+        )
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(
+            [draft],
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        let localTimestamp = try #require(
+            await database.pendingLocalSyncMessages().first?.message.timestamp
+        )
+        #expect(localTimestamp == "2026-07-25T12:00:00.000Z-000b-node1")
     }
 
     @Test func localFirstSyncMessageEnvelopeRoundTripsThroughProtobuf() async throws {
