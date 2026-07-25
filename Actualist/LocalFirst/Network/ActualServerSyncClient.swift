@@ -11,12 +11,21 @@ actor ActualServerSyncClient: ActualSyncTransport {
 
     init(
         baseURL: URL,
-        session: URLSession = .shared,
+        session: URLSession? = nil,
         resourceLimits: LocalFirstResourceLimits = .standard
     ) {
         self.baseURL = baseURL
-        self.session = session
+        self.session = session ?? URLSession(configuration: Self.secureSessionConfiguration())
         self.resourceLimits = resourceLimits
+    }
+
+    nonisolated static func secureSessionConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        return configuration
     }
 
     func loginMethods() async throws -> ActualLoginMethodsResponse {

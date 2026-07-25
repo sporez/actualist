@@ -598,6 +598,38 @@ struct LocalFirstActualStoreTests {
         }
     }
 
+    @Test func serverSessionDoesNotCacheResponsesOrStoreCookies() async throws {
+        let configuration = ActualServerSyncClient.secureSessionConfiguration()
+        #expect(configuration.urlCache == nil)
+        #expect(configuration.requestCachePolicy == .reloadIgnoringLocalCacheData)
+        #expect(configuration.httpCookieStorage == nil)
+        #expect(configuration.httpShouldSetCookies == false)
+
+        configuration.protocolClasses = [CredentialStorageURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+
+        let host = "credential-storage-\(UUID().uuidString).example"
+        let baseURL = try #require(URL(string: "https://\(host)"))
+        let requestURL = baseURL.appending(path: "sync/list-user-files")
+        var cacheRequest = URLRequest(url: requestURL)
+        cacheRequest.httpMethod = "GET"
+        URLCache.shared.removeCachedResponse(for: cacheRequest)
+        defer { URLCache.shared.removeCachedResponse(for: cacheRequest) }
+
+        let sharedCookieStorage = HTTPCookieStorage.shared
+        for cookie in sharedCookieStorage.cookies(for: baseURL) ?? [] {
+            sharedCookieStorage.deleteCookie(cookie)
+        }
+
+        let client = ActualServerSyncClient(baseURL: baseURL, session: session)
+        let files = try await client.listUserFiles(token: "sensitive-token")
+
+        #expect(files.isEmpty)
+        #expect(URLCache.shared.cachedResponse(for: cacheRequest) == nil)
+        #expect(sharedCookieStorage.cookies(for: baseURL)?.isEmpty != false)
+    }
+
     @Test func serverBudgetDownloadStreamsToAFileAndRejectsOversizedResponses() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ResourceLimitURLProtocol.self]

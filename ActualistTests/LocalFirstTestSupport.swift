@@ -102,6 +102,40 @@ final class ResourceLimitURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+final class CredentialStorageURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let body: Data
+        if request.url?.path.hasSuffix("/sync/list-user-files") == true {
+            body = Data(#"{"status":"ok","data":[]}"#.utf8)
+        } else {
+            body = Data(#"{"status":"ok","methods":["password"]}"#.utf8)
+        }
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: [
+                "Cache-Control": "public, max-age=3600",
+                "Content-Type": "application/json",
+                "Set-Cookie": "actual_session=sensitive; Path=/; Secure; HttpOnly"
+            ]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .allowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 final class FakeKeychainBackend: KeychainBackend {
     var updateFailureStatus: OSStatus?
     var addFailureStatus: OSStatus?
