@@ -2,19 +2,6 @@ import Foundation
 import Observation
 import UserNotifications
 
-private enum BackgroundTransactionRefreshTimeLimitError: LocalizedError, Sendable {
-    case exceeded
-
-    var errorDescription: String? {
-        "Background refresh timed out before completion"
-    }
-}
-
-private struct BackgroundTransactionRefreshSummary: Sendable {
-    let accountCount: Int
-    let newTransactionCount: Int
-}
-
 @MainActor
 @Observable
 final class AppState {
@@ -34,6 +21,8 @@ final class AppState {
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
     @ObservationIgnored private let notificationAuthorizationRequester: @MainActor () async throws -> Bool
+    @ObservationIgnored private let backgroundRefreshRunner = BackgroundTransactionRefreshRunner()
+    @ObservationIgnored private let transactionNotifications = NewTransactionNotificationCoordinator()
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
     @ObservationIgnored private var foregroundSessionActive = false
     @ObservationIgnored private var automaticSyncRequestedThisForeground = false
@@ -546,7 +535,7 @@ final class AppState {
     ) async -> Bool {
         let debugRunID = recordBackgroundRefreshWake()
 
-        if Task.isCancelled {
+        guard !Task.isCancelled else {
             recordBackgroundRefreshCompletion(
                 runID: debugRunID,
                 success: false,
@@ -555,48 +544,34 @@ final class AppState {
             return false
         }
 
-        if let skipReason = backgroundRefreshSkipReason() {
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: true,
-                message: skipReason
-            )
-            return true
-        }
-
-        guard let budgetID = settings.selectedBudgetID else {
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: true,
-                message: "Skipped: no selected budget"
-            )
-            return true
-        }
-
-        guard let budget = selectedBudgetForBackgroundRefresh(budgetID: budgetID) else {
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: true,
-                message: "Skipped: selected budget metadata unavailable"
-            )
-            return true
-        }
-
         do {
-            let summary = try await withBackgroundRefreshTimeLimit(timeLimit) { [self] in
-                try await performBackgroundTransactionRefreshWork(
-                    budget: budget,
-                    budgetID: budgetID
-                )
+            let outcome = try await backgroundRefreshRunner.run(
+                settings: settings,
+                setupPhase: setupPhase,
+                selectedBudget: selectedBudget,
+                budgets: budgets,
+                canUseAPI: canUseAPI,
+                store: localFirstStore,
+                timeLimit: timeLimit
+            )
+
+            if case .synced(let result) = outcome {
+                for pending in result.pendingTransactions {
+                    recordPendingNewTransactionIDs(
+                        pending.transactionIDs,
+                        budgetID: result.budgetID,
+                        accountID: pending.accountID
+                    )
+                }
+                if result.newTransactionCount > 0 {
+                    try await transactionNotifications.post(budgetID: result.budgetID)
+                }
             }
 
             recordBackgroundRefreshCompletion(
                 runID: debugRunID,
                 success: true,
-                message: backgroundSyncCompletionMessage(
-                    accountCount: summary.accountCount,
-                    newTransactionCount: summary.newTransactionCount
-                )
+                message: outcome.message
             )
             return true
         } catch is CancellationError {
@@ -606,7 +581,7 @@ final class AppState {
                 message: "Cancelled"
             )
             return false
-        } catch BackgroundTransactionRefreshTimeLimitError.exceeded {
+        } catch BackgroundTransactionRefreshRunnerError.timeLimitExceeded {
             recordBackgroundRefreshCompletion(
                 runID: debugRunID,
                 success: false,
@@ -622,88 +597,6 @@ final class AppState {
             )
             return false
         }
-    }
-
-    private func performBackgroundTransactionRefreshWork(
-        budget: ActualBudget,
-        budgetID: String
-    ) async throws -> BackgroundTransactionRefreshSummary {
-        if Task.isCancelled {
-            throw CancellationError()
-        }
-        let results = try await localFirstStore.syncAndFindNewTransactions(
-            budget: budget,
-            serverURLString: settings.localFirstServerURLString
-        )
-        var newTransactionCount = 0
-
-        if Task.isCancelled {
-            throw CancellationError()
-        }
-        for result in results where !result.newTransactionIDs.isEmpty {
-            if Task.isCancelled {
-                throw CancellationError()
-            }
-            recordPendingNewTransactionIDs(
-                result.newTransactionIDs,
-                budgetID: budgetID,
-                accountID: result.account.id
-            )
-            newTransactionCount += result.newTransactionIDs.count
-        }
-
-        if newTransactionCount > 0 {
-            try await postNewTransactionsNotification(
-                budgetID: budgetID,
-                count: newTransactionCount
-            )
-        }
-
-        return BackgroundTransactionRefreshSummary(
-            accountCount: results.count,
-            newTransactionCount: newTransactionCount
-        )
-    }
-
-    private func withBackgroundRefreshTimeLimit<Result: Sendable>(
-        _ timeLimit: Duration,
-        operation: @escaping @MainActor @Sendable () async throws -> Result
-    ) async throws -> Result {
-        try await withThrowingTaskGroup(of: Result.self) { group in
-            group.addTask {
-                try await operation()
-            }
-            group.addTask {
-                try await Task.sleep(for: timeLimit)
-                throw BackgroundTransactionRefreshTimeLimitError.exceeded
-            }
-            defer {
-                group.cancelAll()
-            }
-            guard let firstResult = try await group.next() else {
-                throw CancellationError()
-            }
-            return firstResult
-        }
-    }
-
-    private func selectedBudgetForBackgroundRefresh(budgetID: String) -> ActualBudget? {
-        if let selectedBudget, selectedBudget.syncID == budgetID {
-            return selectedBudget
-        }
-        if let budget = budgets.first(where: { $0.syncID == budgetID }) {
-            return budget
-        }
-        guard let fileID = settings.selectedLocalFirstFileID else {
-            return nil
-        }
-        return ActualBudget(
-            budgetID: fileID,
-            cloudFileId: fileID,
-            groupId: settings.selectedLocalFirstGroupID,
-            name: settings.selectedBudgetName ?? "Selected Budget",
-            state: nil
-        )
     }
 
     private func selectedBudgetFromSettings() -> ActualBudget? {
@@ -758,36 +651,6 @@ final class AppState {
         }
     }
 
-    private func backgroundSyncCompletionMessage(accountCount: Int, newTransactionCount: Int) -> String {
-        if newTransactionCount == 0 {
-            return "Synced budget; no new transactions"
-        }
-        let transactionNoun = newTransactionCount == 1 ? "transaction" : "transactions"
-        let accountNoun = accountCount == 1 ? "account" : "accounts"
-        return "Synced budget; found \(newTransactionCount) new \(transactionNoun) across \(accountCount) \(accountNoun)"
-    }
-
-    private func backgroundRefreshSkipReason() -> String? {
-        var reasons: [String] = []
-        if !settings.backgroundTransactionRefreshEnabled {
-            reasons.append("alerts disabled")
-        }
-        if setupPhase != .ready {
-            reasons.append("app not ready")
-        }
-        if settings.selectedBudgetID == nil {
-            reasons.append("no selected budget")
-        }
-        if !canUseAPI {
-            reasons.append("credentials missing")
-        }
-
-        guard !reasons.isEmpty else {
-            return nil
-        }
-        return "Skipped: \(reasons.joined(separator: ", "))"
-    }
-
     func recordBackgroundRefreshScheduleAttempt(
         succeeded: Bool,
         earliestBeginDate: Date?,
@@ -809,39 +672,39 @@ final class AppState {
     }
 
     func pendingNewTransactionIDs(budgetID: String, accountID: String) -> Set<String> {
-        Set(settings.pendingNewTransactionIDsByAccount[pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)] ?? [])
+        transactionNotifications.pendingIDs(
+            in: settings.pendingNewTransactionIDsByAccount,
+            budgetID: budgetID,
+            accountID: accountID
+        )
     }
 
     /// Union of every account's pending-new IDs for the budget. Used by the cross-account
-    /// Spending feed, where transactions aren't scoped to a single account. Transaction IDs
-    /// are globally unique, so the union is safe to flatten.
+    /// Spending feed, where transactions aren't scoped to a single account.
     func pendingNewTransactionIDs(budgetID: String) -> Set<String> {
-        let prefix = "\(budgetID)|"
-        return settings.pendingNewTransactionIDsByAccount.reduce(into: Set<String>()) { result, entry in
-            guard entry.key.hasPrefix(prefix) else {
-                return
-            }
-            result.formUnion(entry.value)
-        }
+        transactionNotifications.pendingIDs(
+            in: settings.pendingNewTransactionIDsByAccount,
+            budgetID: budgetID
+        )
     }
 
     func clearPendingNewTransactionIDs(budgetID: String, accountID: String) {
-        let key = pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)
-        guard settings.pendingNewTransactionIDsByAccount[key] != nil else {
+        guard transactionNotifications.clear(
+            budgetID: budgetID,
+            accountID: accountID,
+            in: &settings.pendingNewTransactionIDsByAccount
+        ) else {
             return
         }
-        settings.pendingNewTransactionIDsByAccount[key] = nil
         settingsStore.save(settings)
     }
 
     func clearPendingNewTransactionIDs(budgetID: String) {
-        let prefix = "\(budgetID)|"
-        let keys = settings.pendingNewTransactionIDsByAccount.keys.filter { $0.hasPrefix(prefix) }
-        guard !keys.isEmpty else {
+        guard transactionNotifications.clear(
+            budgetID: budgetID,
+            in: &settings.pendingNewTransactionIDsByAccount
+        ) else {
             return
-        }
-        for key in keys {
-            settings.pendingNewTransactionIDsByAccount[key] = nil
         }
         settingsStore.save(settings)
     }
@@ -863,33 +726,13 @@ final class AppState {
         guard let budgetID = settings.selectedBudgetID else {
             throw DebugNotificationError.missingBudget
         }
-
-        let notificationCenter = UNUserNotificationCenter.current()
-        let notificationSettings = await notificationCenter.notificationSettings()
-        if notificationSettings.authorizationStatus != .authorized {
-            let granted = try await notificationCenter.requestAuthorization(options: [.alert, .sound])
-            guard granted else {
-                throw DebugNotificationError.notificationsDenied
-            }
-        }
-
         guard let repository = makeAccountRepository() else {
             throw DebugNotificationError.noAccounts
         }
-        if repository.accountDisplays(budgetID: budgetID).isEmpty {
-            try await repository.refreshAccountsWithBalances(budgetID: budgetID)
-        }
 
-        let accounts = repository.accountDisplays(budgetID: budgetID).map(\.account)
-        guard accounts.contains(where: { !$0.closed }) || !accounts.isEmpty else {
-            throw DebugNotificationError.noAccounts
-        }
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
-        try await postNewTransactionsNotification(
+        try await transactionNotifications.postDebug(
             budgetID: budgetID,
-            count: 1,
-            trigger: trigger
+            repository: repository
         )
     }
     #endif
@@ -958,15 +801,17 @@ final class AppState {
         localFirstStore
     }
 
-    private func pendingNewTransactionKey(budgetID: String, accountID: String) -> String {
-        "\(budgetID)|\(accountID)"
-    }
-
-    private func recordPendingNewTransactionIDs(_ transactionIDs: [String], budgetID: String, accountID: String) {
-        let key = pendingNewTransactionKey(budgetID: budgetID, accountID: accountID)
-        var existing = Set(settings.pendingNewTransactionIDsByAccount[key] ?? [])
-        existing.formUnion(transactionIDs)
-        settings.pendingNewTransactionIDsByAccount[key] = existing.sorted()
+    private func recordPendingNewTransactionIDs(
+        _ transactionIDs: [String],
+        budgetID: String,
+        accountID: String
+    ) {
+        transactionNotifications.record(
+            transactionIDs,
+            budgetID: budgetID,
+            accountID: accountID,
+            in: &settings.pendingNewTransactionIDsByAccount
+        )
         settingsStore.save(settings)
     }
 
@@ -999,27 +844,6 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    private func postNewTransactionsNotification(
-        budgetID: String,
-        count _: Int,
-        trigger: UNNotificationTrigger? = nil
-    ) async throws {
-        let content = UNMutableNotificationContent()
-        content.title = NewTransactionsNotificationCopy.title
-        content.body = NewTransactionsNotificationCopy.body
-        content.sound = .default
-        content.userInfo = [
-            "budgetID": budgetID
-        ]
-
-        let request = UNNotificationRequest(
-            identifier: "actualist.new-transactions.\(budgetID).\(Date().timeIntervalSince1970)",
-            content: content,
-            trigger: trigger
-        )
-        try await UNUserNotificationCenter.current().add(request)
-    }
-
     private static func uniqueBudgets(_ budgets: [ActualBudget]) -> [ActualBudget] {
         var seenSyncIDs: Set<String> = []
         return budgets.filter { budget in
@@ -1034,25 +858,6 @@ final class AppState {
         localFirstRefreshBudgetID = nil
     }
 }
-
-#if DEBUG
-private enum DebugNotificationError: LocalizedError {
-    case missingBudget
-    case noAccounts
-    case notificationsDenied
-
-    var errorDescription: String? {
-        switch self {
-        case .missingBudget:
-            "Select a budget before posting a test notification."
-        case .noAccounts:
-            "No accounts are loaded for the selected budget."
-        case .notificationsDenied:
-            "Notification permission is not granted."
-        }
-    }
-}
-#endif
 
 enum SetupPhase: Equatable {
     case needsConnection

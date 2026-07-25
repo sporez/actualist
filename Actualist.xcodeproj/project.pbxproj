@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		010000000000000000000001 /* ActualistApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000001 /* ActualistApp.swift */; };
 		010000000000000000000002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000002 /* AppState.swift */; };
+		01000000000000000000006E /* BackgroundTransactionRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */; };
+		01000000000000000000006F /* NewTransactionNotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */; };
 		01000000000000000000003A /* BackendCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000036 /* BackendCapabilities.swift */; };
 		010000000000000000000003 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000003 /* AppTab.swift */; };
 		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
@@ -32,6 +34,10 @@
 		010000000000000000000014 /* CategoryNameParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000017 /* CategoryNameParts.swift */; };
 		010000000000000000000015 /* BudgetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000018 /* BudgetRepository.swift */; };
 		010000000000000000000016 /* BudgetViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000019 /* BudgetViewModel.swift */; };
+		01000000000000000000006A /* BudgetAssignmentWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006A /* BudgetAssignmentWorkflow.swift */; };
+		01000000000000000000006B /* BudgetMoveMoneyWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006B /* BudgetMoveMoneyWorkflow.swift */; };
+		01000000000000000000006C /* BudgetTemplateWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006C /* BudgetTemplateWorkflow.swift */; };
+		01000000000000000000006D /* BudgetAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006D /* BudgetAlert.swift */; };
 		010000000000000000000017 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001A /* OnboardingViewModel.swift */; };
 		010000000000000000000018 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* SettingsViewModel.swift */; };
 		010000000000000000000019 /* BudgetViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001C /* BudgetViewModelTests.swift */; };
@@ -124,6 +130,8 @@
 /* Begin PBXFileReference section */
 		020000000000000000000001 /* ActualistApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistApp.swift; sourceTree = "<group>"; };
 		020000000000000000000002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransactionRefreshRunner.swift; sourceTree = "<group>"; };
+		02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTransactionNotificationCoordinator.swift; sourceTree = "<group>"; };
 		020000000000000000000036 /* BackendCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendCapabilities.swift; sourceTree = "<group>"; };
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
 		020000000000000000000004 /* ActualistTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistTheme.swift; sourceTree = "<group>"; };
@@ -150,6 +158,10 @@
 		020000000000000000000017 /* CategoryNameParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryNameParts.swift; sourceTree = "<group>"; };
 		020000000000000000000018 /* BudgetRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRepository.swift; sourceTree = "<group>"; };
 		020000000000000000000019 /* BudgetViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModel.swift; sourceTree = "<group>"; };
+		02000000000000000000006A /* BudgetAssignmentWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAssignmentWorkflow.swift; sourceTree = "<group>"; };
+		02000000000000000000006B /* BudgetMoveMoneyWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetMoveMoneyWorkflow.swift; sourceTree = "<group>"; };
+		02000000000000000000006C /* BudgetTemplateWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateWorkflow.swift; sourceTree = "<group>"; };
+		02000000000000000000006D /* BudgetAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAlert.swift; sourceTree = "<group>"; };
 		02000000000000000000001A /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001B /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001C /* BudgetViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelTests.swift; sourceTree = "<group>"; };
@@ -285,6 +297,8 @@
 			children = (
 				020000000000000000000001 /* ActualistApp.swift */,
 				020000000000000000000002 /* AppState.swift */,
+				02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */,
+				02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */,
 				020000000000000000000036 /* BackendCapabilities.swift */,
 				020000000000000000000003 /* AppTab.swift */,
 			);
@@ -412,6 +426,10 @@
 				02000000000000000000005B /* BudgetAssignmentKeypad.swift */,
 				02000000000000000000003F /* BudgetViewSupport.swift */,
 				020000000000000000000019 /* BudgetViewModel.swift */,
+				02000000000000000000006A /* BudgetAssignmentWorkflow.swift */,
+				02000000000000000000006B /* BudgetMoveMoneyWorkflow.swift */,
+				02000000000000000000006C /* BudgetTemplateWorkflow.swift */,
+				02000000000000000000006D /* BudgetAlert.swift */,
 				02000000000000000000003E /* BudgetDraftModels.swift */,
 				020000000000000000000029 /* UncategorizedTransactionsView.swift */,
 				02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */,
@@ -665,6 +683,8 @@
 			files = (
 				010000000000000000000001 /* ActualistApp.swift in Sources */,
 				010000000000000000000002 /* AppState.swift in Sources */,
+				01000000000000000000006E /* BackgroundTransactionRefreshRunner.swift in Sources */,
+				01000000000000000000006F /* NewTransactionNotificationCoordinator.swift in Sources */,
 				01000000000000000000003A /* BackendCapabilities.swift in Sources */,
 				010000000000000000000003 /* AppTab.swift in Sources */,
 				010000000000000000000004 /* ActualistTheme.swift in Sources */,
@@ -729,6 +749,10 @@
 				010000000000000000000051 /* ReportsView.swift in Sources */,
 				010000000000000000000023 /* TransactionGrouping.swift in Sources */,
 				010000000000000000000016 /* BudgetViewModel.swift in Sources */,
+				01000000000000000000006A /* BudgetAssignmentWorkflow.swift in Sources */,
+				01000000000000000000006B /* BudgetMoveMoneyWorkflow.swift in Sources */,
+				01000000000000000000006C /* BudgetTemplateWorkflow.swift in Sources */,
+				01000000000000000000006D /* BudgetAlert.swift in Sources */,
 				01000000000000000000003E /* BudgetDraftModels.swift in Sources */,
 				010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */,
 				010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */,
