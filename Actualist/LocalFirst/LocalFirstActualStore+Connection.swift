@@ -1,7 +1,17 @@
 import Foundation
 
+struct StagedLocalFirstConnection {
+    let token: String
+    let budgets: [ActualBudget]
+    let remoteFilesByFileID: [String: ActualSyncRemoteFile]
+}
+
 extension LocalFirstActualStore {
-    func login(serverURLString: String, password: String) async throws {
+    func stageConnection(
+        serverURLString: String,
+        password: String,
+        selectedBudgetID: String?
+    ) async throws -> StagedLocalFirstConnection {
         let serverURLString = ActualServerURLNormalizer.normalize(serverURLString)
         guard let baseURL = URL(string: serverURLString) else {
             throw ActualAPIError.invalidURL
@@ -10,10 +20,33 @@ extension LocalFirstActualStore {
             throw LocalFirstError.missingPassword
         }
 
-        let client = ActualServerSyncClient(baseURL: baseURL)
+        let client = connectionTransportFactory(baseURL)
         _ = try await client.loginMethods()
         let response = try await client.login(password: password)
-        try keychain.saveActualSyncToken(response.token)
+        let files = try await client.listUserFiles(token: response.token)
+        guard !files.isEmpty else {
+            throw LocalFirstError.noBudgetsAvailable
+        }
+
+        let budgets = files.map(\.actualBudget)
+        if let selectedBudgetID,
+           !budgets.contains(where: { $0.syncID == selectedBudgetID }) {
+            throw LocalFirstError.selectedBudgetUnavailable
+        }
+
+        return StagedLocalFirstConnection(
+            token: response.token,
+            budgets: budgets,
+            remoteFilesByFileID: files.reduce(into: [:]) { cache, file in
+                cache[file.fileID] = file
+            }
+        )
+    }
+
+    func commitConnection(_ staged: StagedLocalFirstConnection) throws {
+        try keychain.saveActualSyncToken(staged.token)
+        remoteFilesByFileID = staged.remoteFilesByFileID
+        cachedBudgets = staged.budgets
     }
 
     func loadBudgets(serverURLString: String) async throws -> [ActualBudget] {
@@ -25,7 +58,7 @@ extension LocalFirstActualStore {
             throw ActualAPIError.invalidURL
         }
 
-        let client = ActualServerSyncClient(baseURL: baseURL)
+        let client = connectionTransportFactory(baseURL)
         let files = try await client.listUserFiles(token: token)
         remoteFilesByFileID = files.reduce(into: [:]) { cache, file in
             cache[file.fileID] = file
@@ -151,6 +184,25 @@ extension LocalFirstActualStore {
 
         try await openImportedBudget(fileID: fileID, metadata: metadata)
         return true
+    }
+
+    /// Verifies the selected cached budget independently of the store's live database state.
+    /// Connection editing uses this before replacing the persisted token or settings.
+    func validateCachedBudgetCanOpen(_ budget: ActualBudget) async throws {
+        guard let fileID = budget.localFirstFileID else {
+            throw LocalFirstError.missingBudgetFileID
+        }
+        guard fileManager.importedDatabaseExists(fileID: fileID),
+              let metadata = try fileManager.loadMetadata(fileID: fileID) else {
+            throw LocalFirstError.missingImportedDatabase
+        }
+
+        _ = try encryptionContext(metadata: metadata)
+        let validationDatabase = try BudgetDatabase(
+            databaseURL: fileManager.databaseURL(fileID: fileID),
+            localNodeID: metadata.nodeID
+        )
+        _ = try await validationDatabase.fetchAccountDisplays()
     }
 
     /// Lean refresh for an already-open budget: pull CRDT messages and reload native caches.

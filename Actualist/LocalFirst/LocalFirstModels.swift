@@ -5,6 +5,8 @@ enum LocalFirstError: LocalizedError, Equatable {
     case missingPassword
     case missingSyncToken
     case missingBudgetFileID
+    case noBudgetsAvailable
+    case selectedBudgetUnavailable
     case invalidBudgetFileID
     case numericValueOutOfRange
     case unsupportedWrite
@@ -37,6 +39,10 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Sign in to the Actual server before loading budgets."
         case .missingBudgetFileID:
             "The selected Actual budget does not include a file ID."
+        case .noBudgetsAvailable:
+            "This Actual server has no budgets available."
+        case .selectedBudgetUnavailable:
+            "The selected budget is not available on this Actual server."
         case .invalidBudgetFileID:
             "The Actual budget file ID is not safe to use."
         case .numericValueOutOfRange:

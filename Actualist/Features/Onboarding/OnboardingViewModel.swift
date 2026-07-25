@@ -38,7 +38,11 @@ final class BudgetPickerViewModel {
 
     func reload(using appState: AppState) async {
         isLoading = true
-        await appState.loadBudgets()
+        do {
+            try await appState.loadBudgets()
+        } catch {
+            appState.lastErrorMessage = error.localizedDescription
+        }
         isLoading = false
     }
 }

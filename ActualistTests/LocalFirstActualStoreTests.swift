@@ -1652,6 +1652,82 @@ struct LocalFirstActualStoreTests {
         #expect(state.localFirstSyncStatus == nil)
     }
 
+    @Test(arguments: [
+        ("http://actual.example.com", StubConnectionTransport.FailurePoint.none, false),
+        ("https://unreachable.example", .loginMethods, false),
+        ("https://wrong-password.example", .login, false),
+        ("https://empty.example", .none, true)
+    ])
+    func failedConnectionValidationPreservesWorkingConnection(
+        attemptedURL: String,
+        failurePoint: StubConnectionTransport.FailurePoint,
+        returnsNoBudgets: Bool
+    ) async throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        let previousSettings = AppSettings(
+            localFirstServerURLString: "https://working.example",
+            selectedBudgetID: "group-old",
+            selectedBudgetName: "Working Budget",
+            selectedLocalFirstFileID: "file-old",
+            selectedLocalFirstGroupID: "group-old",
+            backgroundTransactionRefreshEnabled: true,
+            pendingNewTransactionIDsByAccount: ["group-old:checking": ["txn-old"]]
+        )
+        settingsStore.save(previousSettings)
+
+        let backend = FakeKeychainBackend()
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString,
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("working-token")
+        try keychain.saveLocalFirstEncryptionKey(
+            Data("working-key".utf8),
+            fileID: "file-old",
+            keyID: "key-old"
+        )
+
+        let connectionTransport = StubConnectionTransport(
+            failurePoint: failurePoint,
+            files: returnsNoBudgets ? [] : [
+                ActualSyncRemoteFile(
+                    fileID: "file-new",
+                    groupID: "group-new",
+                    name: "New Budget"
+                )
+            ]
+        )
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            connectionTransportFactory: { _ in connectionTransport }
+        )
+        let state = AppState(
+            settingsStore: settingsStore,
+            keychain: keychain,
+            localFirstStore: store
+        )
+        state.setupPhase = .ready
+        state.connectionStatus = .online
+        let model = SettingsViewModel()
+        model.actualPassword = "attempted-password"
+        model.serverURLString = attemptedURL
+
+        await model.saveAndTest(using: state)
+
+        #expect(state.settings == previousSettings)
+        #expect(settingsStore.load() == previousSettings)
+        #expect(keychain.readActualSyncToken() == "working-token")
+        #expect(
+            keychain.readLocalFirstEncryptionKey(fileID: "file-old", keyID: "key-old")
+                == Data("working-key".utf8)
+        )
+        #expect(state.setupPhase == .ready)
+        #expect(state.connectionStatus == .online)
+        #expect(model.actualPassword == "attempted-password")
+    }
+
     @Test func syncStatusDefaultsAndEquality() async {
         let base = LocalFirstSyncStatus(fileID: "file", groupID: "group")
         #expect(base.lastSyncedAt == nil)

@@ -7,6 +7,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport
+    let connectionTransportFactory: @Sendable (URL) -> any ActualServerConnectionTransport
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
     let syncClient = SyncClient()
@@ -35,12 +36,16 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         keychain: KeychainStore = .actualist,
         fileManager: BudgetFileManager = BudgetFileManager(),
         syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
+        connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {
+            ActualServerSyncClient(baseURL: $0)
+        },
         syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)]
     ) {
         self.keychain = keychain
         self.fileManager = fileManager
         self.syncTransportFactory = syncTransportFactory
+        self.connectionTransportFactory = connectionTransportFactory
         self.syncDebugRecorder = syncDebugRecorder
         self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
     }

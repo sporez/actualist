@@ -54,7 +54,11 @@ final class SettingsViewModel {
 
         isLoadingBudgets = true
         appState.lastErrorMessage = nil
-        await appState.loadBudgets()
+        do {
+            try await appState.loadBudgets()
+        } catch {
+            appState.lastErrorMessage = error.localizedDescription
+        }
         isLoadingBudgets = false
     }
 

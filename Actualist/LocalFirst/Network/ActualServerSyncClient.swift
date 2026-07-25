@@ -4,7 +4,13 @@ protocol ActualSyncTransport: Sendable {
     func sync(data: Data, token: String) async throws -> Data
 }
 
-actor ActualServerSyncClient: ActualSyncTransport {
+protocol ActualServerConnectionTransport: Sendable {
+    func loginMethods() async throws -> ActualLoginMethodsResponse
+    func login(password: String) async throws -> ActualLoginResponse
+    func listUserFiles(token: String) async throws -> [ActualSyncRemoteFile]
+}
+
+actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTransport {
     let baseURL: URL
     private let session: URLSession
     private let resourceLimits: LocalFirstResourceLimits

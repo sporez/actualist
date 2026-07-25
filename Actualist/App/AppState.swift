@@ -88,47 +88,59 @@ final class AppState {
         }
         if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
             lastErrorMessage = blockedMessage
-            connectionStatus = .offline
             return false
         }
 
         let previousServerURLString = settings.localFirstServerURLString
         let serverChanged = !previousServerURLString.isEmpty && previousServerURLString != normalized
-
-        if serverChanged {
-            do {
-                try keychain.removeActualSyncToken()
-                try keychain.removeAllLocalFirstEncryptionKeys()
-            } catch {
-                lastErrorMessage = error.localizedDescription
-                connectionStatus = .offline
-                return false
-            }
-        }
-
-        settings.localFirstServerURLString = normalized
-        if serverChanged {
-            settings.pendingNewTransactionIDsByAccount = [:]
-            settings.backgroundTransactionRefreshEnabled = false
-            settings.selectedBudgetID = nil
-            settings.selectedBudgetName = nil
-            settings.selectedLocalFirstFileID = nil
-            settings.selectedLocalFirstGroupID = nil
-            localFirstStore.reset()
-            accountNavigationPath = []
-            selectedBudget = nil
-        }
-        settingsStore.save(settings)
-        connectionStatus = .connecting
+        let targetBudgetID = serverChanged ? nil : settings.selectedBudgetID
 
         do {
-            try await localFirstStore.login(serverURLString: normalized, password: password)
-            await loadBudgets()
+            let staged = try await localFirstStore.stageConnection(
+                serverURLString: normalized,
+                password: password,
+                selectedBudgetID: targetBudgetID
+            )
+            if let targetBudgetID,
+               let target = staged.budgets.first(where: { $0.syncID == targetBudgetID }) {
+                try await localFirstStore.validateCachedBudgetCanOpen(target)
+            }
+
+            try localFirstStore.commitConnection(staged)
+            settings.localFirstServerURLString = normalized
+            budgets = Self.uniqueBudgets(staged.budgets)
+            if serverChanged {
+                settings.pendingNewTransactionIDsByAccount = [:]
+                settings.backgroundTransactionRefreshEnabled = false
+                settings.selectedBudgetID = nil
+                settings.selectedBudgetName = nil
+                settings.selectedLocalFirstFileID = nil
+                settings.selectedLocalFirstGroupID = nil
+                localFirstStore.reset()
+                localFirstStore.remoteFilesByFileID = staged.remoteFilesByFileID
+                localFirstStore.cachedBudgets = staged.budgets
+                accountNavigationPath = []
+                selectedBudget = nil
+            }
+            settingsStore.save(settings)
+
+            if let targetBudgetID,
+               let target = budgets.first(where: { $0.syncID == targetBudgetID }) {
+                if !localFirstStore.isOpen(budgetID: targetBudgetID) {
+                    _ = try await localFirstStore.openCachedBudget(target)
+                }
+                selectedBudget = target
+                setupPhase = .ready
+            } else {
+                setupPhase = .selectingBudget
+            }
+            connectionStatus = .online
+            lastErrorMessage = nil
             return true
         } catch {
             lastErrorMessage = error.localizedDescription
-            connectionStatus = .offline
-            if !canUseAPI {
+            if previousServerURLString.isEmpty && !canUseAPI {
+                connectionStatus = .offline
                 setupPhase = .needsConnection
             }
             return false
@@ -652,7 +664,11 @@ final class AppState {
             return
         }
 
-        await loadBudgets()
+        do {
+            try await loadBudgets()
+        } catch {
+            _ = await openSelectedCachedBudgetForOfflineUse()
+        }
     }
 
     private func backgroundSyncCompletionMessage(accountCount: Int, newTransactionCount: Int) -> String {
@@ -791,12 +807,12 @@ final class AppState {
     }
     #endif
 
-    func loadBudgets() async {
+    func loadBudgets() async throws {
         guard !settings.localFirstServerURLString.isEmpty,
               !keychain.readActualSyncToken().isEmpty else {
             connectionStatus = .offline
             setupPhase = .needsConnection
-            return
+            throw LocalFirstError.missingSyncToken
         }
 
         do {
@@ -828,14 +844,12 @@ final class AppState {
             connectionStatus = .online
             setupPhase = .selectingBudget
         } catch {
-            if await openSelectedCachedBudgetForOfflineUse() {
-                lastErrorMessage = nil
-                return
-            }
-
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
-            setupPhase = .needsConnection
+            if settings.selectedBudgetID == nil {
+                setupPhase = .needsConnection
+            }
+            throw error
         }
     }
 

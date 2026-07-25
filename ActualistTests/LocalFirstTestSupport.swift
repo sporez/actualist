@@ -6,6 +6,56 @@ enum LocalFirstTestSyncError: Error, Equatable {
     case failed
 }
 
+actor StubConnectionTransport: ActualServerConnectionTransport {
+    enum FailurePoint: Sendable, Equatable {
+        case none
+        case loginMethods
+        case login
+        case listBudgets
+    }
+
+    let failurePoint: FailurePoint
+    let files: [ActualSyncRemoteFile]
+    let token: String
+
+    init(
+        failurePoint: FailurePoint = .none,
+        files: [ActualSyncRemoteFile] = [],
+        token: String = "staged-token"
+    ) {
+        self.failurePoint = failurePoint
+        self.files = files
+        self.token = token
+    }
+
+    func loginMethods() async throws -> ActualLoginMethodsResponse {
+        if failurePoint == .loginMethods {
+            throw LocalFirstTestSyncError.failed
+        }
+        return try JSONDecoder.actual.decode(
+            ActualLoginMethodsResponse.self,
+            from: Data(#"{"methods":["password"]}"#.utf8)
+        )
+    }
+
+    func login(password: String) async throws -> ActualLoginResponse {
+        if failurePoint == .login {
+            throw LocalFirstTestSyncError.failed
+        }
+        return try JSONDecoder.actual.decode(
+            ActualLoginResponse.self,
+            from: Data(#"{"token":"\#(token)"}"#.utf8)
+        )
+    }
+
+    func listUserFiles(token: String) async throws -> [ActualSyncRemoteFile] {
+        if failurePoint == .listBudgets {
+            throw LocalFirstTestSyncError.failed
+        }
+        return files
+    }
+}
+
 actor RecordingSyncTransport: ActualSyncTransport {
     private var remainingFailureCount = 0
     private var dropsUploadedMessages = false
