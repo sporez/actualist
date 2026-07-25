@@ -82,6 +82,8 @@
 		010000000000000000000052 /* ReportsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000052 /* ReportsTests.swift */; };
 		010000000000000000000053 /* DiagnosticReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000053 /* DiagnosticReport.swift */; };
 		010000000000000000000054 /* DiagnosticReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000054 /* DiagnosticReportTests.swift */; };
+		010000000000000000000055 /* BudgetTemplateEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000055 /* BudgetTemplateEngine.swift */; };
+		010000000000000000000056 /* BudgetTemplateEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000056 /* BudgetTemplateEngineTests.swift */; };
 		28C36EBD2FE377C800A9F4A8 /* default.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* default.icon */; };
 		28C36EC02FE377C800A9F4A8 /* icon_blue.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */; };
 		28C36EC22FE377C800A9F4A8 /* icon_orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC12FE377C800A9F4A8 /* icon_orange.icon */; };
@@ -175,6 +177,8 @@
 		020000000000000000000052 /* ReportsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsTests.swift; sourceTree = "<group>"; };
 		020000000000000000000053 /* DiagnosticReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReport.swift; sourceTree = "<group>"; };
 		020000000000000000000054 /* DiagnosticReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReportTests.swift; sourceTree = "<group>"; };
+		020000000000000000000055 /* BudgetTemplateEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngine.swift; sourceTree = "<group>"; };
+		020000000000000000000056 /* BudgetTemplateEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngineTests.swift; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* default.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = default.icon; sourceTree = "<group>"; };
 		28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_blue.icon; sourceTree = "<group>"; };
 		28C36EC12FE377C800A9F4A8 /* icon_orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_orange.icon; sourceTree = "<group>"; };
@@ -319,6 +323,7 @@
 				020000000000000000000037 /* BackendCapabilitiesTests.swift */,
 				020000000000000000000052 /* ReportsTests.swift */,
 				020000000000000000000054 /* DiagnosticReportTests.swift */,
+				020000000000000000000056 /* BudgetTemplateEngineTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -462,6 +467,7 @@
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
 				020000000000000000000047 /* BudgetDatabase+Schema.swift */,
 				02000000000000000000004E /* BudgetDatabase+Reports.swift */,
+				020000000000000000000055 /* BudgetTemplateEngine.swift */,
 			);
 			path = Database;
 			sourceTree = "<group>";
@@ -637,6 +643,7 @@
 				010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */,
 				010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */,
 				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
+				010000000000000000000055 /* BudgetTemplateEngine.swift in Sources */,
 				010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */,
 				010000000000000000000032 /* SyncClient.swift in Sources */,
 				01000000000000000000003C /* LocalFirstSyncMessageBuilder.swift in Sources */,
@@ -678,6 +685,7 @@
 				01000000000000000000003B /* BackendCapabilitiesTests.swift in Sources */,
 				010000000000000000000052 /* ReportsTests.swift in Sources */,
 				010000000000000000000054 /* DiagnosticReportTests.swift in Sources */,
+				010000000000000000000056 /* BudgetTemplateEngineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
