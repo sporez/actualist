@@ -110,6 +110,8 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let categoryNames: [String: String]
     let payeeNames: [String: String]
     let transferPayeeIDs: Set<String>
+    let transferAccountIDsByPayeeID: [String: String]
+    let offBudgetAccountIDs: Set<String>
     let reachedEnd: Bool
 
     init(
@@ -119,6 +121,8 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         categoryNames: [String: String],
         payeeNames: [String: String],
         transferPayeeIDs: Set<String>,
+        transferAccountIDsByPayeeID: [String: String] = [:],
+        offBudgetAccountIDs: Set<String> = [],
         reachedEnd: Bool
     ) {
         self.transactions = transactions
@@ -127,6 +131,8 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         self.categoryNames = categoryNames
         self.payeeNames = payeeNames
         self.transferPayeeIDs = transferPayeeIDs
+        self.transferAccountIDsByPayeeID = transferAccountIDsByPayeeID
+        self.offBudgetAccountIDs = offBudgetAccountIDs
         self.reachedEnd = reachedEnd
     }
 }
@@ -142,6 +148,8 @@ extension LoadedAccountTransactions {
             categoryNames: categoryNames,
             payeeNames: payeeNames,
             transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: offBudgetAccountIDs,
             reachedEnd: reachedEnd
         )
     }
@@ -162,5 +170,27 @@ struct LoadedUncategorizedTransactions: Hashable, Sendable {
     let categoryNames: [String: String]
     let payeeNames: [String: String]
     let transferPayeeIDs: Set<String>
+    let transferAccountIDsByPayeeID: [String: String]
+    let offBudgetAccountIDs: Set<String>
     let categoryGroups: [TransactionEditorCategoryGroup]
+
+    init(
+        transactions: [ActualTransaction],
+        accountNames: [String: String],
+        categoryNames: [String: String],
+        payeeNames: [String: String],
+        transferPayeeIDs: Set<String>,
+        transferAccountIDsByPayeeID: [String: String] = [:],
+        offBudgetAccountIDs: Set<String> = [],
+        categoryGroups: [TransactionEditorCategoryGroup]
+    ) {
+        self.transactions = transactions
+        self.accountNames = accountNames
+        self.categoryNames = categoryNames
+        self.payeeNames = payeeNames
+        self.transferPayeeIDs = transferPayeeIDs
+        self.transferAccountIDsByPayeeID = transferAccountIDsByPayeeID
+        self.offBudgetAccountIDs = offBudgetAccountIDs
+        self.categoryGroups = categoryGroups
+    }
 }

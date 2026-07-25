@@ -146,16 +146,22 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.errorMessage == "could not update")
     }
 
-    @Test func categoryNamesShowAccountTransferForTransferPayees() async throws {
+    @Test func categoryNamesDistinguishSameBudgetAndCrossBudgetTransfers() async throws {
         let transfer = Self.transaction(id: "transfer", payee: "transfer-checking")
+        let crossBudgetTransfer = Self.transaction(id: "cross-budget-transfer", payee: "transfer-tracking")
         let regular = Self.transaction(id: "regular", payee: "store")
         let repository = UncategorizedRecordingTransactionRepository(
             loaded: LoadedUncategorizedTransactions(
-                transactions: [transfer, regular],
+                transactions: [transfer, crossBudgetTransfer, regular],
                 accountNames: [:],
                 categoryNames: [:],
                 payeeNames: [:],
-                transferPayeeIDs: ["transfer-checking"],
+                transferPayeeIDs: ["transfer-checking", "transfer-tracking"],
+                transferAccountIDsByPayeeID: [
+                    "transfer-checking": "checking",
+                    "transfer-tracking": "tracking"
+                ],
+                offBudgetAccountIDs: ["tracking"],
                 categoryGroups: []
             )
         )
@@ -164,6 +170,7 @@ struct UncategorizedTransactionsViewModelTests {
         await model.load(budgetID: "budget", month: "2026-06", repository: repository)
 
         #expect(model.categoryNames(for: transfer) == ["Account Transfer"])
+        #expect(model.categoryNames(for: crossBudgetTransfer) == ["Uncategorized"])
         #expect(model.categoryNames(for: regular) == ["Uncategorized"])
     }
 

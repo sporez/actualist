@@ -103,6 +103,8 @@ extension LocalFirstActualStore {
                 categoryNames: maps.categoryNames,
                 payeeNames: maps.payeeNames,
                 transferPayeeIDs: maps.transferPayeeIDs,
+                transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+                offBudgetAccountIDs: maps.offBudgetAccountIDs,
                 reachedEnd: true
             )
         )
@@ -218,6 +220,8 @@ extension LocalFirstActualStore {
             categoryNames: maps.categoryNames,
             payeeNames: maps.payeeNames,
             transferPayeeIDs: maps.transferPayeeIDs,
+            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: maps.offBudgetAccountIDs,
             categoryGroups: try await editorCategoryGroups(database: database, month: month)
         )
     }
@@ -245,6 +249,8 @@ extension LocalFirstActualStore {
             categoryNames: maps.categoryNames,
             payeeNames: maps.payeeNames,
             transferPayeeIDs: maps.transferPayeeIDs,
+            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: maps.offBudgetAccountIDs,
             reachedEnd: page.reachedEnd
         )
     }
@@ -269,6 +275,8 @@ extension LocalFirstActualStore {
             categoryNames: maps.categoryNames,
             payeeNames: maps.payeeNames,
             transferPayeeIDs: maps.transferPayeeIDs,
+            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: maps.offBudgetAccountIDs,
             reachedEnd: page.reachedEnd
         )
     }
@@ -286,6 +294,10 @@ extension LocalFirstActualStore {
             categoryNames: older.categoryNames.isEmpty ? current.categoryNames : older.categoryNames,
             payeeNames: older.payeeNames.isEmpty ? current.payeeNames : older.payeeNames,
             transferPayeeIDs: older.transferPayeeIDs.isEmpty ? current.transferPayeeIDs : older.transferPayeeIDs,
+            transferAccountIDsByPayeeID: older.transferAccountIDsByPayeeID.isEmpty
+                ? current.transferAccountIDsByPayeeID
+                : older.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: older.offBudgetAccountIDs,
             reachedEnd: older.reachedEnd
         )
     }
@@ -406,9 +418,10 @@ extension LocalFirstActualStore {
         ]
     }
 
-    /// A top-level transaction needs categorizing when it falls in the month, carries no
-    /// category, is not a split parent, and is not an on-budget-to-on-budget transfer. Transfers
-    /// between an on-budget account and an off-budget account still need categories in Actual.
+    /// A top-level on-budget transaction needs categorizing when it falls in the month, carries
+    /// no category, is not a split parent, and is not an on-budget-to-on-budget transfer.
+    /// Transfers from an on-budget account to an off-budget account still need categories in
+    /// Actual, while transactions whose source account is off budget do not.
     static func isUncategorized(
         _ transaction: ActualTransaction,
         month: String,
@@ -418,6 +431,7 @@ extension LocalFirstActualStore {
         let destinationAccountID = transaction.payee.flatMap { transferAccountIDsByPayeeID[$0] }
         let isOnBudgetTransfer = destinationAccountID.map { !offBudgetAccountIDs.contains($0) } ?? false
         return transaction.date.hasPrefix(month)
+            && !offBudgetAccountIDs.contains(transaction.account)
             && (transaction.category?.isEmpty ?? true)
             && transaction.subtransactions.isEmpty
             && !transaction.isParent

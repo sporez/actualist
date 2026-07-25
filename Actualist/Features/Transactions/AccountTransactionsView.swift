@@ -391,6 +391,16 @@ struct AccountTransactionsView: View {
         searchResults?.transferPayeeIDs ?? transferPayeeIDs
     }
 
+    private var activeTransferAccountIDsByPayeeID: [String: String] {
+        searchResults?.transferAccountIDsByPayeeID
+            ?? loaded?.transferAccountIDsByPayeeID
+            ?? [:]
+    }
+
+    private var activeOffBudgetAccountIDs: Set<String> {
+        searchResults?.offBudgetAccountIDs ?? loaded?.offBudgetAccountIDs ?? []
+    }
+
     var body: some View {
         List {
             if isSearchFieldVisible {
@@ -944,32 +954,14 @@ struct AccountTransactionsView: View {
         return "Unknown Payee"
     }
 
-    private func categoryName(for transaction: ActualTransaction) -> String {
-        guard let category = transaction.category else {
-            if isAccountTransfer(transaction) {
-                return "Account Transfer"
-            }
-            return "Uncategorized"
-        }
-        return activeCategoryNames[category] ?? "Uncategorized"
-    }
-
-    private func isAccountTransfer(_ transaction: ActualTransaction) -> Bool {
-        guard let payee = transaction.payee else {
-            return false
-        }
-        return activeTransferPayeeIDs.contains(payee)
-    }
-
     private func categoryNames(for transaction: ActualTransaction) -> [String] {
-        if !transaction.subtransactions.isEmpty {
-            let names = transaction.subtransactions.map { child in
-                categoryName(for: child)
-            }
-            return names.isEmpty ? ["Split (\(transaction.subtransactions.count))"] : names
-        }
-
-        return [categoryName(for: transaction)]
+        TransactionCategoryPresentation.names(
+            for: transaction,
+            categoryNames: activeCategoryNames,
+            transferPayeeIDs: activeTransferPayeeIDs,
+            transferAccountIDsByPayeeID: activeTransferAccountIDsByPayeeID,
+            offBudgetAccountIDs: activeOffBudgetAccountIDs
+        )
     }
 
     private func accountName(for transaction: ActualTransaction) -> String? {

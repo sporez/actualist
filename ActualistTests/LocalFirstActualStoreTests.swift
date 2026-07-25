@@ -31,6 +31,8 @@ struct LocalFirstActualStoreTests {
             categoryNames: ["groceries": "Groceries"],
             payeeNames: [:],
             transferPayeeIDs: [],
+            transferAccountIDsByPayeeID: ["transfer-tracking": "tracking"],
+            offBudgetAccountIDs: ["tracking"],
             reachedEnd: true
         )
 
@@ -39,6 +41,8 @@ struct LocalFirstActualStoreTests {
         #expect(filtered.transactions.map(\.id) == ["direct", "split-parent"])
         #expect(filtered.balance == nil)
         #expect(filtered.accountNames == loaded.accountNames)
+        #expect(filtered.transferAccountIDsByPayeeID == loaded.transferAccountIDsByPayeeID)
+        #expect(filtered.offBudgetAccountIDs == loaded.offBudgetAccountIDs)
         #expect(filtered.reachedEnd)
     }
 
@@ -1361,6 +1365,22 @@ struct LocalFirstActualStoreTests {
         #expect(alerts.first?.count == 1)
     }
 
+    @Test func uncategorizedAlertExcludesTransactionsInsideOffBudgetAccounts() async {
+        let transactions = [
+            makeTransaction(id: "tracking-adjustment", account: "tracking", category: nil),
+            makeTransaction(id: "checking-purchase", account: "checking", category: nil)
+        ]
+
+        let alerts = LocalFirstActualStore.uncategorizedAlerts(
+            transactions: transactions,
+            transferAccountIDsByPayeeID: [:],
+            offBudgetAccountIDs: ["tracking"],
+            month: "2026-07"
+        )
+
+        #expect(alerts.first?.count == 1)
+    }
+
     @Test func toBudgetAlertShowsSurplusAndOverbudgetButNotZero() async {
         let surplus = try! #require(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: 1500)))
         #expect(surplus.kind == "toBudget")
@@ -2387,6 +2407,39 @@ struct LocalFirstActualStoreTests {
         #expect(paired.category == nil)
     }
 
+    @Test func createReverseCrossBudgetTransferPutsCategoryOnOnBudgetPair() async throws {
+        let store = try await makeOpenedWritableStore()
+        // tracking (off-budget) -> checking (on-budget): the generated on-budget row receives
+        // the category selected in the editor.
+        let draft = TransactionDraft(
+            accountID: "tracking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-checking",
+            payeeName: "",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+
+        let source = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "tracking")?
+                .transactions.first { $0.id == result.changed.transactions.first }
+        )
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let paired = try #require(
+            checking.transactions.first {
+                $0.amount == 1000 && $0.payeeName == "Tracking"
+            }
+        )
+
+        #expect(source.category == nil)
+        #expect(paired.category == "groceries")
+    }
+
     @Test func createSameBudgetTransferClearsCategoryEvenIfProvided() async throws {
         let store = try await makeOpenedWritableStore()
         // checking -> credit, both on-budget: category must be cleared even if a draft carries one.
@@ -2452,6 +2505,56 @@ struct LocalFirstActualStoreTests {
                 .transactions.first { $0.id == transactionID }
         )
         #expect(source.category == "groceries")
+    }
+
+    @Test func editOffBudgetSimpleToCrossBudgetTransferCategorizesOnBudgetPair() async throws {
+        let store = try await makeOpenedWritableStore()
+        let simpleDraft = TransactionDraft(
+            accountID: "tracking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+
+        let transferDraft = TransactionDraft(
+            accountID: "tracking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-checking",
+            payeeName: "",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: transferDraft,
+            budgetID: "group-1",
+            originalAccountID: "tracking",
+            originalMonth: "2026-07"
+        ) {}
+
+        let source = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "tracking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let paired = try #require(
+            checking.transactions.first {
+                $0.amount == 1000 && $0.payeeName == "Tracking"
+            }
+        )
+
+        #expect(source.category == nil)
+        #expect(paired.category == "groceries")
     }
 
     @Test func createSplitLocallyWritesParentAndChildren() async throws {
@@ -2882,6 +2985,7 @@ struct LocalFirstActualStoreTests {
 
     private func makeTransaction(
         id: String,
+        account: String = "checking",
         category: String?,
         payee: String? = nil,
         date: String = "2026-07-03",
@@ -2890,7 +2994,7 @@ struct LocalFirstActualStoreTests {
     ) -> ActualTransaction {
         ActualTransaction(
             id: id,
-            account: "checking",
+            account: account,
             date: date,
             amount: -1000,
             payee: payee,

@@ -279,9 +279,9 @@ extension BudgetDatabase {
             let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
             let dateValue = try Self.actualDateValue(draft.date)
             let pairedTransactionID = UUID().uuidString
-            // A cross-budget transfer keeps a category on the on-budget side; a same-budget
-            // transfer (on->on or off->off) is uncategorized. Mirrors loot-core clearCategory.
-            let sourceCategory = try transferCategory(
+            // A cross-budget transfer keeps a category on whichever side is on-budget; a
+            // same-budget transfer (on->on or off->off) is uncategorized.
+            let transferCategories = try transferCategories(
                 draft: draft,
                 sourceAccountID: draft.accountID,
                 destinationAccountID: destinationAccountID,
@@ -294,7 +294,7 @@ extension BudgetDatabase {
                 dateValue: dateValue,
                 amountMinorUnits: draft.amountMinorUnits,
                 payeeID: payeeID,
-                categoryID: sourceCategory,
+                categoryID: transferCategories.source,
                 notes: draft.notes,
                 cleared: draft.cleared,
                 isParent: false,
@@ -311,7 +311,7 @@ extension BudgetDatabase {
                 dateValue: dateValue,
                 amountMinorUnits: -draft.amountMinorUnits,
                 payeeID: fromPayeeID,
-                categoryID: nil,
+                categoryID: transferCategories.destination,
                 notes: draft.notes,
                 cleared: false,
                 isParent: false,
@@ -435,25 +435,25 @@ extension BudgetDatabase {
         return (value ?? 0) != 0
     }
 
-    func transferCategory(
+    func transferCategories(
         draft: TransactionDraft,
         sourceAccountID: String,
         destinationAccountID: String,
         db: Database
-    ) throws -> String? {
+    ) throws -> (source: String?, destination: String?) {
         let sourceOffBudget = try accountOffBudget(sourceAccountID, db: db)
         let destinationOffBudget = try accountOffBudget(destinationAccountID, db: db)
-        guard sourceOffBudget != destinationOffBudget, !sourceOffBudget else {
-            return nil
+        guard sourceOffBudget != destinationOffBudget else {
+            return (nil, nil)
         }
         guard let categoryID = draft.categoryID else {
-            return nil
+            return (nil, nil)
         }
         if try tableExists("categories", db: db),
            try !rowExists(table: "categories", rowID: categoryID, db: db) {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
-        return categoryID
+        return sourceOffBudget ? (nil, categoryID) : (categoryID, nil)
     }
 
     func transferPayeeID(forAccount account: String, db: Database) throws -> String {
@@ -515,19 +515,25 @@ extension BudgetDatabase {
             let dateValue = try Self.actualDateValue(draft.date)
             let isTransferDraft = draft.isTransfer && !draft.isSplit
             let mainCategory: String?
+            let pairedCategory: String?
             if draft.isSplit {
                 mainCategory = nil
+                pairedCategory = nil
             } else if isTransferDraft {
-                // Preserve the on-budget side's category for cross-budget transfers.
+                // Put the selected category on whichever side of a cross-budget transfer is
+                // on-budget.
                 let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
-                mainCategory = try transferCategory(
+                let categories = try transferCategories(
                     draft: draft,
                     sourceAccountID: draft.accountID,
                     destinationAccountID: destination,
                     db: db
                 )
+                mainCategory = categories.source
+                pairedCategory = categories.destination
             } else {
                 mainCategory = draft.categoryID
+                pairedCategory = nil
             }
             if let mainCategory,
                try tableExists("categories", db: db),
@@ -613,6 +619,7 @@ extension BudgetDatabase {
                 draft: draft,
                 payeeID: payeeID,
                 dateValue: dateValue,
+                pairedCategory: pairedCategory,
                 existing: existing,
                 columns: columns,
                 affectedAccounts: &affectedAccounts,
@@ -697,6 +704,7 @@ extension BudgetDatabase {
         draft: TransactionDraft,
         payeeID: String,
         dateValue: Int,
+        pairedCategory: String?,
         existing: ExistingTransactionState,
         columns: TransactionRowColumns,
         affectedAccounts: inout Set<String>,
@@ -729,10 +737,15 @@ extension BudgetDatabase {
                     messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: draft.notes.map(LocalFirstSyncValue.string) ?? .null))
                 }
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
-                // Same-budget transfers clear both categories (loot-core clearCategory); a
-                // cross-budget paired row keeps its own category.
-                if try accountOffBudget(draft.accountID, db: db) == accountOffBudget(destination, db: db) {
+                let sourceOffBudget = try accountOffBudget(draft.accountID, db: db)
+                let destinationOffBudget = try accountOffBudget(destination, db: db)
+                if sourceOffBudget == destinationOffBudget || destinationOffBudget {
                     messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
+                } else if let pairedCategory {
+                    // When editing from the off-budget side, a nil draft category may simply mean
+                    // the paired category was not loaded into this editor. Preserve it unless the
+                    // user selected a replacement.
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .string(pairedCategory)))
                 }
             } else {
                 // Add a new paired row and link the main row to it.
@@ -744,7 +757,7 @@ extension BudgetDatabase {
                     dateValue: dateValue,
                     amountMinorUnits: -draft.amountMinorUnits,
                     payeeID: fromPayeeID,
-                    categoryID: nil,
+                    categoryID: pairedCategory,
                     notes: draft.notes,
                     cleared: false,
                     isParent: false,

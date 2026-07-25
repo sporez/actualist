@@ -199,12 +199,18 @@ final class TransactionEditorViewModel {
     }
 
     var isCategoryReadOnly: Bool {
-        selectedPayeeIsTransfer && !transferAllowsCategory
+        if selectedPayeeIsTransfer {
+            return !transferAllowsCategory
+        }
+        return selectedAccountIsOffBudget || selectedCategoryFallbackName == "Off budget"
     }
 
-    /// A transfer keeps a category only when it crosses the budget boundary and the edited side
-    /// is on-budget (an on-budget -> off-budget transfer). Same-budget transfers and off-budget
-    /// sources are uncategorized, matching Actual's `clearCategory` rule.
+    private var selectedAccountIsOffBudget: Bool {
+        accounts.first(where: { $0.id == selectedAccountID })?.offbudget ?? false
+    }
+
+    /// Cross-budget transfers expose a category for their on-budget side, regardless of which
+    /// account initiated the transfer. Same-budget transfers do not carry categories.
     private var transferAllowsCategory: Bool {
         guard selectedPayeeIsTransfer,
               let selectedPayeeID,
@@ -213,7 +219,7 @@ final class TransactionEditorViewModel {
         }
         let sourceOffBudget = accounts.first(where: { $0.id == selectedAccountID })?.offbudget ?? false
         let destinationOffBudget = accounts.first(where: { $0.id == destinationAccountID })?.offbudget ?? false
-        return !sourceOffBudget && destinationOffBudget
+        return sourceOffBudget != destinationOffBudget
     }
 
     var splitTotalCents: Int {
@@ -237,6 +243,11 @@ final class TransactionEditorViewModel {
     }
 
     var selectedCategoryName: String {
+        if (selectedAccountIsOffBudget || selectedCategoryFallbackName == "Off budget")
+            && !transferAllowsCategory {
+            return "Off budget"
+        }
+
         if splitRows.count >= 2 {
             let names = splitRows.map(\.categoryName)
             if names.count <= 2 {
@@ -386,6 +397,11 @@ final class TransactionEditorViewModel {
                 selectedCategoryFallbackName = nil
             }
         }
+    }
+
+    func selectAccount(_ account: ActualAccount) {
+        selectedAccountID = account.id
+        normalizeCategoryForSelectedAccount()
     }
 
     func selectPayee(_ payee: ActualPayee, using appState: AppState) {
@@ -685,7 +701,7 @@ final class TransactionEditorViewModel {
         budgetID: String,
         repository: any TransactionRepositoryProtocol
     ) async {
-        guard !isSplit else {
+        guard !isSplit, !isCategoryReadOnly else {
             return
         }
 
@@ -812,7 +828,9 @@ final class TransactionEditorViewModel {
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared,
             isTransfer: selectedPayeeIsTransfer,
-            splits: selectedPayeeIsTransfer ? [] : splitDrafts(sign: kind == .spend ? -1 : 1)
+            splits: selectedPayeeIsTransfer || isCategoryReadOnly
+                ? []
+                : splitDrafts(sign: kind == .spend ? -1 : 1)
         )
     }
 
@@ -849,7 +867,7 @@ final class TransactionEditorViewModel {
     }
 
     private func applyRulePreview(_ preview: TransactionRulePreview) {
-        guard !isSplit else {
+        guard !isSplit, !isCategoryReadOnly else {
             return
         }
 
@@ -977,6 +995,13 @@ final class TransactionEditorViewModel {
         payees = options.payees
         loadedCategoryBalanceMonth = loadedMonth
         applyLoadedOptionNamesIfNeeded()
+        normalizeCategoryForSelectedAccount()
+    }
+
+    private func normalizeCategoryForSelectedAccount() {
+        if selectedAccountIsOffBudget && !transferAllowsCategory {
+            clearCategory()
+        }
     }
 
     private func fallbackCategorySelectionGroups() -> [TransactionEditorCategoryGroup] {

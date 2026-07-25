@@ -375,6 +375,65 @@ enum TransactionAmountPresentation {
     }
 }
 
+enum TransactionCategoryPresentation {
+    static func names(
+        for transaction: ActualTransaction,
+        categoryNames: [String: String],
+        transferPayeeIDs: Set<String>,
+        transferAccountIDsByPayeeID: [String: String] = [:],
+        offBudgetAccountIDs: Set<String>
+    ) -> [String] {
+        if offBudgetAccountIDs.contains(transaction.account) {
+            return ["Off budget"]
+        }
+
+        if !transaction.subtransactions.isEmpty {
+            return transaction.subtransactions.map {
+                name(
+                    for: $0,
+                    categoryNames: categoryNames,
+                    transferPayeeIDs: transferPayeeIDs,
+                    transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+                    offBudgetAccountIDs: offBudgetAccountIDs
+                )
+            }
+        }
+
+        return [
+            name(
+                for: transaction,
+                categoryNames: categoryNames,
+                transferPayeeIDs: transferPayeeIDs,
+                transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+                offBudgetAccountIDs: offBudgetAccountIDs
+            )
+        ]
+    }
+
+    private static func name(
+        for transaction: ActualTransaction,
+        categoryNames: [String: String],
+        transferPayeeIDs: Set<String>,
+        transferAccountIDsByPayeeID: [String: String],
+        offBudgetAccountIDs: Set<String>
+    ) -> String {
+        if offBudgetAccountIDs.contains(transaction.account) {
+            return "Off budget"
+        }
+        guard let category = transaction.category else {
+            if let payee = transaction.payee, transferPayeeIDs.contains(payee) {
+                if let destinationAccountID = transferAccountIDsByPayeeID[payee],
+                   offBudgetAccountIDs.contains(destinationAccountID) {
+                    return "Uncategorized"
+                }
+                return "Account Transfer"
+            }
+            return "Uncategorized"
+        }
+        return categoryNames[category] ?? "Uncategorized"
+    }
+}
+
 struct TransactionRow: View {
     @Environment(\.actualistDensity) private var density
 

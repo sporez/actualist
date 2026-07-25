@@ -9,6 +9,8 @@ final class UncategorizedTransactionsViewModel {
     var categoryNames: [String: String] = [:]
     var payeeNames: [String: String] = [:]
     var transferPayeeIDs: Set<String> = []
+    var transferAccountIDsByPayeeID: [String: String] = [:]
+    var offBudgetAccountIDs: Set<String> = []
     var categoryGroups: [TransactionEditorCategoryGroup] = []
     var isLoading = true
     var errorMessage: String?
@@ -217,25 +219,13 @@ final class UncategorizedTransactionsViewModel {
     }
 
     func categoryNames(for transaction: ActualTransaction) -> [String] {
-        if !transaction.subtransactions.isEmpty {
-            let names = transaction.subtransactions.map { child in
-                categoryName(for: child)
-            }
-            return names.isEmpty ? ["Split (\(transaction.subtransactions.count))"] : names
-        }
-
-        return [categoryName(for: transaction)]
-    }
-
-    private func categoryName(for transaction: ActualTransaction) -> String {
-        guard let category = transaction.category else {
-            if let payee = transaction.payee, transferPayeeIDs.contains(payee) {
-                return "Account Transfer"
-            }
-            return "Uncategorized"
-        }
-
-        return categoryNames[category] ?? "Uncategorized"
+        TransactionCategoryPresentation.names(
+            for: transaction,
+            categoryNames: categoryNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: offBudgetAccountIDs
+        )
     }
 
     private func apply(_ loaded: LoadedUncategorizedTransactions) {
@@ -244,6 +234,8 @@ final class UncategorizedTransactionsViewModel {
         categoryNames = loaded.categoryNames
         payeeNames = loaded.payeeNames
         transferPayeeIDs = loaded.transferPayeeIDs
+        transferAccountIDsByPayeeID = loaded.transferAccountIDsByPayeeID
+        offBudgetAccountIDs = loaded.offBudgetAccountIDs
         categoryGroups = loaded.categoryGroups
     }
 }

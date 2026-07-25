@@ -4,6 +4,90 @@ import Testing
 
 @MainActor
 struct TransactionEditorViewModelTests {
+    @Test func transactionCategoryPresentationUsesAccountAndTransferBudgetState() {
+        func transaction(
+            id: String,
+            account: String,
+            payee: String,
+            category: String? = nil
+        ) -> ActualTransaction {
+            ActualTransaction(
+                id: id,
+                account: account,
+                date: "2026-07-17",
+                amount: -7_027,
+                payee: payee,
+                payeeName: nil,
+                importedPayee: nil,
+                category: category,
+                notes: nil,
+                cleared: .bool(true)
+            )
+        }
+
+        let offBudgetTransaction = transaction(
+            id: "tracking-to-checking",
+            account: "tracking",
+            payee: "transfer-checking"
+        )
+        let crossBudgetTransfer = transaction(
+            id: "checking-to-tracking",
+            account: "checking",
+            payee: "transfer-tracking"
+        )
+        let categorizedCrossBudgetTransfer = transaction(
+            id: "categorized-checking-to-tracking",
+            account: "checking",
+            payee: "transfer-tracking",
+            category: "investments"
+        )
+        let sameBudgetTransfer = transaction(
+            id: "checking-to-savings",
+            account: "checking",
+            payee: "transfer-savings"
+        )
+        let categoryNames = ["investments": "Investments"]
+        let transferPayeeIDs: Set<String> = [
+            "transfer-checking",
+            "transfer-tracking",
+            "transfer-savings"
+        ]
+        let transferAccountIDsByPayeeID = [
+            "transfer-checking": "checking",
+            "transfer-tracking": "tracking",
+            "transfer-savings": "savings"
+        ]
+
+        #expect(TransactionCategoryPresentation.names(
+            for: offBudgetTransaction,
+            categoryNames: categoryNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: ["tracking"]
+        ) == ["Off budget"])
+        #expect(TransactionCategoryPresentation.names(
+            for: crossBudgetTransfer,
+            categoryNames: categoryNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: ["tracking"]
+        ) == ["Uncategorized"])
+        #expect(TransactionCategoryPresentation.names(
+            for: categorizedCrossBudgetTransfer,
+            categoryNames: categoryNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: ["tracking"]
+        ) == ["Investments"])
+        #expect(TransactionCategoryPresentation.names(
+            for: sameBudgetTransfer,
+            categoryNames: categoryNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: ["tracking"]
+        ) == ["Account Transfer"])
+    }
+
     @Test func formatsTypedDigitsAsCents() {
         let model = TransactionEditorViewModel()
 
@@ -197,15 +281,22 @@ struct TransactionEditorViewModelTests {
             ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
         ]
         model.selectedAccountID = "checking"
+        let toChecking = ActualPayee(id: "xfer-checking", name: "", category: nil, transferAccount: "checking")
         let toTracking = ActualPayee(id: "xfer-tracking", name: "", category: nil, transferAccount: "tracking")
         let toSavings = ActualPayee(id: "xfer-savings", name: "", category: nil, transferAccount: "savings")
-        model.payees = [toTracking, toSavings]
+        model.payees = [toChecking, toTracking, toSavings]
 
         // On-budget -> off-budget keeps a category, so prompt to pick one.
         model.selectPayee(toTracking)
         #expect(model.selectedCategoryName == "Select Category")
 
+        // Off-budget -> on-budget also prompts for the category that belongs to its paired row.
+        model.selectAccount(model.accounts[1])
+        model.selectPayee(toChecking)
+        #expect(model.selectedCategoryName == "Select Category")
+
         // On-budget -> on-budget is a plain transfer.
+        model.selectAccount(model.accounts[0])
         model.selectPayee(toSavings)
         #expect(model.selectedCategoryName == "Account Transfer")
     }
@@ -237,9 +328,10 @@ struct TransactionEditorViewModelTests {
             ActualAccount(id: "tracking", name: "Tracking", offbudget: true, closed: false),
             ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
         ]
+        let toChecking = ActualPayee(id: "xfer-checking", name: "", category: nil, transferAccount: "checking")
         let toTracking = ActualPayee(id: "xfer-tracking", name: "", category: nil, transferAccount: "tracking")
         let toSavings = ActualPayee(id: "xfer-savings", name: "", category: nil, transferAccount: "savings")
-        model.payees = [toTracking, toSavings]
+        model.payees = [toChecking, toTracking, toSavings]
         model.selectedAccountID = "checking"
 
         // On-budget -> off-budget: category stays editable and is preserved.
@@ -248,10 +340,87 @@ struct TransactionEditorViewModelTests {
         model.selectCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
         #expect(model.selectedCategoryID == "groceries")
 
+        // Off-budget -> on-budget: the same picker controls the paired on-budget row.
+        model.selectAccount(model.accounts[1])
+        model.selectPayee(toChecking)
+        #expect(!model.isCategoryReadOnly)
+        model.selectCategory(TransactionEditorCategoryOption(id: "income", title: "Income", amount: nil, valueText: nil))
+        #expect(model.selectedCategoryID == "income")
+
         // On-budget -> on-budget: category is read-only and cleared on selection.
+        model.selectAccount(model.accounts[0])
         model.selectPayee(toSavings)
         #expect(model.isCategoryReadOnly)
         #expect(model.selectedCategoryID == nil)
+    }
+
+    @Test func offBudgetToOnBudgetTransferSubmitsSelectedCategoryForPairedRow() async throws {
+        let model = TransactionEditorViewModel()
+        let checking = ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)
+        let tracking = ActualAccount(id: "tracking", name: "Tracking", offbudget: true, closed: false)
+        let toChecking = ActualPayee(id: "xfer-checking", name: "", category: nil, transferAccount: "checking")
+        model.accounts = [checking, tracking]
+        model.payees = [toChecking]
+        model.selectAccount(tracking)
+        model.selectPayee(toChecking)
+        model.setAmountInput("1000")
+        model.selectCategory(
+            TransactionEditorCategoryOption(
+                id: "income",
+                title: "Income",
+                amount: nil,
+                valueText: nil
+            )
+        )
+
+        let repository = RecordingTransactionRepository()
+        #expect(await model.submit(budgetID: "budget", repository: repository))
+        let draft = try await repository.onlyDraft()
+        #expect(draft.accountID == "tracking")
+        #expect(draft.categoryID == "income")
+        #expect(draft.isTransfer)
+    }
+
+    @Test func offBudgetAccountDisablesAndDropsCategorySelection() async throws {
+        let model = configuredModel()
+        let tracking = ActualAccount(
+            id: "tracking",
+            name: "Target 401K",
+            offbudget: true,
+            closed: false
+        )
+        model.accounts = [tracking]
+        model.selectedCategoryID = "investments"
+        model.splitRows = [
+            TransactionSplitEditorRow(
+                id: "investments",
+                transactionID: nil,
+                categoryID: "investments",
+                categoryName: "Investments",
+                amountDigits: "617"
+            ),
+            TransactionSplitEditorRow(
+                id: "fees",
+                transactionID: nil,
+                categoryID: "fees",
+                categoryName: "Fees",
+                amountDigits: "617"
+            )
+        ]
+
+        model.selectAccount(tracking)
+
+        #expect(model.isCategoryReadOnly)
+        #expect(model.selectedCategoryName == "Off budget")
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.splitRows.isEmpty)
+
+        let repository = RecordingTransactionRepository()
+        #expect(await model.submit(budgetID: "budget", repository: repository))
+        let draft = try await repository.onlyDraft()
+        #expect(draft.accountID == "tracking")
+        #expect(draft.categoryID == nil)
+        #expect(draft.splits.isEmpty)
     }
 
     @Test func categoryMutationIsIgnoredForTransferPayees() {

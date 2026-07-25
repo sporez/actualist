@@ -177,7 +177,7 @@ struct TransactionEditorView: View {
             ) {
                 ForEach(viewModel.accounts) { account in
                     Button(account.name) {
-                        viewModel.selectedAccountID = account.id
+                        viewModel.selectAccount(account)
                     }
                 }
             }
