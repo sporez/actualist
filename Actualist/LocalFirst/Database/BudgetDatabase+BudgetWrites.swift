@@ -1,6 +1,27 @@
 import Foundation
 import GRDB
 
+private struct BudgetTemplateLimitState {
+    let limitAmount: Int
+    let fromLastMonth: Int
+    let holdsExcess: Bool
+
+    var isInitiallyMet: Bool {
+        fromLastMonth >= limitAmount
+    }
+
+    var initialBudgetedAmount: Int {
+        guard isInitiallyMet, !holdsExcess else {
+            return 0
+        }
+        return limitAmount - fromLastMonth
+    }
+
+    var releasedExcess: Int {
+        max(0, -initialBudgetedAmount)
+    }
+}
+
 extension BudgetDatabase {
 
     func createAccountMessages(
@@ -202,6 +223,7 @@ extension BudgetDatabase {
                 db: db
             )
             let goalDefsRaw = try readCategoryGoalDefsRaw(db: db)
+            let categoryNames = try templateCategoryNames(db: db)
             let targeted = Set(
                 command.categoryIDs
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -229,14 +251,19 @@ extension BudgetDatabase {
 
                 do {
                     if let entries = try decodeSupportedTemplateEntries(json: json) {
+                        try validateTemplateEntries(entries, for: monthValue)
                         categoryTemplates[categoryID] = entries
                         availableBudget += currentBudgeted
                     }
                 } catch LocalFirstError.unsupportedTemplate(let reason) {
-                    unsupported.append("\(categoryID) (\(reason))")
+                    unsupported.append(
+                        "\(categoryNames[categoryID] ?? categoryID) (\(reason))"
+                    )
                     continue
                 } catch {
-                    unsupported.append("\(categoryID) (unreadable template definition)")
+                    unsupported.append(
+                        "\(categoryNames[categoryID] ?? categoryID) (unreadable template definition)"
+                    )
                     continue
                 }
             }
@@ -270,9 +297,14 @@ extension BudgetDatabase {
     }
 
     func decodeSupportedTemplateEntries(json: String) throws -> [BudgetTemplateEntry]? {
-        guard let data = json.data(using: .utf8),
-              let entries = try? JSONDecoder().decode([BudgetTemplateEntry].self, from: data) else {
-            throw LocalFirstError.unsupportedTemplate("unreadable template definition")
+        guard let data = json.data(using: .utf8) else {
+            throw LocalFirstError.unsupportedTemplate("template definition is not UTF-8")
+        }
+        let entries: [BudgetTemplateEntry]
+        do {
+            entries = try JSONDecoder().decode([BudgetTemplateEntry].self, from: data)
+        } catch {
+            throw LocalFirstError.unsupportedTemplate(templateDecodingFailureReason(error))
         }
         let budgetEntries = entries.filter(\.setsBudget)
         guard !budgetEntries.isEmpty else {
@@ -281,6 +313,7 @@ extension BudgetDatabase {
         for entry in budgetEntries {
             try validateTemplateEntryIsT1Constant(entry)
         }
+        try validateTemplateEntryInteractions(budgetEntries)
         return budgetEntries
     }
 
@@ -356,28 +389,114 @@ extension BudgetDatabase {
     }
 
     func validateTemplateEntryIsT1Constant(_ entry: BudgetTemplateEntry) throws {
-        guard entry.limit == nil,
-              (entry.priority ?? 0) >= 0 else {
+        guard (entry.priority ?? 0) >= 0 else {
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
         switch entry.type {
         case "simple":
-            guard entry.monthly != nil else {
+            guard entry.monthly != nil || entry.limit != nil else {
                 throw LocalFirstError.unsupportedTemplate("simple without monthly amount")
             }
+            try validateBasicMonthlyTemplateLimit(entry.limit)
         case "periodic":
             guard entry.amount != nil,
-                  entry.period?.amount != nil,
-                  entry.period?.period != nil else {
+                  let periodAmount = entry.period?.amount,
+                  periodAmount > 0,
+                  let period = entry.period?.period,
+                  ["day", "week", "month", "year"].contains(period) else {
                 throw LocalFirstError.unsupportedTemplate("periodic")
             }
+            if let starting = entry.starting, !starting.isEmpty, date(fromDayID: starting) == nil {
+                throw LocalFirstError.unsupportedTemplate("periodic start date")
+            }
+            try validateBasicMonthlyTemplateLimit(entry.limit)
         case "copy":
-            guard entry.lookBack != nil else {
+            guard let lookBack = entry.lookBack,
+                  lookBack >= 0,
+                  entry.limit == nil else {
                 throw LocalFirstError.unsupportedTemplate("copy")
+            }
+        case "by":
+            guard let amount = entry.amount,
+                  amount >= 0,
+                  validTemplateMonth(entry.month),
+                  entry.limit == nil,
+                  entry.repeatInterval.map({ $0 > 0 }) ?? true else {
+                throw LocalFirstError.unsupportedTemplate("invalid by template")
+            }
+        case "limit":
+            guard entry.standaloneLimit != nil else {
+                throw LocalFirstError.unsupportedTemplate(
+                    "up-to limit is missing its amount or period"
+                )
+            }
+            try validateBasicMonthlyTemplateLimit(entry.standaloneLimit)
+        case "refill":
+            guard entry.limit == nil else {
+                throw LocalFirstError.unsupportedTemplate("invalid refill template")
             }
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
+    }
+
+    private func validateTemplateEntryInteractions(_ entries: [BudgetTemplateEntry]) throws {
+        let byPriorities = Set(
+            entries.filter { $0.type == "by" }.map { $0.priority ?? 0 }
+        )
+        guard byPriorities.count <= 1 else {
+            throw LocalFirstError.unsupportedTemplate(
+                "all by templates in a category must use the same priority"
+            )
+        }
+
+        let limits = entries.filter {
+            $0.limit != nil || $0.standaloneLimit != nil
+        }
+        guard limits.count <= 1 else {
+            throw LocalFirstError.unsupportedTemplate(
+                "only one up-to limit is supported per category"
+            )
+        }
+
+        if entries.contains(where: { $0.type == "refill" }) {
+            guard limits.count == 1 else {
+                throw LocalFirstError.unsupportedTemplate(
+                    "refill requires exactly one up-to limit"
+                )
+            }
+        }
+    }
+
+    private func validateTemplateEntries(
+        _ entries: [BudgetTemplateEntry],
+        for monthValue: Int
+    ) throws {
+        for entry in entries where entry.type == "by" {
+            _ = try resolvedByTarget(entry, monthValue: monthValue)
+        }
+    }
+
+    private func validateBasicMonthlyTemplateLimit(_ limit: BudgetTemplateLimit?) throws {
+        guard let limit else {
+            return
+        }
+        guard let amount = limit.amount,
+              amount >= 0,
+              limit.period == "monthly",
+              limit.start == nil else {
+            throw LocalFirstError.unsupportedTemplate(
+                "only basic monthly up-to limits are supported"
+            )
+        }
+    }
+
+    private func validTemplateMonth(_ month: String?) -> Bool {
+        guard let month,
+              let monthValue = try? Self.actualMonthValue(month) else {
+            return false
+        }
+        return (1...12).contains(monthValue % 100)
     }
 
     func computeTemplateWrites(
@@ -390,8 +509,22 @@ extension BudgetDatabase {
             return []
         }
 
+        let limitStates = try Dictionary(
+            uniqueKeysWithValues: categoryTemplates.compactMap { item in
+                try templateLimitState(
+                    entries: item.value,
+                    categoryID: item.key,
+                    monthValue: monthValue,
+                    db: db
+                ).map { (item.key, $0) }
+            }
+        )
         var remainingAvailable = availableBudget
+            + limitStates.values.reduce(0) { $0 + $1.releasedExcess }
         var budgetedByCategory = Dictionary(uniqueKeysWithValues: categoryTemplates.keys.map { ($0, 0) })
+        for (categoryID, state) in limitStates where state.isInitiallyMet {
+            budgetedByCategory[categoryID] = state.initialBudgetedAmount
+        }
         let priorities = Set(categoryTemplates.values.flatMap { entries in
             entries.map { $0.priority ?? 0 }
         }).sorted()
@@ -399,16 +532,40 @@ extension BudgetDatabase {
         for priority in priorities {
             for categoryID in categoryTemplates.keys.sorted() {
                 let entries = categoryTemplates[categoryID, default: []].filter { ($0.priority ?? 0) == priority }
-                guard !entries.isEmpty else { continue }
+                guard !entries.isEmpty,
+                      limitStates[categoryID]?.isInitiallyMet != true else {
+                    continue
+                }
 
                 var amount = 0
-                for entry in entries {
-                    amount += try computeTemplateEntryAmount(
-                        entry,
+                let byEntries = entries.filter { $0.type == "by" }
+                if !byEntries.isEmpty {
+                    amount += try computeByTemplateAmount(
+                        byEntries,
                         categoryID: categoryID,
                         monthValue: monthValue,
                         db: db
                     )
+                }
+                for entry in entries where entry.type != "by" {
+                    amount += try computeTemplateEntryAmount(
+                        entry,
+                        categoryID: categoryID,
+                        monthValue: monthValue,
+                        limitState: limitStates[categoryID],
+                        db: db
+                    )
+                }
+
+                if let limitState = limitStates[categoryID] {
+                    let alreadyBudgeted = budgetedByCategory[categoryID, default: 0]
+                    let availableBeforeLimit = max(
+                        0,
+                        limitState.limitAmount - limitState.fromLastMonth - alreadyBudgeted
+                    )
+                    if amount > availableBeforeLimit {
+                        amount = availableBeforeLimit
+                    }
                 }
 
                 if priority > 0, amount > 0, remainingAvailable < amount {
@@ -423,22 +580,101 @@ extension BudgetDatabase {
         return budgetedByCategory.map { (categoryID: $0.key, amount: $0.value) }
     }
 
-    func computeTemplateEntryAmount(
+    private func computeTemplateEntryAmount(
         _ entry: BudgetTemplateEntry,
         categoryID: String,
         monthValue: Int,
+        limitState: BudgetTemplateLimitState? = nil,
         db: Database
     ) throws -> Int {
         switch entry.type {
         case "simple":
-            return Self.templateAmountToMinorUnits(entry.monthly ?? 0)
+            if let monthly = entry.monthly {
+                return Self.templateAmountToMinorUnits(monthly)
+            }
+            guard let limitState else {
+                throw LocalFirstError.unsupportedTemplate("simple without monthly amount")
+            }
+            return limitState.limitAmount - limitState.fromLastMonth
         case "periodic":
             return try computePeriodicTemplateAmount(entry, monthValue: monthValue)
         case "copy":
             return try copyTemplateAmount(entry, categoryID: categoryID, monthValue: monthValue, db: db)
+        case "limit":
+            return 0
+        case "refill":
+            guard let limitState else {
+                throw LocalFirstError.unsupportedTemplate("refill without up-to limit")
+            }
+            return limitState.limitAmount - limitState.fromLastMonth
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
+    }
+
+    private func templateLimitState(
+        entries: [BudgetTemplateEntry],
+        categoryID: String,
+        monthValue: Int,
+        db: Database
+    ) throws -> BudgetTemplateLimitState? {
+        let limits = entries.compactMap { entry in
+            entry.type == "limit" ? entry.standaloneLimit : entry.limit
+        }
+        guard !limits.isEmpty else {
+            return nil
+        }
+        guard limits.count == 1, let limit = limits.first, let amount = limit.amount else {
+            throw LocalFirstError.unsupportedTemplate(
+                "only one up-to limit is supported per category"
+            )
+        }
+
+        return BudgetTemplateLimitState(
+            limitAmount: Self.templateAmountToMinorUnits(amount),
+            fromLastMonth: try templateFromLastMonth(
+                categoryID: categoryID,
+                monthValue: monthValue,
+                db: db
+            ),
+            holdsExcess: limit.hold == true
+        )
+    }
+
+    private func templateFromLastMonth(
+        categoryID: String,
+        monthValue: Int,
+        db: Database
+    ) throws -> Int {
+        let previousMonth = monthID(shiftedMonth(monthValue, by: -1))
+        let previousValues = try envelopeCategoryValues(through: previousMonth, db: db)[categoryID]
+            ?? EnvelopeCategoryValue()
+        if try templateCategoryIsIncome(categoryID, db: db) {
+            return 0
+        }
+        if previousValues.balance < 0, !previousValues.carryover {
+            return 0
+        }
+        return previousValues.balance
+    }
+
+    private func templateCategoryIsIncome(_ categoryID: String, db: Database) throws -> Bool {
+        guard try tableExists("categories", db: db) else {
+            return false
+        }
+        let columns = try columnSet(for: "categories", db: db)
+        let isIncome = column("is_income", fallback: "0", columns: columns)
+        let value = try Int.fetchOne(
+            db,
+            sql: """
+                SELECT \(isIncome)
+                FROM categories
+                WHERE id = ? AND \(predicateForLiveRows(columns: columns))
+                LIMIT 1
+                """,
+            arguments: [categoryID]
+        )
+        return value != 0
     }
 
     func computePeriodicTemplateAmount(
@@ -490,6 +726,98 @@ extension BudgetDatabase {
         }
         let sourceMonth = monthID(shiftedMonth(monthValue, by: -lookBack))
         return try categoryBudgets(month: sourceMonth, db: db)[categoryID]?.budgeted ?? 0
+    }
+
+    private func computeByTemplateAmount(
+        _ entries: [BudgetTemplateEntry],
+        categoryID: String,
+        monthValue: Int,
+        db: Database
+    ) throws -> Int {
+        var targets: [(amount: Int, monthsRemaining: Int, repeatPeriod: Int?)] = []
+        targets.reserveCapacity(entries.count)
+
+        for entry in entries {
+            targets.append(try resolvedByTarget(entry, monthValue: monthValue))
+        }
+
+        guard let shortestTarget = targets.map(\.monthsRemaining).min() else {
+            return 0
+        }
+
+        var totalNeeded = 0
+        for target in targets {
+            if target.monthsRemaining > shortestTarget, let repeatPeriod = target.repeatPeriod {
+                totalNeeded += Self.actualTemplateRound(
+                    Double(target.amount)
+                        / Double(repeatPeriod)
+                        * Double(repeatPeriod - target.monthsRemaining + shortestTarget)
+                )
+            } else if target.monthsRemaining > shortestTarget {
+                totalNeeded += Self.actualTemplateRound(
+                    Double(target.amount)
+                        / Double(target.monthsRemaining + 1)
+                        * Double(shortestTarget + 1)
+                )
+            } else {
+                totalNeeded += target.amount
+            }
+        }
+
+        let fromLastMonth = try templateFromLastMonth(
+            categoryID: categoryID,
+            monthValue: monthValue,
+            db: db
+        )
+        return Self.actualTemplateRound(
+            Double(totalNeeded - fromLastMonth) / Double(shortestTarget + 1)
+        )
+    }
+
+    private func resolvedByTarget(
+        _ entry: BudgetTemplateEntry,
+        monthValue: Int
+    ) throws -> (amount: Int, monthsRemaining: Int, repeatPeriod: Int?) {
+        guard let amount = entry.amount,
+              let month = entry.month,
+              let initialTargetMonth = try? Self.actualMonthValue(month) else {
+            throw LocalFirstError.unsupportedTemplate("invalid by template")
+        }
+
+        let repeatPeriod: Int?
+        if entry.annual == true {
+            let years = entry.repeatInterval ?? 1
+            guard years <= Int.max / 12 else {
+                throw LocalFirstError.unsupportedTemplate("invalid by repeat interval")
+            }
+            repeatPeriod = years * 12
+        } else {
+            repeatPeriod = entry.repeatInterval
+        }
+
+        var targetMonth = initialTargetMonth
+        var monthsRemaining = templateMonthDistance(from: monthValue, to: targetMonth)
+        while monthsRemaining < 0, let repeatPeriod {
+            targetMonth = shiftedMonth(targetMonth, by: repeatPeriod)
+            monthsRemaining = templateMonthDistance(from: monthValue, to: targetMonth)
+        }
+        guard monthsRemaining >= 0 else {
+            throw LocalFirstError.unsupportedTemplate(
+                "by target month \(monthID(initialTargetMonth)) has passed"
+            )
+        }
+
+        return (
+            amount: Self.templateAmountToMinorUnits(amount),
+            monthsRemaining: monthsRemaining,
+            repeatPeriod: repeatPeriod
+        )
+    }
+
+    private func templateMonthDistance(from currentMonth: Int, to targetMonth: Int) -> Int {
+        let currentOrdinal = (currentMonth / 100) * 12 + (currentMonth % 100 - 1)
+        let targetOrdinal = (targetMonth / 100) * 12 + (targetMonth % 100 - 1)
+        return targetOrdinal - currentOrdinal
     }
 
     func shiftedPeriodicDate(_ dayID: String, by amount: Int, period: String) throws -> String {
@@ -549,6 +877,34 @@ extension BudgetDatabase {
         return result
     }
 
+    func templateCategoryNames(db: Database) throws -> [String: String] {
+        guard try tableExists("categories", db: db) else {
+            return [:]
+        }
+        let columns = try columnSet(for: "categories", db: db)
+        let name = column("name", fallback: "id", columns: columns)
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT id, \(name) AS name
+                FROM categories
+                WHERE \(predicateForLiveRows(columns: columns))
+                """
+        )
+        return Dictionary(
+            uniqueKeysWithValues: rows.compactMap { row in
+                guard let id = row["id"] as String? else {
+                    return nil
+                }
+                let rawCategoryName: String? = row["name"]
+                let categoryName = rawCategoryName?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let label = categoryName.flatMap { $0.isEmpty ? nil : $0 } ?? id
+                return (id, label)
+            }
+        )
+    }
+
     func templateScopeCategoryIDs(db: Database) throws -> [String] {
         guard try tableExists("categories", db: db) else {
             return []
@@ -571,6 +927,38 @@ extension BudgetDatabase {
     static func templateAmountToMinorUnits(_ amount: Double) -> Int {
         // goal_def amounts are display decimals; convert with the app's 2-decimal money model.
         Int((amount * 100).rounded())
+    }
+
+    private static func actualTemplateRound(_ amount: Double) -> Int {
+        Int(floor(amount + 0.5))
+    }
+
+    private func templateDecodingFailureReason(_ error: Error) -> String {
+        switch error {
+        case DecodingError.typeMismatch(_, let context):
+            return "can't decode \(templateCodingPath(context)): \(context.debugDescription)"
+        case DecodingError.valueNotFound(_, let context):
+            return "can't decode \(templateCodingPath(context)): \(context.debugDescription)"
+        case DecodingError.keyNotFound(let key, let context):
+            let parentPath = templateCodingPath(context)
+            return "can't decode \(parentPath).\(key.stringValue): missing required field"
+        case DecodingError.dataCorrupted(let context):
+            return "can't decode \(templateCodingPath(context)): \(context.debugDescription)"
+        default:
+            return "unreadable template definition"
+        }
+    }
+
+    private func templateCodingPath(_ context: DecodingError.Context) -> String {
+        var path = "template"
+        for key in context.codingPath {
+            if let index = key.intValue {
+                path += "[\(index)]"
+            } else {
+                path += ".\(key.stringValue)"
+            }
+        }
+        return path
     }
 
     func moveMoneyMessages(

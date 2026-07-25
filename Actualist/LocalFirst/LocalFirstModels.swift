@@ -82,10 +82,59 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let starting: String?
     let lookBack: Int?
     let limit: BudgetTemplateLimit?
+    let standaloneLimit: BudgetTemplateLimit?
+    let month: String?
+    let annual: Bool?
+    let repeatInterval: Int?
 
     /// `directive` defaults to "template" (sets the budget); "goal" entries set a display target
     /// only and do not affect the budgeted amount.
     var setsBudget: Bool { (directive ?? "template") == "template" }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case directive
+        case priority
+        case monthly
+        case amount
+        case period
+        case starting
+        case lookBack
+        case limit
+        case hold
+        case start
+        case month
+        case annual
+        case repeatInterval = "repeat"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        directive = try container.decodeIfPresent(String.self, forKey: .directive)
+        priority = try container.decodeIfPresent(Int.self, forKey: .priority)
+        monthly = try container.decodeIfPresent(Double.self, forKey: .monthly)
+        amount = try container.decodeIfPresent(Double.self, forKey: .amount)
+        starting = try container.decodeIfPresent(String.self, forKey: .starting)
+        lookBack = try container.decodeIfPresent(Int.self, forKey: .lookBack)
+        limit = try container.decodeIfPresent(BudgetTemplateLimit.self, forKey: .limit)
+        month = try container.decodeIfPresent(String.self, forKey: .month)
+        annual = try container.decodeIfPresent(Bool.self, forKey: .annual)
+        repeatInterval = try container.decodeIfPresent(Int.self, forKey: .repeatInterval)
+
+        if type == "limit" {
+            period = nil
+            standaloneLimit = BudgetTemplateLimit(
+                amount: amount,
+                period: try container.decodeIfPresent(String.self, forKey: .period),
+                hold: try container.decodeIfPresent(Bool.self, forKey: .hold),
+                start: try container.decodeIfPresent(String.self, forKey: .start)
+            )
+        } else {
+            period = try container.decodeIfPresent(BudgetTemplatePeriod.self, forKey: .period)
+            standaloneLimit = nil
+        }
+    }
 }
 
 struct BudgetTemplatePeriod: Decodable, Equatable, Sendable {

@@ -487,6 +487,306 @@ struct LocalFirstActualStoreTests {
         #expect(food.budgeted == 500)
     }
 
+    @Test func budgetTemplateMonthlyUpToTopsUpAcrossMonths() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories VALUES (
+                'buffer', 'Buffer', 'group', 0, 0, 0, 2,
+                '[{"directive":"template","type":"simple","monthly":50,"limit":{"amount":100,"period":"monthly","hold":false,"start":null},"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('buffer', 'buffer');
+            INSERT INTO zero_budgets VALUES (202606, 'buffer', 10000, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'buffer', 0, 0);
+            INSERT INTO transactions VALUES ('buffer-june', 'checking', 20260610, -2000, 'buffer', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('buffer-july', 'checking', 20260710, -3000, 'buffer', 0, NULL, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let julyMessages = try await database.budgetTemplateMessages(
+            command: .category("buffer"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(julyMessages)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let julyBuffer = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
+        )
+        #expect(julyBuffer.budgeted == 2_000)
+        #expect(julyBuffer.balance == 7_000)
+
+        let augustMessages = try await database.budgetTemplateMessages(
+            command: .category("buffer"),
+            month: "2026-08",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(augustMessages)
+        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let augustBuffer = try #require(
+            august.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
+        )
+        #expect(augustBuffer.budgeted == 3_000)
+        #expect(augustBuffer.balance == 10_000)
+    }
+
+    @Test func budgetTemplateMonthlyUpToCanRefillOrReleaseExcess() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories VALUES (
+                'refill', 'Refill', 'group', 0, 0, 0, 2,
+                '[{"directive":"template","type":"simple","monthly":null,"limit":{"amount":100,"period":"monthly","hold":false,"start":null},"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('refill', 'refill');
+            INSERT INTO zero_budgets VALUES (202606, 'refill', 8000, 0);
+            INSERT INTO categories VALUES (
+                'release', 'Release', 'group', 0, 0, 0, 3,
+                '[{"directive":"template","type":"simple","monthly":50,"limit":{"amount":100,"period":"monthly","hold":false,"start":null},"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('release', 'release');
+            INSERT INTO zero_budgets VALUES (202606, 'release', 12000, 0);
+            INSERT INTO categories VALUES (
+                'hold', 'Hold', 'group', 0, 0, 0, 4,
+                '[{"directive":"template","type":"simple","monthly":50,"limit":{"amount":100,"period":"monthly","hold":true,"start":null},"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('hold', 'hold');
+            INSERT INTO zero_budgets VALUES (202606, 'hold', 12000, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let refillMessages = try await database.budgetTemplateMessages(
+            command: .category("refill"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(refillMessages)
+
+        let releaseMessages = try await database.budgetTemplateMessages(
+            command: .category("release"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(releaseMessages)
+
+        let holdMessages = try await database.budgetTemplateMessages(
+            command: .category("hold"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(holdMessages)
+
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let categories = july.categoryGroups.flatMap(\.categories)
+        #expect(categories.first { $0.id == "refill" }?.budgeted == 2_000)
+        #expect(categories.first { $0.id == "release" }?.budgeted == -2_000)
+        #expect(categories.first { $0.id == "hold" }?.budgeted == 0)
+    }
+
+    @Test func budgetTemplatePeriodicEveryTwoWeeksHonorsMonthlyUpTo() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories VALUES (
+                'allowance', 'Allowance', 'group', 0, 0, 0, 2,
+                '[{"directive":"template","type":"periodic","amount":20,"period":{"period":"week","amount":2},"starting":"2026-06-20","limit":{"amount":30,"period":"monthly","hold":false,"start":null},"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('allowance', 'allowance');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("allowance"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let allowance = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "allowance" }
+        )
+
+        // July 4 and July 18 would total $40, so the monthly up-to caps it at $30.
+        #expect(allowance.budgeted == 3_000)
+    }
+
+    @Test func budgetTemplateRefusesUnprovenWeeklyUpToWithoutWriting() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"simple","monthly":50,"limit":{"amount":100,"period":"weekly","hold":false,"start":"2026-07-01"},"priority":0}]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        await #expect(throws: LocalFirstError.self) {
+            _ = try await database.budgetTemplateMessages(
+                command: .category("groceries"),
+                month: "2026-07",
+                builder: &builder
+            )
+        }
+
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let groceries = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceries.budgeted == 50_000)
+    }
+
+    @Test func budgetTemplateStandaloneMonthlyLimitAndRefillTopsUp() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories VALUES (
+                'buffer', 'Buffer', 'group', 0, 0, 0, 2,
+                '[
+                    {"directive":"template","type":"limit","amount":100,"period":"monthly","hold":false,"start":null,"priority":0},
+                    {"directive":"template","type":"refill","priority":0}
+                ]'
+            );
+            INSERT INTO category_mapping VALUES ('buffer', 'buffer');
+            INSERT INTO zero_budgets VALUES (202606, 'buffer', 8000, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("buffer"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let buffer = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
+        )
+
+        #expect(buffer.budgeted == 2_000)
+        #expect(buffer.balance == 10_000)
+    }
+
+    @Test func budgetTemplateBySpreadsRemainingTargetAcrossMonths() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories VALUES (
+                'insurance', 'Insurance', 'group', 0, 0, 0, 2,
+                '[{"directive":"template","type":"by","amount":120,"month":"2026-09","priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('insurance', 'insurance');
+            INSERT INTO zero_budgets VALUES (202606, 'insurance', 3000, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let julyMessages = try await database.budgetTemplateMessages(
+            command: .category("insurance"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(julyMessages)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let julyInsurance = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "insurance" }
+        )
+        #expect(julyInsurance.budgeted == 3_000)
+        #expect(julyInsurance.balance == 6_000)
+
+        let augustMessages = try await database.budgetTemplateMessages(
+            command: .category("insurance"),
+            month: "2026-08",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(augustMessages)
+        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let augustInsurance = try #require(
+            august.categoryGroups.flatMap(\.categories).first { $0.id == "insurance" }
+        )
+        #expect(augustInsurance.budgeted == 3_000)
+        #expect(augustInsurance.balance == 9_000)
+    }
+
+    @Test func budgetTemplateByAdvancesAnAnnualTarget() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories VALUES (
+                'renewal', 'Annual Renewal', 'group', 0, 0, 0, 2,
+                '[{"directive":"template","type":"by","amount":120,"month":"2026-06","annual":true,"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('renewal', 'renewal');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("renewal"),
+            month: "2026-08",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let renewal = try #require(
+            august.categoryGroups.flatMap(\.categories).first { $0.id == "renewal" }
+        )
+
+        // The next June is 10 months away, so Actual spreads $120 over 11 months.
+        #expect(renewal.budgeted == 1_091)
+    }
+
+    @Test func budgetTemplateDecodeFailureNamesCategoryAndFieldWithoutWriting() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"periodic","amount":50,"period":"month","priority":0}]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        do {
+            _ = try await database.budgetTemplateMessages(
+                command: .category("groceries"),
+                month: "2026-07",
+                builder: &builder
+            )
+            Issue.record("Expected the malformed periodic template to be refused")
+        } catch LocalFirstError.unsupportedTemplate(let reason) {
+            #expect(reason.contains("Groceries"))
+            #expect(reason.contains("template[0].period"))
+            #expect(reason.localizedCaseInsensitiveContains("string"))
+        }
+
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let groceries = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceries.budgeted == 50_000)
+    }
+
     @Test func toBudgetIsCumulativeAcrossMonthsNotJustCurrentMonth() async throws {
         // June: assign 50000 to groceries, receive 200000 income, spend 40000 on groceries.
         // July: assign another 50000 to groceries (the fixture's -12345 July spend also applies).
