@@ -630,6 +630,21 @@ struct LocalFirstActualStoreTests {
         #expect(sharedCookieStorage.cookies(for: baseURL)?.isEmpty != false)
     }
 
+    @Test func serverSendsOnlyActualTokenCredentialHeader() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CredentialHeaderURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let client = ActualServerSyncClient(
+            baseURL: URL(string: "https://credential-header.example")!,
+            session: session
+        )
+
+        let files = try await client.listUserFiles(token: "sensitive-token")
+
+        #expect(files.isEmpty)
+    }
+
     @Test func serverBudgetDownloadStreamsToAFileAndRejectsOversizedResponses() async throws {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ResourceLimitURLProtocol.self]

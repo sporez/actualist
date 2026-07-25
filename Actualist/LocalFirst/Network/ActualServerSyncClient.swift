@@ -195,7 +195,6 @@ actor ActualServerSyncClient: ActualSyncTransport {
 
     private func addAuthorizationHeaders(to request: inout URLRequest, token: String) {
         request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
     private func execute(_ request: URLRequest, responseByteLimit: Int? = nil) async throws -> Data {

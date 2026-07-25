@@ -136,6 +136,34 @@ final class CredentialStorageURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+final class CredentialHeaderURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let hasExpectedToken = request.value(forHTTPHeaderField: "X-ACTUAL-TOKEN") == "sensitive-token"
+        let hasNoBearerToken = request.value(forHTTPHeaderField: "Authorization") == nil
+        let statusCode = hasExpectedToken && hasNoBearerToken ? 200 : 400
+        let body = Data(#"{"status":"ok","data":[]}"#.utf8)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
 final class FakeKeychainBackend: KeychainBackend {
     var updateFailureStatus: OSStatus?
     var addFailureStatus: OSStatus?
