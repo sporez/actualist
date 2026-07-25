@@ -38,13 +38,17 @@ struct BudgetAssignmentDraft: Equatable {
     }
 
     var finalBudgeted: Int {
+        validatedFinalBudgeted ?? originalBudgeted
+    }
+
+    var validatedFinalBudgeted: Int? {
         switch inputMode {
         case .direct:
             inputDigits.isEmpty ? originalBudgeted : inputAmount
         case .addition:
-            originalBudgeted + inputAmount
+            checkedAdd(originalBudgeted, inputAmount)
         case .subtraction:
-            originalBudgeted - inputAmount
+            checkedSubtract(originalBudgeted, inputAmount)
         }
     }
 
@@ -162,8 +166,25 @@ struct BudgetMoveMoneyDraft: Equatable {
     }
 
     var totalAllocatedAmount: Int {
-        allocations.reduce(0) { $0 + $1.amount }
+        validatedTotalAllocatedAmount ?? Int.max
     }
+
+    var validatedTotalAllocatedAmount: Int? {
+        allocations.reduce(Optional(0)) { total, allocation in
+            guard let total else { return nil }
+            return checkedAdd(total, allocation.amount)
+        }
+    }
+}
+
+private func checkedAdd(_ lhs: Int, _ rhs: Int) -> Int? {
+    let result = lhs.addingReportingOverflow(rhs)
+    return result.overflow ? nil : result.partialValue
+}
+
+private func checkedSubtract(_ lhs: Int, _ rhs: Int) -> Int? {
+    let result = lhs.subtractingReportingOverflow(rhs)
+    return result.overflow ? nil : result.partialValue
 }
 
 struct BudgetMoveMoneyDestinationOption: Identifiable, Equatable {

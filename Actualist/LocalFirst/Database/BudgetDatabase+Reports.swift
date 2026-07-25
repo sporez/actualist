@@ -49,7 +49,7 @@ extension BudgetDatabase {
                 budgetedExpenses: try reportBudgetedExpenses(month: range.anchorMonth, db: db)
             )
         }
-        return buildReportsDashboard(
+        return try buildReportsDashboard(
             range: range,
             netWorthDays: raw.netWorth,
             activityDays: raw.activity,
@@ -387,7 +387,7 @@ extension BudgetDatabase {
         activityDays: [RawReportActivityDay],
         calendarActivityDays: [RawCalendarActivityDay],
         budgetedExpenses: Int
-    ) -> ReportsDashboardSnapshot {
+    ) throws -> ReportsDashboardSnapshot {
         var activityByDay: [String: ReportDailyActivity] = [:]
         for row in activityDays {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()
@@ -395,31 +395,31 @@ extension BudgetDatabase {
                 // Actual's Monthly Spending report includes every non-income transaction in an
                 // on-budget account. That includes uncategorized activity and both sides of an
                 // on-budget transfer (which naturally cancel when they share a date).
-                activity.spending -= row.amount
+                activity.spending = try reportSubtract(activity.spending, row.amount)
             }
             if row.categoryID == nil {
                 if !row.isTransfer {
-                    activity.uncategorized += row.amount
+                    activity.uncategorized = try reportAdd(activity.uncategorized, row.amount)
                 }
             }
             if !row.isTransfer, row.isInflow {
-                activity.income += row.amount
+                activity.income = try reportAdd(activity.income, row.amount)
             } else if !row.isTransfer, row.amount < 0 {
-                activity.expenses -= row.amount
+                activity.expenses = try reportSubtract(activity.expenses, row.amount)
             }
             activityByDay[row.dayID] = activity
         }
 
-        let netWorth = buildNetWorth(range: range, rows: netWorthDays)
-        let cashFlow = buildCashFlow(range: range, activityByDay: activityByDay)
-        let monthComparison = buildMonthComparison(range: range, activityByDay: activityByDay)
-        let budgetOverview = buildBudgetOverview(
+        let netWorth = try buildNetWorth(range: range, rows: netWorthDays)
+        let cashFlow = try buildCashFlow(range: range, activityByDay: activityByDay)
+        let monthComparison = try buildMonthComparison(range: range, activityByDay: activityByDay)
+        let budgetOverview = try buildBudgetOverview(
             range: range,
             activityByDay: activityByDay,
             budgetedExpenses: budgetedExpenses
         )
-        let threeMonthAverage = buildThreeMonthAverage(range: range, activityByDay: activityByDay)
-        let calendar = buildTransactionCalendar(range: range, activityDays: calendarActivityDays)
+        let threeMonthAverage = try buildThreeMonthAverage(range: range, activityByDay: activityByDay)
+        let calendar = try buildTransactionCalendar(range: range, activityDays: calendarActivityDays)
 
         return ReportsDashboardSnapshot(
             range: range,
@@ -433,40 +433,48 @@ extension BudgetDatabase {
         )
     }
 
-    private func buildNetWorth(range: ReportDateRange, rows: [RawNetWorthDay]) -> NetWorthReport {
+    private func buildNetWorth(range: ReportDateRange, rows: [RawNetWorthDay]) throws -> NetWorthReport {
         let rangeStartMonth = String(range.startDay.prefix(7))
         let pointStartMonth = rows.contains(where: { $0.dayID < range.startDay })
             ? ReportCalendar.shiftedMonth(rangeStartMonth, by: -1)
             : rangeStartMonth
         let pointStartDay = ReportCalendar.dayID(month: pointStartMonth, day: 1)
-        let changeByMonth = Dictionary(grouping: rows, by: { String($0.dayID.prefix(7)) }).mapValues { rows in
-            rows.reduce(0) { $0 + $1.amount }
+        var changeByMonth: [String: Int] = [:]
+        for (month, monthRows) in Dictionary(grouping: rows, by: { String($0.dayID.prefix(7)) }) {
+            changeByMonth[month] = try reportSum(monthRows.map(\.amount))
         }
-        var balance = rows.filter { $0.dayID < pointStartDay }.reduce(0) { $0 + $1.amount }
-        let points = ReportCalendar.monthIDs(from: pointStartMonth, through: range.anchorMonth).map { month in
-            balance += changeByMonth[month] ?? 0
-            return ReportValuePoint(dayID: ReportCalendar.dayID(month: month, day: 1), value: balance)
+        var balance = try reportSum(rows.filter { $0.dayID < pointStartDay }.map(\.amount))
+        var points: [ReportValuePoint] = []
+        for month in ReportCalendar.monthIDs(from: pointStartMonth, through: range.anchorMonth) {
+            balance = try reportAdd(balance, changeByMonth[month] ?? 0)
+            points.append(
+                ReportValuePoint(dayID: ReportCalendar.dayID(month: month, day: 1), value: balance)
+            )
         }
         let first = points.first?.value ?? balance
         let latest = points.last?.value ?? balance
-        return NetWorthReport(points: points, balance: latest, change: latest - first)
+        return NetWorthReport(
+            points: points,
+            balance: latest,
+            change: try reportSubtract(latest, first)
+        )
     }
 
     private func buildCashFlow(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity]
-    ) -> CashFlowSummary {
+    ) throws -> CashFlowSummary {
         let activities = activityByDay
             .filter { $0.key.hasPrefix(range.anchorMonth) && $0.key <= range.endDay }
             .map(\.value)
-        let income = activities.reduce(0) { $0 + $1.income }
-        let expenses = activities.reduce(0) { $0 + $1.expenses }
-        let uncategorized = activities.reduce(0) { $0 + $1.uncategorized }
+        let income = try reportSum(activities.map(\.income))
+        let expenses = try reportSum(activities.map(\.expenses))
+        let uncategorized = try reportSum(activities.map(\.uncategorized))
         return CashFlowSummary(
             month: range.anchorMonth,
             income: income,
             expenses: expenses,
-            net: income - expenses,
+            net: try reportSubtract(income, expenses),
             uncategorized: uncategorized
         )
     }
@@ -474,7 +482,7 @@ extension BudgetDatabase {
     private func buildMonthComparison(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity]
-    ) -> MonthComparisonReport {
+    ) throws -> MonthComparisonReport {
         let comparisonMonth = ReportCalendar.shiftedMonth(range.anchorMonth, by: -1)
         let currentDay = min(max(ReportCalendar.dayNumber(from: range.endDay), 1), 28)
         var currentCumulative = 0
@@ -486,22 +494,22 @@ extension BudgetDatabase {
         for day in 1...28 {
             let current: Int?
             if day <= currentDay {
-                currentCumulative += spending(
+                currentCumulative = try reportAdd(currentCumulative, spending(
                     in: range.anchorMonth,
                     dayBucket: day,
                     activityByDay: activityByDay
-                )
+                ))
                 current = currentCumulative
                 currentAtComparableDay = currentCumulative
             } else {
                 current = nil
             }
 
-            comparisonCumulative += spending(
+            comparisonCumulative = try reportAdd(comparisonCumulative, spending(
                 in: comparisonMonth,
                 dayBucket: day,
                 activityByDay: activityByDay
-            )
+            ))
             if day == currentDay {
                 comparisonAtComparableDay = comparisonCumulative
             }
@@ -519,7 +527,7 @@ extension BudgetDatabase {
             currentMonth: range.anchorMonth,
             comparisonMonth: comparisonMonth,
             points: points,
-            variance: currentAtComparableDay - comparisonAtComparableDay
+            variance: try reportSubtract(currentAtComparableDay, comparisonAtComparableDay)
         )
     }
 
@@ -527,29 +535,31 @@ extension BudgetDatabase {
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity],
         budgetedExpenses: Int
-    ) -> BudgetOverviewReport {
+    ) throws -> BudgetOverviewReport {
         let currentDay = min(max(ReportCalendar.dayNumber(from: range.endDay), 1), 28)
         let daysInMonth = max(ReportCalendar.days(in: range.anchorMonth), 1)
         var actualCumulative = 0
         var actualPoints: [ReportValuePoint] = []
         for day in 1...currentDay {
             let dayID = ReportCalendar.dayID(month: range.anchorMonth, day: day)
-            actualCumulative += spending(
+            actualCumulative = try reportAdd(actualCumulative, spending(
                 in: range.anchorMonth,
                 dayBucket: day,
                 activityByDay: activityByDay
-            )
+            ))
             actualPoints.append(ReportValuePoint(dayID: dayID, value: actualCumulative))
         }
-        let budgetPoints = (1...28).map { day in
+        var budgetPoints: [ReportValuePoint] = []
+        for day in 1...28 {
             let calendarDaysThroughBucket = day == 28 ? daysInMonth : day
-            return ReportValuePoint(
+            budgetPoints.append(ReportValuePoint(
                 dayID: ReportCalendar.dayID(month: range.anchorMonth, day: day),
-                value: Int(
-                    (Double(budgetedExpenses) * Double(calendarDaysThroughBucket) / Double(daysInMonth))
-                        .rounded()
+                value: try reportScaled(
+                    budgetedExpenses,
+                    multiplier: calendarDaysThroughBucket,
+                    divisor: daysInMonth
                 )
-            )
+            ))
         }
         let budgetedToDate = budgetPoints[currentDay - 1].value
         return BudgetOverviewReport(
@@ -558,14 +568,14 @@ extension BudgetDatabase {
             budgetPoints: budgetPoints,
             actualExpenses: actualCumulative,
             budgetedExpenses: budgetedToDate,
-            variance: actualCumulative - budgetedToDate
+            variance: try reportSubtract(actualCumulative, budgetedToDate)
         )
     }
 
     private func buildThreeMonthAverage(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity]
-    ) -> ThreeMonthAverageReport {
+    ) throws -> ThreeMonthAverageReport {
         let historyMonths = (-3 ... -1).map { ReportCalendar.shiftedMonth(range.anchorMonth, by: $0) }
         let currentDay = min(max(ReportCalendar.dayNumber(from: range.endDay), 1), 28)
         var historyCumulative = Array(repeating: 0, count: historyMonths.count)
@@ -577,11 +587,11 @@ extension BudgetDatabase {
         for day in 1...28 {
             let current: Int?
             if day <= currentDay {
-                currentCumulative += spending(
+                currentCumulative = try reportAdd(currentCumulative, spending(
                     in: range.anchorMonth,
                     dayBucket: day,
                     activityByDay: activityByDay
-                )
+                ))
                 current = currentCumulative
                 currentAtComparableDay = currentCumulative
             } else {
@@ -589,15 +599,19 @@ extension BudgetDatabase {
             }
 
             for (index, month) in historyMonths.enumerated() {
-                historyCumulative[index] += spending(
+                historyCumulative[index] = try reportAdd(historyCumulative[index], spending(
                     in: month,
                     dayBucket: day,
                     activityByDay: activityByDay
-                )
+                ))
             }
             let average = historyCumulative.isEmpty
                 ? 0
-                : Int((Double(historyCumulative.reduce(0, +)) / Double(historyCumulative.count)).rounded())
+                : try reportScaled(
+                    reportSum(historyCumulative),
+                    multiplier: 1,
+                    divisor: historyCumulative.count
+                )
             if day == currentDay {
                 averageAtComparableDay = average
             }
@@ -609,7 +623,7 @@ extension BudgetDatabase {
             points: points,
             currentExpenses: currentAtComparableDay,
             averageExpenses: averageAtComparableDay,
-            variance: currentAtComparableDay - averageAtComparableDay
+            variance: try reportSubtract(currentAtComparableDay, averageAtComparableDay)
         )
     }
 
@@ -619,31 +633,37 @@ extension BudgetDatabase {
         in month: String,
         dayBucket: Int,
         activityByDay: [String: ReportDailyActivity]
-    ) -> Int {
+    ) throws -> Int {
         let lastDay = dayBucket == 28 ? max(ReportCalendar.days(in: month), 28) : dayBucket
-        return (dayBucket...lastDay).reduce(0) { result, day in
-            result + (activityByDay[ReportCalendar.dayID(month: month, day: day)]?.spending ?? 0)
+        var result = 0
+        for day in dayBucket...lastDay {
+            result = try reportAdd(
+                result,
+                activityByDay[ReportCalendar.dayID(month: month, day: day)]?.spending ?? 0
+            )
         }
+        return result
     }
 
     private func buildTransactionCalendar(
         range: ReportDateRange,
         activityDays: [RawCalendarActivityDay]
-    ) -> [TransactionCalendarMonth] {
+    ) throws -> [TransactionCalendarMonth] {
         var displayCalendar = Calendar.current
         displayCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
         var activityByDay: [String: ReportDailyActivity] = [:]
         for row in activityDays {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()
             if row.isInflow {
-                activity.income += row.amount
+                activity.income = try reportAdd(activity.income, row.amount)
             } else if row.amount < 0 {
-                activity.expenses -= row.amount
+                activity.expenses = try reportSubtract(activity.expenses, row.amount)
             }
             activityByDay[row.dayID] = activity
         }
 
-        return (-2 ... 0).map { offset in
+        var months: [TransactionCalendarMonth] = []
+        for offset in -2...0 {
             let month = ReportCalendar.shiftedMonth(range.anchorMonth, by: offset)
             let dayCount = ReportCalendar.days(in: month)
             let days = (1...max(dayCount, 1)).map { day in
@@ -659,13 +679,59 @@ extension BudgetDatabase {
             let firstDate = ReportCalendar.date(fromMonthID: month) ?? .distantPast
             let weekday = displayCalendar.component(.weekday, from: firstDate)
             let leadingBlankCount = (weekday - displayCalendar.firstWeekday + 7) % 7
-            return TransactionCalendarMonth(
+            months.append(TransactionCalendarMonth(
                 month: month,
                 leadingBlankCount: leadingBlankCount,
                 days: days,
-                income: days.reduce(0) { $0 + $1.income },
-                expenses: days.reduce(0) { $0 + $1.expenses }
-            )
+                income: try reportSum(days.map(\.income)),
+                expenses: try reportSum(days.map(\.expenses))
+            ))
         }
+        return months
     }
+}
+
+private func reportAdd(_ lhs: Int, _ rhs: Int) throws -> Int {
+    let result = lhs.addingReportingOverflow(rhs)
+    guard !result.overflow else {
+        throw LocalFirstError.numericValueOutOfRange
+    }
+    return result.partialValue
+}
+
+private func reportSubtract(_ lhs: Int, _ rhs: Int) throws -> Int {
+    let result = lhs.subtractingReportingOverflow(rhs)
+    guard !result.overflow else {
+        throw LocalFirstError.numericValueOutOfRange
+    }
+    return result.partialValue
+}
+
+private func reportSum<S: Sequence>(_ values: S) throws -> Int where S.Element == Int {
+    var total = 0
+    for value in values {
+        total = try reportAdd(total, value)
+    }
+    return total
+}
+
+private func reportScaled(_ value: Int, multiplier: Int, divisor: Int) throws -> Int {
+    guard divisor > 0 else {
+        throw LocalFirstError.numericValueOutOfRange
+    }
+    let multiplied = value.multipliedReportingOverflow(by: multiplier)
+    guard !multiplied.overflow else {
+        throw LocalFirstError.numericValueOutOfRange
+    }
+
+    let quotient = multiplied.partialValue / divisor
+    let remainder = multiplied.partialValue % divisor
+    let doubledRemainder = remainder.multipliedReportingOverflow(by: 2)
+    guard !doubledRemainder.overflow else {
+        throw LocalFirstError.numericValueOutOfRange
+    }
+    guard doubledRemainder.partialValue.magnitude >= divisor.magnitude else {
+        return quotient
+    }
+    return try reportAdd(quotient, multiplied.partialValue >= 0 ? 1 : -1)
 }

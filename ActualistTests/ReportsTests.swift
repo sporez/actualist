@@ -251,6 +251,31 @@ struct ReportsTests {
         #expect(started.duration(to: clock.now) < .seconds(5))
     }
 
+    @Test func reportArithmeticOverflowFailsAsInvalidRemoteData() async throws {
+        let url = try makeReportsFixture(extraSQL: """
+            INSERT INTO transactions VALUES (
+                'overflow-max', 'checking', 20260201, \(Int.max),
+                'salary', NULL, 0, NULL, 0, NULL
+            );
+            INSERT INTO transactions VALUES (
+                'overflow-one', 'checking', 20260301, 1,
+                'salary', NULL, 0, NULL, 0, NULL
+            );
+            """)
+        let database = try BudgetDatabase(databaseURL: url)
+
+        await #expect(throws: LocalFirstError.numericValueOutOfRange) {
+            _ = try await database.fetchReportsDashboard(range: reportRange)
+        }
+    }
+
+    @Test func reportPresentationHandlesMinimumIntegerAmounts() {
+        let viewModel = ReportsViewModel()
+
+        #expect(!viewModel.axisLabel(Int.min).isEmpty)
+        #expect(viewModel.calendarIntensity(Int.min) == 0)
+    }
+
     @Test func monthlySpendingReportsFoldTheEndOfMonthIntoActualsDay28Bucket() async throws {
         let database = try BudgetDatabase(databaseURL: makeReportsFixture())
         let range = ReportDateRange(
@@ -283,7 +308,10 @@ struct ReportsTests {
         )
     }
 
-    private func makeReportsFixture(extraTransactionCount: Int = 0) throws -> URL {
+    private func makeReportsFixture(
+        extraTransactionCount: Int = 0,
+        extraSQL: String = ""
+    ) throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "ActualistReportsTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -425,6 +453,9 @@ struct ReportsTests {
                         arguments: ["bulk-\(index)", date]
                     )
                 }
+            }
+            if !extraSQL.isEmpty {
+                try db.execute(sql: extraSQL)
             }
         }
         return url

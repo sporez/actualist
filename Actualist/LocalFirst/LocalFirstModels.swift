@@ -6,6 +6,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case missingSyncToken
     case missingBudgetFileID
     case invalidBudgetFileID
+    case numericValueOutOfRange
     case unsupportedWrite
     case unsupportedTransferWrite
     case unsupportedSplitWrite
@@ -35,6 +36,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "The selected Actual budget does not include a file ID."
         case .invalidBudgetFileID:
             "The Actual budget file ID is not safe to use."
+        case .numericValueOutOfRange:
+            "Actualist found a numeric value outside the supported range."
         case .unsupportedWrite:
             "This local-first write is not available yet."
         case .unsupportedTransferWrite:

@@ -142,7 +142,7 @@ final class ReportsViewModel {
 
     func axisLabel(_ value: Int) -> String {
         let dollars = Double(value) / 100
-        let absolute = abs(dollars)
+        let absolute = Double(value.magnitude) / 100
         let symbol = Locale.current.currencySymbol ?? "$"
         let sign = dollars < 0 ? "−" : ""
         if absolute >= 1_000_000 {
@@ -156,7 +156,7 @@ final class ReportsViewModel {
 
     func calendarIntensity(_ amount: Int) -> Double {
         guard amount != 0, calendarMaximum > 0 else { return 0 }
-        return max(0.22, min(Double(abs(amount)) / Double(calendarMaximum), 1))
+        return max(0.22, min(Double(amount.magnitude) / Double(calendarMaximum), 1))
     }
 
     func calendarDayAccessibility(_ day: TransactionCalendarDay) -> String {
@@ -183,10 +183,10 @@ final class ReportsViewModel {
         "Three month average variance \(threeMonthAverageHeadline). \(threeMonthAverageSubtitle)"
     }
 
-    private var calendarMaximum: Int {
+    private var calendarMaximum: UInt {
         displaySnapshot?.transactionCalendar
             .flatMap(\.days)
-            .reduce(0) { max($0, max(abs($1.income), abs($1.expenses))) } ?? 0
+            .reduce(0) { max($0, max($1.income.magnitude, $1.expenses.magnitude)) } ?? 0
     }
 
     private func apply(_ snapshot: ReportsDashboardSnapshot) {

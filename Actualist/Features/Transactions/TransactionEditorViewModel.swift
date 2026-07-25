@@ -81,6 +81,7 @@ struct TransactionEditorPayeeSection: Identifiable, Hashable {
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
+    private static let maximumAmountDigitCount = 16
     private let editingTransactionID: String?
     private let originalAccountID: String?
     private let originalMonth: String?
@@ -223,11 +224,11 @@ final class TransactionEditorViewModel {
     }
 
     var splitTotalCents: Int {
-        splitRows.reduce(0) { $0 + $1.amountCents }
+        checkedSplitTotalCents ?? Int.max
     }
 
     var splitRemainingCents: Int {
-        amountCents - splitTotalCents
+        amountCents.subtractingReportingOverflow(splitTotalCents).partialValue
     }
 
     var splitRemainingText: String {
@@ -236,7 +237,7 @@ final class TransactionEditorViewModel {
 
     var splitRemainingStatusText: String {
         if splitRemainingCents < 0 {
-            return "\(abs(splitRemainingCents).actualMoney.formatted()) Over"
+            return "\(Int(clamping: splitRemainingCents.magnitude).actualMoney.formatted()) Over"
         }
 
         return "\(splitRemainingText) Remaining"
@@ -306,7 +307,11 @@ final class TransactionEditorViewModel {
     }
 
     func setAmountInput(_ value: String) {
-        amountDigits = value.filter(\.isNumber).trimmingLeadingZeros()
+        amountDigits = String(
+            value.filter(\.isNumber)
+                .trimmingLeadingZeros()
+                .prefix(Self.maximumAmountDigitCount)
+        )
         pendingSplitMismatch = nil
     }
 
@@ -538,7 +543,11 @@ final class TransactionEditorViewModel {
             return
         }
 
-        splitRows[index].amountDigits = value.filter(\.isNumber).trimmingLeadingZeros()
+        splitRows[index].amountDigits = String(
+            value.filter(\.isNumber)
+                .trimmingLeadingZeros()
+                .prefix(Self.maximumAmountDigitCount)
+        )
         pendingSplitMismatch = nil
     }
 
@@ -594,7 +603,12 @@ final class TransactionEditorViewModel {
             return
         }
 
-        let adjusted = max(0, splitRows[index].amountCents + difference)
+        let (adjustedAmount, overflow) = splitRows[index].amountCents.addingReportingOverflow(difference)
+        guard !overflow else {
+            errorMessage = "The split amounts are too large."
+            return
+        }
+        let adjusted = max(0, adjustedAmount)
         splitRows[index].amountDigits = String(adjusted)
         pendingSplitMismatch = nil
     }
@@ -747,10 +761,17 @@ final class TransactionEditorViewModel {
     ) async -> Bool {
         let submitsAsTransfer = selectedPayeeIsTransfer
 
-        if !submitsAsTransfer, isSplit, splitTotalCents != amountCents {
+        guard let checkedSplitTotalCents else {
+            let message = "The split amounts are too large."
+            submissionState = .failed(message)
+            errorMessage = message
+            return false
+        }
+
+        if !submitsAsTransfer, isSplit, checkedSplitTotalCents != amountCents {
             pendingSplitMismatch = TransactionSplitMismatch(
                 transactionTotal: amountCents,
-                splitTotal: splitTotalCents
+                splitTotal: checkedSplitTotalCents
             )
             return false
         }
@@ -875,6 +896,18 @@ final class TransactionEditorViewModel {
         notes = preview.notes ?? ""
     }
 
+    private var checkedSplitTotalCents: Int? {
+        var total = 0
+        for row in splitRows {
+            let result = total.addingReportingOverflow(row.amountCents)
+            guard !result.overflow else {
+                return nil
+            }
+            total = result.partialValue
+        }
+        return total
+    }
+
     private func matchesCurrentRulePreviewDraft(_ draft: TransactionDraft) -> Bool {
         draft.accountID == selectedAccountID
             && draft.payeeID == selectedPayeeID
@@ -884,7 +917,7 @@ final class TransactionEditorViewModel {
     private func apply(_ transaction: ActualTransaction, payeeName fallbackPayeeName: String?) {
         let amount = transaction.amount ?? 0
         kind = amount >= 0 ? .inflow : .spend
-        amountDigits = String(abs(amount))
+        amountDigits = String(amount.magnitude)
         selectedAccountID = transaction.account
         selectedPayeeID = transaction.payee
         selectedCategoryID = transaction.category
@@ -901,7 +934,7 @@ final class TransactionEditorViewModel {
                 transactionID: child.id,
                 categoryID: categoryID,
                 categoryName: categoryID,
-                amountDigits: String(abs(child.amount ?? 0))
+                amountDigits: String((child.amount ?? 0).magnitude)
             )
         }
 

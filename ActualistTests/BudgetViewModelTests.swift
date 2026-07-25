@@ -402,6 +402,35 @@ struct BudgetViewModelTests {
         #expect(Int(digits) != nil)
     }
 
+    @Test func assignmentAndAllocationOverflowAreDetected() {
+        let assignment = BudgetAssignmentDraft(
+            categoryID: "category",
+            originalBudgeted: Int.max,
+            inputDigits: "1",
+            inputMode: .addition
+        )
+        let allocation = BudgetMoveMoneyDraft(
+            focusedCategoryID: "focused",
+            focusedCategoryName: "Focused",
+            focusedAvailable: 0,
+            allocations: [
+                BudgetMoveMoneyAllocation(
+                    id: "one",
+                    destination: .toBudget,
+                    amount: Int.max
+                ),
+                BudgetMoveMoneyAllocation(
+                    id: "two",
+                    destination: .toBudget,
+                    amount: 1
+                )
+            ]
+        )
+
+        #expect(assignment.validatedFinalBudgeted == nil)
+        #expect(allocation.validatedTotalAllocatedAmount == nil)
+    }
+
     @Test func assignmentInputSupportsBackspaceClearCancelAndNegativeFinalAmounts() throws {
         let model = BudgetViewModel()
         let category = try Self.decodeCategory(budgeted: 200)

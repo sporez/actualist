@@ -653,6 +653,30 @@ struct TransactionEditorViewModelTests {
         #expect(model.saveButtonTitle == "Update")
     }
 
+    @Test func transactionAmountsAreBoundedAndMinimumServerValuesDoNotTrap() {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "txn-min",
+                account: "checking",
+                date: "2026-07-01",
+                amount: Int.min,
+                payee: nil,
+                payeeName: "Payee",
+                importedPayee: nil,
+                category: nil,
+                notes: nil,
+                cleared: .bool(false)
+            )
+        )
+
+        #expect(model.amountDigits == "9223372036854775808")
+        #expect(model.amountCents == 0)
+
+        model.setAmountInput(String(repeating: "9", count: 100))
+        #expect(model.amountDigits.count == 16)
+        #expect(model.amountCents == 9_999_999_999_999_999)
+    }
+
     @Test func editingSubmitUpdatesExistingTransaction() async throws {
         let model = TransactionEditorViewModel(
             editing: ActualTransaction(

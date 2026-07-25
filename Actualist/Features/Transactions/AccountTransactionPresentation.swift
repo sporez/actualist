@@ -145,8 +145,10 @@ final class AccountReconciliationViewModel {
 
     private static func formattedInput(cents: Int) -> String {
         let sign = cents < 0 ? "-" : ""
-        let absolute = abs(cents)
-        return "\(sign)\(absolute / 100).\(String(format: "%02d", absolute % 100))"
+        let absolute = cents.magnitude
+        let centsValue = absolute % 100
+        let centsText = centsValue < 10 ? "0\(centsValue)" : "\(centsValue)"
+        return "\(sign)\(absolute / 100).\(centsText)"
     }
 
     private static func minorUnits(from text: String) -> Int? {
@@ -157,6 +159,9 @@ final class AccountReconciliationViewModel {
             .replacingOccurrences(of: " ", with: "")
 
         guard !sanitized.isEmpty else {
+            return nil
+        }
+        guard sanitized.count <= 20 else {
             return nil
         }
 
@@ -179,8 +184,19 @@ final class AccountReconciliationViewModel {
             cents = 0
         }
 
-        let amount = dollars * 100 + cents
-        return isNegative ? -amount : amount
+        let (dollarMinorUnits, multiplicationOverflow) = dollars.multipliedReportingOverflow(by: 100)
+        guard !multiplicationOverflow else {
+            return nil
+        }
+        let (amount, additionOverflow) = dollarMinorUnits.addingReportingOverflow(cents)
+        guard !additionOverflow else {
+            return nil
+        }
+        if isNegative {
+            let (negativeAmount, negationOverflow) = 0.subtractingReportingOverflow(amount)
+            return negationOverflow ? nil : negativeAmount
+        }
+        return amount
     }
 }
 

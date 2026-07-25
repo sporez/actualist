@@ -4,6 +4,7 @@ import Observation
 @MainActor
 @Observable
 final class BudgetViewModel {
+    private static let maximumUserAmountMinorUnits = 9_000_000_000_000_000
     var budgetMonth: BudgetMonth?
     var selectedMonth: String?
     var availableMonths: [String] = []
@@ -141,7 +142,8 @@ final class BudgetViewModel {
         }
 
         if !moveMoneyDraft.allocations.isEmpty {
-            return moveMoneyDraft.totalAllocatedAmount > 0 && !moveMoneyDraft.isSubmitting
+            return moveMoneyDraft.validatedTotalAllocatedAmount.map { $0 > 0 } == true
+                && !moveMoneyDraft.isSubmitting
         }
 
         return moveMoneyDraft.amount > 0 && moveMoneyDraft.destination != nil && !moveMoneyDraft.isSubmitting
@@ -196,9 +198,9 @@ final class BudgetViewModel {
 
         switch draft.direction {
         case .outOfFocusedCategory:
-            return draft.focusedAvailable - moveAmount
+            return subtractClamped(draft.focusedAvailable, moveAmount)
         case .intoFocusedCategory:
-            return draft.focusedAvailable + moveAmount
+            return addClamped(draft.focusedAvailable, moveAmount)
         }
     }
 
@@ -211,9 +213,9 @@ final class BudgetViewModel {
         let destinationAvailable = availableAmount(for: destination)
         switch draft.direction {
         case .outOfFocusedCategory:
-            return destinationAvailable + draft.amount
+            return addClamped(destinationAvailable, draft.amount)
         case .intoFocusedCategory:
-            return destinationAvailable - draft.amount
+            return subtractClamped(destinationAvailable, draft.amount)
         }
     }
 
@@ -378,7 +380,12 @@ final class BudgetViewModel {
             return
         }
 
-        let amount = Int((max(0, value) * 100).rounded())
+        let cents = (max(0, value) * 100).rounded()
+        guard cents.isFinite,
+              cents <= Double(Self.maximumUserAmountMinorUnits),
+              let amount = Int(exactly: cents) else {
+            return
+        }
         setFocusedMoveMoneyAmount(amount, draft: &draft)
         moveMoneyDraft = draft
     }
@@ -389,7 +396,15 @@ final class BudgetViewModel {
             return
         }
 
-        setFocusedMoveMoneyAmount(focusedMoveMoneyAmount(in: draft) * 10 + digit, draft: &draft)
+        let multiplied = focusedMoveMoneyAmount(in: draft).multipliedReportingOverflow(by: 10)
+        guard !multiplied.overflow else {
+            return
+        }
+        let added = multiplied.partialValue.addingReportingOverflow(digit)
+        guard !added.overflow, added.partialValue <= Self.maximumUserAmountMinorUnits else {
+            return
+        }
+        setFocusedMoveMoneyAmount(added.partialValue, draft: &draft)
         moveMoneyDraft = draft
     }
 
@@ -601,13 +616,19 @@ final class BudgetViewModel {
             return false
         }
 
+        guard let finalBudgeted = draft.validatedFinalBudgeted else {
+            draft.submissionState = .failed("The assigned amount is too large.")
+            assignmentDraft = draft
+            return false
+        }
+
         draft.submissionState = .submitting
         assignmentDraft = draft
 
         do {
             let loadedMonth = try await repository.assignCategoryBudgetAndRefresh(
                 categoryID: draft.categoryID,
-                budgeted: draft.finalBudgeted,
+                budgeted: finalBudgeted,
                 budgetID: budgetID,
                 month: selectedMonth
             ) { [weak self] in
@@ -987,13 +1008,25 @@ final class BudgetViewModel {
             baseline = draft.focusedAvailable
         case .intoFocusedCategory:
             if draft.destination == nil {
-                baseline = -min(0, draft.focusedAvailable)
+                baseline = Int(clamping: min(0, draft.focusedAvailable).magnitude)
             } else {
                 baseline = availableAmount(for: draft.destination)
             }
         }
 
-        return max(100_000, abs(baseline), focusedMoveMoneyAmount(in: draft))
+        return max(100_000, Int(clamping: baseline.magnitude), focusedMoveMoneyAmount(in: draft))
+    }
+
+    private func addClamped(_ lhs: Int, _ rhs: Int) -> Int {
+        let result = lhs.addingReportingOverflow(rhs)
+        guard result.overflow else { return result.partialValue }
+        return rhs >= 0 ? Int.max : Int.min
+    }
+
+    private func subtractClamped(_ lhs: Int, _ rhs: Int) -> Int {
+        let result = lhs.subtractingReportingOverflow(rhs)
+        guard result.overflow else { return result.partialValue }
+        return rhs >= 0 ? Int.min : Int.max
     }
 
     private func moveMoneyCommand(
