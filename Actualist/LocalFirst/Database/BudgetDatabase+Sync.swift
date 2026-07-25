@@ -119,7 +119,7 @@ extension BudgetDatabase {
                 try validateLocalMessage(message, db: db)
 
                 if try hasSameOrNewerMessage(message, db: db) {
-                    continue
+                    throw LocalFirstError.localWriteSuperseded
                 }
 
                 let rowKey = message.dataset + message.row
@@ -174,7 +174,7 @@ extension BudgetDatabase {
                 try validateLocalMessage(message, db: db)
 
                 if try hasSameOrNewerMessage(message, db: db) {
-                    continue
+                    throw LocalFirstError.localWriteSuperseded
                 }
 
                 let rowWasInserted = insertedRows.contains(message.dataset + message.row)

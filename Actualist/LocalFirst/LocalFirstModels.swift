@@ -24,6 +24,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case unsupportedTemplate(String)
     case keychainFailure(String, OSStatus)
     case hybridLogicalClockOverflow
+    case localWriteSuperseded
     case syncUploadNotConfirmed(Int)
 
     var errorDescription: String? {
@@ -74,6 +75,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not \(operation) Keychain data. OSStatus: \(status)"
         case .hybridLogicalClockOverflow:
             "Actualist could not create a local sync timestamp because the clock counter overflowed."
+        case .localWriteSuperseded:
+            "Actualist did not save the change because a newer local value already exists."
         case .syncUploadNotConfirmed(let count):
             "The Actual server did not confirm \(count) uploaded sync message\(count == 1 ? "" : "s"). The changes remain pending on this device."
         }

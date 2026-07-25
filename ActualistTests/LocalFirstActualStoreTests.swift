@@ -1435,6 +1435,36 @@ struct LocalFirstActualStoreTests {
         #expect(try await database.latestSyncTimestamp() == message.timestamp)
     }
 
+    @Test func sameCellLocalTimestampCollisionIsReportedAndDoesNotChangeTheValue() async throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let timestamp = "2026-07-04T12:34:56.789Z-0000-node1"
+        let first = ActualSyncDecodedMessage(
+            timestamp: timestamp,
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("first").serialized
+        )
+        let colliding = ActualSyncDecodedMessage(
+            timestamp: timestamp,
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("silently-lost-before-8a").serialized
+        )
+
+        _ = try await database.applyLocalSyncMessages([first])
+        await #expect(throws: LocalFirstError.localWriteSuperseded) {
+            _ = try await database.applyLocalSyncMessages([colliding])
+        }
+
+        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transaction = try #require(transactions.first { $0.id == "txn" })
+        #expect(transaction.category == "first")
+        #expect(try await database.latestSyncTimestamp() == timestamp)
+    }
+
     @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
