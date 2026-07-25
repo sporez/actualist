@@ -821,6 +821,95 @@ struct LocalFirstActualStoreTests {
         #expect(!FileManager.default.fileExists(atPath: stagingURL.path))
     }
 
+    @Test func cachedBudgetHardeningReappliesEffectiveSecurityToEveryArtifact() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistBudgetHardening-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let directory = try fileManager.budgetDirectory(fileID: "file-1")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let database = try fileManager.databaseURL(fileID: "file-1")
+        let metadata = try fileManager.metadataURL(fileID: "file-1")
+        let artifacts = [
+            directory,
+            database,
+            metadata,
+            directory.appending(path: "db.sqlite-wal"),
+            directory.appending(path: "db.sqlite-shm"),
+            directory.appending(path: "db.sqlite-journal")
+        ]
+        for artifact in artifacts.dropFirst() {
+            #expect(FileManager.default.createFile(atPath: artifact.path, contents: Data()))
+        }
+        for artifact in artifacts {
+            try markBudgetArtifactAsUnhardened(artifact)
+        }
+
+        #expect(
+            Set(try fileManager.cachedBudgetArtifacts(fileID: "file-1").map(\.lastPathComponent))
+                == Set([
+                    directory.lastPathComponent,
+                    "db.sqlite",
+                    "metadata.json",
+                    "db.sqlite-wal",
+                    "db.sqlite-shm",
+                    "db.sqlite-journal"
+                ])
+        )
+        try fileManager.hardenCachedBudget(fileID: "file-1")
+
+        for artifact in artifacts {
+            try expectBudgetArtifactIsHardened(artifact)
+        }
+    }
+
+    @Test func openingCachedBudgetRunsHardeningBeforeAndAfterDatabaseOpen() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistCachedOpenHardening-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let fileID = "file-1"
+        let directory = try fileManager.budgetDirectory(fileID: fileID)
+        let database = try fileManager.databaseURL(fileID: fileID)
+        let metadata = try fileManager.metadataURL(fileID: fileID)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(
+            at: makeSQLiteFixture(),
+            to: database
+        )
+        try JSONEncoder.actual.encode(testBudgetMetadata())
+            .write(to: metadata)
+        for artifact in [directory, database, metadata] {
+            try markBudgetArtifactAsUnhardened(artifact)
+        }
+        let store = LocalFirstActualStore(
+            keychain: KeychainStore(
+                service: "com.sporez.actualist.tests",
+                account: UUID().uuidString
+            ),
+            fileManager: fileManager
+        )
+
+        #expect(
+            try await store.openCachedBudget(
+                ActualBudget(
+                    budgetID: fileID,
+                    cloudFileId: fileID,
+                    groupId: "group-1",
+                    name: "Budget",
+                    state: nil
+                )
+            )
+        )
+
+        let sidecars = ["-wal", "-shm", "-journal"].map {
+            directory.appending(path: "db.sqlite\($0)")
+        }
+        for artifact in [directory, database, metadata]
+            + sidecars.filter({ FileManager.default.fileExists(atPath: $0.path) }) {
+            try expectBudgetArtifactIsHardened(artifact)
+        }
+    }
+
     @Test func budgetArchiveImportRejectsZipSlipAndEveryArchiveQuota() throws {
         struct ArchiveCase {
             let name: String
@@ -888,6 +977,14 @@ struct LocalFirstActualStoreTests {
                     metadata: testBudgetMetadata()
                 )
             }
+            #expect(!FileManager.default.fileExists(atPath: stagingURL.path))
+            let importDirectory = try fileManager.budgetDirectory(fileID: "file-1")
+                .appending(path: "import")
+            #expect(
+                !FileManager.default.fileExists(
+                    atPath: importDirectory.path
+                )
+            )
         }
     }
 
@@ -906,6 +1003,47 @@ struct LocalFirstActualStoreTests {
                 with: Data(repeating: 0x41, count: 5)
             )
         }
+    }
+
+    @Test func failedInitialDownloadRemovesThePartialArchive() async throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistDownloadCleanup-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString
+        )
+        try keychain.saveActualSyncToken("token")
+        let transport = StubConnectionTransport(
+            failurePoint: .download,
+            files: [testRemoteFile()],
+            downloadData: Data("partial archive".utf8)
+        )
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            fileManager: fileManager,
+            connectionTransportFactory: { _ in transport }
+        )
+
+        await #expect(throws: LocalFirstTestSyncError.failed) {
+            try await store.openBudget(
+                ActualBudget(
+                    budgetID: "file-1",
+                    cloudFileId: "file-1",
+                    groupId: "group-1",
+                    name: "Budget",
+                    state: nil
+                ),
+                serverURLString: "https://sync.example"
+            )
+        }
+
+        let directory = try fileManager.budgetDirectory(fileID: "file-1")
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: directory.appending(path: "download.staging").path
+            )
+        )
     }
 
     @Test func serverSessionDoesNotCacheResponsesOrStoreCookies() async throws {
@@ -4105,6 +4243,34 @@ struct LocalFirstActualStoreTests {
                 return data.subdata(in: start..<end)
             }
         }
+    }
+
+    private func markBudgetArtifactAsUnhardened(_ url: URL) throws {
+        var mutableURL = url
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = false
+        try mutableURL.setResourceValues(values)
+        #if os(iOS) && !targetEnvironment(simulator)
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.none],
+            ofItemAtPath: url.path
+        )
+        #endif
+    }
+
+    private func expectBudgetArtifactIsHardened(_ url: URL) throws {
+        #if os(iOS) && !targetEnvironment(simulator)
+        let values = try url.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        #expect(values.isExcludedFromBackup == true)
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect(
+            attributes[.protectionKey] as? FileProtectionType
+                == .completeUntilFirstUserAuthentication
+        )
+        #else
+        // Simulator file metadata is not evidence of effective iOS protection or backup policy.
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #endif
     }
 
     private func makeArchiveData(databaseURL: URL) throws -> Data {

@@ -142,6 +142,7 @@ extension LocalFirstActualStore {
         )
 
         let stagedArchiveURL = try fileManager.prepareDownloadStaging(fileID: fileID)
+        defer { fileManager.cleanupDownloadStaging(at: stagedArchiveURL) }
         try await client.downloadUserFile(fileID: fileID, token: token, to: stagedArchiveURL)
         try fileManager.validateStagedDownload(at: stagedArchiveURL)
         if let encryptMeta = remote.encryptMeta {
@@ -197,11 +198,13 @@ extension LocalFirstActualStore {
             throw LocalFirstError.missingImportedDatabase
         }
 
+        try fileManager.hardenCachedBudget(fileID: fileID)
         _ = try encryptionContext(metadata: metadata)
         let validationDatabase = try BudgetDatabase(
             databaseURL: fileManager.databaseURL(fileID: fileID),
             localNodeID: metadata.nodeID
         )
+        try fileManager.hardenCachedBudget(fileID: fileID)
         _ = try await validationDatabase.fetchAccountDisplays()
     }
 
@@ -340,11 +343,13 @@ extension LocalFirstActualStore {
         metadata: LocalFirstBudgetMetadata,
         encryptionContext providedEncryptionContext: ActualBudgetEncryptionContext? = nil
     ) async throws {
+        try fileManager.hardenCachedBudget(fileID: fileID)
         let encryptionContext = try providedEncryptionContext ?? encryptionContext(metadata: metadata)
         let database = try BudgetDatabase(
             databaseURL: fileManager.databaseURL(fileID: fileID),
             localNodeID: metadata.nodeID
         )
+        try fileManager.hardenCachedBudget(fileID: fileID)
         self.database = database
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID

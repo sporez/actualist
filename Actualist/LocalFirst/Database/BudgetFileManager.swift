@@ -41,6 +41,8 @@ struct BudgetReimportWorkspace {
 }
 
 struct BudgetFileManager {
+    private static let sqliteSidecarSuffixes = ["-wal", "-shm", "-journal"]
+
     let applicationSupportURL: URL
     private let fileManager: FileManager
     private let resourceLimits: LocalFirstResourceLimits
@@ -157,8 +159,21 @@ struct BudgetFileManager {
         guard fileManager.createFile(atPath: stagingURL.path, contents: nil) else {
             throw LocalFirstError.invalidDownloadedBudget
         }
-        try hardenBudgetArtifact(at: stagingURL, excludeFromBackup: true)
+        do {
+            try hardenBudgetArtifact(at: stagingURL, excludeFromBackup: true)
+        } catch {
+            try? fileManager.removeItem(at: stagingURL)
+            throw error
+        }
         return stagingURL
+    }
+
+    func cleanupDownloadStaging(at stagingURL: URL) {
+        guard let stagingURL = try? containedURL(stagingURL),
+              fileManager.fileExists(atPath: stagingURL.path) else {
+            return
+        }
+        try? fileManager.removeItem(at: stagingURL)
     }
 
     func prepareReimportWorkspace(fileID: String) throws -> BudgetReimportWorkspace {
@@ -177,19 +192,24 @@ struct BudgetFileManager {
                 )
         )
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: false)
-        try hardenBudgetArtifact(at: directory, excludeFromBackup: true)
+        do {
+            try hardenBudgetArtifact(at: directory, excludeFromBackup: true)
 
-        let archiveURL = try containedURL(directory.appending(path: "download.staging"))
-        guard fileManager.createFile(atPath: archiveURL.path, contents: nil) else {
-            throw LocalFirstError.invalidDownloadedBudget
+            let archiveURL = try containedURL(directory.appending(path: "download.staging"))
+            guard fileManager.createFile(atPath: archiveURL.path, contents: nil) else {
+                throw LocalFirstError.invalidDownloadedBudget
+            }
+            try hardenBudgetArtifact(at: archiveURL, excludeFromBackup: true)
+            return BudgetReimportWorkspace(
+                directoryURL: directory,
+                archiveURL: archiveURL,
+                databaseURL: try containedURL(directory.appending(path: "db.sqlite")),
+                metadataURL: try containedURL(directory.appending(path: "metadata.json"))
+            )
+        } catch {
+            try? fileManager.removeItem(at: directory)
+            throw error
         }
-        try hardenBudgetArtifact(at: archiveURL, excludeFromBackup: true)
-        return BudgetReimportWorkspace(
-            directoryURL: directory,
-            archiveURL: archiveURL,
-            databaseURL: try containedURL(directory.appending(path: "db.sqlite")),
-            metadataURL: try containedURL(directory.appending(path: "metadata.json"))
-        )
     }
 
     func cleanupReimportWorkspace(_ workspace: BudgetReimportWorkspace) {
@@ -202,6 +222,34 @@ struct BudgetFileManager {
 
     func reimportCheckpoint(_ checkpoint: BudgetReimportCheckpoint) throws {
         try reimportFailureInjector?(checkpoint)
+    }
+
+    func hardenCachedBudget(fileID: String) throws {
+        try migrateLegacyBudgetDirectoryIfNeeded(fileID: fileID)
+        let artifacts = try cachedBudgetArtifacts(fileID: fileID)
+        for artifact in artifacts {
+            try hardenBudgetArtifact(at: artifact, excludeFromBackup: true)
+        }
+    }
+
+    func cachedBudgetArtifacts(fileID: String) throws -> [URL] {
+        let directory = try budgetDirectory(fileID: fileID)
+        let database = try databaseURL(fileID: fileID)
+        let metadata = try metadataURL(fileID: fileID)
+        guard fileManager.fileExists(atPath: directory.path),
+              fileManager.fileExists(atPath: database.path),
+              fileManager.fileExists(atPath: metadata.path) else {
+            throw LocalFirstError.missingImportedDatabase
+        }
+
+        var artifacts = [directory, database, metadata]
+        artifacts.append(contentsOf: try Self.sqliteSidecarSuffixes.compactMap { suffix in
+            let sidecar = try containedURL(
+                directory.appending(path: database.lastPathComponent + suffix)
+            )
+            return fileManager.fileExists(atPath: sidecar.path) ? sidecar : nil
+        })
+        return artifacts
     }
 
     func validateStagedDownload(at stagingURL: URL) throws {
@@ -317,6 +365,7 @@ struct BudgetFileManager {
     ) throws -> URL {
         let directory = try containedURL(directory)
         let zipURL = try containedURL(stagedArchiveURL)
+        defer { try? fileManager.removeItem(at: zipURL) }
         try validateStagedDownload(at: zipURL)
 
         let extractionURL = try containedURL(
@@ -326,8 +375,8 @@ struct BudgetFileManager {
             try fileManager.removeItem(at: extractionURL)
         }
         try fileManager.createDirectory(at: extractionURL, withIntermediateDirectories: true)
-        try hardenBudgetArtifact(at: extractionURL, excludeFromBackup: true)
         defer { try? fileManager.removeItem(at: extractionURL) }
+        try hardenBudgetArtifact(at: extractionURL, excludeFromBackup: true)
         try extractArchive(at: zipURL, to: extractionURL)
 
         guard let importedDatabase = try findDatabase(in: extractionURL) else {
@@ -348,7 +397,6 @@ struct BudgetFileManager {
         let metadataURL = try containedURL(metadataURL)
         try metadataData.write(to: metadataURL, options: .atomic)
         try hardenBudgetArtifact(at: metadataURL, excludeFromBackup: true)
-        try? fileManager.removeItem(at: zipURL)
         return databaseURL
     }
 
@@ -550,6 +598,19 @@ struct BudgetFileManager {
             [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
             ofItemAtPath: url.path
         )
+        #endif
+
+        #if os(iOS) && !targetEnvironment(simulator)
+        // Simulator resource values do not model device data protection or backup policy.
+        let effectiveValues = try resourceURL.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        guard effectiveValues.isExcludedFromBackup == excludeFromBackup else {
+            throw LocalFirstError.localBudgetHardeningFailed
+        }
+        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        guard attributes[.protectionKey] as? FileProtectionType
+            == .completeUntilFirstUserAuthentication else {
+            throw LocalFirstError.localBudgetHardeningFailed
+        }
         #endif
     }
 }
