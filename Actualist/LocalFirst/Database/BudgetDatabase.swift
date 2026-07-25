@@ -115,6 +115,16 @@ actor BudgetDatabase {
         let reachedEnd: Bool
     }
 
+    struct RemoteSyncApplyResult: Equatable, Sendable {
+        let appliedMessageCount: Int
+        let insertedTransactionIDsByAccount: [String: [String]]
+
+        static let empty = RemoteSyncApplyResult(
+            appliedMessageCount: 0,
+            insertedTransactionIDsByAccount: [:]
+        )
+    }
+
     struct ExistingTransactionState {
         let account: String
         let isParent: Bool

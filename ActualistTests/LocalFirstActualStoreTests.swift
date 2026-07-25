@@ -1348,6 +1348,79 @@ struct LocalFirstActualStoreTests {
         #expect(localTimestamp == "2026-07-25T12:00:00.000Z-000b-node1")
     }
 
+    @Test func remoteApplyReportsOnlyNewLiveTopLevelTransactions() async throws {
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let messages = [
+            remoteMessage(index: 0, row: "new-top", column: "acct", value: .string("checking")),
+            remoteMessage(index: 1, row: "new-top", column: "amount", value: .int(-2_500)),
+            remoteMessage(index: 2, row: "txn", column: "amount", value: .int(-13_000)),
+            remoteMessage(index: 3, row: "new-child", column: "acct", value: .string("checking")),
+            remoteMessage(index: 4, row: "new-child", column: "parent_id", value: .string("new-top")),
+            remoteMessage(index: 5, row: "new-deleted", column: "acct", value: .string("checking")),
+            remoteMessage(index: 6, row: "new-deleted", column: "tombstone", value: .bool(true)),
+            remoteMessage(index: 7, row: "new-split-parent", column: "acct", value: .string("checking")),
+            remoteMessage(index: 8, row: "new-split-parent", column: "is_parent", value: .bool(true))
+        ]
+
+        let result = try await database.applyRemoteSyncMessagesTrackingInserts(messages)
+
+        #expect(result.appliedMessageCount == messages.count)
+        #expect(
+            result.insertedTransactionIDsByAccount
+                == ["checking": ["new-split-parent", "new-top"]]
+        )
+
+        let updateResult = try await database.applyRemoteSyncMessagesTrackingInserts([
+            remoteMessage(index: 9, row: "new-top", column: "amount", value: .int(-3_000))
+        ])
+        #expect(updateResult.insertedTransactionIDsByAccount.isEmpty)
+    }
+
+    @Test func backgroundSyncUsesAppliedInsertIDsWithoutSnapshotDiffing() async throws {
+        let transport = RecordingSyncTransport()
+        try await transport.seedServerMessages([
+            remoteMessage(index: 0, row: "background-new", column: "acct", value: .string("checking")),
+            remoteMessage(index: 1, row: "background-new", column: "amount", value: .int(-4_200)),
+            remoteMessage(index: 2, row: "txn", column: "amount", value: .int(-13_000))
+        ])
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in transport }
+        )
+        try bundle.keychain.saveActualSyncToken("token")
+
+        let results = try await bundle.store.syncAndFindNewTransactions(
+            budget: bundle.budget,
+            serverURLString: "https://sync.example"
+        )
+
+        #expect(results.count == 1)
+        #expect(results.first?.account.id == "checking")
+        #expect(results.first?.newTransactionIDs == ["background-new"])
+    }
+
+    @Test func backgroundRefreshTimeLimitRecordsCleanCompletion() async throws {
+        let transport = RecordingSyncTransport(delayNanoseconds: 5_000_000_000)
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in transport }
+        )
+        try bundle.keychain.saveActualSyncToken("token")
+        let state = try makeAppState(for: bundle)
+        state.settings.backgroundTransactionRefreshEnabled = true
+        state.setupPhase = .ready
+        state.selectedBudget = bundle.budget
+
+        let success = await state.performBackgroundTransactionRefresh(
+            timeLimit: .milliseconds(10)
+        )
+
+        #expect(!success)
+        let run = try #require(state.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.completionDate != nil)
+        #expect(run.succeeded == false)
+        #expect(run.message == "Timed out")
+    }
+
     @Test func localFirstSyncMessageEnvelopeRoundTripsThroughProtobuf() async throws {
         let message = ActualSyncDecodedMessage(
             timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
@@ -3921,6 +3994,24 @@ struct LocalFirstActualStoreTests {
         components.day = day
         components.hour = 12
         return try #require(components.date)
+    }
+
+    private func remoteMessage(
+        index: Int,
+        row: String,
+        column: String,
+        value: LocalFirstSyncValue
+    ) -> ActualSyncDecodedMessage {
+        ActualSyncDecodedMessage(
+            timestamp: String(
+                format: "2026-07-25T12:00:00.000Z-%04x-remote",
+                index
+            ),
+            dataset: "transactions",
+            row: row,
+            column: column,
+            serializedValue: value.serialized
+        )
     }
 
     private func makeSQLiteFixture(extraSQL: String = "") throws -> URL {

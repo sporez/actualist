@@ -14,13 +14,12 @@ extension LocalFirstActualStore {
         }
 
         let budgetID = budget.syncID
-        let database = try requireDatabase(for: budgetID)
-        let transactionIDsBeforeSync = try await transactionIDsByAccount(database: database)
-
-        try await pullAndReload(budgetID: budgetID, serverURLString: serverURLString)
+        let syncResult = try await pullAndReload(
+            budgetID: budgetID,
+            serverURLString: serverURLString
+        )
 
         let refreshedDatabase = try requireDatabase(for: budgetID)
-        let transactionIDsAfterSync = try await transactionIDsByAccount(database: refreshedDatabase)
         let accountDisplays: [AccountDisplay]
         if let cachedDisplays = accountsByBudget[budgetID] {
             accountDisplays = cachedDisplays
@@ -30,33 +29,12 @@ extension LocalFirstActualStore {
         let accounts = accountDisplays.map(\.account).filter { !$0.closed }
 
         return accounts.compactMap { account in
-            let previousIDs = transactionIDsBeforeSync[account.id] ?? []
-            let currentIDs = transactionIDsAfterSync[account.id] ?? []
-            let newIDs = currentIDs.subtracting(previousIDs).sorted()
+            let newIDs = syncResult.insertedTransactionIDsByAccount[account.id] ?? []
             guard !newIDs.isEmpty else {
                 return nil
             }
             return BackgroundAccountRefreshResult(account: account, newTransactionIDs: newIDs)
         }
-    }
-
-    func transactionIDsByAccount(database: BudgetDatabase) async throws -> [String: Set<String>] {
-        try await database.fetchTransactions().reduce(into: [:]) { idsByAccount, transaction in
-            insertTransactionID(transaction, into: &idsByAccount)
-            for child in transaction.subtransactions {
-                insertTransactionID(child, into: &idsByAccount)
-            }
-        }
-    }
-
-    func insertTransactionID(
-        _ transaction: ActualTransaction,
-        into idsByAccount: inout [String: Set<String>]
-    ) {
-        guard let id = transaction.id, !id.isEmpty, !transaction.account.isEmpty else {
-            return
-        }
-        idsByAccount[transaction.account, default: []].insert(id)
     }
 
     func pendingLocalSyncMessageCount(budgetID: String) async throws -> Int {
@@ -178,7 +156,11 @@ extension LocalFirstActualStore {
             )
             totalResult = LocalFirstSyncResult(
                 pushedMessageCount: totalResult.pushedMessageCount + result.pushedMessageCount,
-                appliedRemoteMessageCount: totalResult.appliedRemoteMessageCount + result.appliedRemoteMessageCount
+                appliedRemoteMessageCount: totalResult.appliedRemoteMessageCount + result.appliedRemoteMessageCount,
+                insertedTransactionIDsByAccount: mergedTransactionIDsByAccount(
+                    totalResult.insertedTransactionIDsByAccount,
+                    result.insertedTransactionIDsByAccount
+                )
             )
         } while shouldFlushPendingLocalMessagesAgain && openedBudgetID == budgetID
 
@@ -252,7 +234,11 @@ extension LocalFirstActualStore {
     /// Pull remote CRDT messages, apply them, then reload native read caches so they are
     /// authoritative after any refresh. Transaction feeds preserve their loaded windows rather
     /// than falling back to full-history loads.
-    func pullAndReload(budgetID: String, serverURLString: String) async throws {
+    @discardableResult
+    func pullAndReload(
+        budgetID: String,
+        serverURLString: String
+    ) async throws -> LocalFirstSyncResult {
         let token = keychain.readActualSyncToken()
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
@@ -272,22 +258,33 @@ extension LocalFirstActualStore {
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
-            let appliedCount = try await syncClient.pullAndApply(
+            let pullResult = try await syncClient.pullAndApply(
                 database: database,
                 client: client,
                 token: token
             )
             #if DEBUG
-            print("[Actualist LocalFirst] Applied \(appliedCount) remote sync messages")
+            print("[Actualist LocalFirst] Applied \(pullResult.appliedMessageCount) remote sync messages")
             #endif
 
             try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
+            let result = LocalFirstSyncResult(
+                pushedMessageCount: flushedResult.pushedMessageCount,
+                appliedRemoteMessageCount: (
+                    flushedResult.appliedRemoteMessageCount + pullResult.appliedMessageCount
+                ),
+                insertedTransactionIDsByAccount: mergedTransactionIDsByAccount(
+                    flushedResult.insertedTransactionIDsByAccount,
+                    pullResult.insertedTransactionIDsByAccount
+                )
+            )
             await recordSyncStatus(
                 budgetID: budgetID,
-                uploadedCount: flushedResult.pushedMessageCount,
-                appliedCount: flushedResult.appliedRemoteMessageCount + appliedCount,
+                uploadedCount: result.pushedMessageCount,
+                appliedCount: result.appliedRemoteMessageCount,
                 error: nil
             )
+            return result
         } catch {
             await recordSyncStatus(
                 budgetID: budgetID,
@@ -297,6 +294,17 @@ extension LocalFirstActualStore {
             )
             throw error
         }
+    }
+
+    func mergedTransactionIDsByAccount(
+        _ lhs: [String: [String]],
+        _ rhs: [String: [String]]
+    ) -> [String: [String]] {
+        var merged = lhs.mapValues(Set.init)
+        for (accountID, transactionIDs) in rhs {
+            merged[accountID, default: []].formUnion(transactionIDs)
+        }
+        return merged.mapValues { $0.sorted() }
     }
 
     func reloadAfterRemoteSync(database: BudgetDatabase, budgetID: String) async throws {

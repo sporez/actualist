@@ -2,6 +2,19 @@ import Foundation
 import Observation
 import UserNotifications
 
+private enum BackgroundTransactionRefreshTimeLimitError: LocalizedError, Sendable {
+    case exceeded
+
+    var errorDescription: String? {
+        "Background refresh timed out before completion"
+    }
+}
+
+private struct BackgroundTransactionRefreshSummary: Sendable {
+    let accountCount: Int
+    let newTransactionCount: Int
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -502,7 +515,9 @@ final class AppState {
         }
     }
 
-    func performBackgroundTransactionRefresh() async -> Bool {
+    func performBackgroundTransactionRefresh(
+        timeLimit: Duration = .seconds(25)
+    ) async -> Bool {
         let debugRunID = recordBackgroundRefreshWake()
 
         if Task.isCancelled {
@@ -542,34 +557,10 @@ final class AppState {
         }
 
         do {
-            if Task.isCancelled {
-                throw CancellationError()
-            }
-            let results = try await localFirstStore.syncAndFindNewTransactions(
-                budget: budget,
-                serverURLString: settings.localFirstServerURLString
-            )
-            var newTransactionCount = 0
-
-            if Task.isCancelled {
-                throw CancellationError()
-            }
-            for result in results where !result.newTransactionIDs.isEmpty {
-                if Task.isCancelled {
-                    throw CancellationError()
-                }
-                recordPendingNewTransactionIDs(
-                    result.newTransactionIDs,
-                    budgetID: budgetID,
-                    accountID: result.account.id
-                )
-                newTransactionCount += result.newTransactionIDs.count
-            }
-
-            if newTransactionCount > 0 {
-                try await postNewTransactionsNotification(
-                    budgetID: budgetID,
-                    count: newTransactionCount
+            let summary = try await withBackgroundRefreshTimeLimit(timeLimit) { [self] in
+                try await performBackgroundTransactionRefreshWork(
+                    budget: budget,
+                    budgetID: budgetID
                 )
             }
 
@@ -577,8 +568,8 @@ final class AppState {
                 runID: debugRunID,
                 success: true,
                 message: backgroundSyncCompletionMessage(
-                    accountCount: results.count,
-                    newTransactionCount: newTransactionCount
+                    accountCount: summary.accountCount,
+                    newTransactionCount: summary.newTransactionCount
                 )
             )
             return true
@@ -589,6 +580,13 @@ final class AppState {
                 message: "Cancelled"
             )
             return false
+        } catch BackgroundTransactionRefreshTimeLimitError.exceeded {
+            recordBackgroundRefreshCompletion(
+                runID: debugRunID,
+                success: false,
+                message: "Timed out"
+            )
+            return false
         } catch {
             lastErrorMessage = error.localizedDescription
             recordBackgroundRefreshCompletion(
@@ -597,6 +595,69 @@ final class AppState {
                 message: error.localizedDescription
             )
             return false
+        }
+    }
+
+    private func performBackgroundTransactionRefreshWork(
+        budget: ActualBudget,
+        budgetID: String
+    ) async throws -> BackgroundTransactionRefreshSummary {
+        if Task.isCancelled {
+            throw CancellationError()
+        }
+        let results = try await localFirstStore.syncAndFindNewTransactions(
+            budget: budget,
+            serverURLString: settings.localFirstServerURLString
+        )
+        var newTransactionCount = 0
+
+        if Task.isCancelled {
+            throw CancellationError()
+        }
+        for result in results where !result.newTransactionIDs.isEmpty {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
+            recordPendingNewTransactionIDs(
+                result.newTransactionIDs,
+                budgetID: budgetID,
+                accountID: result.account.id
+            )
+            newTransactionCount += result.newTransactionIDs.count
+        }
+
+        if newTransactionCount > 0 {
+            try await postNewTransactionsNotification(
+                budgetID: budgetID,
+                count: newTransactionCount
+            )
+        }
+
+        return BackgroundTransactionRefreshSummary(
+            accountCount: results.count,
+            newTransactionCount: newTransactionCount
+        )
+    }
+
+    private func withBackgroundRefreshTimeLimit<Result: Sendable>(
+        _ timeLimit: Duration,
+        operation: @escaping @MainActor @Sendable () async throws -> Result
+    ) async throws -> Result {
+        try await withThrowingTaskGroup(of: Result.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                try await Task.sleep(for: timeLimit)
+                throw BackgroundTransactionRefreshTimeLimitError.exceeded
+            }
+            defer {
+                group.cancelAll()
+            }
+            guard let firstResult = try await group.next() else {
+                throw CancellationError()
+            }
+            return firstResult
         }
     }
 

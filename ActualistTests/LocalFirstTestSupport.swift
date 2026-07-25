@@ -127,6 +127,13 @@ actor RecordingSyncTransport: ActualSyncTransport {
     func sinceValues() -> [String] {
         capturedSinceValues
     }
+
+    func seedServerMessages(_ messages: [ActualSyncDecodedMessage]) throws {
+        for message in messages {
+            let envelope = try LocalFirstSyncMessageBuilder.envelope(for: message)
+            serverMessagesByTimestamp[envelope.timestamp] = envelope
+        }
+    }
 }
 
 struct FixedResponseSyncTransport: ActualSyncTransport {

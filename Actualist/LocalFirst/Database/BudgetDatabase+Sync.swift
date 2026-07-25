@@ -14,18 +14,25 @@ extension BudgetDatabase {
     }
 
     func applyRemoteSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
+        try applyRemoteSyncMessagesTrackingInserts(messages).appliedMessageCount
+    }
+
+    func applyRemoteSyncMessagesTrackingInserts(
+        _ messages: [ActualSyncDecodedMessage]
+    ) throws -> RemoteSyncApplyResult {
         guard !messages.isEmpty else {
-            return 0
+            return .empty
         }
 
-        let appliedCount = try queue.write { db in
+        let result = try queue.write { db in
             guard try tableExists("messages_crdt", db: db) else {
-                return 0
+                return RemoteSyncApplyResult.empty
             }
 
             var appliedCount = 0
             let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
             var insertedRows = Set<String>()
+            var insertedTransactionIDs = Set<String>()
 
             for message in sortedMessages {
                 if try hasSameOrNewerMessage(message, db: db) {
@@ -54,12 +61,21 @@ extension BudgetDatabase {
                 if message.dataset != "prefs" {
                     try apply(message: message, value: value, rowExists: hasRow, db: db)
                     insertedRows.insert(message.dataset + message.row)
+                    if message.dataset == "transactions", !hasRow {
+                        insertedTransactionIDs.insert(message.row)
+                    }
                 }
                 try insertCRDTMessage(message, db: db)
                 appliedCount += 1
             }
 
-            return appliedCount
+            return RemoteSyncApplyResult(
+                appliedMessageCount: appliedCount,
+                insertedTransactionIDsByAccount: try liveTopLevelTransactionIDsByAccount(
+                    candidateIDs: insertedTransactionIDs,
+                    db: db
+                )
+            )
         }
         if var clock = localClock {
             for message in messages {
@@ -67,7 +83,61 @@ extension BudgetDatabase {
             }
             localClock = clock
         }
-        return appliedCount
+        return result
+    }
+
+    private func liveTopLevelTransactionIDsByAccount(
+        candidateIDs: Set<String>,
+        db: Database
+    ) throws -> [String: [String]] {
+        guard !candidateIDs.isEmpty,
+              try tableExists("transactions", db: db) else {
+            return [:]
+        }
+
+        let columns = try columnSet(for: "transactions", db: db)
+        let account = column(
+            "acct",
+            fallback: column("account", fallback: "NULL", columns: columns),
+            columns: columns
+        )
+        var topLevelPredicates = [predicateForLiveRows(columns: columns)]
+        if columns.contains("parent_id") {
+            topLevelPredicates.append("parent_id IS NULL")
+        }
+        if columns.contains("isChild") {
+            topLevelPredicates.append("(isChild IS NULL OR isChild = 0)")
+        } else if columns.contains("is_child") {
+            topLevelPredicates.append("(is_child IS NULL OR is_child = 0)")
+        }
+
+        var result: [String: [String]] = [:]
+        let sortedCandidateIDs = candidateIDs.sorted()
+        for start in stride(from: 0, to: sortedCandidateIDs.count, by: 400) {
+            let end = min(start + 400, sortedCandidateIDs.count)
+            let batch = Array(sortedCandidateIDs[start..<end])
+            let placeholders = Array(repeating: "?", count: batch.count).joined(separator: ", ")
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT id, \(account) AS account_id
+                    FROM transactions
+                    WHERE id IN (\(placeholders))
+                      AND \(topLevelPredicates.joined(separator: " AND "))
+                    """,
+                arguments: StatementArguments(batch)
+            )
+            for row in rows {
+                guard let id = row["id"] as String?,
+                      let accountID = row["account_id"] as String?,
+                      !id.isEmpty,
+                      !accountID.isEmpty else {
+                    continue
+                }
+                result[accountID, default: []].append(id)
+            }
+        }
+        return result.mapValues { $0.sorted() }
     }
 
     func applyLocalSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {

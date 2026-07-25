@@ -12,6 +12,17 @@ struct LocalFirstSyncConfiguration: Equatable, Sendable {
 struct LocalFirstSyncResult: Equatable, Sendable {
     let pushedMessageCount: Int
     let appliedRemoteMessageCount: Int
+    let insertedTransactionIDsByAccount: [String: [String]]
+
+    init(
+        pushedMessageCount: Int,
+        appliedRemoteMessageCount: Int,
+        insertedTransactionIDsByAccount: [String: [String]] = [:]
+    ) {
+        self.pushedMessageCount = pushedMessageCount
+        self.appliedRemoteMessageCount = appliedRemoteMessageCount
+        self.insertedTransactionIDsByAccount = insertedTransactionIDsByAccount
+    }
 }
 
 actor SyncClient {
@@ -30,9 +41,9 @@ actor SyncClient {
         database: BudgetDatabase,
         client: any ActualSyncTransport,
         token: String
-    ) async throws -> Int {
+    ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
         guard let configuration else {
-            return 0
+            return .empty
         }
 
         var request = ActualSync_SyncRequest()
@@ -45,7 +56,7 @@ actor SyncClient {
         try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let messages = try decodedMessages(from: response, encryptionContext: configuration.encryptionContext)
-        return try await database.applyRemoteSyncMessages(messages)
+        return try await database.applyRemoteSyncMessagesTrackingInserts(messages)
     }
 
     func pushAndPull(
@@ -121,11 +132,12 @@ actor SyncClient {
             uniquingKeysWith: { _, newest in newest }
         ).values.sorted { $0.timestamp < $1.timestamp }
         let remoteMessages = try decodedMessages(from: combinedResponse, encryptionContext: configuration.encryptionContext)
-        let appliedCount = try await database.applyRemoteSyncMessages(remoteMessages)
+        let applyResult = try await database.applyRemoteSyncMessagesTrackingInserts(remoteMessages)
 
         return LocalFirstSyncResult(
             pushedMessageCount: messages.count,
-            appliedRemoteMessageCount: appliedCount
+            appliedRemoteMessageCount: applyResult.appliedMessageCount,
+            insertedTransactionIDsByAccount: applyResult.insertedTransactionIDsByAccount
         )
     }
 
