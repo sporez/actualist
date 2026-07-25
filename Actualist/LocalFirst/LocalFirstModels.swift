@@ -5,6 +5,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case missingPassword
     case missingSyncToken
     case missingBudgetFileID
+    case invalidBudgetFileID
     case unsupportedWrite
     case unsupportedTransferWrite
     case unsupportedSplitWrite
@@ -32,6 +33,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Sign in to the Actual server before loading budgets."
         case .missingBudgetFileID:
             "The selected Actual budget does not include a file ID."
+        case .invalidBudgetFileID:
+            "The Actual budget file ID is not safe to use."
         case .unsupportedWrite:
             "This local-first write is not available yet."
         case .unsupportedTransferWrite:

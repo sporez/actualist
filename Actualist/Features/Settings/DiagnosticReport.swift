@@ -34,8 +34,8 @@ enum ActualistDiagnosticReportBuilder {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unknown"
         let pendingNotificationCounts = settings.pendingNewTransactionIDsByAccount.values.map(\.count)
-        let selectedDatabaseURL = settings.selectedLocalFirstFileID.map {
-            store.fileManager.databaseURL(fileID: $0)
+        let selectedDatabaseURL = settings.selectedLocalFirstFileID.flatMap {
+            try? store.fileManager.databaseURL(fileID: $0)
         }
         let importedBudgetCount = (try? store.fileManager.importedBudgetFileIDs().count) ?? 0
         let availableStorageBytes = availableStorageBytes()

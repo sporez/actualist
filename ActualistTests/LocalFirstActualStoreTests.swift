@@ -435,6 +435,61 @@ struct LocalFirstActualStoreTests {
         #expect(!store.hasOpenBudget)
     }
 
+    @Test func budgetFileManagerHashesAndValidatesServerFileIDs() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistBudgetPaths-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+
+        for fileID in ["", ".", "..", "../..", "%2e%2e%2f..", "bad\0id"] {
+            #expect(throws: LocalFirstError.invalidBudgetFileID) {
+                _ = try fileManager.budgetDirectory(fileID: fileID)
+            }
+        }
+
+        let longID = String(repeating: "budget-", count: 10_000)
+        let directory = try fileManager.budgetDirectory(fileID: longID)
+        #expect(directory.lastPathComponent.count == 64)
+        #expect(!directory.path.contains(longID))
+    }
+
+    @Test func budgetFileManagerRejectsSymlinkEscapeFromBudgetRoot() throws {
+        let baseURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistBudgetSymlink-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let supportURL = baseURL.appending(path: "support", directoryHint: .isDirectory)
+        let outsideURL = baseURL.appending(path: "outside", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: supportURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outsideURL, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: supportURL.appending(path: "Budgets"),
+            withDestinationURL: outsideURL
+        )
+
+        let fileManager = BudgetFileManager(applicationSupportURL: supportURL)
+        #expect(throws: LocalFirstError.invalidBudgetFileID) {
+            _ = try fileManager.databaseURL(fileID: "safe-id")
+        }
+    }
+
+    @Test func importedBudgetDiscoveryReturnsMetadataFileIDNotHashedDirectoryName() throws {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistBudgetDiscovery-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let fileID = "server-file-id"
+        let directory = try fileManager.budgetDirectory(fileID: fileID)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let metadata = LocalFirstBudgetMetadata(
+            localBudgetID: fileID,
+            cloudFileID: fileID,
+            groupID: nil,
+            budgetName: "Budget",
+            encryptionKeyID: nil,
+            nodeID: "node"
+        )
+        try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
+
+        #expect(try fileManager.importedBudgetFileIDs() == [fileID])
+    }
+
     @Test func budgetDatabaseMapsAccountsBalancesAndBudgetMonth() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
@@ -1449,7 +1504,7 @@ struct LocalFirstActualStoreTests {
         let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
         let fixtureURL = try makeSQLiteFixture()
         let fileID = "file-1"
-        let budgetDirectory = fileManager.budgetDirectory(fileID: fileID)
+        let budgetDirectory = try fileManager.budgetDirectory(fileID: fileID)
         try FileManager.default.createDirectory(at: budgetDirectory, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: fixtureURL, to: fileManager.databaseURL(fileID: fileID))
         let metadata = LocalFirstBudgetMetadata(
@@ -3087,7 +3142,7 @@ struct LocalFirstActualStoreTests {
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)
         let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
         let fileID = "file-1"
-        let budgetDirectory = fileManager.budgetDirectory(fileID: fileID)
+        let budgetDirectory = try fileManager.budgetDirectory(fileID: fileID)
         try FileManager.default.createDirectory(at: budgetDirectory, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: fixtureURL, to: fileManager.databaseURL(fileID: fileID))
         let metadata = LocalFirstBudgetMetadata(
