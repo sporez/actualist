@@ -90,6 +90,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let priority: Int?
     let monthly: Double?
     let amount: Double?
+    let percentage: Double?
     let period: BudgetTemplatePeriod?
     let starting: String?
     let lookBack: Int?
@@ -109,6 +110,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         case priority
         case monthly
         case amount
+        case percentage
         case period
         case starting
         case lookBack
@@ -127,6 +129,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         priority = try container.decodeIfPresent(Int.self, forKey: .priority)
         monthly = try container.decodeIfPresent(Double.self, forKey: .monthly)
         amount = try container.decodeIfPresent(Double.self, forKey: .amount)
+        percentage = try container.decodeIfPresent(Double.self, forKey: .percentage)
         starting = try container.decodeIfPresent(String.self, forKey: .starting)
         lookBack = try container.decodeIfPresent(Int.self, forKey: .lookBack)
         limit = try container.decodeIfPresent(BudgetTemplateLimit.self, forKey: .limit)

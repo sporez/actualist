@@ -850,6 +850,79 @@ struct LocalFirstActualStoreTests {
         #expect(allowance.budgeted == 3_000)
     }
 
+    @Test func budgetTemplateAncientDailyRecurrenceUsesBoundedArithmetic() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"periodic","amount":1,"period":{"period":"day","amount":1},"starting":"0001-01-01","priority":0}]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder(
+            nodeID: "node1",
+            latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        )
+
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let groceries = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceries.budgeted == 3_100)
+    }
+
+    @Test func budgetTemplateRejectsOutOfBoundsInputsBeforeTheyCanPersist() async throws {
+        let invalidTemplates = [
+            ("amount above maximum", #"{"directive":"template","type":"simple","monthly":1000000001,"priority":0}"#),
+            ("negative amount", #"{"directive":"template","type":"simple","monthly":-1,"priority":0}"#),
+            ("percentage above maximum", #"{"directive":"template","type":"simple","monthly":10,"percentage":101,"priority":0}"#),
+            ("period interval above maximum", #"{"directive":"template","type":"periodic","amount":1,"period":{"period":"day","amount":1201},"starting":"2026-07-01","priority":0}"#),
+            ("look-back above maximum", #"{"directive":"template","type":"copy","lookBack":1201,"priority":0}"#),
+            ("repeat interval above maximum", #"{"directive":"template","type":"by","amount":10,"month":"2026-08","repeat":1201,"priority":0}"#),
+            ("priority above maximum", #"{"directive":"template","type":"simple","monthly":10,"priority":1001}"#)
+        ]
+
+        for (label, template) in invalidTemplates {
+            let fixtureURL = try makeSQLiteFixture(extraSQL: """
+                ALTER TABLE categories ADD COLUMN goal_def TEXT;
+                UPDATE categories
+                SET goal_def = '[\(template)]'
+                WHERE id = 'groceries';
+                """)
+            let database = try BudgetDatabase(databaseURL: fixtureURL)
+            var builder = LocalFirstSyncMessageBuilder(
+                nodeID: "node1",
+                latestTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+            )
+
+            do {
+                _ = try await database.budgetTemplateMessages(
+                    command: .category("groceries"),
+                    month: "2026-07",
+                    builder: &builder
+                )
+                Issue.record("Expected \(label) to be rejected")
+            } catch LocalFirstError.unsupportedTemplate {
+                // Expected: validation happens before any local CRDT write is constructed.
+            } catch {
+                Issue.record("Unexpected error for \(label): \(error)")
+            }
+
+            let july = try await database.fetchBudgetMonth(month: "2026-07")
+            let groceries = try #require(
+                july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+            )
+            #expect(groceries.budgeted == 50_000, "Invalid case persisted: \(label)")
+            #expect(try await database.pendingLocalSyncMessageCount() == 0)
+        }
+    }
+
     @Test func budgetTemplateRefusesUnprovenWeeklyUpToWithoutWriting() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;

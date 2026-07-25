@@ -1,6 +1,33 @@
 import Foundation
 import GRDB
 
+private func checkedTemplateAdd(_ lhs: Int, _ rhs: Int) throws -> Int {
+    let result = lhs.addingReportingOverflow(rhs)
+    guard !result.overflow else {
+        throw LocalFirstError.numericValueOutOfRange
+    }
+    return result.partialValue
+}
+
+private func checkedTemplateSubtract(_ lhs: Int, _ rhs: Int) throws -> Int {
+    let result = lhs.subtractingReportingOverflow(rhs)
+    guard !result.overflow else {
+        throw LocalFirstError.numericValueOutOfRange
+    }
+    return result.partialValue
+}
+
+private enum BudgetTemplateBounds {
+    static let amount = 0.0...1_000_000_000.0
+    static let percentage = 0.0...100.0
+    static let priority = 0...1_000
+    static let periodInterval = 1...1_200
+    static let repeatInterval = 1...1_200
+    static let lookBack = 0...1_200
+    static let year = 1...9_999
+    static let maximumEntriesPerCategory = 1_000
+}
+
 private struct BudgetTemplateLimitState {
     let limitAmount: Int
     let fromLastMonth: Int
@@ -10,15 +37,15 @@ private struct BudgetTemplateLimitState {
         fromLastMonth >= limitAmount
     }
 
-    var initialBudgetedAmount: Int {
+    func initialBudgetedAmount() throws -> Int {
         guard isInitiallyMet, !holdsExcess else {
             return 0
         }
-        return limitAmount - fromLastMonth
+        return try checkedTemplateSubtract(limitAmount, fromLastMonth)
     }
 
-    var releasedExcess: Int {
-        max(0, -initialBudgetedAmount)
+    func releasedExcess() throws -> Int {
+        max(0, try checkedTemplateSubtract(0, initialBudgetedAmount()))
     }
 }
 
@@ -253,7 +280,10 @@ extension BudgetDatabase {
                     if let entries = try decodeSupportedTemplateEntries(json: json) {
                         try validateTemplateEntries(entries, for: monthValue)
                         categoryTemplates[categoryID] = entries
-                        availableBudget += currentBudgeted
+                        availableBudget = try checkedTemplateAdd(
+                            availableBudget,
+                            currentBudgeted
+                        )
                     }
                 } catch LocalFirstError.unsupportedTemplate(let reason) {
                     unsupported.append(
@@ -309,6 +339,9 @@ extension BudgetDatabase {
         let budgetEntries = entries.filter(\.setsBudget)
         guard !budgetEntries.isEmpty else {
             return nil
+        }
+        guard budgetEntries.count <= BudgetTemplateBounds.maximumEntriesPerCategory else {
+            throw LocalFirstError.unsupportedTemplate("too many template entries")
         }
         for entry in budgetEntries {
             try validateTemplateEntryIsT1Constant(entry)
@@ -389,9 +422,18 @@ extension BudgetDatabase {
     }
 
     func validateTemplateEntryIsT1Constant(_ entry: BudgetTemplateEntry) throws {
-        guard (entry.priority ?? 0) >= 0 else {
+        guard BudgetTemplateBounds.priority.contains(entry.priority ?? 0) else {
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
+        try validateTemplateAmount(entry.monthly, field: "monthly amount")
+        try validateTemplateAmount(entry.amount, field: "amount")
+        try validateTemplatePercentage(entry.percentage)
+        try validateTemplateInterval(entry.period?.amount, field: "period interval")
+        try validateTemplateLookBack(entry.lookBack)
+        try validateTemplateRepeatInterval(entry.repeatInterval)
+        try validateTemplateLimitAmount(entry.limit)
+        try validateTemplateLimitAmount(entry.standaloneLimit)
+
         switch entry.type {
         case "simple":
             guard entry.monthly != nil || entry.limit != nil else {
@@ -401,18 +443,20 @@ extension BudgetDatabase {
         case "periodic":
             guard entry.amount != nil,
                   let periodAmount = entry.period?.amount,
-                  periodAmount > 0,
+                  BudgetTemplateBounds.periodInterval.contains(periodAmount),
                   let period = entry.period?.period,
                   ["day", "week", "month", "year"].contains(period) else {
                 throw LocalFirstError.unsupportedTemplate("periodic")
             }
-            if let starting = entry.starting, !starting.isEmpty, date(fromDayID: starting) == nil {
+            if let starting = entry.starting,
+               !starting.isEmpty,
+               validatedTemplateDate(starting) == nil {
                 throw LocalFirstError.unsupportedTemplate("periodic start date")
             }
             try validateBasicMonthlyTemplateLimit(entry.limit)
         case "copy":
             guard let lookBack = entry.lookBack,
-                  lookBack >= 0,
+                  BudgetTemplateBounds.lookBack.contains(lookBack),
                   entry.limit == nil else {
                 throw LocalFirstError.unsupportedTemplate("copy")
             }
@@ -421,7 +465,7 @@ extension BudgetDatabase {
                   amount >= 0,
                   validTemplateMonth(entry.month),
                   entry.limit == nil,
-                  entry.repeatInterval.map({ $0 > 0 }) ?? true else {
+                  entry.repeatInterval.map(BudgetTemplateBounds.repeatInterval.contains) ?? true else {
                 throw LocalFirstError.unsupportedTemplate("invalid by template")
             }
         case "limit":
@@ -438,6 +482,55 @@ extension BudgetDatabase {
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
+    }
+
+    private func validateTemplateAmount(_ amount: Double?, field: String) throws {
+        guard let amount else {
+            return
+        }
+        guard amount.isFinite, BudgetTemplateBounds.amount.contains(amount) else {
+            throw LocalFirstError.unsupportedTemplate("\(field) is outside the supported range")
+        }
+    }
+
+    private func validateTemplatePercentage(_ percentage: Double?) throws {
+        guard let percentage else {
+            return
+        }
+        guard percentage.isFinite, BudgetTemplateBounds.percentage.contains(percentage) else {
+            throw LocalFirstError.unsupportedTemplate("percentage is outside the supported range")
+        }
+    }
+
+    private func validateTemplateInterval(_ interval: Int?, field: String) throws {
+        guard let interval else {
+            return
+        }
+        guard BudgetTemplateBounds.periodInterval.contains(interval) else {
+            throw LocalFirstError.unsupportedTemplate("\(field) is outside the supported range")
+        }
+    }
+
+    private func validateTemplateLookBack(_ lookBack: Int?) throws {
+        guard let lookBack else {
+            return
+        }
+        guard BudgetTemplateBounds.lookBack.contains(lookBack) else {
+            throw LocalFirstError.unsupportedTemplate("look-back window is outside the supported range")
+        }
+    }
+
+    private func validateTemplateRepeatInterval(_ interval: Int?) throws {
+        guard let interval else {
+            return
+        }
+        guard BudgetTemplateBounds.repeatInterval.contains(interval) else {
+            throw LocalFirstError.unsupportedTemplate("repeat interval is outside the supported range")
+        }
+    }
+
+    private func validateTemplateLimitAmount(_ limit: BudgetTemplateLimit?) throws {
+        try validateTemplateAmount(limit?.amount, field: "limit amount")
     }
 
     private func validateTemplateEntryInteractions(_ entries: [BudgetTemplateEntry]) throws {
@@ -482,7 +575,8 @@ extension BudgetDatabase {
             return
         }
         guard let amount = limit.amount,
-              amount >= 0,
+              amount.isFinite,
+              BudgetTemplateBounds.amount.contains(amount),
               limit.period == "monthly",
               limit.start == nil else {
             throw LocalFirstError.unsupportedTemplate(
@@ -493,10 +587,11 @@ extension BudgetDatabase {
 
     private func validTemplateMonth(_ month: String?) -> Bool {
         guard let month,
-              let monthValue = try? Self.actualMonthValue(month) else {
+              let monthValue = try? Self.actualMonthValue(month),
+              (try? validatedTemplateMonth(monthValue)) != nil else {
             return false
         }
-        return (1...12).contains(monthValue % 100)
+        return true
     }
 
     func computeTemplateWrites(
@@ -520,10 +615,15 @@ extension BudgetDatabase {
             }
         )
         var remainingAvailable = availableBudget
-            + limitStates.values.reduce(0) { $0 + $1.releasedExcess }
+        for state in limitStates.values {
+            remainingAvailable = try checkedTemplateAdd(
+                remainingAvailable,
+                state.releasedExcess()
+            )
+        }
         var budgetedByCategory = Dictionary(uniqueKeysWithValues: categoryTemplates.keys.map { ($0, 0) })
         for (categoryID, state) in limitStates where state.isInitiallyMet {
-            budgetedByCategory[categoryID] = state.initialBudgetedAmount
+            budgetedByCategory[categoryID] = try state.initialBudgetedAmount()
         }
         let priorities = Set(categoryTemplates.values.flatMap { entries in
             entries.map { $0.priority ?? 0 }
@@ -540,20 +640,26 @@ extension BudgetDatabase {
                 var amount = 0
                 let byEntries = entries.filter { $0.type == "by" }
                 if !byEntries.isEmpty {
-                    amount += try computeByTemplateAmount(
-                        byEntries,
-                        categoryID: categoryID,
-                        monthValue: monthValue,
-                        db: db
+                    amount = try checkedTemplateAdd(
+                        amount,
+                        computeByTemplateAmount(
+                            byEntries,
+                            categoryID: categoryID,
+                            monthValue: monthValue,
+                            db: db
+                        )
                     )
                 }
                 for entry in entries where entry.type != "by" {
-                    amount += try computeTemplateEntryAmount(
-                        entry,
-                        categoryID: categoryID,
-                        monthValue: monthValue,
-                        limitState: limitStates[categoryID],
-                        db: db
+                    amount = try checkedTemplateAdd(
+                        amount,
+                        computeTemplateEntryAmount(
+                            entry,
+                            categoryID: categoryID,
+                            monthValue: monthValue,
+                            limitState: limitStates[categoryID],
+                            db: db
+                        )
                     )
                 }
 
@@ -561,7 +667,13 @@ extension BudgetDatabase {
                     let alreadyBudgeted = budgetedByCategory[categoryID, default: 0]
                     let availableBeforeLimit = max(
                         0,
-                        limitState.limitAmount - limitState.fromLastMonth - alreadyBudgeted
+                        try checkedTemplateSubtract(
+                            try checkedTemplateSubtract(
+                                limitState.limitAmount,
+                                limitState.fromLastMonth
+                            ),
+                            alreadyBudgeted
+                        )
                     )
                     if amount > availableBeforeLimit {
                         amount = availableBeforeLimit
@@ -572,8 +684,11 @@ extension BudgetDatabase {
                     amount = max(0, remainingAvailable)
                 }
 
-                budgetedByCategory[categoryID, default: 0] += amount
-                remainingAvailable -= amount
+                budgetedByCategory[categoryID] = try checkedTemplateAdd(
+                    budgetedByCategory[categoryID, default: 0],
+                    amount
+                )
+                remainingAvailable = try checkedTemplateSubtract(remainingAvailable, amount)
             }
         }
 
@@ -590,12 +705,12 @@ extension BudgetDatabase {
         switch entry.type {
         case "simple":
             if let monthly = entry.monthly {
-                return Self.templateAmountToMinorUnits(monthly)
+                return try Self.templateAmountToMinorUnits(monthly)
             }
             guard let limitState else {
                 throw LocalFirstError.unsupportedTemplate("simple without monthly amount")
             }
-            return limitState.limitAmount - limitState.fromLastMonth
+            return try checkedTemplateSubtract(limitState.limitAmount, limitState.fromLastMonth)
         case "periodic":
             return try computePeriodicTemplateAmount(entry, monthValue: monthValue)
         case "copy":
@@ -606,7 +721,7 @@ extension BudgetDatabase {
             guard let limitState else {
                 throw LocalFirstError.unsupportedTemplate("refill without up-to limit")
             }
-            return limitState.limitAmount - limitState.fromLastMonth
+            return try checkedTemplateSubtract(limitState.limitAmount, limitState.fromLastMonth)
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
@@ -631,7 +746,7 @@ extension BudgetDatabase {
         }
 
         return BudgetTemplateLimitState(
-            limitAmount: Self.templateAmountToMinorUnits(amount),
+            limitAmount: try Self.templateAmountToMinorUnits(amount),
             fromLastMonth: try templateFromLastMonth(
                 categoryID: categoryID,
                 monthValue: monthValue,
@@ -646,7 +761,7 @@ extension BudgetDatabase {
         monthValue: Int,
         db: Database
     ) throws -> Int {
-        let previousMonth = monthID(shiftedMonth(monthValue, by: -1))
+        let previousMonth = monthID(try shiftedTemplateMonth(monthValue, by: -1))
         let previousValues = try envelopeCategoryValues(through: previousMonth, db: db)[categoryID]
             ?? EnvelopeCategoryValue()
         if try templateCategoryIsIncome(categoryID, db: db) {
@@ -688,31 +803,39 @@ extension BudgetDatabase {
             throw LocalFirstError.unsupportedTemplate("periodic")
         }
 
-        let templateAmount = Self.templateAmountToMinorUnits(amount)
+        let templateAmount = try Self.templateAmountToMinorUnits(amount)
         let monthStart = "\(monthID(monthValue))-01"
-        let nextMonthStart = "\(monthID(nextMonth(after: monthValue)))-01"
         let starting = entry.starting?.trimmingCharacters(in: .whitespacesAndNewlines)
-        var currentDateID = monthStart
+        guard let monthStartDate = validatedTemplateDate(monthStart),
+              let nextMonthStartDate = Calendar(identifier: .gregorian).date(
+                byAdding: .month,
+                value: 1,
+                to: monthStartDate
+              ) else {
+            throw LocalFirstError.unsupportedTemplate("periodic month")
+        }
+        let startingDate: Date
         if let starting, !starting.isEmpty {
-            guard let startingDate = date(fromDayID: starting) else {
+            guard let date = validatedTemplateDate(starting) else {
                 throw LocalFirstError.unsupportedTemplate("periodic start date")
             }
-            currentDateID = dayIDString(from: startingDate)
+            startingDate = date
+        } else {
+            startingDate = monthStartDate
         }
 
-        while compareDayID(currentDateID, monthStart) == .orderedAscending {
-            currentDateID = try shiftedPeriodicDate(currentDateID, by: periodAmount, period: period)
+        let occurrenceCount = try periodicOccurrenceCount(
+            startingAt: startingDate,
+            monthStart: monthStartDate,
+            nextMonthStart: nextMonthStartDate,
+            interval: periodAmount,
+            period: period
+        )
+        let multiplied = templateAmount.multipliedReportingOverflow(by: occurrenceCount)
+        guard !multiplied.overflow else {
+            throw LocalFirstError.numericValueOutOfRange
         }
-        guard compareDayID(currentDateID, nextMonthStart) == .orderedAscending else {
-            return 0
-        }
-
-        var total = 0
-        while compareDayID(currentDateID, nextMonthStart) == .orderedAscending {
-            total += templateAmount
-            currentDateID = try shiftedPeriodicDate(currentDateID, by: periodAmount, period: period)
-        }
-        return total
+        return multiplied.partialValue
     }
 
     func copyTemplateAmount(
@@ -721,10 +844,11 @@ extension BudgetDatabase {
         monthValue: Int,
         db: Database
     ) throws -> Int {
-        guard let lookBack = entry.lookBack, lookBack >= 0 else {
+        guard let lookBack = entry.lookBack,
+              BudgetTemplateBounds.lookBack.contains(lookBack) else {
             throw LocalFirstError.unsupportedTemplate("copy")
         }
-        let sourceMonth = monthID(shiftedMonth(monthValue, by: -lookBack))
+        let sourceMonth = monthID(try shiftedTemplateMonth(monthValue, by: -lookBack))
         return try categoryBudgets(month: sourceMonth, db: db)[categoryID]?.budgeted ?? 0
     }
 
@@ -748,19 +872,29 @@ extension BudgetDatabase {
         var totalNeeded = 0
         for target in targets {
             if target.monthsRemaining > shortestTarget, let repeatPeriod = target.repeatPeriod {
-                totalNeeded += Self.actualTemplateRound(
-                    Double(target.amount)
-                        / Double(repeatPeriod)
-                        * Double(repeatPeriod - target.monthsRemaining + shortestTarget)
+                let remainingRepeatMonths = try checkedTemplateAdd(
+                    try checkedTemplateSubtract(repeatPeriod, target.monthsRemaining),
+                    shortestTarget
+                )
+                totalNeeded = try checkedTemplateAdd(
+                    totalNeeded,
+                    Self.actualTemplateRound(
+                        Double(target.amount)
+                            / Double(repeatPeriod)
+                            * Double(remainingRepeatMonths)
+                    )
                 )
             } else if target.monthsRemaining > shortestTarget {
-                totalNeeded += Self.actualTemplateRound(
-                    Double(target.amount)
-                        / Double(target.monthsRemaining + 1)
-                        * Double(shortestTarget + 1)
+                totalNeeded = try checkedTemplateAdd(
+                    totalNeeded,
+                    Self.actualTemplateRound(
+                        Double(target.amount)
+                            / Double(try checkedTemplateAdd(target.monthsRemaining, 1))
+                            * Double(try checkedTemplateAdd(shortestTarget, 1))
+                    )
                 )
             } else {
-                totalNeeded += target.amount
+                totalNeeded = try checkedTemplateAdd(totalNeeded, target.amount)
             }
         }
 
@@ -769,8 +903,9 @@ extension BudgetDatabase {
             monthValue: monthValue,
             db: db
         )
-        return Self.actualTemplateRound(
-            Double(totalNeeded - fromLastMonth) / Double(shortestTarget + 1)
+        return try Self.actualTemplateRound(
+            Double(try checkedTemplateSubtract(totalNeeded, fromLastMonth))
+                / Double(try checkedTemplateAdd(shortestTarget, 1))
         )
     }
 
@@ -787,19 +922,27 @@ extension BudgetDatabase {
         let repeatPeriod: Int?
         if entry.annual == true {
             let years = entry.repeatInterval ?? 1
-            guard years <= Int.max / 12 else {
+            let multiplied = years.multipliedReportingOverflow(by: 12)
+            guard !multiplied.overflow else {
                 throw LocalFirstError.unsupportedTemplate("invalid by repeat interval")
             }
-            repeatPeriod = years * 12
+            repeatPeriod = multiplied.partialValue
         } else {
             repeatPeriod = entry.repeatInterval
         }
 
         var targetMonth = initialTargetMonth
-        var monthsRemaining = templateMonthDistance(from: monthValue, to: targetMonth)
-        while monthsRemaining < 0, let repeatPeriod {
-            targetMonth = shiftedMonth(targetMonth, by: repeatPeriod)
-            monthsRemaining = templateMonthDistance(from: monthValue, to: targetMonth)
+        var monthsRemaining = try templateMonthDistance(from: monthValue, to: targetMonth)
+        if monthsRemaining < 0, let repeatPeriod {
+            let overdueMonths = try checkedTemplateSubtract(0, monthsRemaining)
+            let adjusted = try checkedTemplateAdd(overdueMonths, repeatPeriod - 1)
+            let cycles = adjusted / repeatPeriod
+            let shift = repeatPeriod.multipliedReportingOverflow(by: cycles)
+            guard !shift.overflow else {
+                throw LocalFirstError.unsupportedTemplate("invalid by repeat interval")
+            }
+            targetMonth = try shiftedTemplateMonth(targetMonth, by: shift.partialValue)
+            monthsRemaining = try templateMonthDistance(from: monthValue, to: targetMonth)
         }
         guard monthsRemaining >= 0 else {
             throw LocalFirstError.unsupportedTemplate(
@@ -808,20 +951,215 @@ extension BudgetDatabase {
         }
 
         return (
-            amount: Self.templateAmountToMinorUnits(amount),
+            amount: try Self.templateAmountToMinorUnits(amount),
             monthsRemaining: monthsRemaining,
             repeatPeriod: repeatPeriod
         )
     }
 
-    private func templateMonthDistance(from currentMonth: Int, to targetMonth: Int) -> Int {
-        let currentOrdinal = (currentMonth / 100) * 12 + (currentMonth % 100 - 1)
-        let targetOrdinal = (targetMonth / 100) * 12 + (targetMonth % 100 - 1)
-        return targetOrdinal - currentOrdinal
+    private func templateMonthDistance(from currentMonth: Int, to targetMonth: Int) throws -> Int {
+        let currentOrdinal = try templateMonthOrdinal(currentMonth)
+        let targetOrdinal = try templateMonthOrdinal(targetMonth)
+        return try checkedTemplateSubtract(targetOrdinal, currentOrdinal)
+    }
+
+    private func periodicOccurrenceCount(
+        startingAt start: Date,
+        monthStart: Date,
+        nextMonthStart: Date,
+        interval: Int,
+        period: String
+    ) throws -> Int {
+        guard BudgetTemplateBounds.periodInterval.contains(interval) else {
+            throw LocalFirstError.unsupportedTemplate("periodic interval")
+        }
+        guard start < nextMonthStart else {
+            return 0
+        }
+
+        switch period {
+        case "day", "week":
+            let step: Int
+            if period == "week" {
+                let multiplied = interval.multipliedReportingOverflow(by: 7)
+                guard !multiplied.overflow else {
+                    throw LocalFirstError.unsupportedTemplate("periodic interval")
+                }
+                step = multiplied.partialValue
+            } else {
+                step = interval
+            }
+            let calendar = Calendar(identifier: .gregorian)
+            let firstIndex: Int
+            if start < monthStart {
+                guard let daysToMonth = calendar.dateComponents(
+                    [.day],
+                    from: start,
+                    to: monthStart
+                ).day else {
+                    throw LocalFirstError.unsupportedTemplate("periodic date")
+                }
+                let adjusted = try checkedTemplateAdd(daysToMonth, step - 1)
+                firstIndex = adjusted / step
+            } else {
+                firstIndex = 0
+            }
+            guard let daysToEnd = calendar.dateComponents(
+                [.day],
+                from: start,
+                to: nextMonthStart
+            ).day,
+                  daysToEnd > 0 else {
+                return 0
+            }
+            let lastIndex = (daysToEnd - 1) / step
+            guard lastIndex >= firstIndex else {
+                return 0
+            }
+            return try checkedTemplateAdd(
+                try checkedTemplateSubtract(lastIndex, firstIndex),
+                1
+            )
+        case "month", "year":
+            let firstIndex = try firstCalendarOccurrenceIndex(
+                onOrAfter: monthStart,
+                startingAt: start,
+                interval: interval,
+                period: period
+            )
+            let occurrence = try periodicOccurrenceDate(
+                startingAt: start,
+                index: firstIndex,
+                interval: interval,
+                period: period
+            )
+            return occurrence < nextMonthStart ? 1 : 0
+        default:
+            throw LocalFirstError.unsupportedTemplate("periodic \(period)")
+        }
+    }
+
+    private func firstCalendarOccurrenceIndex(
+        onOrAfter target: Date,
+        startingAt start: Date,
+        interval: Int,
+        period: String
+    ) throws -> Int {
+        guard start < target else {
+            return 0
+        }
+        let calendar = Calendar(identifier: .gregorian)
+        let startComponents = calendar.dateComponents([.year, .month], from: start)
+        let targetComponents = calendar.dateComponents([.year, .month], from: target)
+        guard let startYear = startComponents.year,
+              let startMonth = startComponents.month,
+              let targetYear = targetComponents.year,
+              let targetMonth = targetComponents.month else {
+            throw LocalFirstError.unsupportedTemplate("periodic date")
+        }
+
+        let distance: Int
+        if period == "year" {
+            distance = try checkedTemplateSubtract(targetYear, startYear)
+        } else {
+            let yearDistance = try checkedTemplateSubtract(targetYear, startYear)
+            let monthDistance = yearDistance.multipliedReportingOverflow(by: 12)
+            guard !monthDistance.overflow else {
+                throw LocalFirstError.unsupportedTemplate("periodic date")
+            }
+            distance = try checkedTemplateAdd(
+                monthDistance.partialValue,
+                try checkedTemplateSubtract(targetMonth, startMonth)
+            )
+        }
+        var index = max(0, distance / interval)
+        var occurrence = try periodicOccurrenceDate(
+            startingAt: start,
+            index: index,
+            interval: interval,
+            period: period
+        )
+        if occurrence < target {
+            index = try checkedTemplateAdd(index, 1)
+            occurrence = try periodicOccurrenceDate(
+                startingAt: start,
+                index: index,
+                interval: interval,
+                period: period
+            )
+        }
+        guard occurrence >= target else {
+            throw LocalFirstError.unsupportedTemplate("periodic date")
+        }
+        return index
+    }
+
+    private func periodicOccurrenceDate(
+        startingAt start: Date,
+        index: Int,
+        interval: Int,
+        period: String
+    ) throws -> Date {
+        let multiplied = interval.multipliedReportingOverflow(by: index)
+        guard !multiplied.overflow else {
+            throw LocalFirstError.unsupportedTemplate("periodic interval")
+        }
+        let component: Calendar.Component = period == "year" ? .year : .month
+        guard let occurrence = Calendar(identifier: .gregorian).date(
+            byAdding: component,
+            value: multiplied.partialValue,
+            to: start
+        ) else {
+            throw LocalFirstError.unsupportedTemplate("periodic date")
+        }
+        let occurrenceID = dayIDString(from: occurrence)
+        guard validatedTemplateDate(occurrenceID) != nil else {
+            throw LocalFirstError.unsupportedTemplate("periodic date")
+        }
+        return occurrence
+    }
+
+    private func validatedTemplateDate(_ dayID: String) -> Date? {
+        let normalized = dayID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let date = date(fromDayID: normalized),
+              dayIDString(from: date) == normalized else {
+            return nil
+        }
+        let year = Calendar(identifier: .gregorian).component(.year, from: date)
+        return BudgetTemplateBounds.year.contains(year) ? date : nil
+    }
+
+    private func validatedTemplateMonth(_ month: Int) throws -> Int {
+        let year = month / 100
+        let monthNumber = month % 100
+        guard BudgetTemplateBounds.year.contains(year),
+              (1...12).contains(monthNumber) else {
+            throw LocalFirstError.unsupportedTemplate("template month is outside the supported range")
+        }
+        return month
+    }
+
+    private func templateMonthOrdinal(_ month: Int) throws -> Int {
+        let month = try validatedTemplateMonth(month)
+        return (month / 100 - 1) * 12 + (month % 100 - 1)
+    }
+
+    private func shiftedTemplateMonth(_ month: Int, by offset: Int) throws -> Int {
+        let ordinal = try templateMonthOrdinal(month)
+        let shifted = ordinal.addingReportingOverflow(offset)
+        guard !shifted.overflow,
+              shifted.partialValue >= 0,
+              shifted.partialValue < BudgetTemplateBounds.year.upperBound * 12 else {
+            throw LocalFirstError.unsupportedTemplate("template month is outside the supported range")
+        }
+        let year = shifted.partialValue / 12 + 1
+        let monthNumber = shifted.partialValue % 12 + 1
+        return year * 100 + monthNumber
     }
 
     func shiftedPeriodicDate(_ dayID: String, by amount: Int, period: String) throws -> String {
-        guard let date = date(fromDayID: dayID) else {
+        guard BudgetTemplateBounds.periodInterval.contains(amount),
+              let date = validatedTemplateDate(dayID) else {
             throw LocalFirstError.unsupportedTemplate("periodic start date")
         }
         var components = DateComponents()
@@ -829,7 +1167,11 @@ extension BudgetDatabase {
         case "day":
             components.day = amount
         case "week":
-            components.day = amount * 7
+            let multiplied = amount.multipliedReportingOverflow(by: 7)
+            guard !multiplied.overflow else {
+                throw LocalFirstError.unsupportedTemplate("periodic interval")
+            }
+            components.day = multiplied.partialValue
         case "month":
             components.month = amount
         case "year":
@@ -840,7 +1182,11 @@ extension BudgetDatabase {
         guard let shifted = Calendar(identifier: .gregorian).date(byAdding: components, to: date) else {
             throw LocalFirstError.unsupportedTemplate("periodic date")
         }
-        return dayIDString(from: shifted)
+        let shiftedID = dayIDString(from: shifted)
+        guard validatedTemplateDate(shiftedID) != nil, shifted > date else {
+            throw LocalFirstError.unsupportedTemplate("periodic date")
+        }
+        return shiftedID
     }
 
     func monthToBudget(month: String, db: Database) throws -> Int {
@@ -924,13 +1270,27 @@ extension BudgetDatabase {
         return rows.compactMap { $0["id"] as String? }
     }
 
-    static func templateAmountToMinorUnits(_ amount: Double) -> Int {
+    static func templateAmountToMinorUnits(_ amount: Double) throws -> Int {
         // goal_def amounts are display decimals; convert with the app's 2-decimal money model.
-        Int((amount * 100).rounded())
+        guard amount.isFinite, BudgetTemplateBounds.amount.contains(amount) else {
+            throw LocalFirstError.numericValueOutOfRange
+        }
+        let scaled = amount * 100
+        guard scaled.isFinite,
+              scaled >= Double(Int.min),
+              scaled <= Double(Int.max) else {
+            throw LocalFirstError.numericValueOutOfRange
+        }
+        return Int(scaled.rounded())
     }
 
-    private static func actualTemplateRound(_ amount: Double) -> Int {
-        Int(floor(amount + 0.5))
+    private static func actualTemplateRound(_ amount: Double) throws -> Int {
+        guard amount.isFinite,
+              amount >= Double(Int.min),
+              amount <= Double(Int.max) else {
+            throw LocalFirstError.numericValueOutOfRange
+        }
+        return Int(floor(amount + 0.5))
     }
 
     private func templateDecodingFailureReason(_ error: Error) -> String {
