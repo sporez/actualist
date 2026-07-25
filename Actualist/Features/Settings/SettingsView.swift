@@ -150,6 +150,21 @@ struct SettingsView: View {
                 }
                 .settingsSectionChrome()
 
+                Section("Privacy") {
+                    Picker("Hide Contents in App Switcher", selection: appSwitcherPrivacyModeSelection) {
+                        ForEach(AppSwitcherPrivacyMode.allCases) { mode in
+                            Text(mode.title)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Text(appState.settings.appSwitcherPrivacyMode.detail)
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .settingsSectionChrome()
+
                 Section("Background Refresh") {
                     Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
                         .disabled(!appState.capabilities.supportsBackgroundRefresh)
@@ -345,6 +360,11 @@ struct SettingsView: View {
                             systemImage: "square.and.arrow.up"
                         )
                     }
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            appState.beginAppInitiatedSystemUIPresentation()
+                        }
+                    )
 
                     Button {
                         viewModel.copyDiagnosticReport(using: appState)
@@ -661,6 +681,14 @@ struct SettingsView: View {
             appState.settings.randomizedDisplayValuesEnabled
         } set: { isEnabled in
             appState.updateRandomizedDisplayValuesEnabled(isEnabled)
+        }
+    }
+
+    private var appSwitcherPrivacyModeSelection: Binding<AppSwitcherPrivacyMode> {
+        Binding {
+            appState.settings.appSwitcherPrivacyMode
+        } set: { mode in
+            appState.updateAppSwitcherPrivacyMode(mode)
         }
     }
 

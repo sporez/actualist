@@ -1,5 +1,32 @@
 import Foundation
 
+enum AppSwitcherPrivacyMode: String, Codable, CaseIterable, Identifiable {
+    case off
+    case whenBackgrounded
+    case always
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "Off"
+        case .whenBackgrounded: "When Backgrounded"
+        case .always: "Always"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .off:
+            "Never hide app contents in the app switcher."
+        case .whenBackgrounded:
+            "Hide contents after Actualist moves to the background without covering Control Center or system prompts."
+        case .always:
+            "Hide contents whenever Actualist becomes inactive, including for Control Center and most system prompts."
+        }
+    }
+}
+
 enum ExperimentalFeature: String, Codable, CaseIterable, Identifiable {
     case budgetTemplates
 
@@ -29,6 +56,7 @@ struct AppSettings: Codable, Equatable {
     var greenIncomeTransactionAmountsEnabled: Bool = false
     var includeCarryoverCategoriesInOverspentAlerts: Bool = false
     var randomizedDisplayValuesEnabled: Bool = false
+    var appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded
     var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
@@ -49,6 +77,7 @@ struct AppSettings: Codable, Equatable {
         greenIncomeTransactionAmountsEnabled: Bool = false,
         includeCarryoverCategoriesInOverspentAlerts: Bool = false,
         randomizedDisplayValuesEnabled: Bool = false,
+        appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded,
         enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
@@ -68,6 +97,7 @@ struct AppSettings: Codable, Equatable {
         self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
         self.includeCarryoverCategoriesInOverspentAlerts = includeCarryoverCategoriesInOverspentAlerts
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
+        self.appSwitcherPrivacyMode = appSwitcherPrivacyMode
         self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
@@ -99,6 +129,10 @@ struct AppSettings: Codable, Equatable {
             Bool.self,
             forKey: .randomizedDisplayValuesEnabled
         ) ?? false
+        appSwitcherPrivacyMode = try container.decodeIfPresent(
+            AppSwitcherPrivacyMode.self,
+            forKey: .appSwitcherPrivacyMode
+        ) ?? .whenBackgrounded
         let persistedExperimentalFeatures = try container.decodeIfPresent(
             [String].self,
             forKey: .enabledExperimentalFeatures

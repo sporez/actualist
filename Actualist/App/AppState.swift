@@ -29,6 +29,7 @@ final class AppState {
     var localDataRevision: UInt64 = 0
     var themeRevision = 0
     var developerUnlockToastMessage: String?
+    private(set) var isAppSwitcherCoverSuppressedForSystemUI = false
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
@@ -390,6 +391,25 @@ final class AppState {
     func updateRandomizedDisplayValuesEnabled(_ isEnabled: Bool) {
         settings.randomizedDisplayValuesEnabled = isEnabled
         settingsStore.save(settings)
+    }
+
+    func updateAppSwitcherPrivacyMode(_ mode: AppSwitcherPrivacyMode) {
+        settings.appSwitcherPrivacyMode = mode
+        if mode != .always {
+            isAppSwitcherCoverSuppressedForSystemUI = false
+        }
+        settingsStore.save(settings)
+    }
+
+    func beginAppInitiatedSystemUIPresentation() {
+        guard settings.appSwitcherPrivacyMode == .always else {
+            return
+        }
+        isAppSwitcherCoverSuppressedForSystemUI = true
+    }
+
+    func clearAppInitiatedSystemUIPresentationSuppression() {
+        isAppSwitcherCoverSuppressedForSystemUI = false
     }
 
     func isExperimentalFeatureEnabled(_ feature: ExperimentalFeature) -> Bool {

@@ -2,6 +2,23 @@ import BackgroundTasks
 import SwiftUI
 import UserNotifications
 
+enum AppSwitcherSnapshotPolicy {
+    static func shouldCover(
+        mode: AppSwitcherPrivacyMode,
+        scenePhase: ScenePhase,
+        isAppInitiatedSystemUISuppressed: Bool
+    ) -> Bool {
+        switch mode {
+        case .off:
+            false
+        case .whenBackgrounded:
+            scenePhase == .background
+        case .always:
+            !isAppInitiatedSystemUISuppressed && scenePhase != .active
+        }
+    }
+}
+
 @main
 struct ActualistApp: App {
     @Environment(\.scenePhase) private var scenePhase
@@ -15,26 +32,62 @@ struct ActualistApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(appState)
-                .preferredColorScheme(appState.settings.theme.colorScheme)
-                .onAppear {
+            ZStack {
+                RootView()
+
+                if AppSwitcherSnapshotPolicy.shouldCover(
+                    mode: appState.settings.appSwitcherPrivacyMode,
+                    scenePhase: scenePhase,
+                    isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
+                ) {
+                    AppSwitcherPrivacyCover(theme: appState.settings.theme)
+                        .transition(.identity)
+                        .zIndex(1)
+                }
+            }
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+            .environment(appState)
+            .preferredColorScheme(appState.settings.theme.colorScheme)
+            .onAppear {
+                BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
+            }
+            .task {
+                await appState.beginForegroundSession()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    appState.clearAppInitiatedSystemUIPresentationSuppression()
+                    Task {
+                        await appState.beginForegroundSession()
+                    }
+                } else if phase == .background {
+                    appState.endForegroundSession()
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }
-                .task {
-                    await appState.beginForegroundSession()
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    if phase == .active {
-                        Task {
-                            await appState.beginForegroundSession()
-                        }
-                    } else if phase == .background {
-                        appState.endForegroundSession()
-                        BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
-                    }
-                }
+            }
         }
+    }
+}
+
+private struct AppSwitcherPrivacyCover: View {
+    let theme: ActualistThemeOption
+
+    var body: some View {
+        let palette = ActualistTheme.palette(for: theme)
+
+        ZStack {
+            palette.background
+                .ignoresSafeArea()
+
+            Text("Actualist")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(palette.primaryText)
+        }
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 }
 

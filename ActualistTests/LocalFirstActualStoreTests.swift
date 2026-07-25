@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import Security
+import SwiftUI
 import Testing
 import ZIPFoundation
 @testable import Actualist
@@ -98,6 +99,7 @@ struct LocalFirstActualStoreTests {
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
         #expect(!settings.greenIncomeTransactionAmountsEnabled)
         #expect(!settings.includeCarryoverCategoriesInOverspentAlerts)
+        #expect(settings.appSwitcherPrivacyMode == .whenBackgrounded)
     }
 
     @Test func greenIncomeTransactionAmountsPreferencePersists() throws {
@@ -120,6 +122,62 @@ struct LocalFirstActualStoreTests {
         store.save(settings)
 
         #expect(store.load().includeCarryoverCategoriesInOverspentAlerts)
+    }
+
+    @Test func appSwitcherPrivacyPreferenceDefaultsToBackgroundAndPersists() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+
+        #expect(AppSettings().appSwitcherPrivacyMode == .whenBackgrounded)
+
+        let settings = AppSettings(appSwitcherPrivacyMode: .always)
+        store.save(settings)
+
+        #expect(store.load().appSwitcherPrivacyMode == .always)
+    }
+
+    @Test(arguments: [
+        (AppSwitcherPrivacyMode.off, ScenePhase.active, false, false),
+        (.off, .inactive, false, false),
+        (.off, .background, false, false),
+        (.whenBackgrounded, .active, false, false),
+        (.whenBackgrounded, .inactive, false, false),
+        (.whenBackgrounded, .background, false, true),
+        (.whenBackgrounded, .background, true, true),
+        (.always, .active, false, false),
+        (.always, .inactive, false, true),
+        (.always, .background, false, true),
+        (.always, .inactive, true, false),
+        (.always, .background, true, false)
+    ])
+    func appSwitcherSnapshotPolicyMatchesConfiguredLifecycleBehavior(
+        mode: AppSwitcherPrivacyMode,
+        phase: ScenePhase,
+        isSuppressed: Bool,
+        expected: Bool
+    ) {
+        #expect(
+            AppSwitcherSnapshotPolicy.shouldCover(
+                mode: mode,
+                scenePhase: phase,
+                isAppInitiatedSystemUISuppressed: isSuppressed
+            ) == expected
+        )
+    }
+
+    @Test func appSwitcherSystemUISuppressionOnlyAppliesToAlwaysModeAndClears() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+
+        state.beginAppInitiatedSystemUIPresentation()
+        #expect(!state.isAppSwitcherCoverSuppressedForSystemUI)
+
+        state.updateAppSwitcherPrivacyMode(.always)
+        state.beginAppInitiatedSystemUIPresentation()
+        #expect(state.isAppSwitcherCoverSuppressedForSystemUI)
+
+        state.clearAppInitiatedSystemUIPresentationSuppression()
+        #expect(!state.isAppSwitcherCoverSuppressedForSystemUI)
     }
 
     @Test func localFirstSyncDiagnosticsPersistInSettings() async throws {
