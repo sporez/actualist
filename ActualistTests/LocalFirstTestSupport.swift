@@ -12,20 +12,24 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
         case loginMethods
         case login
         case listBudgets
+        case download
     }
 
     let failurePoint: FailurePoint
     let files: [ActualSyncRemoteFile]
     let token: String
+    let downloadData: Data
 
     init(
         failurePoint: FailurePoint = .none,
         files: [ActualSyncRemoteFile] = [],
-        token: String = "staged-token"
+        token: String = "staged-token",
+        downloadData: Data = Data()
     ) {
         self.failurePoint = failurePoint
         self.files = files
         self.token = token
+        self.downloadData = downloadData
     }
 
     func loginMethods() async throws -> ActualLoginMethodsResponse {
@@ -53,6 +57,22 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
             throw LocalFirstTestSyncError.failed
         }
         return files
+    }
+
+    func userFileInfo(fileID: String, token: String) async throws -> ActualSyncRemoteFile? {
+        files.first { $0.fileID == fileID }
+    }
+
+    func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws {
+        if failurePoint == .download {
+            try downloadData.prefix(max(1, downloadData.count / 2)).write(to: destinationURL)
+            throw LocalFirstTestSyncError.failed
+        }
+        try downloadData.write(to: destinationURL)
+    }
+
+    func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse {
+        throw LocalFirstTestSyncError.failed
     }
 }
 

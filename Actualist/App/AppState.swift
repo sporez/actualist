@@ -308,7 +308,7 @@ final class AppState {
             localDataRevision &+= 1
         } catch {
             lastErrorMessage = error.localizedDescription
-            connectionStatus = .offline
+            connectionStatus = localFirstStore.isOpen(budgetID: budget.syncID) ? .online : .offline
         }
     }
 

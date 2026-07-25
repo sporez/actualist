@@ -39,6 +39,50 @@ actor BudgetDatabase {
         }
     }
 
+    func validateImportedBudget() throws {
+        try queue.read { db in
+            let integrityRows = try String.fetchAll(db, sql: "PRAGMA integrity_check")
+            guard integrityRows == ["ok"] else {
+                throw LocalFirstError.invalidDownloadedBudget
+            }
+
+            let requiredTables = ["accounts", "transactions", "categories", "category_groups"]
+            for table in requiredTables {
+                guard try Row.fetchOne(
+                    db,
+                    sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+                    arguments: [table]
+                ) != nil else {
+                    throw LocalFirstError.invalidDownloadedBudget
+                }
+            }
+
+            let accounts = try Set(
+                Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
+                    .compactMap { $0["name"] as String? }
+            )
+            let transactions = try Set(
+                Row.fetchAll(db, sql: "PRAGMA table_info(transactions)")
+                    .compactMap { $0["name"] as String? }
+            )
+            let categories = try Set(
+                Row.fetchAll(db, sql: "PRAGMA table_info(categories)")
+                    .compactMap { $0["name"] as String? }
+            )
+            let categoryGroups = try Set(
+                Row.fetchAll(db, sql: "PRAGMA table_info(category_groups)")
+                    .compactMap { $0["name"] as String? }
+            )
+            guard accounts.isSuperset(of: ["id", "name"]),
+                  transactions.isSuperset(of: ["id", "date", "amount"]),
+                  transactions.contains("acct") || transactions.contains("account"),
+                  categories.isSuperset(of: ["id", "name"]),
+                  categoryGroups.isSuperset(of: ["id", "name"]) else {
+                throw LocalFirstError.invalidDownloadedBudget
+            }
+        }
+    }
+
     /// Resolved physical column names for the `transactions` table. Actual's CRDT messages use
     /// physical columns, which differ from the AQL field names: payee lives in `description`,
     /// account in `acct`, the split flags are `isParent`/`isChild`, and a transfer's paired-row

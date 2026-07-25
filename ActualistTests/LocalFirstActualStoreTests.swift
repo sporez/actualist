@@ -7,6 +7,14 @@ import ZIPFoundation
 
 @MainActor
 struct LocalFirstActualStoreTests {
+    enum ReimportFailureScenario: CaseIterable, Sendable {
+        case midDownload
+        case midDecrypt
+        case midExtract
+        case corruptArchive
+        case wrongSchema
+    }
+
     private struct OpenedWritableStoreBundle {
         let store: LocalFirstActualStore
         let fileManager: BudgetFileManager
@@ -1650,6 +1658,103 @@ struct LocalFirstActualStoreTests {
 
         #expect(state.connectionStatus == .online)
         #expect(state.localFirstSyncStatus == nil)
+    }
+
+    @Test(arguments: ReimportFailureScenario.allCases)
+    func reimportFailureLeavesOriginalBudgetOpen(
+        scenario: ReimportFailureScenario
+    ) async throws {
+        let archiveData: Data
+        switch scenario {
+        case .corruptArchive:
+            archiveData = Data("not a zip archive".utf8)
+        case .wrongSchema:
+            let wrongSchemaURL = FileManager.default.temporaryDirectory
+                .appending(path: "ActualistWrongSchema-\(UUID().uuidString).sqlite")
+            let queue = try DatabaseQueue(path: wrongSchemaURL.path)
+            try await queue.write { db in
+                try db.execute(sql: "CREATE TABLE unrelated (id TEXT PRIMARY KEY)")
+            }
+            archiveData = try makeArchiveData(databaseURL: wrongSchemaURL)
+        default:
+            archiveData = try makeArchiveData(databaseURL: makeSQLiteFixture())
+        }
+
+        let failurePoint: StubConnectionTransport.FailurePoint =
+            scenario == .midDownload ? .download : .none
+        let injectedCheckpoint: BudgetReimportCheckpoint?
+        switch scenario {
+        case .midDecrypt:
+            injectedCheckpoint = .beforeDecrypt
+        case .midExtract:
+            injectedCheckpoint = .beforeExtract
+        default:
+            injectedCheckpoint = nil
+        }
+
+        let connectionTransport = StubConnectionTransport(
+            failurePoint: failurePoint,
+            files: [testRemoteFile()],
+            token: "reimport-token",
+            downloadData: archiveData
+        )
+        let syncTransport = RecordingSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in syncTransport },
+            connectionTransportFactory: { _ in connectionTransport },
+            reimportFailureCheckpoint: injectedCheckpoint
+        )
+        try bundle.keychain.saveActualSyncToken("reimport-token")
+        let original = try await bundle.store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+
+        await #expect(throws: (any Error).self) {
+            try await bundle.store.reimportBudget(
+                bundle.budget,
+                serverURLString: "https://sync.example"
+            )
+        }
+
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+        let restored = try await bundle.store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+        #expect(restored.month == original.month)
+        #expect(try Data(contentsOf: bundle.fileManager.databaseURL(fileID: "file-1")).count > 0)
+        let budgetRoot = bundle.fileManager.applicationSupportURL.appending(path: "Budgets")
+        let leftoverNames = try FileManager.default.contentsOfDirectory(atPath: budgetRoot.path)
+        #expect(!leftoverNames.contains { $0.contains(".reimport-") })
+    }
+
+    @Test func successfulReimportOpensReplacementAndRetainsRecoverableBackup() async throws {
+        let replacementURL = try makeSQLiteFixture(
+            extraSQL: "INSERT INTO accounts VALUES ('replacement', 'Replacement', 0, 0, 0, 2)"
+        )
+        let archiveData = try makeArchiveData(databaseURL: replacementURL)
+        let connectionTransport = StubConnectionTransport(
+            files: [testRemoteFile()],
+            token: "reimport-token",
+            downloadData: archiveData
+        )
+        let syncTransport = RecordingSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in syncTransport },
+            connectionTransportFactory: { _ in connectionTransport }
+        )
+        try bundle.keychain.saveActualSyncToken("reimport-token")
+
+        try await bundle.store.reimportBudget(
+            bundle.budget,
+            serverURLString: "https://sync.example"
+        )
+
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+        let accounts = bundle.store.accountDisplays(budgetID: "group-1").map(\.account.id)
+        #expect(accounts.contains("replacement"))
+        #expect(try bundle.fileManager.reimportBackupExists(fileID: "file-1"))
     }
 
     @Test(arguments: [
@@ -3610,7 +3715,9 @@ struct LocalFirstActualStoreTests {
     }
 
     private func makeArchive(at url: URL, entries: [(String, Data)]) throws {
-        try FileManager.default.removeItem(at: url)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
         let archive = try Archive(url: url, accessMode: .create)
         for (path, data) in entries {
             try archive.addEntry(
@@ -3623,6 +3730,16 @@ struct LocalFirstActualStoreTests {
                 return data.subdata(in: start..<end)
             }
         }
+    }
+
+    private func makeArchiveData(databaseURL: URL) throws -> Data {
+        let archiveURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistReimport-\(UUID().uuidString).zip")
+        try makeArchive(
+            at: archiveURL,
+            entries: [("db.sqlite", try Data(contentsOf: databaseURL))]
+        )
+        return try Data(contentsOf: archiveURL)
     }
 
     private func testRemoteFile() -> ActualSyncRemoteFile {
@@ -3703,8 +3820,12 @@ struct LocalFirstActualStoreTests {
 
     private func makeOpenedWritableStoreBundle(
         syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
+        connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {
+            ActualServerSyncClient(baseURL: $0)
+        },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
-        additionalFixtureSQL: String = ""
+        additionalFixtureSQL: String = "",
+        reimportFailureCheckpoint: BudgetReimportCheckpoint? = nil
     ) async throws -> OpenedWritableStoreBundle {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;
@@ -3748,7 +3869,14 @@ struct LocalFirstActualStoreTests {
             """)
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)
-        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let fileManager = BudgetFileManager(
+            applicationSupportURL: rootURL,
+            reimportFailureInjector: { checkpoint in
+                if checkpoint == reimportFailureCheckpoint {
+                    throw LocalFirstTestSyncError.failed
+                }
+            }
+        )
         let fileID = "file-1"
         let budgetDirectory = try fileManager.budgetDirectory(fileID: fileID)
         try FileManager.default.createDirectory(at: budgetDirectory, withIntermediateDirectories: true)
@@ -3770,6 +3898,7 @@ struct LocalFirstActualStoreTests {
             keychain: keychain,
             fileManager: fileManager,
             syncTransportFactory: syncTransportFactory,
+            connectionTransportFactory: connectionTransportFactory,
             pendingLocalMessageFlushRetryDelays: pendingLocalMessageFlushRetryDelays
         )
         let budget = ActualBudget(

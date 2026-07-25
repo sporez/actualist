@@ -100,7 +100,7 @@ extension LocalFirstActualStore {
                 guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
                     throw ActualAPIError.invalidURL
                 }
-                let client = ActualServerSyncClient(baseURL: baseURL)
+                let client = connectionTransportFactory(baseURL)
                 let context = try await encryptionContext(
                     metadata: metadata,
                     client: client,
@@ -122,7 +122,7 @@ extension LocalFirstActualStore {
             throw ActualAPIError.invalidURL
         }
 
-        let client = ActualServerSyncClient(baseURL: baseURL)
+        let client = connectionTransportFactory(baseURL)
         let fallbackRemote = ActualSyncRemoteFile(
             fileID: fileID,
             groupID: budget.groupId,
@@ -219,9 +219,97 @@ extension LocalFirstActualStore {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
+        guard let originalMetadata = try fileManager.loadMetadata(fileID: fileID),
+              fileManager.importedDatabaseExists(fileID: fileID) else {
+            throw LocalFirstError.missingImportedDatabase
+        }
+        let token = keychain.readActualSyncToken()
+        guard !token.isEmpty else {
+            throw LocalFirstError.missingSyncToken
+        }
+        guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
+            throw ActualAPIError.invalidURL
+        }
+
+        let client = connectionTransportFactory(baseURL)
+        let fallbackRemote = ActualSyncRemoteFile(
+            fileID: fileID,
+            groupID: budget.groupId,
+            name: budget.name
+        )
+        let remote = try await client.userFileInfo(fileID: fileID, token: token)
+            ?? remoteFilesByFileID[fileID]
+            ?? fallbackRemote
+        let encryptionContext = try await encryptionContext(
+            remote: remote,
+            client: client,
+            token: token,
+            password: nil
+        )
+
+        let workspace = try fileManager.prepareReimportWorkspace(fileID: fileID)
+        defer { fileManager.cleanupReimportWorkspace(workspace) }
+        try await client.downloadUserFile(fileID: fileID, token: token, to: workspace.archiveURL)
+        try fileManager.reimportCheckpoint(.afterDownload)
+        try fileManager.validateStagedDownload(at: workspace.archiveURL)
+        try fileManager.reimportCheckpoint(.beforeDecrypt)
+        if let encryptMeta = remote.encryptMeta {
+            guard let encryptionContext else {
+                throw LocalFirstError.encryptedBudgetRequiresPassword
+            }
+            let encryptedData = try Data(contentsOf: workspace.archiveURL, options: .mappedIfSafe)
+            let budgetData = try ActualBudgetCrypto.decrypt(
+                encryptMeta.encryptedData(encryptedData),
+                keyData: encryptionContext.keyData
+            )
+            try fileManager.replaceStagedDownload(at: workspace.archiveURL, with: budgetData)
+        }
+
+        let metadata = LocalFirstBudgetMetadata(
+            localBudgetID: fileID,
+            cloudFileID: fileID,
+            groupID: remote.groupID ?? budget.groupId,
+            budgetName: remote.name,
+            encryptionKeyID: remote.syncEncryptionKeyID,
+            nodeID: originalMetadata.nodeID
+        )
+        _ = try fileManager.importBudgetZip(
+            at: workspace.archiveURL,
+            into: workspace,
+            metadata: metadata
+        )
+        let validationDatabase = try BudgetDatabase(
+            databaseURL: workspace.databaseURL,
+            localNodeID: metadata.nodeID
+        )
+        try await validationDatabase.validateImportedBudget()
+
         reset()
-        try fileManager.deleteImportedBudget(fileID: fileID)
-        try await openBudget(budget, serverURLString: serverURLString)
+        var didSwap = false
+        do {
+            try fileManager.commitReimport(workspace, fileID: fileID)
+            didSwap = true
+            try await openImportedBudget(
+                fileID: fileID,
+                metadata: metadata,
+                encryptionContext: encryptionContext
+            )
+            openedServerURLString = serverURLString
+            try await pullAndReload(
+                budgetID: metadata.groupID ?? metadata.cloudFileID,
+                serverURLString: serverURLString
+            )
+        } catch {
+            reset()
+            if didSwap {
+                try? fileManager.rollbackReimport(fileID: fileID)
+            }
+            if fileManager.importedDatabaseExists(fileID: fileID) {
+                try? await openImportedBudget(fileID: fileID, metadata: originalMetadata)
+                openedServerURLString = serverURLString
+            }
+            throw error
+        }
     }
 
     func openBudgetForBackgroundDiffIfNeeded(
@@ -289,7 +377,7 @@ extension LocalFirstActualStore {
 
     func encryptionContext(
         metadata: LocalFirstBudgetMetadata,
-        client: ActualServerSyncClient,
+        client: any ActualServerConnectionTransport,
         token: String,
         password: String
     ) async throws -> ActualBudgetEncryptionContext {
@@ -314,7 +402,7 @@ extension LocalFirstActualStore {
 
     func encryptionContext(
         remote: ActualSyncRemoteFile,
-        client: ActualServerSyncClient,
+        client: any ActualServerConnectionTransport,
         token: String,
         password: String?
     ) async throws -> ActualBudgetEncryptionContext? {

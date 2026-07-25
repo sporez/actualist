@@ -26,18 +26,35 @@ struct LocalFirstResourceLimits: Equatable, Sendable {
     )
 }
 
+enum BudgetReimportCheckpoint: Equatable {
+    case afterDownload
+    case beforeDecrypt
+    case beforeExtract
+    case beforeSwap
+}
+
+struct BudgetReimportWorkspace {
+    let directoryURL: URL
+    let archiveURL: URL
+    let databaseURL: URL
+    let metadataURL: URL
+}
+
 struct BudgetFileManager {
     let applicationSupportURL: URL
     private let fileManager: FileManager
     private let resourceLimits: LocalFirstResourceLimits
+    private let reimportFailureInjector: ((BudgetReimportCheckpoint) throws -> Void)?
 
     init(
         applicationSupportURL: URL? = nil,
         fileManager: FileManager = .default,
-        resourceLimits: LocalFirstResourceLimits = .standard
+        resourceLimits: LocalFirstResourceLimits = .standard,
+        reimportFailureInjector: ((BudgetReimportCheckpoint) throws -> Void)? = nil
     ) {
         self.fileManager = fileManager
         self.resourceLimits = resourceLimits
+        self.reimportFailureInjector = reimportFailureInjector
         self.applicationSupportURL = applicationSupportURL
             ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
                 .appending(path: "Actualist", directoryHint: .isDirectory)
@@ -110,10 +127,13 @@ struct BudgetFileManager {
     func deleteImportedBudget(fileID: String) throws {
         try migrateLegacyBudgetDirectoryIfNeeded(fileID: fileID)
         let directory = try budgetDirectory(fileID: fileID)
-        guard fileManager.fileExists(atPath: directory.path) else {
-            return
+        if fileManager.fileExists(atPath: directory.path) {
+            try fileManager.removeItem(at: directory)
         }
-        try fileManager.removeItem(at: directory)
+        let backup = try reimportBackupDirectory(fileID: fileID)
+        if fileManager.fileExists(atPath: backup.path) {
+            try fileManager.removeItem(at: backup)
+        }
     }
 
     func deleteAllImportedBudgets() throws {
@@ -139,6 +159,49 @@ struct BudgetFileManager {
         }
         try hardenBudgetArtifact(at: stagingURL, excludeFromBackup: true)
         return stagingURL
+    }
+
+    func prepareReimportWorkspace(fileID: String) throws -> BudgetReimportWorkspace {
+        try migrateLegacyBudgetDirectoryIfNeeded(fileID: fileID)
+        guard importedDatabaseExists(fileID: fileID) else {
+            throw LocalFirstError.missingImportedDatabase
+        }
+
+        let liveDirectory = try budgetDirectory(fileID: fileID)
+        let directory = try containedURL(
+            liveDirectory
+                .deletingLastPathComponent()
+                .appending(
+                    path: "\(liveDirectory.lastPathComponent).reimport-\(UUID().uuidString)",
+                    directoryHint: .isDirectory
+                )
+        )
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: false)
+        try hardenBudgetArtifact(at: directory, excludeFromBackup: true)
+
+        let archiveURL = try containedURL(directory.appending(path: "download.staging"))
+        guard fileManager.createFile(atPath: archiveURL.path, contents: nil) else {
+            throw LocalFirstError.invalidDownloadedBudget
+        }
+        try hardenBudgetArtifact(at: archiveURL, excludeFromBackup: true)
+        return BudgetReimportWorkspace(
+            directoryURL: directory,
+            archiveURL: archiveURL,
+            databaseURL: try containedURL(directory.appending(path: "db.sqlite")),
+            metadataURL: try containedURL(directory.appending(path: "metadata.json"))
+        )
+    }
+
+    func cleanupReimportWorkspace(_ workspace: BudgetReimportWorkspace) {
+        guard let directory = try? containedURL(workspace.directoryURL),
+              fileManager.fileExists(atPath: directory.path) else {
+            return
+        }
+        try? fileManager.removeItem(at: directory)
+    }
+
+    func reimportCheckpoint(_ checkpoint: BudgetReimportCheckpoint) throws {
+        try reimportFailureInjector?(checkpoint)
     }
 
     func validateStagedDownload(at stagingURL: URL) throws {
@@ -169,6 +232,90 @@ struct BudgetFileManager {
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         try hardenBudgetArtifact(at: directory, excludeFromBackup: true)
 
+        return try importBudgetZip(
+            at: stagedArchiveURL,
+            into: directory,
+            databaseURL: databaseURL(fileID: remoteFile.fileID),
+            metadataURL: metadataURL(fileID: remoteFile.fileID),
+            metadata: metadata
+        )
+    }
+
+    func importBudgetZip(
+        at stagedArchiveURL: URL,
+        into workspace: BudgetReimportWorkspace,
+        metadata: LocalFirstBudgetMetadata
+    ) throws -> URL {
+        try reimportCheckpoint(.beforeExtract)
+        return try importBudgetZip(
+            at: stagedArchiveURL,
+            into: workspace.directoryURL,
+            databaseURL: workspace.databaseURL,
+            metadataURL: workspace.metadataURL,
+            metadata: metadata
+        )
+    }
+
+    func commitReimport(
+        _ workspace: BudgetReimportWorkspace,
+        fileID: String
+    ) throws {
+        try reimportCheckpoint(.beforeSwap)
+        let liveDirectory = try budgetDirectory(fileID: fileID)
+        guard fileManager.fileExists(atPath: liveDirectory.path) else {
+            throw LocalFirstError.missingImportedDatabase
+        }
+        let stagedDirectory = try containedURL(workspace.directoryURL)
+        guard fileManager.fileExists(atPath: stagedDirectory.path) else {
+            throw LocalFirstError.invalidDownloadedBudget
+        }
+
+        let backupDirectory = try reimportBackupDirectory(fileID: fileID)
+        try fileManager.createDirectory(
+            at: backupDirectory.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try hardenBudgetArtifact(
+            at: backupDirectory.deletingLastPathComponent(),
+            excludeFromBackup: true
+        )
+        if fileManager.fileExists(atPath: backupDirectory.path) {
+            try fileManager.removeItem(at: backupDirectory)
+        }
+
+        try fileManager.moveItem(at: liveDirectory, to: backupDirectory)
+        do {
+            try fileManager.moveItem(at: stagedDirectory, to: liveDirectory)
+        } catch {
+            try? fileManager.moveItem(at: backupDirectory, to: liveDirectory)
+            throw error
+        }
+    }
+
+    func rollbackReimport(fileID: String) throws {
+        let liveDirectory = try budgetDirectory(fileID: fileID)
+        let backupDirectory = try reimportBackupDirectory(fileID: fileID)
+        guard fileManager.fileExists(atPath: backupDirectory.path) else {
+            return
+        }
+        if fileManager.fileExists(atPath: liveDirectory.path) {
+            try fileManager.removeItem(at: liveDirectory)
+        }
+        try fileManager.moveItem(at: backupDirectory, to: liveDirectory)
+    }
+
+    func reimportBackupExists(fileID: String) throws -> Bool {
+        fileManager.fileExists(atPath: try reimportBackupDirectory(fileID: fileID).path)
+    }
+
+    private func importBudgetZip(
+        at stagedArchiveURL: URL,
+        into directory: URL,
+        databaseURL: URL,
+        metadataURL: URL,
+        metadata: LocalFirstBudgetMetadata
+    ) throws -> URL {
+        let directory = try containedURL(directory)
         let zipURL = try containedURL(stagedArchiveURL)
         try validateStagedDownload(at: zipURL)
 
@@ -187,21 +334,21 @@ struct BudgetFileManager {
             throw LocalFirstError.missingImportedDatabase
         }
 
-        let databaseURL = try databaseURL(fileID: remoteFile.fileID)
+        let databaseURL = try containedURL(databaseURL)
         if fileManager.fileExists(atPath: databaseURL.path) {
             try fileManager.removeItem(at: databaseURL)
         }
         try fileManager.moveItem(
             at: try containedURL(importedDatabase),
-            to: try containedURL(databaseURL)
+            to: databaseURL
         )
         try hardenBudgetArtifact(at: databaseURL, excludeFromBackup: true)
 
         let metadataData = try JSONEncoder.actual.encode(metadata)
-        let metadataURL = try metadataURL(fileID: remoteFile.fileID)
+        let metadataURL = try containedURL(metadataURL)
         try metadataData.write(to: metadataURL, options: .atomic)
         try hardenBudgetArtifact(at: metadataURL, excludeFromBackup: true)
-        try? fileManager.removeItem(at: containedURL(zipURL))
+        try? fileManager.removeItem(at: zipURL)
         return databaseURL
     }
 
@@ -369,6 +516,18 @@ struct BudgetFileManager {
             throw LocalFirstError.invalidBudgetFileID
         }
         return budgetRoot
+    }
+
+    private func reimportBackupDirectory(fileID: String) throws -> URL {
+        try validate(fileID: fileID)
+        let backupRoot = try containedURL(
+            budgetRootURL().appending(path: ".ReimportBackups", directoryHint: .isDirectory)
+        )
+        let backup = backupRoot.appending(
+            path: SHA256.hash(data: Data(fileID.utf8)).hexString,
+            directoryHint: .isDirectory
+        )
+        return try containedURL(backup)
     }
 
     private func containedURL(_ candidate: URL) throws -> URL {

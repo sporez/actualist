@@ -8,6 +8,9 @@ protocol ActualServerConnectionTransport: Sendable {
     func loginMethods() async throws -> ActualLoginMethodsResponse
     func login(password: String) async throws -> ActualLoginResponse
     func listUserFiles(token: String) async throws -> [ActualSyncRemoteFile]
+    func userFileInfo(fileID: String, token: String) async throws -> ActualSyncRemoteFile?
+    func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws
+    func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse
 }
 
 actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTransport {
