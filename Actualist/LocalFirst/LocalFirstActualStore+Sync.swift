@@ -278,7 +278,7 @@ extension LocalFirstActualStore {
                 token: token
             )
             #if DEBUG
-            print("[Actualist LocalFirst] Applied \(appliedCount) remote sync messages for \(budgetID)")
+            print("[Actualist LocalFirst] Applied \(appliedCount) remote sync messages")
             #endif
 
             try await reloadAfterRemoteSync(database: database, budgetID: budgetID)

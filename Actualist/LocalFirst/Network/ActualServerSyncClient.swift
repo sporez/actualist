@@ -108,8 +108,7 @@ actor ActualServerSyncClient: ActualSyncTransport {
         do {
             return try JSONDecoder.actual.decode(Value.self, from: data)
         } catch {
-            let snippet = Self.sanitizedBodySnippet(data: data, contentType: "application/json")
-            throw ActualAPIError.decoding("\(method) \(path): \(error.localizedDescription). Response: \(snippet)")
+            throw ActualAPIError.decoding
         }
     }
 
@@ -185,7 +184,7 @@ actor ActualServerSyncClient: ActualSyncTransport {
         do {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError {
-            throw ActualAPIError.transport(error)
+            throw ActualAPIError.transport(error.code)
         } catch {
             throw ActualAPIError.transport(nil)
         }
@@ -195,11 +194,7 @@ actor ActualServerSyncClient: ActualSyncTransport {
         }
         Self.debugLogResponse(httpResponse, data: data)
         guard (200..<300).contains(httpResponse.statusCode) else {
-            let message = Self.sanitizedBodySnippet(
-                data: data,
-                contentType: httpResponse.value(forHTTPHeaderField: "Content-Type")
-            )
-            throw ActualAPIError.httpStatus(httpResponse.statusCode, message)
+            throw ActualAPIError.httpStatus(httpResponse.statusCode)
         }
         return data
     }
@@ -207,110 +202,15 @@ actor ActualServerSyncClient: ActualSyncTransport {
     private static func debugLogRequest(_ request: URLRequest) {
         #if DEBUG
         let method = request.httpMethod ?? "GET"
-        let endpoint = redactedEndpoint(request.url)
         let byteCount = request.httpBody?.count ?? 0
-        let headerNames = (request.allHTTPHeaderFields ?? [:]).keys.sorted()
-        print("[Actualist LocalFirst] -> \(method) \(endpoint) (\(byteCount) bytes)")
-        if !headerNames.isEmpty {
-            print("[Actualist LocalFirst] -> headers: \(headerNames.joined(separator: ", "))")
-        }
+        print("[Actualist LocalFirst] -> \(method) request (\(byteCount) bytes)")
         #endif
     }
 
     private static func debugLogResponse(_ response: HTTPURLResponse, data: Data) {
         #if DEBUG
-        let endpoint = redactedEndpoint(response.url)
-        print("[Actualist LocalFirst] <- \(response.statusCode) \(endpoint) (\(data.count) bytes)")
+        print("[Actualist LocalFirst] <- HTTP \(response.statusCode) (\(data.count) bytes)")
         #endif
-    }
-
-    private static func redactedEndpoint(_ url: URL?) -> String {
-        guard let url else {
-            return "<missing URL>"
-        }
-        var components = URLComponents()
-        components.path = url.path.isEmpty ? "/" : url.path
-        return components.string ?? url.path
-    }
-
-    private static func sanitizedBodySnippet(data: Data?, contentType: String?) -> String {
-        guard let data, !data.isEmpty else {
-            return "<empty>"
-        }
-
-        let isText = contentType?.localizedCaseInsensitiveContains("json") == true
-            || contentType?.localizedCaseInsensitiveContains("text") == true
-            || data.count < 2_048
-        guard isText else {
-            return "<\(data.count) bytes>"
-        }
-
-        let sanitizedData = sanitizedJSONData(data) ?? data
-        let text = String(data: sanitizedData, encoding: .utf8) ?? "<\(data.count) bytes, non-UTF8>"
-        let singleLine = text
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "\r", with: " ")
-        if let htmlMessage = readableHTMLMessage(from: singleLine) {
-            return htmlMessage
-        }
-        if singleLine.count > 800 {
-            return "\(singleLine.prefix(800))..."
-        }
-        return singleLine
-    }
-
-    private static func readableHTMLMessage(from text: String) -> String? {
-        let lowercased = text.lowercased()
-        guard lowercased.contains("<html")
-            || lowercased.contains("<!doctype html")
-            || lowercased.contains("<body")
-            || lowercased.contains("<pre") else {
-            return nil
-        }
-
-        let withoutTags = text
-            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !withoutTags.isEmpty else {
-            return "HTML error response"
-        }
-        return withoutTags.count > 180 ? "\(withoutTags.prefix(180))..." : withoutTags
-    }
-
-    private static func sanitizedJSONData(_ data: Data) -> Data? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) else {
-            return nil
-        }
-        let sanitized = sanitizeJSONObject(object)
-        return try? JSONSerialization.data(withJSONObject: sanitized, options: [.sortedKeys])
-    }
-
-    private static func sanitizeJSONObject(_ object: Any) -> Any {
-        if let dictionary = object as? [String: Any] {
-            return dictionary.reduce(into: [String: Any]()) { result, pair in
-                if isSensitiveKey(pair.key) {
-                    result[pair.key] = "<redacted>"
-                } else {
-                    result[pair.key] = sanitizeJSONObject(pair.value)
-                }
-            }
-        }
-        if let array = object as? [Any] {
-            return array.map(sanitizeJSONObject)
-        }
-        return object
-    }
-
-    private static func isSensitiveKey(_ key: String) -> Bool {
-        let normalized = key.lowercased()
-        return normalized.contains("password")
-            || normalized.contains("token")
-            || normalized == "authorization"
-            || normalized.contains("key")
     }
 
     private struct LoginPayload: Encodable {
@@ -327,9 +227,9 @@ enum ActualAPIError: LocalizedError {
     case invalidURL
     case invalidResponse
     case missingTransactionID
-    case httpStatus(Int, String?)
-    case decoding(String)
-    case transport(URLError?)
+    case httpStatus(Int)
+    case decoding
+    case transport(URLError.Code?)
 
     var errorDescription: String? {
         switch self {
@@ -339,21 +239,15 @@ enum ActualAPIError: LocalizedError {
             "The server returned an invalid response."
         case .missingTransactionID:
             "This transaction cannot be changed because the server did not provide its transaction ID."
-        case .httpStatus(let status, let message):
-            if let message, !message.isEmpty {
-                "The server returned HTTP \(status): \(message)"
-            } else {
-                "The server returned HTTP \(status)."
-            }
-        case .decoding(let message):
-            "Actualist could not read the server response: \(message)"
-        case .transport(let error):
-            if error?.code == .timedOut {
+        case .httpStatus(let status):
+            "The server returned HTTP \(status)."
+        case .decoding:
+            "Actualist could not read the server response."
+        case .transport(let code):
+            if code == .timedOut {
                 "The server did not respond. Check that this phone is on the same Wi-Fi as your Actual server and that the URL is correct."
-            } else if error?.code == .notConnectedToInternet {
+            } else if code == .notConnectedToInternet {
                 "This device is not connected to the network."
-            } else if let error {
-                "Actualist could not reach the server: \(error.localizedDescription)"
             } else {
                 "Actualist could not reach the server."
             }

@@ -151,3 +151,114 @@ struct DiagnosticReportTests {
         )
     }
 }
+
+struct ActualServerErrorRedactionTests {
+    @Test func decodingErrorDoesNotExposeResponseOrServerURL() async throws {
+        let client = makeClient(host: "invalid.actual.private.example")
+
+        do {
+            _ = try await client.loginMethods()
+            Issue.record("Expected invalid JSON to fail decoding")
+        } catch {
+            let message = error.localizedDescription
+            #expect(message == "Actualist could not read the server response.")
+            #expect(!message.contains("private-token"))
+            #expect(!message.contains("123456789"))
+            #expect(!message.contains("actual.private.example"))
+        }
+    }
+
+    @Test func HTTPErrorDoesNotExposeResponseOrServerURL() async throws {
+        let client = makeClient(host: "denied.actual.private.example")
+
+        do {
+            _ = try await client.loginMethods()
+            Issue.record("Expected the HTTP response to fail")
+        } catch {
+            let message = error.localizedDescription
+            #expect(message == "The server returned HTTP 401.")
+            #expect(!message.contains("private-token"))
+            #expect(!message.contains("123456789"))
+            #expect(!message.contains("actual.private.example"))
+        }
+    }
+
+    @Test func transportErrorDoesNotExposeFailingURL() async throws {
+        let client = makeClient(host: "offline.actual.private.example")
+
+        do {
+            _ = try await client.loginMethods()
+            Issue.record("Expected the transport to fail")
+        } catch {
+            let message = error.localizedDescription
+            #expect(message == "Actualist could not reach the server.")
+            #expect(!message.contains("offline.actual.private.example"))
+            #expect(!message.contains("private-token"))
+        }
+    }
+
+    private func makeClient(host: String) -> ActualServerSyncClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [SensitiveResponseURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        return ActualServerSyncClient(
+            baseURL: URL(string: "https://\(host)/base?token=private-token")!,
+            session: session
+        )
+    }
+}
+
+private final class SensitiveResponseURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let url = request.url else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+
+        switch url.host {
+        case "invalid.actual.private.example":
+            send(
+                statusCode: 200,
+                body: #"{not-json "token":"private-token","accountNumber":"123456789"}"#
+            )
+        case "denied.actual.private.example":
+            send(
+                statusCode: 401,
+                body: #"private-token account 123456789 at https://actual.private.example"#
+            )
+        default:
+            client?.urlProtocol(
+                self,
+                didFailWithError: URLError(
+                    .cannotConnectToHost,
+                    userInfo: [
+                        NSURLErrorFailingURLErrorKey: url,
+                        NSURLErrorFailingURLStringErrorKey: url.absoluteString
+                    ]
+                )
+            )
+        }
+    }
+
+    override func stopLoading() {}
+
+    private func send(statusCode: Int, body: String) {
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
