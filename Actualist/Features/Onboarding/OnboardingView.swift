@@ -182,6 +182,7 @@ struct BudgetPickerView: View {
                         }
                     }
                 }
+                .appSwitcherPrivacyProtected()
             }
         }
     }

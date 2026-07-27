@@ -92,6 +92,7 @@ struct UncategorizedTransactionsView: View {
                     }
                 }
             }
+            .appSwitcherPrivacyProtected()
         }
     }
 

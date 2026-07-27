@@ -142,6 +142,7 @@ struct BudgetView: View {
                                 Task { await viewModel.selectMonth(month, using: appState) }
                             }
                             .presentationCompactAdaptation(.popover)
+                            .appSwitcherPrivacyProtected()
                         }
                     }
 
@@ -205,10 +206,12 @@ struct BudgetView: View {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
                         .environment(appState)
+                        .appSwitcherPrivacyProtected()
                 }
                 .sheet(isPresented: $isSettingsPresented) {
                     SettingsView(showsDismissButton: true)
                         .environment(appState)
+                        .appSwitcherPrivacyProtected()
                 }
                 .sheet(isPresented: $isUncategorizedTransactionsPresented) {
                     UncategorizedTransactionsView(
@@ -222,12 +225,14 @@ struct BudgetView: View {
                         }
                     )
                     .environment(appState)
+                    .appSwitcherPrivacyProtected()
                 }
                 .sheet(item: $categoryDetailsPresentation, onDismiss: {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
                 }) { details in
                     CategoryMonthDetailsView(details: details)
                         .environment(appState)
+                        .appSwitcherPrivacyProtected()
                 }
                 .sheet(
                     isPresented: $isOverspentCategoriesPresented,
@@ -240,6 +245,7 @@ struct BudgetView: View {
                     ) { category in
                         pendingOverspentCategoryID = category.id
                     }
+                    .appSwitcherPrivacyProtected()
                 }
                 .sheet(
                     isPresented: moveMoneyPresentationBinding,
@@ -250,6 +256,7 @@ struct BudgetView: View {
                         onSaved: handleMoveMoneySaved
                     )
                         .environment(appState)
+                        .appSwitcherPrivacyProtected()
                 }
                 .modifier(
                     BudgetTemplateConfirmationModifier(

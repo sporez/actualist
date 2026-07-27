@@ -579,7 +579,10 @@ struct TransactionRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(ActualistTheme.elevatedSurface, in: Capsule())
+        .background(
+            isNew ? ActualistTheme.control : ActualistTheme.elevatedSurface,
+            in: Capsule()
+        )
     }
 
     private var cleanedPayeeName: String {

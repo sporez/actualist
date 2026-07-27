@@ -32,39 +32,54 @@ struct ActualistApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                RootView()
-
-                if AppSwitcherSnapshotPolicy.shouldCover(
-                    mode: appState.settings.appSwitcherPrivacyMode,
-                    scenePhase: scenePhase,
-                    isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
-                ) {
-                    AppSwitcherPrivacyCover(theme: appState.settings.theme)
-                        .transition(.identity)
-                        .zIndex(1)
-                }
-            }
-            .environment(appState)
-            .preferredColorScheme(appState.settings.theme.colorScheme)
-            .onAppear {
-                BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
-            }
-            .task {
-                await appState.beginForegroundSession()
-            }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .active {
-                    appState.clearAppInitiatedSystemUIPresentationSuppression()
-                    Task {
-                        await appState.beginForegroundSession()
-                    }
-                } else if phase == .background {
-                    appState.endForegroundSession()
+            RootView()
+                .appSwitcherPrivacyProtected()
+                .environment(appState)
+                .preferredColorScheme(appState.settings.theme.colorScheme)
+                .onAppear {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }
+                .task {
+                    await appState.beginForegroundSession()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        appState.clearAppInitiatedSystemUIPresentationSuppression()
+                        Task {
+                            await appState.beginForegroundSession()
+                        }
+                    } else if phase == .background {
+                        appState.endForegroundSession()
+                        BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
+                    }
+                }
+        }
+    }
+}
+
+private struct AppSwitcherPrivacyProtectionModifier: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(AppState.self) private var appState
+
+    func body(content: Content) -> some View {
+        content.overlay {
+            if AppSwitcherSnapshotPolicy.shouldCover(
+                mode: appState.settings.appSwitcherPrivacyMode,
+                scenePhase: scenePhase,
+                isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
+            ) {
+                AppSwitcherPrivacyCover(theme: appState.settings.theme)
+                    .transition(.identity)
             }
         }
+    }
+}
+
+extension View {
+    /// SwiftUI presentations use their own hosting layers, so every presented
+    /// surface must opt in as well as the root view.
+    func appSwitcherPrivacyProtected() -> some View {
+        modifier(AppSwitcherPrivacyProtectionModifier())
     }
 }
 

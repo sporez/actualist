@@ -66,6 +66,7 @@ struct BudgetMoveMoneyView: View {
         .sheet(isPresented: $isDestinationPickerPresented) {
             BudgetMoveMoneyDestinationPicker(viewModel: viewModel)
                 .environment(appState)
+                .appSwitcherPrivacyProtected()
         }
         .task(id: viewModel.moveMoneyDraft?.focusedCategoryID) {
             guard !didAutoPresentDestinationPicker else {
@@ -767,4 +768,3 @@ private struct BudgetMoveMoneyDestinationPicker: View {
         )
     }
 }
-

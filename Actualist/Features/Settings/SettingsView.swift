@@ -151,7 +151,7 @@ struct SettingsView: View {
                 .settingsSectionChrome()
 
                 Section("Privacy") {
-                    Picker("Hide Contents in App Switcher", selection: appSwitcherPrivacyModeSelection) {
+                    Picker("App Switcher", selection: appSwitcherPrivacyModeSelection) {
                         ForEach(AppSwitcherPrivacyMode.allCases) { mode in
                             Text(mode.title)
                                 .tag(mode)

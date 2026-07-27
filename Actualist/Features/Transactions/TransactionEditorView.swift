@@ -80,9 +80,11 @@ struct TransactionEditorView: View {
         }
         .sheet(isPresented: $isPayeePickerPresented) {
             PayeeSelectionView(viewModel: viewModel)
+                .appSwitcherPrivacyProtected()
         }
         .sheet(isPresented: $isCategoryPickerPresented) {
             TransactionCategorySelectionView(viewModel: viewModel)
+                .appSwitcherPrivacyProtected()
         }
         .confirmationDialog(
             "Something Doesn't Add Up",

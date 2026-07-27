@@ -125,8 +125,10 @@ struct SettingsBudgetPickerSheet: View {
                 }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+                .appSwitcherPrivacyProtected()
             }
         }
+        .appSwitcherPrivacyProtected()
     }
 
     private func selectBudget(_ budget: ActualBudget) async {
@@ -168,4 +170,3 @@ struct SettingsBudgetPickerSheet: View {
         return PrivacyDisplay.name(for: .budget, seed: budget.syncID)
     }
 }
-

@@ -88,6 +88,7 @@ struct SettingsDeveloperDiagnosticsSheet: View {
                 }
             }
         }
+        .appSwitcherPrivacyProtected()
     }
 
     private func retrySync() async {
@@ -402,4 +403,3 @@ private struct BackgroundRefreshDebugRunRow: View {
         return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
     }
 }
-

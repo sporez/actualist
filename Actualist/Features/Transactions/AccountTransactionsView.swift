@@ -320,6 +320,7 @@ struct AccountTransactionsView: View {
                 Task { await loadLocal() }
             }
                 .environment(appState)
+                .appSwitcherPrivacyProtected()
         }
         .sheet(isPresented: $isReconcilePresented) {
             if let account = scope.account {
@@ -328,6 +329,7 @@ struct AccountTransactionsView: View {
                     currentBalance: balance
                 )
                 .environment(appState)
+                .appSwitcherPrivacyProtected()
             }
         }
         .confirmationDialog(

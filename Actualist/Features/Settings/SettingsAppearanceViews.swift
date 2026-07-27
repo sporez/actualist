@@ -81,6 +81,7 @@ struct AppIconPickerSheet: View {
                 }
             }
         }
+        .appSwitcherPrivacyProtected()
     }
 }
 

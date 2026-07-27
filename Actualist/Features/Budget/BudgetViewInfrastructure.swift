@@ -46,6 +46,7 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
             .presentationDetents([.height(310)])
             .presentationDragIndicator(.visible)
             .presentationBackground(ActualistTheme.background)
+            .appSwitcherPrivacyProtected()
         }
     }
 }
@@ -161,4 +162,3 @@ struct BudgetKeypadPressStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
-
