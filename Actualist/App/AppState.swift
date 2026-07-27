@@ -547,7 +547,6 @@ final class AppState {
         do {
             let outcome = try await backgroundRefreshRunner.run(
                 settings: settings,
-                setupPhase: setupPhase,
                 selectedBudget: selectedBudget,
                 budgets: budgets,
                 canUseAPI: canUseAPI,

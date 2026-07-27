@@ -355,7 +355,18 @@ extension LocalFirstActualStore {
         openedGroupID = metadata.groupID
         openedNodeID = metadata.nodeID
         openedEncryptionContext = encryptionContext
-        accountsByBudget[metadata.groupID ?? metadata.cloudFileID] = try? await database.fetchAccountDisplays()
+        let budgetID = metadata.groupID ?? metadata.cloudFileID
+        accountsByBudget[budgetID] = try? await database.fetchAccountDisplays()
+        let checkpoint = try? await database.localSyncCheckpoint()
+        syncStatus = LocalFirstSyncStatus(
+            fileID: budgetID,
+            groupID: metadata.groupID,
+            lastSyncedAt: checkpoint?.lastSyncedAt,
+            lastAppliedMessageCount: checkpoint?.lastAppliedMessageCount ?? 0,
+            lastUploadedMessageCount: checkpoint?.lastUploadedMessageCount ?? 0,
+            encryptionKeyID: encryptionContext?.keyID,
+            pendingLocalMessageCount: (try? await database.pendingLocalSyncMessageCount()) ?? 0
+        )
         await syncClient.configure(
             LocalFirstSyncConfiguration(
                 fileID: metadata.cloudFileID,

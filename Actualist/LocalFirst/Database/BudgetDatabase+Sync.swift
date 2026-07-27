@@ -2,6 +2,11 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
+    struct LocalSyncCheckpoint: Equatable, Sendable {
+        let lastSyncedAt: Date
+        let lastAppliedMessageCount: Int
+        let lastUploadedMessageCount: Int
+    }
 
     func latestSyncTimestamp() throws -> String {
         try queue.read { db in
@@ -285,6 +290,52 @@ extension BudgetDatabase {
         }
     }
 
+    func localSyncCheckpoint() throws -> LocalSyncCheckpoint? {
+        try queue.read { db in
+            guard try tableExists("actualist_sync_checkpoint", db: db),
+                  let row = try Row.fetchOne(
+                    db,
+                    sql: """
+                        SELECT last_synced_at, last_applied_message_count, last_uploaded_message_count
+                        FROM actualist_sync_checkpoint
+                        WHERE id = 1
+                        """
+                  ),
+                  let lastSyncedAt = row["last_synced_at"] as Double?,
+                  let lastAppliedMessageCount = row["last_applied_message_count"] as Int?,
+                  let lastUploadedMessageCount = row["last_uploaded_message_count"] as Int? else {
+                return nil
+            }
+            return LocalSyncCheckpoint(
+                lastSyncedAt: Date(timeIntervalSince1970: lastSyncedAt),
+                lastAppliedMessageCount: lastAppliedMessageCount,
+                lastUploadedMessageCount: lastUploadedMessageCount
+            )
+        }
+    }
+
+    func saveLocalSyncCheckpoint(_ checkpoint: LocalSyncCheckpoint) throws {
+        try queue.write { db in
+            try ensureLocalSyncCheckpoint(db)
+            try db.execute(
+                sql: """
+                    INSERT INTO actualist_sync_checkpoint
+                        (id, last_synced_at, last_applied_message_count, last_uploaded_message_count)
+                    VALUES (1, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        last_synced_at = excluded.last_synced_at,
+                        last_applied_message_count = excluded.last_applied_message_count,
+                        last_uploaded_message_count = excluded.last_uploaded_message_count
+                    """,
+                arguments: [
+                    checkpoint.lastSyncedAt.timeIntervalSince1970,
+                    checkpoint.lastAppliedMessageCount,
+                    checkpoint.lastUploadedMessageCount
+                ]
+            )
+        }
+    }
+
     func pendingLocalSyncMessages(limit: Int = 500) throws -> [PendingLocalSyncMessage] {
         try queue.read { db in
             guard try tableExists("actualist_outbox", db: db) else {
@@ -549,6 +600,18 @@ extension BudgetDatabase {
         // creation invalidates the cache. Do not cache `true` here: this call is inside the local
         // write transaction, and a later validation error could roll the table creation back.
         tableExistsCache["actualist_outbox"] = nil
+    }
+
+    func ensureLocalSyncCheckpoint(_ db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE IF NOT EXISTS actualist_sync_checkpoint (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                last_synced_at REAL NOT NULL,
+                last_applied_message_count INTEGER NOT NULL,
+                last_uploaded_message_count INTEGER NOT NULL
+            )
+            """)
+        tableExistsCache["actualist_sync_checkpoint"] = nil
     }
 
     func insertLocalSyncOutboxMessage(

@@ -54,16 +54,17 @@ enum BackgroundTransactionRefreshOutcome: Sendable {
 struct BackgroundTransactionRefreshRunner {
     func run(
         settings: AppSettings,
-        setupPhase: SetupPhase,
         selectedBudget: ActualBudget?,
         budgets: [ActualBudget],
         canUseAPI: Bool,
         store: LocalFirstActualStore,
         timeLimit: Duration
     ) async throws -> BackgroundTransactionRefreshOutcome {
+        // A BGAppRefreshTask can cold-launch the process before the foreground scene restores
+        // AppState. Persisted budget metadata and the cached database are the background
+        // preconditions; syncAndFindNewTransactions opens that cache on demand.
         if let reason = skipReason(
             settings: settings,
-            setupPhase: setupPhase,
             canUseAPI: canUseAPI
         ) {
             return .skipped(reason)
@@ -155,15 +156,11 @@ struct BackgroundTransactionRefreshRunner {
 
     private func skipReason(
         settings: AppSettings,
-        setupPhase: SetupPhase,
         canUseAPI: Bool
     ) -> String? {
         var reasons: [String] = []
         if !settings.backgroundTransactionRefreshEnabled {
             reasons.append("alerts disabled")
-        }
-        if setupPhase != .ready {
-            reasons.append("app not ready")
         }
         if settings.selectedBudgetID == nil {
             reasons.append("no selected budget")

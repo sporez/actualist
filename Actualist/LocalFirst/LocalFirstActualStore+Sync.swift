@@ -356,12 +356,28 @@ extension LocalFirstActualStore {
             status.pendingLocalMessageCount = (try? await database.pendingLocalSyncMessageCount()) ?? status.pendingLocalMessageCount
         }
         if let appliedCount, let uploadedCount {
-            status.lastSyncedAt = Date()
+            let lastSyncedAt = Date()
+            status.lastSyncedAt = lastSyncedAt
             status.lastAppliedMessageCount = appliedCount
             if uploadedCount > 0 {
                 status.lastUploadedMessageCount = uploadedCount
             }
             status.lastError = nil
+            if let database {
+                do {
+                    try await database.saveLocalSyncCheckpoint(
+                        BudgetDatabase.LocalSyncCheckpoint(
+                            lastSyncedAt: lastSyncedAt,
+                            lastAppliedMessageCount: status.lastAppliedMessageCount,
+                            lastUploadedMessageCount: status.lastUploadedMessageCount
+                        )
+                    )
+                } catch {
+                    #if DEBUG
+                    print("[Actualist LocalFirst] Could not persist the last sync checkpoint")
+                    #endif
+                }
+            }
         } else if let error {
             status.lastError = error.localizedDescription
         }

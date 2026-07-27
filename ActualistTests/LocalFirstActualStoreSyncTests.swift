@@ -257,6 +257,63 @@ extension LocalFirstActualStoreTests {
         #expect(run.message == "Timed out")
     }
 
+    @Test func coldBackgroundRefreshOpensCachedBudgetAndFlushesPendingOutbox() async throws {
+        let transport = RecordingSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
+        #expect(pendingCount > 0)
+
+        bundle.store.reset()
+        let state = try makeAppState(for: bundle)
+        state.settings.backgroundTransactionRefreshEnabled = true
+
+        #expect(state.setupPhase == .restoringBudget)
+        #expect(!bundle.store.isOpen(budgetID: "group-1"))
+
+        let success = await state.performBackgroundTransactionRefresh()
+
+        #expect(success)
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+        #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
+        #expect(await transport.messageCounts().contains(pendingCount))
+        let run = try #require(state.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.succeeded == true)
+        #expect(run.message == "Synced budget; no new transactions")
+    }
+
+    @Test func successfulSyncCheckpointSurvivesOfflineCachedBudgetReopen() async throws {
+        let transport = RecordingSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+
+        try await bundle.store.refresh(
+            budgetID: "group-1",
+            serverURLString: "https://sync.example"
+        )
+        let original = try #require(bundle.store.syncStatus(budgetID: "group-1"))
+        let originalLastSyncedAt = try #require(original.lastSyncedAt)
+        let requestCount = await transport.messageCounts().count
+
+        bundle.store.reset()
+        #expect(try await bundle.store.openCachedBudget(bundle.budget))
+
+        let restored = try #require(bundle.store.syncStatus(budgetID: "group-1"))
+        let restoredLastSyncedAt = try #require(restored.lastSyncedAt)
+        #expect(abs(restoredLastSyncedAt.timeIntervalSince(originalLastSyncedAt)) < 0.001)
+        #expect(restored.lastAppliedMessageCount == original.lastAppliedMessageCount)
+        #expect(restored.lastUploadedMessageCount == original.lastUploadedMessageCount)
+        #expect(restored.pendingLocalMessageCount == 0)
+        #expect(await transport.messageCounts().count == requestCount)
+    }
+
     @Test func localFirstSyncMessageEnvelopeRoundTripsThroughProtobuf() async throws {
         let message = ActualSyncDecodedMessage(
             timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
