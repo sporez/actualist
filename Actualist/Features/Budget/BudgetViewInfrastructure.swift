@@ -44,7 +44,7 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
                 }
             )
             .presentationDetents([.height(310)])
-            .presentationDragIndicator(.visible)
+            .appSwitcherPrivacyAwareDragIndicator()
             .presentationBackground(ActualistTheme.background)
             .appSwitcherPrivacyProtected()
         }

@@ -63,15 +63,36 @@ private struct AppSwitcherPrivacyProtectionModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.overlay {
-            if AppSwitcherSnapshotPolicy.shouldCover(
-                mode: appState.settings.appSwitcherPrivacyMode,
-                scenePhase: scenePhase,
-                isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
-            ) {
+            if shouldCover {
                 AppSwitcherPrivacyCover(theme: appState.settings.theme)
                     .transition(.identity)
             }
         }
+    }
+
+    private var shouldCover: Bool {
+        AppSwitcherSnapshotPolicy.shouldCover(
+            mode: appState.settings.appSwitcherPrivacyMode,
+            scenePhase: scenePhase,
+            isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
+        )
+    }
+}
+
+private struct AppSwitcherPrivacyAwareDragIndicatorModifier: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(AppState.self) private var appState
+
+    func body(content: Content) -> some View {
+        content.presentationDragIndicator(shouldCover ? .hidden : .visible)
+    }
+
+    private var shouldCover: Bool {
+        AppSwitcherSnapshotPolicy.shouldCover(
+            mode: appState.settings.appSwitcherPrivacyMode,
+            scenePhase: scenePhase,
+            isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
+        )
     }
 }
 
@@ -80,6 +101,12 @@ extension View {
     /// surface must opt in as well as the root view.
     func appSwitcherPrivacyProtected() -> some View {
         modifier(AppSwitcherPrivacyProtectionModifier())
+    }
+
+    /// The sheet grabber is system-owned chrome above the presented content,
+    /// so hide it at its presentation seam while the privacy cover is active.
+    func appSwitcherPrivacyAwareDragIndicator() -> some View {
+        modifier(AppSwitcherPrivacyAwareDragIndicatorModifier())
     }
 }
 

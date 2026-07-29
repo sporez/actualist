@@ -598,7 +598,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .appSwitcherPrivacyAwareDragIndicator()
         .onAppear {
             isSplitMode = viewModel.moveMoneyDraft?.allocations.isEmpty == false
         }

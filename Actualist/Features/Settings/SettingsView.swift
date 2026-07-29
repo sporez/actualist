@@ -471,13 +471,13 @@ struct SettingsView: View {
                 )
                     .environment(appState)
                     .presentationDetents([.height(320)])
-                    .presentationDragIndicator(.visible)
+                    .appSwitcherPrivacyAwareDragIndicator()
             }
             .sheet(isPresented: $isAccountOrderPresented) {
                 SettingsAccountOrderSheet()
                     .environment(appState)
                     .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+                    .appSwitcherPrivacyAwareDragIndicator()
             }
             .sheet(isPresented: $isDeveloperDiagnosticsPresented) {
                 #if DEBUG

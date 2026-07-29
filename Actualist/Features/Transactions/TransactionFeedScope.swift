@@ -143,7 +143,7 @@ struct CategoryMonthDetailsView: View {
             Task { await viewModel.refresh(using: appState) }
         }
         .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .appSwitcherPrivacyAwareDragIndicator()
     }
 }
 
@@ -205,4 +205,3 @@ enum TransactionFeedScope: Hashable {
         return true
     }
 }
-

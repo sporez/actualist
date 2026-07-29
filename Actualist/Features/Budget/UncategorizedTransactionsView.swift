@@ -58,7 +58,7 @@ struct UncategorizedTransactionsView: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $selectedDetent)
-        .presentationDragIndicator(.visible)
+        .appSwitcherPrivacyAwareDragIndicator()
         .task {
             await viewModel.loadIfNeeded(month: month, using: appState)
             if viewModel.transactions.count >= 4 {

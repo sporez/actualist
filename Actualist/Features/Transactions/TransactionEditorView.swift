@@ -652,7 +652,7 @@ struct TransactionCategorySelectionView: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .appSwitcherPrivacyAwareDragIndicator()
         .onAppear {
             isSplitMode = viewModel?.isSplit ?? false
             Task {

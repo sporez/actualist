@@ -101,7 +101,7 @@ struct BudgetOverspentCategoriesView: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .appSwitcherPrivacyAwareDragIndicator()
     }
 
     private func categoryName(_ category: BudgetOverspentCategoryOption) -> String {
@@ -277,4 +277,3 @@ struct BudgetMonthPicker: View {
         Calendar.current.shortMonthSymbols[monthNumber - 1]
     }
 }
-

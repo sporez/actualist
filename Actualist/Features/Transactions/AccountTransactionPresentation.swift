@@ -252,7 +252,7 @@ struct AccountReconciliationSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .appSwitcherPrivacyAwareDragIndicator()
         .task {
             await Task.yield()
             isStatementBalanceFocused = true

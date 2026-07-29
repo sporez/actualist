@@ -124,7 +124,7 @@ struct SettingsBudgetPickerSheet: View {
                     }
                 }
                 .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
+                .appSwitcherPrivacyAwareDragIndicator()
                 .appSwitcherPrivacyProtected()
             }
         }

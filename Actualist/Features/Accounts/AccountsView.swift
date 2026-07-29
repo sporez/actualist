@@ -77,7 +77,7 @@ struct AccountsView: View {
             .sheet(isPresented: $isAddAccountPresented) {
                 AddAccountSheet(viewModel: addAccountViewModel)
                     .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+                    .appSwitcherPrivacyAwareDragIndicator()
                     .appSwitcherPrivacyProtected()
             }
         }
