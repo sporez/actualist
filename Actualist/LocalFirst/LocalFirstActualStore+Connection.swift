@@ -357,6 +357,7 @@ extension LocalFirstActualStore {
         openedEncryptionContext = encryptionContext
         let budgetID = metadata.groupID ?? metadata.cloudFileID
         accountsByBudget[budgetID] = try? await database.fetchAccountDisplays()
+        payeesByBudget[budgetID] = try? await database.fetchPayeeManagementSnapshot()
         let checkpoint = try? await database.localSyncCheckpoint()
         syncStatus = LocalFirstSyncStatus(
             fileID: budgetID,

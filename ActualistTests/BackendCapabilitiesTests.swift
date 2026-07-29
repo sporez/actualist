@@ -20,6 +20,7 @@ struct BackendCapabilitiesTests {
         #expect(capabilities.canAssignBudget)
         #expect(capabilities.showsAddAccount)
         #expect(capabilities.canAddAccount)
+        #expect(capabilities.canManagePayees)
         #expect(capabilities.supportsBackgroundRefresh)
         #expect(capabilities.supportsTransactionNotifications)
     }
@@ -59,6 +60,7 @@ struct BackendCapabilitiesTests {
                 #expect(capabilities.canApplyBudgetTemplates)
                 #expect(capabilities.showsAddAccount)
                 #expect(capabilities.canAddAccount)
+                #expect(capabilities.canManagePayees)
             }
         }
     }

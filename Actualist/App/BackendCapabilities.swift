@@ -35,6 +35,8 @@ struct BackendCapabilities: Equatable {
     }
     /// Create an account and its linked transfer payee.
     var canAddAccount: Bool { true }
+    /// Create, rename, merge, and safely delete regular payees.
+    var canManagePayees: Bool { true }
 
     // MARK: Unsupported writes
 

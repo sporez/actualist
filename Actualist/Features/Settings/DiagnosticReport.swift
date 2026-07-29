@@ -136,6 +136,7 @@ enum ActualistDiagnosticReportBuilder {
             "Move money: \(yesNo(appState.capabilities.canMoveMoney))",
             "Budget templates: \(yesNo(appState.canApplyBudgetTemplates))",
             "Add account: \(yesNo(appState.capabilities.canAddAccount))",
+            "Manage payees: \(yesNo(appState.capabilities.canManagePayees))",
             "Reconcile: \(yesNo(appState.capabilities.canReconcile))",
             "Apply rules: \(yesNo(appState.capabilities.canApplyRules))",
             "Background refresh: \(yesNo(appState.capabilities.supportsBackgroundRefresh))",

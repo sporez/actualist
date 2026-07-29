@@ -11,6 +11,11 @@
 		010000000000000000000002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000002 /* AppState.swift */; };
 		01000000000000000000006E /* BackgroundTransactionRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */; };
 		01000000000000000000006F /* NewTransactionNotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */; };
+		010000000000000000000070 /* PayeeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000070 /* PayeeRepository.swift */; };
+		010000000000000000000071 /* BudgetDatabase+Payees.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000071 /* BudgetDatabase+Payees.swift */; };
+		010000000000000000000072 /* PayeesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000072 /* PayeesViewModel.swift */; };
+		010000000000000000000073 /* PayeesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000073 /* PayeesView.swift */; };
+		010000000000000000000074 /* PayeeManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000074 /* PayeeManagementTests.swift */; };
 		01000000000000000000003A /* BackendCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000036 /* BackendCapabilities.swift */; };
 		010000000000000000000003 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000003 /* AppTab.swift */; };
 		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
@@ -132,6 +137,11 @@
 		020000000000000000000002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransactionRefreshRunner.swift; sourceTree = "<group>"; };
 		02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTransactionNotificationCoordinator.swift; sourceTree = "<group>"; };
+		020000000000000000000070 /* PayeeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeRepository.swift; sourceTree = "<group>"; };
+		020000000000000000000071 /* BudgetDatabase+Payees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Payees.swift"; sourceTree = "<group>"; };
+		020000000000000000000072 /* PayeesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeesViewModel.swift; sourceTree = "<group>"; };
+		020000000000000000000073 /* PayeesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeesView.swift; sourceTree = "<group>"; };
+		020000000000000000000074 /* PayeeManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeManagementTests.swift; sourceTree = "<group>"; };
 		020000000000000000000036 /* BackendCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendCapabilities.swift; sourceTree = "<group>"; };
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
 		020000000000000000000004 /* ActualistTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistTheme.swift; sourceTree = "<group>"; };
@@ -366,6 +376,7 @@
 		040000000000000000000010 /* ActualistTests */ = {
 			isa = PBXGroup;
 			children = (
+				020000000000000000000074 /* PayeeManagementTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
 				02000000000000000000001C /* BudgetViewModelTests.swift */,
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
@@ -464,6 +475,8 @@
 			children = (
 				28C36EC32FE377C800A9F4A8 /* AppIcon.swift */,
 				02000000000000000000000D /* SettingsView.swift */,
+				020000000000000000000073 /* PayeesView.swift */,
+				020000000000000000000072 /* PayeesViewModel.swift */,
 				02000000000000000000005C /* SettingsDeveloperDiagnostics.swift */,
 				02000000000000000000005D /* SettingsBudgetPickerSheet.swift */,
 				02000000000000000000005E /* SettingsAccountOrderSheet.swift */,
@@ -491,6 +504,7 @@
 				020000000000000000000018 /* BudgetRepository.swift */,
 				02000000000000000000002D /* AccountRepository.swift */,
 				020000000000000000000022 /* TransactionRepository.swift */,
+				020000000000000000000070 /* PayeeRepository.swift */,
 				02000000000000000000004D /* ReportsRepository.swift */,
 			);
 			path = Repositories;
@@ -537,6 +551,7 @@
 				020000000000000000000031 /* BudgetDatabase.swift */,
 				020000000000000000000041 /* BudgetDatabaseModels.swift */,
 				020000000000000000000043 /* BudgetDatabase+Reads.swift */,
+				020000000000000000000071 /* BudgetDatabase+Payees.swift */,
 				020000000000000000000044 /* BudgetDatabase+Sync.swift */,
 				020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */,
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
@@ -697,6 +712,8 @@
 				01000000000000000000000B /* MainTabView.swift in Sources */,
 				01000000000000000000000C /* OnboardingView.swift in Sources */,
 				01000000000000000000000D /* SettingsView.swift in Sources */,
+				010000000000000000000073 /* PayeesView.swift in Sources */,
+				010000000000000000000072 /* PayeesViewModel.swift in Sources */,
 				01000000000000000000005C /* SettingsDeveloperDiagnostics.swift in Sources */,
 				01000000000000000000005D /* SettingsBudgetPickerSheet.swift in Sources */,
 				01000000000000000000005E /* SettingsAccountOrderSheet.swift in Sources */,
@@ -721,6 +738,7 @@
 				01000000000000000000002D /* AccountRepository.swift in Sources */,
 				01000000000000000000001D /* BudgetAPI.swift in Sources */,
 				01000000000000000000001F /* TransactionRepository.swift in Sources */,
+				010000000000000000000070 /* PayeeRepository.swift in Sources */,
 				01000000000000000000002E /* LocalFirstModels.swift in Sources */,
 				01000000000000000000003D /* ActualBudgetCrypto.swift in Sources */,
 				01000000000000000000002F /* ActualServerSyncClient.swift in Sources */,
@@ -728,6 +746,7 @@
 				010000000000000000000031 /* BudgetDatabase.swift in Sources */,
 				010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */,
 				010000000000000000000043 /* BudgetDatabase+Reads.swift in Sources */,
+				010000000000000000000071 /* BudgetDatabase+Payees.swift in Sources */,
 				010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */,
 				010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */,
 				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
@@ -768,6 +787,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				010000000000000000000074 /* PayeeManagementTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,

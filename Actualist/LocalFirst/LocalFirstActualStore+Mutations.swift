@@ -1,6 +1,110 @@
 import Foundation
 
 extension LocalFirstActualStore {
+    // MARK: - Payee mutations
+
+    func createPayeeAndRefresh(budgetID: String, name: String) async throws {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.createPayeeMessages(
+            name: name,
+            payeeID: UUID().uuidString,
+            builder: &builder
+        )
+
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+    }
+
+    func renamePayeeAndRefresh(
+        budgetID: String,
+        payeeID: String,
+        name: String
+    ) async throws {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.renamePayeeMessages(
+            payeeID: payeeID,
+            name: name,
+            builder: &builder
+        )
+        guard !messages.isEmpty else {
+            return
+        }
+
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+    }
+
+    func mergePayeesAndRefresh(
+        budgetID: String,
+        sourcePayeeIDs: Set<String>,
+        targetPayeeID: String
+    ) async throws {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.mergePayeeMessages(
+            sourcePayeeIDs: sourcePayeeIDs,
+            targetPayeeID: targetPayeeID,
+            builder: &builder
+        )
+
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+    }
+
+    func deletePayeeAndRefresh(budgetID: String, payeeID: String) async throws {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.deletePayeeMessages(
+            payeeID: payeeID,
+            builder: &builder
+        )
+
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+    }
+
+    func reloadAfterPayeeMutation(
+        database: BudgetDatabase,
+        budgetID: String
+    ) async throws {
+        payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+        invalidateReports(budgetID: budgetID)
+
+        let prefix = "\(budgetID)|"
+        for (key, page) in Array(accountTransactionsByKey) where key.hasPrefix(prefix) {
+            let accountID = String(key.dropFirst(prefix.count))
+            accountTransactionsByKey[key] = TransactionFeedPage(
+                loaded: try await loadedAccountTransactions(
+                    database: database,
+                    budgetID: budgetID,
+                    accountID: accountID,
+                    query: nil,
+                    limit: max(page.nextOffset, transactionPageSize),
+                    offset: 0
+                )
+            )
+        }
+        if let currentSpending = spendingTransactionsByBudget[budgetID] {
+            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
+                loaded: try await loadedSpendingTransactions(
+                    database: database,
+                    budgetID: budgetID,
+                    query: nil,
+                    limit: max(currentSpending.nextOffset, transactionPageSize),
+                    offset: 0
+                )
+            )
+        }
+        categoryTransactionsByKey = categoryTransactionsByKey.filter { !$0.key.hasPrefix(prefix) }
+        uncategorizedTransactionsByKey = uncategorizedTransactionsByKey.filter { !$0.key.hasPrefix(prefix) }
+    }
+
     // MARK: - Account mutations / server operations
 
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {

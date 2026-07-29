@@ -796,8 +796,16 @@ final class AppState {
         localFirstStore
     }
 
+    func makePayeeRepository() -> (any PayeeRepositoryProtocol)? {
+        localFirstStore
+    }
+
     func makeReportsRepository() -> (any ReportsRepositoryProtocol)? {
         localFirstStore
+    }
+
+    func recordLocalDataMutation() {
+        localDataRevision &+= 1
     }
 
     private func recordPendingNewTransactionIDs(

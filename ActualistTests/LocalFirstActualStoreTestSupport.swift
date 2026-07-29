@@ -189,8 +189,12 @@ extension LocalFirstActualStoreTests {
         )
     }
 
-    func makeOpenedWritableStore() async throws -> LocalFirstActualStore {
-        try await makeOpenedWritableStoreBundle().store
+    func makeOpenedWritableStore(
+        additionalFixtureSQL: String = ""
+    ) async throws -> LocalFirstActualStore {
+        try await makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: additionalFixtureSQL
+        ).store
     }
 
     func makeAppState(for bundle: OpenedWritableStoreBundle) throws -> AppState {

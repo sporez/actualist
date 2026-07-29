@@ -122,6 +122,16 @@ struct SettingsView: View {
                             .foregroundStyle(ActualistTheme.danger)
                     }
 
+                    NavigationLink {
+                        PayeesView()
+                    } label: {
+                        SettingsActionLabel(title: "Payees", systemImage: "person.2")
+                    }
+                    .disabled(
+                        appState.settings.selectedBudgetID == nil
+                            || !appState.capabilities.canManagePayees
+                    )
+
                     Button {
                         isBudgetPickerPresented = true
                     } label: {
