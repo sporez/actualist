@@ -24,6 +24,12 @@ struct NewTransactionNotificationCoordinator {
         }
     }
 
+    func pendingIDCount(in storage: [String: [String]]) -> Int {
+        storage.values.reduce(into: Set<String>()) { result, transactionIDs in
+            result.formUnion(transactionIDs)
+        }.count
+    }
+
     func record(
         _ transactionIDs: [String],
         budgetID: String,
@@ -68,8 +74,21 @@ struct NewTransactionNotificationCoordinator {
 
     func post(
         budgetID: String,
+        badgeCount: Int? = nil,
         trigger: UNNotificationTrigger? = nil
     ) async throws {
+        let request = UNNotificationRequest(
+            identifier: "actualist.new-transactions.\(budgetID).\(Date().timeIntervalSince1970)",
+            content: makeContent(budgetID: budgetID, badgeCount: badgeCount),
+            trigger: trigger
+        )
+        try await UNUserNotificationCenter.current().add(request)
+    }
+
+    func makeContent(
+        budgetID: String,
+        badgeCount: Int?
+    ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = NewTransactionsNotificationCopy.title
         content.body = NewTransactionsNotificationCopy.body
@@ -77,13 +96,10 @@ struct NewTransactionNotificationCoordinator {
         content.userInfo = [
             "budgetID": budgetID
         ]
-
-        let request = UNNotificationRequest(
-            identifier: "actualist.new-transactions.\(budgetID).\(Date().timeIntervalSince1970)",
-            content: content,
-            trigger: trigger
-        )
-        try await UNUserNotificationCenter.current().add(request)
+        if let badgeCount {
+            content.badge = NSNumber(value: badgeCount)
+        }
+        return content
     }
 
     #if DEBUG
@@ -94,7 +110,9 @@ struct NewTransactionNotificationCoordinator {
         let notificationCenter = UNUserNotificationCenter.current()
         let notificationSettings = await notificationCenter.notificationSettings()
         if notificationSettings.authorizationStatus != .authorized {
-            let granted = try await notificationCenter.requestAuthorization(options: [.alert, .sound])
+            let granted = try await notificationCenter.requestAuthorization(
+                options: [.alert, .sound, .badge]
+            )
             guard granted else {
                 throw DebugNotificationError.notificationsDenied
             }

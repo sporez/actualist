@@ -37,6 +37,25 @@ struct BackendCapabilitiesTests {
         #expect(NewTransactionsNotificationCopy.body == "New transactions found")
     }
 
+    @Test func newTransactionNotificationCarriesPendingHighlightCountAsBadge() {
+        let coordinator = NewTransactionNotificationCoordinator()
+        let content = coordinator.makeContent(budgetID: "budget", badgeCount: 3)
+
+        #expect(content.badge?.intValue == 3)
+        #expect(content.userInfo["budgetID"] as? String == "budget")
+    }
+
+    @Test func pendingHighlightCountDeduplicatesTransactionIDsAcrossAccounts() {
+        let coordinator = NewTransactionNotificationCoordinator()
+
+        let count = coordinator.pendingIDCount(in: [
+            "budget|checking": ["txn-1", "txn-2"],
+            "budget|credit": ["txn-2", "txn-3"]
+        ])
+
+        #expect(count == 3)
+    }
+
     // MARK: AppState derivation
 
     @Test func appStateKeepsProvenWritesAvailableOfflineAndOutsideDeveloperMode() {
@@ -91,8 +110,9 @@ struct BackendCapabilitiesTests {
         #expect(state.accountNavigationPath.isEmpty)
     }
 
-    @Test func clearingBudgetPendingNewTransactionsClearsEveryAccountInBudgetOnly() {
-        let state = makeAppState()
+    @Test func clearingBudgetPendingNewTransactionsClearsEveryAccountInBudgetOnlyAndUpdatesBadge() {
+        var badgeCounts: [Int] = []
+        let state = makeAppState { badgeCounts.append($0) }
         state.settings.pendingNewTransactionIDsByAccount = [
             "budget|checking": ["txn-1"],
             "budget|credit": ["txn-2"],
@@ -104,9 +124,49 @@ struct BackendCapabilitiesTests {
         #expect(state.settings.pendingNewTransactionIDsByAccount["budget|checking"] == nil)
         #expect(state.settings.pendingNewTransactionIDsByAccount["budget|credit"] == nil)
         #expect(state.settings.pendingNewTransactionIDsByAccount["other|checking"] == ["txn-3"])
+        #expect(badgeCounts == [1])
     }
 
-    private func makeAppState() -> AppState {
+    @Test func clearingLastAccountHighlightClearsApplicationBadge() {
+        var badgeCounts: [Int] = []
+        let state = makeAppState { badgeCounts.append($0) }
+        state.settings.pendingNewTransactionIDsByAccount = [
+            "budget|checking": ["txn-1", "txn-2"]
+        ]
+
+        state.clearPendingNewTransactionIDs(budgetID: "budget", accountID: "checking")
+
+        #expect(state.settings.pendingNewTransactionIDsByAccount.isEmpty)
+        #expect(badgeCounts == [0])
+    }
+
+    @Test func preparingEnabledBackgroundNotificationsRefreshesBadgeAuthorizationAndCount() async {
+        var authorizationRequestCount = 0
+        var badgeCounts: [Int] = []
+        let state = makeAppState(
+            notificationAuthorizationRequester: {
+                authorizationRequestCount += 1
+                return true
+            },
+            applicationBadgeUpdater: { badgeCounts.append($0) }
+        )
+        state.settings.backgroundTransactionRefreshEnabled = true
+        state.settings.pendingNewTransactionIDsByAccount = [
+            "budget|checking": ["txn-1", "txn-2"]
+        ]
+
+        await state.prepareBackgroundTransactionNotifications()
+
+        #expect(authorizationRequestCount == 1)
+        #expect(badgeCounts == [2])
+    }
+
+    private func makeAppState(
+        notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool = {
+            true
+        },
+        applicationBadgeUpdater: @escaping @MainActor (Int) -> Void = { _ in }
+    ) -> AppState {
         let defaultsName = "ActualistTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: defaultsName)!
         return AppState(
@@ -114,7 +174,9 @@ struct BackendCapabilitiesTests {
             keychain: KeychainStore(
                 service: "com.sporez.actualist.tests",
                 account: UUID().uuidString
-            )
+            ),
+            notificationAuthorizationRequester: notificationAuthorizationRequester,
+            applicationBadgeUpdater: applicationBadgeUpdater
         )
     }
 }

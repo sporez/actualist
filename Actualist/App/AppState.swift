@@ -21,6 +21,7 @@ final class AppState {
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
     @ObservationIgnored private let notificationAuthorizationRequester: @MainActor () async throws -> Bool
+    @ObservationIgnored private let applicationBadgeUpdater: @MainActor (Int) -> Void
     @ObservationIgnored private let backgroundRefreshRunner = BackgroundTransactionRefreshRunner()
     @ObservationIgnored private let transactionNotifications = NewTransactionNotificationCoordinator()
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
@@ -53,12 +54,20 @@ final class AppState {
         keychain: KeychainStore = .actualist,
         localFirstStore: LocalFirstActualStore? = nil,
         notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool = {
-            try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            try await UNUserNotificationCenter.current().requestAuthorization(
+                options: [.alert, .sound, .badge]
+            )
+        },
+        applicationBadgeUpdater: @escaping @MainActor (Int) -> Void = { badgeCount in
+            Task {
+                try? await UNUserNotificationCenter.current().setBadgeCount(badgeCount)
+            }
         }
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
         self.notificationAuthorizationRequester = notificationAuthorizationRequester
+        self.applicationBadgeUpdater = applicationBadgeUpdater
         self.providedLocalFirstStore = localFirstStore
         let loaded = settingsStore.load()
         self.settings = loaded
@@ -119,6 +128,7 @@ final class AppState {
             budgets = Self.uniqueBudgets(staged.budgets)
             if serverChanged {
                 settings.pendingNewTransactionIDsByAccount = [:]
+                updateApplicationBadge()
                 settings.backgroundTransactionRefreshEnabled = false
                 settings.selectedBudgetID = nil
                 settings.selectedBudgetName = nil
@@ -165,6 +175,7 @@ final class AppState {
             settings.selectedLocalFirstFileID = nil
             settings.selectedLocalFirstGroupID = nil
             settings.pendingNewTransactionIDsByAccount = [:]
+            updateApplicationBadge()
             settings.backgroundTransactionRefreshEnabled = false
             settingsStore.save(settings)
             selectedBudget = nil
@@ -530,6 +541,14 @@ final class AppState {
         }
     }
 
+    func prepareBackgroundTransactionNotifications() async {
+        guard settings.backgroundTransactionRefreshEnabled else {
+            return
+        }
+        _ = try? await notificationAuthorizationRequester()
+        updateApplicationBadge()
+    }
+
     func performBackgroundTransactionRefresh(
         timeLimit: Duration = .seconds(25)
     ) async -> Bool {
@@ -563,7 +582,11 @@ final class AppState {
                     )
                 }
                 if result.newTransactionCount > 0 {
-                    try await transactionNotifications.post(budgetID: result.budgetID)
+                    let badgeCount = updateApplicationBadge()
+                    try await transactionNotifications.post(
+                        budgetID: result.budgetID,
+                        badgeCount: badgeCount
+                    )
                 }
             }
 
@@ -696,6 +719,7 @@ final class AppState {
             return
         }
         settingsStore.save(settings)
+        updateApplicationBadge()
     }
 
     func clearPendingNewTransactionIDs(budgetID: String) {
@@ -706,6 +730,16 @@ final class AppState {
             return
         }
         settingsStore.save(settings)
+        updateApplicationBadge()
+    }
+
+    @discardableResult
+    func updateApplicationBadge() -> Int {
+        let badgeCount = transactionNotifications.pendingIDCount(
+            in: settings.pendingNewTransactionIDsByAccount
+        )
+        applicationBadgeUpdater(badgeCount)
+        return badgeCount
     }
 
     func routeToSpendingFromNotification(budgetID: String) async {

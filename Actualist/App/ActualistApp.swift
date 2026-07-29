@@ -40,6 +40,7 @@ struct ActualistApp: App {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }
                 .task {
+                    await appState.prepareBackgroundTransactionNotifications()
                     await appState.beginForegroundSession()
                 }
                 .onChange(of: scenePhase) { _, phase in
@@ -157,6 +158,7 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
             self?.handle(refreshTask)
         }
         Task { @MainActor in
+            appState.updateApplicationBadge()
             appState.recordBackgroundRefreshScheduleAttempt(
                 succeeded: didRegister,
                 earliestBeginDate: nil,
