@@ -11,6 +11,7 @@ actor BudgetDatabase {
     init(databaseURL: URL, localNodeID: String? = nil) throws {
         self.databaseURL = databaseURL
         queue = try DatabaseQueue(path: databaseURL.path)
+        try Self.prepareBankSyncStatusCompatibility(in: queue)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in
                 let hasMessagesTable = try Bool.fetchOne(
@@ -36,6 +37,79 @@ actor BudgetDatabase {
             )
         } else {
             localClock = nil
+        }
+    }
+
+    /// Actual 26.7 added `accounts.bank_sync_status`. A cached budget imported before that
+    /// migration can already contain CRDT messages for the field, but older Actualist builds
+    /// retained those messages without applying them because the physical column was absent.
+    /// Add the nullable upstream column and replay only its newest retained value per account.
+    private static func prepareBankSyncStatusCompatibility(in queue: DatabaseQueue) throws {
+        try queue.write { db in
+            let accountTableExists = try Bool.fetchOne(
+                db,
+                sql: """
+                    SELECT EXISTS(
+                        SELECT 1 FROM sqlite_master
+                        WHERE type = 'table' AND name = 'accounts'
+                    )
+                    """
+            ) ?? false
+            guard accountTableExists else {
+                return
+            }
+
+            let accountColumns = try Set(
+                Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
+                    .compactMap { $0["name"] as String? }
+            )
+            guard !accountColumns.contains("bank_sync_status") else {
+                return
+            }
+
+            try db.execute(sql: "ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT")
+
+            let messagesTableExists = try Bool.fetchOne(
+                db,
+                sql: """
+                    SELECT EXISTS(
+                        SELECT 1 FROM sqlite_master
+                        WHERE type = 'table' AND name = 'messages_crdt'
+                    )
+                    """
+            ) ?? false
+            guard messagesTableExists else {
+                return
+            }
+
+            let statusRows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT row, value
+                    FROM messages_crdt
+                    WHERE dataset = 'accounts' AND column = 'bank_sync_status'
+                    ORDER BY timestamp
+                    """
+            )
+            var latestStatusByAccountID: [String: String?] = [:]
+            for row in statusRows {
+                guard let accountID = row["row"] as String?,
+                      let serializedValue = row["value"] as String? else {
+                    continue
+                }
+                if serializedValue.hasPrefix("S:") {
+                    latestStatusByAccountID[accountID] = String(serializedValue.dropFirst(2))
+                } else if serializedValue.hasPrefix("0:") {
+                    latestStatusByAccountID[accountID] = .some(nil)
+                }
+            }
+
+            for (accountID, status) in latestStatusByAccountID {
+                try db.execute(
+                    sql: "UPDATE accounts SET bank_sync_status = ? WHERE id = ?",
+                    arguments: [status, accountID]
+                )
+            }
         }
     }
 

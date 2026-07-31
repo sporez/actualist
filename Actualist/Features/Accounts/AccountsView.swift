@@ -352,10 +352,19 @@ struct AccountRow: View {
                 .frame(width: density.iconSize, height: density.iconSize)
                 .background(ActualistTheme.elevatedSurface, in: Circle())
 
-            Text(accountName)
-                .font(ActualistTypography.rowTitle(for: density))
-                .foregroundStyle(ActualistTheme.primaryText)
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                if let bankSyncState = row.account.bankSyncState {
+                    Circle()
+                        .fill(bankSyncColor(bankSyncState))
+                        .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
+                }
+
+                Text(accountName)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .lineLimit(1)
+            }
 
             Spacer()
 
@@ -370,6 +379,8 @@ struct AccountRow: View {
         .padding(.vertical, density.accountRowVerticalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
         .overlay(alignment: .bottom) {
             if showsBottomSeparator {
                 Rectangle()
@@ -398,5 +409,35 @@ struct AccountRow: View {
             seed: "account-balance-\(row.account.id)",
             maximumDollars: 15_000
         )
+    }
+
+    private func bankSyncColor(_ state: ActualBankSyncState) -> Color {
+        switch state {
+        case .healthy:
+            ActualistTheme.positive
+        case .pending:
+            ActualistTheme.warning
+        case .failed:
+            ActualistTheme.danger
+        }
+    }
+
+    private var bankSyncAccessibilityText: String? {
+        switch row.account.bankSyncState {
+        case .healthy:
+            "Bank sync healthy"
+        case .pending:
+            "Bank sync pending"
+        case .failed:
+            "Bank sync failed"
+        case nil:
+            nil
+        }
+    }
+
+    private var accessibilityLabel: String {
+        [accountName, balanceText, bankSyncAccessibilityText]
+            .compactMap { $0 }
+            .joined(separator: ", ")
     }
 }

@@ -281,23 +281,26 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
     let offbudget: Bool
     let closed: Bool
     let bankSyncLinked: Bool
+    let bankSyncStatus: String?
 
     init(
         id: String,
         name: String,
         offbudget: Bool,
         closed: Bool,
-        bankSyncLinked: Bool = false
+        bankSyncLinked: Bool = false,
+        bankSyncStatus: String? = nil
     ) {
         self.id = id
         self.name = name
         self.offbudget = offbudget
         self.closed = closed
         self.bankSyncLinked = bankSyncLinked
+        self.bankSyncStatus = bankSyncStatus
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, offbudget, closed, bankSyncLinked
+        case id, name, offbudget, closed, bankSyncLinked, bankSyncStatus
     }
 
     init(from decoder: Decoder) throws {
@@ -307,7 +310,31 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
         offbudget = try container.decode(Bool.self, forKey: .offbudget)
         closed = try container.decode(Bool.self, forKey: .closed)
         bankSyncLinked = try container.decodeIfPresent(Bool.self, forKey: .bankSyncLinked) ?? false
+        bankSyncStatus = try container.decodeIfPresent(String.self, forKey: .bankSyncStatus)
     }
+
+    var bankSyncState: ActualBankSyncState? {
+        guard bankSyncLinked else {
+            return nil
+        }
+
+        switch bankSyncStatus {
+        case "pending", "sync-requested":
+            return .pending
+        case nil, "ok":
+            return .healthy
+        default:
+            // Actual treats every durable non-success status as failed. Keeping the fallback
+            // broad means a newly introduced upstream failure state remains visible.
+            return .failed
+        }
+    }
+}
+
+enum ActualBankSyncState: Hashable, Sendable {
+    case healthy
+    case pending
+    case failed
 }
 
 struct AccountDisplay: Identifiable, Hashable, Sendable {

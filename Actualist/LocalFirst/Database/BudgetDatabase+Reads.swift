@@ -14,7 +14,13 @@ extension BudgetDatabase {
             let name = column("name", fallback: id, columns: columns)
             let offbudget = column("offbudget", fallback: "0", columns: columns)
             let closed = column("closed", fallback: "0", columns: columns)
-            let bankSync = column("bank_sync_source", fallback: "NULL", columns: columns)
+            let bank = column("bank", fallback: "NULL", columns: columns)
+            let accountSyncSource = column(
+                "account_sync_source",
+                fallback: column("bank_sync_source", fallback: "NULL", columns: columns),
+                columns: columns
+            )
+            let bankSyncStatus = column("bank_sync_status", fallback: "NULL", columns: columns)
             let tombstonePredicate = predicateForLiveRows(columns: columns)
             let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
             let sql = """
@@ -22,19 +28,24 @@ extension BudgetDatabase {
                        \(name) AS name,
                        \(offbudget) AS offbudget,
                        \(closed) AS closed,
-                       \(bankSync) AS bank_sync_source
+                       \(bank) AS bank,
+                       \(accountSyncSource) AS account_sync_source,
+                       \(bankSyncStatus) AS bank_sync_status
                 FROM accounts
                 WHERE \(tombstonePredicate)
                 ORDER BY \(order)
                 """
 
             return try Row.fetchAll(db, sql: sql).map { row in
-                ActualAccount(
+                let bankID = row["bank"] as String?
+                let syncSource = row["account_sync_source"] as String?
+                return ActualAccount(
                     id: row["id"] ?? "",
                     name: row["name"] ?? "",
                     offbudget: flexibleBool(row["offbudget"]),
                     closed: flexibleBool(row["closed"]),
-                    bankSyncLinked: (row["bank_sync_source"] as String?)?.isEmpty == false
+                    bankSyncLinked: bankID?.isEmpty == false || syncSource?.isEmpty == false,
+                    bankSyncStatus: row["bank_sync_status"]
                 )
             }
         }

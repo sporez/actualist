@@ -24,6 +24,73 @@ extension LocalFirstActualStoreTests {
         #expect(month.categoryGroups.first?.categories.first?.carryover == true)
     }
 
+    @Test func budgetDatabaseMapsLinkedAccountBankSyncStates() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE accounts ADD COLUMN bank TEXT;
+            ALTER TABLE accounts ADD COLUMN account_sync_source TEXT;
+            ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT;
+            UPDATE accounts
+            SET bank = 'simplefin-bank', account_sync_source = 'simpleFin', bank_sync_status = 'ok'
+            WHERE id = 'checking';
+            INSERT INTO accounts
+                (id, name, offbudget, closed, tombstone, sort_order, account_sync_source, bank_sync_status)
+            VALUES
+                ('attention', 'Needs Attention', 0, 0, 0, 2, 'simpleFin', 'attention-required'),
+                ('pending', 'Pending', 0, 0, 0, 3, 'simpleFin', 'sync-requested'),
+                ('future-failure', 'Future Failure', 0, 0, 0, 4, 'simpleFin', 'new-provider-error'),
+                ('local', 'Local Account', 0, 0, 0, 5, NULL, 'failed');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let accounts = try await database.fetchAccounts()
+        let states = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.bankSyncState) })
+
+        #expect(states["checking"] == .healthy)
+        #expect(states["attention"] == .failed)
+        #expect(states["pending"] == .pending)
+        #expect(states["future-failure"] == .failed)
+        let localAccount = try #require(accounts.first { $0.id == "local" })
+        #expect(localAccount.bankSyncState == nil)
+    }
+
+    @Test func cachedBudgetBackfillsAndThenAppliesBankSyncStatusMessages() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE accounts ADD COLUMN bank TEXT;
+            ALTER TABLE accounts ADD COLUMN account_sync_source TEXT;
+            UPDATE accounts
+            SET bank = 'simplefin-bank', account_sync_source = 'simpleFin'
+            WHERE id = 'checking';
+            INSERT INTO messages_crdt (timestamp, dataset, row, column, value)
+            VALUES (
+                '2026-07-01T12:00:00.000Z-0000-remote',
+                'accounts',
+                'checking',
+                'bank_sync_status',
+                'S:timed-out'
+            );
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        var account = try #require(try await database.fetchAccounts().first)
+        #expect(account.bankSyncStatus == "timed-out")
+        #expect(account.bankSyncState == .failed)
+
+        let appliedCount = try await database.applyRemoteSyncMessages([
+            ActualSyncDecodedMessage(
+                timestamp: "2026-07-01T13:00:00.000Z-0000-remote",
+                dataset: "accounts",
+                row: "checking",
+                column: "bank_sync_status",
+                serializedValue: "S:ok"
+            )
+        ])
+
+        #expect(appliedCount == 1)
+        account = try #require(try await database.fetchAccounts().first)
+        #expect(account.bankSyncStatus == "ok")
+        #expect(account.bankSyncState == .healthy)
+    }
+
     @Test func budgetDatabaseCanonicalizesAvailableMonthValues() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             INSERT INTO zero_budgets VALUES ('2026-8', 'groceries', 50000, 1);
