@@ -502,11 +502,11 @@ struct TransactionRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
 
-                if transaction.cleared?.boolValue == true {
-                    Image(systemName: "c.circle.fill")
-                        .font(.system(size: density.transactionClearedIconSize, weight: .bold))
-                        .foregroundStyle(ActualistTheme.positive)
-                }
+                Image(systemName: "c.circle.fill")
+                    .font(.system(size: density.transactionClearedIconSize, weight: .bold))
+                    .foregroundStyle(ActualistTheme.positive)
+                    .opacity(transaction.cleared?.boolValue == true ? 1 : 0)
+                    .accessibilityHidden(transaction.cleared?.boolValue != true)
             }
             .frame(minWidth: 150, alignment: .trailing)
         }
