@@ -5,6 +5,10 @@ extension LocalFirstActualStore {
         cachedBudgets
     }
 
+    func cachedBudgetMonth(budgetID: String) -> LoadedBudgetMonth? {
+        loadedBudgetMonthsByBudget[budgetID]
+    }
+
     func currentBudgetMonth(
         budgetID: String,
         preferredMonth: String
@@ -22,7 +26,7 @@ extension LocalFirstActualStore {
         let months = try await availableMonths(budgetID: budgetID)
         let monthID = selectedMonth
         let month = try await database.fetchBudgetMonth(month: monthID)
-        return LoadedBudgetMonth(
+        let loaded = LoadedBudgetMonth(
             availableMonths: months,
             selectedMonth: monthID,
             month: month,
@@ -33,6 +37,8 @@ extension LocalFirstActualStore {
                 monthID: monthID
             )
         )
+        loadedBudgetMonthsByBudget[budgetID] = loaded
+        return loaded
     }
 
     func accountDisplays(budgetID: String) -> [AccountDisplay] {

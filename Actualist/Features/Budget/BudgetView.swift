@@ -3,7 +3,7 @@ import SwiftUI
 struct BudgetView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
-    @State private var viewModel = BudgetViewModel()
+    @State private var viewModel: BudgetViewModel
     @State private var isTransactionEditorPresented = false
     @State private var isSettingsPresented = false
     @State private var isMonthPickerPresented = false
@@ -18,6 +18,10 @@ struct BudgetView: View {
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
     @State private var assignmentKeypadTopY: CGFloat = 0
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
+
+    init(initialMonth: LoadedBudgetMonth? = nil) {
+        _viewModel = State(initialValue: BudgetViewModel(initialMonth: initialMonth))
+    }
 
     var body: some View {
         NavigationStack {

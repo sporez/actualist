@@ -4,6 +4,26 @@ import Testing
 
 @MainActor
 struct BudgetViewModelTests {
+    @Test func initialCachedMonthIsReadyForTheFirstFrame() throws {
+        let loaded = LoadedBudgetMonth(
+            availableMonths: ["2026-06"],
+            selectedMonth: "2026-06",
+            month: try Self.decodeBudgetMonth(
+                visibleCategoryBalance: 37_655,
+                hiddenCategoryBalance: 0,
+                lastMonthOverspent: 0
+            ),
+            alerts: []
+        )
+
+        let model = BudgetViewModel(initialMonth: loaded)
+
+        #expect(!model.isLoading)
+        #expect(model.selectedMonth == "2026-06")
+        #expect(model.budgetMonth == loaded.month)
+        #expect(model.availableMonths == ["2026-06"])
+    }
+
     @Test func exposesActiveCategoryMonthDetailsForTheAssignmentSheet() throws {
         let model = BudgetViewModel()
         model.selectedMonth = "2026-06"

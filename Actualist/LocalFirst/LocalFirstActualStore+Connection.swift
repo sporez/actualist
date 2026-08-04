@@ -377,6 +377,14 @@ extension LocalFirstActualStore {
                 encryptionContext: encryptionContext
             )
         )
+
+        // Prepare the same SQLite-derived snapshot BudgetView consumes before AppState
+        // switches from restoringBudget to ready. A cold launch can then render real local
+        // data on its first Budget frame while foreground sync revalidates in the background.
+        _ = try? await currentBudgetMonth(
+            budgetID: budgetID,
+            preferredMonth: YearMonth(date: Date()).rawValue
+        )
     }
 
     func encryptionContext(metadata: LocalFirstBudgetMetadata) throws -> ActualBudgetEncryptionContext? {

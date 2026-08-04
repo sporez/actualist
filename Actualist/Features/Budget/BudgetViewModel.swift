@@ -17,6 +17,14 @@ final class BudgetViewModel {
     let moveMoneyWorkflow = BudgetMoveMoneyWorkflow()
     let templateWorkflow = BudgetTemplateWorkflow()
 
+    init(initialMonth: LoadedBudgetMonth? = nil) {
+        guard let initialMonth else {
+            return
+        }
+        apply(initialMonth)
+        isLoading = false
+    }
+
     var assignmentDraft: BudgetAssignmentDraft? {
         assignmentWorkflow.draft
     }
@@ -204,7 +212,7 @@ final class BudgetViewModel {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async {
-        isLoading = true
+        isLoading = budgetMonth == nil
         errorMessage = nil
 
         do {

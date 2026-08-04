@@ -203,6 +203,13 @@ final class AppState {
         return localFirstStore.syncStatus(budgetID: budgetID)
     }
 
+    var cachedSelectedBudgetMonth: LoadedBudgetMonth? {
+        guard let budgetID = settings.selectedBudgetID else {
+            return nil
+        }
+        return localFirstStore.cachedBudgetMonth(budgetID: budgetID)
+    }
+
     /// Starts one foreground session. The selected SQLite budget is restored before the main
     /// tabs appear, then one coalesced CRDT sync revalidates that local source in the background.
     func beginForegroundSession() async {

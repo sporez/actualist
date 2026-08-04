@@ -492,19 +492,21 @@ extension LocalFirstActualStoreTests {
 
     @Test func appStateRestoresSelectedSQLiteBudgetWithoutSyncCredentials() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
+        bundle.store.reset()
         let appState = try makeAppState(for: bundle)
 
         #expect(appState.setupPhase == .restoringBudget)
         #expect(appState.connectionStatus == .offline)
+        #expect(appState.cachedSelectedBudgetMonth == nil)
 
         await appState.beginForegroundSession()
 
-        let loaded = try await bundle.store.budgetMonth(
-            budgetID: "group-1",
-            selectedMonth: "2026-07"
-        )
+        let loaded = try #require(appState.cachedSelectedBudgetMonth)
+        let firstFrameModel = BudgetViewModel(initialMonth: loaded)
         #expect(appState.setupPhase == .ready)
         #expect(appState.connectionStatus == .offline)
+        #expect(!firstFrameModel.isLoading)
+        #expect(firstFrameModel.budgetMonth != nil)
         #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.id == "groceries" })
     }
 
