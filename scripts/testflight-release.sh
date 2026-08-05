@@ -16,7 +16,7 @@ ASC_BUILD_WAIT_SECONDS="${ASC_BUILD_WAIT_SECONDS:-1200}"
 ASC_BUILD_POLL_SECONDS="${ASC_BUILD_POLL_SECONDS:-20}"
 
 if [[ $# -eq 0 && -t 0 && -t 1 ]]; then
-  command="menu"
+  command="wizard"
 else
   command="plan"
 fi
@@ -43,9 +43,10 @@ usage() {
   cat <<'USAGE'
 Usage:
   scripts/testflight-release.sh
-  scripts/testflight-release.sh menu
+  scripts/testflight-release.sh wizard
   scripts/testflight-release.sh plan [options]
   scripts/testflight-release.sh prepare [options]
+  scripts/testflight-release.sh commit [options]
   scripts/testflight-release.sh archive [options]
   scripts/testflight-release.sh export [options]
   scripts/testflight-release.sh upload [options]
@@ -55,13 +56,15 @@ Usage:
   scripts/testflight-release.sh github-release [options]
 
 Commands:
-  menu       Walk through common release tasks with a basic Bash menu.
+  wizard     Walk through one release from preflight to GitHub publication.
+  menu       Legacy alias for wizard.
   plan       Show the next TestFlight release without changing files.
   prepare    Bump version/build if needed and write release notes/export options.
+  commit     Commit a prepared version/build change after validating its scope.
   archive    Run tests, then create an App Store Connect archive.
   export     Archive if needed, then export a local App Store Connect IPA.
   upload     Archive if needed, then upload to App Store Connect.
-  all        prepare + archive + upload.
+  all        Prepare, archive, and upload; with --tag, commit and tag the release.
   metadata   Upload What to Test for the current TestFlight build.
   tag        Create the TestFlight git tag for the selected version/build.
   github-release
@@ -82,10 +85,9 @@ Options:
   --upload-test-metadata
                          After upload, wait for processing and upload What to Test.
   --testflight-locale L  Locale for What to Test. Default: en-US.
-  --tag                  With upload, tag after a successful upload.
-                         Tagging requires a clean worktree and no version
-                         mutation in the same command.
-  --github-release       With tag or upload, publish a GitHub prerelease after
+  --tag                  With upload/all, safely commit a prepared version bump
+                         when needed, then tag after a successful upload.
+  --github-release       With tag/upload/all, publish a GitHub prerelease after
                          confirming the current TestFlight tag exists.
   --dry-run              Print commands and intended edits without executing them.
   --notes-limit N        Max commit lines in what-to-test.txt. Default: 80.
@@ -189,7 +191,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$command" in
-  menu|plan|prepare|archive|export|upload|all|metadata|tag|github-release) ;;
+  wizard|menu|plan|prepare|commit|archive|export|upload|all|metadata|tag|github-release) ;;
   *)
     usage
     die "unknown command: $command"
@@ -198,9 +200,13 @@ esac
 
 if [[ "$github_release_after_tag" -eq 1 ]]; then
   case "$command" in
-    upload|tag) ;;
-    *) die "--github-release is only valid with upload or tag" ;;
+    upload|all|tag) ;;
+    *) die "--github-release is only valid with upload, all, or tag" ;;
   esac
+fi
+
+if [[ "$command" == "all" && "$github_release_after_tag" -eq 1 && "$tag_after_upload" -ne 1 ]]; then
+  die "--github-release with all requires --tag"
 fi
 
 if [[ "$upload_test_metadata" -eq 1 ]]; then
@@ -345,6 +351,28 @@ worktree_has_only_release_version_changes() {
       exit (!found || invalid)
     }
   '
+}
+
+commit_release_version() {
+  local commit_message="chore: prepare TestFlight ${next_version} (${next_build})"
+
+  if [[ "$dry_run" -eq 1 ]] && will_mutate_version; then
+    run git add -- "$PROJECT/project.pbxproj"
+    run git commit -m "$commit_message" -- "$PROJECT/project.pbxproj"
+    return
+  fi
+
+  if [[ -z "$(git status --porcelain)" ]]; then
+    log "No prepared release version changes to commit"
+    return
+  fi
+
+  worktree_has_only_release_version_changes || \
+    die "refusing to commit: worktree contains changes beyond release version/build lines"
+
+  log "Committing prepared release version ${next_version} (${next_build})"
+  run git add -- "$PROJECT/project.pbxproj"
+  run git commit -m "$commit_message" -- "$PROJECT/project.pbxproj"
 }
 
 require_build_worktree() {
@@ -783,7 +811,11 @@ export_app() {
 
 create_tag() {
   if [[ -n "$(git status --porcelain)" ]]; then
-    die "git worktree is dirty; commit the release version before tagging"
+    if [[ "$dry_run" -eq 1 ]] && worktree_has_only_release_version_changes; then
+      log "Dry run assumes the prepared release version is committed before tagging"
+    else
+      die "git worktree is dirty; commit the release version before tagging"
+    fi
   fi
   if git rev-parse --verify "refs/tags/$tag_name" >/dev/null 2>&1; then
     die "tag already exists: $tag_name"
@@ -796,7 +828,7 @@ github_release_ipa=""
 
 resolve_github_release_ipa() {
   github_release_ipa=""
-  [[ -d "$export_path" ]] || return
+  [[ -d "$export_path" ]] || return 0
 
   local candidate
   for candidate in "$export_path"/*.ipa; do
@@ -806,6 +838,8 @@ resolve_github_release_ipa() {
     fi
     github_release_ipa="$candidate"
   done
+
+  return 0
 }
 
 ensure_github_release_ipa() {
@@ -825,10 +859,22 @@ ensure_github_release_ipa() {
   [[ -n "$github_release_ipa" ]] || die "IPA export completed without an IPA in $export_path"
 }
 
+ensure_github_auth() {
+  command -v gh >/dev/null 2>&1 || die "GitHub CLI (gh) is required to create a GitHub Release"
+  if gh auth status -h github.com >/dev/null 2>&1; then
+    return
+  fi
+
+  echo
+  log "GitHub authentication is required; follow the browser login prompts"
+  gh auth login -h github.com -p https -w
+  gh auth status -h github.com >/dev/null 2>&1 || die "GitHub authentication did not complete"
+}
+
 create_github_release() {
   local release_exists=0
   if [[ "$dry_run" -ne 1 ]]; then
-    command -v gh >/dev/null 2>&1 || die "GitHub CLI (gh) is required to create a GitHub Release"
+    ensure_github_auth
     git remote get-url "$GITHUB_REMOTE" >/dev/null 2>&1 || die "git remote not found: $GITHUB_REMOTE"
     git rev-parse --verify "refs/tags/$tag_name" >/dev/null 2>&1 || die "tag not found: $tag_name; run the tag command first"
     if gh release view "$tag_name" >/dev/null 2>&1; then
@@ -868,15 +914,14 @@ Tag to create:           ${tag_name}
 
 Next commands:
   scripts/testflight-release.sh prepare
-  git add Actualist.xcodeproj/project.pbxproj
-  git commit -m "chore: prepare TestFlight ${next_version} (${next_build})"
+  scripts/testflight-release.sh commit
   scripts/testflight-release.sh upload
   scripts/testflight-release.sh metadata
   scripts/testflight-release.sh tag
   scripts/testflight-release.sh github-release
 
-For a single run:
-  scripts/testflight-release.sh all
+For a single upload + tag + GitHub prerelease run:
+  scripts/testflight-release.sh all --tag --github-release
 PLAN
 }
 
@@ -941,7 +986,7 @@ next_for_bump() {
 }
 
 choose_release_args() {
-  menu_release_args=()
+  chosen_release_args=()
 
   echo
   echo "Version bump"
@@ -955,25 +1000,25 @@ choose_release_args() {
     choice="$(prompt_value "Choose bump" "1")"
     case "$choice" in
       1)
-        menu_release_args+=(--bump build)
+        chosen_release_args+=(--bump build)
         return
         ;;
       2)
-        menu_release_args+=(--bump patch)
+        chosen_release_args+=(--bump patch)
         return
         ;;
       3)
-        menu_release_args+=(--bump minor)
+        chosen_release_args+=(--bump minor)
         return
         ;;
       4)
-        menu_release_args+=(--bump major)
+        chosen_release_args+=(--bump major)
         return
         ;;
       5)
         custom_version="$(prompt_value "Marketing version" "$current_version")"
         custom_build="$(prompt_value "Build number" "$((current_build + 1))")"
-        menu_release_args+=(--version "$custom_version" --build "$custom_build")
+        chosen_release_args+=(--version "$custom_version" --build "$custom_build")
         return
         ;;
       *)
@@ -983,49 +1028,23 @@ choose_release_args() {
   done
 }
 
-append_dirty_arg_or_cancel() {
-  local allow_prepared_release="${1:-0}"
-  if [[ -z "$(git status --porcelain)" ]]; then
-    return 0
-  fi
-  if [[ "$allow_prepared_release" -eq 1 ]] && worktree_has_only_release_version_changes; then
-    return 0
-  fi
-
-  echo
-  echo "The git worktree is dirty."
-  if prompt_yes_no "Allow a dirty worktree for this command?" "n"; then
-    menu_args+=(--allow-dirty)
-    return 0
-  fi
-
-  echo "Cancelled."
-  return 1
-}
-
-append_common_run_args() {
-  if prompt_yes_no "Dry run only?" "n"; then
-    menu_args+=(--dry-run)
-  fi
-}
-
 append_archive_args() {
   if prompt_yes_no "Skip simulator tests before archive?" "n"; then
-    menu_args+=(--skip-tests)
+    prompted_args+=(--skip-tests)
   fi
 }
 
 append_upload_args() {
   append_archive_args
   if prompt_yes_no "Internal TestFlight only?" "n"; then
-    menu_args+=(--internal-only)
+    prompted_args+=(--internal-only)
   fi
   if prompt_yes_no "Upload What to Test metadata after processing?" "n"; then
-    menu_args+=(--upload-test-metadata)
+    prompted_args+=(--upload-test-metadata)
   fi
 }
 
-run_script_from_menu() {
+run_release_step() {
   local subcommand="$1"
   shift
 
@@ -1037,123 +1056,154 @@ run_script_from_menu() {
   bash "$0" "$subcommand" "$@"
 }
 
-run_menu_command() {
-  local subcommand="$1"
+run_release_wizard() {
+  local status prepared_version=0 resume_current=0 upload_release=1
+  local tag_release=0 publish_github=0 dry_run_release=0
+  local current_release_dir current_archive current_export current_tag
+  local release_summary
+  local -a release_args upload_args command_args prompted_args chosen_release_args
+  release_args=()
+  upload_args=()
+  command_args=()
+  prompted_args=()
+  chosen_release_args=()
 
-  if [[ "${#menu_args[@]}" -gt 0 ]]; then
-    run_script_from_menu "$subcommand" "${menu_args[@]}"
+  echo
+  echo "Actualist release"
+  echo "================="
+  echo
+  echo "1/5  Preflight"
+  echo "     Branch:  $(git branch --show-current)"
+  echo "     Version: ${current_version} (${current_build})"
+
+  status="$(git status --porcelain)"
+  if [[ -n "$status" ]]; then
+    if worktree_has_only_release_version_changes; then
+      prepared_version=1
+      echo "     A prepared version/build change is ready to commit."
+    else
+      echo
+      echo "Release is blocked by these working-tree changes:"
+      git status --short
+      echo
+      die "commit or stash those changes, then run the release wizard again"
+    fi
   else
-    run_script_from_menu "$subcommand"
+    echo "     Working tree is clean."
   fi
-}
 
-run_menu() {
-  while true; do
-    clear 2>/dev/null || true
-    echo "Actualist TestFlight Release"
-    echo
-    echo "Current project version: ${current_version} (${current_build})"
-    echo "Next build release:      $(next_for_bump build)"
-    echo "Previous TestFlight tag: ${last_tag:-none}"
-    echo
-    echo "  1) Show release plan"
-    echo "  2) Prepare version + release notes"
-    echo "  3) Archive current version"
-    echo "  4) Export IPA for current version"
-    echo "  5) Upload current version to App Store Connect"
-    echo "  6) Prepare version + upload"
-    echo "  7) Tag current committed release"
-    echo "  8) Publish GitHub prerelease for current tag"
-    echo "  9) Upload What to Test for current build"
-    echo " 10) Help"
-    echo "  0) Quit"
-    echo
+  current_release_dir="$RELEASE_ROOT/${current_version}-${current_build}"
+  current_archive="$current_release_dir/Actualist-${current_version}-${current_build}.xcarchive"
+  current_export="$current_release_dir/export"
+  current_tag="${TAG_PREFIX}${current_version}-b${current_build}"
 
-    choice="$(prompt_value "Choose" "1")"
-    menu_args=()
+  echo
+  echo "2/5  Select release"
+  if [[ -d "$current_archive" || -f "$current_export/$SCHEME.ipa" ]]; then
+    if prompt_yes_no "Resume prepared release ${current_version} (${current_build})?" "y"; then
+      resume_current=1
+      release_summary="${current_version} (${current_build}), using existing local artifacts"
+    fi
+  fi
 
-    case "$choice" in
-      1)
-        append_common_run_args
-        run_menu_command plan
-        ;;
-      2)
-        choose_release_args
-        menu_args+=("${menu_release_args[@]}")
-        append_dirty_arg_or_cancel || continue
-        append_common_run_args
-        run_menu_command prepare
-        ;;
-      3)
-        append_dirty_arg_or_cancel 1 || continue
-        append_archive_args
-        append_common_run_args
-        run_menu_command archive
-        ;;
-      4)
-        append_dirty_arg_or_cancel 1 || continue
-        append_archive_args
-        append_common_run_args
-        run_menu_command export
-        ;;
-      5)
-        append_dirty_arg_or_cancel 1 || continue
-        append_upload_args
-        append_common_run_args
-        run_menu_command upload
-        ;;
-      6)
-        choose_release_args
-        menu_args+=("${menu_release_args[@]}")
-        append_dirty_arg_or_cancel || continue
-        append_upload_args
-        append_common_run_args
-        run_menu_command all
-        ;;
-      7)
-        if [[ -n "$(git status --porcelain)" ]]; then
-          echo
-          echo "Tagging requires a clean worktree. Commit the release version first."
-        else
-          if prompt_yes_no "Publish a GitHub prerelease after tagging?" "n"; then
-            menu_args+=(--github-release)
-          fi
-          append_common_run_args
-          run_menu_command tag
-        fi
-        ;;
-      8)
-        if [[ -n "$(git status --porcelain)" ]]; then
-          echo
-          echo "Publishing requires a clean worktree."
-        else
-          append_common_run_args
-          run_menu_command github-release
-        fi
-        ;;
-      9)
-        append_common_run_args
-        run_menu_command metadata
-        ;;
-      10)
-        usage
-        ;;
-      0|q|Q)
-        exit 0
-        ;;
-      *)
-        echo "Choose 0-10." >&2
-        ;;
-    esac
+  if [[ "$resume_current" -ne 1 ]]; then
+    choose_release_args
+    release_args=("${chosen_release_args[@]}")
+    release_summary="the newly selected version/build"
+  fi
 
-    echo
-    prompt_value "Press return to continue" "" >/dev/null
-  done
+  echo
+  echo "3/5  TestFlight"
+  if [[ "$resume_current" -eq 1 ]]; then
+    if prompt_yes_no "Upload or re-upload ${current_version} (${current_build}) to App Store Connect?" "n"; then
+      upload_release=1
+    else
+      upload_release=0
+    fi
+  fi
+
+  if [[ "$upload_release" -eq 1 ]]; then
+    append_upload_args
+    upload_args=("${prompted_args[@]}")
+    prompted_args=()
+  fi
+
+  echo
+  echo "4/5  GitHub"
+  if [[ "$resume_current" -eq 1 ]] && git rev-parse --verify "refs/tags/$current_tag" >/dev/null 2>&1; then
+    echo "     Tag already exists: $current_tag"
+  else
+    if prompt_yes_no "Create the TestFlight tag after the release is ready?" "y"; then
+      tag_release=1
+    fi
+  fi
+
+  if [[ "$tag_release" -eq 1 ]] || { [[ "$resume_current" -eq 1 ]] && git rev-parse --verify "refs/tags/$current_tag" >/dev/null 2>&1; }; then
+    if prompt_yes_no "Publish the GitHub prerelease and attach the IPA?" "y"; then
+      publish_github=1
+    fi
+  fi
+
+  if prompt_yes_no "Dry run only?" "n"; then
+    dry_run_release=1
+  fi
+
+  echo
+  echo "5/5  Confirm"
+  echo "     Release: $release_summary"
+  if [[ "$upload_release" -eq 1 ]]; then
+    echo "     TestFlight upload: yes"
+  else
+    echo "     TestFlight upload: skipped (already uploaded)"
+  fi
+  echo "     Create tag: $([[ "$tag_release" -eq 1 ]] && echo yes || echo no)"
+  echo "     GitHub prerelease: $([[ "$publish_github" -eq 1 ]] && echo yes || echo no)"
+  echo "     Dry run: $([[ "$dry_run_release" -eq 1 ]] && echo yes || echo no)"
+  echo
+  prompt_yes_no "Proceed with this release?" "y" || die "release cancelled"
+
+  if [[ "$resume_current" -eq 1 ]]; then
+    if [[ "$prepared_version" -eq 1 ]]; then
+      command_args=()
+      [[ "$dry_run_release" -eq 1 ]] && command_args+=(--dry-run)
+      run_release_step commit "${command_args[@]}"
+    fi
+
+    command_args=()
+    [[ "$dry_run_release" -eq 1 ]] && command_args+=(--dry-run)
+    if [[ "$upload_release" -eq 1 ]]; then
+      command_args+=(--bump none)
+      command_args+=("${upload_args[@]}")
+      [[ "$tag_release" -eq 1 ]] && command_args+=(--tag)
+      [[ "$publish_github" -eq 1 ]] && command_args+=(--github-release)
+      run_release_step upload "${command_args[@]}"
+    elif [[ "$tag_release" -eq 1 ]]; then
+      [[ "$publish_github" -eq 1 ]] && command_args+=(--github-release)
+      run_release_step tag "${command_args[@]}"
+    elif [[ "$publish_github" -eq 1 ]]; then
+      run_release_step github-release "${command_args[@]}"
+    else
+      log "Nothing to publish; release artifacts were left unchanged"
+    fi
+  else
+    command_args=("${release_args[@]}")
+    command_args+=("${upload_args[@]}")
+    [[ "$tag_release" -eq 1 ]] && command_args+=(--tag)
+    [[ "$publish_github" -eq 1 ]] && command_args+=(--github-release)
+    [[ "$dry_run_release" -eq 1 ]] && command_args+=(--dry-run)
+    run_release_step all "${command_args[@]}"
+    if [[ "$tag_release" -ne 1 && "$dry_run_release" -ne 1 ]]; then
+      run_release_step commit
+    fi
+  fi
+
+  echo
+  log "Release workflow finished"
 }
 
 case "$command" in
-  menu)
-    run_menu
+  wizard|menu)
+    run_release_wizard
     ;;
   plan)
     print_plan
@@ -1164,6 +1214,9 @@ case "$command" in
     generate_notes
     log "Wrote $notes_markdown"
     log "Wrote $what_to_test"
+    ;;
+  commit)
+    commit_release_version
     ;;
   archive)
     require_build_worktree
@@ -1183,18 +1236,15 @@ case "$command" in
     ;;
   upload)
     require_build_worktree
-    if [[ "$tag_after_upload" -eq 1 && -n "$(git status --porcelain)" ]]; then
-      die "--tag requires a clean worktree before upload"
-    fi
-    if [[ "$tag_after_upload" -eq 1 ]] && will_mutate_version; then
-      die "cannot use --tag while changing version/build; prepare, commit, upload, then tag"
-    fi
     if [[ "$github_release_after_tag" -eq 1 ]] && will_mutate_version; then
-      die "cannot use --github-release while changing version/build; prepare and commit first"
+      [[ "$tag_after_upload" -eq 1 ]] || die "--github-release while changing version/build requires --tag"
     fi
     if [[ "$bump" != "none" || -n "$version_override" || -n "$build_override" ]]; then
       update_project_version
       generate_notes
+    fi
+    if [[ "$tag_after_upload" -eq 1 ]]; then
+      commit_release_version
     fi
     export_app "upload"
     if [[ "$upload_test_metadata" -eq 1 ]]; then
@@ -1209,17 +1259,20 @@ case "$command" in
     ;;
   all)
     require_clean_worktree
-    if [[ "$tag_after_upload" -eq 1 ]] && will_mutate_version; then
-      die "cannot use --tag with all because all prepares a version bump; commit the bump, then run tag"
-    fi
     update_project_version
     generate_notes
+    if [[ "$tag_after_upload" -eq 1 ]]; then
+      commit_release_version
+    fi
     export_app "upload"
     if [[ "$upload_test_metadata" -eq 1 ]]; then
       upload_testflight_metadata
     fi
     if [[ "$tag_after_upload" -eq 1 ]]; then
       create_tag
+    fi
+    if [[ "$github_release_after_tag" -eq 1 ]]; then
+      create_github_release
     fi
     ;;
   metadata)

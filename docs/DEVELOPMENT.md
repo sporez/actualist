@@ -39,6 +39,12 @@ uploads, tags, and optional GitHub prereleases:
 scripts/testflight-release.sh
 ```
 
+With no arguments, the helper runs one guided release from preflight through
+GitHub publication. It can resume a locally prepared build, skip a completed
+TestFlight upload, create the guarded release commit and tag, repair an expired
+GitHub CLI login, and attach the IPA to a prerelease. Unrelated working-tree
+changes are listed explicitly and stop the release.
+
 Run `scripts/testflight-release.sh --help` for non-interactive commands and
 authentication options.
 
