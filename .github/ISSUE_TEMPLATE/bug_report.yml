@@ -1,0 +1,95 @@
+name: Bug report
+description: Report incorrect behavior, a crash, sync trouble, or a data-integrity concern.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Stop repeating an action if it may have changed budget data incorrectly. Preserve a fresh Actual backup before further testing.
+
+        Do not include server URLs, credentials, sync tokens, encryption keys, budget IDs, account or payee names, transaction details, or real financial amounts.
+
+  - type: input
+    id: actualist_version
+    attributes:
+      label: Actualist version and build
+      placeholder: "0.8 (6)"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and iOS version
+      placeholder: "iPhone 17 Pro, iOS 26.0"
+    validations:
+      required: true
+
+  - type: input
+    id: actual_server
+    attributes:
+      label: Actual server version and hosting method
+      placeholder: "26.x, Docker on a private server"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: encryption
+    attributes:
+      label: Budget encryption
+      options:
+        - Not encrypted
+        - Encrypted
+        - Unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection state when the problem occurred
+      options:
+        - Online
+        - Offline
+        - Reconnecting
+        - Unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use placeholder names and amounts instead of real budget data.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostic report
+      description: Attach the report from Actualist Settings → Support when available.
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, server addresses, identifiers, names, transaction details, and real financial amounts.
+          required: true

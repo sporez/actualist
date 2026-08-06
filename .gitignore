@@ -34,9 +34,21 @@ fastlane/test_output/
 *.mobileprovision
 *.cer
 *.p12
+*.p8
+*.pem
 *.key
 *.xcconfig.local
 Local.xcconfig
+
+# Budget databases and distributable builds
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
+*.ipa
+*.xcarchive/
 
 # Logs and temp files
 *.log

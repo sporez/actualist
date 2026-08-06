@@ -16,6 +16,10 @@
 		010000000000000000000072 /* PayeesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000072 /* PayeesViewModel.swift */; };
 		010000000000000000000073 /* PayeesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000073 /* PayeesView.swift */; };
 		010000000000000000000074 /* PayeeManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000074 /* PayeeManagementTests.swift */; };
+		010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000075 /* OpenSourceLicensesView.swift */; };
+		010000000000000000000076 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000076 /* LICENSE */; };
+		010000000000000000000077 /* THIRD_PARTY_NOTICES.md in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000077 /* THIRD_PARTY_NOTICES.md */; };
+		010000000000000000000078 /* APP_STORE_EXCEPTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000078 /* APP_STORE_EXCEPTION.md */; };
 		01000000000000000000003A /* BackendCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000036 /* BackendCapabilities.swift */; };
 		010000000000000000000003 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000003 /* AppTab.swift */; };
 		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
@@ -239,6 +243,10 @@
 		02000000000000000000005D /* SettingsBudgetPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBudgetPickerSheet.swift; sourceTree = "<group>"; };
 		02000000000000000000005E /* SettingsAccountOrderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAccountOrderSheet.swift; sourceTree = "<group>"; };
 		02000000000000000000005F /* SettingsAppearanceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAppearanceViews.swift; sourceTree = "<group>"; };
+		020000000000000000000075 /* OpenSourceLicensesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceLicensesView.swift; sourceTree = "<group>"; };
+		020000000000000000000076 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		020000000000000000000077 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
+		020000000000000000000078 /* APP_STORE_EXCEPTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = APP_STORE_EXCEPTION.md; sourceTree = "<group>"; };
 		28C36EBC2FE377C800A9F4A8 /* default.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = default.icon; sourceTree = "<group>"; };
 		28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_blue.icon; sourceTree = "<group>"; };
 		28C36EC12FE377C800A9F4A8 /* icon_orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_orange.icon; sourceTree = "<group>"; };
@@ -272,6 +280,9 @@
 		040000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				020000000000000000000076 /* LICENSE */,
+				020000000000000000000078 /* APP_STORE_EXCEPTION.md */,
+				020000000000000000000077 /* THIRD_PARTY_NOTICES.md */,
 				040000000000000000000002 /* Actualist */,
 				040000000000000000000010 /* ActualistTests */,
 				040000000000000000000011 /* Products */,
@@ -474,6 +485,7 @@
 			isa = PBXGroup;
 			children = (
 				28C36EC32FE377C800A9F4A8 /* AppIcon.swift */,
+				020000000000000000000075 /* OpenSourceLicensesView.swift */,
 				02000000000000000000000D /* SettingsView.swift */,
 				020000000000000000000073 /* PayeesView.swift */,
 				020000000000000000000072 /* PayeesViewModel.swift */,
@@ -673,6 +685,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				010000000000000000000076 /* LICENSE in Resources */,
+				010000000000000000000078 /* APP_STORE_EXCEPTION.md in Resources */,
+				010000000000000000000077 /* THIRD_PARTY_NOTICES.md in Resources */,
 				010000000000000000000012 /* Assets.xcassets in Resources */,
 				28C36EBD2FE377C800A9F4A8 /* default.icon in Resources */,
 				28C36EC72FE377C800A9F4A8 /* coin.icon in Resources */,
@@ -712,6 +727,7 @@
 				01000000000000000000000B /* MainTabView.swift in Sources */,
 				01000000000000000000000C /* OnboardingView.swift in Sources */,
 				01000000000000000000000D /* SettingsView.swift in Sources */,
+				010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */,
 				010000000000000000000073 /* PayeesView.swift in Sources */,
 				010000000000000000000072 /* PayeesViewModel.swift in Sources */,
 				01000000000000000000005C /* SettingsDeveloperDiagnostics.swift in Sources */,

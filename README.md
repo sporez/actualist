@@ -5,6 +5,7 @@
 ![Status: Beta](https://img.shields.io/badge/status-beta-E4A258)
 ![Platform: iOS 26+](https://img.shields.io/badge/iOS-26%2B-624183)
 ![UI: SwiftUI](https://img.shields.io/badge/UI-SwiftUI-1F6B64)
+![License: GPL v3](https://img.shields.io/badge/license-GPLv3%20with%20App%20Store%20Exception-2F6FEB)
 
 Actualist connects directly to a normal Actual sync server, imports your budget
 to a local SQLite database, and renders from that local copy. It is designed for
@@ -65,6 +66,8 @@ server or web app. It does not use or require an `actual-http-api` REST wrapper.
 
 Beta testers should install the app through the TestFlight invitation supplied
 for their test group. Developers can also [build from source](#building-from-source).
+Public TestFlight builds are tied to `testflight/v<version>-b<build>` tags so
+the corresponding source remains identifiable.
 
 ## Connecting to Your Server
 
@@ -169,6 +172,16 @@ For a data-integrity problem, stop repeating the action, preserve your backup,
 and say clearly in the issue that the report may involve a wrong balance, missing
 transaction, duplicate transaction, or unexpected budget write.
 
+For suspected security vulnerabilities or reports containing sensitive details,
+follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+
+## Privacy
+
+Actualist has no advertising, tracking, analytics SDK, or developer-operated
+backend. It connects directly to the Actual Budget server selected by the user.
+See the full [Privacy Policy](PRIVACY.md) for its local storage, TestFlight, and
+bug-reporting disclosures.
+
 ## Building From Source
 
 You will need macOS, Xcode 26 or later, and an iOS 26 simulator or device.
@@ -216,3 +229,19 @@ choose.
 
 Actualist is an independent community project and is not affiliated with or
 endorsed by the Actual Budget project.
+
+## License
+
+Actualist source code is licensed under the
+[GNU General Public License version 3 only](LICENSE), with a narrow
+[App Store and TestFlight exception](APP_STORE_EXCEPTION.md). Modified versions
+may be used and distributed, but a distributed derivative must provide its
+corresponding source under GPLv3. The exception permits Apple distribution terms
+without removing that source-code obligation.
+
+The GPL does not grant permission to use the Actualist name or branding for a
+modified distribution. See [TRADEMARKS.md](TRADEMARKS.md). Third-party software
+and Actual Budget attribution are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Copyright © 2026 Neil DeLillo.

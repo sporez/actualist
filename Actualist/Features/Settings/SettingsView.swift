@@ -31,6 +31,7 @@ struct SettingsView: View {
     }
 
     private static let newIssueURL = URL(string: "https://github.com/sporez/actualist/issues/new")!
+    private static let privacyPolicyURL = URL(string: "https://github.com/sporez/actualist/blob/main/PRIVACY.md")!
 
     var body: some View {
         NavigationStack {
@@ -388,6 +389,16 @@ struct SettingsView: View {
 
                     Link(destination: Self.newIssueURL) {
                         SettingsActionLabel(title: "Submit a Bug Report", systemImage: "ladybug")
+                    }
+
+                    Link(destination: Self.privacyPolicyURL) {
+                        SettingsActionLabel(title: "Privacy Policy", systemImage: "hand.raised")
+                    }
+
+                    NavigationLink {
+                        OpenSourceLicensesView()
+                    } label: {
+                        SettingsActionLabel(title: "Open Source Licenses", systemImage: "doc.text")
                     }
 
                     Label {

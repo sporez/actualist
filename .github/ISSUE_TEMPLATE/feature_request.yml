@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest an Actualist workflow or improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Explain the budgeting problem and desired behavior. Do not include personal financial data, server details, or credentials.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to accomplish, and what is difficult today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Desired behavior
+      description: Describe the workflow rather than only its visual appearance.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual_reference
+    attributes:
+      label: Actual Budget reference
+      description: If Actual already supports this, explain where and how it behaves.
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Privacy check
+      options:
+        - label: I did not include personal budget data or connection details.
+          required: true
