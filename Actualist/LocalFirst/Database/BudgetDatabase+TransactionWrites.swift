@@ -231,8 +231,8 @@ extension BudgetDatabase {
         if columns.hasParentID {
             fields.append(("parent_id", parentID.map(LocalFirstSyncValue.string) ?? .null))
         }
-        if isChild, let isChildColumn = columns.isChild {
-            fields.append((isChildColumn, .bool(true)))
+        if let isChildColumn = columns.isChild {
+            fields.append((isChildColumn, .bool(isChild)))
         }
         if let transferID, let transferColumn = columns.transferID {
             fields.append((transferColumn, .string(transferID)))

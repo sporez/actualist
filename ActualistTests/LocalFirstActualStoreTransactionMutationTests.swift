@@ -613,6 +613,49 @@ extension LocalFirstActualStoreTests {
         #expect(asSplit.category == nil)
         #expect(asSplit.subtransactions.count == 2)
 
+        let database = try #require(store.database)
+        let splitMessages = try await database.pendingLocalSyncMessages().map(\.message)
+        func latestValue(
+            in messages: [ActualSyncDecodedMessage],
+            rowID: String,
+            column: String
+        ) -> String? {
+            messages.last {
+                $0.dataset == "transactions" && $0.row == rowID && $0.column == column
+            }?.serializedValue
+        }
+        #expect(
+            latestValue(in: splitMessages, rowID: transactionID, column: "is_parent")
+                == LocalFirstSyncValue.bool(true).serialized
+        )
+        #expect(
+            latestValue(in: splitMessages, rowID: transactionID, column: "isChild")
+                == LocalFirstSyncValue.bool(false).serialized
+        )
+        #expect(
+            latestValue(in: splitMessages, rowID: transactionID, column: "parent_id")
+                == LocalFirstSyncValue.null.serialized
+        )
+        for child in asSplit.subtransactions {
+            let childID = try #require(child.id)
+            #expect(
+                latestValue(in: splitMessages, rowID: childID, column: "isChild")
+                    == LocalFirstSyncValue.bool(true).serialized
+            )
+            #expect(
+                latestValue(in: splitMessages, rowID: childID, column: "parent_id")
+                    == LocalFirstSyncValue.string(transactionID).serialized
+            )
+            #expect(
+                latestValue(in: splitMessages, rowID: childID, column: "acct")
+                    == LocalFirstSyncValue.string("checking").serialized
+            )
+            #expect(
+                latestValue(in: splitMessages, rowID: childID, column: "date")
+                    == LocalFirstSyncValue.int(20_260_714).serialized
+            )
+        }
+
         // Revert to simple.
         _ = try await store.updateTransactionAndRefresh(
             transactionID,
@@ -629,6 +672,20 @@ extension LocalFirstActualStoreTests {
         #expect(!asSimple.isParent)
         #expect(asSimple.subtransactions.isEmpty)
         #expect(asSimple.category == "groceries")
+
+        let simpleMessages = try await database.pendingLocalSyncMessages().map(\.message)
+        #expect(
+            latestValue(in: simpleMessages, rowID: transactionID, column: "is_parent")
+                == LocalFirstSyncValue.bool(false).serialized
+        )
+        #expect(
+            latestValue(in: simpleMessages, rowID: transactionID, column: "isChild")
+                == LocalFirstSyncValue.bool(false).serialized
+        )
+        #expect(
+            latestValue(in: simpleMessages, rowID: transactionID, column: "parent_id")
+                == LocalFirstSyncValue.null.serialized
+        )
     }
 
     @Test func deleteSplitParentLocallyTombstonesParentAndChildren() async throws {
