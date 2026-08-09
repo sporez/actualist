@@ -41,6 +41,11 @@ struct AccountsView: View {
                             .padding(.vertical, 48)
                     }
 
+                    if !isLoading && accounts.isEmpty && errorMessage == nil {
+                        AccountsEmptyView()
+                            .padding(.vertical, 48)
+                    }
+
                     if let errorMessage {
                         Text(errorMessage)
                             .font(ActualistTypography.rowTitle(for: density))
@@ -50,6 +55,7 @@ struct AccountsView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 28)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(ActualistTheme.background)
             .navigationTitle("Accounts")
             .toolbar {
@@ -211,6 +217,26 @@ private struct AccountsLoadingView: View {
                 .font(ActualistTypography.rowTitle(for: density))
         }
         .foregroundStyle(ActualistTheme.secondaryText)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+private struct AccountsEmptyView: View {
+    @Environment(\.actualistDensity) private var density
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "building.columns")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(ActualistTheme.accent)
+            Text("No accounts yet")
+                .font(ActualistTypography.rowTitle(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+            Text("Use the add button to create your first account.")
+                .font(ActualistTypography.rowLabel(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .multilineTextAlignment(.center)
+        }
         .frame(maxWidth: .infinity, alignment: .center)
     }
 }

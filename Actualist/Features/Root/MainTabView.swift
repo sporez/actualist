@@ -42,6 +42,7 @@ struct MainTabView: View {
                         appState.beginReauthentication()
                     }
                     .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
