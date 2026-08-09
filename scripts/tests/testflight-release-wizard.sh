@@ -25,7 +25,19 @@ git -C "$fixture_root" add Actualist.xcodeproj config scripts .gitignore
 git -C "$fixture_root" \
   -c user.name='Actualist Tests' \
   -c user.email='actualist-tests@example.invalid' \
-  commit -qm 'test fixture'
+  commit -qm 'test fixture' \
+  -m 'TestFlight-Note: Do not carry forward build four.'
+
+fixture_commit() {
+  local subject="$1"
+  local note="$2"
+  printf '%s\n' "$subject" >> "$fixture_root/history.txt"
+  git -C "$fixture_root" add history.txt
+  git -C "$fixture_root" \
+    -c user.name='Actualist Tests' \
+    -c user.email='actualist-tests@example.invalid' \
+    commit -qm "$subject" -m "TestFlight-Note: $note"
+}
 
 capture_wizard_until_first_prompt() {
   local output
@@ -42,7 +54,14 @@ grep -Fq 'Resume prepared release 0.8 (6)?' <<< "$untagged_output" || {
   exit 1
 }
 
+git -C "$fixture_root" tag testflight/v0.8-b4
+fixture_commit 'build five' 'Verify behavior introduced in build five.'
+oversized_note="Oversized old note $(awk 'BEGIN { for (i = 0; i < 4500; i++) printf "x" }')"
+fixture_commit 'oversized build five note' "$oversized_note"
+git -C "$fixture_root" tag testflight/v0.8-b5
+fixture_commit 'build six' 'Verify behavior introduced in build six.'
 git -C "$fixture_root" tag testflight/v0.8-b6
+fixture_commit 'build seven' 'Verify behavior introduced in build seven.'
 
 tagged_output="$(capture_wizard_until_first_prompt)"
 grep -Fq 'Completed release 0.8 (6) is already tagged.' <<< "$tagged_output" || {
@@ -58,4 +77,54 @@ if grep -Fq 'Resume prepared release 0.8 (6)?' <<< "$tagged_output"; then
   exit 1
 fi
 
-echo "TestFlight release wizard selection tests passed."
+(cd "$fixture_root" && bash scripts/testflight-release.sh notes --bump build >/dev/null)
+what_to_test="$fixture_root/.release/testflight/0.8-7/what-to-test.txt"
+
+grep -Fq 'Focus for this build:' "$what_to_test" || {
+  echo "expected a current-build focus section" >&2
+  exit 1
+}
+grep -Fq -- '- Verify behavior introduced in build seven.' "$what_to_test" || {
+  echo "expected build seven notes" >&2
+  exit 1
+}
+grep -Fq 'Carry-forward from 0.8 (6):' "$what_to_test" || {
+  echo "expected a build six carry-forward section" >&2
+  exit 1
+}
+grep -Fq -- '- Verify behavior introduced in build six.' "$what_to_test" || {
+  echo "expected build six notes" >&2
+  exit 1
+}
+grep -Fq 'Carry-forward from 0.8 (5):' "$what_to_test" || {
+  echo "expected a build five carry-forward section" >&2
+  exit 1
+}
+grep -Fq -- '- Verify behavior introduced in build five.' "$what_to_test" || {
+  echo "expected build five notes" >&2
+  exit 1
+}
+if grep -Fq 'Do not carry forward build four.' "$what_to_test"; then
+  echo "did not expect notes older than the three-build window" >&2
+  exit 1
+fi
+if grep -Fq 'Oversized old note' "$what_to_test"; then
+  echo "did not expect an older note that exceeds the character budget" >&2
+  exit 1
+fi
+if [[ -e "$fixture_root/.release/testflight/0.8-7/release-notes.md" ]]; then
+  echo "did not expect a redundant release-notes.md artifact" >&2
+  exit 1
+fi
+if [[ "$(wc -m < "$what_to_test" | tr -d '[:space:]')" -gt 4000 ]]; then
+  echo "expected What to Test to stay within App Store Connect's limit" >&2
+  exit 1
+fi
+
+github_output="$(cd "$fixture_root" && bash scripts/testflight-release.sh github-release --build 7 --dry-run 2>&1)"
+grep -Fq -- '--notes-file .release/testflight/0.8-7/what-to-test.txt' <<< "$github_output" || {
+  echo "expected GitHub prereleases to use the reviewed What to Test file" >&2
+  exit 1
+}
+
+echo "TestFlight release wizard and notes tests passed."

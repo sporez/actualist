@@ -45,12 +45,14 @@ TestFlight upload, create the guarded release commit and tag, repair an expired
 GitHub CLI login, and attach the IPA to a prerelease. Unrelated working-tree
 changes are listed explicitly and stop the release.
 
-The wizard generates What to Test from the consumer checklist in
-`config/testflight/what-to-test.txt`, previews the result, and pauses for review.
-At that point, keep the notes, add one or more tester-facing focus items, or edit
-the complete text in `$VISUAL`/`$EDITOR`. The reviewed file is preserved through
-the upload and is also placed in the GitHub prerelease body; commit subjects stay
-in a separate Full Git Log section.
+The wizard generates one What to Test file from the consumer checklist in
+`config/testflight/what-to-test.txt`, previews it, and pauses for review. By
+default, tester-facing commit trailers from the upcoming build and two previous
+tagged builds are grouped by build and deduplicated. Newer notes take priority
+when trimming to App Store Connect's 4,000-character limit. At review, keep the
+notes, add one or more focus items, or edit the complete text in
+`$VISUAL`/`$EDITOR`. The reviewed file is used for both TestFlight metadata and
+the GitHub prerelease body; no separate release-notes artifact is generated.
 
 Every commit that changes something a TestFlight tester should logically know
 about or verify must add one or more trailers. Each value should describe an
