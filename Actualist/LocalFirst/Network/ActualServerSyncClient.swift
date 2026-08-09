@@ -148,6 +148,9 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             fileID: fileID,
             body: body
         )
+        if let serverError = Self.structuredAPIError(from: data) {
+            throw serverError
+        }
         do {
             return try JSONDecoder.actual.decode(Value.self, from: data)
         } catch {
@@ -251,9 +254,42 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         }
         Self.debugLogResponse(httpResponse, data: data)
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw ActualAPIError.httpStatus(httpResponse.statusCode)
+            throw Self.apiError(statusCode: httpResponse.statusCode, data: data)
         }
         return data
+    }
+
+    private static func apiError(statusCode: Int, data: Data) -> ActualAPIError {
+        structuredAPIError(from: data, statusCode: statusCode) ?? .httpStatus(statusCode)
+    }
+
+    private static func structuredAPIError(
+        from data: Data,
+        statusCode: Int? = nil
+    ) -> ActualAPIError? {
+        guard let response = try? JSONDecoder.actual.decode(ActualErrorResponse.self, from: data),
+              statusCode != nil || response.status?.lowercased() == "error",
+              let reason = sanitizedServerText(response.reason) else {
+            return nil
+        }
+        return .serverRejected(
+            status: statusCode,
+            reason: reason,
+            details: sanitizedServerText(response.details)
+        )
+    }
+
+    private static func sanitizedServerText(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let withoutControls = value
+            .components(separatedBy: .controlCharacters)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let compact = withoutControls
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+        guard !compact.isEmpty else { return nil }
+        return String(compact.prefix(240))
     }
 
     private func limitedData(for request: URLRequest, maximumBytes: Int) async throws -> (Data, URLResponse) {
@@ -293,8 +329,13 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ActualAPIError.invalidResponse
             }
-            guard (200..<300).contains(httpResponse.statusCode) else {
-                throw ActualAPIError.httpStatus(httpResponse.statusCode)
+            if !(200..<300).contains(httpResponse.statusCode) {
+                var errorData = Data()
+                for try await byte in bytes {
+                    guard errorData.count < 64 * 1_024 else { break }
+                    errorData.append(byte)
+                }
+                throw Self.apiError(statusCode: httpResponse.statusCode, data: errorData)
             }
             guard httpResponse.expectedContentLength <= 0
                     || httpResponse.expectedContentLength <= Int64(resourceLimits.maximumCompressedBudgetBytes) else {
@@ -368,6 +409,25 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         let password: String?
     }
 
+    private struct ActualErrorResponse: Decodable {
+        let status: String?
+        let reason: String?
+        let details: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case status
+            case reason
+            case details
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            status = try? container.decode(String.self, forKey: .status)
+            reason = try? container.decode(String.self, forKey: .reason)
+            details = try? container.decode(String.self, forKey: .details)
+        }
+    }
+
     private struct UserKeyPayload: Encodable {
         let fileId: String
     }
@@ -379,6 +439,7 @@ enum ActualAPIError: LocalizedError {
     case invalidResponse
     case missingTransactionID
     case unsupportedAuthenticationMethod(String)
+    case serverRejected(status: Int?, reason: String, details: String?)
     case httpStatus(Int)
     case decoding
     case transport(URLError.Code?)
@@ -393,6 +454,15 @@ enum ActualAPIError: LocalizedError {
             "This transaction cannot be changed because the server did not provide its transaction ID."
         case .unsupportedAuthenticationMethod(let method):
             "This Actual server authentication method is not supported: \(method)."
+        case .serverRejected(_, let reason, _)
+            where reason.lowercased() == "invalid-password":
+            "The server password is incorrect."
+        case .serverRejected(_, let reason, let details):
+            if let details {
+                "Actual server error: \(reason) (\(details))."
+            } else {
+                "Actual server error: \(reason)."
+            }
         case .httpStatus(let status):
             if status == 401 || status == 403 {
                 "Your Actual session is no longer valid. Sign in again to resume syncing."

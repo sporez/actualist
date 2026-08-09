@@ -22,6 +22,7 @@
 		010000000000000000000078 /* APP_STORE_EXCEPTION.md in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000078 /* APP_STORE_EXCEPTION.md */; };
 		010000000000000000000079 /* ActualOpenIDAuthenticationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000079 /* ActualOpenIDAuthenticationCoordinator.swift */; };
 		01000000000000000000007A /* OpenIDAuthenticationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000007A /* OpenIDAuthenticationTests.swift */; };
+		01000000000000000000007B /* ActualServerErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000007B /* ActualServerErrorTests.swift */; };
 		01000000000000000000003A /* BackendCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000036 /* BackendCapabilities.swift */; };
 		010000000000000000000003 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000003 /* AppTab.swift */; };
 		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
@@ -156,6 +157,7 @@
 		020000000000000000000008 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		020000000000000000000079 /* ActualOpenIDAuthenticationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualOpenIDAuthenticationCoordinator.swift; sourceTree = "<group>"; };
 		02000000000000000000007A /* OpenIDAuthenticationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIDAuthenticationTests.swift; sourceTree = "<group>"; };
+		02000000000000000000007B /* ActualServerErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualServerErrorTests.swift; sourceTree = "<group>"; };
 		020000000000000000000009 /* AppSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsStore.swift; sourceTree = "<group>"; };
 		02000000000000000000002C /* AccountOrderPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountOrderPreference.swift; sourceTree = "<group>"; };
 		02000000000000000000000A /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -392,6 +394,7 @@
 		040000000000000000000010 /* ActualistTests */ = {
 			isa = PBXGroup;
 			children = (
+				02000000000000000000007B /* ActualServerErrorTests.swift */,
 				02000000000000000000007A /* OpenIDAuthenticationTests.swift */,
 				020000000000000000000074 /* PayeeManagementTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
@@ -810,6 +813,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				01000000000000000000007B /* ActualServerErrorTests.swift in Sources */,
 				01000000000000000000007A /* OpenIDAuthenticationTests.swift in Sources */,
 				010000000000000000000074 /* PayeeManagementTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
