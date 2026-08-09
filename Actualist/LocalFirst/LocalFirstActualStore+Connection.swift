@@ -38,7 +38,7 @@ extension LocalFirstActualStore {
     ) async throws -> StagedLocalFirstConnection {
         let (_, client) = try connectionClient(serverURLString: serverURLString)
         let methods = try await client.loginMethods()
-        guard methods.activeLoginMethods.contains(where: { $0.authenticationMethod == .openID }) else {
+        guard methods.availableLoginMethods.contains(where: { $0.authenticationMethod == .openID }) else {
             throw ActualAPIError.unsupportedAuthenticationMethod("openid")
         }
 

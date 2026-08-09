@@ -424,6 +424,12 @@ struct ActualLoginMethodsResponse: Decodable, Hashable, Sendable {
         loginMethods.filter(\.isActive)
     }
 
+    /// Actual marks the preferred method as active and retains valid fallback methods as
+    /// inactive rows. Authentication selection must consider every advertised row.
+    var availableLoginMethods: [ActualLoginMethod] {
+        loginMethods
+    }
+
     enum CodingKeys: String, CodingKey {
         case methods
         case data

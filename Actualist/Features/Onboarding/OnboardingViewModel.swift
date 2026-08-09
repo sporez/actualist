@@ -23,13 +23,24 @@ final class OnboardingViewModel {
         actualPassword = ""
     }
 
-    func loadLoginMethods(using appState: AppState) async {
+    func continueFromServer(
+        using appState: AppState,
+        browserSession: @escaping ActualOpenIDBrowserSession
+    ) async {
+        await loadLoginMethods(using: appState)
+        guard hasLoadedLoginMethods, supportsOpenID, !supportsPassword else {
+            return
+        }
+        await connectWithOpenID(using: appState, browserSession: browserSession)
+    }
+
+    private func loadLoginMethods(using appState: AppState) async {
         isLoadingLoginMethods = true
         appState.lastErrorMessage = nil
         if let response = await appState.loadLocalFirstLoginMethods(
             serverURLString: serverURLString
         ) {
-            loginMethods = response.activeLoginMethods
+            loginMethods = response.availableLoginMethods
             hasLoadedLoginMethods = true
             isUsingPassword = supportsPassword && !supportsOpenID
         }
@@ -79,6 +90,10 @@ final class OnboardingViewModel {
 
     var showsPasswordForm: Bool {
         hasLoadedLoginMethods && supportsPassword && isUsingPassword
+    }
+
+    var showsOpenIDAction: Bool {
+        hasLoadedLoginMethods && supportsOpenID && !isUsingPassword
     }
 
     var unsupportedAuthenticationMessage: String? {

@@ -24,7 +24,7 @@ struct OnboardingView: View {
                             .font(ActualistTypography.sectionTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
 
-                        Text("Enter your server first. Actualist will show the sign-in methods it supports.")
+                        Text("Enter your server first. Actualist will use its sign-in setup and guide you through the next step.")
                             .font(ActualistTypography.body(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText.opacity(0.82))
                     }
@@ -94,7 +94,11 @@ struct OnboardingView: View {
 
                     if !viewModel.hasLoadedLoginMethods {
                         Button {
-                            Task { await viewModel.loadLoginMethods(using: appState) }
+                            Task {
+                                await viewModel.continueFromServer(using: appState) { authorizationURL in
+                                    try await authenticate(using: authorizationURL)
+                                }
+                            }
                         } label: {
                             HStack {
                                 if viewModel.isLoadingLoginMethods {
@@ -110,16 +114,11 @@ struct OnboardingView: View {
                         .disabled(!viewModel.canLoadLoginMethods)
                     }
 
-                    if viewModel.hasLoadedLoginMethods && viewModel.supportsOpenID && !viewModel.isUsingPassword {
+                    if viewModel.showsOpenIDAction {
                         Button {
                             Task {
                                 await viewModel.connectWithOpenID(using: appState) { authorizationURL in
-                                    try await webAuthenticationSession.authenticate(
-                                        using: authorizationURL,
-                                        callback: .customScheme(ActualOpenIDAuthenticationCoordinator.callbackScheme),
-                                        preferredBrowserSession: nil,
-                                        additionalHeaderFields: [:]
-                                    )
+                                    try await authenticate(using: authorizationURL)
                                 }
                             }
                         } label: {
@@ -127,7 +126,7 @@ struct OnboardingView: View {
                                 if viewModel.isConnecting {
                                     ProgressView()
                                 }
-                                Text(viewModel.isConnecting ? "Signing In" : "Sign in with OpenID")
+                                Text(viewModel.isConnecting ? "Signing In" : "Continue with OpenID")
                                     .font(ActualistTypography.control(for: density))
                             }
                             .frame(maxWidth: .infinity)
@@ -156,21 +155,27 @@ struct OnboardingView: View {
                     }
 
                     if viewModel.hasLoadedLoginMethods && viewModel.supportsPassword && viewModel.supportsOpenID {
-                        Button(viewModel.isUsingPassword ? "Use OpenID instead" : "Use server password") {
+                        Button {
                             viewModel.isUsingPassword.toggle()
                             appState.lastErrorMessage = nil
+                        } label: {
+                            Text(viewModel.isUsingPassword ? "Use OpenID instead" : "Use server password")
+                                .font(ActualistTypography.control(for: density))
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glass)
-                        .frame(maxWidth: .infinity)
                         .disabled(viewModel.isConnecting)
                     }
 
                     if appState.canCancelReauthentication {
-                        Button("Cancel") {
+                        Button {
                             appState.cancelReauthentication()
+                        } label: {
+                            Text("Cancel")
+                                .font(ActualistTypography.control(for: density))
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.glass)
-                        .frame(maxWidth: .infinity)
                         .disabled(viewModel.isConnecting || viewModel.isLoadingLoginMethods)
                     }
 
@@ -188,6 +193,15 @@ struct OnboardingView: View {
                 viewModel.serverURLDidChange()
             }
         }
+    }
+
+    private func authenticate(using authorizationURL: URL) async throws -> URL {
+        try await webAuthenticationSession.authenticate(
+            using: authorizationURL,
+            callback: .customScheme(ActualOpenIDAuthenticationCoordinator.callbackScheme),
+            preferredBrowserSession: nil,
+            additionalHeaderFields: [:]
+        )
     }
 }
 

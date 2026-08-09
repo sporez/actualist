@@ -26,6 +26,7 @@ extension LocalFirstActualStoreTests {
         #expect(response.loginMethods[1].authenticationMethod == .openID)
         #expect(response.loginMethods[2].authenticationMethod == .header)
         #expect(response.loginMethods[3].authenticationMethod == .unsupported("future-auth"))
+        #expect(response.availableLoginMethods.map(\.identifier) == ["password", "openid", "header", "future-auth"])
     }
 
     @Test func openIDStartResponseDecodesActualDataShape() throws {
@@ -116,32 +117,86 @@ extension LocalFirstActualStoreTests {
         #expect(keychain.readActualSyncToken().isEmpty)
     }
 
-    @Test func onboardingStatePrefersOpenIDWhenBothMethodsAreAvailable() throws {
-        let response = try JSONDecoder.actual.decode(
-            ActualLoginMethodsResponse.self,
-            from: Data(#"{"methods":["password","openid"]}"#.utf8)
+    @Test func onboardingOpenIDOnlyDiscoveryImmediatelyStartsAuthentication() async throws {
+        let (viewModel, appState, transport) = makeOnboardingSystem(
+            loginMethodsData: Data(#"{"methods":["openid"]}"#.utf8)
         )
-        let viewModel = OnboardingViewModel()
-        viewModel.loginMethods = response.activeLoginMethods
-        viewModel.hasLoadedLoginMethods = true
-        viewModel.isUsingPassword = viewModel.supportsPassword && !viewModel.supportsOpenID
 
+        await viewModel.continueFromServer(using: appState) { _ in
+            throw CancellationError()
+        }
+
+        #expect(await transport.capturedOpenIDReturnURL != nil)
+        #expect(viewModel.hasLoadedLoginMethods)
+        #expect(viewModel.showsOpenIDAction)
+        #expect(!viewModel.showsPasswordForm)
+        #expect(!viewModel.isConnecting)
+        #expect(appState.lastErrorMessage == nil)
+    }
+
+    @Test func onboardingPasswordOnlyDiscoveryRevealsPasswordForm() async throws {
+        let (viewModel, appState, transport) = makeOnboardingSystem(
+            loginMethodsData: Data(#"{"methods":["password"]}"#.utf8)
+        )
+
+        await viewModel.continueFromServer(using: appState) { _ in
+            Issue.record("Password-only discovery should not start a browser session")
+            throw CancellationError()
+        }
+
+        #expect(await transport.capturedOpenIDReturnURL == nil)
+        #expect(viewModel.showsPasswordForm)
+        #expect(!viewModel.showsOpenIDAction)
+    }
+
+    @Test func onboardingMixedDiscoveryShowsChoicesWithoutStartingAuthentication() async throws {
+        let (viewModel, appState, transport) = makeOnboardingSystem(
+            loginMethodsData: Data(
+                #"{"methods":[{"method":"openid","active":1},{"method":"password","active":0}]}"#.utf8
+            )
+        )
+
+        await viewModel.continueFromServer(using: appState) { _ in
+            Issue.record("Mixed-method discovery should wait for the user's choice")
+            throw CancellationError()
+        }
+
+        #expect(await transport.capturedOpenIDReturnURL == nil)
         #expect(viewModel.supportsOpenID)
         #expect(viewModel.supportsPassword)
         #expect(!viewModel.showsPasswordForm)
+        #expect(viewModel.showsOpenIDAction)
         #expect(viewModel.unsupportedAuthenticationMessage == nil)
     }
 
-    @Test func onboardingStateExplainsHeaderAuthentication() throws {
-        let response = try JSONDecoder.actual.decode(
-            ActualLoginMethodsResponse.self,
-            from: Data(#"{"methods":[{"method":"header","active":1}]}"#.utf8)
+    @Test func onboardingUnsupportedDiscoveryExplainsAuthenticationMethod() async throws {
+        let (viewModel, appState, transport) = makeOnboardingSystem(
+            loginMethodsData: Data(#"{"methods":[{"method":"header","active":1}]}"#.utf8)
         )
-        let viewModel = OnboardingViewModel()
-        viewModel.loginMethods = response.activeLoginMethods
-        viewModel.hasLoadedLoginMethods = true
 
+        await viewModel.continueFromServer(using: appState) { _ in
+            Issue.record("Unsupported discovery should not start a browser session")
+            throw CancellationError()
+        }
+
+        #expect(await transport.capturedOpenIDReturnURL == nil)
         #expect(viewModel.unsupportedAuthenticationMessage?.contains("header authentication") == true)
+    }
+
+    @Test func onboardingOpenIDFailurePreservesDiscoveredRetryState() async throws {
+        let (viewModel, appState, transport) = makeOnboardingSystem(
+            loginMethodsData: Data(#"{"methods":["openid"]}"#.utf8)
+        )
+
+        await viewModel.continueFromServer(using: appState) { _ in
+            throw LocalFirstTestSyncError.failed
+        }
+
+        #expect(await transport.capturedOpenIDReturnURL != nil)
+        #expect(viewModel.hasLoadedLoginMethods)
+        #expect(viewModel.showsOpenIDAction)
+        #expect(!viewModel.isConnecting)
+        #expect(appState.lastErrorMessage != nil)
     }
 
     @Test func openIDTransportSendsActualManagedLoginPayload() async throws {
@@ -167,6 +222,29 @@ extension LocalFirstActualStoreTests {
         #expect(payload["loginMethod"] == "openid")
         #expect(payload["returnUrl"] == returnURL.absoluteString)
         #expect(payload["password"] == nil)
+    }
+
+    private func makeOnboardingSystem(
+        loginMethodsData: Data
+    ) -> (OnboardingViewModel, AppState, StubConnectionTransport) {
+        let transport = StubConnectionTransport(loginMethodsData: loginMethodsData)
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString
+        )
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            connectionTransportFactory: { _ in transport }
+        )
+        let defaults = UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")!
+        let appState = AppState(
+            settingsStore: AppSettingsStore(defaults: defaults),
+            keychain: keychain,
+            localFirstStore: store
+        )
+        let viewModel = OnboardingViewModel()
+        viewModel.serverURLString = "https://sync.example"
+        return (viewModel, appState, transport)
     }
 }
 
