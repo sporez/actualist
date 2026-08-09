@@ -56,6 +56,8 @@ Usage:
   scripts/testflight-release.sh upload [options]
   scripts/testflight-release.sh all [options]
   scripts/testflight-release.sh metadata [options]
+  scripts/testflight-release.sh doctor [options]
+  scripts/testflight-release.sh organizer [options]
   scripts/testflight-release.sh tag [options]
   scripts/testflight-release.sh github-release [options]
 
@@ -71,6 +73,8 @@ Commands:
   upload     Archive if needed, then upload to App Store Connect.
   all        Prepare, archive, and upload; with --tag, commit and tag the release.
   metadata   Upload What to Test for the current TestFlight build.
+  doctor     Verify local archive-signing access and report upload auth.
+  organizer  Open the selected archive in Xcode Organizer for manual upload.
   tag        Create the TestFlight git tag for the selected version/build.
   github-release
              Push the current TestFlight tag, create or update a GitHub
@@ -204,7 +208,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$command" in
-  wizard|menu|plan|notes|prepare|commit|archive|export|upload|all|metadata|tag|github-release) ;;
+  wizard|menu|plan|notes|prepare|commit|archive|export|upload|all|metadata|doctor|organizer|tag|github-release) ;;
   *)
     usage
     die "unknown command: $command"
@@ -638,11 +642,49 @@ run_tests() {
     test
 }
 
+verify_archive_signing_access() {
+  if [[ "$dry_run" -eq 1 ]]; then
+    echo "+ verify Apple Development private-key access with a disposable codesign probe"
+    return
+  fi
+
+  command -v security >/dev/null 2>&1 || die "security is required for archive signing preflight"
+  command -v codesign >/dev/null 2>&1 || die "codesign is required for archive signing preflight"
+
+  local identities identity probe_dir probe_path probe_log
+  identities="$(security find-identity -v -p codesigning 2>&1)" || {
+    printf '%s\n' "$identities" >&2
+    die "could not inspect Apple code-signing identities"
+  }
+  identity="$(printf '%s\n' "$identities" | awk '/"Apple Development:/ { print $2; exit }')"
+  [[ -n "$identity" ]] || die "no valid Apple Development signing identity was found"
+
+  probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/actualist-codesign-check.XXXXXX")"
+  probe_path="$probe_dir/codesign-probe"
+  probe_log="$probe_dir/codesign.log"
+  cp /usr/bin/true "$probe_path"
+
+  if ! codesign --force --sign "$identity" --timestamp=none "$probe_path" >"$probe_log" 2>&1; then
+    cat "$probe_log" >&2
+    rm -rf "$probe_dir"
+    echo >&2
+    echo "Archive signing is unavailable from this shell." >&2
+    echo "Unlock the Mac and login keychain, then rerun the release wizard." >&2
+    echo "If needed, unlock it explicitly with:" >&2
+    echo "  security unlock-keychain ~/Library/Keychains/login.keychain-db" >&2
+    return 1
+  fi
+
+  rm -rf "$probe_dir"
+  log "Apple Development private key is available"
+}
+
 archive_app() {
   if [[ -d "$archive_path" ]]; then
     log "Using existing archive: $archive_path"
     return
   fi
+  verify_archive_signing_access
   run_tests
   log "Archiving ${next_version} (${next_build})"
   run xcodebuild \
@@ -664,6 +706,42 @@ if [[ -n "$asc_key_path" || -n "$asc_key_id" || -n "$asc_issuer_id" ]]; then
   [[ -n "$asc_key_path" && -n "$asc_key_id" && -n "$asc_issuer_id" ]] || die "set all App Store Connect API key env vars, or none"
   auth_args=(-authenticationKeyPath "$asc_key_path" -authenticationKeyID "$asc_key_id" -authenticationKeyIssuerID "$asc_issuer_id")
 fi
+
+has_asc_api_auth() {
+  [[ "${#auth_args[@]}" -gt 0 ]]
+}
+
+if has_asc_api_auth && [[ ! -f "$asc_key_path" ]]; then
+  die "App Store Connect API key not found: $asc_key_path"
+fi
+
+if [[ "$upload_test_metadata" -eq 1 ]] && ! has_asc_api_auth; then
+  die "--upload-test-metadata requires ASC_API_KEY_PATH, ASC_API_KEY_ID, and ASC_API_ISSUER_ID"
+fi
+
+run_release_doctor() {
+  echo "Actualist TestFlight doctor"
+  echo "============================"
+  verify_archive_signing_access
+
+  if has_asc_api_auth; then
+    [[ -f "$asc_key_path" ]] || die "App Store Connect API key not found: $asc_key_path"
+    log "App Store Connect API-key authentication is configured"
+    echo "CLI upload and What to Test metadata can run unattended."
+  else
+    echo
+    echo "No App Store Connect API key is configured."
+    echo "CLI upload will rely on Xcode's signed-in account, which is not always"
+    echo "available to xcodebuild even when Organizer is signed in. Automatic"
+    echo "What to Test metadata upload is unavailable without the API key."
+    echo
+    echo "For reliable unattended releases, set all three variables:"
+    echo "  ASC_API_KEY_PATH"
+    echo "  ASC_API_KEY_ID"
+    echo "  ASC_API_ISSUER_ID"
+    echo "Keep the .p8 key outside this repository."
+  fi
+}
 
 require_asc_api_auth() {
   command -v xcrun >/dev/null 2>&1 || die "xcrun is required for App Store Connect API authentication"
@@ -864,22 +942,57 @@ export_app() {
   archive_app
 
   log "Export destination: $destination"
+  local export_log export_status
+  local -a export_command
+  export_command=(
+    xcodebuild
+    -exportArchive
+    -archivePath "$archive_path"
+    -exportPath "$export_path"
+    -exportOptionsPlist "$plist"
+    -allowProvisioningUpdates
+  )
   if [[ "${#auth_args[@]}" -gt 0 ]]; then
-    run xcodebuild \
-      -exportArchive \
-      -archivePath "$archive_path" \
-      -exportPath "$export_path" \
-      -exportOptionsPlist "$plist" \
-      -allowProvisioningUpdates \
-      "${auth_args[@]}"
-  else
-    run xcodebuild \
-      -exportArchive \
-      -archivePath "$archive_path" \
-      -exportPath "$export_path" \
-      -exportOptionsPlist "$plist" \
-      -allowProvisioningUpdates
+    export_command+=("${auth_args[@]}")
   fi
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    run "${export_command[@]}"
+    return
+  fi
+
+  export_log="$(mktemp "${TMPDIR:-/tmp}/actualist-xcode-export.XXXXXX")"
+  if "${export_command[@]}" 2>&1 | tee "$export_log"; then
+    rm -f "$export_log"
+    return
+  else
+    export_status="${PIPESTATUS[0]}"
+  fi
+
+  if grep -Eq 'Failed to Use Accounts|No Accounts|No signing certificate "iOS Distribution" found' "$export_log"; then
+    echo >&2
+    echo "xcodebuild could not use an App Store Connect account for this team." >&2
+    echo "The archive is intact at: $archive_path" >&2
+    if has_asc_api_auth; then
+      echo "API-key authentication was supplied; verify that key's issuer, ID, path, and access." >&2
+    else
+      echo "For reliable CLI upload, configure ASC_API_KEY_PATH, ASC_API_KEY_ID," >&2
+      echo "and ASC_API_ISSUER_ID. Keep the .p8 key outside this repository." >&2
+      echo "For immediate recovery, open the existing archive in Xcode Organizer:" >&2
+      echo "  scripts/testflight-release.sh organizer --bump none" >&2
+    fi
+  fi
+
+  rm -f "$export_log"
+  return "$export_status"
+}
+
+open_archive_in_organizer() {
+  [[ -d "$archive_path" ]] || die "archive not found: $archive_path"
+  command -v open >/dev/null 2>&1 || die "open is required to launch Xcode Organizer"
+  log "Opening existing archive in Xcode Organizer: $archive_path"
+  run open "$archive_path"
+  [[ "$dry_run" -eq 1 ]] || echo "In Organizer, choose Distribute App -> App Store Connect -> Upload."
 }
 
 create_tag() {
@@ -1363,12 +1476,24 @@ run_release_wizard() {
   fi
 
   if [[ "$upload_release" -eq 1 ]]; then
-    if ! prompt_yes_no "Upload the reviewed What to Test after build processing?" "y"; then
+    if has_asc_api_auth; then
+      if ! prompt_yes_no "Upload the reviewed What to Test after build processing?" "y"; then
+        upload_notes=0
+      fi
+    else
       upload_notes=0
+      echo "     Automatic What to Test upload requires an App Store Connect API key."
+      echo "     Reviewed notes remain at: $selected_what_to_test"
     fi
   else
-    if ! prompt_yes_no "Update What to Test on the existing TestFlight build?" "y"; then
+    if has_asc_api_auth; then
+      if ! prompt_yes_no "Update What to Test on the existing TestFlight build?" "y"; then
+        upload_notes=0
+      fi
+    else
       upload_notes=0
+      echo "     Automatic What to Test upload requires an App Store Connect API key."
+      echo "     Reviewed notes remain at: $selected_what_to_test"
     fi
   fi
 
@@ -1531,6 +1656,12 @@ case "$command" in
     ;;
   metadata)
     upload_testflight_metadata
+    ;;
+  doctor)
+    run_release_doctor
+    ;;
+  organizer)
+    open_archive_in_organizer
     ;;
   tag)
     create_tag

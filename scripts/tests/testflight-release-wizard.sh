@@ -9,6 +9,7 @@ mkdir -p \
   "$fixture_root/Actualist.xcodeproj" \
   "$fixture_root/config/testflight" \
   "$fixture_root/scripts" \
+  "$fixture_root/fake-bin" \
   "$fixture_root/.release/testflight/0.8-6/Actualist-0.8-6.xcarchive"
 
 cp "$repo_root/scripts/testflight-release.sh" "$fixture_root/scripts/testflight-release.sh"
@@ -18,7 +19,7 @@ printf '%s\n' \
   'CURRENT_PROJECT_VERSION = 6;' \
   > "$fixture_root/Actualist.xcodeproj/project.pbxproj"
 printf '%s\n' 'Test the current beta.' > "$fixture_root/config/testflight/what-to-test.txt"
-printf '%s\n' '.release/' > "$fixture_root/.gitignore"
+printf '%s\n' '.release/' 'fake-bin/' > "$fixture_root/.gitignore"
 
 git -C "$fixture_root" init -q
 git -C "$fixture_root" add Actualist.xcodeproj config scripts .gitignore
@@ -125,6 +126,91 @@ fi
 github_output="$(cd "$fixture_root" && bash scripts/testflight-release.sh github-release --build 7 --dry-run 2>&1)"
 grep -Fq -- '--notes-file .release/testflight/0.8-7/what-to-test.txt' <<< "$github_output" || {
   echo "expected GitHub prereleases to use the reviewed What to Test file" >&2
+  exit 1
+}
+
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'echo "error: exportArchive Failed to Use Accounts"' \
+  'echo "error: No signing certificate \"iOS Distribution\" found"' \
+  'exit 70' \
+  > "$fixture_root/fake-bin/xcodebuild"
+chmod +x "$fixture_root/fake-bin/xcodebuild"
+
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'echo "  1) 1111111111111111111111111111111111111111 \"Apple Development: Test User (TESTTEAM)\""' \
+  'echo "     1 valid identities found"' \
+  > "$fixture_root/fake-bin/security"
+printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'echo "codesign: errSecInternalComponent" >&2' \
+  'exit 1' \
+  > "$fixture_root/fake-bin/codesign"
+chmod +x "$fixture_root/fake-bin/security" "$fixture_root/fake-bin/codesign"
+
+if signing_failure_output="$(
+  cd "$fixture_root"
+  PATH="$fixture_root/fake-bin:$PATH" \
+    bash scripts/testflight-release.sh doctor --bump none 2>&1
+)"; then
+  echo "expected an inaccessible signing private key to fail doctor" >&2
+  exit 1
+fi
+grep -Fq 'Archive signing is unavailable from this shell.' <<< "$signing_failure_output" || {
+  echo "expected signing preflight to explain the inaccessible private key" >&2
+  exit 1
+}
+grep -Fq 'security unlock-keychain' <<< "$signing_failure_output" || {
+  echo "expected signing preflight to provide keychain recovery" >&2
+  exit 1
+}
+
+if missing_metadata_auth_output="$(
+  cd "$fixture_root"
+  PATH="$fixture_root/fake-bin:$PATH" \
+    bash scripts/testflight-release.sh upload --bump none --skip-tests \
+      --upload-test-metadata --allow-dirty 2>&1
+)"; then
+  echo "expected metadata upload without an API key to fail preflight" >&2
+  exit 1
+fi
+grep -Fq -- '--upload-test-metadata requires ASC_API_KEY_PATH' <<< "$missing_metadata_auth_output" || {
+  echo "expected missing metadata auth to fail before export" >&2
+  exit 1
+}
+if grep -Fq 'Failed to Use Accounts' <<< "$missing_metadata_auth_output"; then
+  echo "did not expect xcodebuild to run before metadata auth preflight" >&2
+  exit 1
+fi
+
+if auth_failure_output="$(
+  cd "$fixture_root"
+  PATH="$fixture_root/fake-bin:$PATH" \
+    bash scripts/testflight-release.sh upload --bump none --skip-tests --allow-dirty 2>&1
+)"; then
+  echo "expected an App Store Connect account failure" >&2
+  exit 1
+fi
+grep -Fq 'The archive is intact at:' <<< "$auth_failure_output" || {
+  echo "expected upload failure to preserve and identify the archive" >&2
+  exit 1
+}
+grep -Fq 'ASC_API_KEY_PATH' <<< "$auth_failure_output" || {
+  echo "expected upload failure to explain reliable API-key authentication" >&2
+  exit 1
+}
+grep -Fq 'organizer --bump none' <<< "$auth_failure_output" || {
+  echo "expected upload failure to offer Organizer recovery" >&2
+  exit 1
+}
+
+organizer_output="$(
+  cd "$fixture_root"
+  bash scripts/testflight-release.sh organizer --bump none --dry-run 2>&1
+)"
+grep -Fq -- 'open .release/testflight/0.8-6/Actualist-0.8-6.xcarchive' <<< "$organizer_output" || {
+  echo "expected Organizer recovery to reuse the existing archive" >&2
   exit 1
 }
 

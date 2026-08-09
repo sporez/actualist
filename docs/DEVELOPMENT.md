@@ -70,6 +70,17 @@ still offers an interactive focus-item step.
 Run `scripts/testflight-release.sh --help` for non-interactive commands and
 authentication options.
 
+Before a release, `scripts/testflight-release.sh doctor` verifies that the
+Apple Development private key is usable from the current shell. This catches a
+locked login keychain before a long archive begins. A fully unattended upload,
+including What to Test metadata, should use an App Store Connect API key through
+`ASC_API_KEY_PATH`, `ASC_API_KEY_ID`, and `ASC_API_ISSUER_ID`; keep the `.p8`
+file outside the repository. Without those variables, upload falls back to the
+signed-in Xcode account. If Xcode's command-line process cannot access that
+account, the archive remains reusable and
+`scripts/testflight-release.sh organizer --bump none` opens it for upload in
+Xcode Organizer without changing the project version or build number.
+
 ## Engineering Boundaries
 
 - Keep sync transport, SQLite/CRDT handling, domain models, feature view models,
