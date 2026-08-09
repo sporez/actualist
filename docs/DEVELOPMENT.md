@@ -52,16 +52,18 @@ the complete text in `$VISUAL`/`$EDITOR`. The reviewed file is preserved through
 the upload and is also placed in the GitHub prerelease body; commit subjects stay
 in a separate Full Git Log section.
 
-Tester-visible changes can supply focused instructions before release by adding
-one or more commit trailers. The value should describe an action and an expected
-result in language a tester can follow:
+Every commit that changes something a TestFlight tester should logically know
+about or verify must add one or more trailers. Each value should describe an
+action and its expected result in language a tester can follow:
 
 ```text
 TestFlight-Note: Force-quit with a budget open, relaunch, and verify the budget appears immediately.
 ```
 
-Trailers are optional. Without them, the stable consumer checklist remains the
-What to Test content, and the wizard still offers an interactive focus-item step.
+Omit trailers only from strictly internal commits that give testers nothing
+meaningful to observe or verify. Do not add placeholder trailers for those
+commits. The stable consumer checklist remains the fallback, and the wizard
+still offers an interactive focus-item step.
 
 Run `scripts/testflight-release.sh --help` for non-interactive commands and
 authentication options.
