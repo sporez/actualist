@@ -41,10 +41,11 @@ fixture_commit() {
 
 capture_wizard_until_first_prompt() {
   local output
-  if output="$(cd "$fixture_root" && bash scripts/testflight-release.sh wizard </dev/null 2>&1)"; then
-    echo "expected the wizard to stop when test input reached EOF" >&2
-    return 1
-  fi
+  output="$(
+    cd "$fixture_root"
+    TESTFLIGHT_RELEASE_SELECTION_ONLY=1 \
+      bash scripts/testflight-release.sh wizard </dev/null 2>&1
+  )"
   printf '%s' "$output"
 }
 
@@ -126,5 +127,23 @@ grep -Fq -- '--notes-file .release/testflight/0.8-7/what-to-test.txt' <<< "$gith
   echo "expected GitHub prereleases to use the reviewed What to Test file" >&2
   exit 1
 }
+
+perl -0pi -e 's/CURRENT_PROJECT_VERSION = 6;/CURRENT_PROJECT_VERSION = 7;/g' \
+  "$fixture_root/Actualist.xcodeproj/project.pbxproj"
+git -C "$fixture_root" add Actualist.xcodeproj/project.pbxproj
+git -C "$fixture_root" \
+  -c user.name='Actualist Tests' \
+  -c user.email='actualist-tests@example.invalid' \
+  commit -qm 'chore: prepare TestFlight 0.8 (7)'
+
+prepared_without_archive_output="$(capture_wizard_until_first_prompt)"
+grep -Fq 'Resume prepared release 0.8 (7)?' <<< "$prepared_without_archive_output" || {
+  echo "expected a prepared build to remain resumable after archive failure" >&2
+  exit 1
+}
+if grep -Fq '1) Build number: 0.8 (8)' <<< "$prepared_without_archive_output"; then
+  echo "did not expect archive failure recovery to advance to build eight" >&2
+  exit 1
+fi
 
 echo "TestFlight release wizard and notes tests passed."

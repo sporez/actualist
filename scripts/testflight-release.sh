@@ -1229,10 +1229,29 @@ review_testflight_notes() {
   done
 }
 
+has_prepared_release_commit() {
+  local version="$1"
+  local build="$2"
+  local expected_subject="chore: prepare TestFlight ${version} (${build})"
+  local range="HEAD"
+  local subject
+
+  if [[ -n "$last_tag" ]]; then
+    range="${last_tag}..HEAD"
+  fi
+
+  while IFS= read -r subject; do
+    [[ "$subject" == "$expected_subject" ]] && return 0
+  done < <(git log --format='%s' "$range")
+
+  return 1
+}
+
 run_release_wizard() {
   local status prepared_version=0 resume_current=0 upload_release=1 upload_notes=1
   local tag_release=0 publish_github=0 dry_run_release=0
   local current_release_dir current_archive current_export current_tag
+  local current_has_artifacts=0 current_has_preparation=0
   local selected_release_dir selected_what_to_test
   local selected_version="$current_version" selected_build="$current_build"
   local release_summary
@@ -1271,18 +1290,28 @@ run_release_wizard() {
   current_archive="$current_release_dir/Actualist-${current_version}-${current_build}.xcarchive"
   current_export="$current_release_dir/export"
   current_tag="${TAG_PREFIX}${current_version}-b${current_build}"
+  if [[ -d "$current_archive" || -f "$current_export/$SCHEME.ipa" ]]; then
+    current_has_artifacts=1
+  fi
+  if has_prepared_release_commit "$current_version" "$current_build"; then
+    current_has_preparation=1
+  fi
 
   echo
   echo "2/6  Select release"
-  if [[ -d "$current_archive" || -f "$current_export/$SCHEME.ipa" ]]; then
-    if git rev-parse --verify "refs/tags/$current_tag" >/dev/null 2>&1; then
-      echo "     Completed release ${current_version} (${current_build}) is already tagged."
-      echo "     Selecting a new release."
-    elif prompt_yes_no "Resume prepared release ${current_version} (${current_build})?" "y"; then
+  if git rev-parse --verify "refs/tags/$current_tag" >/dev/null 2>&1; then
+    echo "     Completed release ${current_version} (${current_build}) is already tagged."
+    echo "     Selecting a new release."
+  elif [[ "$current_has_artifacts" -eq 1 || "$current_has_preparation" -eq 1 ]]; then
+    if prompt_yes_no "Resume prepared release ${current_version} (${current_build})?" "y"; then
       resume_current=1
       selected_version="$current_version"
       selected_build="$current_build"
-      release_summary="${current_version} (${current_build}), using existing local artifacts"
+      if [[ "$current_has_artifacts" -eq 1 ]]; then
+        release_summary="${current_version} (${current_build}), using existing local artifacts"
+      else
+        release_summary="${current_version} (${current_build}), rebuilding missing local artifacts"
+      fi
     fi
   fi
 
@@ -1290,6 +1319,11 @@ run_release_wizard() {
     choose_release_args
     release_args=("${chosen_release_args[@]}")
     release_summary="${selected_version} (${selected_build}), newly selected"
+  fi
+
+  if [[ "${TESTFLIGHT_RELEASE_SELECTION_ONLY:-0}" == "1" ]]; then
+    echo "     Selected: $release_summary"
+    return
   fi
 
   if prompt_yes_no "Dry run release operations only?" "n"; then
