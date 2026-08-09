@@ -354,7 +354,7 @@ struct SettingsView: View {
                     .settingsSectionChrome()
                 }
 
-                Section("Support") {
+                Section {
                     Text("Actualist is in beta. If something goes wrong, include a diagnostic report with your bug report so the app, sync, and background state can be investigated.")
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
@@ -409,6 +409,14 @@ struct SettingsView: View {
                         Image(systemName: "lock.shield")
                             .foregroundStyle(ActualistTheme.positive)
                     }
+                } header: {
+                    Text("Support")
+                } footer: {
+                    Text(appVersionText)
+                        .font(.caption2)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
                 }
                 .settingsSectionChrome()
             }
@@ -592,6 +600,18 @@ struct SettingsView: View {
         }
 
         return appState.settings.accountOrderByBudgetID[budgetID] == nil ? "Actual Order" : "Custom"
+    }
+
+    private var appVersionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        guard let version, !version.isEmpty,
+              let build, !build.isEmpty else {
+            return "Actualist"
+        }
+
+        return "Actualist \(version) (\(build))"
     }
 
     private func moveReportCards(from source: IndexSet, to destination: Int) {
