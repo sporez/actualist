@@ -68,6 +68,16 @@ struct SettingsView: View {
 
                     SettingsStatusRow(status: appState.connectionStatus)
 
+                    Button {
+                        appState.beginReauthentication()
+                    } label: {
+                        SettingsActionLabel(
+                            title: "Sign In Again",
+                            systemImage: "person.crop.circle.badge.checkmark"
+                        )
+                    }
+                    .disabled(viewModel.isTesting)
+
                     if let message = appState.lastErrorMessage {
                         Text(message)
                             .font(.footnote)

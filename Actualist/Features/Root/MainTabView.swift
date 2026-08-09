@@ -29,6 +29,25 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.reports)
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if appState.requiresReauthentication {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.crop.circle.badge.exclamationmark")
+                        .foregroundStyle(ActualistTheme.warning)
+                    Text("Your Actual session expired. Sign in again to resume syncing.")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                    Spacer(minLength: 8)
+                    Button("Sign In Again") {
+                        appState.beginReauthentication()
+                    }
+                    .buttonStyle(.glassProminent)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(ActualistTheme.background)
+            }
+        }
     }
 
     private var selectedTab: Binding<AppTab> {

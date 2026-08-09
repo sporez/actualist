@@ -19,17 +19,25 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
     let files: [ActualSyncRemoteFile]
     let token: String
     let downloadData: Data
+    let openIDAuthorizationURL: URL
+    let loginMethodsData: Data
+    private(set) var capturedOpenIDReturnURL: URL?
+    private(set) var capturedFirstTimeLoginPassword: String?
 
     init(
         failurePoint: FailurePoint = .none,
         files: [ActualSyncRemoteFile] = [],
         token: String = "staged-token",
-        downloadData: Data = Data()
+        downloadData: Data = Data(),
+        openIDAuthorizationURL: URL = URL(string: "https://identity.example/authorize")!,
+        loginMethodsData: Data = Data(#"{"methods":["password"]}"#.utf8)
     ) {
         self.failurePoint = failurePoint
         self.files = files
         self.token = token
         self.downloadData = downloadData
+        self.openIDAuthorizationURL = openIDAuthorizationURL
+        self.loginMethodsData = loginMethodsData
     }
 
     func loginMethods() async throws -> ActualLoginMethodsResponse {
@@ -38,17 +46,32 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
         }
         return try JSONDecoder.actual.decode(
             ActualLoginMethodsResponse.self,
-            from: Data(#"{"methods":["password"]}"#.utf8)
+            from: loginMethodsData
         )
     }
 
-    func login(password: String) async throws -> ActualLoginResponse {
+    func loginWithPassword(password: String) async throws -> ActualLoginResponse {
         if failurePoint == .login {
             throw LocalFirstTestSyncError.failed
         }
         return try JSONDecoder.actual.decode(
             ActualLoginResponse.self,
             from: Data(#"{"token":"\#(token)"}"#.utf8)
+        )
+    }
+
+    func beginOpenIDLogin(
+        returnURL: URL,
+        firstTimeLoginPassword: String?
+    ) async throws -> ActualOpenIDStartResponse {
+        if failurePoint == .login {
+            throw LocalFirstTestSyncError.failed
+        }
+        capturedOpenIDReturnURL = returnURL
+        capturedFirstTimeLoginPassword = firstTimeLoginPassword
+        return try JSONDecoder.actual.decode(
+            ActualOpenIDStartResponse.self,
+            from: Data(#"{"data":{"returnUrl":"\#(openIDAuthorizationURL.absoluteString)"}}"#.utf8)
         )
     }
 

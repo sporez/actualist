@@ -176,7 +176,7 @@ struct ActualServerErrorRedactionTests {
             Issue.record("Expected the HTTP response to fail")
         } catch {
             let message = error.localizedDescription
-            #expect(message == "The server returned HTTP 401.")
+            #expect(message == "Your Actual session is no longer valid. Sign in again to resume syncing.")
             #expect(!message.contains("private-token"))
             #expect(!message.contains("123456789"))
             #expect(!message.contains("actual.private.example"))

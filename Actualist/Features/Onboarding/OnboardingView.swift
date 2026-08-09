@@ -1,8 +1,10 @@
+import AuthenticationServices
 import SwiftUI
 
 struct OnboardingView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @State private var viewModel = OnboardingViewModel()
 
     var body: some View {
@@ -22,7 +24,7 @@ struct OnboardingView: View {
                             .font(ActualistTypography.sectionTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
 
-                        Text("Enter your Actual server credentials.")
+                        Text("Enter your server first. Actualist will show the sign-in methods it supports.")
                             .font(ActualistTypography.body(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText.opacity(0.82))
                     }
@@ -48,10 +50,13 @@ struct OnboardingView: View {
                                 .accessibilityLabel("Server URL")
                             }
 
-                            Divider().overlay(ActualistTheme.separator)
+                        }
+                    }
 
+                    if viewModel.showsPasswordForm {
+                        GlassPanel {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("Password")
+                                Text("Server Password")
                                     .font(ActualistTypography.rowLabel(for: density))
                                     .foregroundStyle(ActualistTheme.secondaryText)
 
@@ -64,9 +69,15 @@ struct OnboardingView: View {
                                 .foregroundStyle(ActualistTheme.primaryText)
                                 .textInputAutocapitalization(.never)
                                 .multilineTextAlignment(.leading)
-                                .accessibilityLabel("Password")
+                                .accessibilityLabel("Server Password")
                             }
                         }
+                    }
+
+                    if let message = viewModel.unsupportedAuthenticationMessage {
+                        Text(message)
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.warning)
                     }
 
                     if let warning = viewModel.connectionSecurityWarning {
@@ -81,21 +92,87 @@ struct OnboardingView: View {
                             .foregroundStyle(ActualistTheme.danger)
                     }
 
-                    Button {
-                        Task { await viewModel.connect(using: appState) }
-                    } label: {
-                        HStack {
-                            if viewModel.isConnecting {
-                                ProgressView()
+                    if !viewModel.hasLoadedLoginMethods {
+                        Button {
+                            Task { await viewModel.loadLoginMethods(using: appState) }
+                        } label: {
+                            HStack {
+                                if viewModel.isLoadingLoginMethods {
+                                    ProgressView()
+                                }
+                                Text(viewModel.isLoadingLoginMethods ? "Checking Server" : "Continue")
+                                    .font(ActualistTypography.control(for: density))
                             }
-                            Text(viewModel.isConnecting ? "Connecting" : "Connect")
-                                .font(ActualistTypography.control(for: density))
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.glassProminent)
+                        .tint(ActualistTheme.accent)
+                        .disabled(!viewModel.canLoadLoginMethods)
                     }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .disabled(!viewModel.canConnect)
+
+                    if viewModel.hasLoadedLoginMethods && viewModel.supportsOpenID && !viewModel.isUsingPassword {
+                        Button {
+                            Task {
+                                await viewModel.connectWithOpenID(using: appState) { authorizationURL in
+                                    try await webAuthenticationSession.authenticate(
+                                        using: authorizationURL,
+                                        callback: .customScheme(ActualOpenIDAuthenticationCoordinator.callbackScheme),
+                                        preferredBrowserSession: nil,
+                                        additionalHeaderFields: [:]
+                                    )
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                if viewModel.isConnecting {
+                                    ProgressView()
+                                }
+                                Text(viewModel.isConnecting ? "Signing In" : "Sign in with OpenID")
+                                    .font(ActualistTypography.control(for: density))
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(ActualistTheme.accent)
+                        .disabled(viewModel.isConnecting)
+                    }
+
+                    if viewModel.showsPasswordForm {
+                        Button {
+                            Task { await viewModel.connectWithPassword(using: appState) }
+                        } label: {
+                            HStack {
+                                if viewModel.isConnecting {
+                                    ProgressView()
+                                }
+                                Text(viewModel.isConnecting ? "Connecting" : "Connect with Password")
+                                    .font(ActualistTypography.control(for: density))
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(ActualistTheme.accent)
+                        .disabled(!viewModel.canConnectWithPassword)
+                    }
+
+                    if viewModel.hasLoadedLoginMethods && viewModel.supportsPassword && viewModel.supportsOpenID {
+                        Button(viewModel.isUsingPassword ? "Use OpenID instead" : "Use server password") {
+                            viewModel.isUsingPassword.toggle()
+                            appState.lastErrorMessage = nil
+                        }
+                        .buttonStyle(.glass)
+                        .frame(maxWidth: .infinity)
+                        .disabled(viewModel.isConnecting)
+                    }
+
+                    if appState.canCancelReauthentication {
+                        Button("Cancel") {
+                            appState.cancelReauthentication()
+                        }
+                        .buttonStyle(.glass)
+                        .frame(maxWidth: .infinity)
+                        .disabled(viewModel.isConnecting || viewModel.isLoadingLoginMethods)
+                    }
 
                     Spacer(minLength: 120)
                 }
@@ -105,6 +182,11 @@ struct OnboardingView: View {
         }
         .onAppear {
             viewModel.hydrate(from: appState)
+        }
+        .onChange(of: viewModel.serverURLString) { _, _ in
+            if viewModel.hasLoadedLoginMethods {
+                viewModel.serverURLDidChange()
+            }
         }
     }
 }

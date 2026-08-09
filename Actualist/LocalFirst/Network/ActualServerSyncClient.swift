@@ -6,7 +6,11 @@ protocol ActualSyncTransport: Sendable {
 
 protocol ActualServerConnectionTransport: Sendable {
     func loginMethods() async throws -> ActualLoginMethodsResponse
-    func login(password: String) async throws -> ActualLoginResponse
+    func loginWithPassword(password: String) async throws -> ActualLoginResponse
+    func beginOpenIDLogin(
+        returnURL: URL,
+        firstTimeLoginPassword: String?
+    ) async throws -> ActualOpenIDStartResponse
     func listUserFiles(token: String) async throws -> [ActualSyncRemoteFile]
     func userFileInfo(fileID: String, token: String) async throws -> ActualSyncRemoteFile?
     func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws
@@ -41,11 +45,25 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         try await request(path: "/account/login-methods", method: "GET")
     }
 
-    func login(password: String) async throws -> ActualLoginResponse {
+    func loginWithPassword(password: String) async throws -> ActualLoginResponse {
         try await request(
             path: "/account/login",
             method: "POST",
-            body: LoginPayload(password: password)
+            body: PasswordLoginPayload(password: password)
+        )
+    }
+
+    func beginOpenIDLogin(
+        returnURL: URL,
+        firstTimeLoginPassword: String? = nil
+    ) async throws -> ActualOpenIDStartResponse {
+        try await request(
+            path: "/account/login",
+            method: "POST",
+            body: OpenIDLoginPayload(
+                returnUrl: returnURL.absoluteString,
+                password: firstTimeLoginPassword
+            )
         )
     }
 
@@ -339,8 +357,15 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         #endif
     }
 
-    private struct LoginPayload: Encodable {
+    private struct PasswordLoginPayload: Encodable {
+        let loginMethod = "password"
         let password: String
+    }
+
+    private struct OpenIDLoginPayload: Encodable {
+        let loginMethod = "openid"
+        let returnUrl: String
+        let password: String?
     }
 
     private struct UserKeyPayload: Encodable {
@@ -353,6 +378,7 @@ enum ActualAPIError: LocalizedError {
     case invalidURL
     case invalidResponse
     case missingTransactionID
+    case unsupportedAuthenticationMethod(String)
     case httpStatus(Int)
     case decoding
     case transport(URLError.Code?)
@@ -365,8 +391,14 @@ enum ActualAPIError: LocalizedError {
             "The server returned an invalid response."
         case .missingTransactionID:
             "This transaction cannot be changed because the server did not provide its transaction ID."
+        case .unsupportedAuthenticationMethod(let method):
+            "This Actual server authentication method is not supported: \(method)."
         case .httpStatus(let status):
-            "The server returned HTTP \(status)."
+            if status == 401 || status == 403 {
+                "Your Actual session is no longer valid. Sign in again to resume syncing."
+            } else {
+                "The server returned HTTP \(status)."
+            }
         case .decoding:
             "Actualist could not read the server response."
         case .transport(let code):

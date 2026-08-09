@@ -343,8 +343,86 @@ struct ActualEncryptedMetadata: Codable, Hashable, Sendable {
     }
 }
 
+enum ActualAuthenticationMethod: Hashable, Sendable {
+    case password
+    case openID
+    case header
+    case unsupported(String)
+
+    init(identifier: String) {
+        switch identifier.lowercased() {
+        case "password":
+            self = .password
+        case "openid":
+            self = .openID
+        case "header":
+            self = .header
+        default:
+            self = .unsupported(identifier)
+        }
+    }
+
+    var identifier: String {
+        switch self {
+        case .password:
+            "password"
+        case .openID:
+            "openid"
+        case .header:
+            "header"
+        case .unsupported(let identifier):
+            identifier
+        }
+    }
+}
+
+struct ActualLoginMethod: Decodable, Hashable, Sendable {
+    let identifier: String
+    let displayName: String?
+    let isActive: Bool
+
+    var authenticationMethod: ActualAuthenticationMethod {
+        ActualAuthenticationMethod(identifier: identifier)
+    }
+
+    init(identifier: String, displayName: String? = nil, isActive: Bool = true) {
+        self.identifier = identifier
+        self.displayName = displayName
+        self.isActive = isActive
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case method
+        case displayName
+        case active
+    }
+
+    init(from decoder: Decoder) throws {
+        if let container = try? decoder.singleValueContainer(),
+           let identifier = try? container.decode(String.self) {
+            self.init(identifier: identifier)
+            return
+        }
+
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let identifier = try container.decode(String.self, forKey: .method)
+        let displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        let isActive = try container.decodeFlexibleBoolIfPresent(for: .active) ?? true
+        self.init(identifier: identifier, displayName: displayName, isActive: isActive)
+    }
+}
+
 struct ActualLoginMethodsResponse: Decodable, Hashable, Sendable {
-    let methods: [String]
+    let loginMethods: [ActualLoginMethod]
+
+    /// Active identifiers retained for compatibility with the older string-only call sites.
+    var methods: [String] {
+        loginMethods.filter(\.isActive).map(\.identifier)
+    }
+
+    var activeLoginMethods: [ActualLoginMethod] {
+        loginMethods.filter(\.isActive)
+    }
 
     enum CodingKeys: String, CodingKey {
         case methods
@@ -353,50 +431,43 @@ struct ActualLoginMethodsResponse: Decodable, Hashable, Sendable {
         case method
     }
 
-    private struct LoginMethod: Decodable, Hashable, Sendable {
-        let method: String
-        let active: Bool?
-
-        enum CodingKeys: String, CodingKey {
-            case method
-            case active
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            method = try container.decode(String.self, forKey: .method)
-            active = try container.decodeFlexibleBoolIfPresent(for: .active)
-        }
-    }
-
     enum DataCodingKeys: String, CodingKey {
         case methods
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let methods = try? container.decodeIfPresent([String].self, forKey: .methods) {
-            self.methods = methods
-        } else if let methods = try? container.decodeIfPresent([LoginMethod].self, forKey: .methods) {
-            self.methods = methods
-                .filter { $0.active ?? true }
-                .map(\.method)
+        if container.contains(.methods) {
+            loginMethods = Self.decodeMethods(from: try container.superDecoder(forKey: .methods))
         } else if let method = try container.decodeIfPresent(String.self, forKey: .loginMethod)
             ?? container.decodeIfPresent(String.self, forKey: .method) {
-            self.methods = [method]
+            loginMethods = [ActualLoginMethod(identifier: method)]
         } else if let data = try? container.nestedContainer(keyedBy: DataCodingKeys.self, forKey: .data) {
-            if let methods = try? data.decodeIfPresent([String].self, forKey: .methods) {
-                self.methods = methods
-            } else if let methods = try? data.decodeIfPresent([LoginMethod].self, forKey: .methods) {
-                self.methods = methods
-                    .filter { $0.active ?? true }
-                    .map(\.method)
+            if data.contains(.methods) {
+                loginMethods = Self.decodeMethods(from: try data.superDecoder(forKey: .methods))
             } else {
-                self.methods = []
+                loginMethods = []
             }
         } else {
-            self.methods = []
+            loginMethods = []
         }
+    }
+
+    private static func decodeMethods(from decoder: Decoder) -> [ActualLoginMethod] {
+        guard var container = try? decoder.unkeyedContainer() else {
+            return []
+        }
+
+        var methods: [ActualLoginMethod] = []
+        while !container.isAtEnd {
+            guard let itemDecoder = try? container.superDecoder() else {
+                continue
+            }
+            if let method = try? ActualLoginMethod(from: itemDecoder) {
+                methods.append(method)
+            }
+        }
+        return methods
     }
 }
 
@@ -421,6 +492,30 @@ struct ActualLoginResponse: Decodable, Hashable, Sendable {
 
         let data = try container.nestedContainer(keyedBy: DataCodingKeys.self, forKey: .data)
         token = try data.decode(String.self, forKey: .token)
+    }
+}
+
+struct ActualOpenIDStartResponse: Decodable, Hashable, Sendable {
+    let returnURL: URL
+
+    enum CodingKeys: String, CodingKey {
+        case returnURL = "returnUrl"
+        case data
+    }
+
+    enum DataCodingKeys: String, CodingKey {
+        case returnURL = "returnUrl"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let returnURL = try container.decodeIfPresent(URL.self, forKey: .returnURL) {
+            self.returnURL = returnURL
+            return
+        }
+
+        let data = try container.nestedContainer(keyedBy: DataCodingKeys.self, forKey: .data)
+        returnURL = try data.decode(URL.self, forKey: .returnURL)
     }
 }
 

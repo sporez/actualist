@@ -9,6 +9,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     let fileManager: BudgetFileManager
     let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport
     let connectionTransportFactory: @Sendable (URL) -> any ActualServerConnectionTransport
+    let openIDAuthenticationCoordinator = ActualOpenIDAuthenticationCoordinator()
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
     let syncClient = SyncClient()

@@ -13,6 +13,7 @@ final class AppState {
     var selectedBudget: ActualBudget?
     var lastErrorMessage: String?
     var connectionStatus: ServerConnectionStatus = .connecting
+    var requiresReauthentication = false
     var localDataRevision: UInt64 = 0
     var themeRevision = 0
     var developerUnlockToastMessage: String?
@@ -97,7 +98,56 @@ final class AppState {
         .localFirst
     }
 
+    func loadLocalFirstLoginMethods(
+        serverURLString: String
+    ) async -> ActualLoginMethodsResponse? {
+        let normalized = ActualServerURLNormalizer.normalize(serverURLString)
+        guard !normalized.isEmpty else {
+            lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
+            return nil
+        }
+        if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
+            lastErrorMessage = blockedMessage
+            return nil
+        }
+
+        do {
+            let response = try await localFirstStore.loginMethods(serverURLString: normalized)
+            lastErrorMessage = nil
+            return response
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     func saveLocalFirstConnection(serverURLString: String, password: String) async -> Bool {
+        await saveLocalFirstConnection(serverURLString: serverURLString) { normalized, targetBudgetID in
+            try await self.localFirstStore.stageConnection(
+                serverURLString: normalized,
+                password: password,
+                selectedBudgetID: targetBudgetID
+            )
+        }
+    }
+
+    func saveLocalFirstOpenIDConnection(
+        serverURLString: String,
+        browserSession: @escaping ActualOpenIDBrowserSession
+    ) async -> Bool {
+        await saveLocalFirstConnection(serverURLString: serverURLString) { normalized, targetBudgetID in
+            try await self.localFirstStore.stageOpenIDConnection(
+                serverURLString: normalized,
+                selectedBudgetID: targetBudgetID,
+                browserSession: browserSession
+            )
+        }
+    }
+
+    private func saveLocalFirstConnection(
+        serverURLString: String,
+        stage: (String, String?) async throws -> StagedLocalFirstConnection
+    ) async -> Bool {
         let normalized = ActualServerURLNormalizer.normalize(serverURLString)
         guard !normalized.isEmpty else {
             lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
@@ -113,17 +163,14 @@ final class AppState {
         let targetBudgetID = serverChanged ? nil : settings.selectedBudgetID
 
         do {
-            let staged = try await localFirstStore.stageConnection(
-                serverURLString: normalized,
-                password: password,
-                selectedBudgetID: targetBudgetID
-            )
+            let staged = try await stage(normalized, targetBudgetID)
             if let targetBudgetID,
                let target = staged.budgets.first(where: { $0.syncID == targetBudgetID }) {
                 try await localFirstStore.validateCachedBudgetCanOpen(target)
             }
 
             try localFirstStore.commitConnection(staged)
+            requiresReauthentication = false
             settings.localFirstServerURLString = normalized
             budgets = Self.uniqueBudgets(staged.budgets)
             if serverChanged {
@@ -155,6 +202,9 @@ final class AppState {
             connectionStatus = .online
             lastErrorMessage = nil
             return true
+        } catch ActualOpenIDAuthenticationError.cancelled {
+            lastErrorMessage = nil
+            return false
         } catch {
             lastErrorMessage = error.localizedDescription
             if previousServerURLString.isEmpty && !canUseAPI {
@@ -289,6 +339,9 @@ final class AppState {
                 }
                 self.lastErrorMessage = error.localizedDescription
                 self.connectionStatus = .offline
+                if Self.isAuthenticationFailure(error) {
+                    self.requiresReauthentication = true
+                }
                 return false
             }
         }
@@ -378,6 +431,26 @@ final class AppState {
         settings.selectedBudgetName = nil
         settingsStore.save(settings)
         setupPhase = canUseAPI ? .selectingBudget : .needsConnection
+    }
+
+    func beginReauthentication() {
+        lastErrorMessage = nil
+        setupPhase = .needsConnection
+    }
+
+    func cancelReauthentication() {
+        lastErrorMessage = nil
+        if let budgetID = settings.selectedBudgetID,
+           localFirstStore.isOpen(budgetID: budgetID) {
+            setupPhase = .ready
+        } else {
+            setupPhase = canUseAPI ? .selectingBudget : .needsConnection
+        }
+    }
+
+    var canCancelReauthentication: Bool {
+        guard let budgetID = settings.selectedBudgetID else { return false }
+        return localFirstStore.isOpen(budgetID: budgetID)
     }
 
     func updateDisplayDensity(_ density: ActualistDisplayDensity) {
@@ -816,6 +889,9 @@ final class AppState {
         } catch {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
+            if Self.isAuthenticationFailure(error) {
+                requiresReauthentication = true
+            }
             if settings.selectedBudgetID == nil {
                 setupPhase = .needsConnection
             }
@@ -897,6 +973,13 @@ final class AppState {
         return budgets.filter { budget in
             seenSyncIDs.insert(budget.syncID).inserted
         }
+    }
+
+    private static func isAuthenticationFailure(_ error: any Error) -> Bool {
+        guard case ActualAPIError.httpStatus(let status) = error else {
+            return false
+        }
+        return status == 401 || status == 403
     }
 
     private func cancelLocalFirstRefresh() {

@@ -7,23 +7,75 @@ struct StagedLocalFirstConnection {
 }
 
 extension LocalFirstActualStore {
+    func loginMethods(serverURLString: String) async throws -> ActualLoginMethodsResponse {
+        let (_, client) = try connectionClient(serverURLString: serverURLString)
+        return try await client.loginMethods()
+    }
+
     func stageConnection(
         serverURLString: String,
         password: String,
         selectedBudgetID: String?
     ) async throws -> StagedLocalFirstConnection {
-        let serverURLString = ActualServerURLNormalizer.normalize(serverURLString)
-        guard let baseURL = URL(string: serverURLString) else {
-            throw ActualAPIError.invalidURL
-        }
         guard !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw LocalFirstError.missingPassword
         }
 
-        let client = connectionTransportFactory(baseURL)
+        let (_, client) = try connectionClient(serverURLString: serverURLString)
         _ = try await client.loginMethods()
-        let response = try await client.login(password: password)
-        let files = try await client.listUserFiles(token: response.token)
+        let response = try await client.loginWithPassword(password: password)
+        return try await stageAuthenticatedConnection(
+            client: client,
+            token: response.token,
+            selectedBudgetID: selectedBudgetID
+        )
+    }
+
+    func stageOpenIDConnection(
+        serverURLString: String,
+        selectedBudgetID: String?,
+        browserSession: @escaping ActualOpenIDBrowserSession
+    ) async throws -> StagedLocalFirstConnection {
+        let (_, client) = try connectionClient(serverURLString: serverURLString)
+        let methods = try await client.loginMethods()
+        guard methods.activeLoginMethods.contains(where: { $0.authenticationMethod == .openID }) else {
+            throw ActualAPIError.unsupportedAuthenticationMethod("openid")
+        }
+
+        let token = try await openIDAuthenticationCoordinator.authenticate(
+            client: client,
+            browserSession: browserSession
+        )
+        return try await stageAuthenticatedConnection(
+            client: client,
+            token: token,
+            selectedBudgetID: selectedBudgetID
+        )
+    }
+
+    func stageAuthenticatedConnection(
+        serverURLString: String,
+        token: String,
+        selectedBudgetID: String?
+    ) async throws -> StagedLocalFirstConnection {
+        let (_, client) = try connectionClient(serverURLString: serverURLString)
+        return try await stageAuthenticatedConnection(
+            client: client,
+            token: token,
+            selectedBudgetID: selectedBudgetID
+        )
+    }
+
+    private func stageAuthenticatedConnection(
+        client: any ActualServerConnectionTransport,
+        token: String,
+        selectedBudgetID: String?
+    ) async throws -> StagedLocalFirstConnection {
+        guard !token.isEmpty else {
+            throw LocalFirstError.missingSyncToken
+        }
+
+        let files = try await client.listUserFiles(token: token)
         guard !files.isEmpty else {
             throw LocalFirstError.noBudgetsAvailable
         }
@@ -35,12 +87,22 @@ extension LocalFirstActualStore {
         }
 
         return StagedLocalFirstConnection(
-            token: response.token,
+            token: token,
             budgets: budgets,
             remoteFilesByFileID: files.reduce(into: [:]) { cache, file in
                 cache[file.fileID] = file
             }
         )
+    }
+
+    private func connectionClient(
+        serverURLString: String
+    ) throws -> (URL, any ActualServerConnectionTransport) {
+        let normalized = ActualServerURLNormalizer.normalize(serverURLString)
+        guard let baseURL = URL(string: normalized) else {
+            throw ActualAPIError.invalidURL
+        }
+        return (baseURL, connectionTransportFactory(baseURL))
     }
 
     func commitConnection(_ staged: StagedLocalFirstConnection) throws {
