@@ -1304,7 +1304,10 @@ run_release_wizard() {
   echo
   echo "2/6  Select release"
   if [[ -d "$current_archive" || -f "$current_export/$SCHEME.ipa" ]]; then
-    if prompt_yes_no "Resume prepared release ${current_version} (${current_build})?" "y"; then
+    if git rev-parse --verify "refs/tags/$current_tag" >/dev/null 2>&1; then
+      echo "     Completed release ${current_version} (${current_build}) is already tagged."
+      echo "     Selecting a new release."
+    elif prompt_yes_no "Resume prepared release ${current_version} (${current_build})?" "y"; then
       resume_current=1
       selected_version="$current_version"
       selected_build="$current_build"

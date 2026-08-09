@@ -62,6 +62,9 @@ scripts/*
 !scripts/lint-liquid-glass.sh
 !scripts/run-ios-simulator.sh
 !scripts/testflight-release.sh
+!scripts/tests/
+scripts/tests/*
+!scripts/tests/testflight-release-wizard.sh
 .xcode-ota.yml
 .xcode-ota/
 .xcode-ota/builds/
