@@ -1,0 +1,18 @@
+Actualist {{VERSION}} ({{BUILD}}) — Initial Beta
+
+Before testing, export a backup of your Actual budget.
+
+Please test:
+- Connect to your Actual server, select a budget, and complete the initial import.
+- Compare Budget, Spending, Accounts, and Reports with the official Actual client.
+- Create, edit, categorize, split, transfer, and delete test transactions.
+- Assign and move budget money, then confirm changes sync back to Actual.
+- Launch offline, review cached data, make a small change, reconnect, and confirm it syncs without duplicates or missing data.
+- Try the app icon, display density, theme, refresh, and background-sync settings.
+
+Report problems through Settings → Support → Share Diagnostic Report. Include reproduction steps and redacted screenshots.
+
+Known limitations:
+- Bank imports, reconciliation, and rules are unavailable.
+- Account lifecycle actions are incomplete.
+- Budget Templates are experimental.

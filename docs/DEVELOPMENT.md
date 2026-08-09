@@ -45,6 +45,24 @@ TestFlight upload, create the guarded release commit and tag, repair an expired
 GitHub CLI login, and attach the IPA to a prerelease. Unrelated working-tree
 changes are listed explicitly and stop the release.
 
+The wizard generates What to Test from the consumer checklist in
+`config/testflight/what-to-test.txt`, previews the result, and pauses for review.
+At that point, keep the notes, add one or more tester-facing focus items, or edit
+the complete text in `$VISUAL`/`$EDITOR`. The reviewed file is preserved through
+the upload and is also placed in the GitHub prerelease body; commit subjects stay
+in a separate Full Git Log section.
+
+Tester-visible changes can supply focused instructions before release by adding
+one or more commit trailers. The value should describe an action and an expected
+result in language a tester can follow:
+
+```text
+TestFlight-Note: Force-quit with a budget open, relaunch, and verify the budget appears immediately.
+```
+
+Trailers are optional. Without them, the stable consumer checklist remains the
+What to Test content, and the wizard still offers an interactive focus-item step.
+
 Run `scripts/testflight-release.sh --help` for non-interactive commands and
 authentication options.
 

@@ -7,6 +7,7 @@ CONFIGURATION="Release"
 TEAM_ID="BJNL8CJWW6"
 TAG_PREFIX="testflight/v"
 RELEASE_ROOT=".release/testflight"
+WHAT_TO_TEST_TEMPLATE="config/testflight/what-to-test.txt"
 DERIVED_DATA_PATH=".derivedData/testflight"
 TEST_DESTINATION="${TEST_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
 GITHUB_REMOTE="${GITHUB_REMOTE:-origin}"
@@ -37,6 +38,7 @@ tag_after_upload=0
 github_release_after_tag=0
 upload_test_metadata=0
 internal_only=0
+preserve_test_notes=0
 notes_limit=80
 
 usage() {
@@ -45,6 +47,7 @@ Usage:
   scripts/testflight-release.sh
   scripts/testflight-release.sh wizard
   scripts/testflight-release.sh plan [options]
+  scripts/testflight-release.sh notes [options]
   scripts/testflight-release.sh prepare [options]
   scripts/testflight-release.sh commit [options]
   scripts/testflight-release.sh archive [options]
@@ -59,6 +62,7 @@ Commands:
   wizard     Walk through one release from preflight to GitHub publication.
   menu       Legacy alias for wizard.
   plan       Show the next TestFlight release without changing files.
+  notes      Generate consumer-facing What to Test and GitHub release notes.
   prepare    Bump version/build if needed and write release notes/export options.
   commit     Commit a prepared version/build change after validating its scope.
   archive    Run tests, then create an App Store Connect archive.
@@ -90,7 +94,9 @@ Options:
   --github-release       With tag/upload/all, publish a GitHub prerelease after
                          confirming the current TestFlight tag exists.
   --dry-run              Print commands and intended edits without executing them.
-  --notes-limit N        Max commit lines in what-to-test.txt. Default: 80.
+  --keep-test-notes      Preserve an already-reviewed what-to-test.txt when
+                         regenerating the other release files.
+  --notes-limit N        Max TestFlight-Note trailers included. Default: 80.
 
 App Store Connect auth:
   Upload can use the signed-in Xcode account, or these env vars:
@@ -175,6 +181,10 @@ while [[ $# -gt 0 ]]; do
       dry_run=1
       shift
       ;;
+    --keep-test-notes)
+      preserve_test_notes=1
+      shift
+      ;;
     --notes-limit)
       notes_limit="${2:-}"
       [[ -n "$notes_limit" ]] || die "--notes-limit requires a value"
@@ -191,7 +201,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$command" in
-  wizard|menu|plan|prepare|commit|archive|export|upload|all|metadata|tag|github-release) ;;
+  wizard|menu|plan|notes|prepare|commit|archive|export|upload|all|metadata|tag|github-release) ;;
   *)
     usage
     die "unknown command: $command"
@@ -218,10 +228,11 @@ fi
 
 [[ -d "$PROJECT" ]] || die "run this from the Actualist repository root"
 [[ -f "$PROJECT/project.pbxproj" ]] || die "missing $PROJECT/project.pbxproj"
+[[ -f "$WHAT_TO_TEST_TEMPLATE" ]] || die "missing $WHAT_TO_TEST_TEMPLATE"
 
 if [[ -z "$bump" ]]; then
   case "$command" in
-    plan|prepare|all)
+    plan|notes|prepare|all)
       bump="build"
       ;;
     *)
@@ -438,6 +449,83 @@ append_section() {
   fi
 }
 
+what_to_test_character_count() {
+  wc -m < "$1" | tr -d '[:space:]'
+}
+
+validate_what_to_test() {
+  local path="$1"
+  local character_count
+  character_count="$(what_to_test_character_count "$path")"
+  [[ "$character_count" -le 4000 ]] \
+    || die "What to Test is $character_count characters; App Store Connect allows 4000"
+}
+
+write_what_to_test() {
+  local focus_file="$1"
+  local rendered_template="${focus_file}.template"
+
+  awk -v version="$next_version" -v build="$next_build" '
+    {
+      gsub(/\{\{VERSION\}\}/, version)
+      gsub(/\{\{BUILD\}\}/, build)
+      print
+    }
+  ' "$WHAT_TO_TEST_TEMPLATE" > "$rendered_template"
+
+  if [[ -s "$focus_file" ]]; then
+    {
+      sed -n '1p' "$rendered_template"
+      echo
+      echo "Focus for this build:"
+      sed 's/^/- /' "$focus_file"
+      sed -n '2,$p' "$rendered_template"
+    } > "$what_to_test"
+  else
+    cp "$rendered_template" "$what_to_test"
+  fi
+
+  validate_what_to_test "$what_to_test"
+}
+
+sync_release_notes_what_to_test() {
+  local release_notes_path="${1:-$notes_markdown}"
+  local what_to_test_path="${2:-$what_to_test}"
+  [[ -f "$release_notes_path" ]] || die "release notes not found: $release_notes_path"
+  [[ -f "$what_to_test_path" ]] || die "What to Test file not found: $what_to_test_path"
+  grep -Fxq "## What To Test" "$release_notes_path" \
+    || die "What to Test section not found in $release_notes_path"
+  grep -Fxq "## Changes Since Previous Build" "$release_notes_path" \
+    || die "changes section not found in $release_notes_path"
+
+  local tmp_file
+  tmp_file="$(mktemp "${TMPDIR:-/tmp}/actualist-release-notes-sync.XXXXXX")"
+  if awk -v replacement="$what_to_test_path" '
+    $0 == "## What To Test" {
+      print
+      print ""
+      while ((getline line < replacement) > 0) {
+        print line
+      }
+      close(replacement)
+      replacing = 1
+      next
+    }
+    replacing && $0 == "## Changes Since Previous Build" {
+      print ""
+      print
+      replacing = 0
+      next
+    }
+    !replacing { print }
+  ' "$release_notes_path" > "$tmp_file"; then
+    mv "$tmp_file" "$release_notes_path"
+  else
+    rm -f "$tmp_file"
+    die "could not update What to Test in $release_notes_path"
+  fi
+}
+
 generate_notes() {
   if [[ "$dry_run" -eq 1 ]]; then
     echo "+ write $notes_markdown"
@@ -457,12 +545,14 @@ generate_notes() {
   local docs_tests="$tmp_dir/docs-tests"
   local other="$tmp_dir/other"
   local full_log="$tmp_dir/full-log"
+  local focus="$tmp_dir/focus"
   : > "$features"
   : > "$fixes"
   : > "$polish"
   : > "$docs_tests"
   : > "$other"
   : > "$full_log"
+  : > "$focus"
 
   local has_commits=0
   while IFS=$'\t' read -r hash subject; do
@@ -489,7 +579,26 @@ generate_notes() {
     esac
   done < <(git log --no-merges --reverse --format='%h%x09%s' "$note_range")
 
+  git log --no-merges --reverse --format='%B' "$note_range" | awk \
+    -v limit="$notes_limit" '
+      match($0, /^[[:space:]]*TestFlight-Note:[[:space:]]*/) {
+        note = substr($0, RLENGTH + 1)
+        sub(/[[:space:]]+$/, "", note)
+        if (note != "" && !seen[note]++ && count < limit) {
+          print note
+          count++
+        }
+      }
+    ' > "$focus"
+
   mkdir -p "$release_dir"
+
+  if [[ "$preserve_test_notes" -eq 1 && -f "$what_to_test" ]]; then
+    log "Keeping reviewed $what_to_test"
+    validate_what_to_test "$what_to_test"
+  else
+    write_what_to_test "$focus"
+  fi
 
   {
     echo "# TestFlight ${next_version} (${next_build})"
@@ -502,6 +611,10 @@ generate_notes() {
     echo "- Tag to create: ${tag_name}"
     echo
     echo "## What To Test"
+    echo
+    cat "$what_to_test"
+    echo
+    echo "## Changes Since Previous Build"
   } > "$notes_markdown"
 
   if [[ "$has_commits" -eq 0 ]]; then
@@ -518,16 +631,6 @@ generate_notes() {
       cat "$full_log"
     } >> "$notes_markdown"
   fi
-
-  {
-    echo "Actualist ${next_version} (${next_build})"
-    echo
-    if [[ "$has_commits" -eq 0 ]]; then
-      echo "- Internal build with no committed changes in ${note_range}."
-    else
-      cat "$features" "$fixes" "$polish" "$other" "$docs_tests" | awk 'NF' | head -n "$notes_limit"
-    fi
-  } > "$what_to_test"
 
   write_export_options "$export_options_export" "export"
   write_export_options "$export_options_upload" "upload"
@@ -707,11 +810,7 @@ wait_for_asc_build() {
 
 upload_testflight_metadata() {
   [[ -f "$what_to_test" ]] || die "What to Test file not found: $what_to_test; run prepare first"
-
-  local character_count
-  character_count="$(wc -m < "$what_to_test" | tr -d '[:space:]')"
-  [[ "$character_count" -le 4000 ]] \
-    || die "What to Test is $character_count characters; App Store Connect allows 4000"
+  validate_what_to_test "$what_to_test"
 
   if [[ "$dry_run" -eq 1 ]]; then
     log "Would upload $what_to_test to TestFlight build ${next_version} (${next_build}) for $TESTFLIGHT_LOCALE"
@@ -879,9 +978,8 @@ create_github_release() {
     git rev-parse --verify "refs/tags/$tag_name" >/dev/null 2>&1 || die "tag not found: $tag_name; run the tag command first"
     if gh release view "$tag_name" >/dev/null 2>&1; then
       release_exists=1
-    else
-      [[ -f "$notes_markdown" ]] || die "release notes not found: $notes_markdown; run prepare first"
     fi
+    [[ -f "$notes_markdown" ]] || die "release notes not found: $notes_markdown; run notes first"
   fi
 
   ensure_github_release_ipa
@@ -890,7 +988,8 @@ create_github_release() {
   run git push "$GITHUB_REMOTE" "refs/tags/$tag_name"
 
   if [[ "$release_exists" -eq 1 ]]; then
-    log "Uploading IPA to existing GitHub prerelease $tag_name"
+    log "Updating existing GitHub prerelease $tag_name and uploading its IPA"
+    run gh release edit "$tag_name" --notes-file "$notes_markdown"
     run gh release upload "$tag_name" "$github_release_ipa" --clobber
   else
     log "Creating GitHub prerelease $tag_name with IPA"
@@ -913,6 +1012,7 @@ Archive path:            ${archive_path}
 Tag to create:           ${tag_name}
 
 Next commands:
+  scripts/testflight-release.sh notes
   scripts/testflight-release.sh prepare
   scripts/testflight-release.sh commit
   scripts/testflight-release.sh upload
@@ -986,6 +1086,7 @@ next_for_bump() {
 }
 
 choose_release_args() {
+  local choice custom_version custom_build major minor patch
   chosen_release_args=()
 
   echo
@@ -1000,24 +1101,39 @@ choose_release_args() {
     choice="$(prompt_value "Choose bump" "1")"
     case "$choice" in
       1)
+        selected_version="$current_version"
+        selected_build="$((current_build + 1))"
         chosen_release_args+=(--bump build)
         return
         ;;
       2)
+        read -r major minor patch <<< "$(split_version "$current_version")"
+        selected_version="$major.$minor.$((patch + 1))"
+        selected_build=1
         chosen_release_args+=(--bump patch)
         return
         ;;
       3)
+        read -r major minor patch <<< "$(split_version "$current_version")"
+        selected_version="$major.$((minor + 1)).0"
+        selected_build=1
         chosen_release_args+=(--bump minor)
         return
         ;;
       4)
+        read -r major minor patch <<< "$(split_version "$current_version")"
+        selected_version="$((major + 1)).0.0"
+        selected_build=1
         chosen_release_args+=(--bump major)
         return
         ;;
       5)
         custom_version="$(prompt_value "Marketing version" "$current_version")"
         custom_build="$(prompt_value "Build number" "$((current_build + 1))")"
+        split_version "$custom_version" >/dev/null
+        [[ "$custom_build" =~ ^[0-9]+$ ]] || die "build number must be an integer"
+        selected_version="$custom_version"
+        selected_build="$custom_build"
         chosen_release_args+=(--version "$custom_version" --build "$custom_build")
         return
         ;;
@@ -1039,9 +1155,6 @@ append_upload_args() {
   if prompt_yes_no "Internal TestFlight only?" "n"; then
     prompted_args+=(--internal-only)
   fi
-  if prompt_yes_no "Upload What to Test metadata after processing?" "n"; then
-    prompted_args+=(--upload-test-metadata)
-  fi
 }
 
 run_release_step() {
@@ -1056,10 +1169,101 @@ run_release_step() {
   bash "$0" "$subcommand" "$@"
 }
 
+add_testflight_focus_item() {
+  local path="$1"
+  local item="$2"
+  local tmp_file
+
+  item="${item#- }"
+  [[ -n "$item" ]] || return
+  if grep -Fxq -- "- $item" "$path"; then
+    echo "That focus item is already present."
+    return
+  fi
+
+  tmp_file="$(mktemp "${TMPDIR:-/tmp}/actualist-what-to-test.XXXXXX")"
+  if grep -Fxq "Focus for this build:" "$path"; then
+    awk -v item="$item" '
+      { print }
+      !inserted && $0 == "Focus for this build:" {
+        print "- " item
+        inserted = 1
+      }
+    ' "$path" > "$tmp_file"
+  else
+    awk -v item="$item" '
+      NR == 1 {
+        print
+        print ""
+        print "Focus for this build:"
+        print "- " item
+        next
+      }
+      { print }
+    ' "$path" > "$tmp_file"
+  fi
+  mv "$tmp_file" "$path"
+}
+
+review_testflight_notes() {
+  local what_to_test_path="$1"
+  local release_notes_path="$2"
+  local choice item editor character_count
+  local -a editor_parts
+
+  while true; do
+    echo
+    echo "What to Test preview"
+    echo "--------------------"
+    cat "$what_to_test_path"
+    echo "--------------------"
+    character_count="$(what_to_test_character_count "$what_to_test_path")"
+    echo "$character_count / 4000 characters"
+    echo
+    echo "  1) Keep these notes"
+    echo "  2) Add a focus item"
+    echo "  3) Edit the complete notes in an editor"
+    choice="$(prompt_value "Choose notes action" "1")"
+
+    case "$choice" in
+      1)
+        if [[ "$character_count" -gt 4000 ]]; then
+          echo "The notes must be shortened to 4000 characters before continuing." >&2
+          continue
+        fi
+        sync_release_notes_what_to_test "$release_notes_path" "$what_to_test_path"
+        return
+        ;;
+      2)
+        item="$(prompt_value "Tester-facing action (without a bullet)" "")"
+        if [[ -z "$item" ]]; then
+          echo "No focus item added."
+        else
+          add_testflight_focus_item "$what_to_test_path" "$item"
+          sync_release_notes_what_to_test "$release_notes_path" "$what_to_test_path"
+        fi
+        ;;
+      3)
+        editor="${VISUAL:-${EDITOR:-vi}}"
+        read -r -a editor_parts <<< "$editor"
+        command -v "${editor_parts[0]}" >/dev/null 2>&1 \
+          || die "editor not found: ${editor_parts[0]}; set EDITOR or VISUAL"
+        "${editor_parts[@]}" "$what_to_test_path"
+        sync_release_notes_what_to_test "$release_notes_path" "$what_to_test_path"
+        ;;
+      *)
+        echo "Choose 1-3." >&2
+        ;;
+    esac
+  done
+}
+
 run_release_wizard() {
-  local status prepared_version=0 resume_current=0 upload_release=1
+  local status prepared_version=0 resume_current=0 upload_release=1 upload_notes=1
   local tag_release=0 publish_github=0 dry_run_release=0
   local current_release_dir current_archive current_export current_tag
+  local selected_release_dir selected_what_to_test selected_release_notes
+  local selected_version="$current_version" selected_build="$current_build"
   local release_summary
   local -a release_args upload_args command_args prompted_args chosen_release_args
   release_args=()
@@ -1072,7 +1276,7 @@ run_release_wizard() {
   echo "Actualist release"
   echo "================="
   echo
-  echo "1/5  Preflight"
+  echo "1/6  Preflight"
   echo "     Branch:  $(git branch --show-current)"
   echo "     Version: ${current_version} (${current_build})"
 
@@ -1098,10 +1302,12 @@ run_release_wizard() {
   current_tag="${TAG_PREFIX}${current_version}-b${current_build}"
 
   echo
-  echo "2/5  Select release"
+  echo "2/6  Select release"
   if [[ -d "$current_archive" || -f "$current_export/$SCHEME.ipa" ]]; then
     if prompt_yes_no "Resume prepared release ${current_version} (${current_build})?" "y"; then
       resume_current=1
+      selected_version="$current_version"
+      selected_build="$current_build"
       release_summary="${current_version} (${current_build}), using existing local artifacts"
     fi
   fi
@@ -1109,11 +1315,32 @@ run_release_wizard() {
   if [[ "$resume_current" -ne 1 ]]; then
     choose_release_args
     release_args=("${chosen_release_args[@]}")
-    release_summary="the newly selected version/build"
+    release_summary="${selected_version} (${selected_build}), newly selected"
   fi
 
+  if prompt_yes_no "Dry run release operations only?" "n"; then
+    dry_run_release=1
+  fi
+
+  selected_release_dir="$RELEASE_ROOT/${selected_version}-${selected_build}"
+  selected_what_to_test="$selected_release_dir/what-to-test.txt"
+  selected_release_notes="$selected_release_dir/release-notes.md"
+
   echo
-  echo "3/5  TestFlight"
+  echo "3/6  What to Test"
+  echo "     Notes are prepared locally now so you can review them before release operations."
+  command_args=("${release_args[@]}")
+  [[ "$resume_current" -eq 1 ]] && command_args+=(--bump none)
+  if [[ -f "$selected_what_to_test" ]]; then
+    if ! prompt_yes_no "Regenerate What to Test from the consumer template and commit trailers?" "y"; then
+      command_args+=(--keep-test-notes)
+    fi
+  fi
+  run_release_step notes "${command_args[@]}"
+  review_testflight_notes "$selected_what_to_test" "$selected_release_notes"
+
+  echo
+  echo "4/6  TestFlight"
   if [[ "$resume_current" -eq 1 ]]; then
     if prompt_yes_no "Upload or re-upload ${current_version} (${current_build}) to App Store Connect?" "n"; then
       upload_release=1
@@ -1128,8 +1355,18 @@ run_release_wizard() {
     prompted_args=()
   fi
 
+  if [[ "$upload_release" -eq 1 ]]; then
+    if ! prompt_yes_no "Upload the reviewed What to Test after build processing?" "y"; then
+      upload_notes=0
+    fi
+  else
+    if ! prompt_yes_no "Update What to Test on the existing TestFlight build?" "y"; then
+      upload_notes=0
+    fi
+  fi
+
   echo
-  echo "4/5  GitHub"
+  echo "5/6  GitHub"
   if [[ "$resume_current" -eq 1 ]] && git rev-parse --verify "refs/tags/$current_tag" >/dev/null 2>&1; then
     echo "     Tag already exists: $current_tag"
   else
@@ -1144,18 +1381,15 @@ run_release_wizard() {
     fi
   fi
 
-  if prompt_yes_no "Dry run only?" "n"; then
-    dry_run_release=1
-  fi
-
   echo
-  echo "5/5  Confirm"
+  echo "6/6  Confirm"
   echo "     Release: $release_summary"
   if [[ "$upload_release" -eq 1 ]]; then
     echo "     TestFlight upload: yes"
   else
     echo "     TestFlight upload: skipped (already uploaded)"
   fi
+  echo "     What to Test upload: $([[ "$upload_notes" -eq 1 ]] && echo yes || echo no)"
   echo "     Create tag: $([[ "$tag_release" -eq 1 ]] && echo yes || echo no)"
   echo "     GitHub prerelease: $([[ "$publish_github" -eq 1 ]] && echo yes || echo no)"
   echo "     Dry run: $([[ "$dry_run_release" -eq 1 ]] && echo yes || echo no)"
@@ -1172,22 +1406,30 @@ run_release_wizard() {
     command_args=()
     [[ "$dry_run_release" -eq 1 ]] && command_args+=(--dry-run)
     if [[ "$upload_release" -eq 1 ]]; then
-      command_args+=(--bump none)
+      command_args+=(--bump none --keep-test-notes)
       command_args+=("${upload_args[@]}")
+      [[ "$upload_notes" -eq 1 ]] && command_args+=(--upload-test-metadata)
       [[ "$tag_release" -eq 1 ]] && command_args+=(--tag)
       [[ "$publish_github" -eq 1 ]] && command_args+=(--github-release)
       run_release_step upload "${command_args[@]}"
-    elif [[ "$tag_release" -eq 1 ]]; then
-      [[ "$publish_github" -eq 1 ]] && command_args+=(--github-release)
-      run_release_step tag "${command_args[@]}"
-    elif [[ "$publish_github" -eq 1 ]]; then
-      run_release_step github-release "${command_args[@]}"
     else
-      log "Nothing to publish; release artifacts were left unchanged"
+      if [[ "$upload_notes" -eq 1 ]]; then
+        run_release_step metadata "${command_args[@]}"
+      fi
+      if [[ "$tag_release" -eq 1 ]]; then
+        [[ "$publish_github" -eq 1 ]] && command_args+=(--github-release)
+        run_release_step tag "${command_args[@]}"
+      elif [[ "$publish_github" -eq 1 ]]; then
+        run_release_step github-release "${command_args[@]}"
+      elif [[ "$upload_notes" -ne 1 ]]; then
+        log "Notes were reviewed locally; no release operation was selected"
+      fi
     fi
   else
     command_args=("${release_args[@]}")
     command_args+=("${upload_args[@]}")
+    command_args+=(--keep-test-notes)
+    [[ "$upload_notes" -eq 1 ]] && command_args+=(--upload-test-metadata)
     [[ "$tag_release" -eq 1 ]] && command_args+=(--tag)
     [[ "$publish_github" -eq 1 ]] && command_args+=(--github-release)
     [[ "$dry_run_release" -eq 1 ]] && command_args+=(--dry-run)
@@ -1207,6 +1449,13 @@ case "$command" in
     ;;
   plan)
     print_plan
+    ;;
+  notes)
+    generate_notes
+    if [[ "$dry_run" -ne 1 ]]; then
+      log "Wrote $notes_markdown"
+      log "Wrote $what_to_test"
+    fi
     ;;
   prepare)
     require_clean_worktree
