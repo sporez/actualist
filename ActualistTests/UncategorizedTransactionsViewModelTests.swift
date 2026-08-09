@@ -137,6 +137,70 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.errorMessage == nil)
     }
 
+    @Test func categorizationRefreshesCategoryBalancesWhileTransactionsRemain() async throws {
+        let firstTransaction = Self.transaction(id: "txn1")
+        let remainingTransaction = Self.transaction(id: "txn2")
+        let initialCategoryGroup = TransactionEditorCategoryGroup(
+            id: "usual",
+            name: "Usual",
+            options: [
+                TransactionEditorCategoryOption(
+                    id: "general",
+                    title: "General",
+                    amount: 0,
+                    valueText: "$0.00"
+                )
+            ]
+        )
+        let refreshedCategoryGroup = TransactionEditorCategoryGroup(
+            id: "usual",
+            name: "Usual",
+            options: [
+                TransactionEditorCategoryOption(
+                    id: "general",
+                    title: "General",
+                    amount: -1_200,
+                    valueText: "-$12.00"
+                )
+            ]
+        )
+        let repository = UncategorizedRecordingTransactionRepository(
+            loadedResponses: [
+                LoadedUncategorizedTransactions(
+                    transactions: [firstTransaction, remainingTransaction],
+                    accountNames: ["checking": "Checking"],
+                    categoryNames: [:],
+                    payeeNames: ["store": "Corner Store"],
+                    transferPayeeIDs: [],
+                    categoryGroups: [initialCategoryGroup]
+                ),
+                LoadedUncategorizedTransactions(
+                    transactions: [remainingTransaction],
+                    accountNames: ["checking": "Checking"],
+                    categoryNames: [:],
+                    payeeNames: ["store": "Corner Store"],
+                    transferPayeeIDs: [],
+                    categoryGroups: [refreshedCategoryGroup]
+                )
+            ]
+        )
+        let model = UncategorizedTransactionsViewModel()
+
+        await model.load(budgetID: "budget", month: "2026-06", repository: repository)
+        let result = await model.categorize(
+            firstTransaction,
+            categoryID: "general",
+            budgetID: "budget",
+            monthForRemainingRefresh: "2026-06",
+            repository: repository
+        )
+
+        #expect(result == .categorized(hasRemainingTransactions: true))
+        #expect(model.transactions.map(\.rowID) == ["txn2"])
+        #expect(model.categoryGroups.first?.options.first?.amount == -1_200)
+        #expect(model.categoryGroups.first?.options.first?.valueText == "-$12.00")
+    }
+
     @Test func failedCategorizationKeepsTransactionAndShowsError() async throws {
         let transaction = Self.transaction(id: "txn1")
         let repository = UncategorizedRecordingTransactionRepository(

@@ -204,7 +204,7 @@ final class UncategorizedTransactionsViewModel {
             ) {}
             transactions.removeAll { $0.rowID == transactionID }
 
-            if let month, transactions.isEmpty {
+            if let month {
                 do {
                     isLoading = true
                     apply(try await repository.uncategorizedTransactions(budgetID: budgetID, month: month))
