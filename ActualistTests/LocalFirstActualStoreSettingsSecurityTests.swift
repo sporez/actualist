@@ -254,6 +254,50 @@ extension LocalFirstActualStoreTests {
         #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("intercept"))
     }
 
+    @Test func serverConnectionSecurityHandlesEveryTypedURLPrefixAndEmptyHost() {
+        let addresses = [
+            "http://192.168.1.16:5007",
+            "HTTP://localhost:5006",
+            "http://actual.tailnet-name.ts.net:5006",
+            "http://[fe80::1%25en0]:5006",
+            "https://actual.example.com"
+        ]
+        let malformedEmptyHostInputs = [
+            "http://",
+            " http:// ",
+            "http:///actual",
+            "http://:5006",
+            "http://?query",
+            "http://#fragment",
+            "http://[]",
+            "http://%25",
+            "http://%25%25"
+        ]
+
+        func verifySecurityClassificationDoesNotCrash(_ input: String) {
+            let warning = ActualServerConnectionSecurity.warningMessage(for: input)
+            let blocked = ActualServerConnectionSecurity.blockedMessage(for: input)
+
+            #expect(
+                warning == nil || blocked == nil,
+                "An address must not be both warned and blocked: \(input)"
+            )
+        }
+
+        for address in addresses {
+            var typedPrefix = ""
+            verifySecurityClassificationDoesNotCrash(typedPrefix)
+            for character in address {
+                typedPrefix.append(character)
+                verifySecurityClassificationDoesNotCrash(typedPrefix)
+            }
+        }
+
+        for input in malformedEmptyHostInputs {
+            verifySecurityClassificationDoesNotCrash(input)
+        }
+    }
+
     @Test(arguments: [
         "http://100.64.0.1:5006",
         "http://100.127.255.254:5006",

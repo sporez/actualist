@@ -217,7 +217,10 @@ enum ActualServerConnectionSecurity {
     }
 
     private static func ipv6Bytes(_ host: String) -> [UInt8]? {
-        let addressWithoutZone = String(host.split(separator: "%", maxSplits: 1)[0])
+        guard let addressWithoutZoneSubstring = host.split(separator: "%", maxSplits: 1).first else {
+            return nil
+        }
+        let addressWithoutZone = String(addressWithoutZoneSubstring)
         var address = in6_addr()
         guard inet_pton(AF_INET6, addressWithoutZone, &address) == 1 else {
             return nil
