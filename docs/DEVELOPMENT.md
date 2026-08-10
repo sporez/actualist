@@ -72,14 +72,17 @@ authentication options.
 
 Before a release, `scripts/testflight-release.sh doctor` verifies that the
 Apple Development private key is usable from the current shell. This catches a
-locked login keychain before a long archive begins. A fully unattended upload,
-including What to Test metadata, should use an App Store Connect API key through
-`ASC_API_KEY_PATH`, `ASC_API_KEY_ID`, and `ASC_API_ISSUER_ID`; keep the `.p8`
-file outside the repository. Without those variables, upload falls back to the
-signed-in Xcode account. If Xcode's command-line process cannot access that
-account, the archive remains reusable and
+locked login keychain before a long archive begins. Uploads use the Apple
+account signed into Xcode beta, while the generated What to Test text is copied
+into App Store Connect manually. If Xcode's command-line process cannot access
+that account, the archive remains reusable and
 `scripts/testflight-release.sh organizer --bump none` opens it for upload in
 Xcode Organizer without changing the project version or build number.
+
+The helper currently sets `DEVELOPER_DIR` to
+`/Applications/Xcode-beta.app/Contents/Developer`, keeping command-line uploads
+on the same Xcode installation as the signed-in GUI without changing the
+system-wide `xcode-select` setting.
 
 ## Engineering Boundaries
 

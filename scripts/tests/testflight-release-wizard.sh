@@ -196,8 +196,8 @@ grep -Fq 'The archive is intact at:' <<< "$auth_failure_output" || {
   echo "expected upload failure to preserve and identify the archive" >&2
   exit 1
 }
-grep -Fq 'ASC_API_KEY_PATH' <<< "$auth_failure_output" || {
-  echo "expected upload failure to explain reliable API-key authentication" >&2
+grep -Fq 'Apple account is signed into Xcode beta' <<< "$auth_failure_output" || {
+  echo "expected upload failure to explain Xcode account recovery" >&2
   exit 1
 }
 grep -Fq 'organizer --bump none' <<< "$auth_failure_output" || {

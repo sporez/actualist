@@ -111,6 +111,9 @@ App Store Connect auth:
     ASC_API_KEY_ID / APP_STORE_CONNECT_API_KEY_ID
     ASC_API_ISSUER_ID / APP_STORE_CONNECT_API_ISSUER_ID
   Metadata upload requires all three API key variables.
+
+Xcode selection:
+  The helper currently uses /Applications/Xcode-beta.app/Contents/Developer.
 USAGE
 }
 
@@ -122,6 +125,16 @@ die() {
 log() {
   echo "==> $*"
 }
+
+configure_xcode_toolchain() {
+  local developer_dir="/Applications/Xcode-beta.app/Contents/Developer"
+
+  [[ -x "$developer_dir/usr/bin/xcodebuild" ]] \
+    || die "required Xcode beta developer directory is unavailable: $developer_dir"
+  export DEVELOPER_DIR="$developer_dir"
+}
+
+configure_xcode_toolchain
 
 run() {
   if [[ "$dry_run" -eq 1 ]]; then
@@ -722,6 +735,8 @@ fi
 run_release_doctor() {
   echo "Actualist TestFlight doctor"
   echo "============================"
+  echo "Xcode: $(xcodebuild -version | head -n 1)"
+  echo "Developer directory: $(xcode-select -p)"
   verify_archive_signing_access
 
   if has_asc_api_auth; then
@@ -730,16 +745,9 @@ run_release_doctor() {
     echo "CLI upload and What to Test metadata can run unattended."
   else
     echo
-    echo "No App Store Connect API key is configured."
-    echo "CLI upload will rely on Xcode's signed-in account, which is not always"
-    echo "available to xcodebuild even when Organizer is signed in. Automatic"
-    echo "What to Test metadata upload is unavailable without the API key."
-    echo
-    echo "For reliable unattended releases, set all three variables:"
-    echo "  ASC_API_KEY_PATH"
-    echo "  ASC_API_KEY_ID"
-    echo "  ASC_API_ISSUER_ID"
-    echo "Keep the .p8 key outside this repository."
+    log "Signed-in Xcode account upload mode"
+    echo "CLI upload will use the Apple account signed into Xcode beta."
+    echo "What to Test remains local for manual copy into App Store Connect."
   fi
 }
 
@@ -976,8 +984,8 @@ export_app() {
     if has_asc_api_auth; then
       echo "API-key authentication was supplied; verify that key's issuer, ID, path, and access." >&2
     else
-      echo "For reliable CLI upload, configure ASC_API_KEY_PATH, ASC_API_KEY_ID," >&2
-      echo "and ASC_API_ISSUER_ID. Keep the .p8 key outside this repository." >&2
+      echo "Confirm the Apple account is signed into Xcode beta, then retry the" >&2
+      echo "same upload; the existing archive does not need to be rebuilt." >&2
       echo "For immediate recovery, open the existing archive in Xcode Organizer:" >&2
       echo "  scripts/testflight-release.sh organizer --bump none" >&2
     fi
@@ -1382,6 +1390,8 @@ run_release_wizard() {
   echo "1/6  Preflight"
   echo "     Branch:  $(git branch --show-current)"
   echo "     Version: ${current_version} (${current_build})"
+  echo "     Xcode:   $(xcodebuild -version | head -n 1)"
+  echo "     Path:    $(xcode-select -p)"
 
   status="$(git status --porcelain)"
   if [[ -n "$status" ]]; then
