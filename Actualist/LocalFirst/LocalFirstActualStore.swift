@@ -113,6 +113,10 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         return syncStatus
     }
 
+    func clearLastSyncError() {
+        syncStatus?.lastError = nil
+    }
+
     func requireDatabase(for budgetID: String) throws -> BudgetDatabase {
         guard let database else {
             throw LocalFirstError.budgetNotOpened

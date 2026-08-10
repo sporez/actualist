@@ -27,7 +27,31 @@ extension LocalFirstActualStoreTests {
         #expect(message == "The server returned HTTP 502.")
     }
 
+    @Test func structuredUnauthorizedResponseRequiresReauthentication() async throws {
+        let error = await loginError(using: StructuredUnauthorizedURLProtocol.self)
+
+        #expect(error?.isAuthenticationFailure == true)
+        #expect(
+            error?.localizedDescription
+                == "Your Actual session is no longer valid. Sign in again to resume syncing."
+        )
+    }
+
+    @Test func legacyUnauthorizedResponseRequiresReauthentication() async throws {
+        let error = await loginError(using: LegacyUnauthorizedURLProtocol.self)
+
+        #expect(error?.isAuthenticationFailure == true)
+        #expect(
+            error?.localizedDescription
+                == "Your Actual session is no longer valid. Sign in again to resume syncing."
+        )
+    }
+
     private func loginErrorMessage(using protocolClass: AnyClass) async -> String? {
+        await loginError(using: protocolClass)?.localizedDescription
+    }
+
+    private func loginError(using protocolClass: AnyClass) async -> ActualAPIError? {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [protocolClass]
         let client = ActualServerSyncClient(
@@ -39,8 +63,11 @@ extension LocalFirstActualStoreTests {
             _ = try await client.loginWithPassword(password: "test-password")
             Issue.record("The server error response should fail")
             return nil
+        } catch let error as ActualAPIError {
+            return error
         } catch {
-            return error.localizedDescription
+            Issue.record("Expected an ActualAPIError, got \(type(of: error))")
+            return nil
         }
     }
 }
@@ -93,4 +120,18 @@ private final class ProxyErrorURLProtocol: ActualErrorURLProtocol {
     override class var responseBody: Data {
         Data("Bad Gateway".utf8)
     }
+}
+
+private final class StructuredUnauthorizedURLProtocol: ActualErrorURLProtocol {
+    override class var statusCode: Int { 401 }
+    override class var responseBody: Data {
+        Data(
+            #"{"status":"error","reason":"unauthorized","details":"token-not-found"}"#.utf8
+        )
+    }
+}
+
+private final class LegacyUnauthorizedURLProtocol: ActualErrorURLProtocol {
+    override class var statusCode: Int { 401 }
+    override class var responseBody: Data { Data() }
 }

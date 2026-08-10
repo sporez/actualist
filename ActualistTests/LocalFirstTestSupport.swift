@@ -159,6 +159,16 @@ actor RecordingSyncTransport: ActualSyncTransport {
     }
 }
 
+actor AuthenticationFailureSyncTransport: ActualSyncTransport {
+    func sync(data: Data, token: String) async throws -> Data {
+        throw ActualAPIError.serverRejected(
+            status: 401,
+            reason: "unauthorized",
+            details: "token-not-found"
+        )
+    }
+}
+
 struct FixedResponseSyncTransport: ActualSyncTransport {
     let responseData: Data
 

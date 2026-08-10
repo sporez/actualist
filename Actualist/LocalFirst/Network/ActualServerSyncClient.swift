@@ -444,8 +444,31 @@ enum ActualAPIError: LocalizedError {
     case decoding
     case transport(URLError.Code?)
 
-    var errorDescription: String? {
+    var isAuthenticationFailure: Bool {
         switch self {
+        case .httpStatus(let status):
+            return status == 401 || status == 403
+        case .serverRejected(let status, let reason, let details):
+            if let status {
+                return status == 401 || status == 403
+            }
+
+            let normalizedReason = reason.lowercased()
+            let normalizedDetails = details?.lowercased()
+            return normalizedReason == "unauthorized"
+                || normalizedReason == "token-not-found"
+                || normalizedDetails == "token-not-found"
+        default:
+            return false
+        }
+    }
+
+    var errorDescription: String? {
+        if isAuthenticationFailure {
+            return "Your Actual session is no longer valid. Sign in again to resume syncing."
+        }
+
+        return switch self {
         case .invalidURL:
             "The server URL is invalid."
         case .invalidResponse:
@@ -464,11 +487,7 @@ enum ActualAPIError: LocalizedError {
                 "Actual server error: \(reason)."
             }
         case .httpStatus(let status):
-            if status == 401 || status == 403 {
-                "Your Actual session is no longer valid. Sign in again to resume syncing."
-            } else {
-                "The server returned HTTP \(status)."
-            }
+            "The server returned HTTP \(status)."
         case .decoding:
             "Actualist could not read the server response."
         case .transport(let code):

@@ -490,6 +490,68 @@ extension LocalFirstActualStoreTests {
         #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.id == "groceries" })
     }
 
+    @Test func structuredAuthenticationFailureShowsReauthenticationBannerState() async throws {
+        let transport = AuthenticationFailureSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("expired-token")
+        let appState = try makeAppState(for: bundle)
+
+        let succeeded = await appState.refreshLocalFirstData(
+            budgetID: "group-1",
+            force: true
+        )
+
+        #expect(!succeeded)
+        #expect(appState.connectionStatus == .offline)
+        #expect(appState.requiresReauthentication)
+        #expect(
+            appState.lastErrorMessage
+                == "Your Actual session is no longer valid. Sign in again to resume syncing."
+        )
+    }
+
+    @Test func successfulReauthenticationClearsExpiredSessionSyncError() async throws {
+        let syncTransport = AuthenticationFailureSyncTransport()
+        let remoteFile = ActualSyncRemoteFile(
+            fileID: "file-1",
+            groupID: "group-1",
+            name: "Writable Budget",
+            deleted: false,
+            encryptKeyID: nil,
+            requiresEncryptionPassword: false
+        )
+        let connectionTransport = StubConnectionTransport(
+            files: [remoteFile],
+            token: "renewed-token"
+        )
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in syncTransport },
+            connectionTransportFactory: { _ in connectionTransport }
+        )
+        try bundle.keychain.saveActualSyncToken("expired-token")
+        let appState = try makeAppState(for: bundle)
+
+        let expiredRefreshSucceeded = await appState.refreshLocalFirstData(
+            budgetID: "group-1",
+            force: true
+        )
+
+        #expect(!expiredRefreshSucceeded)
+        #expect(appState.requiresReauthentication)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError != nil)
+
+        let reauthenticated = await appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "test-password"
+        )
+
+        #expect(reauthenticated)
+        #expect(!appState.requiresReauthentication)
+        #expect(appState.connectionStatus == .online)
+        #expect(appState.lastErrorMessage == nil)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == nil)
+    }
+
     @Test func appStateRestoresSelectedSQLiteBudgetWithoutSyncCredentials() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         bundle.store.reset()

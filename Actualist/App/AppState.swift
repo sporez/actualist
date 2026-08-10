@@ -170,7 +170,6 @@ final class AppState {
             }
 
             try localFirstStore.commitConnection(staged)
-            requiresReauthentication = false
             settings.localFirstServerURLString = normalized
             budgets = Self.uniqueBudgets(staged.budgets)
             if serverChanged {
@@ -199,6 +198,10 @@ final class AppState {
             } else {
                 setupPhase = .selectingBudget
             }
+            if requiresReauthentication {
+                localFirstStore.clearLastSyncError()
+            }
+            requiresReauthentication = false
             connectionStatus = .online
             lastErrorMessage = nil
             return true
@@ -976,10 +979,7 @@ final class AppState {
     }
 
     private static func isAuthenticationFailure(_ error: any Error) -> Bool {
-        guard case ActualAPIError.httpStatus(let status) = error else {
-            return false
-        }
-        return status == 401 || status == 403
+        (error as? ActualAPIError)?.isAuthenticationFailure == true
     }
 
     private func cancelLocalFirstRefresh() {
