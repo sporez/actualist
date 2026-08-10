@@ -252,35 +252,33 @@ struct BudgetPickerView: View {
             .refreshable {
                 await viewModel.reload(using: appState)
             }
-            .sheet(item: $encryptedBudgetPrompt) { budget in
-                NavigationStack {
-                    Form {
-                        Section {
-                            SecureField("Encryption Password", text: $encryptionPassword)
-                                .textInputAutocapitalization(.never)
-                        } footer: {
-                            Text(LocalFirstRecoveryGuidance.encryptionPasswordNotice)
-                        }
+            .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in
+                EncryptedBudgetUnlockSheet(
+                    encryptionPassword: $encryptionPassword,
+                    isUnlocking: isUnlockingEncryptedBudget,
+                    errorMessage: encryptedBudgetUnlockErrorMessage,
+                    onCancel: {
+                        encryptedBudgetPrompt = nil
+                        clearEncryptedBudgetPassword()
+                    },
+                    onUnlock: {
+                        Task { await unlockBudget(budget) }
                     }
-                    .navigationTitle("Unlock Budget")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                encryptedBudgetPrompt = nil
-                                encryptionPassword = ""
-                            }
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button(isUnlockingEncryptedBudget ? "Unlocking" : "Unlock") {
-                                Task { await unlockBudget(budget) }
-                            }
-                            .disabled(encryptionPassword.isEmpty || isUnlockingEncryptedBudget)
-                        }
-                    }
-                }
-                .appSwitcherPrivacyProtected()
+                )
             }
         }
+    }
+
+    private var encryptedBudgetUnlockErrorMessage: String? {
+        guard let message = appState.lastErrorMessage,
+              message != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription else {
+            return nil
+        }
+        return message
+    }
+
+    private func clearEncryptedBudgetPassword() {
+        encryptionPassword = ""
     }
 
     private func selectBudget(_ budget: ActualBudget) async {
