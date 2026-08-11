@@ -18,6 +18,7 @@ final class AppState {
     var themeRevision = 0
     var developerUnlockToastMessage: String?
     private(set) var isAppSwitcherCoverSuppressedForSystemUI = false
+    private(set) var isBudgetSwitchInProgress = false
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
@@ -89,6 +90,18 @@ final class AppState {
 
     var canUseAPI: Bool {
         !settings.localFirstServerURLString.isEmpty && !keychain.readActualSyncToken().isEmpty
+    }
+
+    var isReadyForMainTabs: Bool {
+        guard setupPhase == .ready,
+              let selectedBudgetID = settings.selectedBudgetID,
+              selectedBudget?.syncID == selectedBudgetID else {
+            return false
+        }
+        if isBudgetSwitchInProgress {
+            return true
+        }
+        return localFirstStore.isOpen(budgetID: selectedBudgetID)
     }
 
     /// The single source of truth for backend availability. The local-first CRDT backend is
@@ -193,8 +206,13 @@ final class AppState {
                 if !localFirstStore.isOpen(budgetID: targetBudgetID) {
                     _ = try await localFirstStore.openCachedBudget(target)
                 }
-                selectedBudget = target
-                setupPhase = .ready
+                if localFirstStore.isOpen(budgetID: targetBudgetID) {
+                    selectedBudget = target
+                    setupPhase = .ready
+                } else {
+                    selectedBudget = nil
+                    setupPhase = .selectingBudget
+                }
             } else {
                 setupPhase = .selectingBudget
             }
@@ -395,11 +413,27 @@ final class AppState {
     }
 
     private func selectLocalFirstBudget(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
-        if settings.selectedBudgetID != budget.syncID {
+        if encryptionPassword?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+           localFirstStore.requiresEncryptionPasswordToOpen(budget) {
+            lastErrorMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
+            return
+        }
+
+        let previousBudget = selectedBudget
+        let previousBudgetID = settings.selectedBudgetID
+        let isChangingBudget = previousBudgetID != budget.syncID
+        let canRestorePreviousBudget = isChangingBudget
+            && setupPhase == .ready
+            && previousBudget?.syncID == previousBudgetID
+            && previousBudgetID.map { localFirstStore.isOpen(budgetID: $0) } == true
+
+        if isChangingBudget {
+            isBudgetSwitchInProgress = canRestorePreviousBudget
             cancelLocalFirstRefresh()
-            localFirstStore.reset()
+            localFirstStore.closeOpenBudget()
             accountNavigationPath = []
         }
+        defer { isBudgetSwitchInProgress = false }
 
         connectionStatus = .connecting
         do {
@@ -408,6 +442,9 @@ final class AppState {
                 serverURLString: settings.localFirstServerURLString,
                 encryptionPassword: encryptionPassword
             )
+            guard localFirstStore.isOpen(budgetID: budget.syncID) else {
+                throw LocalFirstError.budgetNotOpened
+            }
             selectedBudget = budget
             settings.selectedBudgetID = budget.syncID
             settings.selectedBudgetName = budget.name
@@ -420,8 +457,19 @@ final class AppState {
             lastErrorMessage = nil
             localDataRevision &+= 1
         } catch {
+            var restoredPreviousBudget = false
+            if canRestorePreviousBudget, let previousBudget {
+                localFirstStore.closeOpenBudget()
+                restoredPreviousBudget = (try? await localFirstStore.openCachedBudget(previousBudget)) == true
+            }
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
+            if restoredPreviousBudget {
+                selectedBudget = previousBudget
+                setupPhase = .ready
+            } else if settings.selectedBudgetID.map({ localFirstStore.isOpen(budgetID: $0) }) != true {
+                setupPhase = .selectingBudget
+            }
         }
     }
 
@@ -732,6 +780,11 @@ final class AppState {
             guard didOpen else {
                 return false
             }
+            guard let selectedBudgetID = settings.selectedBudgetID,
+                  localFirstStore.isOpen(budgetID: selectedBudgetID) else {
+                localFirstStore.reset()
+                return false
+            }
             selectedBudget = budget
             budgets = Self.uniqueBudgets([budget] + budgets)
             setupPhase = .ready
@@ -881,6 +934,11 @@ final class AppState {
                         budget,
                         serverURLString: settings.localFirstServerURLString
                     )
+                }
+                guard localFirstStore.isOpen(budgetID: selectedBudgetID) else {
+                    setupPhase = .selectingBudget
+                    connectionStatus = .online
+                    return
                 }
                 setupPhase = .ready
                 connectionStatus = .online

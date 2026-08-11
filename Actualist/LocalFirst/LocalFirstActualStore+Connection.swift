@@ -129,6 +129,24 @@ extension LocalFirstActualStore {
         return cachedBudgets
     }
 
+    func requiresEncryptionPasswordToOpen(_ budget: ActualBudget) -> Bool {
+        guard let fileID = budget.localFirstFileID else {
+            return false
+        }
+        if openedBudgetID == budget.syncID, openedEncryptionContext != nil {
+            return false
+        }
+
+        let remoteKeyID = remoteFilesByFileID[fileID].flatMap { remote in
+            remote.requiresEncryptionPassword ? remote.syncEncryptionKeyID : nil
+        }
+        let importedKeyID = (try? fileManager.loadMetadata(fileID: fileID))?.encryptionKeyID
+        guard let keyID = remoteKeyID ?? importedKeyID else {
+            return false
+        }
+        return keychain.readLocalFirstEncryptionKey(fileID: fileID, keyID: keyID) == nil
+    }
+
     func openBudget(
         _ budget: ActualBudget,
         serverURLString: String,

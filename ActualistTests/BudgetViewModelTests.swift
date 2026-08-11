@@ -346,6 +346,65 @@ struct BudgetViewModelTests {
         #expect(model.expandedGroupIDs == ["bills", "food", "last-group"])
     }
 
+    @Test func switchingBudgetsInSameMonthExpandsAllReplacementGroups() async throws {
+        let originalMonth = try Self.decodeBudgetMonth(
+            visibleCategoryBalance: 1_000,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+        let replacementGroup = BudgetMonthCategoryGroup(
+            id: "replacement-group",
+            name: "Replacement Group",
+            isIncome: false,
+            hidden: false,
+            budgeted: 0,
+            spent: 0,
+            balance: 0,
+            categories: []
+        )
+        let replacementMonth = BudgetMonth(
+            month: originalMonth.month,
+            incomeAvailable: originalMonth.incomeAvailable,
+            lastMonthOverspent: originalMonth.lastMonthOverspent,
+            forNextMonth: originalMonth.forNextMonth,
+            totalBudgeted: originalMonth.totalBudgeted,
+            toBudget: originalMonth.toBudget,
+            fromLastMonth: originalMonth.fromLastMonth,
+            totalIncome: originalMonth.totalIncome,
+            totalSpent: originalMonth.totalSpent,
+            totalBalance: originalMonth.totalBalance,
+            categoryGroups: [replacementGroup]
+        )
+        let model = BudgetViewModel()
+
+        await model.load(
+            budgetID: "original-budget",
+            repository: RecordingBudgetRepository(
+                loadedMonth: LoadedBudgetMonth(
+                    availableMonths: [originalMonth.month],
+                    selectedMonth: originalMonth.month,
+                    month: originalMonth,
+                    alerts: []
+                )
+            )
+        )
+        model.expandedGroupIDs = []
+
+        await model.load(
+            budgetID: "replacement-budget",
+            repository: RecordingBudgetRepository(
+                loadedMonth: LoadedBudgetMonth(
+                    availableMonths: [replacementMonth.month],
+                    selectedMonth: replacementMonth.month,
+                    month: replacementMonth,
+                    alerts: []
+                )
+            )
+        )
+
+        #expect(model.expandedGroupIDs == ["replacement-group"])
+    }
+
     @Test func omitsZeroToBudgetAlert() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try Self.decodeBudgetMonth(

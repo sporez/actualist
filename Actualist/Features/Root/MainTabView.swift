@@ -5,7 +5,10 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: selectedTab) {
-            BudgetView(initialMonth: appState.cachedSelectedBudgetMonth)
+            BudgetView(
+                initialMonth: appState.cachedSelectedBudgetMonth,
+                initialBudgetID: appState.settings.selectedBudgetID
+            )
                 .tabItem {
                     Label(AppTab.budget.title, systemImage: AppTab.budget.symbolName)
                 }

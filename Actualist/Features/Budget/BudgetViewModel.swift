@@ -7,6 +7,7 @@ final class BudgetViewModel {
     var budgetMonth: BudgetMonth?
     var selectedMonth: String?
     var availableMonths: [String] = []
+    private var loadedBudgetID: String?
     private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
     var isLoading = true
@@ -17,11 +18,12 @@ final class BudgetViewModel {
     let moveMoneyWorkflow = BudgetMoveMoneyWorkflow()
     let templateWorkflow = BudgetTemplateWorkflow()
 
-    init(initialMonth: LoadedBudgetMonth? = nil) {
+    init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
+        loadedBudgetID = initialBudgetID
         guard let initialMonth else {
             return
         }
-        apply(initialMonth)
+        apply(initialMonth, budgetID: initialBudgetID)
         isLoading = false
     }
 
@@ -220,7 +222,7 @@ final class BudgetViewModel {
                 budgetID: budgetID,
                 preferredMonth: preferredMonth
             )
-            apply(loadedMonth)
+            apply(loadedMonth, budgetID: budgetID)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -259,7 +261,7 @@ final class BudgetViewModel {
                 budgetID: budgetID,
                 selectedMonth: month
             )
-            apply(loadedMonth)
+            apply(loadedMonth, budgetID: budgetID)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -397,7 +399,7 @@ final class BudgetViewModel {
             return false
         }
 
-        apply(loadedMonth)
+        apply(loadedMonth, budgetID: budgetID)
         return true
     }
 
@@ -433,7 +435,7 @@ final class BudgetViewModel {
             repository: repository
         ) {
         case .success(let loadedMonth):
-            apply(loadedMonth)
+            apply(loadedMonth, budgetID: budgetID)
             errorMessage = nil
             return true
         case .failure(let error):
@@ -465,7 +467,7 @@ final class BudgetViewModel {
             return false
         }
 
-        apply(loadedMonth)
+        apply(loadedMonth, budgetID: budgetID)
         errorMessage = nil
         return true
     }
@@ -493,7 +495,7 @@ final class BudgetViewModel {
             return false
         }
 
-        apply(loadedMonth)
+        apply(loadedMonth, budgetID: budgetID)
         assignmentWorkflow.resetAfterRelatedWorkflow()
         return true
     }
@@ -531,15 +533,19 @@ final class BudgetViewModel {
         return title(for: date)
     }
 
-    private func apply(_ loadedMonth: LoadedBudgetMonth) {
+    private func apply(_ loadedMonth: LoadedBudgetMonth, budgetID: String? = nil) {
         let currentMonth = budgetMonth?.month ?? selectedMonth
         let isSameMonth = currentMonth == loadedMonth.month.month
+        let isSameBudget = loadedBudgetID == nil || budgetID == nil || loadedBudgetID == budgetID
         let previousExpandedGroupIDs = expandedGroupIDs
+        if let budgetID {
+            loadedBudgetID = budgetID
+        }
         availableMonths = Self.monthPickerMonths(for: loadedMonth)
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
         loadedBudgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
-        if isSameMonth {
+        if isSameBudget && isSameMonth {
             let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
             expandedGroupIDs = previousExpandedGroupIDs.intersection(loadedGroupIDs)
         } else {

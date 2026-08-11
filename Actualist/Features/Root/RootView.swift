@@ -20,7 +20,13 @@ struct RootView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .ready:
-                MainTabView()
+                if appState.isReadyForMainTabs {
+                    MainTabView()
+                } else if appState.canUseAPI {
+                    BudgetPickerView()
+                } else {
+                    OnboardingView()
+                }
             }
         }
         .id("\(appState.settings.theme.rawValue)-\(appState.themeRevision)")
