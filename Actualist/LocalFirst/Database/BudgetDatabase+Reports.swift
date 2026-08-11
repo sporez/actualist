@@ -392,9 +392,7 @@ extension BudgetDatabase {
         for row in activityDays {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()
             if !row.isIncome {
-                // Actual's Monthly Spending report includes every non-income transaction in an
-                // on-budget account. That includes uncategorized activity and both sides of an
-                // on-budget transfer (which naturally cancel when they share a date).
+                // Actual includes uncategorized rows and both sides of on-budget transfers.
                 activity.spending = try reportSubtract(activity.spending, row.amount)
             }
             if row.categoryID == nil {
@@ -627,8 +625,7 @@ extension BudgetDatabase {
         )
     }
 
-    /// Actual's Monthly Spending graph has 28 buckets. Calendar days 28 through month-end
-    /// are folded into the final bucket so February through 31-day months align exactly.
+    // Actual folds day 28 through month-end into the last of 28 buckets.
     private func spending(
         in month: String,
         dayBucket: Int,

@@ -93,8 +93,7 @@ struct KeychainStore {
         let attributes = [
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
-        // Keep promotion all-or-nothing by updating every non-synchronizable item for this
-        // service in one Keychain operation, rather than looping over accounts.
+        // Promote every item in one Keychain operation.
         let status = backend.update(
             allServiceItemsQuery() as CFDictionary,
             attributes: attributes as CFDictionary
@@ -179,7 +178,7 @@ struct KeychainStore {
 
         let items = result as? [[String: Any]] ?? []
         let promotedAccessibility = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
-        // Once any credential has been promoted, later credentials inherit that one-way policy.
+        // Synchronizable promotion is one-way for this service.
         if items.contains(where: {
             ($0[kSecAttrAccessible as String] as? String) == promotedAccessibility
         }) {

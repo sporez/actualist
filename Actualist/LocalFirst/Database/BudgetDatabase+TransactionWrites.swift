@@ -279,8 +279,7 @@ extension BudgetDatabase {
             let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
             let dateValue = try Self.actualDateValue(draft.date)
             let pairedTransactionID = UUID().uuidString
-            // A cross-budget transfer keeps a category on whichever side is on-budget; a
-            // same-budget transfer (on->on or off->off) is uncategorized.
+            // Only the budget side of a cross-budget transfer carries a category.
             let transferCategories = try transferCategories(
                 draft: draft,
                 sourceAccountID: draft.accountID,
@@ -520,8 +519,7 @@ extension BudgetDatabase {
                 mainCategory = nil
                 pairedCategory = nil
             } else if isTransferDraft {
-                // Put the selected category on whichever side of a cross-budget transfer is
-                // on-budget.
+                // Put the category on the budget side of a cross-budget transfer.
                 let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
                 let categories = try transferCategories(
                     draft: draft,
@@ -545,7 +543,6 @@ extension BudgetDatabase {
             var affectedAccounts: Set<String> = [existing.account, draft.accountID]
             var affectedTransactions: Set<String> = [trimmedTransactionID]
 
-            // Main row.
             messages += try transactionRowMessages(
                 rowID: trimmedTransactionID,
                 accountID: draft.accountID,
@@ -564,7 +561,6 @@ extension BudgetDatabase {
                 builder: &builder
             )
 
-            // Split children: diff against existing when the target is a split, else tombstone all.
             if draft.isSplit {
                 var keptChildIDs = Set<String>()
                 for (index, split) in draft.splits.enumerated() {
@@ -613,7 +609,7 @@ extension BudgetDatabase {
                 }
             }
 
-            // Transfer pairing transition (mirror loot-core onUpdate).
+            // Keep transfer transitions aligned with loot-core's onUpdate.
             messages += try transferTransitionMessages(
                 mainID: trimmedTransactionID,
                 draft: draft,
@@ -712,7 +708,7 @@ extension BudgetDatabase {
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        // A split parent can never be a transfer, so a split draft always removes any pairing.
+        // Split parents cannot be transfers.
         let nowTransfer = draft.isTransfer && !draft.isSplit
         var messages: [ActualSyncDecodedMessage] = []
 
@@ -728,8 +724,7 @@ extension BudgetDatabase {
             }
 
             if let pairedID = existing.transferID {
-                // Update the paired row: account, payee, notes, negated amount (matches
-                // loot-core updateTransfer, which intentionally leaves paired date/cleared).
+                // loot-core leaves the paired row's date and cleared state unchanged.
                 affectedTransactions.insert(pairedID)
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
@@ -742,13 +737,10 @@ extension BudgetDatabase {
                 if sourceOffBudget == destinationOffBudget || destinationOffBudget {
                     messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
                 } else if let pairedCategory {
-                    // When editing from the off-budget side, a nil draft category may simply mean
-                    // the paired category was not loaded into this editor. Preserve it unless the
-                    // user selected a replacement.
+                    // The off-budget editor may not have loaded the paired row's category.
                     messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .string(pairedCategory)))
                 }
             } else {
-                // Add a new paired row and link the main row to it.
                 let pairedID = UUID().uuidString
                 affectedTransactions.insert(pairedID)
                 messages += try transactionRowMessages(
@@ -771,7 +763,6 @@ extension BudgetDatabase {
                 messages.append(try builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .string(pairedID)))
             }
         } else if let pairedID = existing.transferID, let transferColumn = columns.transferID {
-            // No longer a transfer: unlink the main row and drop/detach the paired row.
             affectedTransactions.insert(pairedID)
             if let oldPaired = existing.pairedAccount {
                 affectedAccounts.insert(oldPaired)

@@ -433,7 +433,6 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     }
 }
 
-/// Errors surfaced by the Actual sync server over HTTP (login, file listing, CRDT sync).
 enum ActualAPIError: LocalizedError {
     case invalidURL
     case invalidResponse

@@ -23,7 +23,6 @@ struct AccountTransactionsView: View {
     @State private var searchErrorMessage: String?
     @State private var searchTask: Task<Void, Never>?
     @State private var errorMessage: String?
-    @State private var isReconcilePresented = false
     @State private var transactionEditorPresentation: TransactionEditorPresentation?
     @State private var deletePresentation: TransactionDeletePresentation?
     @State private var deletingTransactionID: String?
@@ -62,16 +61,15 @@ struct AccountTransactionsView: View {
         appState.settings.selectedBudgetID
     }
 
-    /// The active transaction repository behind the shared seam.
-    private var transactionRepository: (any TransactionRepositoryProtocol)? {
-        appState.makeTransactionRepository()
+    private var transactionRepository: any TransactionRepositoryProtocol {
+        appState.transactionRepository
     }
 
-    /// Reactive composed snapshot from the shared store (cached instantly, revalidated in `load`).
     private var loaded: LoadedAccountTransactions? {
-        guard let budgetID, let repository = transactionRepository else {
+        guard let budgetID else {
             return nil
         }
+        let repository = transactionRepository
         switch scope {
         case .account(let account):
             return repository.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
@@ -268,22 +266,6 @@ struct AccountTransactionsView: View {
                 }
                 .actualistToolbarGlassButton()
                 .accessibilityLabel("Add Transaction")
-                .disabled(!appState.capabilities.canCreateTransactions)
-
-                if scope.supportsAccountActions {
-                    Menu {
-                        Button {
-                            isReconcilePresented = true
-                        } label: {
-                            Label("Reconcile", systemImage: "checkmark.seal")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                    }
-                    .actualistToolbarGlassButton()
-                    .accessibilityLabel("Account Actions")
-                    .disabled(!appState.capabilities.canReconcile)
-                }
             }
         }
         .task {
@@ -322,16 +304,6 @@ struct AccountTransactionsView: View {
                 .environment(appState)
                 .appSwitcherPrivacyProtected()
         }
-        .sheet(isPresented: $isReconcilePresented) {
-            if let account = scope.account {
-                AccountReconciliationSheet(
-                    account: account,
-                    currentBalance: balance
-                )
-                .environment(appState)
-                .appSwitcherPrivacyProtected()
-            }
-        }
         .confirmationDialog(
             "Delete Transaction?",
             isPresented: Binding(
@@ -348,7 +320,6 @@ struct AccountTransactionsView: View {
                 Button("Delete Transaction", role: .destructive) {
                     Task { await delete(deletePresentation.transaction) }
                 }
-                .disabled(!canOfferDelete(deletePresentation.transaction))
             }
 
             Button("Cancel", role: .cancel) {}
@@ -616,8 +587,6 @@ struct AccountTransactionsView: View {
         showsBottomSeparator: Bool
     ) -> some View {
         Button {
-            // Opens the editor. When a write is unavailable, the editor presents as a detail
-            // viewer with mutation controls disabled.
             transactionEditorPresentation = .edit(
                 transaction,
                 payeeName: payeeName(for: transaction),
@@ -638,39 +607,17 @@ struct AccountTransactionsView: View {
         .buttonStyle(.plain)
         .disabled(deletingTransactionID == transaction.rowID)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            if canOfferDelete(transaction) {
-                Button(role: .destructive) {
-                    requestDelete(transaction)
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .tint(ActualistTheme.danger)
-                .disabled(transaction.id == nil || deletingTransactionID != nil)
+            Button(role: .destructive) {
+                requestDelete(transaction)
+            } label: {
+                Label("Delete", systemImage: "trash")
             }
+            .tint(ActualistTheme.danger)
+            .disabled(transaction.id == nil || deletingTransactionID != nil)
         }
-    }
-
-    /// Whether the delete affordance should be shown for a given row, gated by the capability
-    /// matching the row's shape: split parents need `canWriteSplits`, transfers need
-    /// `canWriteTransfers`, and simple rows need `canDeleteTransactions`. On a full-write backend
-    /// all three are on, so anything is deletable.
-    private func canOfferDelete(_ transaction: ActualTransaction) -> Bool {
-        if transaction.isParent {
-            return appState.capabilities.canWriteSplits
-        }
-        if let payee = transaction.payee, activeTransferPayeeIDs.contains(payee) {
-            return appState.capabilities.canWriteTransfers
-        }
-        return appState.capabilities.canDeleteTransactions
     }
 
     private func requestDelete(_ transaction: ActualTransaction) {
-        guard canOfferDelete(transaction) else {
-            deletePresentation = nil
-            errorMessage = offlineMutationMessage
-            return
-        }
-
         guard transaction.id != nil else {
             errorMessage = "This transaction cannot be deleted because it is missing its transaction ID."
             return
@@ -684,12 +631,6 @@ struct AccountTransactionsView: View {
     }
 
     private func delete(_ transaction: ActualTransaction) async {
-        guard canOfferDelete(transaction) else {
-            deletePresentation = nil
-            errorMessage = offlineMutationMessage
-            return
-        }
-
         guard let budgetID else {
             return
         }
@@ -699,11 +640,7 @@ struct AccountTransactionsView: View {
         errorMessage = nil
 
         do {
-            guard let repository = transactionRepository else {
-                return
-            }
-            // The store reloads the affected account + month, so the reactive snapshot (and the
-            // Budget tab) refresh without a second round trip here.
+            let repository = transactionRepository
             _ = try await repository.deleteTransactionAndRefresh(
                 transaction,
                 budgetID: budgetID
@@ -723,10 +660,6 @@ struct AccountTransactionsView: View {
 
         isLoading = false
         deletingTransactionID = nil
-    }
-
-    private var offlineMutationMessage: String {
-        "Transaction changes are not enabled for this row."
     }
 
     private func payeeName(for transaction: ActualTransaction) -> String {
@@ -805,10 +738,7 @@ struct AccountTransactionsView: View {
         isLoading = !hadLoadedSnapshot
         errorMessage = nil
         do {
-            guard let repository = transactionRepository else {
-                isLoading = false
-                return
-            }
+            let repository = transactionRepository
             switch scope {
             case .account(let account):
                 try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
@@ -845,9 +775,7 @@ struct AccountTransactionsView: View {
         isLoadingOlder = true
         errorMessage = nil
         do {
-            guard let repository = transactionRepository else {
-                return
-            }
+            let repository = transactionRepository
             switch scope {
             case .account(let account):
                 try await repository.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
@@ -874,8 +802,7 @@ struct AccountTransactionsView: View {
         }
 
         if case .category = scope {
-            // Category-month feeds are complete local snapshots, so the immediate local filter
-            // already searches every row without a second database request.
+            // Category-month feeds are complete local snapshots.
             isSearching = false
             return
         }
@@ -898,10 +825,7 @@ struct AccountTransactionsView: View {
         }
 
         do {
-            guard let repository = transactionRepository else {
-                isSearching = false
-                return
-            }
+            let repository = transactionRepository
             let results: LoadedAccountTransactions
             switch scope {
             case .account(let account):

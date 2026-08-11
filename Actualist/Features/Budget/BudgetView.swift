@@ -50,7 +50,7 @@ struct BudgetView: View {
                 .scrollIndicators(.hidden)
                 .background(ActualistTheme.background)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if viewModel.isAssignmentKeypadPresented && appState.capabilities.canAssignCategoryBudget {
+                    if viewModel.isAssignmentKeypadPresented {
                         BudgetAssignmentKeypad(
                             canSubmit: viewModel.canSubmitAssignment,
                             showsTemplateAction: appState.isExperimentalFeatureEnabled(.budgetTemplates),
@@ -124,7 +124,6 @@ struct BudgetView: View {
                             Image(systemName: "plus")
                         }
                         .actualistToolbarGlassButton()
-                        .disabled(!appState.capabilities.canCreateTransactions)
                     }
 
                     ToolbarItem(placement: .principal) {
@@ -201,8 +200,7 @@ struct BudgetView: View {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
                 }
                 .onChange(of: appState.selectedTab) { _, tab in
-                    // Edits on other tabs invalidate the cached month; revalidate when the
-                    // Budget tab becomes active so its numbers are never stale.
+                    // Other tabs can invalidate this month while Budget is hidden.
                     if tab == .budget {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
@@ -249,7 +247,6 @@ struct BudgetView: View {
                 ) {
                     BudgetOverspentCategoriesView(
                         categories: viewModel.overspentCategoryOptions,
-                        isReadOnly: !appState.capabilities.canMoveMoney,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
                     ) { category in
                         pendingOverspentCategoryID = category.id
@@ -410,10 +407,10 @@ struct BudgetView: View {
     }
 
     private var cachedUncategorizedTransactions: LoadedUncategorizedTransactions? {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return nil
         }
+        let repository = appState.transactionRepository
         return repository.cachedUncategorizedTransactions(
             budgetID: budgetID,
             month: viewModel.selectedMonth ?? viewModel.preferredMonth
@@ -485,9 +482,6 @@ struct BudgetView: View {
                         viewModel.isEditingAssignment(for: category)
                     },
                     beginAssignmentEditing: { category, categoryFrame in
-                        guard appState.capabilities.canAssignCategoryBudget else {
-                            return
-                        }
                         assignmentEditingCategoryFrame = categoryFrame
                         withAnimation(.smooth(duration: 0.16)) {
                             viewModel.beginAssignmentEditing(for: category)
@@ -522,15 +516,12 @@ struct BudgetView: View {
                     return
                 }
 
-                // Wait until the keypad has laid out and reported its real
-                // top edge before deciding anything.
+                // Wait for the keypad's measured frame.
                 guard assignmentKeypadTopY > 0 else {
                     continue
                 }
 
-                // Only scroll if the tapped category would actually be hidden
-                // behind the keypad. If it's already fully above the keypad,
-                // leave the scroll position alone.
+                // Do not disturb rows already clear of the keypad.
                 let occlusionLine = assignmentKeypadTopY - BudgetLayout.assignmentScrollVisibilityMargin
                 guard assignmentEditingCategoryFrame.maxY > occlusionLine else {
                     return

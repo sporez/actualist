@@ -22,7 +22,7 @@ struct RootView: View {
             case .ready:
                 if appState.isReadyForMainTabs {
                     MainTabView()
-                } else if appState.canUseAPI {
+                } else if appState.hasSyncCredentials {
                     BudgetPickerView()
                 } else {
                     OnboardingView()

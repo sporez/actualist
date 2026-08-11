@@ -1,8 +1,5 @@
 import UIKit
 
-/// The selectable app icons. The primary Icon Composer icon (`default.icon`) has a `nil`
-/// alternate name; the others map to the `.icon` files registered as alternate app icons
-/// via `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`.
 enum AppIcon: String, CaseIterable, Identifiable {
     case `default`
     case coin
@@ -12,7 +9,6 @@ enum AppIcon: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// The alternate icon name passed to `setAlternateIconName`. `nil` selects the primary icon.
     var alternateIconName: String? {
         switch self {
         case .default: nil
@@ -23,11 +19,7 @@ enum AppIcon: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Asset-catalog image used to render the option's preview thumbnail.
-    ///
-    /// iOS provides no public API to load a rendered app icon (primary or alternate) as an
-    /// image — `UIImage(named:)` returns `nil` for icon assets on iOS 18+ — so the picker
-    /// shows dedicated preview image sets bundled in the asset catalog.
+    // App icons cannot be loaded with UIImage(named:), so previews use ordinary image sets.
     var previewImageName: String {
         switch self {
         case .default: "AppIconPreviewDefault"
@@ -48,7 +40,6 @@ enum AppIcon: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The icon currently set on the running app.
     static func current(in application: UIApplication = .shared) -> AppIcon {
         let name = application.alternateIconName
         return allCases.first { $0.alternateIconName == name } ?? .default

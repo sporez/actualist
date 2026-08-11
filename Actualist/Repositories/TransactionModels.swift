@@ -1,7 +1,5 @@
 import Foundation
 
-typealias BudgetAccount = ActualAccount
-
 struct YearMonth: Hashable, Sendable, RawRepresentable {
     let rawValue: String
 

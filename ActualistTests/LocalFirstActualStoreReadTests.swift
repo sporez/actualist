@@ -19,8 +19,8 @@ extension LocalFirstActualStoreTests {
         let transactions = try await database.fetchTransactions(accountID: "checking")
         let ids = transactions.compactMap(\.id)
 
-        #expect(!ids.contains("dead"))     // tombstoned excluded
-        #expect(!ids.contains("split-a"))  // split children are not top-level rows
+        #expect(!ids.contains("dead"))
+        #expect(!ids.contains("split-a"))
         #expect(ids.contains("txn"))
         #expect(ids.contains("split"))
 
@@ -124,7 +124,6 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
         let amazon = try await database.fetchTransactions(accountID: "checking").first { $0.id == "amz" }
-        // The payee id lives in `description`; `amazon-src` remaps to the canonical `amazon` payee.
         #expect(amazon?.payee == "amazon")
         #expect(amazon?.payeeName == "Amazon")
     }
@@ -141,7 +140,6 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
         let transfer = try await database.fetchTransactions(accountID: "checking").first { $0.id == "t-xfer" }
-        // Transfer payee has an empty name; the feed shows the linked account's name.
         #expect(transfer?.payeeName == "Savings")
     }
 
@@ -254,7 +252,6 @@ extension LocalFirstActualStoreTests {
         #expect(surplus.amount == 1500)
         #expect(surplus.actionTitle == nil)
 
-        // Actual allows a negative "To Budget" (overbudgeted); it must still be shown, signed.
         let overbudgeted = try! #require(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: -500)))
         #expect(overbudgeted.severity == "warning")
         #expect(overbudgeted.amount == -500)
@@ -271,7 +268,6 @@ extension LocalFirstActualStoreTests {
                     makeCategory(id: "rent", balance: 500),
                     makeCategory(id: "hidden-over", balance: -100, hidden: true)
                 ]),
-                // Income groups and their categories never count as overspending.
                 makeGroup(id: "income", isIncome: true, categories: [
                     makeCategory(id: "paycheck", balance: -9999)
                 ])

@@ -129,7 +129,7 @@ final class PayeesViewModel {
             errorMessage = "Turn off randomized display data before changing payees."
             return false
         }
-        guard appState.capabilities.canManagePayees, let context = context(using: appState) else {
+        guard let context = context(using: appState) else {
             errorMessage = "Payee management is unavailable."
             return false
         }
@@ -151,11 +151,10 @@ final class PayeesViewModel {
     private func context(
         using appState: AppState
     ) -> (repository: any PayeeRepositoryProtocol, budgetID: String)? {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makePayeeRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return nil
         }
-        return (repository, budgetID)
+        return (appState.payeeRepository, budgetID)
     }
 
     private func filtered(_ payees: [ManagedPayee]) -> [ManagedPayee] {

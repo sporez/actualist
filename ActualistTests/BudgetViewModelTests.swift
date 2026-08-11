@@ -147,7 +147,7 @@ struct BudgetViewModelTests {
             selectedMonth: "2026-06",
             month: month,
             alerts: [
-                APIBudgetMonthAlert(
+                BudgetMonthAlert(
                     kind: "overspending",
                     severity: "danger",
                     title: "Overspent categories",
@@ -173,10 +173,10 @@ struct BudgetViewModelTests {
         #expect(model.budgetAlerts.first(where: { $0.kind == .overspending })?.count == 1)
     }
 
-    @Test func buildsReusableBudgetAlertsFromAPIPayloads() throws {
+    @Test func buildsReusableBudgetAlerts() throws {
         let alerts = [
             BudgetAlert(
-                apiAlert: APIBudgetMonthAlert(
+                alert: BudgetMonthAlert(
                     kind: "toBudget",
                     severity: "positive",
                     title: "To Budget",
@@ -186,7 +186,7 @@ struct BudgetViewModelTests {
                 )
             ),
             BudgetAlert(
-                apiAlert: APIBudgetMonthAlert(
+                alert: BudgetMonthAlert(
                     kind: "overspending",
                     severity: "danger",
                     title: "Overspent categories",
@@ -196,7 +196,7 @@ struct BudgetViewModelTests {
                 )
             ),
             BudgetAlert(
-                apiAlert: APIBudgetMonthAlert(
+                alert: BudgetMonthAlert(
                     kind: "uncategorizedTransactions",
                     severity: "warning",
                     title: "Uncategorized transactions",
@@ -220,9 +220,9 @@ struct BudgetViewModelTests {
         #expect(alerts.last?.severity == .warning)
     }
 
-    @Test func ignoresUnknownAPIAlertKinds() {
+    @Test func ignoresUnknownBudgetAlertKinds() {
         let alert = BudgetAlert(
-            apiAlert: APIBudgetMonthAlert(
+            alert: BudgetMonthAlert(
                 kind: "futureAlert",
                 severity: "warning",
                 title: "Future Alert",

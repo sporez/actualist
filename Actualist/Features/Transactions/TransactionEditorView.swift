@@ -42,18 +42,11 @@ struct TransactionEditorView: View {
                         splitDetails
                         metadataDetails
                         submissionError
-                        if isReadOnly {
-                            readOnlyNotice
-                        } else {
-                            saveButton
-                        }
+                        saveButton
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 18)
                     .padding(.bottom, 32)
-                    // Read-only viewing: all inputs (amount, pickers, splits, toggles) are
-                    // inert; only the close button and scrolling remain interactive.
-                    .disabled(isReadOnly)
                 }
                 .scrollDismissesKeyboard(.immediately)
             }
@@ -320,22 +313,6 @@ struct TransactionEditorView: View {
             .padding(18)
             .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
-    }
-
-    /// The editor is read-only whenever the backend does not permit writing the current draft's
-    /// shape (simple, transfer, or split), each gated by its own developer capability.
-    private var isReadOnly: Bool {
-        !viewModel.writesAllowed(appState.capabilities)
-    }
-
-    private var readOnlyNotice: some View {
-        Label("Read-only. Editing is unavailable in this mode.", systemImage: "lock.fill")
-            .font(ActualistTypography.control(for: density))
-            .foregroundStyle(ActualistTheme.secondaryText)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .padding(.top, 4)
     }
 
     private var saveButton: some View {
@@ -839,7 +816,7 @@ private struct PayeeSelectionView: View {
 
                         if viewModel.shouldOfferCustomPayee(matching: searchText) {
                             Button {
-                                viewModel.useCustomPayee(trimmedSearchText, using: appState)
+                                viewModel.useCustomPayee(trimmedSearchText)
                                 dismiss()
                             } label: {
                                 HStack(spacing: 12) {
@@ -954,7 +931,7 @@ private struct PayeeSelectionView: View {
 
     private func payeeRow(_ option: TransactionEditorPayeeOption) -> some View {
         Button {
-            viewModel.selectPayee(option.payee, using: appState)
+            viewModel.selectPayee(option.payee)
             dismiss()
         } label: {
             HStack(spacing: 12) {

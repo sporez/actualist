@@ -127,7 +127,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         accountID: String,
         statementBalance: Int
-    ) async throws -> APIAccountReconciliationResult {
+    ) async throws -> AccountReconciliationResult {
         throw LocalFirstError.unsupportedWrite
     }
 
@@ -178,8 +178,7 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
     }
 
-    /// Actual creates budget sheets through one year beyond the current month. Its native
-    /// carryover action writes from the selected month through that created horizon.
+    // Actual applies carryover through the created budget horizon.
     private static func categoryCarryoverHorizonMonth(
         startMonth: String,
         now: Date = Date()

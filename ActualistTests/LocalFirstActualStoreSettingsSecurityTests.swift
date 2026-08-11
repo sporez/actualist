@@ -61,8 +61,6 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func settingsDecodeIgnoresRetiredRestKeysAndKeepsLocalFirst() async throws {
-        // Old persisted settings may still carry retired REST keys; they must be ignored while
-        // local-first fields decode normally.
         let data = Data("""
         {
           "backendMode": "restAPI",
@@ -339,7 +337,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func serverConnectionSecurityDoesNotResolveUnrecognizedHostnames() {
-        // Even if local DNS maps this name to RFC1918 space, the lexical policy blocks it.
+        // This result must not depend on local DNS.
         #expect(
             ActualServerConnectionSecurity.blockedMessage(for: "http://budget.home.arpa:5006")
                 == ActualServerConnectionSecurity.remoteHTTPBlockedMessage

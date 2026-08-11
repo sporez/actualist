@@ -47,17 +47,11 @@ final class AddAccountViewModel {
 
     func submit(
         budgetID: String?,
-        repository: (any AccountRepositoryProtocol)?,
-        isReadOnly: Bool
+        repository: (any AccountRepositoryProtocol)?
     ) async -> Bool {
         errorMessage = nil
 
         guard !isSubmitting else {
-            return false
-        }
-
-        guard !isReadOnly else {
-            errorMessage = "Account changes are not enabled for this budget."
             return false
         }
 

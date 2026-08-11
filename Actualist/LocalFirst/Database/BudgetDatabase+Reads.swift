@@ -139,9 +139,7 @@ extension BudgetDatabase {
             let totalSpent = expenseGroups.reduce(0) { $0 + $1.spent }
             let totalBalance = expenseGroups.reduce(0) { $0 + $1.balance }
             let totalIncome = incomeGroups.reduce(0) { $0 + $1.spent }
-            // "To Budget" is the running amount of on-budget money not yet assigned to a
-            // category. Uncategorized rows are intentionally ignored here: Actual leaves them
-            // out of both category balances and To Budget until the user categorizes them.
+            // Actual excludes uncategorized rows from To Budget until they are categorized.
             let onBudgetBalance = try onBudgetAccountBalance(through: month, db: db)
             let uncategorizedActivity = try uncategorizedOnBudgetActivity(through: month, db: db)
             let toBudget = (onBudgetBalance - uncategorizedActivity) - totalBalance
@@ -178,8 +176,7 @@ extension BudgetDatabase {
             }
 
             let columns = try columnSet(for: "transactions", db: db)
-            // Alias-qualified column when present, or a bare SQL literal fallback when absent
-            // (so a missing column becomes `NULL`/`0`, never an invalid `t.NULL`).
+            // Missing columns need a bare SQL literal, not an invalid qualified literal.
             func expr(_ names: [String], fallback: String) -> String {
                 for name in names where columns.contains(name) {
                     return "t.\(name)"
@@ -189,7 +186,7 @@ extension BudgetDatabase {
             let account = expr(["acct", "account"], fallback: "NULL")
             let date = expr(["date"], fallback: "NULL")
             let amount = expr(["amount"], fallback: "0")
-            // Actual stores the payee id in `description` (the `payee` alias only exists in views).
+            // `payee` is a view alias; the physical column is `description`.
             let payee = expr(["payee", "description"], fallback: "NULL")
             let category = expr(["category"], fallback: "NULL")
             let notes = expr(["notes"], fallback: "NULL")
@@ -201,16 +198,14 @@ extension BudgetDatabase {
             let hasCategoryMapping = try tableExists("category_mapping", db: db)
             let mappedCategory = hasCategoryMapping ? "COALESCE(cm.transferId, \(category))" : category
             let categoryMappingJoin = hasCategoryMapping ? "LEFT JOIN category_mapping cm ON cm.id = \(category)" : ""
-            // Payees are resolved through payee_mapping (id -> targetId), like categories through
-            // category_mapping. Without it, a remapped/merged payee id fails to resolve to a name.
+            // Merged payees resolve through payee_mapping.
             let hasPayeeMapping = try tableExists("payee_mapping", db: db)
             let mappedPayee = hasPayeeMapping ? "COALESCE(pm.targetId, \(payee))" : payee
             let payeeMappingJoin = hasPayeeMapping ? "LEFT JOIN payee_mapping pm ON pm.id = \(payee)" : ""
             let hasPayees = try tableExists("payees", db: db)
             let hasAccounts = try tableExists("accounts", db: db)
             let payeeColumns = hasPayees ? try columnSet(for: "payees", db: db) : []
-            // Transfer payees have an empty name and a `transfer_acct`; their display name is the
-            // linked account's name.
+            // Transfer payees display the linked account name.
             let resolvesTransferNames = hasPayees && hasAccounts && payeeColumns.contains("transfer_acct")
             let payeeNameJoin: String
             let payeeNameSelect: String

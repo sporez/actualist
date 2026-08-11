@@ -254,7 +254,6 @@ struct TransactionEditorViewModelTests {
         )
         #expect(model.payeeName == "Credit Card")
 
-        // Loading options must not blank the transfer payee (its raw name is empty).
         model.apply(
             TransactionEditorOptions(
                 accounts: [
@@ -286,16 +285,13 @@ struct TransactionEditorViewModelTests {
         let toSavings = ActualPayee(id: "xfer-savings", name: "", category: nil, transferAccount: "savings")
         model.payees = [toChecking, toTracking, toSavings]
 
-        // On-budget -> off-budget keeps a category, so prompt to pick one.
         model.selectPayee(toTracking)
         #expect(model.selectedCategoryName == "Select Category")
 
-        // Off-budget -> on-budget also prompts for the category that belongs to its paired row.
         model.selectAccount(model.accounts[1])
         model.selectPayee(toChecking)
         #expect(model.selectedCategoryName == "Select Category")
 
-        // On-budget -> on-budget is a plain transfer.
         model.selectAccount(model.accounts[0])
         model.selectPayee(toSavings)
         #expect(model.selectedCategoryName == "Account Transfer")
@@ -314,8 +310,6 @@ struct TransactionEditorViewModelTests {
 
         model.selectPayee(toCredit)
 
-        // Transfer payee's empty name resolves to the linked account name, so it reads as
-        // selected and Save enables.
         #expect(model.payeeName == "Credit Card")
         #expect(model.selectedPayeeName == "Transfer: Credit Card")
         #expect(model.canSave)
@@ -334,20 +328,17 @@ struct TransactionEditorViewModelTests {
         model.payees = [toChecking, toTracking, toSavings]
         model.selectedAccountID = "checking"
 
-        // On-budget -> off-budget: category stays editable and is preserved.
         model.selectPayee(toTracking)
         #expect(!model.isCategoryReadOnly)
         model.selectCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
         #expect(model.selectedCategoryID == "groceries")
 
-        // Off-budget -> on-budget: the same picker controls the paired on-budget row.
         model.selectAccount(model.accounts[1])
         model.selectPayee(toChecking)
         #expect(!model.isCategoryReadOnly)
         model.selectCategory(TransactionEditorCategoryOption(id: "income", title: "Income", amount: nil, valueText: nil))
         #expect(model.selectedCategoryID == "income")
 
-        // On-budget -> on-budget: category is read-only and cleared on selection.
         model.selectAccount(model.accounts[0])
         model.selectPayee(toSavings)
         #expect(model.isCategoryReadOnly)
@@ -873,47 +864,6 @@ struct TransactionEditorViewModelTests {
         #expect(model.splitRows.map(\.amountDigits) == ["2500", "2500"])
     }
 
-    @Test func splitPayloadEncodesChildrenAndNullParentCategory() throws {
-        let payload = APITransactionBatchUpdatePayload(
-            added: [
-                APITransactionDraft(
-                    id: "parent",
-                    account: "checking",
-                    date: "2026-06-14",
-                    amount: -5000,
-                    payee: nil,
-                    payeeName: "Target",
-                    category: "ignored-parent-category",
-                    notes: nil,
-                    cleared: false,
-                    subtransactions: [
-                        APITransactionDraft(
-                            id: "child-1",
-                            account: "checking",
-                            date: "2026-06-14",
-                            amount: -2500,
-                            payee: nil,
-                            payeeName: nil,
-                            category: "groceries",
-                            notes: nil,
-                            cleared: false
-                        )
-                    ]
-                )
-            ]
-        )
-
-        let dictionary = try encodedDictionary(payload)
-        let added = try #require(dictionary["added"] as? [[String: Any]])
-        let parent = try #require(added.first)
-        let children = try #require(parent["subtransactions"] as? [[String: Any]])
-        let child = try #require(children.first)
-
-        #expect(parent["category"] is NSNull)
-        #expect(child["category"] as? String == "groceries")
-        #expect(child["amount"] as? Int == -2500)
-    }
-
     @Test func splitTransactionDecodesParentAndChildren() throws {
         let data = """
         {
@@ -1070,163 +1020,6 @@ struct TransactionEditorViewModelTests {
         #expect(model.selectedCategoryID == nil)
     }
 
-    @Test func batchUpdatePayloadDisablesLearningAndTransferAutomation() throws {
-        let payload = APITransactionBatchUpdatePayload(
-            added: [
-                APITransactionDraft(
-                    id: "txn-id",
-                    account: "checking",
-                    date: "2026-06-14",
-                    amount: -1234,
-                    payee: nil,
-                    payeeName: "Corner Store",
-                    category: nil,
-                    notes: nil,
-                    cleared: false
-                )
-            ]
-        )
-
-        let dictionary = try encodedDictionary(payload)
-        let added = try #require(dictionary["added"] as? [[String: Any]])
-        let transaction = try #require(added.first)
-
-        #expect(dictionary["learnCategories"] as? Bool == false)
-        #expect(dictionary["runTransfers"] as? Bool == false)
-        #expect(transaction["id"] as? String == "txn-id")
-        #expect(transaction["payee"] == nil)
-        #expect(transaction["payee_name"] as? String == "Corner Store")
-    }
-
-    @Test func batchUpdatePayloadCanEnableTransferAutomation() throws {
-        let payload = APITransactionBatchUpdatePayload(
-            added: [
-                APITransactionDraft(
-                    id: "txn-id",
-                    account: "checking",
-                    date: "2026-06-14",
-                    amount: -1234,
-                    payee: "transfer-checking",
-                    payeeName: nil,
-                    category: nil,
-                    notes: nil,
-                    cleared: false
-                )
-            ],
-            runTransfers: true
-        )
-
-        let dictionary = try encodedDictionary(payload)
-
-        #expect(dictionary["learnCategories"] as? Bool == false)
-        #expect(dictionary["runTransfers"] as? Bool == true)
-    }
-
-    @Test func batchUpdatePayloadUsesExistingPayeeIDWhenSelected() throws {
-        let payload = APITransactionBatchUpdatePayload(
-            added: [
-                APITransactionDraft(
-                    id: "txn-id",
-                    account: "checking",
-                    date: "2026-06-14",
-                    amount: 1234,
-                    payee: "employer",
-                    payeeName: nil,
-                    category: "income",
-                    notes: nil,
-                    cleared: true
-                )
-            ]
-        )
-
-        let dictionary = try encodedDictionary(payload)
-        let added = try #require(dictionary["added"] as? [[String: Any]])
-        let transaction = try #require(added.first)
-
-        #expect(transaction["payee"] as? String == "employer")
-        #expect(transaction["payee_name"] == nil)
-    }
-
-    @Test func batchUpdatePayloadCanCarryUpdatedTransactions() throws {
-        let payload = APITransactionBatchUpdatePayload(
-            added: [],
-            updated: [
-                APITransactionDraft(
-                    id: "txn-id",
-                    account: "checking",
-                    date: "2026-06-14",
-                    amount: -1234,
-                    payee: nil,
-                    payeeName: "Corner Store",
-                    category: nil,
-                    notes: nil,
-                    cleared: false
-                )
-            ]
-        )
-
-        let dictionary = try encodedDictionary(payload)
-        let updated = try #require(dictionary["updated"] as? [[String: Any]])
-        let transaction = try #require(updated.first)
-        let added = try #require(dictionary["added"] as? [[String: Any]])
-
-        #expect(added.isEmpty)
-        #expect(transaction["id"] as? String == "txn-id")
-        #expect(transaction["payee_name"] as? String == "Corner Store")
-        #expect(transaction["category"] is NSNull)
-    }
-
-    @Test func batchUpdatePayloadCanCarryDeletedTransactions() throws {
-        let payload = APITransactionBatchUpdatePayload(
-            added: [],
-            deleted: [
-                APITransactionDraft(
-                    id: "txn-id",
-                    account: "checking",
-                    date: "2026-06-14",
-                    amount: -1234,
-                    payee: nil,
-                    payeeName: "Corner Store",
-                    category: nil,
-                    notes: nil,
-                    cleared: false
-                )
-            ]
-        )
-
-        let dictionary = try encodedDictionary(payload)
-        let deleted = try #require(dictionary["deleted"] as? [[String: Any]])
-        let transaction = try #require(deleted.first)
-        let added = try #require(dictionary["added"] as? [[String: Any]])
-
-        #expect(added.isEmpty)
-        #expect(transaction["id"] as? String == "txn-id")
-        #expect(transaction["account"] as? String == "checking")
-    }
-
-    @Test func rulesRunPayloadUsesExistingPayeeID() throws {
-        let payload = APITransactionRulesRunPayload(
-            transaction: APITransactionDraft(
-                id: "preview-id",
-                account: "checking",
-                date: "2026-06-14",
-                amount: -1234,
-                payee: nil,
-                payeeName: "Corner Store",
-                category: nil,
-                notes: nil,
-                cleared: false
-            )
-        )
-
-        let dictionary = try encodedDictionary(payload)
-        let transaction = try #require(dictionary["transaction"] as? [String: Any])
-
-        #expect(transaction["id"] as? String == "preview-id")
-        #expect(transaction["payee"] == nil)
-        #expect(transaction["payee_name"] as? String == "Corner Store")
-    }
-
     private func configuredModel() -> TransactionEditorViewModel {
         let model = TransactionEditorViewModel()
         model.kind = .spend
@@ -1248,10 +1041,6 @@ struct TransactionEditorViewModelTests {
         return formatter.date(from: "\(value) 12:00:00")!
     }
 
-    private func encodedDictionary(_ payload: some Encodable) throws -> [String: Any] {
-        let data = try JSONEncoder.actual.encode(payload)
-        return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-    }
 }
 
 actor RecordingTransactionRepository: TransactionRepositoryProtocol {

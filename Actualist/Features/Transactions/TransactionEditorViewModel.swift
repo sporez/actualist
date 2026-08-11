@@ -184,21 +184,6 @@ final class TransactionEditorViewModel {
         splitRows.count >= 2
     }
 
-    /// Whether the backend permits writing this draft's shape. Transfers and splits are gated by
-    /// their own capabilities so they can be enabled independently of simple create/edit.
-    func writesAllowed(_ capabilities: BackendCapabilities) -> Bool {
-        if selectedPayeeIsTransfer {
-            return capabilities.canWriteTransfers
-        }
-        if isSplit {
-            return capabilities.canWriteSplits
-        }
-        if isEditing {
-            return capabilities.canUpdateSimpleTransactions
-        }
-        return capabilities.canCreateTransactions
-    }
-
     var isCategoryReadOnly: Bool {
         if selectedPayeeIsTransfer {
             return !transferAllowsCategory
@@ -210,8 +195,6 @@ final class TransactionEditorViewModel {
         accounts.first(where: { $0.id == selectedAccountID })?.offbudget ?? false
     }
 
-    /// Cross-budget transfers expose a category for their on-budget side, regardless of which
-    /// account initiated the transfer. Same-budget transfers do not carry categories.
     private var transferAllowsCategory: Bool {
         guard selectedPayeeIsTransfer,
               let selectedPayeeID,
@@ -259,7 +242,7 @@ final class TransactionEditorViewModel {
 
         guard let selectedCategoryID else {
             if selectedPayeeIsTransfer {
-                // A cross-budget transfer keeps a real category, so prompt to pick one.
+                // Cross-budget transfers need a category on the budget side.
                 return isCategoryReadOnly ? "Account Transfer" : "Select Category"
             }
             if let selectedCategoryFallbackName,
@@ -390,11 +373,9 @@ final class TransactionEditorViewModel {
 
     func selectPayee(_ payee: ActualPayee) {
         selectedPayeeID = payee.id
-        // Transfer payees have an empty name; their display name is the linked account's name.
-        // Use the resolved account name so the payee reads as selected and Save can enable.
+        // Transfer payees use the linked account name for display.
         payeeName = transferAccountName(for: payee) ?? payee.name
         if payee.transferAccount != nil {
-            // A transfer is never a split, but a cross-budget transfer may keep its category.
             splitRows = []
             pendingSplitMismatch = nil
             if isCategoryReadOnly {
@@ -409,29 +390,9 @@ final class TransactionEditorViewModel {
         normalizeCategoryForSelectedAccount()
     }
 
-    func selectPayee(_ payee: ActualPayee, using appState: AppState) {
-        selectPayee(payee)
-
-        guard payee.transferAccount == nil else {
-            return
-        }
-
-        Task {
-            await previewRules(using: appState)
-        }
-    }
-
     func useCustomPayee(_ name: String) {
         selectedPayeeID = nil
         payeeName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    func useCustomPayee(_ name: String, using appState: AppState) {
-        useCustomPayee(name)
-
-        Task {
-            await previewRules(using: appState)
-        }
     }
 
     func clearCategory() {
@@ -627,10 +588,10 @@ final class TransactionEditorViewModel {
     }
 
     func load(using appState: AppState, prefilledAccount: ActualAccount?) async {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return
         }
+        let repository = appState.transactionRepository
 
         if !isEditing, let prefilledAccount {
             selectedAccountID = prefilledAccount.id
@@ -654,10 +615,10 @@ final class TransactionEditorViewModel {
     }
 
     func refreshCategoryBalancesIfNeeded(using appState: AppState) async {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return
         }
+        let repository = appState.transactionRepository
 
         await refreshCategoryBalancesIfNeeded(budgetID: budgetID, repository: repository)
     }
@@ -683,32 +644,12 @@ final class TransactionEditorViewModel {
     }
 
     func submit(using appState: AppState) async -> Bool {
-        guard writesAllowed(appState.capabilities) else {
-            errorMessage = isEditing
-                ? "Editing this transaction type is not available."
-                : "Transaction creation is not available."
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
-
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
-            return false
-        }
+        let repository = appState.transactionRepository
 
         return await submit(budgetID: budgetID, repository: repository)
-    }
-
-    func previewRules(using appState: AppState) async {
-        guard appState.capabilities.canApplyRules else {
-            return
-        }
-
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeTransactionRepository() else {
-            return
-        }
-
-        await previewRules(budgetID: budgetID, repository: repository)
     }
 
     func previewRules(
@@ -998,8 +939,7 @@ final class TransactionEditorViewModel {
     private func applyLoadedOptionNamesIfNeeded() {
         if let selectedPayeeID,
            let matchedPayee = payees.first(where: { $0.id == selectedPayeeID }) {
-            // Transfer payees have an empty name; keep the linked account name so the prefilled
-            // payee does not blank out once options finish loading.
+            // Transfer payees have an empty raw name.
             payeeName = transferAccountName(for: matchedPayee) ?? matchedPayee.name
         }
 
@@ -1019,8 +959,6 @@ final class TransactionEditorViewModel {
         }
     }
 
-    /// Applies loaded editor options (accounts/categories/payees). Internal so tests can verify
-    /// that prefilled names survive option loading without wiring a full load flow.
     func apply(_ options: TransactionEditorOptions, loadedMonth: String) {
         accounts = options.accounts
         categories = options.categories

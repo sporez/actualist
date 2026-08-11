@@ -1,9 +1,5 @@
 import Foundation
 
-/// Pure, bounded interpretation of Actual's structured budget templates.
-///
-/// The database adapter prepares historical values before calling the engine. Keeping SQLite out
-/// of this type makes template validation and calculation deterministic and independently testable.
 struct BudgetTemplateEngine {
     struct Category: Sendable {
         let entries: [BudgetTemplateEntry]
@@ -278,7 +274,7 @@ struct BudgetTemplateEngine {
     }
 
     static func amountToMinorUnits(_ amount: Double) throws -> Int {
-        // goal_def amounts are display decimals; convert with the app's 2-decimal money model.
+        // goal_def amounts are display decimals, not Actual's integer units.
         guard amount.isFinite, Bounds.amount.contains(amount) else {
             throw LocalFirstError.numericValueOutOfRange
         }

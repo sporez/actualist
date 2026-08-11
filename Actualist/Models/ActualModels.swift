@@ -1,100 +1,6 @@
 import Foundation
 
-struct APIDataResponse<Value: Decodable>: Decodable {
-    let data: Value
-}
-
-struct APIGeneralResponseMessage: Decodable, Hashable, Sendable {
-    let message: String?
-}
-
-struct APIBudgetMonthCategoryUpdatePayload: Encodable, Sendable {
-    let category: Category
-
-    init(budgeted: Int) {
-        self.category = Category(budgeted: budgeted)
-    }
-
-    struct Category: Encodable, Sendable {
-        let budgeted: Int
-    }
-}
-
-struct APIBudgetCategoryTransferPayload: Encodable, Sendable {
-    let categorytransfer: CategoryTransfer
-
-    init(
-        fromCategoryID: String?,
-        toCategoryID: String?,
-        amount: Int
-    ) {
-        categorytransfer = CategoryTransfer(
-            fromCategoryID: fromCategoryID,
-            toCategoryID: toCategoryID,
-            amount: amount
-        )
-    }
-
-    struct CategoryTransfer: Encodable, Sendable {
-        let fromCategoryID: String?
-        let toCategoryID: String?
-        let amount: Int
-
-        enum CodingKeys: String, CodingKey {
-            case fromCategoryID = "fromCategoryId"
-            case toCategoryID = "toCategoryId"
-            case amount
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encodeIfPresent(fromCategoryID, forKey: .fromCategoryID)
-            try container.encodeIfPresent(toCategoryID, forKey: .toCategoryID)
-            try container.encode(amount, forKey: .amount)
-        }
-    }
-}
-
-struct APIBudgetTemplateApplyPayload: Encodable, Sendable {
-    let mode: BudgetTemplateApplicationMode
-    let categoryIDs: [String]?
-
-    init(command: BudgetTemplateCommand) {
-        mode = command.mode
-        categoryIDs = command.categoryIDs.isEmpty ? nil : command.categoryIDs
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case mode
-        case categoryIDs = "categoryIds"
-    }
-}
-
-struct APIBudgetTemplateApplyResult: Decodable, Hashable, Sendable {
-    let type: String?
-    let message: String?
-    let pre: String?
-    let sticky: Bool?
-}
-
-struct APIAccountCreatePayload: Encodable, Sendable {
-    let account: Account
-
-    init(name: String, offbudget: Bool) {
-        account = Account(name: name, offbudget: offbudget)
-    }
-
-    struct Account: Encodable, Sendable {
-        let name: String
-        let offbudget: Bool
-    }
-}
-
-struct APIAccountReconciliationPayload: Encodable, Sendable {
-    let statementBalance: Int
-}
-
-struct APIAccountReconciliationResult: Decodable, Hashable, Sendable {
+struct AccountReconciliationResult: Hashable, Sendable {
     let accountID: String
     let cutoffDate: String
     let statementBalance: Int
@@ -102,156 +8,6 @@ struct APIAccountReconciliationResult: Decodable, Hashable, Sendable {
     let difference: Int
     let reconciled: Bool
     let updated: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case accountID = "accountId"
-        case cutoffDate, statementBalance, clearedBalance, difference, reconciled, updated
-    }
-}
-
-struct APITransactionRulesRunPayload: Encodable, Sendable {
-    let transaction: APITransactionDraft
-}
-
-struct APITransactionMutationPayload: Encodable, Sendable {
-    let learnCategories: Bool
-    let runTransfers: Bool
-    let transaction: APITransactionDraft
-
-    init(
-        transaction: APITransactionDraft,
-        learnCategories: Bool = false,
-        runTransfers: Bool = false
-    ) {
-        self.learnCategories = learnCategories
-        self.runTransfers = runTransfers
-        self.transaction = transaction
-    }
-}
-
-struct APITransactionBatchUpdatePayload: Encodable, Sendable {
-    let learnCategories: Bool
-    let runTransfers: Bool
-    let added: [APITransactionDraft]
-    let updated: [APITransactionDraft]
-    let deleted: [APITransactionDraft]
-
-    init(
-        added: [APITransactionDraft],
-        updated: [APITransactionDraft] = [],
-        deleted: [APITransactionDraft] = [],
-        learnCategories: Bool = false,
-        runTransfers: Bool = false
-    ) {
-        self.learnCategories = learnCategories
-        self.runTransfers = runTransfers
-        self.added = added
-        self.updated = updated
-        self.deleted = deleted
-    }
-}
-
-struct APITransactionDraft: Encodable, Sendable {
-    let id: String?
-    let account: String
-    let date: String
-    let amount: Int
-    let payee: String?
-    let payeeName: String?
-    let category: String?
-    let notes: String?
-    let cleared: Bool
-    let subtransactions: [APITransactionDraft]
-
-    init(
-        id: String?,
-        account: String,
-        date: String,
-        amount: Int,
-        payee: String?,
-        payeeName: String?,
-        category: String?,
-        notes: String?,
-        cleared: Bool,
-        subtransactions: [APITransactionDraft] = []
-    ) {
-        self.id = id
-        self.account = account
-        self.date = date
-        self.amount = amount
-        self.payee = payee
-        self.payeeName = payeeName
-        self.category = category
-        self.notes = notes
-        self.cleared = cleared
-        self.subtransactions = subtransactions
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, account, date, amount, payee, category, notes, cleared
-        case payeeName = "payee_name"
-        case subtransactions
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(id, forKey: .id)
-        try container.encode(account, forKey: .account)
-        try container.encode(date, forKey: .date)
-        try container.encode(amount, forKey: .amount)
-        try container.encodeIfPresent(payee, forKey: .payee)
-        try container.encodeIfPresent(payeeName, forKey: .payeeName)
-
-        if let category, subtransactions.isEmpty {
-            try container.encode(category, forKey: .category)
-        } else {
-            try container.encodeNil(forKey: .category)
-        }
-
-        if let notes {
-            try container.encode(notes, forKey: .notes)
-        } else {
-            try container.encodeNil(forKey: .notes)
-        }
-
-        try container.encode(cleared, forKey: .cleared)
-
-        if !subtransactions.isEmpty {
-            try container.encode(subtransactions, forKey: .subtransactions)
-        }
-    }
-}
-
-struct APITransactionBatchUpdateResult: Decodable, Hashable, Sendable {
-    let added: [ActualTransaction]
-    let updated: [ActualTransaction]
-    let deleted: [ActualTransaction]
-
-    init(
-        added: [ActualTransaction] = [],
-        updated: [ActualTransaction] = [],
-        deleted: [ActualTransaction] = []
-    ) {
-        self.added = added
-        self.updated = updated
-        self.deleted = deleted
-    }
-
-    enum CodingKeys: CodingKey {
-        case added, updated, deleted
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        added = try container.decodeIfPresent([ActualTransaction].self, forKey: .added) ?? []
-        updated = try container.decodeIfPresent([ActualTransaction].self, forKey: .updated) ?? []
-        deleted = try container.decodeIfPresent([ActualTransaction].self, forKey: .deleted) ?? []
-    }
-}
-
-struct APITransactionRulePreview: Decodable, Hashable, Sendable {
-    let category: String?
-    let notes: String?
 }
 
 struct ActualBudget: Codable, Identifiable, Hashable, Sendable {
@@ -324,8 +80,7 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
         case nil, "ok":
             return .healthy
         default:
-            // Actual treats every durable non-success status as failed. Keeping the fallback
-            // broad means a newly introduced upstream failure state remains visible.
+            // Unknown durable statuses are failures too.
             return .failed
         }
     }
@@ -358,12 +113,7 @@ struct BudgetMonth: Codable, Hashable, Sendable {
     let categoryGroups: [BudgetMonthCategoryGroup]
 }
 
-struct APIBudgetMonthAlerts: Codable, Hashable, Sendable {
-    let month: String
-    let alerts: [APIBudgetMonthAlert]
-}
-
-struct APIBudgetMonthAlert: Codable, Hashable, Sendable {
+struct BudgetMonthAlert: Codable, Hashable, Sendable {
     let kind: String
     let severity: String
     let title: String

@@ -221,7 +221,7 @@ struct PayeesView: View {
     }
 
     private var canShowMutationControls: Bool {
-        appState.capabilities.canManagePayees && !privacyModeEnabled
+        !privacyModeEnabled
     }
 
     private var privacyBanner: some View {

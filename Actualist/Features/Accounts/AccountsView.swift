@@ -9,15 +9,11 @@ struct AccountsView: View {
     @State private var isAddAccountPresented = false
     @State private var addAccountViewModel = AddAccountViewModel()
 
-    /// Reactive snapshot from the shared store: shows cached balances instantly and updates
-    /// as the background refresh lands.
     private var accounts: [AccountDisplay] {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return []
         }
-        guard let repository = appState.makeAccountRepository() else {
-            return []
-        }
+        let repository = appState.accountRepository
         return appState.orderedAccountDisplays(
             repository.accountDisplays(budgetID: budgetID),
             budgetID: budgetID
@@ -59,17 +55,14 @@ struct AccountsView: View {
             .background(ActualistTheme.background)
             .navigationTitle("Accounts")
             .toolbar {
-                if appState.capabilities.showsAddAccount {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            isAddAccountPresented = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                        .actualistToolbarGlassButton()
-                        .accessibilityLabel("Add Account")
-                        .disabled(!appState.capabilities.canAddAccount)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isAddAccountPresented = true
+                    } label: {
+                        Image(systemName: "plus")
                     }
+                    .actualistToolbarGlassButton()
+                    .accessibilityLabel("Add Account")
                 }
             }
             .navigationDestination(for: ActualAccount.self) { account in
@@ -187,10 +180,7 @@ struct AccountsView: View {
         isLoading = accounts.isEmpty
         errorMessage = nil
         do {
-            guard let repository = appState.makeAccountRepository() else {
-                isLoading = false
-                return
-            }
+            let repository = appState.accountRepository
             try await repository.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
             errorMessage = accounts.isEmpty ? error.localizedDescription : nil
@@ -337,8 +327,7 @@ private struct AddAccountSheet: View {
     private func submit() async {
         guard await viewModel.submit(
             budgetID: appState.settings.selectedBudgetID,
-            repository: appState.makeAccountRepository(),
-            isReadOnly: !appState.capabilities.canAddAccount
+            repository: appState.accountRepository
         ) else {
             return
         }

@@ -20,11 +20,11 @@ final class ReportsViewModel {
     private(set) var isPrivacyModeEnabled = false
 
     func load(using appState: AppState, now: Date = Date()) async {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeReportsRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             errorMessage = "Open a budget before loading reports."
             return
         }
+        let repository = appState.reportsRepository
 
         await load(
             budgetID: budgetID,

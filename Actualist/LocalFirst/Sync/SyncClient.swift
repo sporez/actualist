@@ -120,10 +120,7 @@ actor SyncClient {
             pushedEnvelopesByTimestamp[envelope.timestamp] == envelope ? envelope.timestamp : nil
         })
 
-        // The official Actual server reads messages newer than `since` before inserting this
-        // request's upload, so the first response normally does not echo what was just pushed.
-        // Read once more from the same base timestamp and only acknowledge the durable outbox
-        // after every uploaded timestamp is visible from the server.
+        // The server reads before inserting this upload, so confirm it with a second pull.
         if confirmedTimestamps.count != pushedEnvelopesByTimestamp.count {
             var confirmationRequest = ActualSync_SyncRequest()
             confirmationRequest.fileID = configuration.fileID

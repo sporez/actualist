@@ -3,35 +3,7 @@ import Testing
 @testable import Actualist
 
 @MainActor
-struct BackendCapabilitiesTests {
-    @Test func localFirstEnablesEveryImplementedWrite() {
-        let capabilities = BackendCapabilities.localFirst
-
-        #expect(capabilities.canCreateTransactions)
-        #expect(capabilities.canCategorizeTransactions)
-        #expect(capabilities.canUpdateSimpleTransactions)
-        #expect(capabilities.canDeleteTransactions)
-        #expect(capabilities.canWriteTransfers)
-        #expect(capabilities.canWriteSplits)
-        #expect(capabilities.canAssignCategoryBudget)
-        #expect(capabilities.canSetCategoryCarryover)
-        #expect(capabilities.canMoveMoney)
-        #expect(capabilities.canApplyBudgetTemplates)
-        #expect(capabilities.canAssignBudget)
-        #expect(capabilities.showsAddAccount)
-        #expect(capabilities.canAddAccount)
-        #expect(capabilities.canManagePayees)
-        #expect(capabilities.supportsBackgroundRefresh)
-        #expect(capabilities.supportsTransactionNotifications)
-    }
-
-    @Test func localFirstKeepsUnimplementedWritesUnavailable() {
-        let capabilities = BackendCapabilities.localFirst
-
-        #expect(!capabilities.canReconcile)
-        #expect(!capabilities.canApplyRules)
-    }
-
+struct AppFeatureTests {
     @Test func newTransactionNotificationCopyIsGeneric() {
         #expect(NewTransactionsNotificationCopy.title == "Actualist")
         #expect(NewTransactionsNotificationCopy.body == "New transactions found")
@@ -56,38 +28,9 @@ struct BackendCapabilitiesTests {
         #expect(count == 3)
     }
 
-    // MARK: AppState derivation
-
-    @Test func appStateKeepsProvenWritesAvailableOfflineAndOutsideDeveloperMode() {
-        for phase in [SetupPhase.needsConnection, .selectingBudget, .restoringBudget, .ready] {
-            for status in [ServerConnectionStatus.online, .connecting, .offline] {
-                let state = makeAppState()
-                state.setupPhase = phase
-                state.connectionStatus = status
-                state.updateDeveloperModeUnlocked(false)
-
-                let capabilities = state.capabilities
-                #expect(capabilities.canCreateTransactions)
-                #expect(capabilities.canCategorizeTransactions)
-                #expect(capabilities.canUpdateSimpleTransactions)
-                #expect(capabilities.canDeleteTransactions)
-                #expect(capabilities.canWriteTransfers)
-                #expect(capabilities.canWriteSplits)
-                #expect(capabilities.canAssignCategoryBudget)
-                #expect(capabilities.canSetCategoryCarryover)
-                #expect(capabilities.canMoveMoney)
-                #expect(capabilities.canApplyBudgetTemplates)
-                #expect(capabilities.showsAddAccount)
-                #expect(capabilities.canAddAccount)
-                #expect(capabilities.canManagePayees)
-            }
-        }
-    }
-
     @Test func budgetTemplatesRequireExperimentalFeature() {
         let state = makeAppState()
 
-        #expect(state.capabilities.canApplyBudgetTemplates)
         #expect(!state.canApplyBudgetTemplates)
 
         state.updateExperimentalFeature(.budgetTemplates, isEnabled: true)

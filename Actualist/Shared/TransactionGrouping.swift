@@ -1,9 +1,5 @@
 import Foundation
 
-/// Pure grouping of transactions into date sections for display.
-///
-/// Computed off the data set (on change), not per view-render, and uses cached `DateFormatter`s
-/// — both expensive to do repeatedly for accounts with many transactions.
 enum TransactionGrouping {
     static func grouped(_ transactions: [ActualTransaction]) -> [TransactionDateGroup] {
         let groups = Dictionary(grouping: transactions, by: { $0.date })

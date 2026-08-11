@@ -85,7 +85,6 @@ extension LocalFirstActualStoreTests {
             store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
                 .transactions.first { $0.id == transactionID }
         )
-        // Groceries baseline is the single seeded -12345 transaction; the created -725 adds to it.
         let monthBeforeDelete = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceriesBeforeDelete = try #require(
             monthBeforeDelete.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
@@ -115,7 +114,6 @@ extension LocalFirstActualStoreTests {
 
     @Test func createTransferLocallyWritesPairedRowsAcrossAccounts() async throws {
         let store = try await makeOpenedWritableStore()
-        // Transfer $10.00 out of checking into credit: payee is the credit account's transfer payee.
         let draft = TransactionDraft(
             accountID: "checking",
             date: try makeDate(year: 2026, month: 7, day: 12),
@@ -143,7 +141,6 @@ extension LocalFirstActualStoreTests {
         #expect(Set(result.changed.accounts) == Set(["checking", "credit"]))
         #expect(source.amount == -1000)
         #expect(source.category == nil)
-        // The transfer feed resolves the empty-named transfer payee to the linked account name.
         #expect(source.payeeName == "Credit Card")
         #expect(paired.amount == 1000)
         #expect(paired.category == nil)
@@ -153,7 +150,6 @@ extension LocalFirstActualStoreTests {
 
     @Test func createCrossBudgetTransferKeepsCategoryOnOnBudgetSide() async throws {
         let store = try await makeOpenedWritableStore()
-        // checking (on-budget) -> tracking (off-budget): the on-budget source keeps its category.
         let draft = TransactionDraft(
             accountID: "checking",
             date: try makeDate(year: 2026, month: 7, day: 12),
@@ -181,8 +177,6 @@ extension LocalFirstActualStoreTests {
 
     @Test func createReverseCrossBudgetTransferPutsCategoryOnOnBudgetPair() async throws {
         let store = try await makeOpenedWritableStore()
-        // tracking (off-budget) -> checking (on-budget): the generated on-budget row receives
-        // the category selected in the editor.
         let draft = TransactionDraft(
             accountID: "tracking",
             date: try makeDate(year: 2026, month: 7, day: 12),
@@ -214,7 +208,6 @@ extension LocalFirstActualStoreTests {
 
     @Test func createSameBudgetTransferClearsCategoryEvenIfProvided() async throws {
         let store = try await makeOpenedWritableStore()
-        // checking -> credit, both on-budget: category must be cleared even if a draft carries one.
         let draft = TransactionDraft(
             accountID: "checking",
             date: try makeDate(year: 2026, month: 7, day: 12),
@@ -252,7 +245,6 @@ extension LocalFirstActualStoreTests {
         let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
 
-        // Convert to a cross-budget transfer to the off-budget account, keeping the category.
         let transferDraft = TransactionDraft(
             accountID: "checking",
             date: try makeDate(year: 2026, month: 7, day: 12),
@@ -361,7 +353,6 @@ extension LocalFirstActualStoreTests {
         #expect(parent.subtransactions.count == 2)
         #expect(parent.subtransactions.allSatisfy { $0.category == "groceries" })
         #expect(parent.subtransactions.reduce(0) { $0 + ($1.amount ?? 0) } == -3000)
-        // Baseline groceries spend is -12345; the split children add another -3000.
         #expect(groceries.spent == -15_345)
     }
 
@@ -414,7 +405,6 @@ extension LocalFirstActualStoreTests {
         let keptChildID = try #require(parent.subtransactions.first?.id)
         let removedChildID = try #require(parent.subtransactions.last?.id)
 
-        // Keep the first child (re-amounted to -1500), drop the second, add a new -1500 child.
         let updateDraft = TransactionDraft(
             accountID: "checking",
             date: try makeDate(year: 2026, month: 7, day: 13),
@@ -450,7 +440,6 @@ extension LocalFirstActualStoreTests {
         #expect(!updatedParent.subtransactions.contains { $0.id == removedChildID })
         #expect(updatedParent.subtransactions.contains { $0.id == keptChildID })
         #expect(updatedParent.subtransactions.reduce(0) { $0 + ($1.amount ?? 0) } == -3000)
-        // Baseline -12345 plus the split total -3000 (unchanged across the edit).
         #expect(groceries.spent == -15_345)
     }
 
@@ -498,7 +487,6 @@ extension LocalFirstActualStoreTests {
         #expect(sourceAfterTransfer.category == nil)
         #expect(paired.payeeName == "Checking")
 
-        // Now revert to a simple categorized transaction: the paired row must disappear.
         _ = try await store.updateTransactionAndRefresh(
             transactionID,
             with: simpleDraft,
@@ -532,7 +520,6 @@ extension LocalFirstActualStoreTests {
         let created = try await store.createTransactionAndRefresh(createDraft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
 
-        // Repoint to savings and change the amount to -2500.
         let editDraft = TransactionDraft(
             accountID: "checking",
             date: try makeDate(year: 2026, month: 7, day: 12),
@@ -656,7 +643,6 @@ extension LocalFirstActualStoreTests {
             )
         }
 
-        // Revert to simple.
         _ = try await store.updateTransactionAndRefresh(
             transactionID,
             with: simpleDraft,
@@ -720,9 +706,7 @@ extension LocalFirstActualStoreTests {
 
         #expect(result.ok)
         #expect(!checking.transactions.contains { $0.id == parentID })
-        // The two child ids are reported as affected (tombstoned) alongside the parent.
         #expect(result.changed.transactions.count == 3)
-        // Split children removed, so groceries returns to the seeded baseline.
         #expect(groceries.spent == -12_345)
     }
 

@@ -38,17 +38,17 @@ struct BudgetAlert: Identifiable, Equatable {
         self.severity = severity
     }
 
-    init?(apiAlert: APIBudgetMonthAlert) {
-        guard let kind = Kind(rawValue: apiAlert.kind) else {
+    init?(alert: BudgetMonthAlert) {
+        guard let kind = Kind(rawValue: alert.kind) else {
             return nil
         }
 
         self.kind = kind
-        title = apiAlert.title
-        valueText = apiAlert.amount?.actualMoney.formatted()
-        count = apiAlert.count
-        actionTitle = apiAlert.actionTitle
-        severity = Severity(apiValue: apiAlert.severity)
+        title = alert.title
+        valueText = alert.amount?.actualMoney.formatted()
+        count = alert.count
+        actionTitle = alert.actionTitle
+        severity = Severity(apiValue: alert.severity)
     }
 
     func replacingCount(with count: Int) -> BudgetAlert {

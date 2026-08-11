@@ -21,7 +21,6 @@ struct BudgetTemplateEngineTests {
                 _ = try engine.decodeSupportedEntries(json: "[\(entry)]")
                 Issue.record("Expected the out-of-bounds template to be rejected: \(entry)")
             } catch LocalFirstError.unsupportedTemplate {
-                // Expected.
             } catch {
                 Issue.record("Unexpected error for \(entry): \(error)")
             }

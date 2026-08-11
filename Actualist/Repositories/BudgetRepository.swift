@@ -48,7 +48,7 @@ struct LoadedBudgetMonth: Equatable {
     let availableMonths: [String]
     let selectedMonth: String
     let month: BudgetMonth
-    let alerts: [APIBudgetMonthAlert]
+    let alerts: [BudgetMonthAlert]
 }
 
 struct BudgetMoveMoneyCommand: Hashable, Sendable {

@@ -41,8 +41,8 @@ struct TransactionDeletePresentation: Identifiable, Hashable {
 enum AccountReconciliationSubmissionState: Equatable {
     case draft
     case submitting
-    case reconciled(APIAccountReconciliationResult)
-    case mismatch(APIAccountReconciliationResult)
+    case reconciled(AccountReconciliationResult)
+    case mismatch(AccountReconciliationResult)
     case failed(String)
 }
 
@@ -353,7 +353,7 @@ struct AccountReconciliationSheet: View {
                 await viewModel.submit(
                     budgetID: budgetID,
                     accountID: account.id,
-                    repository: appState.makeAccountRepository()
+                    repository: appState.accountRepository
                 )
             }
         } label: {

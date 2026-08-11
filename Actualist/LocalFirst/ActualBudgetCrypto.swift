@@ -19,8 +19,7 @@ enum ActualBudgetCrypto {
     private static let keyByteCount = 32
     private static let nonceByteCount = 12
     private static let authTagByteCount = 16
-    // Actual's sync protocol derives budget keys with 10k PBKDF2-HMAC-SHA512 rounds.
-    // Do not raise this locally unless upstream changes the wire-compatible derivation.
+    // This iteration count is part of Actual's wire format.
     private static let iterations = 10_000
 
     static func deriveKey(password: String, salt: String) throws -> Data {

@@ -79,9 +79,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         remoteFilesByFileID = [:]
     }
 
-    /// Close the active database and discard its derived snapshots while retaining the
-    /// authenticated server's budget listing. Budget switching uses this narrower reset so
-    /// encryption metadata remains available before the replacement budget is opened.
+    // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
         pendingLocalMessageFlushTask?.cancel()
         pendingLocalMessageFlushTask = nil

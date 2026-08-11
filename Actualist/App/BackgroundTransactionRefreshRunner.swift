@@ -56,16 +56,14 @@ struct BackgroundTransactionRefreshRunner {
         settings: AppSettings,
         selectedBudget: ActualBudget?,
         budgets: [ActualBudget],
-        canUseAPI: Bool,
+        hasSyncCredentials: Bool,
         store: LocalFirstActualStore,
         timeLimit: Duration
     ) async throws -> BackgroundTransactionRefreshOutcome {
-        // A BGAppRefreshTask can cold-launch the process before the foreground scene restores
-        // AppState. Persisted budget metadata and the cached database are the background
-        // preconditions; syncAndFindNewTransactions opens that cache on demand.
+        // Background refresh may run before the foreground scene restores AppState.
         if let reason = skipReason(
             settings: settings,
-            canUseAPI: canUseAPI
+            hasSyncCredentials: hasSyncCredentials
         ) {
             return .skipped(reason)
         }
@@ -156,7 +154,7 @@ struct BackgroundTransactionRefreshRunner {
 
     private func skipReason(
         settings: AppSettings,
-        canUseAPI: Bool
+        hasSyncCredentials: Bool
     ) -> String? {
         var reasons: [String] = []
         if !settings.backgroundTransactionRefreshEnabled {
@@ -165,7 +163,7 @@ struct BackgroundTransactionRefreshRunner {
         if settings.selectedBudgetID == nil {
             reasons.append("no selected budget")
         }
-        if !canUseAPI {
+        if !hasSyncCredentials {
             reasons.append("credentials missing")
         }
 

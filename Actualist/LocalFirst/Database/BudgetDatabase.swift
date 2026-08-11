@@ -40,10 +40,7 @@ actor BudgetDatabase {
         }
     }
 
-    /// Actual 26.7 added `accounts.bank_sync_status`. A cached budget imported before that
-    /// migration can already contain CRDT messages for the field, but older Actualist builds
-    /// retained those messages without applying them because the physical column was absent.
-    /// Add the nullable upstream column and replay only its newest retained value per account.
+    // Old imports may have retained bank_sync_status messages without the physical column.
     private static func prepareBankSyncStatusCompatibility(in queue: DatabaseQueue) throws {
         try queue.write { db in
             let accountTableExists = try Bool.fetchOne(
@@ -157,10 +154,7 @@ actor BudgetDatabase {
         }
     }
 
-    /// Resolved physical column names for the `transactions` table. Actual's CRDT messages use
-    /// physical columns, which differ from the AQL field names: payee lives in `description`,
-    /// account in `acct`, the split flags are `isParent`/`isChild`, and a transfer's paired-row
-    /// link is `transferred_id`. Older/test schemas may use the snake_case variants, so probe.
+    // Physical transaction columns vary across schema versions and test fixtures.
     struct TransactionRowColumns {
         let all: Set<String>
         let account: String
@@ -176,8 +170,6 @@ actor BudgetDatabase {
         var hasParentID: Bool { all.contains("parent_id") }
     }
 
-    /// Messages plus the accounts/transactions a mutation touched, so the store reloads exactly
-    /// the affected read caches.
     struct TransactionWriteResult {
         let messages: [ActualSyncDecodedMessage]
         let affectedAccountIDs: [String]

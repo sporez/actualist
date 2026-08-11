@@ -7,8 +7,6 @@ protocol AccountRepositoryProtocol: Sendable {
     @MainActor
     func refreshAccountsWithBalances(budgetID: String) async throws
 
-    // MARK: - Account mutations / server operations
-
     @MainActor
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws
 
@@ -17,10 +15,9 @@ protocol AccountRepositoryProtocol: Sendable {
         budgetID: String,
         accountID: String,
         statementBalance: Int
-    ) async throws -> APIAccountReconciliationResult
+    ) async throws -> AccountReconciliationResult
 }
 
-/// Result of a background CRDT refresh: the account checked and any newly appeared transaction IDs.
 struct BackgroundAccountRefreshResult: Hashable, Sendable {
     let account: ActualAccount
     let newTransactionIDs: [String]

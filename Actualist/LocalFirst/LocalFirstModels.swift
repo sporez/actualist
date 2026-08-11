@@ -103,10 +103,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     }
 }
 
-/// One entry in a category's `goal_def` — Actual's structured budget-template JSON (authored by
-/// the GUI template editor or parsed from `#template` notes). Only the fields needed for the
-/// currently supported template types are decoded; every entry keeps its `type` so unsupported
-/// types are detected and refused rather than mis-applied. Mirrors loot-core's template objects.
+// A goal_def entry from Actual's template JSON.
 struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let type: String
     let directive: String?
@@ -123,8 +120,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let annual: Bool?
     let repeatInterval: Int?
 
-    /// `directive` defaults to "template" (sets the budget); "goal" entries set a display target
-    /// only and do not affect the budgeted amount.
+    // `goal` entries are display-only; `template` entries change the budget.
     var setsBudget: Bool { (directive ?? "template") == "template" }
 
     private enum CodingKeys: String, CodingKey {
@@ -415,7 +411,6 @@ struct ActualLoginMethod: Decodable, Hashable, Sendable {
 struct ActualLoginMethodsResponse: Decodable, Hashable, Sendable {
     let loginMethods: [ActualLoginMethod]
 
-    /// Active identifiers retained for compatibility with the older string-only call sites.
     var methods: [String] {
         loginMethods.filter(\.isActive).map(\.identifier)
     }
@@ -424,8 +419,7 @@ struct ActualLoginMethodsResponse: Decodable, Hashable, Sendable {
         loginMethods.filter(\.isActive)
     }
 
-    /// Actual marks the preferred method as active and retains valid fallback methods as
-    /// inactive rows. Authentication selection must consider every advertised row.
+    // Actual may advertise usable fallback methods as inactive rows.
     var availableLoginMethods: [ActualLoginMethod] {
         loginMethods
     }
@@ -634,7 +628,6 @@ extension ActualBudget {
 }
 
 extension ActualTransaction {
-    /// Returns a copy with split children attached (parent rows are otherwise immutable).
     func replacingSubtransactions(_ subtransactions: [ActualTransaction]) -> ActualTransaction {
         ActualTransaction(
             id: id,

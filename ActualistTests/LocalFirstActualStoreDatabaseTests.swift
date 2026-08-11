@@ -303,7 +303,6 @@ extension LocalFirstActualStoreTests {
                 )
                 Issue.record("Expected \(label) to be rejected")
             } catch LocalFirstError.unsupportedTemplate {
-                // Expected: validation happens before any local CRDT write is constructed.
             } catch {
                 Issue.record("Unexpected error for \(label): \(error)")
             }
@@ -471,8 +470,6 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func toBudgetIsCumulativeAcrossMonthsNotJustCurrentMonth() async throws {
-        // June: assign 50000 to groceries, receive 200000 income, spend 40000 on groceries.
-        // July: assign another 50000 to groceries (the fixture's -12345 July spend also applies).
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
             INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 1);
@@ -485,10 +482,7 @@ extension LocalFirstActualStoreTests {
 
         let month = try await database.fetchBudgetMonth(month: "2026-07")
 
-        // On-budget balance through July = 200000 - 40000 - 12345 = 147655.
-        // Groceries balance carries June's 10000 leftover into July: 50000 - 12345 + 10000 = 47655.
-        // To Budget = 147655 - 47655 = 100000 (i.e., total income 200000 - total budgeted 100000).
-        // The old current-month-only formula would have reported 0 - 50000 = -50000.
+        // Income 200000 - total budgeted 100000.
         #expect(month.toBudget == 100_000)
     }
 
@@ -504,8 +498,6 @@ extension LocalFirstActualStoreTests {
 
         let month = try await database.fetchBudgetMonth(month: "2026-07")
 
-        // Uncategorized spending changes account balance, but Actual does not let it reduce
-        // To Budget until it is assigned to a category.
         #expect(month.toBudget == 150_000)
     }
 

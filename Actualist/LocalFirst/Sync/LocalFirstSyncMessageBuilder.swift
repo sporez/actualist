@@ -134,8 +134,7 @@ struct LocalFirstSyncMessageBuilder: Sendable {
     ) throws -> ActualSyncDecodedMessage {
         defer { sequence += 1 }
         return ActualSyncDecodedMessage(
-            // Draft messages are deliberately not HLC-stamped. The database actor replaces this
-            // stable ordering key while atomically applying and enqueueing the mutation.
+            // The database actor assigns the HLC while committing the mutation.
             timestamp: String(format: "actualist-pending-%08x", sequence),
             dataset: dataset,
             row: row,

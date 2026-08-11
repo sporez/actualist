@@ -335,14 +335,12 @@ extension LocalFirstActualStore {
         transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(transaction.importedPayee ?? "")"
     }
 
-    /// Derives budget banner alerts natively from SQLite, matching Actual's alert shapes so the
-    /// UI renders consistently from the local-first store.
     func nativeBudgetAlerts(
         database: BudgetDatabase,
         budgetID: String,
         month: BudgetMonth,
         monthID: String
-    ) async throws -> [APIBudgetMonthAlert] {
+    ) async throws -> [BudgetMonthAlert] {
         let maps = try await nameMaps(database)
         let transactions = try await database.fetchTransactions()
         let uncategorized = transactions.filter { transaction in
@@ -373,16 +371,14 @@ extension LocalFirstActualStore {
         )
     }
 
-    /// Pure derivation of the full budget alert list (to-budget, overspending, uncategorized).
-    /// Exposed for testing.
     static func budgetAlerts(
         month: BudgetMonth,
         monthID: String,
         transactions: [ActualTransaction],
         transferAccountIDsByPayeeID: [String: String],
         offBudgetAccountIDs: Set<String>
-    ) -> [APIBudgetMonthAlert] {
-        var alerts: [APIBudgetMonthAlert] = []
+    ) -> [BudgetMonthAlert] {
+        var alerts: [BudgetMonthAlert] = []
         if let toBudget = toBudgetAlert(month: month) {
             alerts.append(toBudget)
         }
@@ -398,14 +394,12 @@ extension LocalFirstActualStore {
         return alerts
     }
 
-    /// "To Budget" banner showing the amount left to assign this month. Informational only
-    /// (non-actionable). A surplus reads positive; a negative value means the month is
-    /// overbudgeted (Actual allows this) and reads as a warning, carrying the signed amount.
-    static func toBudgetAlert(month: BudgetMonth) -> APIBudgetMonthAlert? {
+    // Actual allows a negative To Budget amount.
+    static func toBudgetAlert(month: BudgetMonth) -> BudgetMonthAlert? {
         guard month.toBudget != 0 else {
             return nil
         }
-        return APIBudgetMonthAlert(
+        return BudgetMonthAlert(
             kind: "toBudget",
             severity: month.toBudget > 0 ? "positive" : "warning",
             title: "To Budget",
@@ -415,10 +409,7 @@ extension LocalFirstActualStore {
         )
     }
 
-    /// Raw overspending alert counting categories that ended the month negative. The Budget
-    /// feature applies the user's rollover-category alert preference to this count and its
-    /// overspent-categories review sheet.
-    static func overspendingAlert(month: BudgetMonth) -> APIBudgetMonthAlert? {
+    static func overspendingAlert(month: BudgetMonth) -> BudgetMonthAlert? {
         let overspentCount = month.categoryGroups
             .filter { !$0.isIncome }
             .flatMap(\.categories)
@@ -427,7 +418,7 @@ extension LocalFirstActualStore {
         guard overspentCount > 0 else {
             return nil
         }
-        return APIBudgetMonthAlert(
+        return BudgetMonthAlert(
             kind: "overspending",
             severity: "danger",
             title: "Overspent categories",
@@ -437,13 +428,12 @@ extension LocalFirstActualStore {
         )
     }
 
-    /// Pure derivation of the uncategorized-transactions alert. Exposed for testing.
     static func uncategorizedAlerts(
         transactions: [ActualTransaction],
         transferAccountIDsByPayeeID: [String: String],
         offBudgetAccountIDs: Set<String>,
         month: String
-    ) -> [APIBudgetMonthAlert] {
+    ) -> [BudgetMonthAlert] {
         let count = transactions.filter {
             isUncategorized(
                 $0,
@@ -456,7 +446,7 @@ extension LocalFirstActualStore {
             return []
         }
         return [
-            APIBudgetMonthAlert(
+            BudgetMonthAlert(
                 kind: "uncategorizedTransactions",
                 severity: "warning",
                 title: "Uncategorized transactions",
@@ -467,10 +457,7 @@ extension LocalFirstActualStore {
         ]
     }
 
-    /// A top-level on-budget transaction needs categorizing when it falls in the month, carries
-    /// no category, is not a split parent, and is not an on-budget-to-on-budget transfer.
-    /// Transfers from an on-budget account to an off-budget account still need categories in
-    /// Actual, while transactions whose source account is off budget do not.
+    // Cross-budget transfers from a budget account still need a category.
     static func isUncategorized(
         _ transaction: ActualTransaction,
         month: String,
@@ -531,7 +518,7 @@ extension LocalFirstActualStore {
         let categoryNames = Dictionary(uniqueKeysWithValues: categories.compactMap { category in
             category.id.map { ($0, category.name) }
         })
-        // Transfer payees carry an empty name; display them as the linked account's name.
+        // Transfer payees display the linked account name.
         let payeeNames = Dictionary(uniqueKeysWithValues: payees.compactMap { payee -> (String, String)? in
             guard let id = payee.id else {
                 return nil

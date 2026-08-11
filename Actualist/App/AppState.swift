@@ -38,7 +38,6 @@ final class AppState {
     private let developerUnlockVisibleCountdownThreshold = 5
     private let developerUnlockResetInterval: TimeInterval = 20
 
-    /// The native local-first CRDT store: the app's only sync backend and source of truth.
     @ObservationIgnored lazy var localFirstStore: LocalFirstActualStore = {
         if let providedLocalFirstStore {
             return providedLocalFirstStore
@@ -88,7 +87,7 @@ final class AppState {
         }
     }
 
-    var canUseAPI: Bool {
+    var hasSyncCredentials: Bool {
         !settings.localFirstServerURLString.isEmpty && !keychain.readActualSyncToken().isEmpty
     }
 
@@ -102,13 +101,6 @@ final class AppState {
             return true
         }
         return localFirstStore.isOpen(budgetID: selectedBudgetID)
-    }
-
-    /// The single source of truth for backend availability. The local-first CRDT backend is
-    /// the only sync path; proven mutations are normal product capabilities, while unsupported
-    /// and experimental surfaces remain explicitly unavailable elsewhere.
-    var capabilities: BackendCapabilities {
-        .localFirst
     }
 
     func loadLocalFirstLoginMethods(
@@ -228,7 +220,7 @@ final class AppState {
             return false
         } catch {
             lastErrorMessage = error.localizedDescription
-            if previousServerURLString.isEmpty && !canUseAPI {
+            if previousServerURLString.isEmpty && !hasSyncCredentials {
                 connectionStatus = .offline
                 setupPhase = .needsConnection
             }
@@ -281,8 +273,6 @@ final class AppState {
         return localFirstStore.cachedBudgetMonth(budgetID: budgetID)
     }
 
-    /// Starts one foreground session. The selected SQLite budget is restored before the main
-    /// tabs appear, then one coalesced CRDT sync revalidates that local source in the background.
     func beginForegroundSession() async {
         guard !foregroundSessionActive else {
             return
@@ -307,9 +297,7 @@ final class AppState {
         automaticSyncRequestedThisForeground = false
     }
 
-    /// Pulls CRDT messages and reloads native caches without ever hiding an existing local
-    /// snapshot. Automatic requests run once per foreground; forced requests power every
-    /// pull-to-refresh and refresh button. Concurrent requests join the same in-flight task.
+    // Concurrent refreshes share one task so foreground sync and pull-to-refresh do not race.
     @discardableResult
     func refreshLocalFirstData(budgetID: String, force: Bool = true) async -> Bool {
         guard localFirstStore.isOpen(budgetID: budgetID) else {
@@ -389,8 +377,6 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    /// Discard the locally imported budget and re-download a fresh copy from the server.
-    /// A no-op when no budget is selected.
     func reimportLocalFirstBudget() async {
         guard let budget = selectedBudget else {
             return
@@ -481,7 +467,7 @@ final class AppState {
         settings.selectedBudgetID = nil
         settings.selectedBudgetName = nil
         settingsStore.save(settings)
-        setupPhase = canUseAPI ? .selectingBudget : .needsConnection
+        setupPhase = hasSyncCredentials ? .selectingBudget : .needsConnection
     }
 
     func beginReauthentication() {
@@ -495,7 +481,7 @@ final class AppState {
            localFirstStore.isOpen(budgetID: budgetID) {
             setupPhase = .ready
         } else {
-            setupPhase = canUseAPI ? .selectingBudget : .needsConnection
+            setupPhase = hasSyncCredentials ? .selectingBudget : .needsConnection
         }
     }
 
@@ -557,7 +543,7 @@ final class AppState {
     }
 
     var canApplyBudgetTemplates: Bool {
-        isExperimentalFeatureEnabled(.budgetTemplates) && capabilities.canApplyBudgetTemplates
+        isExperimentalFeatureEnabled(.budgetTemplates)
     }
 
     func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
@@ -699,7 +685,7 @@ final class AppState {
                 settings: settings,
                 selectedBudget: selectedBudget,
                 budgets: budgets,
-                canUseAPI: canUseAPI,
+                hasSyncCredentials: hasSyncCredentials,
                 store: localFirstStore,
                 timeLimit: timeLimit
             )
@@ -837,8 +823,6 @@ final class AppState {
         )
     }
 
-    /// Union of every account's pending-new IDs for the budget. Used by the cross-account
-    /// Spending feed, where transactions aren't scoped to a single account.
     func pendingNewTransactionIDs(budgetID: String) -> Set<String> {
         transactionNotifications.pendingIDs(
             in: settings.pendingNewTransactionIDsByAccount,
@@ -878,26 +862,17 @@ final class AppState {
         return badgeCount
     }
 
-    func routeToSpendingFromNotification(budgetID: String) async {
-        guard capabilities.supportsTransactionNotifications else {
-            accountNavigationPath = []
-            return
-        }
+    func routeToSpendingFromNotification(budgetID _: String) async {
         accountNavigationPath = []
         selectedTab = .spending
     }
 
     #if DEBUG
     func postDebugNewTransactionNotification() async throws {
-        guard capabilities.supportsTransactionNotifications else {
-            throw LocalFirstError.unsupportedWrite
-        }
         guard let budgetID = settings.selectedBudgetID else {
             throw DebugNotificationError.missingBudget
         }
-        guard let repository = makeAccountRepository() else {
-            throw DebugNotificationError.noAccounts
-        }
+        let repository = accountRepository
 
         try await transactionNotifications.postDebug(
             budgetID: budgetID,
@@ -927,8 +902,7 @@ final class AppState {
             if let selectedBudgetID = settings.selectedBudgetID,
                let budget = budgets.first(where: { $0.syncID == selectedBudgetID }) {
                 selectedBudget = budget
-                // Open only on first load; once open, refresh flows through
-                // refreshLocalFirstData so appears don't reopen the DB or double-sync.
+                // Reopening here would race the normal refresh path.
                 if !localFirstStore.isOpen(budgetID: selectedBudgetID) {
                     try await localFirstStore.openBudget(
                         budget,
@@ -960,27 +934,11 @@ final class AppState {
         }
     }
 
-    /// The local-first store as a budget repository. Always available; returns `nil` only to
-    /// preserve the optional-based call sites that skip loading when unconfigured.
-    func makeBudgetRepository() -> (any BudgetRepositoryProtocol)? {
-        localFirstStore
-    }
-
-    func makeTransactionRepository() -> (any TransactionRepositoryProtocol)? {
-        localFirstStore
-    }
-
-    func makeAccountRepository() -> (any AccountRepositoryProtocol)? {
-        localFirstStore
-    }
-
-    func makePayeeRepository() -> (any PayeeRepositoryProtocol)? {
-        localFirstStore
-    }
-
-    func makeReportsRepository() -> (any ReportsRepositoryProtocol)? {
-        localFirstStore
-    }
+    var budgetRepository: any BudgetRepositoryProtocol { localFirstStore }
+    var transactionRepository: any TransactionRepositoryProtocol { localFirstStore }
+    var accountRepository: any AccountRepositoryProtocol { localFirstStore }
+    var payeeRepository: any PayeeRepositoryProtocol { localFirstStore }
+    var reportsRepository: any ReportsRepositoryProtocol { localFirstStore }
 
     func recordLocalDataMutation() {
         localDataRevision &+= 1

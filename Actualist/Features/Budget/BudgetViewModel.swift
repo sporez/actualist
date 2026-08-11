@@ -187,20 +187,20 @@ final class BudgetViewModel {
         includeCarryoverCategoriesInOverspentAlerts =
             appState.settings.includeCarryoverCategoriesInOverspentAlerts
 
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             isLoading = false
             return
         }
+        let repository = appState.budgetRepository
 
         await load(budgetID: budgetID, repository: repository)
     }
 
     func refresh(using appState: AppState) async {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return
         }
+        let repository = appState.budgetRepository
 
         _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
         if let selectedMonth {
@@ -231,10 +231,10 @@ final class BudgetViewModel {
     }
 
     func selectMonth(_ month: String, using appState: AppState) async {
-        guard let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return
         }
+        let repository = appState.budgetRepository
 
         await selectMonth(month, budgetID: budgetID, repository: repository)
     }
@@ -377,11 +377,10 @@ final class BudgetViewModel {
     }
 
     func submitAssignment(using appState: AppState) async -> Bool {
-        guard appState.capabilities.canAssignCategoryBudget,
-              let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
+        let repository = appState.budgetRepository
 
         return await submitAssignment(budgetID: budgetID, repository: repository)
     }
@@ -408,10 +407,10 @@ final class BudgetViewModel {
         using appState: AppState
     ) async -> Bool {
         guard appState.canApplyBudgetTemplates,
-              let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+              let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
+        let repository = appState.budgetRepository
 
         let command: BudgetTemplateCommand = mode == .overwrite ? .overwrite : .fillEmpty
         return await applyMonthTemplate(command, budgetID: budgetID, repository: repository)
@@ -446,10 +445,10 @@ final class BudgetViewModel {
 
     func applyCategoryTemplate(using appState: AppState) async -> Bool {
         guard appState.canApplyBudgetTemplates,
-              let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+              let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
+        let repository = appState.budgetRepository
 
         return await applyCategoryTemplate(budgetID: budgetID, repository: repository)
     }
@@ -473,11 +472,10 @@ final class BudgetViewModel {
     }
 
     func submitMoveMoney(using appState: AppState) async -> Bool {
-        guard appState.capabilities.canMoveMoney,
-              let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
+        let repository = appState.budgetRepository
 
         return await submitMoveMoney(budgetID: budgetID, repository: repository)
     }
@@ -544,7 +542,7 @@ final class BudgetViewModel {
         availableMonths = Self.monthPickerMonths(for: loadedMonth)
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
-        loadedBudgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(apiAlert:))
+        loadedBudgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(alert:))
         if isSameBudget && isSameMonth {
             let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
             expandedGroupIDs = previousExpandedGroupIDs.intersection(loadedGroupIDs)

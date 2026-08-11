@@ -87,24 +87,20 @@ struct SettingsAccountOrderSheet: View {
             return
         }
 
-        let cachedAccounts = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).map(\.account) ?? []
+        let repository = appState.accountRepository
+        let cachedAccounts = repository.accountDisplays(budgetID: budgetID).map(\.account)
         accounts = appState.orderedAccounts(cachedAccounts, budgetID: budgetID)
         isLoading = accounts.isEmpty
         errorMessage = nil
         do {
-            guard let repository = appState.makeAccountRepository() else {
-                accounts = []
-                isLoading = false
-                return
-            }
             try await repository.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
-            errorMessage = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).isEmpty == false
+            errorMessage = repository.accountDisplays(budgetID: budgetID).isEmpty == false
                 ? "Could not refresh accounts. Showing cached accounts."
                 : error.localizedDescription
         }
 
-        let loadedAccounts = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).map(\.account) ?? []
+        let loadedAccounts = repository.accountDisplays(budgetID: budgetID).map(\.account)
         accounts = appState.orderedAccounts(loadedAccounts, budgetID: budgetID)
         isLoading = false
     }
@@ -136,7 +132,7 @@ struct SettingsAccountOrderSheet: View {
         }
 
         appState.resetAccountOrder(budgetID: budgetID)
-        accounts = appState.makeAccountRepository()?.accountDisplays(budgetID: budgetID).map(\.account) ?? accounts
+        accounts = appState.accountRepository.accountDisplays(budgetID: budgetID).map(\.account)
     }
 }
 

@@ -98,14 +98,12 @@ private struct AppSwitcherPrivacyAwareDragIndicatorModifier: ViewModifier {
 }
 
 extension View {
-    /// SwiftUI presentations use their own hosting layers, so every presented
-    /// surface must opt in as well as the root view.
+    // Presented views have separate hosting layers.
     func appSwitcherPrivacyProtected() -> some View {
         modifier(AppSwitcherPrivacyProtectionModifier())
     }
 
-    /// The sheet grabber is system-owned chrome above the presented content,
-    /// so hide it at its presentation seam while the privacy cover is active.
+    // The system-owned grabber sits above the presented content.
     func appSwitcherPrivacyAwareDragIndicator() -> some View {
         modifier(AppSwitcherPrivacyAwareDragIndicatorModifier())
     }
@@ -214,8 +212,8 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         if appState.settings.selectedBudgetID == nil {
             reasons.append("no selected budget")
         }
-        if !appState.canUseAPI {
-            reasons.append("API credentials missing")
+        if !appState.hasSyncCredentials {
+            reasons.append("sync credentials missing")
         }
 
         guard !reasons.isEmpty else {

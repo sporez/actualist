@@ -51,7 +51,7 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(await repository.recordedCategoryID() == "groceries")
     }
 
-    @Test func localFirstCategorizationGateSubmitsWithoutFullEditPermission() async throws {
+    @Test func localFirstCategorizationSubmitsThroughRepository() async throws {
         let transaction = Self.transaction(id: "txn1")
         let option = TransactionEditorCategoryOption(
             id: "groceries",
@@ -80,19 +80,16 @@ struct UncategorizedTransactionsViewModelTests {
             ]
         )
         let model = UncategorizedTransactionsViewModel()
-        let capabilities = BackendCapabilities.localFirst
 
         await model.load(budgetID: "budget", month: "2026-06", repository: repository)
         let result = await model.categorize(
             transaction,
             as: option,
             month: "2026-06",
-            capabilities: capabilities,
             budgetID: "budget",
             repository: repository
         )
 
-        #expect(capabilities.canCategorizeTransactions)
         #expect(result == .categorized(hasRemainingTransactions: false))
         #expect(model.transactions.isEmpty)
         #expect(await repository.recordedCategoryID() == "groceries")

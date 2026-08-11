@@ -5,7 +5,6 @@ struct BudgetOverspentCategoriesView: View {
     @Environment(\.actualistDensity) private var density
 
     let categories: [BudgetOverspentCategoryOption]
-    let isReadOnly: Bool
     let isPrivacyModeEnabled: Bool
     let onSelect: (BudgetOverspentCategoryOption) -> Void
 
@@ -32,9 +31,6 @@ struct BudgetOverspentCategoriesView: View {
                             VStack(spacing: 0) {
                                 ForEach(categories) { category in
                                     Button {
-                                        guard !isReadOnly else {
-                                            return
-                                        }
                                         onSelect(category)
                                         dismiss()
                                     } label: {

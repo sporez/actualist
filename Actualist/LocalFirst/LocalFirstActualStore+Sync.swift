@@ -231,9 +231,7 @@ extension LocalFirstActualStore {
         }
     }
 
-    /// Pull remote CRDT messages, apply them, then reload native read caches so they are
-    /// authoritative after any refresh. Transaction feeds preserve their loaded windows rather
-    /// than falling back to full-history loads.
+    // Preserve each transaction feed's loaded window when rebuilding caches.
     @discardableResult
     func pullAndReload(
         budgetID: String,

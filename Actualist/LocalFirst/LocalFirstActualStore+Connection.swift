@@ -156,8 +156,7 @@ extension LocalFirstActualStore {
             throw LocalFirstError.missingBudgetFileID
         }
 
-        // Already open for this budget: refresh in place instead of reopening the DB
-        // connection and re-listing files.
+        // Reopening would discard the current database actor and caches.
         if openedBudgetID == budget.syncID, database != nil {
             openedServerURLString = serverURLString
             try await refresh(budgetID: budget.syncID, serverURLString: serverURLString)
@@ -267,8 +266,6 @@ extension LocalFirstActualStore {
         return true
     }
 
-    /// Verifies the selected cached budget independently of the store's live database state.
-    /// Connection editing uses this before replacing the persisted token or settings.
     func validateCachedBudgetCanOpen(_ budget: ActualBudget) async throws {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
@@ -288,16 +285,12 @@ extension LocalFirstActualStore {
         _ = try await validationDatabase.fetchAccountDisplays()
     }
 
-    /// Lean refresh for an already-open budget: pull CRDT messages and reload native caches.
-    /// Does not re-list remote files or reopen the database.
     func refresh(budgetID: String, serverURLString: String) async throws {
         _ = try requireDatabase(for: budgetID)
         openedServerURLString = serverURLString
         try await pullAndReload(budgetID: budgetID, serverURLString: serverURLString)
     }
 
-    /// Discard the locally imported SQLite database and re-download a fresh copy from the
-    /// server. Used by Settings to recover from a stale or corrupted local budget.
     func reimportBudget(_ budget: ActualBudget, serverURLString: String) async throws {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
@@ -458,9 +451,7 @@ extension LocalFirstActualStore {
             )
         )
 
-        // Prepare the same SQLite-derived snapshot BudgetView consumes before AppState
-        // switches from restoringBudget to ready. A cold launch can then render real local
-        // data on its first Budget frame while foreground sync revalidates in the background.
+        // Seed the first Budget frame before foreground sync begins.
         _ = try? await currentBudgetMonth(
             budgetID: budgetID,
             preferredMonth: YearMonth(date: Date()).rawValue

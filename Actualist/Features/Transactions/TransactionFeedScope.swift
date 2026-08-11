@@ -39,10 +39,10 @@ final class CategoryMonthDetailsViewModel {
 
     func refresh(using appState: AppState) async {
         guard !isUpdatingCarryover,
-              let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+              let budgetID = appState.settings.selectedBudgetID else {
             return
         }
+        let repository = appState.budgetRepository
 
         await refresh(budgetID: budgetID, repository: repository)
     }
@@ -58,16 +58,15 @@ final class CategoryMonthDetailsViewModel {
             )
             apply(loaded)
         } catch {
-            // Keep the local summary visible when a background refresh cannot complete.
+            // Keep showing the cached summary.
         }
     }
 
     func setCarryover(_ enabled: Bool, using appState: AppState) async {
-        guard appState.capabilities.canSetCategoryCarryover,
-              let budgetID = appState.settings.selectedBudgetID,
-              let repository = appState.makeBudgetRepository() else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return
         }
+        let repository = appState.budgetRepository
 
         await setCarryover(enabled, budgetID: budgetID, repository: repository)
     }
@@ -131,7 +130,7 @@ struct CategoryMonthDetailsView: View {
                 },
                 categoryCarryoverIsEnabled: viewModel.isCarryoverEnabled,
                 categoryCarryoverIsUpdating: viewModel.isUpdatingCarryover,
-                canEditCategoryCarryover: appState.capabilities.canSetCategoryCarryover,
+                canEditCategoryCarryover: true,
                 categoryCarryoverErrorMessage: viewModel.carryoverErrorMessage,
                 onCategoryCarryoverChanged: { enabled in
                     Task { await viewModel.setCarryover(enabled, using: appState) }
@@ -174,13 +173,6 @@ enum TransactionFeedScope: Hashable {
         case .spending:
             false
         }
-    }
-
-    var supportsAccountActions: Bool {
-        if case .account = self {
-            return true
-        }
-        return false
     }
 
     var refreshTargetDescription: String {

@@ -11,10 +11,7 @@ struct LocalFirstResourceLimits: Equatable, Sendable {
     let minimumFreeDiskReserveBytes: Int64
     let maximumSyncResponseBytes: Int
 
-    /// Normal Actual budgets are far smaller than these ceilings. The 256 MiB archive and
-    /// 1 GiB expansion allowances leave room for unusually long histories; the lower per-entry,
-    /// count, and depth limits bound decompression work and path abuse. Imports retain 256 MiB
-    /// for iOS recovery, while a 32 MiB sync response is ample for incremental CRDT traffic.
+    // Generous size ceilings still bound decompression work and path abuse.
     static let standard = LocalFirstResourceLimits(
         maximumCompressedBudgetBytes: 256 * 1_024 * 1_024,
         maximumExpandedBudgetBytes: 1_024 * 1_024 * 1_024,
@@ -124,8 +121,6 @@ struct BudgetFileManager {
         }
     }
 
-    /// Removes the imported budget directory (database + metadata) so the next open
-    /// re-downloads a fresh copy from the server. A no-op when nothing is imported.
     func deleteImportedBudget(fileID: String) throws {
         try migrateLegacyBudgetDirectoryIfNeeded(fileID: fileID)
         let directory = try budgetDirectory(fileID: fileID)
@@ -472,8 +467,7 @@ struct BudgetFileManager {
         guard expandedBytes <= UInt64(Int64.max) else {
             throw LocalFirstError.remoteDataLimitExceeded
         }
-        // The staged archive is already reflected in available capacity. Require enough room
-        // for the complete expansion while retaining a recovery reserve for the rest of iOS.
+        // The staged archive is already included in available capacity.
         let withReserve = Int64(expandedBytes)
             .addingReportingOverflow(resourceLimits.minimumFreeDiskReserveBytes)
         let availableBytes = try? applicationSupportURL.resourceValues(
@@ -601,7 +595,7 @@ struct BudgetFileManager {
         #endif
 
         #if os(iOS) && !targetEnvironment(simulator)
-        // Simulator resource values do not model device data protection or backup policy.
+        // Simulator metadata does not model device protection or backup policy.
         let effectiveValues = try resourceURL.resourceValues(forKeys: [.isExcludedFromBackupKey])
         guard effectiveValues.isExcludedFromBackup == excludeFromBackup else {
             throw LocalFirstError.localBudgetHardeningFailed

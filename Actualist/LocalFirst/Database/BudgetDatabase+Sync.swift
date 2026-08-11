@@ -156,10 +156,7 @@ extension BudgetDatabase {
         try applyLocalSyncMessages(messages, outboxBaseTimestamp: baseTimestamp)
     }
 
-    /// Finalizes mutation drafts under the database actor. The clock is copied only so a failed
-    /// transaction does not advance in-memory state; the successful value is written back before
-    /// this actor method returns. There is no suspension point between timestamp minting, CRDT
-    /// application, and durable outbox insertion.
+    // Work on a clock copy so a rolled-back transaction cannot advance in-memory time.
     func commitLocalSyncMessagesAndEnqueue(
         _ drafts: [ActualSyncDecodedMessage],
         now: Date = Date()
@@ -595,10 +592,7 @@ extension BudgetDatabase {
                 last_error TEXT
             )
             """)
-        // `tableExists` caches both positive and negative lookups. A budget opened before its
-        // first local write therefore has a cached `false` for this lazily-created table unless
-        // creation invalidates the cache. Do not cache `true` here: this call is inside the local
-        // write transaction, and a later validation error could roll the table creation back.
+        // Invalidate the cached miss. Caching true here would survive a transaction rollback.
         tableExistsCache["actualist_outbox"] = nil
     }
 

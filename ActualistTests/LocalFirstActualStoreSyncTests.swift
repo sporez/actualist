@@ -58,8 +58,7 @@ extension LocalFirstActualStoreTests {
         let appliedCount = try await withThrowingTaskGroup(of: Int.self) { group in
             for index in 0..<mutationCount {
                 group.addTask {
-                    // Force every operation to cross a suspension point before contending for the
-                    // database actor. The old MAX(timestamp)-derived clocks then shared a seed.
+                    // Reproduce the suspension that exposed duplicate clock seeds.
                     await Task.yield()
                     let draft = ActualSyncDecodedMessage(
                         timestamp: String(format: "actualist-pending-%08x", index),
@@ -113,7 +112,6 @@ extension LocalFirstActualStoreTests {
         let database = try #require(bundle.store.database)
         let pending = try await database.pendingLocalSyncMessages()
         let timestamps = pending.map(\.message.timestamp)
-        // Budget assignments carry month/category identity plus amount.
         let expectedMessageCount = mutationCount * 3
         #expect(pending.count == expectedMessageCount)
         #expect(Set(timestamps).count == expectedMessageCount)
@@ -619,8 +617,7 @@ extension LocalFirstActualStoreTests {
     @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        // Match a real imported budget: status/refresh probes the optional outbox before the
-        // first write creates it. This used to cache `false` permanently for the DB session.
+        // Prime the cached miss before the first write creates the outbox.
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         let baseTimestamp = try await database.latestSyncTimestamp()
         let message = ActualSyncDecodedMessage(

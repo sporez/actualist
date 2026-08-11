@@ -102,10 +102,7 @@ actor ActualOpenIDAuthenticationCoordinator {
 
     private static func callbackURL(nonce: String) throws -> URL {
         var components = URLComponents()
-        // Actual Server currently validates the return URL by hostname and explicitly accepts
-        // localhost before appending /openid-cb. A private custom scheme lets the system web
-        // authentication session return that redirect to Actualist without implementing OIDC.
-        // Contract: actualbudget/actual sync-server app-account.js and accounts/openid.ts.
+        // Actual Server accepts localhost here before appending /openid-cb.
         components.scheme = callbackScheme
         components.host = callbackHost
         components.path = "/openid/\(nonce)"

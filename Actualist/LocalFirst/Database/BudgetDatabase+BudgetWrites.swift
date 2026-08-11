@@ -116,8 +116,7 @@ extension BudgetDatabase {
         }
     }
 
-    /// Matches Actual's native rollover mutation: update every budget month from the selected
-    /// month through the already-created budget horizon, rather than changing only one month.
+    // Actual applies rollover changes through the existing budget horizon.
     func categoryCarryoverMessages(
         categoryID: String,
         carryover: Bool,
@@ -155,8 +154,7 @@ extension BudgetDatabase {
                 let rowID = existingRowID
                     ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: trimmedCategoryID)
 
-                // Identity columns travel with the mutation so another Actual client can create
-                // a missing zero_budgets row and still attach it to the correct month/category.
+                // A peer may need these columns to create the zero_budgets row.
                 messages.append(
                     try builder.makeMessage(
                         dataset: "zero_budgets",
@@ -215,8 +213,6 @@ extension BudgetDatabase {
             } else {
                 scope = targeted.filter { goalDefsRaw[$0] != nil }.sorted()
             }
-            // Category-targeted and whole-month "overwrite" force the value; "fillEmpty" only fills
-            // categories with a zero budget.
             let force = command.mode == .overwrite || !targeted.isEmpty
             let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
 
@@ -226,7 +222,6 @@ extension BudgetDatabase {
             for categoryID in scope {
                 guard let json = goalDefsRaw[categoryID] else { continue }
                 let currentBudgeted = currentBudgets[categoryID]?.budgeted ?? 0
-                // fillEmpty skips already-budgeted categories, so they never need a support check.
                 guard force || currentBudgeted == 0 else { continue }
 
                 do {
@@ -595,10 +590,7 @@ extension BudgetDatabase {
         )
         let rowID = existingRowID ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: categoryID)
         var messages: [ActualSyncDecodedMessage] = []
-        // A local imported budget can contain zero_budgets rows that the sync server does not
-        // yet have as identified CRDT rows. Include the identity columns with every amount write
-        // so a remote receiver can attach the row to the correct month/category if it has to
-        // create the row from these messages.
+        // The server may not know about zero_budgets rows created only in the imported file.
         messages.append(
             try builder.makeMessage(
                 dataset: "zero_budgets",

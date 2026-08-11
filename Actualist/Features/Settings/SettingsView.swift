@@ -54,7 +54,7 @@ struct SettingsView: View {
                             .multilineTextAlignment(.trailing)
                     }
 
-                    if appState.canUseAPI {
+                    if appState.hasSyncCredentials {
                         Text("Your password is not stored. Actualist keeps a sync token and only needs the password again to reconnect.")
                             .font(.footnote)
                             .foregroundStyle(ActualistTheme.secondaryText)
@@ -138,10 +138,7 @@ struct SettingsView: View {
                     } label: {
                         SettingsActionLabel(title: "Payees", systemImage: "person.2")
                     }
-                    .disabled(
-                        appState.settings.selectedBudgetID == nil
-                            || !appState.capabilities.canManagePayees
-                    )
+                    .disabled(appState.settings.selectedBudgetID == nil)
 
                     Button {
                         isBudgetPickerPresented = true
@@ -188,7 +185,6 @@ struct SettingsView: View {
 
                 Section("Background Refresh") {
                     Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
-                        .disabled(!appState.capabilities.supportsBackgroundRefresh)
                 }
                 .settingsSectionChrome()
 
@@ -631,7 +627,7 @@ struct SettingsView: View {
     }
 
     private var passwordPrompt: String {
-        appState.canUseAPI ? "Re-enter to reconnect" : "Required"
+        appState.hasSyncCredentials ? "Re-enter to reconnect" : "Required"
     }
 
     private var selectedBudgetDisplayName: String {

@@ -704,7 +704,7 @@ extension LocalFirstActualStoreTests {
         )
 
         #expect(authenticated)
-        #expect(appState.canUseAPI)
+        #expect(appState.hasSyncCredentials)
         #expect(appState.setupPhase == .selectingBudget)
         #expect(!appState.isReadyForMainTabs)
     }
@@ -817,7 +817,6 @@ extension LocalFirstActualStoreTests {
 
     @Test func applyCategoryTemplateSetsFixedSimpleAmount() async throws {
         let store = try await makeOpenedWritableStore()
-        // utilities has a `#template 300` goal_def and a current budget of 0.
         let loaded = try await store.applyBudgetTemplateAndRefresh(
             command: .category("utilities"),
             budgetID: "group-1",
@@ -867,9 +866,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func applyMonthTemplateFillEmptyOnlyFillsUnbudgetedAndSkipsUnsupported() async throws {
         let store = try await makeOpenedWritableStore()
-        // Budget dining so its unsupported average template is skipped by fill-empty (already
-        // budgeted). groceries is already budgeted (50000, template 700); utilities is unbudgeted
-        // (template 300) and should be the only category filled.
+        // Budgeted categories are skipped, even when their template is unsupported.
         _ = try await store.assignCategoryBudgetAndRefresh(
             categoryID: "dining",
             budgeted: 5_000,
@@ -887,14 +884,13 @@ extension LocalFirstActualStoreTests {
         let utilities = try #require(categories.first { $0.id == "utilities" })
         let dining = try #require(categories.first { $0.id == "dining" })
 
-        #expect(utilities.budgeted == 30_000)   // was 0 -> filled
-        #expect(groceries.budgeted == 50_000)   // already budgeted -> untouched (not 70000)
-        #expect(dining.budgeted == 5_000)        // unsupported but already budgeted -> skipped
+        #expect(utilities.budgeted == 30_000)
+        #expect(groceries.budgeted == 50_000)
+        #expect(dining.budgeted == 5_000)
     }
 
     @Test func applyMonthTemplateOverwriteRefusesUnsupportedTemplate() async throws {
         let store = try await makeOpenedWritableStore()
-        // Whole-month overwrite would write dining, whose average template is not supported yet.
         await #expect(throws: LocalFirstError.self) {
             _ = try await store.applyBudgetTemplateAndRefresh(
                 command: .overwrite,
@@ -902,7 +898,6 @@ extension LocalFirstActualStoreTests {
                 month: "2026-07"
             ) {}
         }
-        // Nothing was written: utilities stays at its original 0 budget.
         let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let utilities = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
         #expect(utilities.budgeted == 0)
