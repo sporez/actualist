@@ -129,6 +129,26 @@ grep -Fq -- '--notes-file .release/testflight/0.8-7/what-to-test.txt' <<< "$gith
   exit 1
 }
 
+archive_toolchain_output="$(
+  cd "$fixture_root"
+  bash scripts/testflight-release.sh archive --build 7 --skip-tests --allow-dirty --dry-run 2>&1
+)"
+grep -Fq 'DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild' \
+  <<< "$archive_toolchain_output" || {
+  echo "expected archives to use stable Xcode" >&2
+  exit 1
+}
+
+distribution_toolchain_output="$(
+  cd "$fixture_root"
+  bash scripts/testflight-release.sh upload --bump none --skip-tests --allow-dirty --dry-run 2>&1
+)"
+grep -Fq 'DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild' \
+  <<< "$distribution_toolchain_output" || {
+  echo "expected distribution to use the signed-in Xcode beta" >&2
+  exit 1
+}
+
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'echo "error: exportArchive Failed to Use Accounts"' \
@@ -196,7 +216,7 @@ grep -Fq 'The archive is intact at:' <<< "$auth_failure_output" || {
   echo "expected upload failure to preserve and identify the archive" >&2
   exit 1
 }
-grep -Fq 'Apple account is signed into Xcode beta' <<< "$auth_failure_output" || {
+grep -Fq 'Apple account is signed into the distribution Xcode' <<< "$auth_failure_output" || {
   echo "expected upload failure to explain Xcode account recovery" >&2
   exit 1
 }

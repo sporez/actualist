@@ -113,7 +113,10 @@ App Store Connect auth:
   Metadata upload requires all three API key variables.
 
 Xcode selection:
-  The helper currently uses /Applications/Xcode-beta.app/Contents/Developer.
+  Archives use /Applications/Xcode.app/Contents/Developer. Distribution uses
+  /Applications/Xcode-beta.app/Contents/Developer so command-line export and
+  upload share the Apple account signed into Xcode beta. Override either with
+  ACTUALIST_ARCHIVE_DEVELOPER_DIR or ACTUALIST_DISTRIBUTION_DEVELOPER_DIR.
 USAGE
 }
 
@@ -126,15 +129,21 @@ log() {
   echo "==> $*"
 }
 
-configure_xcode_toolchain() {
-  local developer_dir="/Applications/Xcode-beta.app/Contents/Developer"
+configure_xcode_toolchains() {
+  archive_developer_dir="${ACTUALIST_ARCHIVE_DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
+  distribution_developer_dir="${ACTUALIST_DISTRIBUTION_DEVELOPER_DIR:-/Applications/Xcode-beta.app/Contents/Developer}"
 
-  [[ -x "$developer_dir/usr/bin/xcodebuild" ]] \
-    || die "required Xcode beta developer directory is unavailable: $developer_dir"
-  export DEVELOPER_DIR="$developer_dir"
+  [[ -x "$archive_developer_dir/usr/bin/xcodebuild" ]] \
+    || die "archive Xcode developer directory is unavailable: $archive_developer_dir"
+  [[ -x "$distribution_developer_dir/usr/bin/xcodebuild" ]] \
+    || die "distribution Xcode developer directory is unavailable: $distribution_developer_dir"
 }
 
-configure_xcode_toolchain
+configure_xcode_toolchains
+
+xcode_version_for() {
+  env DEVELOPER_DIR="$1" xcodebuild -version | head -n 1
+}
 
 run() {
   if [[ "$dry_run" -eq 1 ]]; then
@@ -647,7 +656,7 @@ run_tests() {
     return
   fi
   log "Running unit tests"
-  run xcodebuild \
+  run env DEVELOPER_DIR="$archive_developer_dir" xcodebuild \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -destination "$TEST_DESTINATION" \
@@ -694,13 +703,21 @@ verify_archive_signing_access() {
 
 archive_app() {
   if [[ -d "$archive_path" ]]; then
-    log "Using existing archive: $archive_path"
-    return
+    if plutil -p "$archive_path/Info.plist" 2>/dev/null \
+      | grep -Fq 'Unsupported SDK or Xcode version'; then
+      local rejected_archive
+      rejected_archive="${archive_path%.xcarchive}-rejected-xcode-sdk-$(date +%Y%m%d-%H%M%S).xcarchive"
+      log "Preserving App Store Connect-rejected archive: $rejected_archive"
+      run mv -- "$archive_path" "$rejected_archive"
+    else
+      log "Using existing archive: $archive_path"
+      return
+    fi
   fi
   verify_archive_signing_access
   run_tests
-  log "Archiving ${next_version} (${next_build})"
-  run xcodebuild \
+  log "Archiving ${next_version} (${next_build}) with $(xcode_version_for "$archive_developer_dir")"
+  run env DEVELOPER_DIR="$archive_developer_dir" xcodebuild \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -configuration "$CONFIGURATION" \
@@ -735,8 +752,10 @@ fi
 run_release_doctor() {
   echo "Actualist TestFlight doctor"
   echo "============================"
-  echo "Xcode: $(xcodebuild -version | head -n 1)"
-  echo "Developer directory: $(xcode-select -p)"
+  echo "Archive Xcode: $(xcode_version_for "$archive_developer_dir")"
+  echo "Archive developer directory: $archive_developer_dir"
+  echo "Distribution Xcode: $(xcode_version_for "$distribution_developer_dir")"
+  echo "Distribution developer directory: $distribution_developer_dir"
   verify_archive_signing_access
 
   if has_asc_api_auth; then
@@ -746,7 +765,7 @@ run_release_doctor() {
   else
     echo
     log "Signed-in Xcode account upload mode"
-    echo "CLI upload will use the Apple account signed into Xcode beta."
+    echo "CLI upload will use the Apple account signed into the distribution Xcode."
     echo "What to Test remains local for manual copy into App Store Connect."
   fi
 }
@@ -953,6 +972,8 @@ export_app() {
   local export_log export_status
   local -a export_command
   export_command=(
+    env
+    "DEVELOPER_DIR=$distribution_developer_dir"
     xcodebuild
     -exportArchive
     -archivePath "$archive_path"
@@ -984,11 +1005,19 @@ export_app() {
     if has_asc_api_auth; then
       echo "API-key authentication was supplied; verify that key's issuer, ID, path, and access." >&2
     else
-      echo "Confirm the Apple account is signed into Xcode beta, then retry the" >&2
+      echo "Confirm the Apple account is signed into the distribution Xcode, then retry the" >&2
       echo "same upload; the existing archive does not need to be rebuilt." >&2
       echo "For immediate recovery, open the existing archive in Xcode Organizer:" >&2
       echo "  scripts/testflight-release.sh organizer --bump none" >&2
     fi
+  fi
+
+  if grep -Fq 'Unsupported SDK or Xcode version' "$export_log"; then
+    echo >&2
+    echo "App Store Connect rejected the Xcode/SDK recorded in this archive." >&2
+    echo "The rejected archive cannot be fixed by exporting it again; rebuild it" >&2
+    echo "with a currently accepted archive Xcode, then retry the upload." >&2
+    echo "Rejected archive: $archive_path" >&2
   fi
 
   rm -f "$export_log"
@@ -1390,8 +1419,8 @@ run_release_wizard() {
   echo "1/6  Preflight"
   echo "     Branch:  $(git branch --show-current)"
   echo "     Version: ${current_version} (${current_build})"
-  echo "     Xcode:   $(xcodebuild -version | head -n 1)"
-  echo "     Path:    $(xcode-select -p)"
+  echo "     Archive: $(xcode_version_for "$archive_developer_dir")"
+  echo "     Upload:  $(xcode_version_for "$distribution_developer_dir")"
 
   status="$(git status --porcelain)"
   if [[ -n "$status" ]]; then

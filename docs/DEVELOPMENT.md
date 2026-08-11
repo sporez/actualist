@@ -73,16 +73,19 @@ authentication options.
 Before a release, `scripts/testflight-release.sh doctor` verifies that the
 Apple Development private key is usable from the current shell. This catches a
 locked login keychain before a long archive begins. Uploads use the Apple
-account signed into Xcode beta, while the generated What to Test text is copied
-into App Store Connect manually. If Xcode's command-line process cannot access
-that account, the archive remains reusable and
+account signed into the distribution Xcode, while the generated What to Test
+text is copied into App Store Connect manually. If Xcode's command-line process
+cannot access that account, the archive remains reusable and
 `scripts/testflight-release.sh organizer --bump none` opens it for upload in
 Xcode Organizer without changing the project version or build number.
 
-The helper currently sets `DEVELOPER_DIR` to
-`/Applications/Xcode-beta.app/Contents/Developer`, keeping command-line uploads
-on the same Xcode installation as the signed-in GUI without changing the
-system-wide `xcode-select` setting.
+The helper deliberately uses separate toolchains. It archives with stable Xcode
+at `/Applications/Xcode.app/Contents/Developer`, keeping App Store Connect's
+embedded SDK validation on a supported release. It exports and uploads with
+`/Applications/Xcode-beta.app/Contents/Developer`, preserving access to the
+Apple account and distribution certificate configured in Xcode beta. Override
+those paths for one release with `ACTUALIST_ARCHIVE_DEVELOPER_DIR` and
+`ACTUALIST_DISTRIBUTION_DEVELOPER_DIR` respectively.
 
 ## Engineering Boundaries
 
