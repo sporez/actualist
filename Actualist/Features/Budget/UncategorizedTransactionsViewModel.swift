@@ -15,6 +15,9 @@ final class UncategorizedTransactionsViewModel {
     var isLoading = true
     var errorMessage: String?
     var categorizingTransactionID: String?
+    var selectedTransactionIDs: Set<String> = []
+    var isSelecting = false
+    var isBulkCategorizing = false
     private(set) var hasLoadedSnapshot = false
 
     init(cachedSnapshot: LoadedUncategorizedTransactions? = nil) {
@@ -27,11 +30,68 @@ final class UncategorizedTransactionsViewModel {
     }
 
     var isCategorizing: Bool {
-        categorizingTransactionID != nil
+        categorizingTransactionID != nil || isBulkCategorizing
+    }
+
+    var selectedTransactions: [ActualTransaction] {
+        transactions.filter { selectedTransactionIDs.contains($0.rowID) }
+    }
+
+    var canBeginSelection: Bool {
+        transactions.filter(canCategorize).count >= 2 && !isCategorizing
+    }
+
+    var canSubmitSelection: Bool {
+        !selectedTransactionIDs.isEmpty && !isCategorizing
     }
 
     var transactionGroups: [TransactionDateGroup] {
         TransactionGrouping.grouped(transactions)
+    }
+
+    func canCategorize(_ transaction: ActualTransaction) -> Bool {
+        guard let transactionID = transaction.id,
+              !transactionID.isEmpty,
+              transaction.date.actualYearMonth != nil,
+              transaction.subtransactions.isEmpty,
+              !transaction.isParent,
+              !transaction.isChild else {
+            return false
+        }
+
+        guard let payeeID = transaction.payee,
+              transferPayeeIDs.contains(payeeID) else {
+            return true
+        }
+        guard let destinationAccountID = transferAccountIDsByPayeeID[payeeID] else {
+            return false
+        }
+        return !offBudgetAccountIDs.contains(transaction.account)
+            && offBudgetAccountIDs.contains(destinationAccountID)
+    }
+
+    func beginSelection() {
+        guard canBeginSelection else {
+            return
+        }
+        selectedTransactionIDs = []
+        isSelecting = true
+    }
+
+    func endSelection() {
+        selectedTransactionIDs = []
+        isSelecting = false
+    }
+
+    func toggleSelection(_ transaction: ActualTransaction) {
+        guard isSelecting, canCategorize(transaction), !isCategorizing else {
+            return
+        }
+        if selectedTransactionIDs.contains(transaction.rowID) {
+            selectedTransactionIDs.remove(transaction.rowID)
+        } else {
+            selectedTransactionIDs.insert(transaction.rowID)
+        }
     }
 
     enum CategorizationResult: Equatable {
@@ -158,6 +218,71 @@ final class UncategorizedTransactionsViewModel {
         return result.didChange
     }
 
+    func categorizeSelection(
+        as option: TransactionEditorCategoryOption,
+        month: String,
+        using appState: AppState
+    ) async -> CategorizationResult {
+        await categorizeSelection(
+            as: option,
+            month: month,
+            budgetID: appState.settings.selectedBudgetID,
+            repository: appState.transactionRepository
+        )
+    }
+
+    func categorizeSelection(
+        as option: TransactionEditorCategoryOption,
+        month: String,
+        budgetID: String?,
+        repository: (any TransactionRepositoryProtocol)?
+    ) async -> CategorizationResult {
+        guard let budgetID,
+              let repository,
+              canSubmitSelection else {
+            return .failed
+        }
+        let selected = selectedTransactions
+        guard selected.count == selectedTransactionIDs.count,
+              selected.allSatisfy(canCategorize) else {
+            errorMessage = "One or more selected transactions can no longer be categorized."
+            return .failed
+        }
+
+        isBulkCategorizing = true
+        errorMessage = nil
+        defer {
+            isBulkCategorizing = false
+        }
+
+        do {
+            _ = try await repository.categorizeTransactionsAndRefresh(
+                selected,
+                categoryID: option.id,
+                budgetID: budgetID
+            ) {}
+            let resolvedIDs = selectedTransactionIDs
+            transactions.removeAll { resolvedIDs.contains($0.rowID) }
+
+            do {
+                isLoading = true
+                apply(try await repository.uncategorizedTransactions(budgetID: budgetID, month: month))
+                isLoading = false
+            } catch {
+                isLoading = false
+                errorMessage = error.localizedDescription
+                endSelection()
+                return .categorized(hasRemainingTransactions: true)
+            }
+
+            endSelection()
+            return .categorized(hasRemainingTransactions: !transactions.isEmpty)
+        } catch {
+            errorMessage = error.localizedDescription
+            return .failed
+        }
+    }
+
     func categorize(
         _ transaction: ActualTransaction,
         categoryID: String,
@@ -181,7 +306,7 @@ final class UncategorizedTransactionsViewModel {
         monthForRemainingRefresh month: String?,
         repository: any TransactionRepositoryProtocol
     ) async -> CategorizationResult {
-        guard categorizingTransactionID == nil else {
+        guard !isCategorizing, canCategorize(transaction) else {
             return .failed
         }
 
@@ -251,5 +376,7 @@ final class UncategorizedTransactionsViewModel {
         transferAccountIDsByPayeeID = loaded.transferAccountIDsByPayeeID
         offBudgetAccountIDs = loaded.offBudgetAccountIDs
         categoryGroups = loaded.categoryGroups
+        let currentEligibleIDs = Set(transactions.filter(canCategorize).map(\.rowID))
+        selectedTransactionIDs.formIntersection(currentEligibleIDs)
     }
 }

@@ -1223,6 +1223,23 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         )
     }
 
+    func categorizeTransactionsAndRefresh(
+        _ transactions: [ActualTransaction],
+        categoryID: String,
+        budgetID: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        await didUpdate()
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: Array(Set(transactions.map(\.account))).sorted(),
+                months: Array(Set(transactions.compactMap { $0.date.actualYearMonth })).sorted(),
+                transactions: transactions.map(\.rowID).sorted()
+            )
+        )
+    }
+
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,

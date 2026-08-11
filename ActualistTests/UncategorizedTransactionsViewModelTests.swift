@@ -226,6 +226,129 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.errorMessage == "could not update")
     }
 
+    @Test func selectionOnlyAcceptsCategorizationEligibleTransactions() async throws {
+        let regular = Self.transaction(id: "regular")
+        let crossBudgetTransfer = Self.transaction(id: "cross-budget", payee: "transfer-tracking")
+        let sameBudgetTransfer = Self.transaction(id: "same-budget", payee: "transfer-savings")
+        let repository = UncategorizedRecordingTransactionRepository(
+            loaded: LoadedUncategorizedTransactions(
+                transactions: [regular, crossBudgetTransfer, sameBudgetTransfer],
+                accountNames: [:],
+                categoryNames: [:],
+                payeeNames: [:],
+                transferPayeeIDs: ["transfer-tracking", "transfer-savings"],
+                transferAccountIDsByPayeeID: [
+                    "transfer-tracking": "tracking",
+                    "transfer-savings": "savings"
+                ],
+                offBudgetAccountIDs: ["tracking"],
+                categoryGroups: []
+            )
+        )
+        let model = UncategorizedTransactionsViewModel()
+
+        await model.load(budgetID: "budget", month: "2026-06", repository: repository)
+        #expect(model.canCategorize(regular))
+        #expect(model.canCategorize(crossBudgetTransfer))
+        #expect(!model.canCategorize(sameBudgetTransfer))
+
+        model.beginSelection()
+        model.toggleSelection(regular)
+        model.toggleSelection(crossBudgetTransfer)
+        model.toggleSelection(sameBudgetTransfer)
+
+        #expect(model.selectedTransactionIDs == ["regular", "cross-budget"])
+    }
+
+    @Test func bulkCategorizationUsesOneRepositoryMutationAndRefreshesRemainingRows() async throws {
+        let first = Self.transaction(id: "txn1")
+        let second = Self.transaction(id: "txn2", account: "credit")
+        let remaining = Self.transaction(id: "txn3")
+        let option = TransactionEditorCategoryOption(
+            id: "groceries",
+            title: "Groceries",
+            amount: nil,
+            valueText: nil
+        )
+        let repository = UncategorizedRecordingTransactionRepository(
+            loadedResponses: [
+                LoadedUncategorizedTransactions(
+                    transactions: [first, second, remaining],
+                    accountNames: [:],
+                    categoryNames: [:],
+                    payeeNames: [:],
+                    transferPayeeIDs: [],
+                    categoryGroups: []
+                ),
+                LoadedUncategorizedTransactions(
+                    transactions: [remaining],
+                    accountNames: [:],
+                    categoryNames: [:],
+                    payeeNames: [:],
+                    transferPayeeIDs: [],
+                    categoryGroups: []
+                )
+            ]
+        )
+        let model = UncategorizedTransactionsViewModel()
+
+        await model.load(budgetID: "budget", month: "2026-06", repository: repository)
+        model.beginSelection()
+        model.toggleSelection(first)
+        model.toggleSelection(second)
+        let result = await model.categorizeSelection(
+            as: option,
+            month: "2026-06",
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(result == .categorized(hasRemainingTransactions: true))
+        #expect(model.transactions.map(\.rowID) == ["txn3"])
+        #expect(!model.isSelecting)
+        #expect(model.selectedTransactionIDs.isEmpty)
+        #expect(await repository.recordedTransactionIDs() == ["txn1", "txn2"])
+        #expect(await repository.recordedCategoryID() == "groceries")
+    }
+
+    @Test func failedBulkCategorizationPreservesSelection() async throws {
+        let first = Self.transaction(id: "txn1")
+        let second = Self.transaction(id: "txn2")
+        let repository = UncategorizedRecordingTransactionRepository(
+            loaded: LoadedUncategorizedTransactions(
+                transactions: [first, second],
+                accountNames: [:],
+                categoryNames: [:],
+                payeeNames: [:],
+                transferPayeeIDs: [],
+                categoryGroups: []
+            ),
+            categorizeError: TestError("could not update selection")
+        )
+        let model = UncategorizedTransactionsViewModel()
+
+        await model.load(budgetID: "budget", month: "2026-06", repository: repository)
+        model.beginSelection()
+        model.toggleSelection(first)
+        model.toggleSelection(second)
+        let result = await model.categorizeSelection(
+            as: TransactionEditorCategoryOption(
+                id: "groceries",
+                title: "Groceries",
+                amount: nil,
+                valueText: nil
+            ),
+            month: "2026-06",
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(result == .failed)
+        #expect(model.isSelecting)
+        #expect(model.selectedTransactionIDs == ["txn1", "txn2"])
+        #expect(model.errorMessage == "could not update selection")
+    }
+
     @Test func categoryNamesDistinguishSameBudgetAndCrossBudgetTransfers() async throws {
         let transfer = Self.transaction(id: "transfer", payee: "transfer-checking")
         let crossBudgetTransfer = Self.transaction(id: "cross-budget-transfer", payee: "transfer-tracking")
@@ -254,10 +377,14 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.categoryNames(for: regular) == ["Uncategorized"])
     }
 
-    private static func transaction(id: String, payee: String = "store") -> ActualTransaction {
+    private static func transaction(
+        id: String,
+        account: String = "checking",
+        payee: String = "store"
+    ) -> ActualTransaction {
         ActualTransaction(
             id: id,
-            account: "checking",
+            account: account,
             date: "2026-06-14",
             amount: -1_200,
             payee: payee,
@@ -287,6 +414,7 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
     private var loadedResponses: [LoadedUncategorizedTransactions]
     private let categorizeError: Error?
     private var categoryID: String?
+    private var categorizedTransactionIDs: [String] = []
 
     init(
         loaded: LoadedUncategorizedTransactions,
@@ -306,6 +434,10 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
 
     func recordedCategoryID() -> String? {
         categoryID
+    }
+
+    func recordedTransactionIDs() -> [String] {
+        categorizedTransactionIDs
     }
 
     func uncategorizedTransactions(
@@ -333,6 +465,7 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
         }
 
         self.categoryID = categoryID
+        categorizedTransactionIDs = [transaction.rowID]
         await didUpdate()
         return TransactionMutationResult(
             ok: true,
@@ -340,6 +473,29 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
                 accounts: [transaction.account],
                 months: transaction.date.actualYearMonth.map { [$0] } ?? [],
                 transactions: transaction.id.map { [$0] } ?? []
+            )
+        )
+    }
+
+    func categorizeTransactionsAndRefresh(
+        _ transactions: [ActualTransaction],
+        categoryID: String,
+        budgetID: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        if let categorizeError {
+            throw categorizeError
+        }
+
+        self.categoryID = categoryID
+        categorizedTransactionIDs = transactions.map(\.rowID)
+        await didUpdate()
+        return TransactionMutationResult(
+            ok: true,
+            changed: ChangedResources(
+                accounts: Array(Set(transactions.map(\.account))).sorted(),
+                months: Array(Set(transactions.compactMap { $0.date.actualYearMonth })).sorted(),
+                transactions: categorizedTransactionIDs.sorted()
             )
         )
     }

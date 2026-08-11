@@ -363,36 +363,67 @@ extension LocalFirstActualStore {
         budgetID: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
-        guard let transactionID = transaction.id, !transactionID.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("missing transaction")
-        }
-        guard let monthID = transaction.date.actualYearMonth else {
-            throw LocalFirstError.invalidLocalWrite("invalid transaction date")
+        try await categorizeTransactionsAndRefresh(
+            [transaction],
+            categoryID: categoryID,
+            budgetID: budgetID,
+            didUpdate: didUpdate
+        )
+    }
+
+    func categorizeTransactionsAndRefresh(
+        _ transactions: [ActualTransaction],
+        categoryID: String,
+        budgetID: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        guard !transactions.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transactions")
         }
 
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.categorizeTransactionMessages(
-            transactionID: transactionID,
-            categoryID: categoryID,
-            builder: &builder
-        )
+        var messages: [ActualSyncDecodedMessage] = []
+        var transactionIDs = Set<String>()
+        var accountIDs = Set<String>()
+        var monthIDs = Set<String>()
+
+        for transaction in transactions {
+            guard let transactionID = transaction.id,
+                  !transactionID.isEmpty,
+                  transactionIDs.insert(transactionID).inserted else {
+                throw LocalFirstError.invalidLocalWrite("invalid transaction selection")
+            }
+            guard let monthID = transaction.date.actualYearMonth else {
+                throw LocalFirstError.invalidLocalWrite("invalid transaction date")
+            }
+            messages += try await database.categorizeTransactionMessages(
+                transactionID: transactionID,
+                categoryID: categoryID,
+                builder: &builder
+            )
+            accountIDs.insert(transaction.account)
+            monthIDs.insert(monthID)
+        }
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didUpdate()
+        let changedAccounts = accountIDs.sorted()
+        let changedMonths = monthIDs.sorted()
+        let changedTransactions = transactionIDs.sorted()
         try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
-            accountIDs: [transaction.account],
-            monthIDs: [monthID]
+            accountIDs: changedAccounts,
+            monthIDs: changedMonths
         )
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
-                accounts: [transaction.account],
-                months: [monthID],
-                transactions: [transactionID]
+                accounts: changedAccounts,
+                months: changedMonths,
+                transactions: changedTransactions
             )
         )
     }

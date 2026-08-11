@@ -811,7 +811,7 @@ extension BudgetDatabase {
             }
 
             let payeeColumn = try firstExistingColumn(["description", "payee"], in: transactionColumns, table: "transactions")
-            try validateSimpleTransactionRow(
+            try validateCategorizationTarget(
                 transactionID: trimmedTransactionID,
                 columns: transactionColumns,
                 payeeColumn: payeeColumn,
@@ -882,7 +882,7 @@ extension BudgetDatabase {
         }
     }
 
-    func validateSimpleTransactionRow(
+    func validateCategorizationTarget(
         transactionID: String,
         columns: Set<String>,
         payeeColumn: String,
@@ -909,34 +909,41 @@ extension BudgetDatabase {
            !parentID.isEmpty {
             throw LocalFirstError.unsupportedSplitWrite
         }
-        if try tableExists("payees", db: db),
-           let payeeID = try String.fetchOne(
+        guard try tableExists("payees", db: db),
+              let payeeID = try String.fetchOne(
             db,
             sql: "SELECT \(payeeColumn) FROM transactions WHERE id = ?",
             arguments: [transactionID]
-           ) {
-            try validatePayeeIsNotTransfer(payeeID: payeeID, db: db)
-        }
-    }
-
-    func validatePayeeIsNotTransfer(payeeID: String, db: Database) throws {
-        guard try tableExists("payees", db: db) else {
+              ) else {
             return
         }
+
         let payeeColumns = try columnSet(for: "payees", db: db)
         let transferColumn = column(
             "transfer_acct",
             fallback: column("transferAccount", fallback: "NULL", columns: payeeColumns),
             columns: payeeColumns
         )
-        guard transferColumn != "NULL" else {
+        guard transferColumn != "NULL",
+              let destinationAccountID = try String.fetchOne(
+                db,
+                sql: "SELECT \(transferColumn) FROM payees WHERE id = ?",
+                arguments: [payeeID]
+              ),
+              !destinationAccountID.isEmpty else {
             return
         }
-        if let transferAccount = try String.fetchOne(
+
+        guard let sourceAccountID = try String.fetchOne(
             db,
-            sql: "SELECT \(transferColumn) FROM payees WHERE id = ?",
-            arguments: [payeeID]
-        ), !transferAccount.isEmpty {
+            sql: "SELECT \(column("acct", fallback: "account", columns: columns)) FROM transactions WHERE id = ?",
+            arguments: [transactionID]
+        ) else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction account")
+        }
+        let sourceOffBudget = try accountOffBudget(sourceAccountID, db: db)
+        let destinationOffBudget = try accountOffBudget(destinationAccountID, db: db)
+        guard !sourceOffBudget, destinationOffBudget else {
             throw LocalFirstError.unsupportedTransferWrite
         }
     }

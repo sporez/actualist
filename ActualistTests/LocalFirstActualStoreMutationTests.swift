@@ -135,6 +135,178 @@ extension LocalFirstActualStoreTests {
         #expect(groceries.spent == -13_070)
     }
 
+    @Test func categorizeTransactionsAtomicallyRefreshesAllAffectedCaches() async throws {
+        let store = try await makeOpenedWritableStore()
+        let monthBefore = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceriesBefore = try #require(
+            monthBefore.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        let drafts = [
+            TransactionDraft(
+                accountID: "checking",
+                date: try makeDate(year: 2026, month: 7, day: 12),
+                amountMinorUnits: -725,
+                payeeID: "coffee",
+                payeeName: "Coffee Shop",
+                categoryID: nil,
+                notes: nil,
+                cleared: false,
+                isTransfer: false
+            ),
+            TransactionDraft(
+                accountID: "credit",
+                date: try makeDate(year: 2026, month: 7, day: 13),
+                amountMinorUnits: -1_275,
+                payeeID: "coffee",
+                payeeName: "Coffee Shop",
+                categoryID: nil,
+                notes: nil,
+                cleared: false,
+                isTransfer: false
+            )
+        ]
+        var createdIDs: [String] = []
+        for draft in drafts {
+            let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+            createdIDs += result.changed.transactions
+        }
+        let uncategorized = try await store.uncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
+        )
+        let selected = uncategorized.transactions.filter { createdIDs.contains($0.rowID) }
+        var didUpdateCount = 0
+
+        let result = try await store.categorizeTransactionsAndRefresh(
+            selected,
+            categoryID: "groceries",
+            budgetID: "group-1"
+        ) {
+            didUpdateCount += 1
+        }
+
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let credit = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+        let uncategorizedAfter = try await store.uncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
+        )
+        let monthAfter = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceriesAfter = try #require(
+            monthAfter.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+
+        #expect(didUpdateCount == 1)
+        #expect(result.ok)
+        #expect(result.changed.accounts == ["checking", "credit"])
+        #expect(result.changed.months == ["2026-07"])
+        #expect(result.changed.transactions == createdIDs.sorted())
+        #expect(checking.transactions.first { createdIDs.contains($0.rowID) }?.category == "groceries")
+        #expect(credit.transactions.first { createdIDs.contains($0.rowID) }?.category == "groceries")
+        #expect(!uncategorizedAfter.transactions.contains { createdIDs.contains($0.rowID) })
+        #expect(groceriesAfter.spent == groceriesBefore.spent - 2_000)
+    }
+
+    @Test func quickCategorizationSupportsCrossBudgetTransfersInBothDirections() async throws {
+        let store = try await makeOpenedWritableStore()
+        let outgoing = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 14),
+            amountMinorUnits: -2_500,
+            payeeID: "xfer-tracking",
+            payeeName: "Tracking",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        let incoming = TransactionDraft(
+            accountID: "tracking",
+            date: try makeDate(year: 2026, month: 7, day: 15),
+            amountMinorUnits: -3_500,
+            payeeID: "xfer-checking",
+            payeeName: "Checking",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        _ = try await store.createTransactionAndRefresh(outgoing, budgetID: "group-1") {}
+        _ = try await store.createTransactionAndRefresh(incoming, budgetID: "group-1") {}
+        let uncategorized = try await store.uncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
+        )
+        let transferRows = uncategorized.transactions.filter { $0.payee == "xfer-tracking" }
+        let outgoingBudgetRow = try #require(
+            transferRows.first { $0.account == "checking" && $0.amount == -2_500 }
+        )
+        let incomingBudgetRow = try #require(
+            transferRows.first { $0.account == "checking" && $0.amount == 3_500 }
+        )
+
+        _ = try await store.categorizeTransactionsAndRefresh(
+            [outgoingBudgetRow, incomingBudgetRow],
+            categoryID: "groceries",
+            budgetID: "group-1"
+        ) {}
+
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        #expect(checking.transactions.first { $0.rowID == outgoingBudgetRow.rowID }?.category == "groceries")
+        #expect(checking.transactions.first { $0.rowID == incomingBudgetRow.rowID }?.category == "groceries")
+    }
+
+    @Test func bulkCategorizationAppliesNothingWhenAnySelectionIsUnsupported() async throws {
+        let store = try await makeOpenedWritableStore()
+        let regularDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 16),
+            amountMinorUnits: -800,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let transferDraft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 16),
+            amountMinorUnits: -1_800,
+            payeeID: "xfer-credit",
+            payeeName: "Credit",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: true
+        )
+        let regularResult = try await store.createTransactionAndRefresh(
+            regularDraft,
+            budgetID: "group-1"
+        ) {}
+        _ = try await store.createTransactionAndRefresh(transferDraft, budgetID: "group-1") {}
+        let regularID = try #require(regularResult.changed.transactions.first)
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let regular = try #require(checking.transactions.first { $0.rowID == regularID })
+        let sameBudgetTransfer = try #require(
+            checking.transactions.first { $0.payee == "xfer-credit" && $0.amount == -1_800 }
+        )
+
+        await #expect(throws: LocalFirstError.self) {
+            _ = try await store.categorizeTransactionsAndRefresh(
+                [regular, sameBudgetTransfer],
+                categoryID: "groceries",
+                budgetID: "group-1"
+            ) {}
+        }
+
+        let uncategorizedAfter = try await store.uncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
+        )
+        #expect(uncategorizedAfter.transactions.contains { $0.rowID == regularID })
+    }
+
     @Test func createAccountLocallyWritesAccountTransferPayeeAndOutboxMessages() async throws {
         let store = try await makeOpenedWritableStore()
 

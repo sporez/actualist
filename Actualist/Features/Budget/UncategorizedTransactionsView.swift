@@ -6,6 +6,7 @@ struct UncategorizedTransactionsView: View {
     @Environment(\.actualistDensity) private var density
     @State private var viewModel = UncategorizedTransactionsViewModel()
     @State private var selectedTransaction: SelectedUncategorizedTransaction?
+    @State private var isBulkCategoryPickerPresented = false
     @State private var selectedDetent: PresentationDetent = .medium
 
     let month: String
@@ -55,6 +56,37 @@ struct UncategorizedTransactionsView: View {
                         Image(systemName: "xmark")
                     }
                 }
+
+                if viewModel.isSelecting || viewModel.canBeginSelection {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(viewModel.isSelecting ? "Done" : "Select") {
+                            if viewModel.isSelecting {
+                                viewModel.endSelection()
+                            } else {
+                                viewModel.beginSelection()
+                            }
+                        }
+                        .disabled(viewModel.isCategorizing)
+                    }
+                }
+
+                if viewModel.isSelecting {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Spacer()
+                        Button {
+                            isBulkCategoryPickerPresented = true
+                        } label: {
+                            Group {
+                                if viewModel.isBulkCategorizing {
+                                    ProgressView()
+                                } else {
+                                    Text("Categorize")
+                                }
+                            }
+                        }
+                        .disabled(!viewModel.canSubmitSelection)
+                    }
+                }
             }
         }
         .presentationDetents([.medium, .large], selection: $selectedDetent)
@@ -78,6 +110,31 @@ struct UncategorizedTransactionsView: View {
                 Task {
                     let resolved = await viewModel.categorize(
                         selection.transaction,
+                        as: option,
+                        month: month,
+                        using: appState
+                    )
+                    if resolved.didChange {
+                        onChanged()
+                    }
+
+                    if resolved.resolvedAll {
+                        onResolvedAll()
+                        dismiss()
+                    }
+                }
+            }
+            .appSwitcherPrivacyProtected()
+        }
+        .sheet(isPresented: $isBulkCategoryPickerPresented) {
+            TransactionCategorySelectionView(
+                categoryGroups: viewModel.categoryGroups,
+                selectedCategoryID: nil,
+                isLoading: viewModel.isLoading,
+                showsUncategorizedOption: false
+            ) { option in
+                Task {
+                    let resolved = await viewModel.categorizeSelection(
                         as: option,
                         month: month,
                         using: appState
@@ -172,12 +229,16 @@ struct UncategorizedTransactionsView: View {
         showsBottomSeparator: Bool
     ) -> some View {
         Button {
-            guard viewModel.categorizingTransactionID == nil else {
+            guard !viewModel.isCategorizing, viewModel.canCategorize(transaction) else {
                 return
             }
-            selectedTransaction = SelectedUncategorizedTransaction(transaction: transaction)
+            if viewModel.isSelecting {
+                viewModel.toggleSelection(transaction)
+            } else {
+                selectedTransaction = SelectedUncategorizedTransaction(transaction: transaction)
+            }
         } label: {
-            ZStack(alignment: .trailing) {
+            ZStack {
                 TransactionRow(
                     transaction: transaction,
                     payeeName: displayPayeeName(for: transaction),
@@ -186,9 +247,29 @@ struct UncategorizedTransactionsView: View {
                     highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
                     showsBottomSeparator: showsBottomSeparator
                 )
+                .padding(.leading, viewModel.isSelecting ? 34 : 0)
+
+                if viewModel.isSelecting {
+                    HStack {
+                        Image(
+                            systemName: viewModel.selectedTransactionIDs.contains(transaction.rowID)
+                                ? "checkmark.circle.fill"
+                                : "circle"
+                        )
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(
+                            viewModel.selectedTransactionIDs.contains(transaction.rowID)
+                                ? ActualistTheme.accent
+                                : ActualistTheme.secondaryText
+                        )
+                        .padding(.leading, density.rowHorizontalPadding)
+                        Spacer()
+                    }
+                }
 
                 if viewModel.categorizingTransactionID == transaction.rowID {
                     HStack {
+                        Spacer()
                         ProgressView()
                             .controlSize(.small)
                             .padding(8)
@@ -200,6 +281,8 @@ struct UncategorizedTransactionsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!viewModel.canCategorize(transaction) || viewModel.isCategorizing)
+        .animation(.snappy, value: viewModel.isSelecting)
     }
 
     private func displayPayeeName(for transaction: ActualTransaction) -> String {

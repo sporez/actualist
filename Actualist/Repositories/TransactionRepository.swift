@@ -62,6 +62,12 @@ protocol TransactionRepositoryProtocol: Sendable {
         budgetID: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult
+    func categorizeTransactionsAndRefresh(
+        _ transactions: [ActualTransaction],
+        categoryID: String,
+        budgetID: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
