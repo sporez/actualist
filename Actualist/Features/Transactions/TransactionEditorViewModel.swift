@@ -56,6 +56,8 @@ struct TransactionEditorPayeeOption: Identifiable, Hashable {
 }
 
 struct TransactionEditorPayeeSection: Identifiable, Hashable {
+    static let transferTitle = "Transfer To/From"
+
     enum Kind: String {
         case payees
         case transfers
@@ -73,7 +75,7 @@ struct TransactionEditorPayeeSection: Identifiable, Hashable {
         case .payees:
             nil
         case .transfers:
-            "Transfer To/From"
+            Self.transferTitle
         }
     }
 }
@@ -320,6 +322,8 @@ final class TransactionEditorViewModel {
             filteredOptions = options.filter { option in
                 option.title.localizedCaseInsensitiveContains(trimmedSearch)
                     || option.transferAccountName?.localizedCaseInsensitiveContains(trimmedSearch) == true
+                    || (option.isTransfer
+                        && TransactionEditorPayeeSection.transferTitle.localizedCaseInsensitiveContains(trimmedSearch))
             }
         }
 

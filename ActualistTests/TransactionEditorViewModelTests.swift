@@ -162,6 +162,25 @@ struct TransactionEditorViewModelTests {
         #expect(sections.last?.options.map(\.title) == ["Ally Auto"])
     }
 
+    @Test func payeeSectionsTreatTransferHeadingAsASearchTerm() {
+        let model = TransactionEditorViewModel()
+        model.accounts = [
+            ActualAccount(id: "credit", name: "Citi DC", offbudget: false, closed: false),
+            ActualAccount(id: "retirement", name: "Target 401K", offbudget: true, closed: false)
+        ]
+        model.payees = [
+            ActualPayee(id: "street", name: "37 Bow Street", category: nil, transferAccount: nil),
+            ActualPayee(id: "transfer-credit", name: "", category: nil, transferAccount: "credit"),
+            ActualPayee(id: "transfer-retirement", name: "", category: nil, transferAccount: "retirement")
+        ]
+
+        let sections = model.payeeSections(matching: "tr")
+
+        #expect(sections.map(\.kind) == [.transfers, .payees])
+        #expect(sections.first?.options.map(\.title) == ["Citi DC", "Target 401K"])
+        #expect(sections.last?.options.map(\.title) == ["37 Bow Street"])
+    }
+
     @Test func customPayeeOptionIsHiddenForExactExistingPayeeOrTransferAccountMatch() {
         let model = TransactionEditorViewModel()
         model.accounts = [
