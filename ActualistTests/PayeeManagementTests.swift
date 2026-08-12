@@ -37,6 +37,22 @@ extension LocalFirstActualStoreTests {
         #expect(snapshot.supportsDelete)
     }
 
+    @Test func snapshotOmitsTransferPayeesWithoutAResolvableDisplayName() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            INSERT INTO payees VALUES ('orphaned-transfer', '', 'deleted-account', 0);
+            INSERT INTO payee_mapping VALUES ('orphaned-transfer', 'orphaned-transfer');
+            INSERT INTO payees VALUES ('legacy-transfer', 'Legacy Account', 'missing-account', 0);
+            INSERT INTO payee_mapping VALUES ('legacy-transfer', 'legacy-transfer');
+            """)
+
+        try await store.refreshPayeeManagementSnapshot(budgetID: "group-1")
+        let snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+
+        #expect(!snapshot.payees.contains { $0.id == "orphaned-transfer" })
+        #expect(snapshot.payees.first { $0.id == "legacy-transfer" }?.displayName == "Legacy Account")
+        #expect(snapshot.payees.first { $0.id == "xfer-checking" }?.displayName == "Checking")
+    }
+
     @Test func snapshotDisablesMergeWhenPayeeMappingIsUnavailable() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;

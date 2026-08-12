@@ -352,7 +352,7 @@ extension BudgetDatabase {
             let transfer = row["transfer_acct"] as String?
             let transactionCount = usageCounts[id] ?? 0
             let ruleCount = ruleReferences.counts[id] ?? 0
-            return ManagedPayee(
+            let payee = ManagedPayee(
                 id: id,
                 name: row["name"] ?? "",
                 transferAccountID: transfer,
@@ -366,6 +366,10 @@ extension BudgetDatabase {
                     ? true
                     : flexibleBool(row["learn_categories"])
             )
+            guard !payee.isTransfer || !payee.displayName.isEmpty else {
+                return nil
+            }
+            return payee
         }
         .sorted {
             if $0.isTransfer != $1.isTransfer {

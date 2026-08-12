@@ -90,9 +90,13 @@ struct ManagedPayee: Identifiable, Hashable, Sendable {
 
     var displayName: String {
         if isTransfer {
-            return transferAccountName ?? name
+            let accountName = transferAccountName?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let accountName, !accountName.isEmpty {
+                return accountName
+            }
         }
-        return name
+        return name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var isUnused: Bool {

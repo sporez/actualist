@@ -423,6 +423,7 @@ private struct PayeeDetailView: View {
                             }
                         }
                     ))
+                    .tint(ActualistTheme.positive)
                     .disabled(viewModel.isSubmitting)
                 } footer: {
                     Text("Favorite payees appear first when choosing a payee for a transaction.")
@@ -446,6 +447,7 @@ private struct PayeeDetailView: View {
                             }
                         }
                     ))
+                    .tint(ActualistTheme.positive)
                     .disabled(viewModel.isSubmitting)
                 } footer: {
                     Text("Actual may update this payee's category rule after the same category is used three times among its five latest transactions.")
