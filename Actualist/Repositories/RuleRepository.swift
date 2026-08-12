@@ -8,6 +8,9 @@ protocol RuleRepositoryProtocol: Sendable {
     func refreshRules(budgetID: String) async throws
 
     @MainActor
+    func ruleEditorOptions(budgetID: String) async throws -> RuleEditorOptions
+
+    @MainActor
     func createRuleAndRefresh(budgetID: String, draft: RuleDraft) async throws
 
     @MainActor
@@ -15,6 +18,18 @@ protocol RuleRepositoryProtocol: Sendable {
 
     @MainActor
     func deleteRuleAndRefresh(budgetID: String, ruleID: String) async throws
+}
+
+struct RuleEditorOptions: Hashable, Sendable {
+    let accounts: [RuleEditorChoice]
+    let categories: [RuleEditorChoice]
+    let categoryGroups: [RuleEditorChoice]
+    let payees: [RuleEditorChoice]
+}
+
+struct RuleEditorChoice: Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
 }
 
 enum RuleStage: String, CaseIterable, Codable, Hashable, Sendable, Identifiable {
@@ -167,39 +182,122 @@ struct RuleDraft: Hashable, Sendable {
     }
 }
 
-private extension RuleCondition {
-    var canRoundTripAndEvaluate: Bool {
-        guard options?.isEmpty != false else { return false }
-        let operations: Set<String>
-        switch field {
-        case "account":
-            operations = ["is", "isNot", "oneOf", "notOneOf", "contains", "doesNotContain", "matches", "onBudget", "offBudget"]
-        case "category", "category_group", "payee":
-            operations = ["is", "isNot", "oneOf", "notOneOf", "contains", "doesNotContain", "matches"]
-        case "amount":
-            operations = ["is", "isapprox", "isbetween", "gt", "gte", "lt", "lte"]
-        case "date":
-            operations = ["is", "isapprox", "gt", "gte", "lt", "lte"]
-        case "notes":
-            operations = ["is", "isNot", "contains", "doesNotContain", "matches", "hasTags", "hasAnyTag"]
-        case "cleared", "transfer":
-            operations = ["is"]
-        default:
-            return false
+extension RuleCondition {
+    enum ValueKind: String, Sendable {
+        case id
+        case string
+        case number
+        case date
+        case boolean
+    }
+
+    static let editableFields: [(name: String, value: String)] = [
+        ("Imported Payee", "imported_payee"),
+        ("Payee Name", "payee_name"),
+        ("Account", "account"),
+        ("Category", "category"),
+        ("Category Group", "category_group"),
+        ("Date", "date"),
+        ("Payee", "payee"),
+        ("Notes", "notes"),
+        ("Amount", "amount"),
+        ("Amount (Inflow)", "amount-inflow"),
+        ("Amount (Outflow)", "amount-outflow"),
+        ("Cleared", "cleared"),
+        ("Reconciled", "reconciled"),
+        ("Transfer", "transfer"),
+        ("Parent Transaction", "parent")
+    ]
+
+    static func valueKind(for field: String) -> ValueKind? {
+        switch serializedField(field) {
+        case "account", "category", "category_group", "payee": .id
+        case "imported_payee", "payee_name", "notes": .string
+        case "amount": .number
+        case "date": .date
+        case "cleared", "reconciled", "transfer", "parent": .boolean
+        default: nil
         }
-        guard operations.contains(operation) else { return false }
+    }
+
+    static func operations(for field: String) -> [String] {
+        switch valueKind(for: field) {
+        case .id:
+            var operations = ["is", "contains", "matches", "oneOf", "isNot", "doesNotContain", "notOneOf"]
+            if serializedField(field) == "account" {
+                operations.append(contentsOf: ["onBudget", "offBudget"])
+            }
+            return operations
+        case .string:
+            var operations = ["is", "contains", "matches", "oneOf", "isNot", "doesNotContain", "notOneOf", "hasTags", "hasAnyTag"]
+            if serializedField(field) == "imported_payee" {
+                operations.removeAll { $0 == "hasTags" || $0 == "hasAnyTag" }
+            }
+            if serializedField(field) == "notes" {
+                operations.removeAll { $0 == "oneOf" || $0 == "notOneOf" }
+            }
+            return operations
+        case .number:
+            return isDirectionalAmountField(field)
+                ? ["is", "isapprox", "gt", "gte", "lt", "lte"]
+                : ["is", "isapprox", "isbetween", "gt", "gte", "lt", "lte"]
+        case .date:
+            return ["is", "isapprox", "gt", "gte", "lt", "lte"]
+        case .boolean:
+            return ["is"]
+        case nil:
+            return []
+        }
+    }
+
+    static func serializedField(_ field: String) -> String {
+        switch field {
+        case "amount-inflow", "amount-outflow": "amount"
+        default: field
+        }
+    }
+
+    static func isDirectionalAmountField(_ field: String) -> Bool {
+        field == "amount-inflow" || field == "amount-outflow"
+    }
+
+    static func options(for field: String) -> [String: RuleJSONValue]? {
+        switch field {
+        case "amount-inflow": ["inflow": .bool(true)]
+        case "amount-outflow": ["outflow": .bool(true)]
+        default: nil
+        }
+    }
+
+    var editorField: String {
+        if field == "amount", options?["inflow"] == .bool(true) { return "amount-inflow" }
+        if field == "amount", options?["outflow"] == .bool(true) { return "amount-outflow" }
+        return field
+    }
+
+    var canRoundTripAndEvaluate: Bool {
+        guard Self.operations(for: editorField).contains(operation), hasSupportedOptions else { return false }
+        guard type == nil || type == Self.valueKind(for: field)?.rawValue else { return false }
         if operation == "oneOf" || operation == "notOneOf" {
-            guard case .array = value else { return false }
+            guard case .array(let values) = value,
+                  values.allSatisfy({ if case .string = $0 { true } else { false } }) else { return false }
         } else {
-            switch field {
-            case "amount":
+            switch Self.valueKind(for: field) {
+            case .number:
                 guard operation == "isbetween" || value.isNumberLike else { return false }
-            case "date", "account", "category", "category_group", "payee", "notes":
+            case .date:
+                guard case .string(let dateValue) = value,
+                      Self.isSupportedDate(dateValue, operation: operation) else { return false }
+            case .id:
                 guard operation == "onBudget" || operation == "offBudget" || value.isStringLike else { return false }
-            case "cleared", "transfer":
+            case .string:
+                guard case .string(let string) = value else { return false }
+                if ["contains", "doesNotContain", "matches", "hasTags", "hasAnyTag"].contains(operation),
+                   string.isEmpty { return false }
+            case .boolean:
                 guard case .bool = value else { return false }
-            default:
-                break
+            case nil:
+                return false
             }
         }
         if operation == "isbetween" {
@@ -209,6 +307,46 @@ private extension RuleCondition {
         }
         return true
     }
+
+    private var hasSupportedOptions: Bool {
+        guard let options, !options.isEmpty else { return true }
+        let allowedKeys: Set<String>
+        switch field {
+        case "amount": allowedKeys = ["inflow", "outflow"]
+        default: return false
+        }
+        guard Set(options.keys).isSubset(of: allowedKeys),
+              options.values.allSatisfy({ if case .bool = $0 { true } else { false } }) else { return false }
+        if options["inflow"] == .bool(true), options["outflow"] == .bool(true) { return false }
+        return true
+    }
+
+    private static func isSupportedDate(_ value: String, operation: String) -> Bool {
+        let components = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard [1, 2, 3].contains(components.count),
+              let year = Int(components[0]), (1...9999).contains(year) else { return false }
+        if components.count >= 2 {
+            guard components[0].count == 4, components[1].count == 2,
+                  let month = Int(components[1]), (1...12).contains(month) else { return false }
+        }
+        if components.count == 3 {
+            guard components[2].count == 2,
+                  let date = ruleDateFormatter.date(from: value),
+                  ruleDateFormatter.string(from: date) == value else { return false }
+        }
+        if operation != "is" { return components.count == 3 }
+        return value.count == 4 || value.count == 7 || value.count == 10
+    }
+
+    private static let ruleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter
+    }()
 }
 
 private extension RuleAction {
@@ -230,7 +368,7 @@ private extension RuleAction {
     }
 }
 
-private extension RuleJSONValue {
+extension RuleJSONValue {
     var isStringLike: Bool {
         switch self {
         case .string, .null: true

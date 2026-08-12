@@ -199,7 +199,7 @@ private struct RuleEditorView: View {
     let errorMessage: String?
     let onSave: (RuleDraft) async -> Bool
     @State private var draft: RuleDraft
-    @State private var options: TransactionEditorOptions?
+    @State private var options: RuleEditorOptions?
 
     init(
         target: RuleEditorTarget,
@@ -294,31 +294,20 @@ private struct RuleEditorView: View {
             }
             .task {
                 guard let budgetID = appState.settings.selectedBudgetID else { return }
-                options = try? await appState.transactionRepository.editorOptions(
-                    budgetID: budgetID,
-                    month: Self.currentMonth
-                )
+                options = try? await appState.ruleRepository.ruleEditorOptions(budgetID: budgetID)
             }
         }
-    }
-
-    private static var currentMonth: String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM"
-        return formatter.string(from: Date())
     }
 }
 
 private struct RuleConditionEditor: View {
     @Binding var condition: RuleCondition
-    let options: TransactionEditorOptions?
+    let options: RuleEditorOptions?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("Field", selection: $condition.field) {
-                ForEach(Self.fields, id: \.value) { Text($0.name).tag($0.value) }
+            Picker("Field", selection: editorFieldBinding) {
+                ForEach(RuleCondition.editableFields, id: \.value) { Text($0.name).tag($0.value) }
             }
             Picker("Comparison", selection: $condition.operation) {
                 ForEach(operations, id: \.self) { Text(Self.operationName($0)).tag($0) }
@@ -327,38 +316,62 @@ private struct RuleConditionEditor: View {
                 RuleValueEditor(value: $condition.value, field: condition.field, operation: condition.operation, options: options)
             }
         }
-        .onChange(of: condition.field) {
-            condition.operation = Self.operations(for: condition.field).first ?? "is"
-            condition.type = Self.idFields.contains(condition.field) ? "id" : nil
-        }
         .onChange(of: condition.operation) {
-            if condition.operation == "isbetween" {
-                condition.value = .object(["num1": .number(0), "num2": .number(0)])
-            } else if case .object = condition.value {
-                condition.value = .number(0)
+            normalizeValueForOperation()
+        }
+    }
+
+    private var operations: [String] { RuleCondition.operations(for: condition.editorField) }
+
+    private var editorFieldBinding: Binding<String> {
+        Binding(
+            get: { condition.editorField },
+            set: { newField in
+                let previousKind = RuleCondition.valueKind(for: condition.field)
+                let newKind = RuleCondition.valueKind(for: newField)
+                condition.field = RuleCondition.serializedField(newField)
+                condition.options = RuleCondition.options(for: newField)
+                condition.type = newKind?.rawValue
+                if previousKind != newKind || !RuleCondition.operations(for: newField).contains(condition.operation) {
+                    condition.operation = RuleCondition.operations(for: newField).first ?? "is"
+                    condition.value = defaultValue(for: newKind)
+                }
             }
+        )
+    }
+
+    private func defaultValue(for kind: RuleCondition.ValueKind?) -> RuleJSONValue {
+        switch kind {
+        case .boolean: .bool(false)
+        case .number: .number(0)
+        case .date: .string(Self.dateFormatter.string(from: Date()))
+        case .string: .string("")
+        case .id, nil: .null
         }
     }
 
-    private var operations: [String] { Self.operations(for: condition.field) }
-    private static let idFields: Set<String> = ["account", "category", "category_group", "payee"]
-    private static let fields = [
-        ("Account", "account"), ("Amount", "amount"), ("Category", "category"),
-        ("Category Group", "category_group"), ("Date", "date"), ("Notes", "notes"),
-        ("Payee", "payee"), ("Cleared", "cleared"),
-        ("Transfer", "transfer")
-    ].map { (name: $0.0, value: $0.1) }
-
-    private static func operations(for field: String) -> [String] {
-        switch field {
-        case "account": ["is", "isNot", "oneOf", "notOneOf", "contains", "doesNotContain", "matches", "onBudget", "offBudget"]
-        case "amount": ["is", "isapprox", "isbetween", "gt", "gte", "lt", "lte"]
-        case "date": ["is", "isapprox", "gt", "gte", "lt", "lte"]
-        case "cleared", "transfer": ["is"]
-        case "notes": ["is", "isNot", "contains", "doesNotContain", "matches", "hasTags", "hasAnyTag"]
-        default: ["is", "isNot", "oneOf", "notOneOf", "contains", "doesNotContain", "matches"]
+    private func normalizeValueForOperation() {
+        if condition.operation == "oneOf" || condition.operation == "notOneOf" {
+            if case .array = condition.value { return }
+            condition.value = condition.value == .null ? .array([]) : .array([condition.value])
+        } else if case .array(let values) = condition.value {
+            condition.value = values.first ?? defaultValue(for: RuleCondition.valueKind(for: condition.field))
+        } else if condition.operation == "isbetween" {
+            let initial = condition.value.isNumberLike ? condition.value : .number(0)
+            condition.value = .object(["num1": initial, "num2": initial])
+        } else if case .object(let range) = condition.value {
+            condition.value = range["num1"] ?? .number(0)
         }
     }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     private static func operationName(_ operation: String) -> String {
         switch operation {
@@ -374,6 +387,8 @@ private struct RuleConditionEditor: View {
         case "lte": "Is at most"
         case "hasTags": "Has all tags"
         case "hasAnyTag": "Has any tag"
+        case "onBudget": "Is on budget"
+        case "offBudget": "Is off budget"
         default: operation.capitalized
         }
     }
@@ -381,7 +396,7 @@ private struct RuleConditionEditor: View {
 
 private struct RuleActionEditor: View {
     @Binding var action: RuleAction
-    let options: TransactionEditorOptions?
+    let options: RuleEditorOptions?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -417,7 +432,7 @@ private struct RuleValueEditor: View {
     @Binding var value: RuleJSONValue
     let field: String
     let operation: String
-    let options: TransactionEditorOptions?
+    let options: RuleEditorOptions?
 
     var body: some View {
         if operation == "isbetween" {
@@ -429,10 +444,35 @@ private struct RuleValueEditor: View {
                 TextField("Maximum", text: rangeBinding(key: "num2"))
                     .keyboardType(.decimalPad)
             }
-        } else if ["cleared", "transfer"].contains(field) {
+        } else if ["cleared", "reconciled", "transfer", "parent"].contains(field) {
             Picker("Value", selection: boolBinding) {
                 Text("Yes").tag(true)
                 Text("No").tag(false)
+            }
+        } else if isMultiValue, RuleCondition.valueKind(for: field) == .id {
+            Menu {
+                ForEach(multiValueChoices, id: \.id) { choice in
+                    Button {
+                        toggle(choice.id)
+                    } label: {
+                        if selectedIDs.contains(choice.id) {
+                            Label(choice.name, systemImage: "checkmark")
+                        } else {
+                            Text(choice.name)
+                        }
+                    }
+                }
+                if multiValueChoices.isEmpty {
+                    Text("No values available")
+                }
+            } label: {
+                HStack {
+                    Text(multiValueSummary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
             }
         } else if let choices = choices, !choices.isEmpty, !Self.freeTextOperations.contains(operation) {
             Picker("Value", selection: stringBinding) {
@@ -449,6 +489,44 @@ private struct RuleValueEditor: View {
 
     private var placeholder: String {
         operation == "oneOf" || operation == "notOneOf" ? "Comma-separated values" : "Value"
+    }
+
+    private var isMultiValue: Bool {
+        operation == "oneOf" || operation == "notOneOf"
+    }
+
+    private var selectedIDs: [String] {
+        guard case .array(let values) = value else { return [] }
+        return values.compactMap { item in
+            if case .string(let id) = item { return id }
+            return nil
+        }
+    }
+
+    private var multiValueSummary: String {
+        let count = selectedIDs.count
+        if count == 0 { return "Select values" }
+        if count == 1, let id = selectedIDs.first {
+            return choices?.first { $0.id == id }?.name ?? "1 selected"
+        }
+        return "\(count) selected"
+    }
+
+    private var multiValueChoices: [(id: String, name: String)] {
+        let known = choices ?? []
+        let knownIDs = Set(known.map(\.id))
+        var seenUnknownIDs = Set<String>()
+        let unknown = selectedIDs
+            .filter { !knownIDs.contains($0) && seenUnknownIDs.insert($0).inserted }
+            .map { (id: $0, name: "Unknown value") }
+        return known + unknown
+    }
+
+    private func toggle(_ id: String) {
+        var ids = selectedIDs
+        if let index = ids.firstIndex(of: id) { ids.remove(at: index) }
+        else { ids.append(id) }
+        value = .array(ids.map(RuleJSONValue.string))
     }
 
     private var stringBinding: Binding<String> {
@@ -501,12 +579,12 @@ private struct RuleValueEditor: View {
         guard let options else { return nil }
         switch field {
         case "account": return options.accounts.map { ($0.id, $0.name) }
-        case "category": return options.categories.compactMap { category in category.id.map { ($0, category.name.actualistCategoryNameParts.name) } }
+        case "category": return options.categories.map { ($0.id, $0.name) }
         case "category_group": return options.categoryGroups.map { ($0.id, $0.name) }
-        case "payee": return options.payees.compactMap { payee in payee.id.map { ($0, payee.name) } }
+        case "payee": return options.payees.map { ($0.id, $0.name) }
         default: return nil
         }
     }
 
-    private static let freeTextOperations: Set<String> = ["oneOf", "notOneOf", "contains", "doesNotContain", "matches"]
+    private static let freeTextOperations: Set<String> = ["contains", "doesNotContain", "matches"]
 }

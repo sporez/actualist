@@ -23,6 +23,9 @@ struct TransactionDraft: Hashable, Sendable {
     let notes: String?
     let cleared: Bool
     let isTransfer: Bool
+    var importedPayee: String? = nil
+    var reconciled = false
+    var isParent = false
     var splits: [TransactionSplitDraft] = []
 
     var month: YearMonth {

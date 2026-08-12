@@ -260,6 +260,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
     let category: String?
     let notes: String?
     let cleared: FlexibleBool?
+    let reconciled: Bool
     let subtransactions: [ActualTransaction]
     let isParent: Bool
     let isChild: Bool
@@ -276,6 +277,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         category: String?,
         notes: String?,
         cleared: FlexibleBool?,
+        reconciled: Bool = false,
         subtransactions: [ActualTransaction] = [],
         isParent: Bool = false,
         isChild: Bool = false,
@@ -291,6 +293,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         self.category = category
         self.notes = notes
         self.cleared = cleared
+        self.reconciled = reconciled
         self.subtransactions = subtransactions
         self.isParent = isParent
         self.isChild = isChild
@@ -298,7 +301,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, account, date, amount, payee, category, notes, cleared
+        case id, account, date, amount, payee, category, notes, cleared, reconciled
         case payeeName = "payee_name"
         case importedPayee = "imported_payee"
         case subtransactions
@@ -319,6 +322,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         category = try container.decodeIfPresent(String.self, forKey: .category)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
         cleared = try container.decodeIfPresent(FlexibleBool.self, forKey: .cleared)
+        reconciled = try container.decodeIfPresent(Bool.self, forKey: .reconciled) ?? false
         subtransactions = try container.decodeIfPresent([ActualTransaction].self, forKey: .subtransactions) ?? []
         isParent = try container.decodeIfPresent(Bool.self, forKey: .isParent) ?? !subtransactions.isEmpty
         isChild = try container.decodeIfPresent(Bool.self, forKey: .isChild) ?? false

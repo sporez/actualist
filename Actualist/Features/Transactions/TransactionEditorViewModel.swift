@@ -87,6 +87,9 @@ final class TransactionEditorViewModel {
     private let editingTransactionID: String?
     private let originalAccountID: String?
     private let originalMonth: String?
+    private let originalImportedPayee: String?
+    private let originalReconciled: Bool
+    private let originalIsParent: Bool
     private var selectedCategoryFallbackName: String?
 
     var kind: TransactionFlowKind = .spend
@@ -120,6 +123,9 @@ final class TransactionEditorViewModel {
         editingTransactionID = transaction?.id
         originalAccountID = transaction?.account
         originalMonth = transaction?.date.actualYearMonth
+        originalImportedPayee = transaction?.importedPayee
+        originalReconciled = transaction?.reconciled ?? false
+        originalIsParent = transaction?.isParent ?? false
         selectedCategoryFallbackName = fallbackCategoryName
 
         if let transaction {
@@ -794,6 +800,9 @@ final class TransactionEditorViewModel {
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared,
             isTransfer: selectedPayeeIsTransfer,
+            importedPayee: originalImportedPayee,
+            reconciled: originalReconciled,
+            isParent: isSplit || originalIsParent,
             splits: selectedPayeeIsTransfer || isCategoryReadOnly
                 ? []
                 : splitDrafts(sign: kind == .spend ? -1 : 1)
@@ -828,7 +837,10 @@ final class TransactionEditorViewModel {
             categoryID: isCategoryReadOnly ? nil : selectedCategoryID,
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared,
-            isTransfer: selectedPayeeIsTransfer
+            isTransfer: selectedPayeeIsTransfer,
+            importedPayee: originalImportedPayee,
+            reconciled: originalReconciled,
+            isParent: originalIsParent
         )
     }
 

@@ -2,21 +2,54 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
-    func previewRules(for draft: TransactionDraft) throws -> TransactionRulePreview {
-        let rules = try fetchRules().filter { !$0.isCompletedScheduleRule }
-        let context = try ruleEvaluationContext(for: draft)
-        var result = context
-        for rule in rules {
-            guard let ruleDraft = rule.draft else { continue }
-            let matches = ruleDraft.conditions.map { conditionMatches($0, context: result) }
-            let shouldApply = ruleDraft.conditionsJoin == .and
-                ? matches.allSatisfy { $0 }
-                : matches.contains(true)
-            guard shouldApply else { continue }
-            for action in ruleDraft.actions {
-                apply(action: action, context: &result)
+    func fetchRuleEditorOptions() throws -> RuleEditorOptions {
+        let accounts = try fetchAccounts()
+        let categories = try fetchCategories()
+        let payees = try fetchPayees()
+        let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
+        let categoryGroups = try queue.read { db -> [RuleEditorChoice] in
+            guard try tableExists("category_groups", db: db) else { return [] }
+            let columns = try columnSet(for: "category_groups", db: db)
+            guard columns.contains("id"), columns.contains("name") else { return [] }
+            let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
+            return try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT id, name
+                    FROM category_groups
+                    WHERE \(predicateForLiveRows(columns: columns))
+                    ORDER BY \(order)
+                    """
+            ).compactMap { row in
+                guard let id = row["id"] as String? else { return nil }
+                return RuleEditorChoice(id: id, name: row["name"] ?? "")
             }
         }
+        return RuleEditorOptions(
+            accounts: accounts.map { RuleEditorChoice(id: $0.id, name: $0.name) },
+            categories: categories.compactMap { category in
+                category.id.map {
+                    RuleEditorChoice(id: $0, name: category.name.actualistCategoryNameParts.name)
+                }
+            },
+            categoryGroups: categoryGroups,
+            payees: payees.compactMap { payee in
+                payee.id.map {
+                    RuleEditorChoice(
+                        id: $0,
+                        name: payee.name.isEmpty
+                            ? payee.transferAccount.flatMap { accountNames[$0] } ?? "Unknown payee"
+                            : payee.name
+                    )
+                }
+            }
+        )
+    }
+
+    func previewRules(for draft: TransactionDraft) throws -> TransactionRulePreview {
+        let rules = try fetchRules()
+        let context = try ruleEvaluationContext(for: draft)
+        let result = RuleConditionEvaluator.applying(rules, to: context)
         return TransactionRulePreview(
             categoryID: result.categoryID,
             notes: result.notes,
@@ -61,7 +94,10 @@ extension BudgetDatabase {
                 let actions = rawActions.data(using: .utf8).flatMap {
                     try? decoder.decode([RuleAction].self, from: $0)
                 }
-                let decodedDraft = conditions.flatMap { conditions in
+                let mappedConditions = conditions.map { conditions in
+                    conditions.map { conditionByResolvingPayeeMappings($0, targets: payeeTargets) }
+                }
+                let decodedDraft = mappedConditions.flatMap { conditions in
                     actions.map { actions in
                         RuleDraft(stage: stage, conditionsJoin: join, conditions: conditions, actions: actions)
                     }
@@ -340,29 +376,6 @@ extension BudgetDatabase {
         return objects.allSatisfy { Set($0.keys).isSubset(of: kind.allowedKeys) }
     }
 
-    private struct RuleEvaluationContext {
-        var accountID: String
-        var accountName: String
-        var accountIsOffBudget: Bool
-        var amount: Int
-        var categoryID: String?
-        var categoryName: String?
-        var categoryGroupID: String?
-        var categoryGroupName: String?
-        var date: Date
-        var notes: String?
-        var payeeID: String?
-        var payeeName: String
-        var cleared: Bool
-        var isTransfer: Bool
-        var accountNames: [String: String]
-        var offBudgetAccountIDs: Set<String>
-        var categoryNames: [String: String]
-        var categoryGroupsByCategoryID: [String: String]
-        var categoryGroupNames: [String: String]
-        var payeeNames: [String: String]
-    }
-
     private func ruleEvaluationContext(for draft: TransactionDraft) throws -> RuleEvaluationContext {
         try queue.read { db in
             var offBudget = false
@@ -440,8 +453,11 @@ extension BudgetDatabase {
                 notes: draft.notes,
                 payeeID: draft.payeeID,
                 payeeName: draft.payeeName,
+                importedPayee: draft.importedPayee,
                 cleared: draft.cleared,
+                reconciled: draft.reconciled,
                 isTransfer: draft.isTransfer,
+                isParent: draft.isParent,
                 accountNames: accountNames,
                 offBudgetAccountIDs: offBudgetAccountIDs,
                 categoryNames: categoryNames,
@@ -451,165 +467,6 @@ extension BudgetDatabase {
             )
         }
     }
-
-    private func conditionMatches(_ condition: RuleCondition, context: RuleEvaluationContext) -> Bool {
-        if condition.field == "account" && condition.operation == "onBudget" { return !context.accountIsOffBudget }
-        if condition.field == "account" && condition.operation == "offBudget" { return context.accountIsOffBudget }
-        let actual: RuleJSONValue
-        switch condition.field {
-        case "account": actual = .string(context.accountID)
-        case "amount": actual = .number(Double(context.amount))
-        case "category": actual = context.categoryID.map(RuleJSONValue.string) ?? .null
-        case "category_group": actual = context.categoryGroupID.map(RuleJSONValue.string) ?? .null
-        case "date": actual = .string(Self.ruleDateFormatter.string(from: context.date))
-        case "notes": actual = context.notes.map(RuleJSONValue.string) ?? .string("")
-        case "payee": actual = context.payeeID.map(RuleJSONValue.string) ?? .null
-        case "imported_payee", "payee_name": actual = .string(context.payeeName)
-        case "cleared": actual = .bool(context.cleared)
-        case "transfer": actual = .bool(context.isTransfer)
-        default: return false
-        }
-        if ["contains", "doesNotContain", "matches"].contains(condition.operation) {
-            switch condition.field {
-            case "account":
-                return compare(actual: .string(context.accountName), operation: condition.operation, expected: condition.value)
-            case "category":
-                return compare(actual: .string(context.categoryName ?? ""), operation: condition.operation, expected: condition.value)
-            case "category_group":
-                return compare(actual: .string(context.categoryGroupName ?? ""), operation: condition.operation, expected: condition.value)
-            case "payee":
-                return compare(actual: .string(context.payeeName), operation: condition.operation, expected: condition.value)
-            default:
-                break
-            }
-        }
-        return compare(actual: actual, operation: condition.operation, expected: condition.value)
-    }
-
-    private func compare(actual: RuleJSONValue, operation: String, expected: RuleJSONValue) -> Bool {
-        switch operation {
-        case "is": return equivalent(actual, expected)
-        case "isNot": return !equivalent(actual, expected)
-        case "oneOf":
-            guard case .array(let values) = expected else { return false }
-            guard !values.isEmpty else { return false }
-            return values.contains { equivalent(actual, $0) }
-        case "notOneOf":
-            guard case .array(let values) = expected else { return false }
-            guard !values.isEmpty else { return false }
-            return !values.contains { equivalent(actual, $0) }
-        case "contains", "doesNotContain", "matches", "hasTags", "hasAnyTag":
-            let actualText = actual.editableText
-            let expectedText = expected.editableText
-            let matches: Bool
-            if operation == "matches" {
-                matches = (try? NSRegularExpression(pattern: expectedText, options: .caseInsensitive))
-                    .map { $0.firstMatch(in: actualText, range: NSRange(actualText.startIndex..., in: actualText)) != nil } ?? false
-            } else if operation == "hasTags" || operation == "hasAnyTag" {
-                let tags = expectedText.split(whereSeparator: { $0.isWhitespace })
-                    .map { $0.hasPrefix("#") ? String($0) : "#\($0)" }
-                let tagMatches = tags.map { tag in
-                    let pattern = "(?<!#)\(NSRegularExpression.escapedPattern(for: tag))(?=\\s|#|$)"
-                    return actualText.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
-                }
-                matches = !tagMatches.isEmpty
-                    && (operation == "hasTags" ? tagMatches.allSatisfy { $0 } : tagMatches.contains(true))
-            } else {
-                matches = actualText.localizedCaseInsensitiveContains(expectedText)
-            }
-            return operation == "doesNotContain" ? !matches : matches
-        case "gt", "gte", "lt", "lte", "isapprox":
-            guard let lhs = numericValue(actual), let rhs = numericValue(expected) else {
-                let lhs = actual.editableText, rhs = expected.editableText
-                if operation == "isapprox",
-                   let lhsDate = Self.ruleDateFormatter.date(from: lhs),
-                   let rhsDate = Self.ruleDateFormatter.date(from: rhs) {
-                    return abs(lhsDate.timeIntervalSince(rhsDate)) <= 2 * 24 * 60 * 60
-                }
-                switch operation {
-                case "gt": return lhs > rhs
-                case "gte": return lhs >= rhs
-                case "lt": return lhs < rhs
-                case "lte": return lhs <= rhs
-                default: return lhs == rhs
-                }
-            }
-            switch operation {
-            case "gt": return lhs > rhs
-            case "gte": return lhs >= rhs
-            case "lt": return lhs < rhs
-            case "lte": return lhs <= rhs
-            default: return abs(lhs - rhs) <= max(abs(rhs) * 0.075, 1)
-            }
-        case "isbetween":
-            guard case .object(let range) = expected,
-                  let lhs = numericValue(actual),
-                  let lower = range["num1"].flatMap(numericValue),
-                  let upper = range["num2"].flatMap(numericValue) else { return false }
-            return lhs >= min(lower, upper) && lhs <= max(lower, upper)
-        default: return false
-        }
-    }
-
-    private func equivalent(_ lhs: RuleJSONValue, _ rhs: RuleJSONValue) -> Bool {
-        if let lhsNumber = numericValue(lhs), let rhsNumber = numericValue(rhs) { return lhsNumber == rhsNumber }
-        return lhs.editableText.compare(rhs.editableText, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-    }
-
-    private func numericValue(_ value: RuleJSONValue) -> Double? {
-        switch value {
-        case .number(let number): number
-        case .string(let string): Double(string)
-        default: nil
-        }
-    }
-
-    private func apply(action: RuleAction, context: inout RuleEvaluationContext) {
-        switch action.operation {
-        case "set":
-            switch action.field {
-            case "account":
-                if case .string(let value) = action.value {
-                    context.accountID = value
-                    context.accountName = context.accountNames[value] ?? ""
-                    context.accountIsOffBudget = context.offBudgetAccountIDs.contains(value)
-                }
-            case "amount": if let value = numericValue(action.value) { context.amount = Int(value.rounded()) }
-            case "category":
-                context.categoryID = stringOrNil(action.value)
-                context.categoryName = context.categoryID.flatMap { context.categoryNames[$0] }
-                context.categoryGroupID = context.categoryID.flatMap { context.categoryGroupsByCategoryID[$0] }
-                context.categoryGroupName = context.categoryGroupID.flatMap { context.categoryGroupNames[$0] }
-            case "date":
-                if case .string(let value) = action.value, let date = Self.ruleDateFormatter.date(from: value) { context.date = date }
-            case "notes": context.notes = stringOrNil(action.value)
-            case "payee":
-                context.payeeID = stringOrNil(action.value)
-                context.payeeName = context.payeeID.flatMap { context.payeeNames[$0] } ?? ""
-            case "cleared": if case .bool(let value) = action.value { context.cleared = value }
-            default: break
-            }
-        case "prepend-notes":
-            if case .string(let value) = action.value { context.notes = value + (context.notes ?? "") }
-        case "append-notes":
-            if case .string(let value) = action.value { context.notes = (context.notes ?? "") + value }
-        default: break
-        }
-    }
-
-    private func stringOrNil(_ value: RuleJSONValue) -> String? {
-        if case .string(let string) = value { return string.isEmpty ? nil : string }
-        return nil
-    }
-
-    private static let ruleDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
 
     private func completedScheduleRuleIDs(db: Database) throws -> Set<String> {
         guard try tableExists("schedules", db: db) else { return [] }
@@ -653,6 +510,32 @@ extension BudgetDatabase {
             guard let id = row["id"] as String?, let targetID = row["target_id"] as String? else { return nil }
             return (id, targetID)
         })
+    }
+
+    private func conditionByResolvingPayeeMappings(
+        _ condition: RuleCondition,
+        targets: [String: String]
+    ) -> RuleCondition {
+        guard condition.field == "payee",
+              condition.type == nil || condition.type == RuleCondition.ValueKind.id.rawValue else {
+            return condition
+        }
+        var resolved = condition
+        switch condition.operation {
+        case "is", "isNot":
+            if case .string(let value) = condition.value {
+                resolved.value = .string(targets[value] ?? value)
+            }
+        case "oneOf", "notOneOf":
+            if case .array(let values) = condition.value {
+                resolved.value = .array(values.map { value in
+                    guard case .string(let id) = value else { return value }
+                    return .string(targets[id] ?? id)
+                })
+            }
+        default: break
+        }
+        return resolved
     }
 
     private func payeeIDs(in jsonStrings: [String]) -> Set<String> {

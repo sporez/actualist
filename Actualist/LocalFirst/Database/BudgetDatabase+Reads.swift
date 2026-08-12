@@ -261,6 +261,7 @@ extension BudgetDatabase {
             let category = expr(["category"], fallback: "NULL")
             let notes = expr(["notes"], fallback: "NULL")
             let cleared = expr(["cleared"], fallback: "0")
+            let reconciled = expr(["reconciled"], fallback: "0")
             let importedPayee = expr(["imported_description", "imported_payee"], fallback: "NULL")
             let parentID = expr(["parent_id"], fallback: "NULL")
             let isParent = expr(["isParent", "is_parent"], fallback: "0")
@@ -366,6 +367,7 @@ extension BudgetDatabase {
                        \(mappedCategory) AS category_id,
                        \(notes) AS notes,
                        \(cleared) AS cleared,
+                       \(reconciled) AS reconciled,
                        \(parentID) AS parent_id,
                        \(isParent) AS is_parent
                 FROM transactions t
@@ -425,6 +427,7 @@ extension BudgetDatabase {
             category: row["category_id"],
             notes: row["notes"],
             cleared: flexibleBool(row["cleared"]) ? .bool(true) : .bool(false),
+            reconciled: flexibleBool(row["reconciled"]),
             isParent: flexibleBool(row["is_parent"]),
             isChild: (parentID?.isEmpty == false),
             parentID: parentID

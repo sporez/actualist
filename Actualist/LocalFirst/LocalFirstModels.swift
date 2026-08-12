@@ -640,6 +640,7 @@ extension ActualTransaction {
             category: category,
             notes: notes,
             cleared: cleared,
+            reconciled: reconciled,
             subtransactions: subtransactions,
             isParent: isParent,
             isChild: isChild,

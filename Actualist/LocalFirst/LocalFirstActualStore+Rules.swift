@@ -10,6 +10,10 @@ extension LocalFirstActualStore {
         rulesByBudget[budgetID] = try await database.fetchRules()
     }
 
+    func ruleEditorOptions(budgetID: String) async throws -> RuleEditorOptions {
+        try await requireDatabase(for: budgetID).fetchRuleEditorOptions()
+    }
+
     func createRuleAndRefresh(budgetID: String, draft: RuleDraft) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()

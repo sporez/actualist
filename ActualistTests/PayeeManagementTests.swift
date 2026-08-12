@@ -346,6 +346,78 @@ extension LocalFirstActualStoreTests {
         #expect(preview.notes == "Morning learned")
     }
 
+    @Test func rulePreviewResolvesMappedPayeesAndKeepsImportedNameDistinct() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                stage TEXT,
+                conditions TEXT,
+                actions TEXT,
+                conditions_op TEXT DEFAULT 'and',
+                tombstone INTEGER DEFAULT 0
+            );
+            INSERT INTO payees VALUES ('old-coffee', 'Old Coffee', NULL, 1);
+            INSERT INTO payee_mapping VALUES ('old-coffee', 'coffee');
+            INSERT INTO rules VALUES (
+                'mapped-payee',
+                NULL,
+                '[{"field":"payee","op":"is","value":"old-coffee","type":"id"}]',
+                '[{"op":"append-notes","value":" mapped"}]',
+                'and',
+                0
+            );
+            INSERT INTO rules VALUES (
+                'imported-name',
+                NULL,
+                '[{"field":"imported_payee","op":"contains","value":"amzn","type":"string"}]',
+                '[{"op":"append-notes","value":" imported"}]',
+                'and',
+                0
+            );
+            """)
+        let database = try #require(store.database)
+        let rules = try await database.fetchRules()
+        let mappedRule = try #require(rules.first { $0.id == "mapped-payee" })
+        #expect(mappedRule.draft?.conditions.first?.value == .string("coffee"))
+
+        let preview = try await store.previewRules(
+            for: TransactionDraft(
+                accountID: "checking",
+                date: try makeDate(year: 2026, month: 8, day: 12),
+                amountMinorUnits: -500,
+                payeeID: "coffee",
+                payeeName: "Coffee Shop",
+                categoryID: nil,
+                notes: "Morning",
+                cleared: false,
+                isTransfer: false,
+                importedPayee: "AMZN Marketplace"
+            ),
+            budgetID: "group-1"
+        )
+        #expect(preview.notes == "Morning imported mapped" || preview.notes == "Morning mapped imported")
+    }
+
+    @Test func ruleEditorOptionsIncludeClosedHiddenAndIncomeEntities() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            INSERT INTO accounts VALUES ('closed', 'Closed Account', 0, 1, 0, 9);
+            INSERT INTO category_groups VALUES ('hidden-group', 'Hidden Group', 0, 1, 0, 9);
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 10);
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+                VALUES ('hidden-category', 'Hidden Category', 'hidden-group', 0, 1, 0, 9, NULL);
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+                VALUES ('income-category', 'Income Category', 'income-group', 1, 0, 0, 10, NULL);
+            """)
+
+        let options = try await store.ruleEditorOptions(budgetID: "group-1")
+
+        #expect(options.accounts.contains { $0.id == "closed" && $0.name == "Closed Account" })
+        #expect(options.categoryGroups.contains { $0.id == "hidden-group" })
+        #expect(options.categoryGroups.contains { $0.id == "income-group" })
+        #expect(options.categories.contains { $0.id == "hidden-category" })
+        #expect(options.categories.contains { $0.id == "income-category" })
+    }
+
     @Test func unsupportedRuleShapesStayReadOnlyAndCannotBeRewritten() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             CREATE TABLE rules (
