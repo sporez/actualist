@@ -59,4 +59,27 @@ struct ChangedResources: Hashable, Sendable {
 struct TransactionRulePreview: Hashable, Sendable {
     let categoryID: String?
     let notes: String?
+    let accountID: String?
+    let payeeID: String?
+    let amountMinorUnits: Int?
+    let date: Date?
+    let cleared: Bool?
+
+    init(
+        categoryID: String?,
+        notes: String?,
+        accountID: String? = nil,
+        payeeID: String? = nil,
+        amountMinorUnits: Int? = nil,
+        date: Date? = nil,
+        cleared: Bool? = nil
+    ) {
+        self.categoryID = categoryID
+        self.notes = notes
+        self.accountID = accountID
+        self.payeeID = payeeID
+        self.amountMinorUnits = amountMinorUnits
+        self.date = date
+        self.cleared = cleared
+    }
 }

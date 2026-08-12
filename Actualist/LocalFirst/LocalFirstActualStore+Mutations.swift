@@ -6,13 +6,16 @@ extension LocalFirstActualStore {
     func createPayeeAndRefresh(budgetID: String, name: String) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
+        let payeeID = UUID().uuidString
         let messages = try await database.createPayeeMessages(
             name: name,
-            payeeID: UUID().uuidString,
+            payeeID: payeeID,
             builder: &builder
         )
+        let undo = try await database.payeeUndoMessagesForCreate(payeeID: payeeID, builder: &builder)
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -32,8 +35,10 @@ extension LocalFirstActualStore {
         guard !messages.isEmpty else {
             return
         }
+        let undo = try await database.payeeUndoMessagesForRename(payeeID: payeeID, builder: &builder)
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -50,21 +55,82 @@ extension LocalFirstActualStore {
             targetPayeeID: targetPayeeID,
             builder: &builder
         )
+        let undo = try await database.payeeUndoMessagesForMerge(
+            sourcePayeeIDs: sourcePayeeIDs,
+            builder: &builder
+        )
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 
     func deletePayeeAndRefresh(budgetID: String, payeeID: String) async throws {
+        try await deletePayeesAndRefresh(budgetID: budgetID, payeeIDs: [payeeID])
+    }
+
+    func deletePayeesAndRefresh(budgetID: String, payeeIDs: Set<String>) async throws {
+        guard !payeeIDs.isEmpty else { return }
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.deletePayeeMessages(
-            payeeID: payeeID,
-            builder: &builder
-        )
+        var messages: [ActualSyncDecodedMessage] = []
+        var undo: [ActualSyncDecodedMessage] = []
+        for payeeID in payeeIDs.sorted() {
+            messages.append(contentsOf: try await database.deletePayeeMessages(
+                payeeID: payeeID,
+                builder: &builder
+            ))
+            undo.append(contentsOf: try await database.payeeUndoMessagesForDelete(
+                payeeID: payeeID,
+                builder: &builder
+            ))
+        }
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        lastPayeeUndoMessagesByBudget[budgetID] = undo
+        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+    }
+
+    func updatePayeesAndRefresh(
+        budgetID: String,
+        updates: [PayeeManagementUpdate]
+    ) async throws {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let mutation = try await database.updatePayeeManagementMessages(
+            updates: updates,
+            builder: &builder
+        )
+        guard !mutation.messages.isEmpty else { return }
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(mutation.messages)
+        lastPayeeUndoMessagesByBudget[budgetID] = mutation.undo
+        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+    }
+
+    func setGlobalCategoryLearningAndRefresh(budgetID: String, enabled: Bool) async throws {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let mutation = try await database.setGlobalCategoryLearningMessages(
+            enabled: enabled,
+            builder: &builder
+        )
+        guard !mutation.messages.isEmpty else { return }
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(mutation.messages)
+        lastPayeeUndoMessagesByBudget[budgetID] = mutation.undo
+        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+    }
+
+    func undoLastPayeeMutationAndRefresh(budgetID: String) async throws {
+        let database = try requireDatabase(for: budgetID)
+        guard let messages = lastPayeeUndoMessagesByBudget[budgetID], !messages.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("there is no payee change to undo")
+        }
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        lastPayeeUndoMessagesByBudget[budgetID] = nil
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -74,6 +140,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws {
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+            .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         invalidateReports(budgetID: budgetID)
 
         let prefix = "\(budgetID)|"
@@ -245,7 +312,8 @@ extension LocalFirstActualStore {
     }
 
     func previewRules(for draft: TransactionDraft, budgetID: String) async throws -> TransactionRulePreview {
-        throw LocalFirstError.unsupportedWrite
+        let database = try requireDatabase(for: budgetID)
+        return try await database.previewRules(for: draft)
     }
 
     func createTransactionAndRefresh(
@@ -291,6 +359,18 @@ extension LocalFirstActualStore {
 
         let messages = payeeResolution.messages + transactionMessages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        let learningMessages = try await database.categoryLearningRuleMessages(
+            changedTransactionIDs: !draft.isTransfer && !draft.isSplit && draft.categoryID != nil
+                ? [transactionID]
+                : [],
+            builder: &builder
+        )
+        if !learningMessages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
+            rulesByBudget[budgetID] = try await database.fetchRules()
+            payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+                .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        }
         await didCreate()
 
         let uniqueAccounts = Array(Set(changedAccounts))
@@ -336,6 +416,16 @@ extension LocalFirstActualStore {
 
         let messages = payeeResolution.messages + update.messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        let learningMessages = try await database.categoryLearningRuleMessages(
+            changedTransactionIDs: draft.categoryID == nil ? [] : [transactionID],
+            builder: &builder
+        )
+        if !learningMessages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
+            rulesByBudget[budgetID] = try await database.fetchRules()
+            payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+                .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        }
         await didUpdate()
 
         let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))
@@ -407,6 +497,16 @@ extension LocalFirstActualStore {
         }
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        let learningMessages = try await database.categoryLearningRuleMessages(
+            changedTransactionIDs: transactionIDs,
+            builder: &builder
+        )
+        if !learningMessages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
+            rulesByBudget[budgetID] = try await database.fetchRules()
+            payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+                .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        }
         await didUpdate()
         let changedAccounts = accountIDs.sorted()
         let changedMonths = monthIDs.sorted()

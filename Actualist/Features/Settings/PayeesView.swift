@@ -7,6 +7,7 @@ struct PayeesView: View {
     @State private var isMergeTargetPresented = false
     @State private var pendingMergeTarget: ManagedPayee?
     @State private var pendingDeletePayee: ManagedPayee?
+    @State private var isBulkDeleteConfirmationPresented = false
 
     var body: some View {
         List {
@@ -30,6 +31,15 @@ struct PayeesView: View {
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.danger)
                     .settingsRowChrome()
+            }
+
+            if viewModel.unusedPayeeCount > 0 {
+                Picker("Payees", selection: $viewModel.listFilter) {
+                    Text("All").tag(PayeesViewModel.ListFilter.all)
+                    Text("Unused (\(viewModel.unusedPayeeCount))").tag(PayeesViewModel.ListFilter.unused)
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
             }
 
             Section("Payees") {
@@ -59,17 +69,40 @@ struct PayeesView: View {
             if !viewModel.transferPayees.isEmpty {
                 Section {
                     ForEach(viewModel.transferPayees) { payee in
-                        PayeeManagementRow(
-                            payee: payee,
-                            isSelected: false,
-                            showsSelection: false,
-                            isPrivacyModeEnabled: privacyModeEnabled
-                        )
+                        NavigationLink {
+                            PayeeRulesView(payee: payee)
+                        } label: {
+                            PayeeManagementRow(
+                                payee: payee,
+                                isSelected: false,
+                                showsSelection: false,
+                                isPrivacyModeEnabled: privacyModeEnabled
+                            )
+                        }
+                        .disabled(privacyModeEnabled)
                     }
                 } header: {
                     Text("Transfer Payees")
                 } footer: {
                     Text("Transfer payees are linked to accounts and cannot be edited here.")
+                }
+                .settingsSectionChrome()
+            }
+
+            if viewModel.snapshot.supportsCategoryLearning && !privacyModeEnabled {
+                Section {
+                    Toggle(
+                        "Category Learning",
+                        isOn: Binding(
+                            get: { viewModel.snapshot.globalCategoryLearningEnabled },
+                            set: { enabled in
+                                Task { _ = await viewModel.setGlobalCategoryLearning(enabled, using: appState) }
+                            }
+                        )
+                    )
+                    .disabled(viewModel.isSubmitting)
+                } footer: {
+                    Text("When enabled, Actual may create category rules from repeated payee choices. Disabling it keeps existing rules.")
                 }
                 .settingsSectionChrome()
             }
@@ -109,13 +142,55 @@ struct PayeesView: View {
 
                 if viewModel.isSelecting {
                     ToolbarItemGroup(placement: .bottomBar) {
-                        Text("\(viewModel.selectedPayeeIDs.count) selected")
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                        Spacer()
-                        Button("Merge") {
-                            isMergeTargetPresented = true
+                        Button(viewModel.areAllVisiblePayeesSelected ? "Deselect All" : "Select All") {
+                            viewModel.toggleAllVisibleSelection()
                         }
-                        .disabled(!viewModel.canBeginMerge)
+                        .disabled(viewModel.visibleRegularPayeeIDs.isEmpty)
+                        Spacer()
+                        Menu {
+                            if viewModel.snapshot.supportsFavorite {
+                                Button(viewModel.selectedAreAllFavorites ? "Unfavorite" : "Favorite") {
+                                    Task {
+                                        _ = await viewModel.setFavoriteForSelection(
+                                            !viewModel.selectedAreAllFavorites,
+                                            using: appState
+                                        )
+                                    }
+                                }
+                            }
+                            if viewModel.snapshot.supportsCategoryLearning
+                                && viewModel.snapshot.globalCategoryLearningEnabled {
+                                Button(viewModel.selectedAllLearnCategories ? "Disable Learning" : "Enable Learning") {
+                                    Task {
+                                        _ = await viewModel.setLearningForSelection(
+                                            !viewModel.selectedAllLearnCategories,
+                                            using: appState
+                                        )
+                                    }
+                                }
+                            }
+                            Button("Merge") {
+                                isMergeTargetPresented = true
+                            }
+                            .disabled(!viewModel.canBeginMerge)
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                isBulkDeleteConfirmationPresented = true
+                            }
+                            .disabled(!viewModel.canDeleteSelection)
+                        } label: {
+                            Label("\(viewModel.selectedPayeeIDs.count) Selected", systemImage: "ellipsis.circle")
+                        }
+                        .disabled(viewModel.selectedPayeeIDs.isEmpty || viewModel.isSubmitting)
+                    }
+                }
+
+                if !viewModel.isSelecting && viewModel.snapshot.canUndo {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button("Undo", systemImage: "arrow.uturn.backward") {
+                            Task { _ = await viewModel.undo(using: appState) }
+                        }
+                        .disabled(viewModel.isSubmitting)
                     }
                 }
             }
@@ -184,6 +259,18 @@ struct PayeesView: View {
         } message: {
             Text("Only unused payees without rule references can be deleted.")
         }
+        .confirmationDialog(
+            "Delete Selected Payees?",
+            isPresented: $isBulkDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete \(viewModel.selectedPayeeIDs.count) Payees", role: .destructive) {
+                Task { _ = await viewModel.deleteSelection(using: appState) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Only the selected unused payees without rule references will be removed. You can undo this change while this budget remains open.")
+        }
     }
 
     @ViewBuilder
@@ -251,8 +338,20 @@ private struct PayeeManagementRow: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(displayName)
-                    .foregroundStyle(ActualistTheme.primaryText)
+                HStack(spacing: 6) {
+                    Text(displayName)
+                        .foregroundStyle(ActualistTheme.primaryText)
+                    if payee.favorite && !payee.isTransfer {
+                        Image(systemName: "bookmark.fill")
+                            .font(.caption2)
+                            .foregroundStyle(ActualistTheme.accent)
+                    }
+                    if !payee.learnCategories && !payee.isTransfer {
+                        Image(systemName: "lightbulb.slash.fill")
+                            .font(.caption2)
+                            .foregroundStyle(ActualistTheme.danger)
+                    }
+                }
                 Text(statusText)
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
@@ -310,6 +409,50 @@ private struct PayeeDetailView: View {
             }
             .settingsSectionChrome()
 
+            if let payee, viewModel.snapshot.supportsFavorite {
+                Section {
+                    Toggle("Favorite", isOn: Binding(
+                        get: { payee.favorite },
+                        set: { favorite in
+                            Task {
+                                _ = await viewModel.setFavorite(
+                                    payeeID: payeeID,
+                                    favorite: favorite,
+                                    using: appState
+                                )
+                            }
+                        }
+                    ))
+                    .disabled(viewModel.isSubmitting)
+                } footer: {
+                    Text("Favorite payees appear first when choosing a payee for a transaction.")
+                }
+                .settingsSectionChrome()
+            }
+
+            if let payee,
+               viewModel.snapshot.supportsCategoryLearning,
+               viewModel.snapshot.globalCategoryLearningEnabled {
+                Section {
+                    Toggle("Learn Categories", isOn: Binding(
+                        get: { payee.learnCategories },
+                        set: { enabled in
+                            Task {
+                                _ = await viewModel.setLearning(
+                                    payeeID: payeeID,
+                                    enabled: enabled,
+                                    using: appState
+                                )
+                            }
+                        }
+                    ))
+                    .disabled(viewModel.isSubmitting)
+                } footer: {
+                    Text("Actual may update this payee's category rule after the same category is used three times among its five latest transactions.")
+                }
+                .settingsSectionChrome()
+            }
+
             if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(.footnote)
@@ -320,7 +463,11 @@ private struct PayeeDetailView: View {
             if let payee {
                 Section("Usage") {
                     LabeledContent("Transactions", value: "\(payee.transactionCount)")
-                    LabeledContent("Rules", value: "\(payee.ruleReferenceCount)")
+                    NavigationLink {
+                        PayeeRulesView(payee: payee)
+                    } label: {
+                        LabeledContent("Rules", value: "\(payee.ruleReferenceCount)")
+                    }
                 }
                 .settingsSectionChrome()
 

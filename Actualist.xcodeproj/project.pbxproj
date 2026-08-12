@@ -15,6 +15,10 @@
 		010000000000000000000071 /* BudgetDatabase+Payees.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000071 /* BudgetDatabase+Payees.swift */; };
 		010000000000000000000072 /* PayeesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000072 /* PayeesViewModel.swift */; };
 		010000000000000000000073 /* PayeesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000073 /* PayeesView.swift */; };
+		01000000000000000000007D /* RuleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000007D /* RuleRepository.swift */; };
+		01000000000000000000007E /* BudgetDatabase+Rules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000007E /* BudgetDatabase+Rules.swift */; };
+		01000000000000000000007F /* LocalFirstActualStore+Rules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000007F /* LocalFirstActualStore+Rules.swift */; };
+		010000000000000000000080 /* PayeeRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000080 /* PayeeRulesView.swift */; };
 		010000000000000000000074 /* PayeeManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000074 /* PayeeManagementTests.swift */; };
 		010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000075 /* OpenSourceLicensesView.swift */; };
 		010000000000000000000076 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000076 /* LICENSE */; };
@@ -148,6 +152,10 @@
 		020000000000000000000071 /* BudgetDatabase+Payees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Payees.swift"; sourceTree = "<group>"; };
 		020000000000000000000072 /* PayeesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeesViewModel.swift; sourceTree = "<group>"; };
 		020000000000000000000073 /* PayeesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeesView.swift; sourceTree = "<group>"; };
+		02000000000000000000007D /* RuleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleRepository.swift; sourceTree = "<group>"; };
+		02000000000000000000007E /* BudgetDatabase+Rules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Rules.swift"; sourceTree = "<group>"; };
+		02000000000000000000007F /* LocalFirstActualStore+Rules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Rules.swift"; sourceTree = "<group>"; };
+		020000000000000000000080 /* PayeeRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeRulesView.swift; sourceTree = "<group>"; };
 		020000000000000000000074 /* PayeeManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeManagementTests.swift; sourceTree = "<group>"; };
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
 		020000000000000000000004 /* ActualistTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistTheme.swift; sourceTree = "<group>"; };
@@ -498,6 +506,7 @@
 				02000000000000000000000D /* SettingsView.swift */,
 				020000000000000000000073 /* PayeesView.swift */,
 				020000000000000000000072 /* PayeesViewModel.swift */,
+				020000000000000000000080 /* PayeeRulesView.swift */,
 				02000000000000000000005C /* SettingsDeveloperDiagnostics.swift */,
 				02000000000000000000005D /* SettingsBudgetPickerSheet.swift */,
 				02000000000000000000005E /* SettingsAccountOrderSheet.swift */,
@@ -526,6 +535,7 @@
 				02000000000000000000002D /* AccountRepository.swift */,
 				020000000000000000000022 /* TransactionRepository.swift */,
 				020000000000000000000070 /* PayeeRepository.swift */,
+				02000000000000000000007D /* RuleRepository.swift */,
 				02000000000000000000004D /* ReportsRepository.swift */,
 			);
 			path = Repositories;
@@ -548,6 +558,7 @@
 					020000000000000000000049 /* LocalFirstActualStore+Reads.swift */,
 					02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */,
 					02000000000000000000004B /* LocalFirstActualStore+Sync.swift */,
+					02000000000000000000007F /* LocalFirstActualStore+Rules.swift */,
 					02000000000000000000004F /* LocalFirstActualStore+Reports.swift */,
 				04000000000000000000001B /* Network */,
 				04000000000000000000001C /* Database */,
@@ -573,6 +584,7 @@
 				020000000000000000000041 /* BudgetDatabaseModels.swift */,
 				020000000000000000000043 /* BudgetDatabase+Reads.swift */,
 				020000000000000000000071 /* BudgetDatabase+Payees.swift */,
+				02000000000000000000007E /* BudgetDatabase+Rules.swift */,
 				020000000000000000000044 /* BudgetDatabase+Sync.swift */,
 				020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */,
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
@@ -739,6 +751,7 @@
 				010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */,
 				010000000000000000000073 /* PayeesView.swift in Sources */,
 				010000000000000000000072 /* PayeesViewModel.swift in Sources */,
+				010000000000000000000080 /* PayeeRulesView.swift in Sources */,
 				01000000000000000000005C /* SettingsDeveloperDiagnostics.swift in Sources */,
 				01000000000000000000005D /* SettingsBudgetPickerSheet.swift in Sources */,
 				01000000000000000000005E /* SettingsAccountOrderSheet.swift in Sources */,
@@ -765,6 +778,7 @@
 				01000000000000000000001D /* TransactionModels.swift in Sources */,
 				01000000000000000000001F /* TransactionRepository.swift in Sources */,
 				010000000000000000000070 /* PayeeRepository.swift in Sources */,
+				01000000000000000000007D /* RuleRepository.swift in Sources */,
 				01000000000000000000002E /* LocalFirstModels.swift in Sources */,
 				01000000000000000000003D /* ActualBudgetCrypto.swift in Sources */,
 				01000000000000000000002F /* ActualServerSyncClient.swift in Sources */,
@@ -773,6 +787,7 @@
 				010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */,
 				010000000000000000000043 /* BudgetDatabase+Reads.swift in Sources */,
 				010000000000000000000071 /* BudgetDatabase+Payees.swift in Sources */,
+				01000000000000000000007E /* BudgetDatabase+Rules.swift in Sources */,
 				010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */,
 				010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */,
 				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
@@ -786,6 +801,7 @@
 				010000000000000000000049 /* LocalFirstActualStore+Reads.swift in Sources */,
 				01000000000000000000004A /* LocalFirstActualStore+Mutations.swift in Sources */,
 				01000000000000000000004B /* LocalFirstActualStore+Sync.swift in Sources */,
+				01000000000000000000007F /* LocalFirstActualStore+Rules.swift in Sources */,
 				01000000000000000000004C /* ReportsModels.swift in Sources */,
 				01000000000000000000004D /* ReportsRepository.swift in Sources */,
 				01000000000000000000004E /* BudgetDatabase+Reports.swift in Sources */,

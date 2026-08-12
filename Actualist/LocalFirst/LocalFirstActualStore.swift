@@ -4,7 +4,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, PayeeRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol, ReportsRepositoryProtocol {
+final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, PayeeRepositoryProtocol, RuleRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol, ReportsRepositoryProtocol {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport
@@ -24,6 +24,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
     var accountsByBudget: [String: [AccountDisplay]] = [:]
     var payeesByBudget: [String: PayeeManagementSnapshot] = [:]
+    var lastPayeeUndoMessagesByBudget: [String: [ActualSyncDecodedMessage]] = [:]
+    var rulesByBudget: [String: [ManagedRule]] = [:]
     var monthsByBudget: [String: [String]] = [:]
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
     var accountTransactionsByKey: [String: TransactionFeedPage] = [:]
@@ -91,6 +93,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         database = nil
         accountsByBudget = [:]
         payeesByBudget = [:]
+        lastPayeeUndoMessagesByBudget = [:]
+        rulesByBudget = [:]
         monthsByBudget = [:]
         loadedBudgetMonthsByBudget = [:]
         accountTransactionsByKey = [:]

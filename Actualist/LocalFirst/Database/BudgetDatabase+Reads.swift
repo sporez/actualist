@@ -60,21 +60,91 @@ extension BudgetDatabase {
             let columns = try columnSet(for: "payees", db: db)
             let category = column("category", fallback: "NULL", columns: columns)
             let transferAccount = column("transfer_acct", fallback: "NULL", columns: columns)
+            let favorite = column("favorite", fallback: "0", columns: columns)
             let sql = """
-                SELECT id, name, \(category) AS category, \(transferAccount) AS transfer_acct
+                SELECT id, name, \(category) AS category, \(transferAccount) AS transfer_acct,
+                       \(favorite) AS favorite
                 FROM payees
                 WHERE \(predicateForLiveRows(columns: columns))
-                ORDER BY lower(name)
                 """
+            let recentRanks = try recentCommonPayeeRanks(db: db)
             return try Row.fetchAll(db, sql: sql).map { row in
-                ActualPayee(
+                (
+                    payee: ActualPayee(
                     id: row["id"],
                     name: row["name"] ?? "",
                     category: row["category"],
                     transferAccount: row["transfer_acct"]
+                    ),
+                    favorite: flexibleBool(row["favorite"])
                 )
             }
+            .sorted { lhs, rhs in
+                if lhs.payee.transferAccount != nil || rhs.payee.transferAccount != nil {
+                    if (lhs.payee.transferAccount != nil) != (rhs.payee.transferAccount != nil) {
+                        return lhs.payee.transferAccount == nil
+                    }
+                }
+                if lhs.favorite != rhs.favorite {
+                    return lhs.favorite
+                }
+                let lhsRank = lhs.payee.id.flatMap { recentRanks[$0] }
+                let rhsRank = rhs.payee.id.flatMap { recentRanks[$0] }
+                if lhsRank != rhsRank {
+                    if let lhsRank, let rhsRank { return lhsRank < rhsRank }
+                    return lhsRank != nil
+                }
+                return lhs.payee.name.localizedCaseInsensitiveCompare(rhs.payee.name) == .orderedAscending
+            }
+            .map(\.payee)
         }
+    }
+
+    private func recentCommonPayeeRanks(db: Database) throws -> [String: Int] {
+        guard try tableExists("transactions", db: db) else { return [:] }
+        let transactionColumns = try columnSet(for: "transactions", db: db)
+        guard transactionColumns.contains("date"),
+              let payeeColumn = ["description", "payee"].first(where: transactionColumns.contains) else {
+            return [:]
+        }
+        let cutoff = Calendar(identifier: .iso8601).date(byAdding: .weekOfYear, value: -12, to: Date()) ?? Date()
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        let rawPayee = "t.\(quotedIdentifier(payeeColumn))"
+        var resolvedPayee = rawPayee
+        var mappingJoin = ""
+        if try tableExists("payee_mapping", db: db) {
+            let mappingColumns = try columnSet(for: "payee_mapping", db: db)
+            let target = mappingColumns.contains("targetId") ? "targetId" : mappingColumns.contains("target_id") ? "target_id" : nil
+            if mappingColumns.contains("id"), let target {
+                mappingJoin = "LEFT JOIN payee_mapping pm ON pm.id = \(rawPayee)"
+                resolvedPayee = "COALESCE(pm.\(quotedIdentifier(target)), \(rawPayee))"
+            }
+        }
+        let liveTransactions = predicateForLiveRows(columns: transactionColumns)
+            .replacingOccurrences(of: "tombstone", with: "t.tombstone")
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT \(resolvedPayee) AS payee_id, COUNT(*) AS usage_count
+                FROM transactions t
+                \(mappingJoin)
+                WHERE \(liveTransactions)
+                  AND \(normalizedDateExpression("t.\(quotedIdentifier("date"))")) > ?
+                  AND \(rawPayee) IS NOT NULL
+                GROUP BY \(resolvedPayee)
+                ORDER BY usage_count DESC, payee_id
+                LIMIT 10
+                """,
+            arguments: [formatter.string(from: cutoff)]
+        )
+        return Dictionary(uniqueKeysWithValues: rows.enumerated().compactMap { index, row in
+            guard let id = row["payee_id"] as String? else { return nil }
+            return (id, index)
+        })
     }
 
     func fetchCategories() throws -> [ActualCategory] {

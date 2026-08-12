@@ -839,6 +839,19 @@ final class TransactionEditorViewModel {
 
         selectedCategoryID = preview.categoryID
         notes = preview.notes ?? ""
+        if let accountID = preview.accountID, accounts.contains(where: { $0.id == accountID }) {
+            selectedAccountID = accountID
+        }
+        if let payeeID = preview.payeeID,
+           let payee = payees.first(where: { $0.id == payeeID }) {
+            selectPayee(payee)
+        }
+        if let amount = preview.amountMinorUnits {
+            kind = amount < 0 ? .spend : .inflow
+            amountDigits = String(amount.magnitude)
+        }
+        if let date = preview.date { self.date = date }
+        if let cleared = preview.cleared { isCleared = cleared }
     }
 
     private var checkedSplitTotalCents: Int? {

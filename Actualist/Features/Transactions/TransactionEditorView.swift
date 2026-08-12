@@ -68,6 +68,13 @@ struct TransactionEditorView: View {
         .task {
             await viewModel.load(using: appState, prefilledAccount: prefilledAccount)
             if !viewModel.isEditing {
+                if let budgetID = appState.settings.selectedBudgetID,
+                   !viewModel.selectedPayeeName.isEmpty {
+                    await viewModel.previewRules(
+                        budgetID: budgetID,
+                        repository: appState.transactionRepository
+                    )
+                }
                 isAmountFocused = true
             }
         }
@@ -818,6 +825,7 @@ private struct PayeeSelectionView: View {
                             Button {
                                 viewModel.useCustomPayee(trimmedSearchText)
                                 dismiss()
+                                previewRulesForSelection()
                             } label: {
                                 HStack(spacing: 12) {
                                     Image(systemName: "plus.circle.fill")
@@ -933,6 +941,7 @@ private struct PayeeSelectionView: View {
         Button {
             viewModel.selectPayee(option.payee)
             dismiss()
+            previewRulesForSelection()
         } label: {
             HStack(spacing: 12) {
                 if option.isTransfer {
@@ -958,6 +967,16 @@ private struct PayeeSelectionView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func previewRulesForSelection() {
+        guard let budgetID = appState.settings.selectedBudgetID else { return }
+        Task {
+            await viewModel.previewRules(
+                budgetID: budgetID,
+                repository: appState.transactionRepository
+            )
+        }
     }
 }
 

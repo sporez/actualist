@@ -4,8 +4,16 @@ import Observation
 @MainActor
 @Observable
 final class PayeesViewModel {
+    enum ListFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case unused = "Unused"
+
+        var id: String { rawValue }
+    }
+
     var snapshot: PayeeManagementSnapshot = .empty
     var searchText = ""
+    var listFilter: ListFilter = .all
     var selectedPayeeIDs: Set<String> = []
     var isSelecting = false
     var isLoading = false
@@ -13,7 +21,9 @@ final class PayeesViewModel {
     var errorMessage: String?
 
     var regularPayees: [ManagedPayee] {
-        filtered(snapshot.payees.filter { !$0.isTransfer })
+        filtered(snapshot.payees.filter { payee in
+            !payee.isTransfer && (listFilter == .all || payee.isUnused)
+        })
     }
 
     var transferPayees: [ManagedPayee] {
@@ -26,6 +36,30 @@ final class PayeesViewModel {
 
     var canBeginMerge: Bool {
         snapshot.supportsMerge && selectedPayeeIDs.count >= 2 && !isSubmitting
+    }
+
+    var unusedPayeeCount: Int {
+        snapshot.payees.count { !$0.isTransfer && $0.isUnused }
+    }
+
+    var visibleRegularPayeeIDs: Set<String> {
+        Set(regularPayees.map(\.id))
+    }
+
+    var areAllVisiblePayeesSelected: Bool {
+        !visibleRegularPayeeIDs.isEmpty && visibleRegularPayeeIDs.isSubset(of: selectedPayeeIDs)
+    }
+
+    var canDeleteSelection: Bool {
+        !selectedPayees.isEmpty && selectedPayees.allSatisfy(\.canDelete) && !isSubmitting
+    }
+
+    var selectedAreAllFavorites: Bool {
+        !selectedPayees.isEmpty && selectedPayees.allSatisfy(\.favorite)
+    }
+
+    var selectedAllLearnCategories: Bool {
+        !selectedPayees.isEmpty && selectedPayees.allSatisfy(\.learnCategories)
     }
 
     func load(using appState: AppState) async {
@@ -103,6 +137,73 @@ final class PayeesViewModel {
         }
     }
 
+    func deleteSelection(using appState: AppState) async -> Bool {
+        let ids = Set(selectedPayees.filter(\.canDelete).map(\.id))
+        guard ids.count == selectedPayees.count, !ids.isEmpty else {
+            errorMessage = "Only unused payees without rule references can be deleted."
+            return false
+        }
+        let succeeded = await mutate(using: appState) { repository, budgetID in
+            try await repository.deletePayeesAndRefresh(budgetID: budgetID, payeeIDs: ids)
+        }
+        if succeeded { endSelection() }
+        return succeeded
+    }
+
+    func setFavoriteForSelection(_ favorite: Bool, using appState: AppState) async -> Bool {
+        let updates = selectedPayees.map {
+            PayeeManagementUpdate(payeeID: $0.id, favorite: favorite)
+        }
+        guard !updates.isEmpty else { return false }
+        let succeeded = await mutate(using: appState) { repository, budgetID in
+            try await repository.updatePayeesAndRefresh(budgetID: budgetID, updates: updates)
+        }
+        if succeeded { endSelection() }
+        return succeeded
+    }
+
+    func setLearningForSelection(_ enabled: Bool, using appState: AppState) async -> Bool {
+        let updates = selectedPayees.map {
+            PayeeManagementUpdate(payeeID: $0.id, learnCategories: enabled)
+        }
+        guard !updates.isEmpty else { return false }
+        let succeeded = await mutate(using: appState) { repository, budgetID in
+            try await repository.updatePayeesAndRefresh(budgetID: budgetID, updates: updates)
+        }
+        if succeeded { endSelection() }
+        return succeeded
+    }
+
+    func setFavorite(payeeID: String, favorite: Bool, using appState: AppState) async -> Bool {
+        await mutate(using: appState) { repository, budgetID in
+            try await repository.updatePayeesAndRefresh(
+                budgetID: budgetID,
+                updates: [PayeeManagementUpdate(payeeID: payeeID, favorite: favorite)]
+            )
+        }
+    }
+
+    func setLearning(payeeID: String, enabled: Bool, using appState: AppState) async -> Bool {
+        await mutate(using: appState) { repository, budgetID in
+            try await repository.updatePayeesAndRefresh(
+                budgetID: budgetID,
+                updates: [PayeeManagementUpdate(payeeID: payeeID, learnCategories: enabled)]
+            )
+        }
+    }
+
+    func setGlobalCategoryLearning(_ enabled: Bool, using appState: AppState) async -> Bool {
+        await mutate(using: appState) { repository, budgetID in
+            try await repository.setGlobalCategoryLearningAndRefresh(budgetID: budgetID, enabled: enabled)
+        }
+    }
+
+    func undo(using appState: AppState) async -> Bool {
+        await mutate(using: appState) { repository, budgetID in
+            try await repository.undoLastPayeeMutationAndRefresh(budgetID: budgetID)
+        }
+    }
+
     func toggleSelection(_ payeeID: String) {
         if selectedPayeeIDs.contains(payeeID) {
             selectedPayeeIDs.remove(payeeID)
@@ -119,6 +220,14 @@ final class PayeesViewModel {
     func endSelection() {
         selectedPayeeIDs = []
         isSelecting = false
+    }
+
+    func toggleAllVisibleSelection() {
+        if areAllVisiblePayeesSelected {
+            selectedPayeeIDs.subtract(visibleRegularPayeeIDs)
+        } else {
+            selectedPayeeIDs.formUnion(visibleRegularPayeeIDs)
+        }
     }
 
     private func mutate(
@@ -162,6 +271,11 @@ final class PayeesViewModel {
         guard !query.isEmpty else {
             return payees
         }
-        return payees.filter { $0.displayName.localizedCaseInsensitiveContains(query) }
+        let normalizedQuery = query.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return payees.filter { payee in
+            let searchable = (payee.isTransfer ? "Transfer: " : "") + payee.displayName
+            return searchable.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .contains(normalizedQuery)
+        }
     }
 }

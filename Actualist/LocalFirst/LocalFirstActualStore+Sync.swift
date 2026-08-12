@@ -310,6 +310,7 @@ extension LocalFirstActualStore {
         monthsByBudget[budgetID] = nil
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+            .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
 
         let prefix = "\(budgetID)|"
         for (key, page) in Array(accountTransactionsByKey) where key.hasPrefix(prefix) {

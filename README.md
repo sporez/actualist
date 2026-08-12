@@ -142,7 +142,9 @@ them and verify the result in Actual.
   Actual server or another Actual client will arrive through normal sync.
 - Account reconciliation is not yet available.
 - Account lifecycle actions beyond adding an account are incomplete.
-- Rule preview and application are not yet available.
+- Payee rules support Actual's common conditions and field-setting/note actions.
+  Schedule, split-formula, delete-transaction, and other unsupported rule shapes
+  remain visible but read-only so their JSON is never rewritten or lost.
 - Budget Templates support only a subset of Actual's template behavior and remain
   experimental.
 

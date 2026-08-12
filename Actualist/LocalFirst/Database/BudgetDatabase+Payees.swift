@@ -169,15 +169,173 @@ extension BudgetDatabase {
         }
     }
 
+    func updatePayeeManagementMessages(
+        updates: [PayeeManagementUpdate],
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> (messages: [ActualSyncDecodedMessage], undo: [ActualSyncDecodedMessage]) {
+        try queue.read { db in
+            let columns = try columnSet(for: "payees", db: db)
+            var messages: [ActualSyncDecodedMessage] = []
+            var undo: [ActualSyncDecodedMessage] = []
+
+            for update in updates {
+                _ = try requiredRegularPayee(update.payeeID, db: db)
+                guard let row = try Row.fetchOne(
+                    db,
+                    sql: "SELECT * FROM payees WHERE id = ? AND \(predicateForLiveRows(columns: columns))",
+                    arguments: [update.payeeID]
+                ) else {
+                    throw LocalFirstError.invalidLocalWrite("payee no longer exists")
+                }
+                if let favorite = update.favorite {
+                    guard columns.contains("favorite") else {
+                        throw LocalFirstError.invalidLocalWrite("this budget does not support favorite payees")
+                    }
+                    let oldValue = flexibleBool(row["favorite"])
+                    if oldValue != favorite {
+                        messages.append(try builder.makeMessage(
+                            dataset: "payees", row: update.payeeID, column: "favorite", value: .bool(favorite)
+                        ))
+                        undo.append(try builder.makeMessage(
+                            dataset: "payees", row: update.payeeID, column: "favorite", value: .bool(oldValue)
+                        ))
+                    }
+                }
+                if let learnCategories = update.learnCategories {
+                    guard columns.contains("learn_categories") else {
+                        throw LocalFirstError.invalidLocalWrite("this budget does not support category learning")
+                    }
+                    let oldValue = row["learn_categories"] == nil
+                        ? true
+                        : flexibleBool(row["learn_categories"])
+                    if oldValue != learnCategories {
+                        messages.append(try builder.makeMessage(
+                            dataset: "payees", row: update.payeeID, column: "learn_categories", value: .bool(learnCategories)
+                        ))
+                        undo.append(try builder.makeMessage(
+                            dataset: "payees", row: update.payeeID, column: "learn_categories", value: .bool(oldValue)
+                        ))
+                    }
+                }
+            }
+            return (messages, undo)
+        }
+    }
+
+    func setGlobalCategoryLearningMessages(
+        enabled: Bool,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> (messages: [ActualSyncDecodedMessage], undo: [ActualSyncDecodedMessage]) {
+        try queue.read { db in
+            let columns = try requiredColumns(table: "preferences", required: ["value"], db: db)
+            let row = try Row.fetchOne(
+                db,
+                sql: "SELECT * FROM preferences WHERE id = ? \(columns.contains("tombstone") ? "AND (tombstone = 0 OR tombstone IS NULL)" : "")",
+                arguments: ["learn-categories"]
+            )
+            let oldValue = (row?["value"] as String?).map { $0 != "false" } ?? true
+            guard oldValue != enabled else {
+                return ([], [])
+            }
+            var messages = [try builder.makeMessage(
+                dataset: "preferences",
+                row: "learn-categories",
+                column: "value",
+                value: .string(enabled ? "true" : "false")
+            )]
+            if row == nil, columns.contains("tombstone") {
+                messages.append(try builder.makeMessage(
+                    dataset: "preferences", row: "learn-categories", column: "tombstone", value: .bool(false)
+                ))
+            }
+            let undo = [try builder.makeMessage(
+                dataset: "preferences",
+                row: "learn-categories",
+                column: "value",
+                value: .string(oldValue ? "true" : "false")
+            )]
+            return (messages, undo)
+        }
+    }
+
+    func payeeUndoMessagesForRename(
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        try queue.read { db in
+            let payee = try requiredRegularPayee(payeeID, db: db)
+            return [try builder.makeMessage(
+                dataset: "payees", row: payeeID, column: "name", value: .string(payee.name)
+            )]
+        }
+    }
+
+    func payeeUndoMessagesForDelete(
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        [try builder.makeMessage(
+            dataset: "payees", row: payeeID, column: "tombstone", value: .bool(false)
+        )]
+    }
+
+    func payeeUndoMessagesForCreate(
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        [try builder.makeMessage(
+            dataset: "payees", row: payeeID, column: "tombstone", value: .bool(true)
+        )]
+    }
+
+    func payeeUndoMessagesForMerge(
+        sourcePayeeIDs: Set<String>,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        try queue.read { db in
+            guard let mapping = try usablePayeeMappingColumns(db: db) else {
+                throw LocalFirstError.invalidLocalWrite("this budget does not support payee merging")
+            }
+            let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT \(quotedIdentifier(mapping.id)) AS id, \(quotedIdentifier(mapping.target)) AS target_id FROM payee_mapping WHERE \(quotedIdentifier(mapping.target)) IN (\(placeholders)) OR \(quotedIdentifier(mapping.id)) IN (\(placeholders))",
+                arguments: StatementArguments(Array(sourcePayeeIDs) + Array(sourcePayeeIDs))
+            )
+            var previousTargets = Dictionary(uniqueKeysWithValues: rows.compactMap { row -> (String, String)? in
+                guard let id = row["id"] as String?, let target = row["target_id"] as String? else { return nil }
+                return (id, target)
+            })
+            for sourceID in sourcePayeeIDs where previousTargets[sourceID] == nil {
+                previousTargets[sourceID] = sourceID
+            }
+            var messages = try previousTargets.sorted(by: { $0.key < $1.key }).map { id, target in
+                try builder.makeMessage(
+                    dataset: "payee_mapping", row: id, column: mapping.target, value: .string(target)
+                )
+            }
+            for sourceID in sourcePayeeIDs.sorted() {
+                messages.append(try builder.makeMessage(
+                    dataset: "payees", row: sourceID, column: "tombstone", value: .bool(false)
+                ))
+            }
+            return messages
+        }
+    }
+
     private func fetchPayeeManagementSnapshot(in db: Database) throws -> PayeeManagementSnapshot {
         // This helper is used only while already inside a queue read transaction.
         let payeeColumns = try columnSet(for: "payees", db: db)
         let transferColumn = payeeColumns.contains("transfer_acct") ? "transfer_acct" : nil
+        let favoriteColumn = payeeColumns.contains("favorite") ? "favorite" : nil
+        let learnCategoriesColumn = payeeColumns.contains("learn_categories") ? "learn_categories" : nil
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT id, name,
-                       \(transferColumn.map { quotedIdentifier($0) } ?? "NULL") AS transfer_acct
+                       \(transferColumn.map { quotedIdentifier($0) } ?? "NULL") AS transfer_acct,
+                       \(favoriteColumn.map { quotedIdentifier($0) } ?? "0") AS favorite,
+                       \(learnCategoriesColumn.map { quotedIdentifier($0) } ?? "1") AS learn_categories
                 FROM payees
                 WHERE \(predicateForLiveRows(columns: payeeColumns))
                 """
@@ -202,7 +360,11 @@ extension BudgetDatabase {
                 transactionCount: transactionCount,
                 ruleReferenceCount: ruleCount,
                 canDelete: transfer == nil && transactionCount == 0 && ruleCount == 0
-                    && !ruleReferences.hasUnreadableRules && canTombstone
+                    && !ruleReferences.hasUnreadableRules && canTombstone,
+                favorite: flexibleBool(row["favorite"]),
+                learnCategories: row["learn_categories"] == nil
+                    ? true
+                    : flexibleBool(row["learn_categories"])
             )
         }
         .sorted {
@@ -211,14 +373,34 @@ extension BudgetDatabase {
             }
             return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
+        let globalLearningEnabled = try fetchGlobalCategoryLearningEnabled(db: db)
         return PayeeManagementSnapshot(
             payees: payees,
             supportsCreate: true,
             supportsRename: true,
             supportsMerge: (try usablePayeeMappingColumns(db: db)) != nil && canTombstone,
             supportsDelete: canTombstone,
-            hasUnreadableRuleReferences: ruleReferences.hasUnreadableRules
+            hasUnreadableRuleReferences: ruleReferences.hasUnreadableRules,
+            supportsFavorite: favoriteColumn != nil,
+            supportsCategoryLearning: learnCategoriesColumn != nil && globalLearningEnabled != nil,
+            globalCategoryLearningEnabled: globalLearningEnabled ?? true
         )
+    }
+
+    private func fetchGlobalCategoryLearningEnabled(db: Database) throws -> Bool? {
+        guard try tableExists("preferences", db: db) else {
+            return nil
+        }
+        let columns = try columnSet(for: "preferences", db: db)
+        guard columns.contains("id"), columns.contains("value") else {
+            return nil
+        }
+        let value = try String.fetchOne(
+            db,
+            sql: "SELECT value FROM preferences WHERE id = ? \(columns.contains("tombstone") ? "AND (tombstone = 0 OR tombstone IS NULL)" : "") LIMIT 1",
+            arguments: ["learn-categories"]
+        )
+        return value.map { $0 != "false" } ?? true
     }
 
     private func validatedPayeeName(_ name: String) throws -> String {
@@ -383,11 +565,14 @@ extension BudgetDatabase {
         guard !jsonColumns.isEmpty else {
             return ([:], false)
         }
-        let selectedColumns = jsonColumns.map(quotedIdentifier).joined(separator: ", ")
+        let selectedColumns = (["id"].filter(columns.contains) + jsonColumns)
+            .map(quotedIdentifier)
+            .joined(separator: ", ")
         let rows = try Row.fetchAll(
             db,
             sql: "SELECT \(selectedColumns) FROM rules WHERE \(predicateForLiveRows(columns: columns))"
         )
+        let completedScheduleRules = try completedPayeeScheduleRuleIDs(db: db)
 
         var mappedPayeeIDs = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
         if let mapping = try usablePayeeMappingColumns(db: db) {
@@ -412,6 +597,9 @@ extension BudgetDatabase {
         var counts: [String: Int] = [:]
         var hasUnreadableRules = false
         for row in rows {
+            if let ruleID = row["id"] as String?, completedScheduleRules.contains(ruleID) {
+                continue
+            }
             var referencedByRule = Set<String>()
             for column in jsonColumns {
                 guard let json = row[column] as String?, !json.isEmpty else {
@@ -433,6 +621,16 @@ extension BudgetDatabase {
             }
         }
         return (counts, hasUnreadableRules)
+    }
+
+    private func completedPayeeScheduleRuleIDs(db: Database) throws -> Set<String> {
+        guard try tableExists("schedules", db: db) else { return [] }
+        let columns = try columnSet(for: "schedules", db: db)
+        guard columns.contains("rule"), columns.contains("completed") else { return [] }
+        return Set(try String.fetchAll(
+            db,
+            sql: "SELECT rule FROM schedules WHERE completed = 1 AND rule IS NOT NULL AND \(predicateForLiveRows(columns: columns))"
+        ))
     }
 
     private func collectPayeeReferences(

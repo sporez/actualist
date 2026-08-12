@@ -77,6 +77,10 @@ extension LocalFirstActualStoreTests {
         #expect(snapshot.payees.contains { $0.id == created.id && $0.name == "Neighborhood Market" })
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") >= 4)
 
+        try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
+        snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(snapshot.payees.contains { $0.id == created.id && $0.name == "Corner Store" })
+
         await #expect(throws: LocalFirstError.self) {
             try await store.createPayeeAndRefresh(budgetID: "group-1", name: "coffee shop")
         }
@@ -120,6 +124,11 @@ extension LocalFirstActualStoreTests {
                 && $0.serializedValue == "S:cafe-b"
         })
         #expect(!pending.contains { $0.dataset == "transactions" })
+
+        try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
+        let restored = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(restored.payees.contains { $0.id == "cafe-a" })
+        #expect(try await database.fetchTransactions().first { $0.id == "txn" }?.payee == "cafe-a")
     }
 
     @Test func deleteAllowsOnlyUnusedUnreferencedPayees() async throws {
@@ -140,6 +149,19 @@ extension LocalFirstActualStoreTests {
                 '[]',
                 0
             );
+            INSERT INTO rules VALUES (
+                'completed-unused-rule',
+                '[{"field":"payee","op":"is","value":"unused"}]',
+                '[{"field":"category","op":"set","value":"groceries"}]',
+                0
+            );
+            CREATE TABLE schedules (
+                id TEXT PRIMARY KEY,
+                rule TEXT,
+                completed INTEGER,
+                tombstone INTEGER
+            );
+            INSERT INTO schedules VALUES ('completed-schedule', 'completed-unused-rule', 1, 0);
             UPDATE transactions SET description = 'coffee' WHERE id = 'txn';
             """)
 
@@ -153,6 +175,11 @@ extension LocalFirstActualStoreTests {
         #expect(store.cachedPayeeManagementSnapshot(budgetID: "group-1")?.payees.contains {
             $0.id == "unused"
         } == false)
+        try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
+        #expect(store.cachedPayeeManagementSnapshot(budgetID: "group-1")?.payees.contains {
+            $0.id == "unused"
+        } == true)
+        try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "unused")
 
         await #expect(throws: LocalFirstError.self) {
             try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "coffee")
@@ -237,5 +264,158 @@ extension LocalFirstActualStoreTests {
         model.endSelection()
         #expect(!model.isSelecting)
         #expect(model.selectedPayeeIDs.isEmpty)
+    }
+
+    @Test func favoriteLearningAndUndoUseNativePayeeAndPreferenceFields() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            ALTER TABLE payees ADD COLUMN favorite INTEGER DEFAULT 0;
+            ALTER TABLE payees ADD COLUMN learn_categories INTEGER DEFAULT 1;
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('learn-categories', 'true');
+            """)
+
+        try await store.refreshPayeeManagementSnapshot(budgetID: "group-1")
+        var snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(snapshot.supportsFavorite)
+        #expect(snapshot.supportsCategoryLearning)
+
+        try await store.updatePayeesAndRefresh(
+            budgetID: "group-1",
+            updates: [PayeeManagementUpdate(payeeID: "coffee", favorite: true, learnCategories: false)]
+        )
+        snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(snapshot.payees.first { $0.id == "coffee" }?.favorite == true)
+        #expect(snapshot.payees.first { $0.id == "coffee" }?.learnCategories == false)
+        #expect(snapshot.canUndo)
+
+        try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
+        snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(snapshot.payees.first { $0.id == "coffee" }?.favorite == false)
+        #expect(snapshot.payees.first { $0.id == "coffee" }?.learnCategories == true)
+        #expect(!snapshot.canUndo)
+
+        try await store.setGlobalCategoryLearningAndRefresh(budgetID: "group-1", enabled: false)
+        snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(!snapshot.globalCategoryLearningEnabled)
+    }
+
+    @Test func rulesRoundTripAndPreviewAgainstPayee() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                stage TEXT,
+                conditions TEXT,
+                actions TEXT,
+                conditions_op TEXT DEFAULT 'and',
+                tombstone INTEGER DEFAULT 0
+            );
+            """)
+        let draft = RuleDraft(
+            stage: .normal,
+            conditionsJoin: .and,
+            conditions: [RuleCondition(field: "payee", operation: "is", value: .string("coffee"), type: "id")],
+            actions: [
+                RuleAction(operation: "set", field: "category", value: .string("groceries"), type: "id"),
+                RuleAction(operation: "append-notes", value: .string(" learned"))
+            ]
+        )
+
+        try await store.createRuleAndRefresh(budgetID: "group-1", draft: draft)
+        let rules = try #require(store.cachedRules(budgetID: "group-1"))
+        let rule = try #require(rules.first)
+        #expect(rule.draft?.stage == .normal)
+        #expect(rule.draft?.conditions.first?.value == .string("coffee"))
+        #expect(rule.draft?.actions.first?.value == .string("groceries"))
+        #expect(rule.payeeIDs == ["coffee"])
+
+        let preview = try await store.previewRules(
+            for: TransactionDraft(
+                accountID: "checking",
+                date: Date(timeIntervalSince1970: 1_783_036_800),
+                amountMinorUnits: -500,
+                payeeID: "coffee",
+                payeeName: "Coffee Shop",
+                categoryID: nil,
+                notes: "Morning",
+                cleared: false,
+                isTransfer: false
+            ),
+            budgetID: "group-1"
+        )
+        #expect(preview.categoryID == "groceries")
+        #expect(preview.notes == "Morning learned")
+    }
+
+    @Test func unsupportedRuleShapesStayReadOnlyAndCannotBeRewritten() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                stage TEXT,
+                conditions TEXT,
+                actions TEXT,
+                conditions_op TEXT DEFAULT 'and',
+                tombstone INTEGER DEFAULT 0
+            );
+            INSERT INTO rules VALUES (
+                'unsupported',
+                NULL,
+                '[{"field":"payee","op":"is","value":"coffee","customName":"Coffee"}]',
+                '[{"op":"delete-transaction","value":""}]',
+                'and',
+                0
+            );
+            """)
+        let database = try #require(store.database)
+        let rule = try #require(try await database.fetchRules().first)
+
+        #expect(!rule.isEditable)
+        #expect(rule.rawConditionsJSON.contains("customName"))
+        #expect(rule.rawActionsJSON.contains("delete-transaction"))
+
+        let unsupportedDraft = RuleDraft(
+            stage: .normal,
+            conditionsJoin: .and,
+            conditions: [RuleCondition(field: "payee", operation: "is", value: .string("coffee"))],
+            actions: [RuleAction(operation: "delete-transaction")]
+        )
+        await #expect(throws: LocalFirstError.self) {
+            try await store.createRuleAndRefresh(budgetID: "group-1", draft: unsupportedDraft)
+        }
+    }
+
+    @Test func categoryLearningMatchesActualThreeOfLatestFiveThreshold() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            ALTER TABLE payees ADD COLUMN learn_categories INTEGER DEFAULT 1;
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('learn-categories', 'true');
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                stage TEXT,
+                conditions TEXT,
+                actions TEXT,
+                conditions_op TEXT DEFAULT 'and',
+                tombstone INTEGER DEFAULT 0
+            );
+            UPDATE transactions SET description = 'coffee' WHERE id = 'txn';
+            INSERT INTO transactions
+                (id, acct, date, amount, category, tombstone, parent_id, is_parent, description, notes, cleared, transferred_id, isChild)
+                VALUES ('txn-2', 'checking', 20260702, -500, 'groceries', 0, NULL, 0, 'coffee', NULL, 0, NULL, 0);
+            INSERT INTO transactions
+                (id, acct, date, amount, category, tombstone, parent_id, is_parent, description, notes, cleared, transferred_id, isChild)
+                VALUES ('txn-3', 'checking', 20260701, -700, 'groceries', 0, NULL, 0, 'coffee', NULL, 0, NULL, 0);
+            """)
+        let database = try #require(store.database)
+        let transaction = try #require(try await database.fetchTransactions().first { $0.id == "txn" })
+
+        _ = try await store.categorizeTransactionAndRefresh(
+            transaction,
+            categoryID: "groceries",
+            budgetID: "group-1",
+            didUpdate: {}
+        )
+
+        let rules = try await database.fetchRules()
+        let learned = try #require(rules.first { $0.payeeIDs.contains("coffee") })
+        #expect(learned.draft?.actions.first?.value == .string("groceries"))
     }
 }
