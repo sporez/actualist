@@ -798,175 +798,39 @@ struct TransactionCategorySelectionView: View {
 
 private struct PayeeSelectionView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.actualistDensity) private var density
     @Bindable var viewModel: TransactionEditorViewModel
-    @State private var searchText = ""
-    @FocusState private var isSearchFocused: Bool
-
-    private var trimmedSearchText: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var payeeSections: [TransactionEditorPayeeSection] {
-        viewModel.payeeSections(matching: searchText)
-    }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                ActualistTheme.background.ignoresSafeArea()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        searchField
-
-                        if viewModel.shouldOfferCustomPayee(matching: searchText) {
-                            Button {
-                                viewModel.useCustomPayee(trimmedSearchText)
-                                dismiss()
-                                previewRulesForSelection()
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundStyle(ActualistTheme.accent)
-                                    Text("Use \"\(trimmedSearchText)\"")
-                                        .font(ActualistTypography.rowTitle(for: density))
-                                        .foregroundStyle(ActualistTheme.primaryText)
-                                        .lineLimit(1)
-                                    Spacer()
-                                }
-                                .padding(16)
-                                .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        if viewModel.isLoading {
-                            ProgressView("Loading payees")
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 18)
-                        } else if payeeSections.isEmpty {
-                            Text("No matching payees")
-                                .font(ActualistTypography.rowTitle(for: density))
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 18)
-                        } else {
-                            LazyVStack(spacing: 0) {
-                                ForEach(payeeSections) { section in
-                                    if let title = section.title {
-                                        sectionHeader(title)
-                                    }
-
-                                    ForEach(section.options) { option in
-                                        payeeRow(option)
-
-                                        if option.id != section.options.last?.id {
-                                            Divider()
-                                                .overlay(ActualistTheme.separator)
-                                                .padding(.leading, option.isTransfer ? 50 : 16)
-                                        }
-                                    }
-                                }
-                            }
-                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        }
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 18)
-                    .padding(.bottom, 32)
-                }
+        PayeePickerView(
+            title: "Payee",
+            items: pickerItems,
+            selectedIDs: Set(viewModel.selectedPayeeID.map { [$0] } ?? []),
+            allowsMultipleSelection: false,
+            isLoading: viewModel.isLoading,
+            searchPrompt: "Search or enter custom payee",
+            onSelect: { id in
+                guard let payee = viewModel.payees.first(where: { $0.id == id }) else { return }
+                viewModel.selectPayee(payee)
+                previewRulesForSelection()
+            },
+            onCustomSelect: { name in
+                viewModel.useCustomPayee(name)
+                previewRulesForSelection()
             }
-            .navigationTitle("Payee")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .actualistToolbarGlassButton()
-                }
-            }
-        }
-        .presentationDetents([.large])
-        .onAppear {
-            Task {
-                await Task.yield()
-                isSearchFocused = true
-            }
-        }
+        )
     }
 
-    private var searchField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(ActualistTheme.secondaryText)
-
-            TextField("Search or enter custom payee", text: $searchText)
-                .textInputAutocapitalization(.words)
-                .font(ActualistTypography.rowTitle(for: density))
-                .foregroundStyle(ActualistTheme.primaryText)
-                .focused($isSearchFocused)
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-                .buttonStyle(.plain)
+    private var pickerItems: [PayeePickerItem] {
+        viewModel.payeeSections(matching: "").flatMap { section in
+            section.options.map { option in
+                PayeePickerItem(
+                    id: option.id,
+                    title: option.title,
+                    isTransfer: option.isTransfer,
+                    searchAliases: [option.payee.name, option.transferAccountName].compactMap { $0 }
+                )
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(ActualistTheme.control, in: Capsule())
-    }
-
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(ActualistTypography.rowTitle(for: density).weight(.semibold))
-            .foregroundStyle(ActualistTheme.accent)
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func payeeRow(_ option: TransactionEditorPayeeOption) -> some View {
-        Button {
-            viewModel.selectPayee(option.payee)
-            dismiss()
-            previewRulesForSelection()
-        } label: {
-            HStack(spacing: 12) {
-                if option.isTransfer {
-                    Image(systemName: "arrow.left.arrow.right.circle.fill")
-                        .foregroundStyle(ActualistTheme.accent)
-                        .font(.body)
-                }
-
-                Text(option.title)
-                    .font(ActualistTypography.rowTitle(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .lineLimit(1)
-
-                Spacer()
-
-                if option.payee.id == viewModel.selectedPayeeID {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(ActualistTheme.positive)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, density.transactionRowVerticalPadding)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private func previewRulesForSelection() {

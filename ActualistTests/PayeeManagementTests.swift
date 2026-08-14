@@ -362,6 +362,38 @@ extension LocalFirstActualStoreTests {
         #expect(preview.notes == "Morning learned")
     }
 
+    @Test func pwaDescriptionOneOfPayeeRuleRemainsEditable() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                stage TEXT,
+                conditions TEXT,
+                actions TEXT,
+                conditions_op TEXT DEFAULT 'and',
+                tombstone INTEGER DEFAULT 0
+            );
+            INSERT INTO payees VALUES ('market', 'Neighborhood Market', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('market', 'market');
+            INSERT INTO rules VALUES (
+                'pwa-one-of',
+                NULL,
+                '[{"op":"oneOf","field":"description","value":["coffee","market"],"type":"id"}]',
+                '[{"op":"set","field":"category","value":"groceries","type":"id"}]',
+                'and',
+                0
+            );
+            """)
+        let database = try #require(store.database)
+
+        let rule = try #require(try await database.fetchRules().first { $0.id == "pwa-one-of" })
+
+        #expect(rule.isEditable)
+        #expect(rule.draft?.conditions.first?.field == "description")
+        #expect(rule.draft?.conditions.first?.editorField == "payee")
+        #expect(rule.draft?.conditions.first?.value == .array([.string("coffee"), .string("market")]))
+        #expect(rule.payeeIDs == ["coffee", "market"])
+    }
+
     @Test func rulePreviewResolvesMappedPayeesAndKeepsImportedNameDistinct() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             CREATE TABLE rules (
@@ -432,6 +464,64 @@ extension LocalFirstActualStoreTests {
         #expect(options.categoryGroups.contains { $0.id == "income-group" })
         #expect(options.categories.contains { $0.id == "hidden-category" })
         #expect(options.categories.contains { $0.id == "income-category" })
+        #expect(options.payees.contains { $0.id == "xfer-checking" && $0.isTransfer })
+    }
+
+    @Test func ruleEditorPreviewReturnsNewestTransactionsMatchingDraftConditions() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            INSERT INTO payees VALUES ('market', 'Neighborhood Market', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('market', 'market');
+            UPDATE transactions
+            SET description = 'coffee', notes = 'Morning', cleared = 1
+            WHERE id = 'txn';
+            INSERT INTO transactions (
+                id, acct, date, amount, category, tombstone, parent_id, is_parent,
+                description, notes, cleared, transferred_id, isChild
+            ) VALUES (
+                'market-txn', 'credit', 20260805, -4800, 'utilities', 0, NULL, 0,
+                'market', 'Internet', 0, NULL, 0
+            );
+            """)
+        var draft = RuleDraft(
+            stage: .normal,
+            conditionsJoin: .and,
+            conditions: [
+                RuleCondition(
+                    field: "payee",
+                    operation: "oneOf",
+                    value: .array([.string("coffee"), .string("market")]),
+                    type: "id"
+                ),
+                RuleCondition(
+                    field: "category",
+                    operation: "is",
+                    value: .string("utilities"),
+                    type: "id"
+                )
+            ],
+            actions: [RuleAction(operation: "append-notes", value: .string(" matched"))]
+        )
+
+        var preview = try await store.matchingTransactions(
+            budgetID: "group-1",
+            draft: draft,
+            limit: 25
+        )
+        #expect(preview.totalCount == 1)
+        #expect(preview.transactions.map(\.id) == ["market-txn"])
+        #expect(preview.transactions.first?.payeeName == "Neighborhood Market")
+        #expect(preview.transactions.first?.categoryName == "Utilities")
+        #expect(preview.transactions.first?.accountName == "Credit Card")
+        #expect(preview.transactions.first?.amountMinorUnits == -4800)
+
+        draft.conditionsJoin = .or
+        preview = try await store.matchingTransactions(
+            budgetID: "group-1",
+            draft: draft,
+            limit: 1
+        )
+        #expect(preview.totalCount == 2)
+        #expect(preview.transactions.map(\.id) == ["market-txn"])
     }
 
     @Test func unsupportedRuleShapesStayReadOnlyAndCannotBeRewritten() async throws {
@@ -472,6 +562,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func categoryLearningMatchesActualThreeOfLatestFiveThreshold() async throws {
+        let payeeID = "ABCDEF12-3456-4789-ABCD-EF1234567890"
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             ALTER TABLE payees ADD COLUMN learn_categories INTEGER DEFAULT 1;
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
@@ -484,13 +575,15 @@ extension LocalFirstActualStoreTests {
                 conditions_op TEXT DEFAULT 'and',
                 tombstone INTEGER DEFAULT 0
             );
-            UPDATE transactions SET description = 'coffee' WHERE id = 'txn';
+            INSERT INTO payees VALUES ('ABCDEF12-3456-4789-ABCD-EF1234567890', 'Coffee Shop', NULL, 0, 1);
+            INSERT INTO payee_mapping VALUES ('ABCDEF12-3456-4789-ABCD-EF1234567890', 'ABCDEF12-3456-4789-ABCD-EF1234567890');
+            UPDATE transactions SET description = 'ABCDEF12-3456-4789-ABCD-EF1234567890' WHERE id = 'txn';
             INSERT INTO transactions
                 (id, acct, date, amount, category, tombstone, parent_id, is_parent, description, notes, cleared, transferred_id, isChild)
-                VALUES ('txn-2', 'checking', 20260702, -500, 'groceries', 0, NULL, 0, 'coffee', NULL, 0, NULL, 0);
+                VALUES ('txn-2', 'checking', 20260702, -500, 'groceries', 0, NULL, 0, 'ABCDEF12-3456-4789-ABCD-EF1234567890', NULL, 0, NULL, 0);
             INSERT INTO transactions
                 (id, acct, date, amount, category, tombstone, parent_id, is_parent, description, notes, cleared, transferred_id, isChild)
-                VALUES ('txn-3', 'checking', 20260701, -700, 'groceries', 0, NULL, 0, 'coffee', NULL, 0, NULL, 0);
+                VALUES ('txn-3', 'checking', 20260701, -700, 'groceries', 0, NULL, 0, 'ABCDEF12-3456-4789-ABCD-EF1234567890', NULL, 0, NULL, 0);
             """)
         let database = try #require(store.database)
         let transaction = try #require(try await database.fetchTransactions().first { $0.id == "txn" })
@@ -503,7 +596,23 @@ extension LocalFirstActualStoreTests {
         )
 
         let rules = try await database.fetchRules()
-        let learned = try #require(rules.first { $0.payeeIDs.contains("coffee") })
+        let learned = try #require(rules.first { $0.payeeIDs.contains(payeeID) })
         #expect(learned.draft?.actions.first?.value == .string("groceries"))
+
+        let preview = try await store.previewRules(
+            for: TransactionDraft(
+                accountID: "checking",
+                date: try makeDate(year: 2026, month: 7, day: 3),
+                amountMinorUnits: -900,
+                payeeID: payeeID,
+                payeeName: "Coffee Shop",
+                categoryID: nil,
+                notes: nil,
+                cleared: false,
+                isTransfer: false
+            ),
+            budgetID: "group-1"
+        )
+        #expect(preview.categoryID == "groceries")
     }
 }

@@ -73,7 +73,7 @@ struct RuleConditionEvaluatorTests {
         #expect(matches(.init(field: "notes", operation: "doesNotContain", value: .string("memo")), context))
     }
 
-    @Test func entityNameBooleanNullAndBudgetConditionsAreDefensive() {
+    @Test func identifierBooleanNullAndBudgetConditionsAreDefensive() {
         var context = makeContext(
             accountID: "closed-card",
             accountName: "Closed Card",
@@ -85,10 +85,10 @@ struct RuleConditionEvaluatorTests {
             isTransfer: false,
             isParent: true
         )
-        #expect(matches(.init(field: "account", operation: "contains", value: .string("closed")), context))
+        #expect(matches(.init(field: "account", operation: "is", value: .string("closed-card")), context))
         #expect(matches(.init(field: "account", operation: "offBudget", value: .null), context))
         #expect(!matches(.init(field: "account", operation: "onBudget", value: .null), context))
-        #expect(!matches(.init(field: "category", operation: "doesNotContain", value: .string("food")), context))
+        #expect(matches(.init(field: "category", operation: "is", value: .null), context))
         #expect(!matches(.init(field: "payee", operation: "notOneOf", value: .array([])), context))
         #expect(matches(.init(field: "payee", operation: "is", value: .null), context))
         #expect(matches(.init(field: "cleared", operation: "is", value: .bool(true)), context))
@@ -100,6 +100,82 @@ struct RuleConditionEvaluatorTests {
         #expect(matches(.init(field: "payee", operation: "notOneOf", value: .array([])), context))
         #expect(!matches(.init(field: "payee", operation: "oneOf", value: .array([])), context))
         #expect(matches(.init(field: "parent", operation: "is", value: .bool(false)), context))
+    }
+
+    @Test func identifierFieldsExcludeTextComparisonsWithoutChangingStringFields() {
+        let identityOperations = ["is", "oneOf", "isNot", "notOneOf"]
+        let textOperations = ["contains", "matches", "doesNotContain"]
+
+        for field in ["account", "category", "category_group", "payee"] {
+            let operations = RuleCondition.operations(for: field)
+            for operation in identityOperations {
+                #expect(operations.contains(operation))
+            }
+            for operation in textOperations {
+                #expect(!operations.contains(operation))
+                #expect(!RuleCondition(
+                    field: field,
+                    operation: operation,
+                    value: .string("display name"),
+                    type: "id"
+                ).canRoundTripAndEvaluate)
+            }
+        }
+
+        #expect(RuleCondition.operations(for: "account").contains("onBudget"))
+        #expect(RuleCondition.operations(for: "account").contains("offBudget"))
+        #expect(!RuleCondition.operations(for: "payee").contains("onBudget"))
+
+        for field in ["imported_payee", "payee_name", "notes"] {
+            let operations = RuleCondition.operations(for: field)
+            for operation in textOperations {
+                #expect(operations.contains(operation))
+                #expect(RuleCondition(
+                    field: field,
+                    operation: operation,
+                    value: .string("display name"),
+                    type: "string"
+                ).canRoundTripAndEvaluate)
+            }
+        }
+    }
+
+    @Test func pwaDescriptionFieldUsesPayeeSemantics() {
+        let payeeID = "ABCDEF12-3456-4789-ABCD-EF1234567890"
+        let context = makeContext(payeeID: payeeID, payeeName: "Coffee Shop")
+        let condition = RuleCondition(
+            field: "description",
+            operation: "oneOf",
+            value: .array([.string(payeeID), .string("market")]),
+            type: "id"
+        )
+
+        #expect(condition.editorField == "payee")
+        #expect(RuleCondition.serializedField("payee") == "description")
+        #expect(condition.canRoundTripAndEvaluate)
+        #expect(matches(condition, context))
+        #expect(RulePresentation.fieldName("description") == "Payee")
+    }
+
+    @Test func pwaDescriptionSetActionUsesPayeeSemantics() {
+        let action = RuleAction(
+            operation: "set",
+            field: "description",
+            value: .string("market"),
+            type: "id"
+        )
+        let managedRule = rule(
+            id: "set-payee",
+            condition: .init(field: "notes", operation: "contains", value: .string("start")),
+            actions: [action]
+        )
+
+        let result = RuleConditionEvaluator.applying([managedRule], to: makeContext())
+
+        #expect(action.editorField == "payee")
+        #expect(action.canRoundTripAndEvaluate)
+        #expect(result.payeeID == "market")
+        #expect(result.payeeName == "Neighborhood Market")
     }
 
     @Test func everySupportedConditionOperatorHasAnExecutableFixture() {
@@ -120,17 +196,15 @@ struct RuleConditionEvaluatorTests {
             .init(field: "account", operation: "isNot", value: .string("tracking")),
             .init(field: "account", operation: "oneOf", value: .array([.string("checking"), .string("tracking")])),
             .init(field: "account", operation: "notOneOf", value: .array([.string("tracking")])),
-            .init(field: "account", operation: "contains", value: .string("check")),
-            .init(field: "account", operation: "doesNotContain", value: .string("track")),
-            .init(field: "account", operation: "matches", value: .string("^check")),
             .init(field: "account", operation: "onBudget", value: .null),
             .init(field: "category", operation: "is", value: .string("groceries")),
-            .init(field: "category", operation: "contains", value: .string("grocer")),
-            .init(field: "category_group", operation: "matches", value: .string("every.*")),
+            .init(field: "category_group", operation: "is", value: .string("everyday")),
             .init(field: "payee", operation: "oneOf", value: .array([.string("coffee")])),
-            .init(field: "payee", operation: "doesNotContain", value: .string("market")),
             .init(field: "imported_payee", operation: "is", value: .string("amzn marketplace")),
             .init(field: "imported_payee", operation: "oneOf", value: .array([.string("amzn marketplace")])),
+            .init(field: "imported_payee", operation: "contains", value: .string("market")),
+            .init(field: "imported_payee", operation: "doesNotContain", value: .string("missing")),
+            .init(field: "imported_payee", operation: "matches", value: .string("amzn.*")),
             .init(field: "payee_name", operation: "matches", value: .string("coffee.*")),
             .init(field: "notes", operation: "contains", value: .string("memo")),
             .init(field: "notes", operation: "doesNotContain", value: .string("missing")),
@@ -203,6 +277,254 @@ struct RuleConditionEvaluatorTests {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         #expect(String(data: try encoder.encode(decoded), encoding: .utf8) == json)
+    }
+
+    @Test func savedRuleSummaryResolvesEntityIDsWithoutChangingRuleValues() {
+        let condition = RuleCondition(
+            field: "payee",
+            operation: "is",
+            value: .string("payee-id"),
+            type: "id"
+        )
+        let action = RuleAction(
+            operation: "set",
+            field: "category",
+            value: .string("category-id"),
+            type: "id"
+        )
+        let rule = self.rule(id: "summary", condition: condition, actions: [action])
+        let options = RuleEditorOptions(
+            accounts: [RuleEditorChoice(id: "account-id", name: "Checking")],
+            categories: [RuleEditorChoice(id: "category-id", name: "Groceries")],
+            categoryGroups: [RuleEditorChoice(id: "group-id", name: "Everyday")],
+            payees: [RuleEditorChoice(id: "payee-id", name: "Coffee Shop")]
+        )
+
+        #expect(rule.summary(options: options) == "If payee is Coffee Shop, then set category Groceries")
+        #expect(rule.draft?.conditions.first?.value == .string("payee-id"))
+        #expect(rule.draft?.actions.first?.value == .string("category-id"))
+    }
+
+    @Test func savedRuleSummaryResolvesMultiValueIDsAndNeverExposesUnknownIDs() {
+        let unknownPayeeID = "11111111-1111-4111-8111-111111111111"
+        let unknownCategoryID = "22222222-2222-4222-8222-222222222222"
+        let rule = self.rule(
+            id: "summary",
+            conditions: [
+                RuleCondition(
+                    field: "account",
+                    operation: "oneOf",
+                    value: .array([.string("checking"), .string("card")]),
+                    type: "id"
+                ),
+                RuleCondition(
+                    field: "payee",
+                    operation: "is",
+                    value: .string(unknownPayeeID),
+                    type: "id"
+                )
+            ],
+            actions: [
+                RuleAction(
+                    operation: "set",
+                    field: "category",
+                    value: .string(unknownCategoryID),
+                    type: "id"
+                )
+            ]
+        )
+        let options = RuleEditorOptions(
+            accounts: [
+                RuleEditorChoice(id: "checking", name: "Checking"),
+                RuleEditorChoice(id: "card", name: "Credit Card")
+            ],
+            categories: [],
+            categoryGroups: [],
+            payees: []
+        )
+
+        let resolved = rule.summary(options: options)
+        #expect(resolved.contains("account is one of Checking, Credit Card"))
+        #expect(!resolved.contains("oneOf"))
+        #expect(resolved.contains("Deleted payee"))
+        #expect(resolved.contains("Deleted category"))
+        #expect(!resolved.contains(unknownPayeeID))
+        #expect(!resolved.contains(unknownCategoryID))
+
+        let loading = rule.summary(options: nil)
+        #expect(loading.contains("…"))
+        #expect(!loading.contains(unknownPayeeID))
+        #expect(!loading.contains(unknownCategoryID))
+    }
+
+    @Test func rulePresentationFormatsEveryValueKindWithoutWireValues() {
+        let rule = ManagedRule(
+            id: "presentation",
+            draft: RuleDraft(
+                stage: .normal,
+                conditionsJoin: .or,
+                conditions: [
+                    RuleCondition(
+                        field: "amount",
+                        operation: "isbetween",
+                        value: .object(["num1": .number(1_250), "num2": .number(2_500)]),
+                        type: "number"
+                    ),
+                    RuleCondition(field: "cleared", operation: "is", value: .bool(true), type: "boolean"),
+                    RuleCondition(field: "account", operation: "onBudget", value: .null, type: "id")
+                ],
+                actions: [RuleAction(operation: "append-notes", value: .string("reviewed"), type: "string")]
+            ),
+            rawStage: nil,
+            rawConditionsJSON: "[]",
+            rawActionsJSON: "[]",
+            payeeIDs: [],
+            isCompletedScheduleRule: false
+        )
+
+        let summary = rule.summary(options: RuleEditorOptions(accounts: [], categories: [], categoryGroups: [], payees: []))
+        #expect(summary.contains("amount is between"))
+        #expect(summary.contains("12.50"))
+        #expect(summary.contains("25.00"))
+        #expect(summary.contains("cleared is Yes"))
+        #expect(summary.contains("account is on budget"))
+        #expect(summary.contains("append notes with reviewed"))
+        #expect(!summary.contains("isbetween"))
+        #expect(!summary.contains("onBudget"))
+        #expect(!summary.contains("num1"))
+        #expect(!summary.contains("true"))
+        #expect(!summary.contains("1250"))
+    }
+
+    @Test func readOnlyRuleDetailsNeverExposeRawKeysOperationsOrEntityIDs() {
+        let payeeID = "11111111-1111-4111-8111-111111111111"
+        let categoryID = "22222222-2222-4222-8222-222222222222"
+        let unknownID = "33333333-3333-4333-8333-333333333333"
+        let rule = ManagedRule(
+            id: "read-only",
+            draft: nil,
+            rawStage: "future-stage",
+            rawConditionsJSON: """
+            [
+              {"field":"payee","op":"oneOf","type":"id","value":["\(payeeID)"]},
+              {"field":"future_field","op":"futureComparison","value":"\(unknownID)"}
+            ]
+            """,
+            rawActionsJSON: """
+            [
+              {"op":"set","field":"category","type":"id","value":"\(categoryID)"},
+              {"op":"future-action","field":"future_field","value":"\(unknownID)"}
+            ]
+            """,
+            payeeIDs: [],
+            isCompletedScheduleRule: false
+        )
+        let details = rule.readOnlyDetails(
+            options: RuleEditorOptions(accounts: [], categories: [], categoryGroups: [], payees: [])
+        ).joined(separator: " ")
+
+        #expect(details.contains("Payee is one of Deleted payee"))
+        #expect(details.contains("Set Category Deleted category"))
+        #expect(details.contains("Unsupported condition"))
+        #expect(details.contains("Unsupported action"))
+        for leakedValue in [
+            payeeID,
+            categoryID,
+            unknownID,
+            "oneOf",
+            "future_field",
+            "futureComparison",
+            "future-action",
+            "future-stage",
+            "\"field\"",
+            "\"op\""
+        ] {
+            #expect(!details.contains(leakedValue))
+        }
+    }
+
+    @Test func scheduleOwnedRuleHasReadableReadOnlyPresentation() {
+        let payeeID = "44444444-4444-4444-8444-444444444444"
+        let accountID = "55555555-5555-4555-8555-555555555555"
+        let scheduleID = "66666666-6666-4666-8666-666666666666"
+        let rule = ManagedRule(
+            id: "schedule-rule",
+            draft: nil,
+            rawStage: nil,
+            rawConditionsJSON: """
+            [
+              {"op":"is","field":"description","value":"\(payeeID)"},
+              {"op":"is","field":"acct","value":"\(accountID)"},
+              {"op":"is","field":"date","value":"2026-08-11"},
+              {"op":"isapprox","field":"amount","value":-14000}
+            ]
+            """,
+            rawActionsJSON: "[{\"op\":\"link-schedule\",\"value\":\"\(scheduleID)\"}]",
+            payeeIDs: [payeeID],
+            isCompletedScheduleRule: false
+        )
+        let options = RuleEditorOptions(
+            accounts: [RuleEditorChoice(id: accountID, name: "Checking")],
+            categories: [],
+            categoryGroups: [],
+            payees: [RuleEditorChoice(id: payeeID, name: "Internet Provider")]
+        )
+
+        let summary = rule.summary(options: options)
+        let details = rule.readOnlyDetails(options: options).joined(separator: " ")
+
+        #expect(rule.isScheduleOwned)
+        #expect(summary.contains("payee is Internet Provider"))
+        #expect(summary.contains("account is Checking"))
+        #expect(summary.contains("date is 2026-08-11"))
+        #expect(summary.contains("amount is approximately"))
+        #expect(summary.contains("then link to schedule"))
+        #expect(details.contains("Action: Link to schedule"))
+        #expect(!summary.contains(payeeID))
+        #expect(!summary.contains(accountID))
+        #expect(!summary.contains(scheduleID))
+    }
+
+    @Test func presentationUsesSafeFallbacksForMissingMalformedAndNonfiniteValues() {
+        #expect(RulePresentation.fieldName("future_field") == "Unsupported field")
+        #expect(RulePresentation.operationName("futureComparison") == "Uses an unsupported comparison")
+        #expect(RulePresentation.actionName("future-action") == "Unsupported action")
+        #expect(RulePresentation.valueText(.string("raw-id"), field: "payee", options: nil) == "…")
+        #expect(RulePresentation.valueText(
+            .string("raw-id"),
+            field: "payee",
+            options: RuleEditorOptions(accounts: [], categories: [], categoryGroups: [], payees: [])
+        ) == "Deleted payee")
+        #expect(RulePresentation.valueText(.number(.infinity), field: "amount", options: nil) == "Unsupported value")
+        #expect(RulePresentation.valueText(.object(["raw": .string("secret")]), field: "notes", options: nil) == "Unsupported value")
+    }
+
+    @Test func conditionSetMatchingHonorsAllAndAnyWithoutTreatingEmptyAsAll() {
+        let payee = RuleCondition(
+            field: "payee",
+            operation: "oneOf",
+            value: .array([.string("coffee"), .string("market")]),
+            type: "id"
+        )
+        let category = RuleCondition(
+            field: "category",
+            operation: "is",
+            value: .string("utilities"),
+            type: "id"
+        )
+        var draft = RuleDraft(
+            stage: .normal,
+            conditionsJoin: .and,
+            conditions: [payee, category],
+            actions: [.init(operation: "append-notes", value: .string(" matched"))]
+        )
+        let context = makeContext(categoryID: "groceries", payeeID: "coffee")
+
+        #expect(!RuleConditionEvaluator.conditionsMatch(draft, context: context))
+        draft.conditionsJoin = .or
+        #expect(RuleConditionEvaluator.conditionsMatch(draft, context: context))
+        draft.conditions = []
+        #expect(!RuleConditionEvaluator.conditionsMatch(draft, context: context))
     }
 
     @Test func unsupportedRecurrenceSavedAndUnknownMetadataStayReadOnly() {

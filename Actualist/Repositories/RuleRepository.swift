@@ -11,6 +11,13 @@ protocol RuleRepositoryProtocol: Sendable {
     func ruleEditorOptions(budgetID: String) async throws -> RuleEditorOptions
 
     @MainActor
+    func matchingTransactions(
+        budgetID: String,
+        draft: RuleDraft,
+        limit: Int
+    ) async throws -> RuleTransactionMatchPreview
+
+    @MainActor
     func createRuleAndRefresh(budgetID: String, draft: RuleDraft) async throws
 
     @MainActor
@@ -30,6 +37,27 @@ struct RuleEditorOptions: Hashable, Sendable {
 struct RuleEditorChoice: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
+    let isTransfer: Bool
+
+    init(id: String, name: String, isTransfer: Bool = false) {
+        self.id = id
+        self.name = name
+        self.isTransfer = isTransfer
+    }
+}
+
+struct RuleTransactionMatchPreview: Hashable, Sendable {
+    let transactions: [RuleTransactionMatch]
+    let totalCount: Int
+}
+
+struct RuleTransactionMatch: Identifiable, Hashable, Sendable {
+    let id: String
+    let date: String
+    let payeeName: String
+    let categoryName: String
+    let accountName: String
+    let amountMinorUnits: Int
 }
 
 enum RuleStage: String, CaseIterable, Codable, Hashable, Sendable, Identifiable {
@@ -90,16 +118,6 @@ indirect enum RuleJSONValue: Hashable, Sendable, Codable {
         }
     }
 
-    var editableText: String {
-        switch self {
-        case .null: ""
-        case .bool(let value): value ? "true" : "false"
-        case .number(let value): value.rounded() == value ? String(Int(value)) : String(value)
-        case .string(let value): value
-        case .array(let values): values.map(\.editableText).joined(separator: ", ")
-        case .object: ""
-        }
-    }
 }
 
 struct RuleCondition: Hashable, Sendable, Codable, Identifiable {
@@ -176,7 +194,7 @@ struct RuleDraft: Hashable, Sendable {
         RuleDraft(
             stage: .normal,
             conditionsJoin: .and,
-            conditions: [RuleCondition(field: "payee", operation: "is", value: .string(payeeID), type: "id")],
+            conditions: [RuleCondition(field: "description", operation: "is", value: .string(payeeID), type: "id")],
             actions: [RuleAction(operation: "set", field: "category", value: .null, type: "id")]
         )
     }
@@ -211,7 +229,7 @@ extension RuleCondition {
 
     static func valueKind(for field: String) -> ValueKind? {
         switch serializedField(field) {
-        case "account", "category", "category_group", "payee": .id
+        case "account", "category", "category_group", "description": .id
         case "imported_payee", "payee_name", "notes": .string
         case "amount": .number
         case "date": .date
@@ -223,7 +241,7 @@ extension RuleCondition {
     static func operations(for field: String) -> [String] {
         switch valueKind(for: field) {
         case .id:
-            var operations = ["is", "contains", "matches", "oneOf", "isNot", "doesNotContain", "notOneOf"]
+            var operations = ["is", "oneOf", "isNot", "notOneOf"]
             if serializedField(field) == "account" {
                 operations.append(contentsOf: ["onBudget", "offBudget"])
             }
@@ -253,6 +271,7 @@ extension RuleCondition {
     static func serializedField(_ field: String) -> String {
         switch field {
         case "amount-inflow", "amount-outflow": "amount"
+        case "payee": "description"
         default: field
         }
     }
@@ -270,6 +289,7 @@ extension RuleCondition {
     }
 
     var editorField: String {
+        if field == "description" { return "payee" }
         if field == "amount", options?["inflow"] == .bool(true) { return "amount-inflow" }
         if field == "amount", options?["outflow"] == .bool(true) { return "amount-outflow" }
         return field
@@ -349,12 +369,16 @@ extension RuleCondition {
     }()
 }
 
-private extension RuleAction {
+extension RuleAction {
+    var editorField: String? {
+        field == "description" ? "payee" : field
+    }
+
     var canRoundTripAndEvaluate: Bool {
         guard options?.isEmpty != false else { return false }
         switch operation {
         case "set":
-            switch field {
+            switch editorField {
             case "account", "category", "date", "notes", "payee": return value.isStringLike
             case "amount": return value.isNumberLike
             case "cleared": if case .bool = value { return true } else { return false }
@@ -396,16 +420,4 @@ struct ManagedRule: Identifiable, Hashable, Sendable {
 
     var isEditable: Bool { draft != nil }
 
-    var summary: String {
-        guard let draft else { return "Unsupported rule" }
-        let conditions = draft.conditions.map { "\($0.field) \($0.operation) \($0.value.editableText)" }
-            .joined(separator: " \(draft.conditionsJoin.displayName) ")
-        let actions = draft.actions.map { action in
-            [action.operation, action.field, action.value.editableText]
-                .compactMap { $0 }
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
-        }.joined(separator: ", ")
-        return "If \(conditions), then \(actions)"
-    }
 }

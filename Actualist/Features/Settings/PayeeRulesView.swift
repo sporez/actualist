@@ -5,6 +5,7 @@ import SwiftUI
 @Observable
 final class PayeeRulesViewModel {
     var rules: [ManagedRule] = []
+    var options: RuleEditorOptions?
     var isLoading = false
     var isSubmitting = false
     var errorMessage: String?
@@ -15,6 +16,7 @@ final class PayeeRulesViewModel {
             rules = cached.filter { $0.payeeIDs.contains(payeeID) && !$0.isCompletedScheduleRule }
         }
         isLoading = rules.isEmpty
+        options = try? await appState.ruleRepository.ruleEditorOptions(budgetID: budgetID)
         do {
             try await appState.ruleRepository.refreshRules(budgetID: budgetID)
             rules = (appState.ruleRepository.cachedRules(budgetID: budgetID) ?? [])
@@ -100,14 +102,19 @@ struct PayeeRulesView: View {
                             editorTarget = RuleEditorTarget(rule: rule, fallbackPayeeID: payee.id)
                         } label: {
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(rule.draft?.stage.displayName ?? "Read-only")
+                                Text(rule.isScheduleOwned ? "Schedule · Read-only" : rule.draft?.stage.displayName ?? "Read-only")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(ActualistTheme.secondaryText)
-                                Text(rule.summary)
+                                Text(rule.summary(options: viewModel.options))
                                     .foregroundStyle(ActualistTheme.primaryText)
                                     .multilineTextAlignment(.leading)
                                 if !rule.isEditable {
-                                    Label("Contains fields this version cannot safely edit", systemImage: "lock.fill")
+                                    Label(
+                                        rule.isScheduleOwned
+                                            ? "Managed by an Actual schedule"
+                                            : "Contains fields this version cannot safely edit",
+                                        systemImage: "lock.fill"
+                                    )
                                         .font(.caption2)
                                         .foregroundStyle(ActualistTheme.warning)
                                 }
@@ -117,8 +124,10 @@ struct PayeeRulesView: View {
                         }
                         .buttonStyle(.plain)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button("Delete") { pendingDeleteRule = rule }
-                                .tint(ActualistTheme.danger)
+                            if !rule.isScheduleOwned {
+                                Button("Delete") { pendingDeleteRule = rule }
+                                    .tint(ActualistTheme.danger)
+                            }
                         }
                     }
                 }
@@ -198,8 +207,7 @@ private struct RuleEditorView: View {
     let isSubmitting: Bool
     let errorMessage: String?
     let onSave: (RuleDraft) async -> Bool
-    @State private var draft: RuleDraft
-    @State private var options: RuleEditorOptions?
+    @State private var viewModel: RuleEditorViewModel
 
     init(
         target: RuleEditorTarget,
@@ -211,31 +219,38 @@ private struct RuleEditorView: View {
         self.isSubmitting = isSubmitting
         self.errorMessage = errorMessage
         self.onSave = onSave
-        _draft = State(initialValue: target.initialDraft)
+        _viewModel = State(initialValue: RuleEditorViewModel(draft: target.initialDraft))
     }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
         NavigationStack {
             Form {
                 if target.rule?.isEditable == false {
                     Section {
-                        Text(target.rule?.rawConditionsJSON ?? "")
-                            .font(.caption.monospaced())
-                        Text(target.rule?.rawActionsJSON ?? "")
-                            .font(.caption.monospaced())
+                        ForEach(
+                            Array((target.rule?.readOnlyDetails(options: viewModel.options) ?? []).enumerated()),
+                            id: \.offset
+                        ) { _, detail in
+                            Text(detail)
+                        }
                     } header: {
-                        Text("Read-only rule data")
+                        Text("Read-only rule")
                     } footer: {
-                        Text("This rule contains data Actualist cannot round-trip safely. It can still be deleted.")
+                        Text(
+                            target.rule?.isScheduleOwned == true
+                                ? "This rule is managed by an Actual schedule. It cannot be edited or deleted here."
+                                : "This rule contains data Actualist cannot round-trip safely. It can still be deleted."
+                        )
                     }
                 } else {
                     Section("Order") {
-                        Picker("Stage", selection: $draft.stage) {
+                        RuleMenuPickerRow("Stage", selection: $viewModel.draft.stage) {
                             ForEach(RuleStage.allCases) { stage in
                                 Text(stage.displayName).tag(stage)
                             }
                         }
-                        Picker("Match", selection: $draft.conditionsJoin) {
+                        RuleMenuPickerRow("Match", selection: $viewModel.draft.conditionsJoin) {
                             ForEach(RuleConditionJoin.allCases) { join in
                                 Text(join == .and ? "All conditions" : "Any condition").tag(join)
                             }
@@ -244,28 +259,30 @@ private struct RuleEditorView: View {
                     .settingsSectionChrome()
 
                     Section("Conditions") {
-                        ForEach($draft.conditions) { $condition in
-                            RuleConditionEditor(condition: $condition, options: options)
+                        ForEach($viewModel.draft.conditions) { $condition in
+                            RuleConditionEditor(condition: $condition, options: viewModel.options)
                         }
-                        .onDelete { draft.conditions.remove(atOffsets: $0) }
+                        .onDelete { viewModel.draft.conditions.remove(atOffsets: $0) }
                         Button("Add Condition", systemImage: "plus") {
-                            draft.conditions.append(
-                                RuleCondition(field: "payee", operation: "is", value: .string(target.fallbackPayeeID), type: "id")
+                            viewModel.draft.conditions.append(
+                                RuleCondition(field: "description", operation: "is", value: .string(target.fallbackPayeeID), type: "id")
                             )
                         }
                     }
                     .settingsSectionChrome()
 
                     Section("Actions") {
-                        ForEach($draft.actions) { $action in
-                            RuleActionEditor(action: $action, options: options)
+                        ForEach($viewModel.draft.actions) { $action in
+                            RuleActionEditor(action: $action, options: viewModel.options)
                         }
-                        .onDelete { draft.actions.remove(atOffsets: $0) }
+                        .onDelete { viewModel.draft.actions.remove(atOffsets: $0) }
                         Button("Add Action", systemImage: "plus") {
-                            draft.actions.append(RuleAction(operation: "set", field: "category", value: .null, type: "id"))
+                            viewModel.draft.actions.append(RuleAction(operation: "set", field: "category", value: .null, type: "id"))
                         }
                     }
                     .settingsSectionChrome()
+
+                    matchingTransactionsSection
                 }
 
                 if let errorMessage {
@@ -277,7 +294,7 @@ private struct RuleEditorView: View {
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
-            .navigationTitle(target.rule == nil ? "New Rule" : "Edit Rule")
+            .navigationTitle(target.rule == nil ? "New Rule" : target.rule?.isEditable == false ? "View Rule" : "Edit Rule")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -286,16 +303,86 @@ private struct RuleEditorView: View {
                 if target.rule?.isEditable != false {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
-                            Task { if await onSave(draft) { dismiss() } }
+                            Task { if await onSave(viewModel.draft) { dismiss() } }
                         }
-                        .disabled(draft.conditions.isEmpty || draft.actions.isEmpty || isSubmitting)
+                        .disabled(!viewModel.draft.canRoundTripAndEvaluate || isSubmitting)
                     }
                 }
             }
             .task {
-                guard let budgetID = appState.settings.selectedBudgetID else { return }
-                options = try? await appState.ruleRepository.ruleEditorOptions(budgetID: budgetID)
+                await viewModel.load(using: appState)
             }
+            .onChange(of: viewModel.draft) {
+                viewModel.scheduleMatchRefresh(using: appState)
+            }
+            .onDisappear {
+                viewModel.cancelMatchRefresh()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var matchingTransactionsSection: some View {
+        Section {
+            if viewModel.isLoadingMatches && viewModel.matchPreview == nil {
+                ProgressView("Finding matching transactions")
+            } else if let matchErrorMessage = viewModel.matchErrorMessage {
+                Text(matchErrorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+            } else if viewModel.matchPreview?.totalCount == 0 {
+                ContentUnavailableView(
+                    "No Matching Transactions",
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: Text("No existing transactions match these conditions.")
+                )
+            } else if let preview = viewModel.matchPreview {
+                ForEach(preview.transactions) { transaction in
+                    RuleTransactionMatchRow(transaction: transaction)
+                }
+            }
+        } header: {
+            HStack {
+                Text("This rule applies to the following transactions")
+                Spacer()
+                if let count = viewModel.matchPreview?.totalCount {
+                    Text(count.formatted())
+                }
+            }
+        } footer: {
+            if let preview = viewModel.matchPreview,
+               preview.totalCount > preview.transactions.count {
+                Text("Showing the newest \(preview.transactions.count) of \(preview.totalCount) matches.")
+            }
+        }
+        .settingsSectionChrome()
+    }
+}
+
+private struct RuleMenuPickerRow<Selection: Hashable, Content: View>: View {
+    let title: String
+    @Binding var selection: Selection
+    let content: () -> Content
+
+    init(
+        _ title: String,
+        selection: Binding<Selection>,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        _selection = selection
+        self.content = content
+    }
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Picker("", selection: $selection, content: content)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+                .accessibilityLabel(title)
         }
     }
 }
@@ -306,14 +393,14 @@ private struct RuleConditionEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("Field", selection: editorFieldBinding) {
+            RuleMenuPickerRow("Field", selection: editorFieldBinding) {
                 ForEach(RuleCondition.editableFields, id: \.value) { Text($0.name).tag($0.value) }
             }
-            Picker("Comparison", selection: $condition.operation) {
-                ForEach(operations, id: \.self) { Text(Self.operationName($0)).tag($0) }
+            RuleMenuPickerRow("Comparison", selection: $condition.operation) {
+                ForEach(operations, id: \.self) { Text(RulePresentation.operationName($0)).tag($0) }
             }
             if condition.operation != "onBudget" && condition.operation != "offBudget" {
-                RuleValueEditor(value: $condition.value, field: condition.field, operation: condition.operation, options: options)
+                RuleValueEditor(value: $condition.value, field: condition.editorField, operation: condition.operation, options: options)
             }
         }
         .onChange(of: condition.operation) {
@@ -327,14 +414,16 @@ private struct RuleConditionEditor: View {
         Binding(
             get: { condition.editorField },
             set: { newField in
-                let previousKind = RuleCondition.valueKind(for: condition.field)
+                let previousField = condition.editorField
                 let newKind = RuleCondition.valueKind(for: newField)
                 condition.field = RuleCondition.serializedField(newField)
                 condition.options = RuleCondition.options(for: newField)
                 condition.type = newKind?.rawValue
-                if previousKind != newKind || !RuleCondition.operations(for: newField).contains(condition.operation) {
+                if previousField != newField {
                     condition.operation = RuleCondition.operations(for: newField).first ?? "is"
                     condition.value = defaultValue(for: newKind)
+                } else if !RuleCondition.operations(for: newField).contains(condition.operation) {
+                    condition.operation = RuleCondition.operations(for: newField).first ?? "is"
                 }
             }
         )
@@ -351,7 +440,9 @@ private struct RuleConditionEditor: View {
     }
 
     private func normalizeValueForOperation() {
-        if condition.operation == "oneOf" || condition.operation == "notOneOf" {
+        if condition.operation == "onBudget" || condition.operation == "offBudget" {
+            condition.value = .null
+        } else if condition.operation == "oneOf" || condition.operation == "notOneOf" {
             if case .array = condition.value { return }
             condition.value = condition.value == .null ? .array([]) : .array([condition.value])
         } else if case .array(let values) = condition.value {
@@ -373,25 +464,6 @@ private struct RuleConditionEditor: View {
         return formatter
     }()
 
-    private static func operationName(_ operation: String) -> String {
-        switch operation {
-        case "isNot": "Is not"
-        case "oneOf": "Is one of"
-        case "notOneOf": "Is not one of"
-        case "doesNotContain": "Does not contain"
-        case "isapprox": "Is approximately"
-        case "isbetween": "Is between"
-        case "gt": "Is greater than"
-        case "gte": "Is at least"
-        case "lt": "Is less than"
-        case "lte": "Is at most"
-        case "hasTags": "Has all tags"
-        case "hasAnyTag": "Has any tag"
-        case "onBudget": "Is on budget"
-        case "offBudget": "Is off budget"
-        default: operation.capitalized
-        }
-    }
 }
 
 private struct RuleActionEditor: View {
@@ -400,32 +472,79 @@ private struct RuleActionEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Picker("Action", selection: $action.operation) {
+            RuleMenuPickerRow("Action", selection: $action.operation) {
                 Text("Set field").tag("set")
                 Text("Prepend notes").tag("prepend-notes")
                 Text("Append notes").tag("append-notes")
             }
             if action.operation == "set" {
-                Picker("Field", selection: Binding(
-                    get: { action.field ?? "category" },
-                    set: { action.field = $0 }
-                )) {
+                RuleMenuPickerRow("Field", selection: actionFieldBinding) {
                     ForEach(["account", "amount", "category", "date", "notes", "payee", "cleared"], id: \.self) {
-                        Text($0.capitalized).tag($0)
+                        Text(RulePresentation.fieldName($0)).tag($0)
                     }
                 }
             }
             RuleValueEditor(
                 value: $action.value,
-                field: action.field ?? action.operation,
+                field: action.editorField ?? action.operation,
                 operation: action.operation,
                 options: options
             )
         }
         .onChange(of: action.operation) {
-            if action.operation != "set" { action.field = nil }
+            if action.operation == "set" {
+                if action.field == nil {
+                    action.field = "category"
+                    action.type = RuleCondition.ValueKind.id.rawValue
+                    action.value = .null
+                }
+            } else {
+                let needsStringValue: Bool
+                if case .string = action.value {
+                    needsStringValue = false
+                } else {
+                    needsStringValue = true
+                }
+                action.field = nil
+                action.type = RuleCondition.ValueKind.string.rawValue
+                if needsStringValue {
+                    action.value = .string("")
+                }
+            }
         }
     }
+
+    private var actionFieldBinding: Binding<String> {
+        Binding(
+            get: { action.editorField ?? "category" },
+            set: { newField in
+                guard action.editorField != newField else { return }
+                let kind = RuleCondition.valueKind(for: newField)
+                action.field = RuleCondition.serializedField(newField)
+                action.type = kind?.rawValue
+                action.value = defaultValue(for: kind)
+            }
+        )
+    }
+
+    private func defaultValue(for kind: RuleCondition.ValueKind?) -> RuleJSONValue {
+        switch kind {
+        case .boolean: .bool(false)
+        case .number: .number(0)
+        case .date: .string(Self.dateFormatter.string(from: Date()))
+        case .string: .string("")
+        case .id, nil: .null
+        }
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 }
 
 private struct RuleValueEditor: View {
@@ -433,66 +552,116 @@ private struct RuleValueEditor: View {
     let field: String
     let operation: String
     let options: RuleEditorOptions?
+    @State private var isPayeePickerPresented = false
 
     var body: some View {
-        if operation == "isbetween" {
-            HStack {
-                TextField("Minimum", text: rangeBinding(key: "num1"))
-                    .keyboardType(.decimalPad)
-                Text("and")
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                TextField("Maximum", text: rangeBinding(key: "num2"))
-                    .keyboardType(.decimalPad)
-            }
-        } else if ["cleared", "reconciled", "transfer", "parent"].contains(field) {
-            Picker("Value", selection: boolBinding) {
-                Text("Yes").tag(true)
-                Text("No").tag(false)
-            }
-        } else if isMultiValue, RuleCondition.valueKind(for: field) == .id {
-            Menu {
-                ForEach(multiValueChoices, id: \.id) { choice in
-                    Button {
-                        toggle(choice.id)
-                    } label: {
-                        if selectedIDs.contains(choice.id) {
-                            Label(choice.name, systemImage: "checkmark")
-                        } else {
-                            Text(choice.name)
-                        }
-                    }
-                }
-                if multiValueChoices.isEmpty {
-                    Text("No values available")
-                }
-            } label: {
+        Group {
+            if operation == "isbetween" {
                 HStack {
-                    Text(multiValueSummary)
-                    Spacer()
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
+                    TextField("Minimum", text: rangeBinding(key: "num1"))
+                        .keyboardType(.decimalPad)
+                    Text("and")
                         .foregroundStyle(ActualistTheme.secondaryText)
+                    TextField("Maximum", text: rangeBinding(key: "num2"))
+                        .keyboardType(.decimalPad)
                 }
-            }
-        } else if let choices = choices, !choices.isEmpty, !Self.freeTextOperations.contains(operation) {
-            Picker("Value", selection: stringBinding) {
-                Text("None").tag("")
-                ForEach(choices, id: \.id) { choice in
-                    Text(choice.name).tag(choice.id)
+            } else if ["cleared", "reconciled", "transfer", "parent"].contains(field) {
+                RuleMenuPickerRow("Value", selection: boolBinding) {
+                    Text("Yes").tag(true)
+                    Text("No").tag(false)
                 }
+            } else if isMultiValue {
+                multiValueEditor
+            } else if RuleCondition.valueKind(for: field) == .id {
+                identifierEditor
+            } else {
+                TextField(placeholder, text: stringBinding)
+                    .textInputAutocapitalization(field == "notes" ? .sentences : .never)
             }
-        } else {
-            TextField(placeholder, text: stringBinding)
-                .textInputAutocapitalization(field == "notes" ? .sentences : .never)
+        }
+        .sheet(isPresented: $isPayeePickerPresented) {
+            PayeePickerView(
+                title: isMultiValue ? "Choose Payees" : "Choose Payee",
+                items: (options?.payees ?? []).map {
+                    PayeePickerItem(id: $0.id, title: $0.name, isTransfer: $0.isTransfer)
+                },
+                selectedIDs: Set(isMultiValue ? selectedIDs : selectedID.map { [$0] } ?? []),
+                allowsMultipleSelection: isMultiValue,
+                isLoading: options == nil,
+                searchPrompt: "Search payees"
+            ) { id in
+                selectPayee(id)
+            }
+            .appSwitcherPrivacyProtected()
         }
     }
 
     private var placeholder: String {
-        operation == "oneOf" || operation == "notOneOf" ? "Comma-separated values" : "Value"
+        "Value"
     }
 
     private var isMultiValue: Bool {
         operation == "oneOf" || operation == "notOneOf"
+    }
+
+    @ViewBuilder
+    private var multiValueEditor: some View {
+        if RuleCondition.valueKind(for: field) == .id {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(selectedIDs, id: \.self) { id in
+                    HStack {
+                        Text(multiValueName(for: id))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button("Remove \(multiValueName(for: id))", systemImage: "minus.circle") {
+                            removeID(id)
+                        }
+                        .buttonStyle(.plain)
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(ActualistTheme.danger)
+                    }
+                }
+
+                if options == nil {
+                    ProgressView("Loading values")
+                        .controlSize(.small)
+                } else if field == "payee" {
+                    Button("Choose Payees", systemImage: "person.crop.circle.badge.plus") {
+                        isPayeePickerPresented = true
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(choices?.isEmpty != false)
+                } else {
+                    Menu("Add Value", systemImage: "plus") {
+                        ForEach(availableMultiValueChoices, id: \.id) { choice in
+                            Button(choice.name) { appendID(choice.id) }
+                        }
+                        if availableMultiValueChoices.isEmpty {
+                            Text("All values selected")
+                        }
+                    }
+                    .disabled(availableMultiValueChoices.isEmpty)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(stringValues.indices, id: \.self) { index in
+                    HStack {
+                        TextField("Value \(index + 1)", text: stringValueBinding(at: index))
+                            .textInputAutocapitalization(.never)
+                        Button("Remove Value \(index + 1)", systemImage: "minus.circle") {
+                            removeStringValue(at: index)
+                        }
+                        .buttonStyle(.plain)
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(ActualistTheme.danger)
+                    }
+                }
+                Button("Add Value", systemImage: "plus") {
+                    appendStringValue()
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var selectedIDs: [String] {
@@ -503,39 +672,126 @@ private struct RuleValueEditor: View {
         }
     }
 
-    private var multiValueSummary: String {
-        let count = selectedIDs.count
-        if count == 0 { return "Select values" }
-        if count == 1, let id = selectedIDs.first {
-            return choices?.first { $0.id == id }?.name ?? "1 selected"
+    private var stringValues: [String] {
+        guard case .array(let values) = value else { return [] }
+        return values.compactMap { item in
+            if case .string(let text) = item { return text }
+            return nil
         }
-        return "\(count) selected"
     }
 
-    private var multiValueChoices: [(id: String, name: String)] {
-        let known = choices ?? []
-        let knownIDs = Set(known.map(\.id))
-        var seenUnknownIDs = Set<String>()
-        let unknown = selectedIDs
-            .filter { !knownIDs.contains($0) && seenUnknownIDs.insert($0).inserted }
-            .map { (id: $0, name: "Unknown value") }
-        return known + unknown
+    private var availableMultiValueChoices: [(id: String, name: String)] {
+        (choices ?? []).filter { !selectedIDs.contains($0.id) }
     }
 
-    private func toggle(_ id: String) {
+    private func multiValueName(for id: String) -> String {
+        choices?.first { $0.id == id }?.name ?? RulePresentation.deletedValueName(for: field)
+    }
+
+    @ViewBuilder
+    private var identifierEditor: some View {
+        if options == nil {
+            ProgressView("Loading value")
+                .controlSize(.small)
+        } else if field == "payee" {
+            Button {
+                isPayeePickerPresented = true
+            } label: {
+                HStack {
+                    Text("Value")
+                    Spacer()
+                    Text(selectedPayeeName)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            RuleMenuPickerRow("Value", selection: stringBinding) {
+                Text("None").tag("")
+                if let selectedID, choices?.contains(where: { $0.id == selectedID }) != true {
+                    Text(RulePresentation.deletedValueName(for: field)).tag(selectedID)
+                }
+                ForEach(choices ?? [], id: \.id) { choice in
+                    Text(choice.name).tag(choice.id)
+                }
+            }
+        }
+    }
+
+    private var selectedID: String? {
+        guard case .string(let id) = value, !id.isEmpty else { return nil }
+        return id
+    }
+
+    private var selectedPayeeName: String {
+        guard let selectedID else { return "None" }
+        return choices?.first { $0.id == selectedID }?.name
+            ?? RulePresentation.deletedValueName(for: field)
+    }
+
+    private func selectPayee(_ id: String) {
+        if isMultiValue {
+            if selectedIDs.contains(id) {
+                removeID(id)
+            } else {
+                appendID(id)
+            }
+        } else {
+            value = .string(id)
+        }
+    }
+
+    private func appendID(_ id: String) {
         var ids = selectedIDs
-        if let index = ids.firstIndex(of: id) { ids.remove(at: index) }
-        else { ids.append(id) }
+        guard !ids.contains(id) else { return }
+        ids.append(id)
         value = .array(ids.map(RuleJSONValue.string))
+    }
+
+    private func removeID(_ id: String) {
+        var ids = selectedIDs
+        ids.removeAll { $0 == id }
+        value = .array(ids.map(RuleJSONValue.string))
+    }
+
+    private func stringValueBinding(at index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                let values = stringValues
+                return values.indices.contains(index) ? values[index] : ""
+            },
+            set: { updated in
+                var values = stringValues
+                guard values.indices.contains(index) else { return }
+                values[index] = updated
+                value = .array(values.map(RuleJSONValue.string))
+            }
+        )
+    }
+
+    private func appendStringValue() {
+        var values = stringValues
+        values.append("")
+        value = .array(values.map(RuleJSONValue.string))
+    }
+
+    private func removeStringValue(at index: Int) {
+        var values = stringValues
+        guard values.indices.contains(index) else { return }
+        values.remove(at: index)
+        value = .array(values.map(RuleJSONValue.string))
     }
 
     private var stringBinding: Binding<String> {
         Binding(
-            get: { field == "amount" ? amountDisplayText(value) : value.editableText },
+            get: { field == "amount" ? amountDisplayText(value) : editableString(value) },
             set: { text in
-                if operation == "oneOf" || operation == "notOneOf" {
-                    value = .array(text.split(separator: ",").map { .string($0.trimmingCharacters(in: .whitespaces)) })
-                } else if field == "amount", let number = Decimal(string: text) {
+                if field == "amount", let number = Decimal(string: text) {
                     value = .number(NSDecimalNumber(decimal: number * 100).doubleValue)
                 } else {
                     value = text.isEmpty ? .null : .string(text)
@@ -564,8 +820,34 @@ private struct RuleValueEditor: View {
     }
 
     private func amountDisplayText(_ raw: RuleJSONValue) -> String {
-        guard case .number(let number) = raw else { return raw.editableText }
-        return RuleJSONValue.number(number / 100).editableText
+        let number: Double
+        switch raw {
+        case .number(let stored): number = stored
+        case .string(let stored):
+            guard let parsed = Double(stored) else { return "" }
+            number = parsed
+        default: return ""
+        }
+        return editableNumber(number / 100)
+    }
+
+    private func editableString(_ raw: RuleJSONValue) -> String {
+        switch raw {
+        case .string(let text): text
+        case .number(let number): editableNumber(number)
+        case .null: ""
+        case .bool, .array, .object: ""
+        }
+    }
+
+    private func editableNumber(_ number: Double) -> String {
+        guard number.isFinite else { return "" }
+        if number.rounded() == number,
+           number >= Double(Int.min),
+           number <= Double(Int.max) {
+            return String(Int(number))
+        }
+        return String(number)
     }
 
     private var boolBinding: Binding<Bool> {
@@ -586,5 +868,4 @@ private struct RuleValueEditor: View {
         }
     }
 
-    private static let freeTextOperations: Set<String> = ["contains", "doesNotContain", "matches"]
 }

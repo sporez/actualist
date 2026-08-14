@@ -31,16 +31,20 @@ enum RuleConditionEvaluator {
         var result = context
         for rule in rules where !rule.isCompletedScheduleRule {
             guard let draft = rule.draft else { continue }
-            let matches = draft.conditions.map { conditionMatches($0, context: result) }
-            let shouldApply = draft.conditionsJoin == .and
-                ? matches.allSatisfy { $0 }
-                : matches.contains(true)
-            guard shouldApply else { continue }
+            guard conditionsMatch(draft, context: result) else { continue }
             for action in draft.actions {
                 apply(action: action, context: &result)
             }
         }
         return result
+    }
+
+    static func conditionsMatch(_ draft: RuleDraft, context: RuleEvaluationContext) -> Bool {
+        guard !draft.conditions.isEmpty else { return false }
+        let matches = draft.conditions.map { conditionMatches($0, context: context) }
+        return draft.conditionsJoin == .and
+            ? matches.allSatisfy { $0 }
+            : matches.contains(true)
     }
 
     static func conditionMatches(_ condition: RuleCondition, context: RuleEvaluationContext) -> Bool {
@@ -60,7 +64,7 @@ enum RuleConditionEvaluator {
         case "category_group": actual = context.categoryGroupID.map(RuleJSONValue.string) ?? .null
         case "date": actual = .string(ruleDateFormatter.string(from: context.date))
         case "notes": actual = .string(context.notes ?? "")
-        case "payee": actual = context.payeeID.map(RuleJSONValue.string) ?? .null
+        case "payee", "description": actual = context.payeeID.map(RuleJSONValue.string) ?? .null
         case "imported_payee": actual = .string(context.importedPayee ?? "")
         case "payee_name": actual = .string(context.payeeName)
         case "cleared": actual = .bool(context.cleared)
@@ -88,7 +92,7 @@ enum RuleConditionEvaluator {
             case "category_group":
                 guard context.categoryGroupID != nil else { return false }
                 actual = .string(context.categoryGroupName ?? "")
-            case "payee":
+            case "payee", "description":
                 guard context.payeeID != nil else { return false }
                 actual = .string(context.payeeName)
             default: break
@@ -116,8 +120,8 @@ enum RuleConditionEvaluator {
             return operation == "oneOf" ? contains : !contains
         case "contains", "doesNotContain", "matches", "hasTags", "hasAnyTag":
             guard actual != .null else { return false }
-            let actualText = actual.editableText.lowercased()
-            let expectedText = normalizedExpectedText(expected.editableText, kind: kind)
+            let actualText = comparisonText(actual).lowercased()
+            let expectedText = normalizedExpectedText(comparisonText(expected), kind: kind)
             let matches: Bool
             if operation == "matches" {
                 matches = (try? NSRegularExpression(pattern: expectedText))
@@ -155,6 +159,29 @@ enum RuleConditionEvaluator {
         }
     }
 
+    private static func comparisonText(_ value: RuleJSONValue) -> String {
+        switch value {
+        case .null:
+            return ""
+        case .bool(let enabled):
+            return enabled ? "true" : "false"
+        case .number(let number):
+            guard number.isFinite else { return "" }
+            if number.rounded() == number,
+               number >= Double(Int.min),
+               number <= Double(Int.max) {
+                return String(Int(number))
+            }
+            return String(number)
+        case .string(let text):
+            return text
+        case .array(let values):
+            return values.map(comparisonText).joined(separator: ", ")
+        case .object:
+            return ""
+        }
+    }
+
     private static func compareDate(actual: RuleJSONValue, operation: String, expected: RuleJSONValue) -> Bool {
         guard case .string(let actualDate) = actual, case .string(let expectedDate) = expected else { return false }
         switch operation {
@@ -189,7 +216,9 @@ enum RuleConditionEvaluator {
         case (.null, .null): return true
         case (.bool(let lhs), .bool(let rhs)): return lhs == rhs
         case (.string(let lhs), .string(let rhs)):
-            return lhs.lowercased() == normalizedExpectedText(rhs, kind: kind)
+            return kind == .string
+                ? lhs.lowercased() == rhs.lowercased()
+                : lhs == rhs
         default: return false
         }
     }
@@ -241,7 +270,7 @@ enum RuleConditionEvaluator {
                     context.date = date
                 }
             case "notes": context.notes = stringOrNil(action.value)
-            case "payee":
+            case "payee", "description":
                 context.payeeID = stringOrNil(action.value)
                 context.payeeName = context.payeeID.flatMap { context.payeeNames[$0] } ?? ""
             case "cleared":

@@ -39,7 +39,8 @@ extension BudgetDatabase {
                         id: $0,
                         name: payee.name.isEmpty
                             ? payee.transferAccount.flatMap { accountNames[$0] } ?? "Unknown payee"
-                            : payee.name
+                            : payee.name,
+                        isTransfer: payee.transferAccount != nil
                     )
                 }
             }
@@ -58,6 +59,46 @@ extension BudgetDatabase {
             amountMinorUnits: result.amount == draft.amountMinorUnits ? nil : result.amount,
             date: Calendar.current.isDate(result.date, inSameDayAs: draft.date) ? nil : result.date,
             cleared: result.cleared == draft.cleared ? nil : result.cleared
+        )
+    }
+
+    func fetchMatchingTransactions(
+        for draft: RuleDraft,
+        limit: Int
+    ) throws -> RuleTransactionMatchPreview {
+        guard !draft.conditions.isEmpty else {
+            return RuleTransactionMatchPreview(transactions: [], totalCount: 0)
+        }
+
+        let transactions = try fetchTransactions()
+        let metadata = try ruleEvaluationMetadata()
+        let matches = transactions.compactMap { transaction -> RuleTransactionMatch? in
+            guard let context = ruleEvaluationContext(for: transaction, metadata: metadata),
+                  RuleConditionEvaluator.conditionsMatch(draft, context: context),
+                  let id = transaction.id else { return nil }
+            let isTransfer = transaction.payee.map { metadata.transferPayeeIDs.contains($0) } ?? false
+            let categoryName: String
+            if let categoryID = transaction.category {
+                categoryName = metadata.categoryNames[categoryID] ?? "Deleted category"
+            } else {
+                categoryName = isTransfer ? "Account Transfer" : "Uncategorized"
+            }
+            return RuleTransactionMatch(
+                id: id,
+                date: transaction.date,
+                payeeName: transaction.payeeName
+                    ?? transaction.payee.flatMap { metadata.payeeNames[$0] }
+                    ?? transaction.importedPayee
+                    ?? "Unknown payee",
+                categoryName: categoryName,
+                accountName: metadata.accountNames[transaction.account] ?? "Deleted account",
+                amountMinorUnits: transaction.amount ?? 0
+            )
+        }
+
+        return RuleTransactionMatchPreview(
+            transactions: Array(matches.prefix(max(0, limit))),
+            totalCount: matches.count
         )
     }
 
@@ -286,7 +327,7 @@ extension BudgetDatabase {
                     guard let draft = rule.draft,
                           draft.conditions.count == 1,
                           let condition = draft.conditions.first,
-                          condition.field == "payee", condition.operation == "is",
+                          ["payee", "description"].contains(condition.field), condition.operation == "is",
                           condition.value == .string(payeeID),
                           let action = draft.actions.first,
                           action.operation == "set", action.field == "category" else { return false }
@@ -296,7 +337,7 @@ extension BudgetDatabase {
                     let newDraft = RuleDraft(
                         stage: .normal,
                         conditionsJoin: .and,
-                        conditions: [RuleCondition(field: "payee", operation: "is", value: .string(payeeID))],
+                        conditions: [RuleCondition(field: "description", operation: "is", value: .string(payeeID))],
                         actions: [RuleAction(operation: "set", field: "category", value: .string(categoryID))]
                     )
                     messages += try ruleMessages(
@@ -376,10 +417,18 @@ extension BudgetDatabase {
         return objects.allSatisfy { Set($0.keys).isSubset(of: kind.allowedKeys) }
     }
 
-    private func ruleEvaluationContext(for draft: TransactionDraft) throws -> RuleEvaluationContext {
+    private struct RuleEvaluationMetadata {
+        let accountNames: [String: String]
+        let offBudgetAccountIDs: Set<String>
+        let categoryNames: [String: String]
+        let categoryGroupsByCategoryID: [String: String]
+        let categoryGroupNames: [String: String]
+        let payeeNames: [String: String]
+        let transferPayeeIDs: Set<String>
+    }
+
+    private func ruleEvaluationMetadata() throws -> RuleEvaluationMetadata {
         try queue.read { db in
-            var offBudget = false
-            var accountName = ""
             var accountNames: [String: String] = [:]
             var offBudgetAccountIDs = Set<String>()
             if try tableExists("accounts", db: db) {
@@ -395,12 +444,7 @@ extension BudgetDatabase {
                     accountNames[id] = row["name"] ?? ""
                     if flexibleBool(row["offbudget"]) { offBudgetAccountIDs.insert(id) }
                 }
-                accountName = accountNames[draft.accountID] ?? ""
-                offBudget = offBudgetAccountIDs.contains(draft.accountID)
             }
-            var categoryGroupID: String?
-            var categoryName: String?
-            var categoryGroupName: String?
             var categoryNames: [String: String] = [:]
             var categoryGroupsByCategoryID: [String: String] = [:]
             var categoryGroupNames: [String: String] = [:]
@@ -426,47 +470,112 @@ extension BudgetDatabase {
                         categoryGroupsByCategoryID[id] = groupID
                     }
                 }
-                if let categoryID = draft.categoryID {
-                    categoryName = categoryNames[categoryID]
-                    categoryGroupID = categoryGroupsByCategoryID[categoryID]
-                    categoryGroupName = categoryGroupID.flatMap { categoryGroupNames[$0] }
-                }
             }
             var payeeNames: [String: String] = [:]
+            var transferPayeeIDs = Set<String>()
             if try tableExists("payees", db: db) {
-                let rows = try Row.fetchAll(db, sql: "SELECT id, name FROM payees")
-                payeeNames = Dictionary(uniqueKeysWithValues: rows.compactMap { row in
-                    guard let id = row["id"] as String? else { return nil }
-                    return (id, row["name"] as String? ?? "")
-                })
+                let columns = try columnSet(for: "payees", db: db)
+                let transferAccount = columns.contains("transfer_acct") ? "transfer_acct" : "NULL"
+                let rows = try Row.fetchAll(
+                    db,
+                    sql: "SELECT id, name, \(transferAccount) AS transfer_account FROM payees"
+                )
+                for row in rows {
+                    guard let id = row["id"] as String? else { continue }
+                    let transferAccountID = row["transfer_account"] as String?
+                    if transferAccountID != nil { transferPayeeIDs.insert(id) }
+                    let rawName = row["name"] as String? ?? ""
+                    payeeNames[id] = rawName.isEmpty
+                        ? transferAccountID.flatMap { accountNames[$0] } ?? ""
+                        : rawName
+                }
             }
-            return RuleEvaluationContext(
-                accountID: draft.accountID,
-                accountName: accountName,
-                accountIsOffBudget: offBudget,
-                amount: draft.amountMinorUnits,
-                categoryID: draft.categoryID,
-                categoryName: categoryName,
-                categoryGroupID: categoryGroupID,
-                categoryGroupName: categoryGroupName,
-                date: draft.date,
-                notes: draft.notes,
-                payeeID: draft.payeeID,
-                payeeName: draft.payeeName,
-                importedPayee: draft.importedPayee,
-                cleared: draft.cleared,
-                reconciled: draft.reconciled,
-                isTransfer: draft.isTransfer,
-                isParent: draft.isParent,
+            return RuleEvaluationMetadata(
                 accountNames: accountNames,
                 offBudgetAccountIDs: offBudgetAccountIDs,
                 categoryNames: categoryNames,
                 categoryGroupsByCategoryID: categoryGroupsByCategoryID,
                 categoryGroupNames: categoryGroupNames,
-                payeeNames: payeeNames
+                payeeNames: payeeNames,
+                transferPayeeIDs: transferPayeeIDs
             )
         }
     }
+
+    private func ruleEvaluationContext(for draft: TransactionDraft) throws -> RuleEvaluationContext {
+        let metadata = try ruleEvaluationMetadata()
+        let categoryGroupID = draft.categoryID.flatMap { metadata.categoryGroupsByCategoryID[$0] }
+        return RuleEvaluationContext(
+            accountID: draft.accountID,
+            accountName: metadata.accountNames[draft.accountID] ?? "",
+            accountIsOffBudget: metadata.offBudgetAccountIDs.contains(draft.accountID),
+            amount: draft.amountMinorUnits,
+            categoryID: draft.categoryID,
+            categoryName: draft.categoryID.flatMap { metadata.categoryNames[$0] },
+            categoryGroupID: categoryGroupID,
+            categoryGroupName: categoryGroupID.flatMap { metadata.categoryGroupNames[$0] },
+            date: draft.date,
+            notes: draft.notes,
+            payeeID: draft.payeeID,
+            payeeName: draft.payeeName,
+            importedPayee: draft.importedPayee,
+            cleared: draft.cleared,
+            reconciled: draft.reconciled,
+            isTransfer: draft.isTransfer,
+            isParent: draft.isParent,
+            accountNames: metadata.accountNames,
+            offBudgetAccountIDs: metadata.offBudgetAccountIDs,
+            categoryNames: metadata.categoryNames,
+            categoryGroupsByCategoryID: metadata.categoryGroupsByCategoryID,
+            categoryGroupNames: metadata.categoryGroupNames,
+            payeeNames: metadata.payeeNames
+        )
+    }
+
+    private func ruleEvaluationContext(
+        for transaction: ActualTransaction,
+        metadata: RuleEvaluationMetadata
+    ) -> RuleEvaluationContext? {
+        guard let date = Self.rulePreviewDateFormatter.date(from: transaction.date) else { return nil }
+        let categoryGroupID = transaction.category.flatMap { metadata.categoryGroupsByCategoryID[$0] }
+        return RuleEvaluationContext(
+            accountID: transaction.account,
+            accountName: metadata.accountNames[transaction.account] ?? "",
+            accountIsOffBudget: metadata.offBudgetAccountIDs.contains(transaction.account),
+            amount: transaction.amount ?? 0,
+            categoryID: transaction.category,
+            categoryName: transaction.category.flatMap { metadata.categoryNames[$0] },
+            categoryGroupID: categoryGroupID,
+            categoryGroupName: categoryGroupID.flatMap { metadata.categoryGroupNames[$0] },
+            date: date,
+            notes: transaction.notes,
+            payeeID: transaction.payee,
+            payeeName: transaction.payeeName
+                ?? transaction.payee.flatMap { metadata.payeeNames[$0] }
+                ?? "",
+            importedPayee: transaction.importedPayee,
+            cleared: transaction.cleared?.boolValue == true,
+            reconciled: transaction.reconciled,
+            isTransfer: transaction.payee.map { metadata.transferPayeeIDs.contains($0) } ?? false,
+            isParent: transaction.isParent,
+            accountNames: metadata.accountNames,
+            offBudgetAccountIDs: metadata.offBudgetAccountIDs,
+            categoryNames: metadata.categoryNames,
+            categoryGroupsByCategoryID: metadata.categoryGroupsByCategoryID,
+            categoryGroupNames: metadata.categoryGroupNames,
+            payeeNames: metadata.payeeNames
+        )
+    }
+
+    private static let rulePreviewDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter
+    }()
 
     private func completedScheduleRuleIDs(db: Database) throws -> Set<String> {
         guard try tableExists("schedules", db: db) else { return [] }
@@ -516,7 +625,7 @@ extension BudgetDatabase {
         _ condition: RuleCondition,
         targets: [String: String]
     ) -> RuleCondition {
-        guard condition.field == "payee",
+        guard ["payee", "description"].contains(condition.field),
               condition.type == nil || condition.type == RuleCondition.ValueKind.id.rawValue else {
             return condition
         }

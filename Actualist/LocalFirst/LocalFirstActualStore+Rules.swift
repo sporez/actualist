@@ -14,6 +14,14 @@ extension LocalFirstActualStore {
         try await requireDatabase(for: budgetID).fetchRuleEditorOptions()
     }
 
+    func matchingTransactions(
+        budgetID: String,
+        draft: RuleDraft,
+        limit: Int
+    ) async throws -> RuleTransactionMatchPreview {
+        try await requireDatabase(for: budgetID).fetchMatchingTransactions(for: draft, limit: limit)
+    }
+
     func createRuleAndRefresh(budgetID: String, draft: RuleDraft) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()

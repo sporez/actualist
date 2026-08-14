@@ -181,6 +181,26 @@ struct TransactionEditorViewModelTests {
         #expect(sections.last?.options.map(\.title) == ["37 Bow Street"])
     }
 
+    @Test func sharedPayeePickerMatchesTitlesAliasesAndTransferHeading() {
+        let regular = PayeePickerItem(
+            id: "coffee",
+            title: "Coffee Lab",
+            searchAliases: ["Imported Coffee Merchant"]
+        )
+        let transfer = PayeePickerItem(
+            id: "transfer-checking",
+            title: "Ally Checking",
+            isTransfer: true
+        )
+
+        #expect(regular.matches(searchText: "coffee lab"))
+        #expect(regular.matches(searchText: "imported"))
+        #expect(!regular.matches(searchText: "transfer"))
+        #expect(transfer.matches(searchText: "transfer"))
+        #expect(transfer.matches(searchText: " ally "))
+        #expect(regular.matches(searchText: ""))
+    }
+
     @Test func customPayeeOptionIsHiddenForExactExistingPayeeOrTransferAccountMatch() {
         let model = TransactionEditorViewModel()
         model.accounts = [
