@@ -112,6 +112,7 @@
 		010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000047 /* BudgetDatabase+Schema.swift */; };
 		01000000000000000000004C /* ReportsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004C /* ReportsModels.swift */; };
 		01000000000000000000004D /* ReportsRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004D /* ReportsRepository.swift */; };
+		010000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift */; };
 		01000000000000000000004E /* BudgetDatabase+Reports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004E /* BudgetDatabase+Reports.swift */; };
 		01000000000000000000004F /* LocalFirstActualStore+Reports.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004F /* LocalFirstActualStore+Reports.swift */; };
 		010000000000000000000050 /* ReportsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000050 /* ReportsViewModel.swift */; };
@@ -249,6 +250,7 @@
 		020000000000000000000047 /* BudgetDatabase+Schema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Schema.swift"; sourceTree = "<group>"; };
 		02000000000000000000004C /* ReportsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsModels.swift; sourceTree = "<group>"; };
 		02000000000000000000004D /* ReportsRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsRepository.swift; sourceTree = "<group>"; };
+		020000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+EnvelopeHolds.swift"; sourceTree = "<group>"; };
 		02000000000000000000004E /* BudgetDatabase+Reports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Reports.swift"; sourceTree = "<group>"; };
 		02000000000000000000004F /* LocalFirstActualStore+Reports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Reports.swift"; sourceTree = "<group>"; };
 		020000000000000000000050 /* ReportsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsViewModel.swift; sourceTree = "<group>"; };
@@ -604,6 +606,7 @@
 				020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */,
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
 				020000000000000000000047 /* BudgetDatabase+Schema.swift */,
+				020000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift */,
 				02000000000000000000004E /* BudgetDatabase+Reports.swift */,
 				020000000000000000000055 /* BudgetTemplateEngine.swift */,
 			);
@@ -823,6 +826,7 @@
 				01000000000000000000007F /* LocalFirstActualStore+Rules.swift in Sources */,
 				01000000000000000000004C /* ReportsModels.swift in Sources */,
 				01000000000000000000004D /* ReportsRepository.swift in Sources */,
+				010000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift in Sources */,
 				01000000000000000000004E /* BudgetDatabase+Reports.swift in Sources */,
 				01000000000000000000004F /* LocalFirstActualStore+Reports.swift in Sources */,
 				010000000000000000000050 /* ReportsViewModel.swift in Sources */,

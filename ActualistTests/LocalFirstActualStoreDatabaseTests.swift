@@ -520,4 +520,79 @@ extension LocalFirstActualStoreTests {
         #expect(groceries?.balance == 10_000)
     }
 
+    @Test func manualHoldForNextMonthReducesToBudgetAndReturnsNextMonth() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            CREATE TABLE zero_budget_months (id TEXT PRIMARY KEY, buffered INTEGER);
+            INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 2);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO transactions VALUES ('inc-jul', 'checking', 20260710, 100000, 'salary', 0, NULL, 0);
+            INSERT INTO zero_budget_months VALUES ('2026-07', 25000);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let august = try await database.fetchBudgetMonth(month: "2026-08")
+
+        // Balance 87655 - leftover 37655 - hold 25000. The hold returns in August.
+        #expect(july.toBudget == 25_000)
+        #expect(july.forNextMonth == 25_000)
+        #expect(august.toBudget == 50_000)
+        #expect(august.forNextMonth == 0)
+    }
+
+    @Test func carryoverIncomeCategoryInfersHoldForNextMonth() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            CREATE TABLE zero_budget_months (id TEXT PRIMARY KEY, buffered INTEGER);
+            INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 2);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 1);
+            INSERT INTO transactions VALUES ('inc-jul', 'checking', 20260710, 40000, 'salary', 0, NULL, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let august = try await database.fetchBudgetMonth(month: "2026-08")
+
+        // July's income into the carryover-flagged income category is held for next month.
+        #expect(july.toBudget == -50_000)
+        #expect(july.forNextMonth == 40_000)
+        // Without a flagged row in August the hold returns.
+        #expect(august.toBudget == -10_000)
+        #expect(august.forNextMonth == 0)
+    }
+
+    @Test func explicitHoldOverridesInferredIncomeCarryoverHold() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            CREATE TABLE zero_budget_months (id TEXT PRIMARY KEY, buffered INTEGER);
+            INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 2);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 1);
+            INSERT INTO transactions VALUES ('inc-jul', 'checking', 20260710, 40000, 'salary', 0, NULL, 0);
+            INSERT INTO zero_budget_months VALUES ('2026-07', 20000);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
+
+        // The explicit 20000 hold wins; the inferred 40000 does not stack.
+        #expect(month.toBudget == -30_000)
+        #expect(month.forNextMonth == 20_000)
+    }
+
+    @Test func expenseCategoryCarryoverDoesNotInferHoldWhenHoldTableIsMissing() async throws {
+        // Base fixture: groceries budgeted 50000 with carryover, 12345 spent — an expense
+        // category carryover must never infer a hold, and legacy databases without
+        // zero_budget_months must still query cleanly.
+        let fixtureURL = try makeSQLiteFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
+
+        #expect(month.toBudget == -50_000)
+        #expect(month.forNextMonth == 0)
+    }
+
 }

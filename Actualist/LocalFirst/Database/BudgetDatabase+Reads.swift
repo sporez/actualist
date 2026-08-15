@@ -210,15 +210,17 @@ extension BudgetDatabase {
             let totalBalance = expenseGroups.reduce(0) { $0 + $1.balance }
             let totalIncome = incomeGroups.reduce(0) { $0 + $1.spent }
             // Actual excludes uncategorized rows from To Budget until they are categorized.
+            // A hold for next month (explicit or inferred) also comes out of this month.
             let onBudgetBalance = try onBudgetAccountBalance(through: month, db: db)
             let uncategorizedActivity = try uncategorizedOnBudgetActivity(through: month, db: db)
-            let toBudget = (onBudgetBalance - uncategorizedActivity) - totalBalance
+            let holdForNextMonth = try envelopeHold(month: month, db: db)
+            let toBudget = (onBudgetBalance - uncategorizedActivity) - totalBalance - holdForNextMonth
 
             return BudgetMonth(
                 month: month,
                 incomeAvailable: toBudget,
                 lastMonthOverspent: 0,
-                forNextMonth: 0,
+                forNextMonth: holdForNextMonth,
                 totalBudgeted: totalBudgeted,
                 toBudget: toBudget,
                 fromLastMonth: 0,
