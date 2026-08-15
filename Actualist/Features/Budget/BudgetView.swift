@@ -251,6 +251,7 @@ struct BudgetView: View {
                     ) { category in
                         pendingOverspentCategoryID = category.id
                     }
+                    .environment(appState)
                     .appSwitcherPrivacyProtected()
                 }
                 .sheet(
