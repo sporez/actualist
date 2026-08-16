@@ -148,6 +148,7 @@ enum ActualistTheme {
                 neutral: Color(hex: 0x91849D),
                 primaryText: Color(hex: 0x211629),
                 secondaryText: Color(hex: 0x5B4B67),
+                positiveForeground: .white,
                 separator: Color(hex: 0x624183).opacity(0.30)
             )
         case .coastalSageLight:
