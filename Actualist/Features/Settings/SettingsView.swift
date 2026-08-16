@@ -646,11 +646,10 @@ struct SettingsView: View {
     }
 
     private var localFirstLastSyncedText: String {
-        guard let status = appState.localFirstSyncStatus, let lastSyncedAt = status.lastSyncedAt else {
+        guard let lastSyncedAt = appState.localFirstSyncStatus?.lastSyncedAt else {
             return "Unknown"
         }
-        let relative = lastSyncedAt.formatted(.relative(presentation: .named))
-        return "\(relative) · \(status.lastUploadedMessageCount) up · \(status.lastAppliedMessageCount) down"
+        return lastSyncedAt.formatted(.relative(presentation: .named))
     }
 
     private var localFirstPendingSyncText: String {
