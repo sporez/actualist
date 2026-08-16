@@ -17,6 +17,15 @@ final class BudgetViewModel {
     let assignmentWorkflow = BudgetAssignmentWorkflow()
     let moveMoneyWorkflow = BudgetMoveMoneyWorkflow()
     let templateWorkflow = BudgetTemplateWorkflow()
+    let overspentCoverSelection = OverspentCoverSelectionWorkflow()
+
+    var isCoveringOverspentSelection: Bool {
+        overspentCoverSelection.isSubmitting
+    }
+
+    var isMoveMoneySubmitting: Bool {
+        moveMoneyWorkflow.isSubmitting
+    }
 
     init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
         loadedBudgetID = initialBudgetID
@@ -37,6 +46,22 @@ final class BudgetViewModel {
 
     var monthTemplateSubmissionState: BudgetAssignmentSubmissionState {
         templateWorkflow.submissionState
+    }
+
+    var canBeginOverspentCoverSelection: Bool {
+        overspentCategoryOptions.count >= 2 && !overspentCoverSelection.isSubmitting
+    }
+
+    var isOverspentCoverSelecting: Bool {
+        overspentCoverSelection.isSelecting
+    }
+
+    var selectedOverspentCategoryIDs: Set<String> {
+        overspentCoverSelection.selectedCategoryIDs
+    }
+
+    var canSubmitOverspentCoverSelection: Bool {
+        overspentCoverSelection.canSubmitSelection
     }
 
     var navigationTitle: String {
@@ -279,6 +304,125 @@ final class BudgetViewModel {
         } else {
             expandedGroupIDs.insert(group.id)
         }
+    }
+
+    func beginOverspentCoverSelection() {
+        overspentCoverSelection.beginSelection(
+            eligibleIDs: overspentCategoryOptions.map(\.id)
+        )
+    }
+
+    func endOverspentCoverSelection() {
+        overspentCoverSelection.endSelection()
+    }
+
+    func toggleOverspentCoverSelection(_ option: BudgetOverspentCategoryOption) {
+        overspentCoverSelection.toggleSelection(option.id, isEligible: true)
+    }
+
+    // Selected categories are excluded from single-cover eligible sources, so
+    // the shared source can never double as a cover destination.
+    func overspentCoverCommands(
+        source: BudgetOverspentCoverSource
+    ) -> [BudgetMoveMoneyCommand] {
+        overspentCoverSelection.coverCommands(
+            options: overspentCategoryOptions,
+            source: source
+        )
+    }
+
+    func coverOverspentSelection(
+        source: BudgetOverspentCoverSource,
+        using appState: AppState
+    ) async -> Bool {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return false
+        }
+        let repository = appState.budgetRepository
+
+        return await coverOverspentSelection(
+            source: source,
+            budgetID: budgetID,
+            repository: repository
+        )
+    }
+
+    func coverOverspentSelection(
+        source: BudgetOverspentCoverSource,
+        budgetID: String,
+        repository: any BudgetRepositoryProtocol
+    ) async -> Bool {
+        guard let selectedMonth else {
+            return false
+        }
+
+        let commands = overspentCoverCommands(source: source)
+        guard commands.count == selectedOverspentCategoryIDs.count else {
+            overspentCoverSelection.finishSubmission(success: false)
+            errorMessage = "One or more selected categories are no longer overspent."
+            return false
+        }
+
+        overspentCoverSelection.markSubmitting()
+        errorMessage = nil
+
+        do {
+            let loadedMonth = try await repository.moveMoneyAndRefresh(
+                commands: commands,
+                budgetID: budgetID,
+                month: selectedMonth
+            ) {}
+            overspentCoverSelection.finishSubmission(success: true)
+            apply(loadedMonth, budgetID: budgetID)
+            return true
+        } catch {
+            overspentCoverSelection.finishSubmission(success: false)
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    // Source candidates for the multi-cover picker: visible categories that are
+    // neither selected destinations nor currently overspent. Covering overspent
+    // categories from another overspent one would just move the red balance.
+    func overspentCoverSourcePickerGroups() -> [TransactionEditorCategoryGroup] {
+        let selectedIDs = selectedOverspentCategoryIDs
+        let selectedOverspentIDs = Set(overspentCategoryOptions.map(\.id))
+        return visibleGroups.compactMap { group in
+            let options = group.visibleCategories.compactMap { category -> TransactionEditorCategoryOption? in
+                guard !selectedIDs.contains(category.id),
+                      !selectedOverspentIDs.contains(category.id) else {
+                    return nil
+                }
+                return TransactionEditorCategoryOption(
+                    id: category.id,
+                    title: category.name.actualistCategoryNameParts.name,
+                    amount: category.balance,
+                    valueText: category.balance.actualMoney.formatted()
+                )
+            }
+            guard !options.isEmpty else {
+                return nil
+            }
+            return TransactionEditorCategoryGroup(id: group.id, name: group.name, options: options)
+        }
+    }
+
+    func fundingSourceOptions() -> [BudgetMoveMoneyDestinationGroup] {
+        moveMoneyWorkflow.destinationGroups(
+            matching: "",
+            visibleGroups: visibleGroups.filter { group in
+                group.visibleCategories.contains { category in
+                    !overspentCoverSelection.selectedCategoryIDs.contains(category.id)
+                }
+            }
+        ).map { group in
+            var filtered = group
+            filtered.options = group.options.filter { option in
+                !overspentCoverSelection.selectedCategoryIDs.contains(option.id)
+            }
+            return filtered
+        }.filter { !$0.options.isEmpty }
     }
 
     func beginAssignmentEditing(for category: BudgetMonthCategory) {
@@ -553,6 +697,12 @@ final class BudgetViewModel {
                     .map(\.id)
             )
         }
+        overspentCoverSelection.intersectSelection(with: Set(
+            OverspentCoverSelectionViewModel.overspentOptions(
+                for: loadedMonth.month,
+                includeCarryover: includeCarryoverCategoriesInOverspentAlerts
+            ).map(\.id)
+        ))
     }
 
     private static func monthPickerMonths(for loadedMonth: LoadedBudgetMonth) -> [String] {

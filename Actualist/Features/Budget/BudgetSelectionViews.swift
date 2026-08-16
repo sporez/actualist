@@ -1,12 +1,30 @@
 import SwiftUI
 
 struct BudgetOverspentCategoriesView: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
 
-    let categories: [BudgetOverspentCategoryOption]
+    @Bindable var viewModel: BudgetViewModel
+
+    @State private var isCoverSourcePickerPresented = false
+    @State private var selectedDetent: PresentationDetent = .medium
+
     let isPrivacyModeEnabled: Bool
-    let onSelect: (BudgetOverspentCategoryOption) -> Void
+    let onSelectSingle: (BudgetOverspentCategoryOption) -> Void
+
+    init(
+        viewModel: BudgetViewModel,
+        isPrivacyModeEnabled: Bool,
+        onSelectSingle: @escaping (BudgetOverspentCategoryOption) -> Void = { _ in }
+    ) {
+        self.viewModel = viewModel
+        self.isPrivacyModeEnabled = isPrivacyModeEnabled
+        self.onSelectSingle = onSelectSingle
+        _selectedDetent = State(
+            initialValue: viewModel.overspentCategoryOptions.count >= 4 ? .large : .medium
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -14,73 +32,10 @@ struct BudgetOverspentCategoriesView: View {
                 ActualistTheme.background.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if categories.isEmpty {
-                            GlassPanel {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.title)
-                                        .foregroundStyle(ActualistTheme.positive)
-                                    Text("No overspent categories")
-                                        .font(ActualistTypography.rowTitle(for: density))
-                                        .foregroundStyle(ActualistTheme.primaryText)
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
-                        } else {
-                            VStack(spacing: 0) {
-                                ForEach(categories) { category in
-                                    Button {
-                                        onSelect(category)
-                                        dismiss()
-                                    } label: {
-                                        HStack(spacing: 12) {
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                Text(categoryName(category))
-                                                    .font(ActualistTypography.rowTitle(for: density))
-                                                    .foregroundStyle(ActualistTheme.primaryText)
-                                                    .lineLimit(1)
-                                                    .minimumScaleFactor(0.84)
-
-                                                Text(groupName(category))
-                                                    .font(ActualistTypography.rowBadge(for: density))
-                                                    .foregroundStyle(ActualistTheme.secondaryText)
-                                            }
-
-                                            Spacer()
-
-                                            Text(amountText(category))
-                                                .font(ActualistTypography.rowValue(for: density))
-                                                .foregroundStyle(.white)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.78)
-                                                .padding(.horizontal, 12)
-                                                .padding(.vertical, 6)
-                                                .background(ActualistTheme.danger.opacity(0.84), in: Capsule())
-
-                                            Image(systemName: "chevron.right")
-                                                .font(.subheadline.weight(.bold))
-                                                .foregroundStyle(ActualistTheme.secondaryText)
-                                        }
-                                        .padding(.horizontal, 18)
-                                        .padding(.vertical, 14)
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    if category.id != categories.last?.id {
-                                        Divider()
-                                            .overlay(ActualistTheme.separator)
-                                            .padding(.leading, 18)
-                                    }
-                                }
-                            }
-                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        }
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 18)
-                    .padding(.bottom, 28)
+                    content
+                        .padding(.horizontal, 18)
+                        .padding(.top, 18)
+                        .padding(.bottom, 28)
                 }
                 .scrollIndicators(.hidden)
             }
@@ -94,10 +49,198 @@ struct BudgetOverspentCategoriesView: View {
                         Image(systemName: "xmark")
                     }
                 }
+
+                if viewModel.isOverspentCoverSelecting || viewModel.canBeginOverspentCoverSelection {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(viewModel.isOverspentCoverSelecting ? "Done" : "Select") {
+                            if viewModel.isOverspentCoverSelecting {
+                                viewModel.endOverspentCoverSelection()
+                            } else {
+                                viewModel.beginOverspentCoverSelection()
+                            }
+                        }
+                        .disabled(viewModel.isCoveringOverspentSelection)
+                    }
+                }
+
+                if viewModel.isOverspentCoverSelecting {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Spacer()
+                        Button {
+                            isCoverSourcePickerPresented = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text("Cover")
+                                    .font(ActualistTypography.control(for: density))
+                                Text(totalCoveredAmountText)
+                                    .font(ActualistTypography.control(for: density))
+                                    .foregroundStyle(ActualistTheme.secondaryText)
+                                if viewModel.isCoveringOverspentSelection {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                            }
+                        }
+                        .disabled(!viewModel.canSubmitOverspentCoverSelection)
+                    }
+                }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
+        .onChange(of: viewModel.overspentCategoryOptions.count) { _, count in
+            if count >= 4 {
+                selectedDetent = .large
+            }
+            if count == 0 {
+                dismiss()
+            }
+        }
+        .sheet(isPresented: $isCoverSourcePickerPresented) {
+            TransactionCategorySelectionView(
+                categoryGroups: viewModel.overspentCoverSourcePickerGroups(),
+                selectedCategoryID: nil,
+                isLoading: false,
+                showsUncategorizedOption: false
+            ) { option in
+                isCoverSourcePickerPresented = false
+                Task {
+                    let covered = await viewModel.coverOverspentSelection(
+                        source: .category(id: option.id, name: option.title),
+                        using: appState
+                    )
+                    if covered, viewModel.overspentCategoryOptions.isEmpty {
+                        dismiss()
+                    }
+                }
+            }
+            .appSwitcherPrivacyProtected()
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if viewModel.overspentCategoryOptions.isEmpty {
+            GlassPanel {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title)
+                        .foregroundStyle(ActualistTheme.positive)
+                    Text("No overspent categories")
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        } else {
+            VStack(spacing: 0) {
+                ForEach(viewModel.overspentCategoryOptions) { category in
+                    overspentButton(for: category)
+
+                    if category.id != viewModel.overspentCategoryOptions.last?.id {
+                        Divider()
+                            .overlay(ActualistTheme.separator)
+                            .padding(.leading, 18)
+                    }
+                }
+            }
+            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+    }
+
+    private func overspentButton(
+        for category: BudgetOverspentCategoryOption
+    ) -> some View {
+        Button {
+            if viewModel.isOverspentCoverSelecting {
+                guard !viewModel.isCoveringOverspentSelection else {
+                    return
+                }
+                viewModel.toggleOverspentCoverSelection(category)
+            } else {
+                onSelectSingle(category)
+            }
+        } label: {
+            ZStack {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(categoryName(category))
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.84)
+
+                        Text(groupName(category))
+                            .font(ActualistTypography.rowBadge(for: density))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
+
+                    Spacer()
+
+                    Text(amountText(category))
+                        .font(ActualistTypography.rowValue(for: density))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(ActualistTheme.danger.opacity(0.84), in: Capsule())
+
+                    if !viewModel.isOverspentCoverSelecting {
+                        Image(systemName: "chevron.right")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+
+                if viewModel.isOverspentCoverSelecting {
+                    HStack {
+                        Image(
+                            systemName: viewModel.selectedOverspentCategoryIDs.contains(category.id)
+                                ? "checkmark.circle.fill"
+                                : "circle"
+                        )
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(
+                            viewModel.selectedOverspentCategoryIDs.contains(category.id)
+                                ? ActualistTheme.accent
+                                : ActualistTheme.secondaryText
+                        )
+                        .padding(.leading, 18)
+                        Spacer()
+                    }
+                }
+
+                if viewModel.isCoveringOverspentSelection
+                    && viewModel.selectedOverspentCategoryIDs.contains(category.id) {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(8)
+                            .background(ActualistTheme.surface, in: Circle())
+                    }
+                    .padding(.trailing, 18)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isCoveringOverspentSelection)
+        .animation(.snappy, value: viewModel.isOverspentCoverSelecting)
+    }
+
+    private var totalCoveredAmountText: String {
+        let selectedIDs = viewModel.selectedOverspentCategoryIDs
+        let total = viewModel.overspentCategoryOptions.reduce(0) { partial, option in
+            guard selectedIDs.contains(option.id) else {
+                return partial
+            }
+            return partial + (-option.category.balance)
+        }
+        return total.actualMoney.formatted()
     }
 
     private func categoryName(_ category: BudgetOverspentCategoryOption) -> String {

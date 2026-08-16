@@ -58,6 +58,9 @@
 		01000000000000000000006A /* BudgetAssignmentWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006A /* BudgetAssignmentWorkflow.swift */; };
 		01000000000000000000006B /* BudgetMoveMoneyWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006B /* BudgetMoveMoneyWorkflow.swift */; };
 		01000000000000000000006C /* BudgetTemplateWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006C /* BudgetTemplateWorkflow.swift */; };
+		010000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift */; };
+		010000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift */; };
+		010000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */; };
 		01000000000000000000006D /* BudgetAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006D /* BudgetAlert.swift */; };
 		010000000000000000000017 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001A /* OnboardingViewModel.swift */; };
 		010000000000000000000018 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* SettingsViewModel.swift */; };
@@ -200,6 +203,8 @@
 		02000000000000000000006A /* BudgetAssignmentWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAssignmentWorkflow.swift; sourceTree = "<group>"; };
 		02000000000000000000006B /* BudgetMoveMoneyWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetMoveMoneyWorkflow.swift; sourceTree = "<group>"; };
 		02000000000000000000006C /* BudgetTemplateWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateWorkflow.swift; sourceTree = "<group>"; };
+		020000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionWorkflow.swift; sourceTree = "<group>"; };
+		020000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000006D /* BudgetAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAlert.swift; sourceTree = "<group>"; };
 		02000000000000000000001A /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001B /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
@@ -214,6 +219,7 @@
 		020000000000000000000029 /* UncategorizedTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsView.swift; sourceTree = "<group>"; };
 		02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModelTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionViewModelTests.swift; sourceTree = "<group>"; };
 		02000000000000000000002D /* AccountRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepository.swift; sourceTree = "<group>"; };
 		02000000000000000000002E /* LocalFirstModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstModels.swift; sourceTree = "<group>"; };
 		020000000000000000000039 /* ActualBudgetCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualBudgetCrypto.swift; sourceTree = "<group>"; };
@@ -421,6 +427,7 @@
 				02000000000000000000001C /* BudgetViewModelTests.swift */,
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
 				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
+				020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */,
 				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
 				020000000000000000000060 /* LocalFirstActualStoreSettingsSecurityTests.swift */,
 				020000000000000000000061 /* LocalFirstActualStoreStorageTransportTests.swift */,
@@ -485,6 +492,8 @@
 				02000000000000000000003E /* BudgetDraftModels.swift */,
 				020000000000000000000029 /* UncategorizedTransactionsView.swift */,
 				02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */,
+				020000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift */,
+				020000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift */,
 			);
 			path = Budget;
 			sourceTree = "<group>";
@@ -839,6 +848,8 @@
 				01000000000000000000006D /* BudgetAlert.swift in Sources */,
 				01000000000000000000003E /* BudgetDraftModels.swift in Sources */,
 				010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */,
+				010000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift in Sources */,
+				010000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift in Sources */,
 				010000000000000000000027 /* UncategorizedTransactionsViewModel.swift in Sources */,
 				010000000000000000000017 /* OnboardingViewModel.swift in Sources */,
 				010000000000000000000018 /* SettingsViewModel.swift in Sources */,
@@ -860,6 +871,7 @@
 				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
 				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
+				010000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift in Sources */,
 				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,
 				010000000000000000000060 /* LocalFirstActualStoreSettingsSecurityTests.swift in Sources */,
 				010000000000000000000061 /* LocalFirstActualStoreStorageTransportTests.swift in Sources */,

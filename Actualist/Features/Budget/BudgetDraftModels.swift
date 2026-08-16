@@ -198,7 +198,7 @@ struct BudgetMoveMoneyDestinationOption: Identifiable, Equatable {
 struct BudgetMoveMoneyDestinationGroup: Identifiable, Equatable {
     let id: String
     let name: String
-    let options: [BudgetMoveMoneyDestinationOption]
+    var options: [BudgetMoveMoneyDestinationOption]
 }
 
 struct BudgetOverspentCategoryOption: Identifiable, Equatable {

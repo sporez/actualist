@@ -246,7 +246,7 @@ struct BudgetView: View {
                     onDismiss: openPendingOverspentCategory
                 ) {
                     BudgetOverspentCategoriesView(
-                        categories: viewModel.overspentCategoryOptions,
+                        viewModel: viewModel,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
                     ) { category in
                         pendingOverspentCategoryID = category.id
