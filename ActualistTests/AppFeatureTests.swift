@@ -104,6 +104,23 @@ struct AppFeatureTests {
         #expect(badgeCounts == [2])
     }
 
+    @Test func defaultAccountIDRoundTripsPerBudget() {
+        let state = makeAppState()
+
+        #expect(state.defaultAccountID(forBudgetID: "budget-a") == nil)
+
+        state.setDefaultAccountID("checking", budgetID: "budget-a")
+        #expect(state.defaultAccountID(forBudgetID: "budget-a") == "checking")
+
+        state.setDefaultAccountID("savings", budgetID: "budget-b")
+        #expect(state.defaultAccountID(forBudgetID: "budget-a") == "checking")
+        #expect(state.defaultAccountID(forBudgetID: "budget-b") == "savings")
+
+        state.setDefaultAccountID(nil, budgetID: "budget-a")
+        #expect(state.defaultAccountID(forBudgetID: "budget-a") == nil)
+        #expect(state.defaultAccountID(forBudgetID: "budget-b") == "savings")
+    }
+
     private func makeAppState(
         notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool = {
             true

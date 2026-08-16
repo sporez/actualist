@@ -619,6 +619,15 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func defaultAccountID(forBudgetID budgetID: String) -> String? {
+        settings.defaultAccountIDByBudgetID[budgetID]
+    }
+
+    func setDefaultAccountID(_ accountID: String?, budgetID: String) {
+        settings.defaultAccountIDByBudgetID[budgetID] = accountID
+        settingsStore.save(settings)
+    }
+
     func updateReportCardOrder(_ reportCardOrder: [ReportCardKind]) {
         settings.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
         settingsStore.save(settings)

@@ -278,6 +278,46 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(appState.settings.selectedBudgetID == nil)
+
+                    Menu {
+                        Button {
+                            appState.setDefaultAccountID(nil, budgetID: appState.settings.selectedBudgetID ?? "")
+                        } label: {
+                            if defaultAccountID == nil {
+                                Label("First in Order", systemImage: "checkmark")
+                            } else {
+                                Text("First in Order")
+                            }
+                        }
+
+                        ForEach(availableAccounts) { account in
+                            Button {
+                                appState.setDefaultAccountID(account.id, budgetID: appState.settings.selectedBudgetID ?? "")
+                            } label: {
+                                if defaultAccountID == account.id {
+                                    Label(account.name, systemImage: "checkmark")
+                                } else {
+                                    Text(account.name)
+                                }
+                            }
+                        }
+                    } label: {
+                        LabeledContent {
+                            HStack(spacing: 8) {
+                                Text(defaultAccountDetail)
+                                    .foregroundStyle(ActualistTheme.secondaryText)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(ActualistTheme.secondaryText)
+                            }
+                        } label: {
+                            Text("Default Account")
+                                .foregroundStyle(ActualistTheme.primaryText)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(appState.settings.selectedBudgetID == nil || availableAccounts.isEmpty)
                 }
                 .settingsSectionChrome()
 
@@ -606,6 +646,31 @@ struct SettingsView: View {
         }
 
         return appState.settings.accountOrderByBudgetID[budgetID] == nil ? "Actual Order" : "Custom"
+    }
+
+    private var defaultAccountID: String? {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return nil
+        }
+        return appState.defaultAccountID(forBudgetID: budgetID)
+    }
+
+    private var availableAccounts: [ActualAccount] {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return []
+        }
+        let accounts = appState.accountRepository
+            .accountDisplays(budgetID: budgetID)
+            .map(\.account)
+            .filter { !$0.closed }
+        return appState.orderedAccounts(accounts, budgetID: budgetID)
+    }
+
+    private var defaultAccountDetail: String {
+        guard let id = defaultAccountID else {
+            return "First in Order"
+        }
+        return availableAccounts.first(where: { $0.id == id })?.name ?? "First in Order"
     }
 
     private var appVersionText: String {

@@ -1059,6 +1059,54 @@ struct TransactionEditorViewModelTests {
         #expect(model.selectedCategoryID == nil)
     }
 
+    @Test func applyRespectsPreferredAccountOrder() {
+        let model = TransactionEditorViewModel()
+        let accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false),
+            ActualAccount(id: "credit", name: "Credit Card", offbudget: false, closed: false)
+        ]
+
+        model.apply(
+            TransactionEditorOptions(accounts: accounts, categories: [], categoryGroups: [], payees: []),
+            loadedMonth: "2026-09",
+            preferredAccountIDs: ["savings", "credit", "checking"]
+        )
+
+        #expect(model.accounts.map(\.id) == ["savings", "credit", "checking"])
+    }
+
+    @Test func applyPreservesOriginalOrderWhenNoPreference() {
+        let model = TransactionEditorViewModel()
+        let accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
+        ]
+
+        model.apply(
+            TransactionEditorOptions(accounts: accounts, categories: [], categoryGroups: [], payees: []),
+            loadedMonth: "2026-09"
+        )
+
+        #expect(model.accounts.map(\.id) == ["checking", "savings"])
+    }
+
+    @Test func applyAppendsUnknownPreferredIDsAtEnd() {
+        let model = TransactionEditorViewModel()
+        let accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false),
+            ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)
+        ]
+
+        model.apply(
+            TransactionEditorOptions(accounts: accounts, categories: [], categoryGroups: [], payees: []),
+            loadedMonth: "2026-09",
+            preferredAccountIDs: ["savings", "deleted-account"]
+        )
+
+        #expect(model.accounts.map(\.id) == ["savings", "checking"])
+    }
+
     private func configuredModel() -> TransactionEditorViewModel {
         let model = TransactionEditorViewModel()
         model.kind = .spend
@@ -1110,6 +1158,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
     private var pausedBeforeDidCreate = false
     private var beforeDidCreateContinuation: CheckedContinuation<Void, Never>?
     private var afterDidCreateContinuation: CheckedContinuation<Void, Never>?
+    private let editorAccounts: [ActualAccount]
 
     init(
         rulePreview: TransactionRulePreview = TransactionRulePreview(categoryID: nil, notes: nil),
@@ -1117,7 +1166,8 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         createError: Error? = nil,
         refreshError: Error? = nil,
         pauseBeforeDidCreate: Bool = false,
-        pauseAfterDidCreate: Bool = false
+        pauseAfterDidCreate: Bool = false,
+        editorAccounts: [ActualAccount] = []
     ) {
         self.rulePreview = rulePreview
         self.previewError = previewError
@@ -1125,10 +1175,11 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         self.refreshError = refreshError
         self.pauseBeforeDidCreate = pauseBeforeDidCreate
         self.pauseAfterDidCreate = pauseAfterDidCreate
+        self.editorAccounts = editorAccounts
     }
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
-        TransactionEditorOptions(accounts: [], categories: [], categoryGroups: [], payees: [])
+        TransactionEditorOptions(accounts: editorAccounts, categories: [], categoryGroups: [], payees: [])
     }
 
     func uncategorizedTransactions(

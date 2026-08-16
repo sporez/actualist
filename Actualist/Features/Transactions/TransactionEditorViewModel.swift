@@ -298,11 +298,7 @@ final class TransactionEditorViewModel {
     }
 
     func setAmountInput(_ value: String) {
-        amountDigits = String(
-            value.filter(\.isNumber)
-                .trimmingLeadingZeros()
-                .prefix(Self.maximumAmountDigitCount)
-        )
+        amountDigits = Self.sanitizedAmountDigits(value)
         pendingSplitMismatch = nil
     }
 
@@ -514,11 +510,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        splitRows[index].amountDigits = String(
-            value.filter(\.isNumber)
-                .trimmingLeadingZeros()
-                .prefix(Self.maximumAmountDigitCount)
-        )
+        splitRows[index].amountDigits = Self.sanitizedAmountDigits(value)
         pendingSplitMismatch = nil
     }
 
@@ -602,6 +594,7 @@ final class TransactionEditorViewModel {
             return
         }
         let repository = appState.transactionRepository
+        let preferredAccountIDs = appState.settings.accountOrderByBudgetID[budgetID] ?? []
 
         if !isEditing, let prefilledAccount {
             selectedAccountID = prefilledAccount.id
@@ -612,10 +605,19 @@ final class TransactionEditorViewModel {
 
         do {
             let month = YearMonth(date: date).rawValue
-            apply(try await repository.editorOptions(budgetID: budgetID, month: month), loadedMonth: month)
+            apply(
+                try await repository.editorOptions(budgetID: budgetID, month: month),
+                loadedMonth: month,
+                preferredAccountIDs: preferredAccountIDs
+            )
 
             if selectedAccountID == nil {
-                selectedAccountID = accounts.first?.id
+                let defaultAccountID = appState.defaultAccountID(forBudgetID: budgetID)
+                if let defaultAccountID, accounts.contains(where: { $0.id == defaultAccountID }) {
+                    selectedAccountID = defaultAccountID
+                } else {
+                    selectedAccountID = accounts.first?.id
+                }
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -629,13 +631,19 @@ final class TransactionEditorViewModel {
             return
         }
         let repository = appState.transactionRepository
+        let preferredAccountIDs = appState.settings.accountOrderByBudgetID[budgetID] ?? []
 
-        await refreshCategoryBalancesIfNeeded(budgetID: budgetID, repository: repository)
+        await refreshCategoryBalancesIfNeeded(
+            budgetID: budgetID,
+            repository: repository,
+            preferredAccountIDs: preferredAccountIDs
+        )
     }
 
     func refreshCategoryBalancesIfNeeded(
         budgetID: String,
-        repository: any TransactionRepositoryProtocol
+        repository: any TransactionRepositoryProtocol,
+        preferredAccountIDs: [String] = []
     ) async {
         let month = YearMonth(date: date).rawValue
         guard loadedCategoryBalanceMonth != month else {
@@ -646,7 +654,11 @@ final class TransactionEditorViewModel {
         defer { isLoadingCategoryBalances = false }
 
         do {
-            apply(try await repository.editorOptions(budgetID: budgetID, month: month), loadedMonth: month)
+            apply(
+                try await repository.editorOptions(budgetID: budgetID, month: month),
+                loadedMonth: month,
+                preferredAccountIDs: preferredAccountIDs
+            )
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -988,8 +1000,11 @@ final class TransactionEditorViewModel {
         }
     }
 
-    func apply(_ options: TransactionEditorOptions, loadedMonth: String) {
-        accounts = options.accounts
+    func apply(_ options: TransactionEditorOptions, loadedMonth: String, preferredAccountIDs: [String] = []) {
+        accounts = AccountOrderPreference.ordered(
+            options.accounts,
+            preferredIDs: preferredAccountIDs
+        )
         categories = options.categories
         categoryGroups = options.categoryGroups
         payees = options.payees
@@ -1067,27 +1082,9 @@ final class TransactionEditorViewModel {
     private static func formattedAmountInput(cents: Int) -> String {
         "\(cents / 100).\(String(format: "%02d", cents % 100))"
     }
-}
 
-extension String {
-    func trimmingLeadingZeros() -> String {
-        let trimmed = drop(while: { $0 == "0" })
-        return trimmed.isEmpty ? "" : String(trimmed)
-    }
-
-    var actualDate: Date? {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: self)
-    }
-
-    var actualYearMonth: String? {
-        guard count >= 7 else {
-            return nil
-        }
-
-        return String(prefix(7))
+    private static func sanitizedAmountDigits(_ value: String) -> String {
+        let trimmed = value.filter(\.isNumber).drop(while: { $0 == "0" })
+        return String(trimmed.prefix(maximumAmountDigitCount))
     }
 }

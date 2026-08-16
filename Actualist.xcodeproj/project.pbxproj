@@ -53,6 +53,7 @@
 		010000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* Assets.xcassets */; };
 		010000000000000000000013 /* MoneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000013 /* MoneyTests.swift */; };
 		010000000000000000000014 /* CategoryNameParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000017 /* CategoryNameParts.swift */; };
+		010000000000000000000088 /* ActualDateParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000087 /* ActualDateParsing.swift */; };
 		010000000000000000000015 /* BudgetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000018 /* BudgetRepository.swift */; };
 		010000000000000000000016 /* BudgetViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000019 /* BudgetViewModel.swift */; };
 		01000000000000000000006A /* BudgetAssignmentWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006A /* BudgetAssignmentWorkflow.swift */; };
@@ -198,6 +199,7 @@
 		020000000000000000000015 /* Actualist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Actualist.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		020000000000000000000016 /* ActualistTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualistTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		020000000000000000000017 /* CategoryNameParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryNameParts.swift; sourceTree = "<group>"; };
+		020000000000000000000087 /* ActualDateParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualDateParsing.swift; sourceTree = "<group>"; };
 		020000000000000000000018 /* BudgetRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRepository.swift; sourceTree = "<group>"; };
 		020000000000000000000019 /* BudgetViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000006A /* BudgetAssignmentWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAssignmentWorkflow.swift; sourceTree = "<group>"; };
@@ -411,6 +413,7 @@
 			children = (
 				020000000000000000000011 /* Money.swift */,
 				020000000000000000000017 /* CategoryNameParts.swift */,
+				020000000000000000000087 /* ActualDateParsing.swift */,
 				020000000000000000000026 /* TransactionGrouping.swift */,
 			);
 			path = Shared;
@@ -802,6 +805,7 @@
 				010000000000000000000040 /* AccountTransactionPresentation.swift in Sources */,
 				010000000000000000000011 /* Money.swift in Sources */,
 				010000000000000000000014 /* CategoryNameParts.swift in Sources */,
+				010000000000000000000088 /* ActualDateParsing.swift in Sources */,
 				010000000000000000000015 /* BudgetRepository.swift in Sources */,
 				01000000000000000000002D /* AccountRepository.swift in Sources */,
 				01000000000000000000001D /* TransactionModels.swift in Sources */,

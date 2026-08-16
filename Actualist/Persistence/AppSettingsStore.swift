@@ -60,6 +60,7 @@ struct AppSettings: Codable, Equatable {
     var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
+    var defaultAccountIDByBudgetID: [String: String] = [:]
     var reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
     var backgroundTransactionRefreshEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
@@ -81,6 +82,7 @@ struct AppSettings: Codable, Equatable {
         enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
+        defaultAccountIDByBudgetID: [String: String] = [:],
         reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder,
         backgroundTransactionRefreshEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
@@ -101,6 +103,7 @@ struct AppSettings: Codable, Equatable {
         self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
+        self.defaultAccountIDByBudgetID = defaultAccountIDByBudgetID
         self.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
@@ -147,6 +150,10 @@ struct AppSettings: Codable, Equatable {
         accountOrderByBudgetID = try container.decodeIfPresent(
             [String: [String]].self,
             forKey: .accountOrderByBudgetID
+        ) ?? [:]
+        defaultAccountIDByBudgetID = try container.decodeIfPresent(
+            [String: String].self,
+            forKey: .defaultAccountIDByBudgetID
         ) ?? [:]
         let persistedReportCardOrder = try container.decodeIfPresent(
             [String].self,
