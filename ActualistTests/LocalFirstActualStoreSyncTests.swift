@@ -31,6 +31,67 @@ extension LocalFirstActualStoreTests {
         #expect(advanced == "1970-01-01T00:00:02.000Z-0000-node1")
     }
 
+    @Test func hybridLogicalClockUppercasesHexCounterLikeActualReference() async throws {
+        var clock = HybridLogicalClock(
+            nodeID: "node1",
+            lastTimestamp: "1970-01-01T00:00:01.234Z-0000-node1"
+        )
+        let now = Date(timeIntervalSince1970: 1.0)
+
+        // Seed counter to 8 so the following two next() calls hit 9 -> A -> B.
+        _ = try clock.next(now: now)  // 0001
+        _ = try clock.next(now: now)  // 0002
+        _ = try clock.next(now: now)  // 0003
+        _ = try clock.next(now: now)  // 0004
+        _ = try clock.next(now: now)  // 0005
+        _ = try clock.next(now: now)  // 0006
+        _ = try clock.next(now: now)  // 0007
+        _ = try clock.next(now: now)  // 0008
+        _ = try clock.next(now: now)  // 0009
+        let tenth = try clock.next(now: now)
+        let eleventh = try clock.next(now: now)
+
+        // Actual's reference Timestamp.toString uses uppercase hex; peers hash the
+        // verbatim string into the merkle trie, so lowercase would corrupt sync.
+        #expect(tenth == "1970-01-01T00:00:01.234Z-000A-node1")
+        #expect(eleventh == "1970-01-01T00:00:01.234Z-000B-node1")
+    }
+
+    @Test func hybridLogicalClockObservedUppercaseTimestampKeepsUppercaseSequence() async throws {
+        var clock = HybridLogicalClock(
+            nodeID: "node1",
+            lastTimestamp: "1970-01-01T00:00:01.234Z-0000-node1"
+        )
+        clock.observe("1970-01-01T00:00:01.234Z-0009-node1")
+        let seeded = try clock.next(now: Date(timeIntervalSince1970: 1.0))
+        clock.observe(seeded)
+        let next = try clock.next(now: Date(timeIntervalSince1970: 1.0))
+
+        #expect(seeded == "1970-01-01T00:00:01.234Z-000A-node1")
+        #expect(next == "1970-01-01T00:00:01.234Z-000B-node1")
+    }
+
+    @Test func hybridLogicalClockGeneratesUppercaseCountersThroughLargeSameMillisecondBatch() async throws {
+        var clock = HybridLogicalClock(
+            nodeID: "node1",
+            lastTimestamp: "1970-01-01T00:00:01.234Z-0000-node1"
+        )
+        let now = Date(timeIntervalSince1970: 1.0)
+
+        var timestamps: [String] = []
+        for _ in 0..<20 {
+            timestamps.append(try clock.next(now: now))
+        }
+
+        // Account creation emits 12 messages in one millisecond; counters 10-11 must be
+        // uppercase (000A/000B) to match the Actual reference merkle hash.
+        #expect(timestamps[9] == "1970-01-01T00:00:01.234Z-000A-node1")
+        #expect(timestamps[10] == "1970-01-01T00:00:01.234Z-000B-node1")
+        #expect(timestamps[11] == "1970-01-01T00:00:01.234Z-000C-node1")
+        #expect(timestamps[12] == "1970-01-01T00:00:01.234Z-000D-node1")
+        #expect(timestamps[18] == "1970-01-01T00:00:01.234Z-0013-node1")
+    }
+
     @Test func hybridLogicalClockThrowsWhenCounterOverflows() async {
         var clock = HybridLogicalClock(
             nodeID: "node1",
@@ -87,7 +148,7 @@ extension LocalFirstActualStoreTests {
         #expect(Set(timestamps).count == mutationCount)
         #expect(timestamps == timestamps.sorted())
         #expect(timestamps.first?.contains("-0000-node1") == true)
-        #expect(timestamps.last?.contains("-007f-node1") == true)
+        #expect(timestamps.last?.contains("-007F-node1") == true)
     }
 
     @Test func concurrentStoreMutationsAcrossActorSuspensionAllReachTheOutbox() async throws {
@@ -156,7 +217,7 @@ extension LocalFirstActualStoreTests {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         let remote = ActualSyncDecodedMessage(
-            timestamp: "2026-07-25T12:00:00.000Z-000a-remote",
+            timestamp: "2026-07-25T12:00:00.000Z-000A-remote",
             dataset: "transactions",
             row: "txn",
             column: "category",
@@ -179,7 +240,7 @@ extension LocalFirstActualStoreTests {
         let localTimestamp = try #require(
             await database.pendingLocalSyncMessages().first?.message.timestamp
         )
-        #expect(localTimestamp == "2026-07-25T12:00:00.000Z-000b-node1")
+        #expect(localTimestamp == "2026-07-25T12:00:00.000Z-000B-node1")
     }
 
     @Test func remoteApplyReportsOnlyNewLiveTopLevelTransactions() async throws {

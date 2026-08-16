@@ -79,7 +79,9 @@ struct HybridLogicalClock: Equatable, Sendable {
             throw LocalFirstError.hybridLogicalClockOverflow
         }
 
-        let timestamp = "\(nextWallTime)-\(String(format: "%04x", counter))-\(nodeID)"
+        // Actual's reference Timestamp.toString uppercases the counter. Peers hash the
+        // verbatim timestamp string into the merkle trie, so lowercase hex corrupts sync.
+        let timestamp = "\(nextWallTime)-\(String(format: "%04X", counter))-\(nodeID)"
         lastTimestamp = timestamp
         return timestamp
     }
