@@ -222,7 +222,7 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         return TransactionEditorOptions(
             accounts: try await database.fetchAccounts().filter { !$0.closed },
-            categories: try await database.fetchCategories().filter { !($0.hidden ?? false) && !($0.isIncome ?? false) },
+            categories: try await database.fetchCategories().filter { !($0.hidden ?? false) },
             categoryGroups: try await editorCategoryGroups(database: database, month: month),
             payees: try await database.fetchPayees()
         )
@@ -481,10 +481,27 @@ extension LocalFirstActualStore {
     }
 
     func editorCategoryGroups(from budgetMonth: BudgetMonth) -> [TransactionEditorCategoryGroup] {
-        return budgetMonth.categoryGroups.compactMap { group in
-            guard !group.isIncome else {
-                return nil
-            }
+        let incomeGroups = budgetMonth.categoryGroups.filter { $0.isIncome }
+        let expenseGroups = budgetMonth.categoryGroups.filter { !$0.isIncome }
+
+        var result: [TransactionEditorCategoryGroup] = []
+
+        if let firstIncomeCategory = incomeGroups.flatMap(\.categories).first(where: { !($0.hidden ?? false) }) {
+            result.append(TransactionEditorCategoryGroup(
+                id: "to-budget",
+                name: "To Budget",
+                options: [
+                    TransactionEditorCategoryOption(
+                        id: firstIncomeCategory.id,
+                        title: "To Budget",
+                        amount: budgetMonth.toBudget,
+                        valueText: budgetMonth.toBudget.actualMoney.formatted()
+                    )
+                ]
+            ))
+        }
+
+        let expenseCategoryGroups = expenseGroups.compactMap { group -> TransactionEditorCategoryGroup? in
             let options = group.categories
                 .filter { !($0.hidden ?? false) && !$0.isIncome }
                 .map { category in
@@ -500,6 +517,9 @@ extension LocalFirstActualStore {
             }
             return TransactionEditorCategoryGroup(id: group.id, name: group.name, options: options)
         }
+
+        result.append(contentsOf: expenseCategoryGroups)
+        return result
     }
 
     func nameMaps(

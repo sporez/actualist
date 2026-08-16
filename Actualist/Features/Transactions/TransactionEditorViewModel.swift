@@ -1005,7 +1005,27 @@ final class TransactionEditorViewModel {
     }
 
     private func fallbackCategorySelectionGroups() -> [TransactionEditorCategoryGroup] {
-        let options = categories.compactMap { category -> TransactionEditorCategoryOption? in
+        let incomeCategories = categories.filter { ($0.isIncome ?? false) }
+        let expenseCategories = categories.filter { !($0.isIncome ?? false) }
+
+        var result: [TransactionEditorCategoryGroup] = []
+
+        if let incomeID = incomeCategories.first(where: { $0.id != nil })?.id {
+            result.append(TransactionEditorCategoryGroup(
+                id: "to-budget",
+                name: "To Budget",
+                options: [
+                    TransactionEditorCategoryOption(
+                        id: incomeID,
+                        title: "To Budget",
+                        amount: nil,
+                        valueText: nil
+                    )
+                ]
+            ))
+        }
+
+        let expenseOptions = expenseCategories.compactMap { category -> TransactionEditorCategoryOption? in
             guard let categoryID = category.id else {
                 return nil
             }
@@ -1018,17 +1038,15 @@ final class TransactionEditorViewModel {
             )
         }
 
-        guard !options.isEmpty else {
-            return []
-        }
-
-        return [
-            TransactionEditorCategoryGroup(
+        if !expenseOptions.isEmpty {
+            result.append(TransactionEditorCategoryGroup(
                 id: "categories",
                 name: "Categories",
-                options: options
-            )
-        ]
+                options: expenseOptions
+            ))
+        }
+
+        return result
     }
 
     private func splitDrafts(sign: Int) -> [TransactionSplitDraft] {
