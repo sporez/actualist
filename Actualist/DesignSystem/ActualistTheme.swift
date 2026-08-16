@@ -85,7 +85,7 @@ struct ActualistThemePalette {
         self.positiveForeground = positiveForeground
         self.warningForeground = warningForeground
         self.dangerForeground = dangerForeground
-        self.neutralForeground = neutralForeground ?? secondaryText
+        self.neutralForeground = neutralForeground ?? .white
         self.separator = separator
         self.chromeForeground = chromeForeground ?? primaryText
     }

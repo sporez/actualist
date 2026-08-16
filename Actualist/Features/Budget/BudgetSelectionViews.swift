@@ -11,16 +11,13 @@ struct BudgetOverspentCategoriesView: View {
     @State private var selectedDetent: PresentationDetent = .medium
 
     let isPrivacyModeEnabled: Bool
-    let onSelectSingle: (BudgetOverspentCategoryOption) -> Void
 
     init(
         viewModel: BudgetViewModel,
-        isPrivacyModeEnabled: Bool,
-        onSelectSingle: @escaping (BudgetOverspentCategoryOption) -> Void = { _ in }
+        isPrivacyModeEnabled: Bool
     ) {
         self.viewModel = viewModel
         self.isPrivacyModeEnabled = isPrivacyModeEnabled
-        self.onSelectSingle = onSelectSingle
         _selectedDetent = State(
             initialValue: viewModel.overspentCategoryOptions.count >= 4 ? .large : .medium
         )
@@ -106,7 +103,7 @@ struct BudgetOverspentCategoriesView: View {
                 isCoverSourcePickerPresented = false
                 Task {
                     let covered = await viewModel.coverOverspentSelection(
-                        source: .category(id: option.id, name: option.title),
+                        source: viewModel.coverSource(for: option),
                         using: appState
                     )
                     if covered, viewModel.overspentCategoryOptions.isEmpty {
@@ -115,6 +112,24 @@ struct BudgetOverspentCategoriesView: View {
                 }
             }
             .appSwitcherPrivacyProtected()
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { viewModel.isMoveMoneyPresented },
+                set: { if !$0 { viewModel.cancelMoveMoney() } }
+            )
+        ) {
+            BudgetMoveMoneyView(
+                viewModel: viewModel,
+                onSaved: {}
+            )
+            .environment(appState)
+            .appSwitcherPrivacyProtected()
+            .onDisappear {
+                if viewModel.overspentCategoryOptions.isEmpty {
+                    dismiss()
+                }
+            }
         }
     }
 
@@ -158,7 +173,7 @@ struct BudgetOverspentCategoriesView: View {
                 }
                 viewModel.toggleOverspentCoverSelection(category)
             } else {
-                onSelectSingle(category)
+                viewModel.beginMoveMoney(for: category.id)
             }
         } label: {
             ZStack {
@@ -194,6 +209,7 @@ struct BudgetOverspentCategoriesView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
+                .padding(.leading, viewModel.isOverspentCoverSelecting ? 34 : 0)
 
                 if viewModel.isOverspentCoverSelecting {
                     HStack {
@@ -208,7 +224,7 @@ struct BudgetOverspentCategoriesView: View {
                                 ? ActualistTheme.accent
                                 : ActualistTheme.secondaryText
                         )
-                        .padding(.leading, 18)
+                        .padding(.leading, density.rowHorizontalPadding)
                         Spacer()
                     }
                 }

@@ -253,6 +253,35 @@ struct OverspentCoverSelectionViewModelTests {
         #expect(groups.first?.options.first?.valueText == "$40.00")
     }
 
+    @Test func coverSourcePickerIncludesToBudgetOptionFromIncome() throws {
+        // A visible income category makes the synthetic "To Budget" source
+        // available so overspent categories can be covered from available income.
+        let model = BudgetViewModel()
+        model.budgetMonth = try Self.decodeBudgetMonthWithIncome(
+            overspentBalance: -2_500,
+            toBudget: 3_000
+        )
+        model.beginOverspentCoverSelection()
+        for option in model.overspentCategoryOptions {
+            model.toggleOverspentCoverSelection(option)
+        }
+
+        let groups = model.overspentCoverSourcePickerGroups()
+        let toBudgetGroup = try #require(groups.first(where: { $0.id == BudgetMoveMoneyDestination.toBudget.id }))
+        #expect(toBudgetGroup.name == "To Budget")
+        #expect(toBudgetGroup.options.count == 1)
+        let toBudgetOption = try #require(toBudgetGroup.options.first)
+        #expect(toBudgetOption.title == BudgetMoveMoneyDestination.toBudget.title)
+        #expect(toBudgetOption.amount == 3_000)
+        #expect(toBudgetOption.valueText == "$30.00")
+
+        // The "To Budget" option routes to `.toBudget`; a real expense category
+        // option routes to `.category`.
+        #expect(model.coverSource(for: toBudgetOption) == .toBudget)
+        let expenseOption = try #require(groups.first(where: { $0.id != BudgetMoveMoneyDestination.toBudget.id })?.options.first)
+        #expect(model.coverSource(for: expenseOption) == .category(id: expenseOption.id, name: expenseOption.title))
+    }
+
     private static func decodeBudgetMonth(
         firstOverspentBalance: Int,
         secondOverspentBalance: Int?,
@@ -327,6 +356,85 @@ struct OverspentCoverSelectionViewModelTests {
                   "budgeted": 0,
                   "spent": 0,
                   "balance": -9999,
+                  "carryover": false
+                }
+              ]
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        return try JSONDecoder().decode(BudgetMonth.self, from: json)
+    }
+
+    private static func decodeBudgetMonthWithIncome(
+        overspentBalance: Int,
+        toBudget: Int
+    ) throws -> BudgetMonth {
+        let json = """
+        {
+          "month": "2026-06",
+          "incomeAvailable": 0,
+          "lastMonthOverspent": 0,
+          "forNextMonth": 0,
+          "totalBudgeted": 0,
+          "toBudget": \(toBudget),
+          "fromLastMonth": 0,
+          "totalIncome": 0,
+          "totalSpent": 0,
+          "totalBalance": 0,
+          "categoryGroups": [
+            {
+              "id": "income",
+              "name": "Income",
+              "is_income": true,
+              "hidden": false,
+              "budgeted": 0,
+              "spent": 0,
+              "balance": 0,
+              "categories": [
+                {
+                  "id": "salary",
+                  "name": "💰 Salary",
+                  "is_income": true,
+                  "hidden": false,
+                  "group_id": "income",
+                  "budgeted": 0,
+                  "spent": 0,
+                  "balance": 0,
+                  "carryover": false
+                }
+              ]
+            },
+            {
+              "id": "bills",
+              "name": "Monthly Bills",
+              "is_income": false,
+              "hidden": false,
+              "budgeted": 0,
+              "spent": 0,
+              "balance": 0,
+              "categories": [
+                {
+                  "id": "mortgage",
+                  "name": "🏡 Mortgage",
+                  "is_income": false,
+                  "hidden": false,
+                  "group_id": "bills",
+                  "budgeted": 0,
+                  "spent": 0,
+                  "balance": \(overspentBalance),
+                  "carryover": false
+                },
+                {
+                  "id": "utilities",
+                  "name": "🧹 Utilities",
+                  "is_income": false,
+                  "hidden": false,
+                  "group_id": "bills",
+                  "budgeted": 0,
+                  "spent": 0,
+                  "balance": 4000,
                   "carryover": false
                 }
               ]

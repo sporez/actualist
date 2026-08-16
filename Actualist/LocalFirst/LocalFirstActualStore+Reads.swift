@@ -477,49 +477,11 @@ extension LocalFirstActualStore {
 
     func editorCategoryGroups(database: BudgetDatabase, month: String) async throws -> [TransactionEditorCategoryGroup] {
         let budgetMonth = try await database.fetchBudgetMonth(month: month)
-        return editorCategoryGroups(from: budgetMonth)
+        return budgetMonth.editorCategoryGroups()
     }
 
     func editorCategoryGroups(from budgetMonth: BudgetMonth) -> [TransactionEditorCategoryGroup] {
-        let incomeGroups = budgetMonth.categoryGroups.filter { $0.isIncome }
-        let expenseGroups = budgetMonth.categoryGroups.filter { !$0.isIncome }
-
-        var result: [TransactionEditorCategoryGroup] = []
-
-        if let firstIncomeCategory = incomeGroups.flatMap(\.categories).first(where: { !($0.hidden ?? false) }) {
-            result.append(TransactionEditorCategoryGroup(
-                id: "to-budget",
-                name: "To Budget",
-                options: [
-                    TransactionEditorCategoryOption(
-                        id: firstIncomeCategory.id,
-                        title: "To Budget",
-                        amount: budgetMonth.toBudget,
-                        valueText: budgetMonth.toBudget.actualMoney.formatted()
-                    )
-                ]
-            ))
-        }
-
-        let expenseCategoryGroups = expenseGroups.compactMap { group -> TransactionEditorCategoryGroup? in
-            let options = group.categories
-                .filter { !($0.hidden ?? false) && !$0.isIncome }
-                .map { category in
-                    TransactionEditorCategoryOption(
-                        id: category.id,
-                        title: category.name.actualistCategoryNameParts.name,
-                        amount: category.balance,
-                        valueText: category.balance.actualMoney.formatted()
-                    )
-                }
-            guard !options.isEmpty else {
-                return nil
-            }
-            return TransactionEditorCategoryGroup(id: group.id, name: group.name, options: options)
-        }
-
-        result.append(contentsOf: expenseCategoryGroups)
-        return result
+        budgetMonth.editorCategoryGroups()
     }
 
     func nameMaps(
@@ -583,4 +545,52 @@ extension LocalFirstActualStore {
         return months
     }
 
+}
+
+extension BudgetMonth {
+    // Builds the category picker groups used by the transaction editor and the
+    // overspent cover source picker. A synthetic "To Budget" group (backed by the
+    // first visible income category) is prepended so available income can be
+    // selected as a source/destination, matching Actual's budgeting model.
+    func editorCategoryGroups() -> [TransactionEditorCategoryGroup] {
+        let incomeGroups = categoryGroups.filter { $0.isIncome }
+        let expenseGroups = categoryGroups.filter { !$0.isIncome }
+
+        var result: [TransactionEditorCategoryGroup] = []
+
+        if let firstIncomeCategory = incomeGroups.flatMap(\.categories).first(where: { !($0.hidden ?? false) }) {
+            result.append(TransactionEditorCategoryGroup(
+                id: "to-budget",
+                name: "To Budget",
+                options: [
+                    TransactionEditorCategoryOption(
+                        id: firstIncomeCategory.id,
+                        title: "To Budget",
+                        amount: toBudget,
+                        valueText: toBudget.actualMoney.formatted()
+                    )
+                ]
+            ))
+        }
+
+        let expenseCategoryGroups = expenseGroups.compactMap { group -> TransactionEditorCategoryGroup? in
+            let options = group.categories
+                .filter { !($0.hidden ?? false) && !$0.isIncome }
+                .map { category in
+                    TransactionEditorCategoryOption(
+                        id: category.id,
+                        title: category.name.actualistCategoryNameParts.name,
+                        amount: category.balance,
+                        valueText: category.balance.actualMoney.formatted()
+                    )
+                }
+            guard !options.isEmpty else {
+                return nil
+            }
+            return TransactionEditorCategoryGroup(id: group.id, name: group.name, options: options)
+        }
+
+        result.append(contentsOf: expenseCategoryGroups)
+        return result
+    }
 }

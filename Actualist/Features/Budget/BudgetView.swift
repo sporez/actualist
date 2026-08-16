@@ -10,9 +10,6 @@ struct BudgetView: View {
     @State private var isUncategorizedTransactionsPresented = false
     @State private var categoryDetailsPresentation: CategoryMonthDetails?
     @State private var isOverspentCategoriesPresented = false
-    @State private var pendingOverspentCategoryID: String?
-    @State private var activeOverspentCoverCategoryID: String?
-    @State private var shouldContinueOverspentCoverFlow = false
     @State private var assignmentKeypadHeight: CGFloat = 0
     @State private var assignmentScrollTask: Task<Void, Never>?
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
@@ -241,26 +238,18 @@ struct BudgetView: View {
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
                 }
-                .sheet(
-                    isPresented: $isOverspentCategoriesPresented,
-                    onDismiss: openPendingOverspentCategory
-                ) {
+                .sheet(isPresented: $isOverspentCategoriesPresented) {
                     BudgetOverspentCategoriesView(
                         viewModel: viewModel,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
-                    ) { category in
-                        pendingOverspentCategoryID = category.id
-                    }
+                    )
                     .environment(appState)
                     .appSwitcherPrivacyProtected()
                 }
-                .sheet(
-                    isPresented: moveMoneyPresentationBinding,
-                    onDismiss: handleMoveMoneyDismiss
-                ) {
+                .sheet(isPresented: moveMoneyPresentationBinding) {
                     BudgetMoveMoneyView(
                         viewModel: viewModel,
-                        onSaved: handleMoveMoneySaved
+                        onSaved: {}
                     )
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
@@ -429,44 +418,6 @@ struct BudgetView: View {
             seed: "budget-alert-\(alert.id)-\(viewModel.selectedMonth ?? viewModel.preferredMonth)",
             maximumDollars: 900
         )
-    }
-
-    private func openPendingOverspentCategory() {
-        guard let categoryID = pendingOverspentCategoryID else {
-            return
-        }
-
-        pendingOverspentCategoryID = nil
-        Task { @MainActor in
-            await Task.yield()
-            viewModel.beginMoveMoney(for: categoryID)
-            activeOverspentCoverCategoryID = viewModel.isMoveMoneyPresented ? categoryID : nil
-        }
-    }
-
-    private func handleMoveMoneySaved() {
-        guard activeOverspentCoverCategoryID != nil else {
-            return
-        }
-
-        shouldContinueOverspentCoverFlow = !viewModel.overspentCategoryOptions.isEmpty
-        activeOverspentCoverCategoryID = nil
-    }
-
-    private func handleMoveMoneyDismiss() {
-        activeOverspentCoverCategoryID = nil
-
-        guard shouldContinueOverspentCoverFlow else {
-            return
-        }
-
-        shouldContinueOverspentCoverFlow = false
-        Task { @MainActor in
-            await Task.yield()
-            if !viewModel.overspentCategoryOptions.isEmpty {
-                isOverspentCategoriesPresented = true
-            }
-        }
     }
 
     private var categoryGroups: some View {

@@ -382,30 +382,43 @@ final class BudgetViewModel {
         }
     }
 
-    // Source candidates for the multi-cover picker: visible categories that are
-    // neither selected destinations nor currently overspent. Covering overspent
-    // categories from another overspent one would just move the red balance.
+    // Source candidates for the multi-cover picker. Reuses `BudgetMonth`'s
+    // editor category groups so the synthetic "To Budget" (available income)
+    // source appears exactly as it does in the transaction editor's category
+    // picker, then removes categories that are selected destinations or
+    // currently overspent. Covering overspent categories from another overspent
+    // one would just move the red balance.
     func overspentCoverSourcePickerGroups() -> [TransactionEditorCategoryGroup] {
         let selectedIDs = selectedOverspentCategoryIDs
         let selectedOverspentIDs = Set(overspentCategoryOptions.map(\.id))
-        return visibleGroups.compactMap { group in
-            let options = group.visibleCategories.compactMap { category -> TransactionEditorCategoryOption? in
-                guard !selectedIDs.contains(category.id),
-                      !selectedOverspentIDs.contains(category.id) else {
-                    return nil
-                }
-                return TransactionEditorCategoryOption(
-                    id: category.id,
-                    title: category.name.actualistCategoryNameParts.name,
-                    amount: category.balance,
-                    valueText: category.balance.actualMoney.formatted()
-                )
+        let baseGroups = budgetMonth?.editorCategoryGroups() ?? []
+        return baseGroups.compactMap { group -> TransactionEditorCategoryGroup? in
+            // "To Budget" represents available income, not an expense category,
+            // so it is always a valid cover source.
+            if group.id == BudgetMoveMoneyDestination.toBudget.id {
+                return group
+            }
+            let options = group.options.filter { option in
+                !selectedIDs.contains(option.id) && !selectedOverspentIDs.contains(option.id)
             }
             guard !options.isEmpty else {
                 return nil
             }
             return TransactionEditorCategoryGroup(id: group.id, name: group.name, options: options)
         }
+    }
+
+    // Maps a selected picker option back to the cover source it represents. The
+    // "To Budget" option is synthetic (its title is the reserved
+    // `BudgetMoveMoneyDestination.toBudget.title`), so it routes to `.toBudget`;
+    // every other option is a real expense category.
+    func coverSource(
+        for option: TransactionEditorCategoryOption
+    ) -> BudgetOverspentCoverSource {
+        if option.title == BudgetMoveMoneyDestination.toBudget.title {
+            return .toBudget
+        }
+        return .category(id: option.id, name: option.title)
     }
 
     func fundingSourceOptions() -> [BudgetMoveMoneyDestinationGroup] {
