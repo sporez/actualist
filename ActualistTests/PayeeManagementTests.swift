@@ -615,4 +615,69 @@ extension LocalFirstActualStoreTests {
         )
         #expect(preview.categoryID == "groceries")
     }
+
+    @Test func importPayeeRuleFiresWhenEditorFeedsEnteredPayeeName() async throws {
+        // Rules created by Actual when you categorize an imported transaction are
+        // almost always `imported_payee contains …` rules. The editor feeds the
+        // entered payee name as the imported-payee text for preview matching, so
+        // those rules must fire for both a selected payee and a custom-typed payee.
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                stage TEXT,
+                conditions TEXT,
+                actions TEXT,
+                conditions_op TEXT DEFAULT 'and',
+                tombstone INTEGER DEFAULT 0
+            );
+            INSERT INTO payees VALUES ('onepass', '1Password', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('onepass', 'onepass');
+            INSERT INTO rules VALUES (
+                'import-rule',
+                NULL,
+                '[{"field":"imported_payee","op":"contains","value":"1password","type":"string"}]',
+                '[{"op":"set","field":"category","value":"subscriptions","type":"id"}]',
+                'and',
+                0
+            );
+            """)
+
+        let date = try makeDate(year: 2026, month: 8, day: 12)
+
+        // Selected payee: editor synthesizes importedPayee = "1Password".
+        let selectedPayeePreview = try await store.previewRules(
+            for: TransactionDraft(
+                accountID: "checking",
+                date: date,
+                amountMinorUnits: -500,
+                payeeID: "onepass",
+                payeeName: "1Password",
+                categoryID: nil,
+                notes: nil,
+                cleared: false,
+                isTransfer: false,
+                importedPayee: "1Password"
+            ),
+            budgetID: "group-1"
+        )
+        #expect(selectedPayeePreview.categoryID == "subscriptions")
+
+        // Custom-typed payee: editor synthesizes importedPayee = "1Password".
+        let customPayeePreview = try await store.previewRules(
+            for: TransactionDraft(
+                accountID: "checking",
+                date: date,
+                amountMinorUnits: -500,
+                payeeID: nil,
+                payeeName: "1Password",
+                categoryID: nil,
+                notes: nil,
+                cleared: false,
+                isTransfer: false,
+                importedPayee: "1Password"
+            ),
+            budgetID: "group-1"
+        )
+        #expect(customPayeePreview.categoryID == "subscriptions")
+    }
 }

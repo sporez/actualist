@@ -840,6 +840,12 @@ final class TransactionEditorViewModel {
 
         let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Manually-added transactions have no imported payee, but the rules Actual
+        // records when categorizing an imported transaction match on `imported_payee`.
+        // Feed the entered payee name as that text for preview matching only; the
+        // saved draft keeps its real (nil) imported payee.
+        let rulePreviewImportedPayee = originalImportedPayee ?? trimmedPayee
+
         return TransactionDraft(
             accountID: selectedAccountID,
             date: date,
@@ -850,7 +856,7 @@ final class TransactionEditorViewModel {
             notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
             cleared: isCleared,
             isTransfer: selectedPayeeIsTransfer,
-            importedPayee: originalImportedPayee,
+            importedPayee: rulePreviewImportedPayee,
             reconciled: originalReconciled,
             isParent: originalIsParent
         )

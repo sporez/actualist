@@ -1059,6 +1059,60 @@ struct TransactionEditorViewModelTests {
         #expect(model.selectedCategoryID == nil)
     }
 
+    @Test func rulePreviewFeedsEnteredPayeeNameAsImportedPayeeForManualEntry() async throws {
+        // Manually-added transactions have no real imported payee, but the rules
+        // Actual creates when categorizing an imported transaction match on
+        // `imported_payee`. The preview draft must feed the entered payee name as
+        // the imported-payee text so those rules fire; the saved draft keeps nil.
+        let model = TransactionEditorViewModel()
+        model.kind = .spend
+        model.amountDigits = "4999"
+        model.selectedAccountID = "checking"
+        model.payeeName = "1Password"
+        model.selectedPayeeID = nil
+        model.date = Self.date("2026-08-12")
+        let repository = RecordingTransactionRepository(
+            rulePreview: TransactionRulePreview(categoryID: "subscriptions", notes: nil)
+        )
+
+        await model.previewRules(budgetID: "budget", repository: repository)
+
+        let previewDraft = try await repository.onlyRulePreviewDraft()
+        #expect(previewDraft.payeeName == "1Password")
+        #expect(previewDraft.importedPayee == "1Password")
+
+        // The submitted transaction must not record a fake imported payee.
+        #expect(await model.submit(budgetID: "budget", repository: repository))
+        let savedDraft = try await repository.onlyDraft()
+        #expect(savedDraft.importedPayee == nil)
+    }
+
+    @Test func rulePreviewKeepsRealImportedPayeeWhenEditingImportedTransaction() async throws {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "txn-imp",
+                account: "checking",
+                date: "2026-08-12",
+                amount: -4999,
+                payee: "onepass",
+                payeeName: "1Password",
+                importedPayee: "1PASSWORD*SUBSCRIPTION",
+                category: nil,
+                notes: nil,
+                cleared: .bool(false)
+            )
+        )
+        model.amountDigits = "4999"
+        let repository = RecordingTransactionRepository(
+            rulePreview: TransactionRulePreview(categoryID: "subscriptions", notes: nil)
+        )
+
+        await model.previewRules(budgetID: "budget", repository: repository)
+
+        let previewDraft = try await repository.onlyRulePreviewDraft()
+        #expect(previewDraft.importedPayee == "1PASSWORD*SUBSCRIPTION")
+    }
+
     @Test func applyRespectsPreferredAccountOrder() {
         let model = TransactionEditorViewModel()
         let accounts = [
