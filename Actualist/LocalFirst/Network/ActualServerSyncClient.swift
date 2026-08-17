@@ -22,14 +22,21 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     private let session: URLSession
     private let resourceLimits: LocalFirstResourceLimits
 
+    /// Delays used while waiting out the iOS Local Network permission prompt's
+    /// grant latency on the very first connection to `baseURL`. Injected via the
+    /// initializer so tests can drive the retry loop without real sleeps.
+    private let firstConnectionRetryDelays: [Duration]
+
     init(
         baseURL: URL,
         session: URLSession? = nil,
-        resourceLimits: LocalFirstResourceLimits = .standard
+        resourceLimits: LocalFirstResourceLimits = .standard,
+        firstConnectionRetryDelays: [Duration] = ActualServerSyncClient.defaultFirstConnectionRetryDelays
     ) {
         self.baseURL = baseURL
         self.session = session ?? URLSession(configuration: Self.secureSessionConfiguration())
         self.resourceLimits = resourceLimits
+        self.firstConnectionRetryDelays = firstConnectionRetryDelays
     }
 
     nonisolated static func secureSessionConfiguration() -> URLSessionConfiguration {
@@ -229,7 +236,16 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
     private func execute(_ request: URLRequest, responseByteLimit: Int? = nil) async throws -> Data {
         Self.debugLogRequest(request)
+        return try await withFirstConnectionRecovery { [self] in
+            try await performExecute(request, responseByteLimit: responseByteLimit)
+        }
+    }
 
+    /// Single transport attempt. Wrapped by `withFirstConnectionRecovery` so the
+    /// iOS Local Network permission prompt cannot surface as a hard first-launch
+    /// failure. See `withFirstConnectionRecovery` for the invariant that makes
+    /// retrying any HTTP method (including POST login/sync) safe here.
+    private func performExecute(_ request: URLRequest, responseByteLimit: Int?) async throws -> Data {
         let data: Data
         let response: URLResponse
         do {
@@ -313,7 +329,16 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
     private func executeDownload(_ request: URLRequest, to destinationURL: URL) async throws {
         Self.debugLogRequest(request)
+        try await withFirstConnectionRecovery { [self] in
+            try await performDownload(request, to: destinationURL)
+        }
+    }
 
+    /// Single download attempt. Wrapped by `withFirstConnectionRecovery` for the
+    /// same Local Network permission reason as `performExecute`. The download is
+    /// restarted from byte zero on each retry; the staging file is truncated and
+    /// any partial artifact is removed before rethrowing, so retries are clean.
+    private func performDownload(_ request: URLRequest, to destinationURL: URL) async throws {
         let fileManager = FileManager.default
         if !fileManager.fileExists(atPath: destinationURL.path) {
             guard fileManager.createFile(atPath: destinationURL.path, contents: nil) else {
@@ -374,6 +399,89 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             throw ActualAPIError.transport(error.code)
         } catch {
             try? fileManager.removeItem(at: destinationURL)
+            throw ActualAPIError.transport(nil)
+        }
+    }
+
+    /// `URLSessionConfiguration.ephemeral`-backed attempts that have never yet
+    /// reached `baseURL`. The iOS Local Network permission prompt fires on the
+    /// first socket to a private/local endpoint (including a public-looking
+    /// domain that DNS-resolves to a private IP, e.g. a local proxy) and fails
+    /// the request fast with `.cannotConnectToHost`/`.cannotFindHost` while the
+    /// system sheet is pending, or persistently if the user denies it. There is
+    /// no public API to observe the sheet, so we wait it out.
+    private var hasConnected = false
+
+    /// Short, bounded backoff that covers a typical prompt-grant tap without
+    /// penalizing a genuinely unreachable server beyond a single ~10s window on
+    /// the first connection attempt only.
+    static let defaultFirstConnectionRetryDelays: [Duration] = [
+        .milliseconds(1500),
+        .seconds(3),
+        .seconds(5)
+    ]
+
+    /// Transport codes whose signature is "the host could not be reached" — the
+    /// exact failure mode iOS produces while the Local Network sheet is pending
+    /// or denied. Kept deliberately narrow: `.timedOut` (slow server),
+    /// `.notConnectedToInternet` (airplane mode), and `.networkConnectionLost`
+    /// (mid-stream drop) keep their own messages and never enter the retry loop.
+    private static func isLocalNetworkPermissionTransportCode(_ code: URLError.Code?) -> Bool {
+        switch code {
+        case .cannotConnectToHost, .cannotFindHost: true
+        default: false
+        }
+    }
+
+    /// Wraps a transport operation with a one-time, bounded retry that hides the
+    /// iOS Local Network permission grant latency from callers. Only activates
+    /// before the first successful connection; once any request succeeds the
+    /// permission is granted permanently, so established servers fail fast.
+    ///
+    /// Safety invariant: the retry only engages when the previous attempt failed
+    /// with `.cannotConnectToHost`/`.cannotFindHost`, which means no bytes were
+    /// transmitted to the server. Retrying is therefore safe for every method,
+    /// including POST login and sync, because the server never saw the first
+    /// attempt and there is no risk of duplicate side effects.
+    private func withFirstConnectionRecovery<T>(
+        _ operation: () async throws -> T
+    ) async throws -> T {
+        do {
+            let result = try await operation()
+            hasConnected = true
+            return result
+        } catch let error as LocalFirstError {
+            throw error
+        } catch let error as ActualAPIError {
+            guard !hasConnected,
+                  case .transport(let code) = error,
+                  Self.isLocalNetworkPermissionTransportCode(code) else {
+                throw error
+            }
+            for delay in firstConnectionRetryDelays {
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    throw ActualAPIError.transport(.cancelled)
+                }
+                do {
+                    let result = try await operation()
+                    hasConnected = true
+                    return result
+                } catch let error as LocalFirstError {
+                    throw error
+                } catch let error as ActualAPIError {
+                    guard case .transport(let code) = error,
+                          Self.isLocalNetworkPermissionTransportCode(code) else {
+                        throw error
+                    }
+                    continue
+                } catch {
+                    throw ActualAPIError.transport(nil)
+                }
+            }
+            throw ActualAPIError.localNetworkDenied
+        } catch {
             throw ActualAPIError.transport(nil)
         }
     }
@@ -442,6 +550,7 @@ enum ActualAPIError: LocalizedError {
     case httpStatus(Int)
     case decoding
     case transport(URLError.Code?)
+    case localNetworkDenied
 
     var isAuthenticationFailure: Bool {
         switch self {
@@ -497,6 +606,8 @@ enum ActualAPIError: LocalizedError {
             } else {
                 "Actualist could not reach the server."
             }
+        case .localNetworkDenied:
+            "Actualist could not reach the server. If iOS asked for Local Network access, tap Allow and try again; otherwise check the URL and that the server is running."
         }
     }
 }

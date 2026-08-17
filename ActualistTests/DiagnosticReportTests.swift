@@ -184,26 +184,29 @@ struct ActualServerErrorRedactionTests {
     }
 
     @Test func transportErrorDoesNotExposeFailingURL() async throws {
-        let client = makeClient(host: "offline.actual.private.example")
+        // Empty retry delays so this first-attempt transport failure surfaces
+        // immediately as `.localNetworkDenied` without waiting on real backoff.
+        let client = makeClient(host: "offline.actual.private.example", retryDelays: [])
 
         do {
             _ = try await client.loginMethods()
             Issue.record("Expected the transport to fail")
         } catch {
             let message = error.localizedDescription
-            #expect(message == "Actualist could not reach the server.")
+            #expect(message == "Actualist could not reach the server. If iOS asked for Local Network access, tap Allow and try again; otherwise check the URL and that the server is running.")
             #expect(!message.contains("offline.actual.private.example"))
             #expect(!message.contains("private-token"))
         }
     }
 
-    private func makeClient(host: String) -> ActualServerSyncClient {
+    private func makeClient(host: String, retryDelays: [Duration] = [.milliseconds(1), .milliseconds(1), .milliseconds(1)]) -> ActualServerSyncClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [SensitiveResponseURLProtocol.self]
         let session = URLSession(configuration: configuration)
         return ActualServerSyncClient(
             baseURL: URL(string: "https://\(host)/base?token=private-token")!,
-            session: session
+            session: session,
+            firstConnectionRetryDelays: retryDelays
         )
     }
 }
