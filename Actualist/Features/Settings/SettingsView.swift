@@ -48,6 +48,24 @@ struct SettingsView: View {
                             .multilineTextAlignment(.trailing)
                     }
 
+                    LabeledContent("Fallback Server") {
+                        TextField(
+                            "Optional",
+                            text: $viewModel.fallbackServerURLString,
+                            prompt: Text("https://actual.tailnet.ts.net")
+                        )
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                            .multilineTextAlignment(.trailing)
+                            .onSubmit {
+                                viewModel.commitFallbackServerURL(using: appState)
+                            }
+                    }
+
+                    Text("The fallback server is tried automatically when the primary server can't be reached — for example, a Tailscale URL when you're away from home Wi-Fi.")
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+
                     LabeledContent("Password") {
                         SecureField(passwordPrompt, text: $viewModel.actualPassword)
                             .textInputAutocapitalization(.never)
@@ -507,6 +525,7 @@ struct SettingsView: View {
             }
             .onDisappear {
                 developerUnlockToastTask?.cancel()
+                viewModel.commitFallbackServerURL(using: appState)
             }
             .confirmationDialog(
                 "Reimport Budget?",
@@ -784,6 +803,7 @@ struct SettingsView: View {
         appState.disconnectAndEraseLocalData()
         viewModel.actualPassword = ""
         viewModel.serverURLString = appState.settings.localFirstServerURLString
+        viewModel.fallbackServerURLString = appState.settings.fallbackServerURLString
         isErasingLocalData = false
     }
 

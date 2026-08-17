@@ -6,6 +6,7 @@ import UIKit
 @Observable
 final class SettingsViewModel {
     var serverURLString = ""
+    var fallbackServerURLString = ""
     var actualPassword = ""
     var isTesting = false
     var isLoadingBudgets = false
@@ -18,6 +19,7 @@ final class SettingsViewModel {
 
     func hydrate(from appState: AppState) {
         serverURLString = appState.settings.localFirstServerURLString
+        fallbackServerURLString = appState.settings.fallbackServerURLString
         selectedAppIcon = AppIcon.current()
     }
 
@@ -45,6 +47,10 @@ final class SettingsViewModel {
             actualPassword = ""
         }
         isTesting = false
+    }
+
+    func commitFallbackServerURL(using appState: AppState) {
+        appState.updateFallbackServerURL(fallbackServerURLString)
     }
 
     func loadBudgetsForSelection(using appState: AppState) async {

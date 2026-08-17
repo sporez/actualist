@@ -192,21 +192,19 @@ extension LocalFirstActualStore {
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
         }
-        guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
-            throw ActualAPIError.invalidURL
-        }
-        let client = syncTransportFactory(baseURL)
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.lastSyncAttemptAt = Date()
         syncStatus = status
         do {
-            let result = try await syncClient.pushAndPull(
-                database: database,
-                client: client,
-                token: token,
-                messages: pending.map(\.message),
-                since: pending.map(\.baseTimestamp).min()
-            )
+            let result = try await withSyncFailover(serverURLString: serverURLString) { client in
+                try await self.syncClient.pushAndPull(
+                    database: database,
+                    client: client,
+                    token: token,
+                    messages: pending.map(\.message),
+                    since: pending.map(\.baseTimestamp).min()
+                )
+            }
             try await database.deletePendingLocalSyncMessages(pending)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
             recordSyncDebugEvent(
@@ -241,12 +239,8 @@ extension LocalFirstActualStore {
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
         }
-        guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
-            throw ActualAPIError.invalidURL
-        }
         let database = try requireDatabase(for: budgetID)
 
-        let client = syncTransportFactory(baseURL)
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.lastSyncAttemptAt = Date()
         syncStatus = status
@@ -256,11 +250,13 @@ extension LocalFirstActualStore {
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
-            let pullResult = try await syncClient.pullAndApply(
-                database: database,
-                client: client,
-                token: token
-            )
+            let pullResult = try await withSyncFailover(serverURLString: serverURLString) { client in
+                try await self.syncClient.pullAndApply(
+                    database: database,
+                    client: client,
+                    token: token
+                )
+            }
             #if DEBUG
             print("[Actualist LocalFirst] Applied \(pullResult.appliedMessageCount) remote sync messages")
             #endif

@@ -39,15 +39,16 @@ final class AppState {
     private let developerUnlockResetInterval: TimeInterval = 20
 
     @ObservationIgnored lazy var localFirstStore: LocalFirstActualStore = {
-        if let providedLocalFirstStore {
-            return providedLocalFirstStore
-        }
-        return LocalFirstActualStore(
+        let store = providedLocalFirstStore ?? LocalFirstActualStore(
             keychain: keychain,
             syncDebugRecorder: { [weak self] event in
                 self?.recordLocalFirstSyncDebugEvent(event)
             }
         )
+        store.fallbackServerURLString = settings.fallbackServerURLString.isEmpty
+            ? nil
+            : settings.fallbackServerURLString
+        return store
     }()
 
     init(
@@ -233,6 +234,8 @@ final class AppState {
             cancelLocalFirstRefresh()
             try localFirstStore.eraseLocalData()
             settings.localFirstServerURLString = ""
+            settings.fallbackServerURLString = ""
+            localFirstStore.fallbackServerURLString = nil
             settings.selectedBudgetID = nil
             settings.selectedBudgetName = nil
             settings.selectedLocalFirstFileID = nil
@@ -253,6 +256,18 @@ final class AppState {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
         }
+    }
+
+    /// Updates the optional fallback server URL used when the primary server is
+    /// unreachable (e.g. a Tailscale URL when away from home Wi-Fi). An empty
+    /// string clears it. This does not affect the saved connection, sync token,
+    /// or budget selection — the fallback is the same logical server reached via
+    /// a different network path.
+    func updateFallbackServerURL(_ serverURL: String) {
+        let normalized = ActualServerURLNormalizer.normalize(serverURL)
+        settings.fallbackServerURLString = normalized
+        localFirstStore.fallbackServerURLString = normalized.isEmpty ? nil : normalized
+        settingsStore.save(settings)
     }
 
     func selectBudgetForCurrentBackend(_ budget: ActualBudget, encryptionPassword: String? = nil) async {

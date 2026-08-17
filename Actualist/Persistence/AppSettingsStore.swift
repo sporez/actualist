@@ -47,6 +47,7 @@ enum ExperimentalFeature: String, Codable, CaseIterable, Identifiable {
 
 struct AppSettings: Codable, Equatable {
     var localFirstServerURLString: String = ""
+    var fallbackServerURLString: String = ""
     var selectedBudgetID: String?
     var selectedBudgetName: String?
     var selectedLocalFirstFileID: String?
@@ -69,6 +70,7 @@ struct AppSettings: Codable, Equatable {
 
     init(
         localFirstServerURLString: String = "",
+        fallbackServerURLString: String = "",
         selectedBudgetID: String? = nil,
         selectedBudgetName: String? = nil,
         selectedLocalFirstFileID: String? = nil,
@@ -90,6 +92,7 @@ struct AppSettings: Codable, Equatable {
         pendingNewTransactionIDsByAccount: [String: [String]] = [:]
     ) {
         self.localFirstServerURLString = localFirstServerURLString
+        self.fallbackServerURLString = fallbackServerURLString
         self.selectedBudgetID = selectedBudgetID
         self.selectedBudgetName = selectedBudgetName
         self.selectedLocalFirstFileID = selectedLocalFirstFileID
@@ -114,6 +117,7 @@ struct AppSettings: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         localFirstServerURLString = try container.decodeIfPresent(String.self, forKey: .localFirstServerURLString) ?? ""
+        fallbackServerURLString = try container.decodeIfPresent(String.self, forKey: .fallbackServerURLString) ?? ""
         selectedBudgetID = try container.decodeIfPresent(String.self, forKey: .selectedBudgetID)
         selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)
         selectedLocalFirstFileID = try container.decodeIfPresent(String.self, forKey: .selectedLocalFirstFileID)

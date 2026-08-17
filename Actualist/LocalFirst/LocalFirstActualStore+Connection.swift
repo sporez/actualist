@@ -8,8 +8,9 @@ struct StagedLocalFirstConnection {
 
 extension LocalFirstActualStore {
     func loginMethods(serverURLString: String) async throws -> ActualLoginMethodsResponse {
-        let (_, client) = try connectionClient(serverURLString: serverURLString)
-        return try await client.loginMethods()
+        try await withConnectionFailover(serverURLString: serverURLString) { client in
+            try await client.loginMethods()
+        }
     }
 
     func stageConnection(
@@ -21,14 +22,15 @@ extension LocalFirstActualStore {
             throw LocalFirstError.missingPassword
         }
 
-        let (_, client) = try connectionClient(serverURLString: serverURLString)
-        _ = try await client.loginMethods()
-        let response = try await client.loginWithPassword(password: password)
-        return try await stageAuthenticatedConnection(
-            client: client,
-            token: response.token,
-            selectedBudgetID: selectedBudgetID
-        )
+        return try await withConnectionFailover(serverURLString: serverURLString) { client in
+            _ = try await client.loginMethods()
+            let response = try await client.loginWithPassword(password: password)
+            return try await self.stageAuthenticatedConnection(
+                client: client,
+                token: response.token,
+                selectedBudgetID: selectedBudgetID
+            )
+        }
     }
 
     func stageOpenIDConnection(
@@ -36,21 +38,22 @@ extension LocalFirstActualStore {
         selectedBudgetID: String?,
         browserSession: @escaping ActualOpenIDBrowserSession
     ) async throws -> StagedLocalFirstConnection {
-        let (_, client) = try connectionClient(serverURLString: serverURLString)
-        let methods = try await client.loginMethods()
-        guard methods.availableLoginMethods.contains(where: { $0.authenticationMethod == .openID }) else {
-            throw ActualAPIError.unsupportedAuthenticationMethod("openid")
-        }
+        return try await withConnectionFailover(serverURLString: serverURLString) { client in
+            let methods = try await client.loginMethods()
+            guard methods.availableLoginMethods.contains(where: { $0.authenticationMethod == .openID }) else {
+                throw ActualAPIError.unsupportedAuthenticationMethod("openid")
+            }
 
-        let token = try await openIDAuthenticationCoordinator.authenticate(
-            client: client,
-            browserSession: browserSession
-        )
-        return try await stageAuthenticatedConnection(
-            client: client,
-            token: token,
-            selectedBudgetID: selectedBudgetID
-        )
+            let token = try await self.openIDAuthenticationCoordinator.authenticate(
+                client: client,
+                browserSession: browserSession
+            )
+            return try await self.stageAuthenticatedConnection(
+                client: client,
+                token: token,
+                selectedBudgetID: selectedBudgetID
+            )
+        }
     }
 
     func stageAuthenticatedConnection(
@@ -58,12 +61,13 @@ extension LocalFirstActualStore {
         token: String,
         selectedBudgetID: String?
     ) async throws -> StagedLocalFirstConnection {
-        let (_, client) = try connectionClient(serverURLString: serverURLString)
-        return try await stageAuthenticatedConnection(
-            client: client,
-            token: token,
-            selectedBudgetID: selectedBudgetID
-        )
+        return try await withConnectionFailover(serverURLString: serverURLString) { client in
+            try await self.stageAuthenticatedConnection(
+                client: client,
+                token: token,
+                selectedBudgetID: selectedBudgetID
+            )
+        }
     }
 
     private func stageAuthenticatedConnection(
@@ -95,16 +99,6 @@ extension LocalFirstActualStore {
         )
     }
 
-    private func connectionClient(
-        serverURLString: String
-    ) throws -> (URL, any ActualServerConnectionTransport) {
-        let normalized = ActualServerURLNormalizer.normalize(serverURLString)
-        guard let baseURL = URL(string: normalized) else {
-            throw ActualAPIError.invalidURL
-        }
-        return (baseURL, connectionTransportFactory(baseURL))
-    }
-
     func commitConnection(_ staged: StagedLocalFirstConnection) throws {
         try keychain.saveActualSyncToken(staged.token)
         remoteFilesByFileID = staged.remoteFilesByFileID
@@ -116,12 +110,10 @@ extension LocalFirstActualStore {
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
         }
-        guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
-            throw ActualAPIError.invalidURL
-        }
 
-        let client = connectionTransportFactory(baseURL)
-        let files = try await client.listUserFiles(token: token)
+        let files = try await withConnectionFailover(serverURLString: serverURLString) { client in
+            try await client.listUserFiles(token: token)
+        }
         remoteFilesByFileID = files.reduce(into: [:]) { cache, file in
             cache[file.fileID] = file
         }
