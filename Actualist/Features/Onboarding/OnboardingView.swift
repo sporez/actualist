@@ -211,15 +211,23 @@ struct BudgetPickerView: View {
     @State private var viewModel = BudgetPickerViewModel()
     @State private var encryptedBudgetPrompt: ActualBudget?
     @State private var encryptionPassword = ""
-    @State private var isUnlockingEncryptedBudget = false
 
     var body: some View {
         NavigationStack {
             List {
+                if let message = bannerErrorMessage {
+                    Section {
+                        Text(message)
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.danger)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+
                 Section {
                     ForEach(appState.budgets) { budget in
                         Button {
-                            Task { await selectBudget(budget) }
+                            viewModel.selectBudget(budget, using: appState)
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -232,10 +240,15 @@ struct BudgetPickerView: View {
                                     }
                                 }
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(ActualistTheme.secondaryText)
+                                if viewModel.openingBudgetID == budget.syncID {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(ActualistTheme.secondaryText)
+                                }
                             }
                         }
+                        .disabled(viewModel.hasInFlightOpen)
                     }
                 } header: {
                     Text("Choose Budget")
@@ -252,53 +265,59 @@ struct BudgetPickerView: View {
             .refreshable {
                 await viewModel.reload(using: appState)
             }
+            .onChange(of: viewModel.openState) { _, newState in
+                switch newState {
+                case .needsEncryptionPassword(let budget):
+                    encryptedBudgetPrompt = budget
+                case .idle:
+                    // A successful open clears the encrypted-budget sheet.
+                    if encryptedBudgetPrompt != nil {
+                        encryptedBudgetPrompt = nil
+                        encryptionPassword = ""
+                    }
+                default:
+                    break
+                }
+            }
             .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in
                 EncryptedBudgetUnlockSheet(
                     encryptionPassword: $encryptionPassword,
                     isUnlocking: isUnlockingEncryptedBudget,
-                    errorMessage: encryptedBudgetUnlockErrorMessage,
+                    errorMessage: encryptedSheetErrorMessage,
                     onCancel: {
                         encryptedBudgetPrompt = nil
+                        viewModel.dismissEncryptionPrompt()
                         clearEncryptedBudgetPassword()
                     },
                     onUnlock: {
-                        Task { await unlockBudget(budget) }
+                        viewModel.unlockBudget(budget, password: encryptionPassword, using: appState)
                     }
                 )
             }
         }
     }
 
-    private var encryptedBudgetUnlockErrorMessage: String? {
-        guard let message = appState.lastErrorMessage,
-              message != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription else {
-            return nil
+    private var bannerErrorMessage: String? {
+        if case .failed(let message) = viewModel.openState {
+            return message
         }
-        return message
+        return nil
+    }
+
+    private var encryptedSheetErrorMessage: String? {
+        if case .failed(let message) = viewModel.openState {
+            return message
+        }
+        return nil
+    }
+
+    private var isUnlockingEncryptedBudget: Bool {
+        guard let budget = encryptedBudgetPrompt else { return false }
+        return viewModel.openingBudgetID == budget.syncID
     }
 
     private func clearEncryptedBudgetPassword() {
         encryptionPassword = ""
-    }
-
-    private func selectBudget(_ budget: ActualBudget) async {
-        await appState.selectBudgetForCurrentBackend(budget)
-        if appState.lastErrorMessage == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription {
-            encryptedBudgetPrompt = budget
-        }
-    }
-
-    private func unlockBudget(_ budget: ActualBudget) async {
-        isUnlockingEncryptedBudget = true
-        await appState.selectBudgetForCurrentBackend(
-            budget,
-            encryptionPassword: encryptionPassword
-        )
-        isUnlockingEncryptedBudget = false
-        if appState.lastErrorMessage != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription {
-            encryptedBudgetPrompt = nil
-            encryptionPassword = ""
-        }
     }
 
     private func budgetDisplayName(_ budget: ActualBudget) -> String {

@@ -115,18 +115,127 @@ final class OnboardingViewModel {
     }
 }
 
+/// State machine for the budget-open workflow surfaced by `BudgetPickerView`.
+///
+/// Kept as an explicit enum (rather than loose flags) because a budget open is a
+/// multi-step flow (download -> decrypt -> import -> sync) whose in-flight,
+/// encryption-prompt, and failure outcomes must stay coherent.
+enum BudgetPickerOpenState: Equatable {
+    case idle
+    case opening(budgetID: String)
+    case needsEncryptionPassword(ActualBudget)
+    case failed(message: String)
+}
+
 @MainActor
 @Observable
 final class BudgetPickerViewModel {
     var isLoading = false
+    var openState: BudgetPickerOpenState = .idle
+
+    /// Hard ceiling for a single budget-open attempt. The Actual download path
+    /// uses a 30s per-request timeout, but a black-holed cellular connection can
+    /// hold an idle socket well past that with no data flow. Without this ceiling
+    /// a stalled open leaves the picker at "connecting" indefinitely, which reads
+    /// as a dead tap to the user.
+    private let openTimeout: Duration = .seconds(60)
+
+    private var openTask: Task<Void, Never>?
+    private var openGeneration = 0
+
+    var openingBudgetID: String? {
+        if case .opening(let budgetID) = openState { return budgetID }
+        return nil
+    }
+
+    var hasInFlightOpen: Bool {
+        openingBudgetID != nil
+    }
 
     func reload(using appState: AppState) async {
         isLoading = true
         do {
             try await appState.loadBudgets()
+            if case .failed = openState {
+                openState = .idle
+            }
         } catch {
             appState.lastErrorMessage = error.localizedDescription
+            openState = .failed(message: error.localizedDescription)
         }
         isLoading = false
+    }
+
+    func selectBudget(_ budget: ActualBudget, using appState: AppState) {
+        startOpen(budget, password: nil, using: appState)
+    }
+
+    func unlockBudget(_ budget: ActualBudget, password: String, using appState: AppState) {
+        startOpen(budget, password: password, using: appState)
+    }
+
+    /// Called when the encrypted-budget sheet is dismissed without unlocking.
+    func dismissEncryptionPrompt() {
+        if case .needsEncryptionPassword = openState {
+            openState = .idle
+        }
+    }
+
+    /// Called when the user starts a fresh open after seeing a failure banner.
+    func clearFailure() {
+        if case .failed = openState {
+            openState = .idle
+        }
+    }
+
+    private func startOpen(_ budget: ActualBudget, password: String?, using appState: AppState) {
+        openTask?.cancel()
+        openGeneration += 1
+        let generation = openGeneration
+        openState = .opening(budgetID: budget.syncID)
+        appState.lastErrorMessage = nil
+
+        openTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runOpen(budget, password: password, using: appState, generation: generation)
+        }
+    }
+
+    private func runOpen(
+        _ budget: ActualBudget,
+        password: String?,
+        using appState: AppState,
+        generation: Int
+    ) async {
+        // The open runs on AppState/store; race it against a timeout so a
+        // stalled network cannot pin the picker forever. Cancelling `work`
+        // propagates to the URLSession bytes iterator, aborting the download.
+        let work = Task { @MainActor in
+            await appState.selectBudgetForCurrentBackend(budget, encryptionPassword: password)
+        }
+        let timer = Task { @MainActor in
+            try? await Task.sleep(for: openTimeout)
+            work.cancel()
+        }
+        await work.value
+        timer.cancel()
+
+        // A newer open (or dismissal) should own the screen state; bail before
+        // overwriting it with a stale result.
+        guard generation == openGeneration, !Task.isCancelled else { return }
+
+        let encryptedMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
+        if work.isCancelled {
+            let message = "Opening this budget is taking too long. Check your connection to the Actual server and try again."
+            appState.lastErrorMessage = message
+            openState = .failed(message: message)
+        } else if appState.lastErrorMessage == encryptedMessage {
+            openState = .needsEncryptionPassword(budget)
+        } else if let message = appState.lastErrorMessage {
+            openState = .failed(message: message)
+        } else {
+            // Success: AppState moves to .ready and RootView swaps in MainTabView.
+            openState = .idle
+        }
     }
 }
