@@ -212,7 +212,7 @@ struct BudgetView: View {
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
                 }
-                .sheet(isPresented: $isSettingsPresented) {
+                .fullScreenCover(isPresented: $isSettingsPresented) {
                     SettingsView(showsDismissButton: true)
                         .environment(appState)
                         .appSwitcherPrivacyProtected()

@@ -24,7 +24,7 @@ struct AppIconPickerSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: SettingsViewModel
-    let recordDeveloperUnlockTap: () -> Void
+    @State private var toastTask: Task<Void, Never>?
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: 16)]
 
@@ -82,6 +82,19 @@ struct AppIconPickerSheet: View {
             }
         }
         .appSwitcherPrivacyProtected()
+        .onDisappear {
+            toastTask?.cancel()
+        }
+    }
+
+    private func recordDeveloperUnlockTap() {
+        if let message = appState.recordDeveloperUnlockTap() {
+            toastTask = DeveloperUnlockToast.present(
+                message,
+                on: appState,
+                replacing: toastTask
+            )
+        }
     }
 }
 

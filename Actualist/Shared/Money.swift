@@ -40,6 +40,22 @@ enum PrivacyDisplayKind {
 }
 
 enum PrivacyDisplay {
+    /// Resolves the displayed name of the currently selected budget, applying
+    /// the randomized display toggle used for screenshots when enabled.
+    static func selectedBudgetName(
+        name: String?,
+        id: String?,
+        randomized: Bool
+    ) -> String {
+        guard let name else {
+            return "None"
+        }
+        guard randomized else {
+            return name
+        }
+        return PrivacyDisplay.name(for: .budget, seed: id ?? name)
+    }
+
     static func name(for kind: PrivacyDisplayKind, seed: String) -> String {
         let value = stableHash(seed)
         let index = Int(value % UInt64(names(for: kind).count))

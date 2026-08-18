@@ -137,6 +137,16 @@
 		01000000000000000000005D /* SettingsBudgetPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000005D /* SettingsBudgetPickerSheet.swift */; };
 		01000000000000000000005E /* SettingsAccountOrderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000005E /* SettingsAccountOrderSheet.swift */; };
 		01000000000000000000005F /* SettingsAppearanceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000005F /* SettingsAppearanceViews.swift */; };
+		010000000000000000000090 /* SettingsCategoryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000090 /* SettingsCategoryRow.swift */; };
+		010000000000000000000091 /* ConnectionSyncSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000091 /* ConnectionSyncSettingsView.swift */; };
+		010000000000000000000092 /* BudgetDataSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000092 /* BudgetDataSettingsView.swift */; };
+		010000000000000000000093 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000093 /* NotificationSettingsView.swift */; };
+		010000000000000000000094 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000094 /* AppearanceSettingsView.swift */; };
+		010000000000000000000095 /* PrivacySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000095 /* PrivacySettingsView.swift */; };
+		010000000000000000000096 /* ReportsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000096 /* ReportsSettingsView.swift */; };
+		010000000000000000000097 /* AdvancedSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000097 /* AdvancedSettingsView.swift */; };
+		010000000000000000000098 /* SupportSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000098 /* SupportSettingsView.swift */; };
+		010000000000000000000099 /* DeveloperUnlockToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000099 /* DeveloperUnlockToast.swift */; };
 		28C36EBD2FE377C800A9F4A8 /* default.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBC2FE377C800A9F4A8 /* default.icon */; };
 		28C36EC02FE377C800A9F4A8 /* icon_blue.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EBF2FE377C800A9F4A8 /* icon_blue.icon */; };
 		28C36EC22FE377C800A9F4A8 /* icon_orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC12FE377C800A9F4A8 /* icon_orange.icon */; };
@@ -281,6 +291,16 @@
 		02000000000000000000005D /* SettingsBudgetPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBudgetPickerSheet.swift; sourceTree = "<group>"; };
 		02000000000000000000005E /* SettingsAccountOrderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAccountOrderSheet.swift; sourceTree = "<group>"; };
 		02000000000000000000005F /* SettingsAppearanceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAppearanceViews.swift; sourceTree = "<group>"; };
+		020000000000000000000090 /* SettingsCategoryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCategoryRow.swift; sourceTree = "<group>"; };
+		020000000000000000000091 /* ConnectionSyncSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSyncSettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000092 /* BudgetDataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDataSettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000093 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000094 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000095 /* PrivacySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacySettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000096 /* ReportsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsSettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000097 /* AdvancedSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000098 /* SupportSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportSettingsView.swift; sourceTree = "<group>"; };
+		020000000000000000000099 /* DeveloperUnlockToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperUnlockToast.swift; sourceTree = "<group>"; };
 		020000000000000000000075 /* OpenSourceLicensesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceLicensesView.swift; sourceTree = "<group>"; };
 		020000000000000000000076 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		020000000000000000000077 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
@@ -543,6 +563,16 @@
 				02000000000000000000005D /* SettingsBudgetPickerSheet.swift */,
 				02000000000000000000005E /* SettingsAccountOrderSheet.swift */,
 				02000000000000000000005F /* SettingsAppearanceViews.swift */,
+				020000000000000000000090 /* SettingsCategoryRow.swift */,
+				020000000000000000000091 /* ConnectionSyncSettingsView.swift */,
+				020000000000000000000092 /* BudgetDataSettingsView.swift */,
+				020000000000000000000093 /* NotificationSettingsView.swift */,
+				020000000000000000000094 /* AppearanceSettingsView.swift */,
+				020000000000000000000095 /* PrivacySettingsView.swift */,
+				020000000000000000000096 /* ReportsSettingsView.swift */,
+				020000000000000000000097 /* AdvancedSettingsView.swift */,
+				020000000000000000000098 /* SupportSettingsView.swift */,
+				020000000000000000000099 /* DeveloperUnlockToast.swift */,
 				02000000000000000000001B /* SettingsViewModel.swift */,
 				020000000000000000000053 /* DiagnosticReport.swift */,
 			);
@@ -794,6 +824,16 @@
 				01000000000000000000005D /* SettingsBudgetPickerSheet.swift in Sources */,
 				01000000000000000000005E /* SettingsAccountOrderSheet.swift in Sources */,
 				01000000000000000000005F /* SettingsAppearanceViews.swift in Sources */,
+				010000000000000000000090 /* SettingsCategoryRow.swift in Sources */,
+				010000000000000000000091 /* ConnectionSyncSettingsView.swift in Sources */,
+				010000000000000000000092 /* BudgetDataSettingsView.swift in Sources */,
+				010000000000000000000093 /* NotificationSettingsView.swift in Sources */,
+				010000000000000000000094 /* AppearanceSettingsView.swift in Sources */,
+				010000000000000000000095 /* PrivacySettingsView.swift in Sources */,
+				010000000000000000000096 /* ReportsSettingsView.swift in Sources */,
+				010000000000000000000097 /* AdvancedSettingsView.swift in Sources */,
+				010000000000000000000098 /* SupportSettingsView.swift in Sources */,
+				010000000000000000000099 /* DeveloperUnlockToast.swift in Sources */,
 				28C36EC42FE377C800A9F4A8 /* AppIcon.swift in Sources */,
 				01000000000000000000000E /* BudgetView.swift in Sources */,
 				01000000000000000000007C /* EncryptedBudgetUnlockSheet.swift in Sources */,
