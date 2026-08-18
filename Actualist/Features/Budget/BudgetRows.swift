@@ -133,14 +133,7 @@ struct BudgetCategoryRow: View {
             }
         } label: {
             HStack(spacing: BudgetLayout.rowSpacing) {
-                emojiSlot
-
-                Text(categoryName)
-                    .font(ActualistTypography.body(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.86)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                categoryLabel
 
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(assignedPrimaryText)
@@ -183,22 +176,27 @@ struct BudgetCategoryRow: View {
                 Rectangle()
                     .fill(ActualistTheme.separator)
                     .frame(height: 1)
-                    .padding(.leading, BudgetLayout.emojiWidth + BudgetLayout.rowSpacing)
+                    .padding(.leading, BudgetLayout.rowHorizontalPadding)
             }
         }
     }
 
     @ViewBuilder
-    private var emojiSlot: some View {
-        if !isPrivacyModeEnabled, let emoji = nameParts.emoji {
-            Text(verbatim: emoji)
-                .font(.actualistEmoji(size: BudgetLayout.emojiSize))
-                .frame(width: BudgetLayout.emojiWidth, height: BudgetLayout.emojiWidth)
-                .accessibilityHidden(true)
-        } else {
-            Color.clear
-                .frame(width: BudgetLayout.emojiWidth, height: BudgetLayout.emojiWidth)
+    private var categoryLabel: some View {
+        HStack(spacing: BudgetLayout.emojiNameSpacing) {
+            if !isPrivacyModeEnabled, let emoji = nameParts.emoji {
+                Text(verbatim: emoji)
+                    .font(.actualistEmoji(size: BudgetLayout.emojiSize))
+                    .accessibilityHidden(true)
+            }
+
+            Text(categoryName)
+                .font(ActualistTypography.body(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.86)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var availableBackground: Color {

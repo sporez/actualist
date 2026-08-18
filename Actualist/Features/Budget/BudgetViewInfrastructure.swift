@@ -7,7 +7,7 @@ enum BudgetLayout {
     static let rowHorizontalPadding: CGFloat = 10
     static let chevronWidth: CGFloat = 24
     static let emojiSize: CGFloat = 20
-    static let emojiWidth: CGFloat = 26
+    static let emojiNameSpacing: CGFloat = 6
     static let assignedWidth: CGFloat = 96
     static let availableWidth: CGFloat = 104
     static let availablePillHorizontalPadding: CGFloat = 6
