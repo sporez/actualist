@@ -15,30 +15,18 @@ struct ConnectionSyncSettingsView: View {
     var body: some View {
         List {
             Section("Server") {
-                LabeledContent("Server") {
-                    TextField(
-                        "Required",
-                        text: $viewModel.serverURLString,
-                        prompt: Text("https://actual.example.com")
-                    )
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
-                        .multilineTextAlignment(.trailing)
-                }
+                LabeledURLField(
+                    title: "Server",
+                    placeholder: "https://actual.example.com",
+                    text: $viewModel.serverURLString
+                )
 
-                LabeledContent("Fallback Server") {
-                    TextField(
-                        "Optional",
-                        text: $viewModel.fallbackServerURLString,
-                        prompt: Text("https://actual.tailnet.ts.net")
-                    )
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
-                        .multilineTextAlignment(.trailing)
-                        .onSubmit {
-                            viewModel.commitFallbackServerURL(using: appState)
-                        }
-                }
+                LabeledURLField(
+                    title: "Fallback Server",
+                    placeholder: "https://actual.tailnet.ts.net",
+                    text: $viewModel.fallbackServerURLString,
+                    onSubmit: { viewModel.commitFallbackServerURL(using: appState) }
+                )
 
                 Text("The fallback server is tried automatically when the primary server can't be reached — for example, a Tailscale URL when you're away from home Wi-Fi.")
                     .font(.footnote)
@@ -65,7 +53,10 @@ struct ConnectionSyncSettingsView: View {
             .settingsSectionChrome()
 
             Section("Status") {
-                SettingsStatusRow(status: appState.connectionStatus)
+                SettingsStatusRow(
+                    status: appState.connectionStatus,
+                    usedFallback: appState.localFirstSyncStatus?.lastSyncUsedFallback ?? false
+                )
 
                 LabeledContent("Last Synced") {
                     Text(lastSyncedText)
@@ -83,7 +74,8 @@ struct ConnectionSyncSettingsView: View {
                         .foregroundStyle(ActualistTheme.danger)
                 }
 
-                if let error = appState.localFirstSyncStatus?.lastError {
+                if let error = appState.localFirstSyncStatus?.lastError,
+                   error != appState.lastErrorMessage {
                     Text(error)
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.danger)
@@ -234,5 +226,35 @@ struct ConnectionSyncSettingsView: View {
         viewModel.serverURLString = appState.settings.localFirstServerURLString
         viewModel.fallbackServerURLString = appState.settings.fallbackServerURLString
         isErasingLocalData = false
+    }
+}
+
+/// Full-width, label-above text field for entering a server URL. Matches the
+/// iOS 26 form pattern used by Wi-Fi ▸ Configure Proxy: a small caption label
+/// above a plain leading-aligned field, so the start of a long URL stays
+/// visible while typing instead of scrolling away under trailing alignment.
+private struct LabeledURLField: View {
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+    var onSubmit: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(ActualistTheme.secondaryText)
+
+            TextField(title, text: $text, prompt: Text(placeholder))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .textContentType(.URL)
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.leading)
+                .submitLabel(.done)
+                .onSubmit { onSubmit?() }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

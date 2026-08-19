@@ -150,7 +150,7 @@ enum ActualistDiagnosticReportBuilder {
         } else {
             for (index, event) in settings.localFirstSyncDebug.recentEvents.enumerated() {
                 lines.append(
-                    "\(index + 1). \(timestamp(event.date)) | \(event.outcome.rawValue) | pending \(event.pendingBefore)->\(event.pendingAfter) | uploaded \(event.uploadedCount) | downloaded \(event.downloadedCount) | \(redactor.redact(event.message))"
+                    "\(index + 1). \(timestamp(event.date)) | \(event.outcome.rawValue) | \(event.endpoint?.rawValue ?? "local") | pending \(event.pendingBefore)->\(event.pendingAfter) | uploaded \(event.uploadedCount) | downloaded \(event.downloadedCount) | \(redactor.redact(event.message))"
                 )
             }
         }

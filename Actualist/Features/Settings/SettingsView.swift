@@ -170,9 +170,29 @@ struct SettingsView: View {
         }
 
         if let lastSyncedAt = appState.localFirstSyncStatus?.lastSyncedAt {
-            return "\(statusWord) · Last synced \(lastSyncedAt.formatted(.relative(presentation: .named)))"
+            return "\(statusWord) · \(compactSyncedAgo(from: lastSyncedAt))"
         }
         return statusWord
+    }
+
+    /// Compact relative time for the connection subtitle, e.g. "5m ago".
+    private func compactSyncedAgo(from date: Date) -> String {
+        let seconds = Date().timeIntervalSince(date)
+        if seconds < 45 {
+            return "just now"
+        }
+        let minutes = Int(seconds / 60)
+        if minutes < 1 {
+            return "<1m ago"
+        }
+        if minutes < 60 {
+            return "\(minutes)m ago"
+        }
+        let hours = minutes / 60
+        if hours < 24 {
+            return "\(hours)h ago"
+        }
+        return "\(hours / 24)d ago"
     }
 
     private var connectionSubtitleColor: Color {

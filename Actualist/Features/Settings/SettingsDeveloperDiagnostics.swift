@@ -190,9 +190,16 @@ private struct LocalFirstSyncDebugEventRow: View {
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
 
-            Text("Pending \(event.pendingBefore) → \(event.pendingAfter) · Uploaded \(event.uploadedCount) · Downloaded \(event.downloadedCount)")
-                .font(.caption)
-                .foregroundStyle(ActualistTheme.secondaryText)
+            HStack(spacing: 6) {
+                if let endpoint = event.endpoint {
+                    Text(endpoint == .fallback ? "Fallback" : "Primary")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(endpointColor(endpoint))
+                }
+                Text("Pending \(event.pendingBefore) → \(event.pendingAfter) · Uploaded \(event.uploadedCount) · Downloaded \(event.downloadedCount)")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
         }
         .padding(.vertical, 2)
     }
@@ -211,6 +218,10 @@ private struct LocalFirstSyncDebugEventRow: View {
         case .succeeded: ActualistTheme.positive
         case .failed: ActualistTheme.danger
         }
+    }
+
+    private func endpointColor(_ endpoint: LocalFirstSyncDebugEvent.Endpoint) -> Color {
+        endpoint == .fallback ? ActualistTheme.accent : ActualistTheme.secondaryText
     }
 }
 
@@ -231,6 +242,7 @@ struct SettingsActionLabel: View {
 
 struct SettingsStatusRow: View {
     let status: ServerConnectionStatus
+    var usedFallback: Bool = false
 
     var body: some View {
         LabeledContent("Status") {
@@ -249,7 +261,7 @@ struct SettingsStatusRow: View {
     private var title: String {
         switch status {
         case .online:
-            "Connected"
+            usedFallback ? "Connected (via fallback)" : "Connected"
         case .connecting:
             "Checking"
         case .offline:
