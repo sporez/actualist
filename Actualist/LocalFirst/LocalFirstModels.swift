@@ -193,6 +193,10 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
     var lastError: String?
     var encryptionKeyID: String?
     var pendingLocalMessageCount: Int
+    /// `true` when the most recent successful sync reached the server through
+    /// the fallback endpoint. Reflects the last successful sync only; failed
+    /// attempts do not change it.
+    var lastSyncUsedFallback: Bool = false
 
     init(
         fileID: String,
@@ -203,7 +207,8 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
         lastSyncAttemptAt: Date? = nil,
         lastError: String? = nil,
         encryptionKeyID: String? = nil,
-        pendingLocalMessageCount: Int = 0
+        pendingLocalMessageCount: Int = 0,
+        lastSyncUsedFallback: Bool = false
     ) {
         self.fileID = fileID
         self.groupID = groupID
@@ -214,6 +219,7 @@ struct LocalFirstSyncStatus: Equatable, Sendable {
         self.lastError = lastError
         self.encryptionKeyID = encryptionKeyID
         self.pendingLocalMessageCount = pendingLocalMessageCount
+        self.lastSyncUsedFallback = lastSyncUsedFallback
     }
 }
 

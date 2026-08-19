@@ -171,7 +171,7 @@ extension LocalFirstActualStore {
                 guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
                     throw ActualAPIError.invalidURL
                 }
-                let client = connectionTransportFactory(baseURL)
+                let client = connectionTransport(for: baseURL)
                 let context = try await encryptionContext(
                     metadata: metadata,
                     client: client,
@@ -193,7 +193,7 @@ extension LocalFirstActualStore {
             throw ActualAPIError.invalidURL
         }
 
-        let client = connectionTransportFactory(baseURL)
+        let client = connectionTransport(for: baseURL)
         let fallbackRemote = ActualSyncRemoteFile(
             fileID: fileID,
             groupID: budget.groupId,
@@ -299,7 +299,7 @@ extension LocalFirstActualStore {
             throw ActualAPIError.invalidURL
         }
 
-        let client = connectionTransportFactory(baseURL)
+        let client = connectionTransport(for: baseURL)
         let fallbackRemote = ActualSyncRemoteFile(
             fileID: fileID,
             groupID: budget.groupId,

@@ -228,6 +228,13 @@ struct LocalFirstSyncDebugEvent: Codable, Equatable, Identifiable, Sendable {
         case failed
     }
 
+    /// Which server endpoint a sync attempt used. `nil` for events that are
+    /// not a server round-trip (e.g. a local queue event).
+    enum Endpoint: String, Codable, Equatable, Sendable {
+        case primary
+        case fallback
+    }
+
     let id: UUID
     let date: Date
     let outcome: Outcome
@@ -236,6 +243,47 @@ struct LocalFirstSyncDebugEvent: Codable, Equatable, Identifiable, Sendable {
     let downloadedCount: Int
     let pendingAfter: Int
     let message: String
+    let endpoint: Endpoint?
+
+    init(
+        id: UUID,
+        date: Date,
+        outcome: Outcome,
+        pendingBefore: Int,
+        uploadedCount: Int,
+        downloadedCount: Int,
+        pendingAfter: Int,
+        message: String,
+        endpoint: Endpoint? = nil
+    ) {
+        self.id = id
+        self.date = date
+        self.outcome = outcome
+        self.pendingBefore = pendingBefore
+        self.uploadedCount = uploadedCount
+        self.downloadedCount = downloadedCount
+        self.pendingAfter = pendingAfter
+        self.message = message
+        self.endpoint = endpoint
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, date, outcome, pendingBefore, uploadedCount, downloadedCount
+        case pendingAfter, message, endpoint
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        outcome = try container.decode(Outcome.self, forKey: .outcome)
+        pendingBefore = try container.decode(Int.self, forKey: .pendingBefore)
+        uploadedCount = try container.decode(Int.self, forKey: .uploadedCount)
+        downloadedCount = try container.decode(Int.self, forKey: .downloadedCount)
+        pendingAfter = try container.decode(Int.self, forKey: .pendingAfter)
+        message = try container.decode(String.self, forKey: .message)
+        endpoint = try container.decodeIfPresent(Endpoint.self, forKey: .endpoint)
+    }
 }
 
 struct AppSettingsStore {

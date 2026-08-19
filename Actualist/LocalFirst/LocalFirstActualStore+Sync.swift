@@ -213,7 +213,8 @@ extension LocalFirstActualStore {
                 uploadedCount: result.pushedMessageCount,
                 downloadedCount: result.appliedRemoteMessageCount,
                 pendingAfter: remainingCount,
-                message: "Server confirmed \(result.pushedMessageCount) uploaded sync message\(result.pushedMessageCount == 1 ? "" : "s")"
+                message: "Server confirmed \(result.pushedMessageCount) uploaded sync message\(result.pushedMessageCount == 1 ? "" : "s")",
+                endpoint: lastSyncEndpoint
             )
             return result
         } catch {
@@ -223,7 +224,8 @@ extension LocalFirstActualStore {
                 outcome: .failed,
                 pendingBefore: pending.count,
                 pendingAfter: remainingCount,
-                message: error.localizedDescription
+                message: error.localizedDescription,
+                endpoint: lastSyncEndpoint
             )
             throw error
         }
@@ -359,6 +361,7 @@ extension LocalFirstActualStore {
                 status.lastUploadedMessageCount = uploadedCount
             }
             status.lastError = nil
+            status.lastSyncUsedFallback = (lastSyncEndpoint == .fallback)
             if let database {
                 do {
                     try await database.saveLocalSyncCheckpoint(
@@ -386,7 +389,8 @@ extension LocalFirstActualStore {
         uploadedCount: Int = 0,
         downloadedCount: Int = 0,
         pendingAfter: Int,
-        message: String
+        message: String,
+        endpoint: LocalFirstSyncDebugEvent.Endpoint? = nil
     ) {
         syncDebugRecorder(
             LocalFirstSyncDebugEvent(
@@ -397,7 +401,8 @@ extension LocalFirstActualStore {
                 uploadedCount: uploadedCount,
                 downloadedCount: downloadedCount,
                 pendingAfter: pendingAfter,
-                message: message
+                message: message,
+                endpoint: endpoint
             )
         )
     }

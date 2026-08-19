@@ -137,12 +137,15 @@ private final class LegacyUnauthorizedURLProtocol: ActualErrorURLProtocol {
 }
 
 /// A transport that fails the first `failuresRemaining` requests with
-/// `.cannotConnectToHost` (the signature iOS produces while the Local Network
+/// `URLError(errorCode)` (the signature iOS produces while the Local Network
 /// permission sheet is pending or denied) and then succeeds. Counts every
-/// attempt so tests can assert whether the retry loop ran.
+/// attempt so tests can assert whether the retry loop ran. The error code is
+/// configurable so tests can cover the iOS 26 case where the first socket fails
+/// with a code other than `.cannotConnectToHost`.
 final class FirstConnectionRetryURLProtocol: URLProtocol {
     static var failuresRemaining = 0
     static var attemptCount = 0
+    static var errorCode: URLError.Code = .cannotConnectToHost
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -151,7 +154,7 @@ final class FirstConnectionRetryURLProtocol: URLProtocol {
         Self.attemptCount += 1
         if Self.failuresRemaining > 0 {
             Self.failuresRemaining -= 1
-            client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))
+            client?.urlProtocol(self, didFailWithError: URLError(Self.errorCode))
             return
         }
         let body = Data(#"{"methods":["password"]}"#.utf8)
@@ -213,6 +216,7 @@ struct FirstConnectionRetryTests {
     @Test func establishedConnectionFailsFastWithoutRetrying() async throws {
         FirstConnectionRetryURLProtocol.attemptCount = 0
         FirstConnectionRetryURLProtocol.failuresRemaining = 0
+        FirstConnectionRetryURLProtocol.errorCode = .cannotConnectToHost
 
         let client = makeRetryClient()
         // First call succeeds and marks the server as connected.
@@ -236,6 +240,23 @@ struct FirstConnectionRetryTests {
 
         // Exactly one additional attempt: no retry after an established connection.
         #expect(FirstConnectionRetryURLProtocol.attemptCount == attemptsAfterFirstSuccess + 1)
+    }
+
+    @Test func retriesOnNonLocalNetworkTransportCodeBeforeFirstSuccess() async throws {
+        // iOS 26 has been observed failing the first socket while the Local
+        // Network permission sheet is pending with a code other than
+        // `.cannotConnectToHost`/`.cannotFindHost`. The retry loop must still
+        // engage, because the safety invariant is `!hasConnected` (no bytes
+        // reached the server), not the specific error code.
+        FirstConnectionRetryURLProtocol.attemptCount = 0
+        FirstConnectionRetryURLProtocol.failuresRemaining = 2
+        FirstConnectionRetryURLProtocol.errorCode = .secureConnectionFailed
+
+        let client = makeRetryClient()
+        let response = try await client.loginMethods()
+
+        #expect(response.methods == ["password"])
+        #expect(FirstConnectionRetryURLProtocol.attemptCount == 3)
     }
 
     private func makeRetryClient(

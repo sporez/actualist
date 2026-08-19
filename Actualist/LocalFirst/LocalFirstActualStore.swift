@@ -40,10 +40,42 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var fallbackServerURLString: String?
 
     var syncStatus: LocalFirstSyncStatus?
+    /// Endpoint used by the most recent sync/connection attempt. Set by the
+    /// failover wrappers before each transport attempt so success and failure
+    /// paths can attribute the result. Read by sync-status and debug-event
+    /// recording; not persisted.
+    var lastSyncEndpoint: LocalFirstSyncDebugEvent.Endpoint = .primary
     var isFlushingPendingLocalMessages = false
     var shouldFlushPendingLocalMessagesAgain = false
     var pendingLocalMessageFlushWaiters: [CheckedContinuation<Void, Never>] = []
     var pendingLocalMessageFlushTask: Task<Void, Never>?
+
+    /// Cached transports per base URL so `ActualServerSyncClient.hasConnected`
+    /// (and the underlying URLSession connection pool) persists across syncs.
+    /// This is what makes an established server fail fast when it later becomes
+    /// unreachable: the one-time Local Network permission retry loop only runs
+    /// before the first successful connection, so failover to the fallback is
+    /// not delayed by ~10s on every sync. Cleared by `reset()`.
+    private var cachedSyncTransportsByURL: [String: any ActualSyncTransport] = [:]
+    private var cachedConnectionTransportsByURL: [String: any ActualServerConnectionTransport] = [:]
+
+    func syncTransport(for url: URL) -> any ActualSyncTransport {
+        if let cached = cachedSyncTransportsByURL[url.absoluteString] {
+            return cached
+        }
+        let transport = syncTransportFactory(url)
+        cachedSyncTransportsByURL[url.absoluteString] = transport
+        return transport
+    }
+
+    func connectionTransport(for url: URL) -> any ActualServerConnectionTransport {
+        if let cached = cachedConnectionTransportsByURL[url.absoluteString] {
+            return cached
+        }
+        let transport = connectionTransportFactory(url)
+        cachedConnectionTransportsByURL[url.absoluteString] = transport
+        return transport
+    }
 
     init(
         keychain: KeychainStore = .actualist,
@@ -85,6 +117,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         closeOpenBudget()
         cachedBudgets = []
         remoteFilesByFileID = [:]
+        cachedSyncTransportsByURL = [:]
+        cachedConnectionTransportsByURL = [:]
     }
 
     // Keep the authenticated budget list while switching databases.

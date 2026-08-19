@@ -421,28 +421,25 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         .seconds(5)
     ]
 
-    /// Transport codes whose signature is "the host could not be reached" — the
-    /// exact failure mode iOS produces while the Local Network sheet is pending
-    /// or denied. Kept deliberately narrow: `.timedOut` (slow server),
-    /// `.notConnectedToInternet` (airplane mode), and `.networkConnectionLost`
-    /// (mid-stream drop) keep their own messages and never enter the retry loop.
-    private static func isLocalNetworkPermissionTransportCode(_ code: URLError.Code?) -> Bool {
-        switch code {
-        case .cannotConnectToHost, .cannotFindHost: true
-        default: false
-        }
-    }
-
     /// Wraps a transport operation with a one-time, bounded retry that hides the
     /// iOS Local Network permission grant latency from callers. Only activates
     /// before the first successful connection; once any request succeeds the
     /// permission is granted permanently, so established servers fail fast.
     ///
-    /// Safety invariant: the retry only engages when the previous attempt failed
-    /// with `.cannotConnectToHost`/`.cannotFindHost`, which means no bytes were
-    /// transmitted to the server. Retrying is therefore safe for every method,
-    /// including POST login and sync, because the server never saw the first
-    /// attempt and there is no risk of duplicate side effects.
+    /// Safety invariant: the retry engages on *any* `.transport` failure while
+    /// `hasConnected` is false. A transport-level failure means no bytes were
+    /// transmitted to the server, so retrying is safe for every method, including
+    /// POST login and sync — the server never saw the first attempt and there is
+    /// no risk of duplicate side effects. This deliberately covers error codes
+    /// (and non-`URLError` failures that surface as `.transport(nil)`) beyond the
+    /// `.cannotConnectToHost`/`.cannotFindHost` pair iOS historically produced
+    /// while the Local Network sheet is pending; iOS 26 has been observed failing
+    /// the first socket with other codes, and the safety invariant does not
+    /// depend on which code was returned, only on the fact that `hasConnected` is
+    /// still false. `LocalFirstError` (resource limits, app errors) and
+    /// non-transport `ActualAPIError` (HTTP statuses, decoding) are not retried:
+    /// they either are not network failures or imply the server already
+    /// responded, so the permission gate is no longer the issue.
     private func withFirstConnectionRecovery<T>(
         _ operation: () async throws -> T
     ) async throws -> T {
@@ -453,9 +450,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         } catch let error as LocalFirstError {
             throw error
         } catch let error as ActualAPIError {
-            guard !hasConnected,
-                  case .transport(let code) = error,
-                  Self.isLocalNetworkPermissionTransportCode(code) else {
+            guard !hasConnected, case .transport = error else {
                 throw error
             }
             for delay in firstConnectionRetryDelays {
@@ -471,8 +466,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
                 } catch let error as LocalFirstError {
                     throw error
                 } catch let error as ActualAPIError {
-                    guard case .transport(let code) = error,
-                          Self.isLocalNetworkPermissionTransportCode(code) else {
+                    guard case .transport = error else {
                         throw error
                     }
                     continue
