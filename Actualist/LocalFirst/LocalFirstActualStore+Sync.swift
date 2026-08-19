@@ -5,6 +5,11 @@ extension LocalFirstActualStore {
         budget: ActualBudget,
         serverURLString: String
     ) async throws -> [BackgroundAccountRefreshResult] {
+        if isDemoBudgetActive {
+            // Demo mode never contacts a server and has no remote baseline to
+            // diff against.
+            return []
+        }
         let hasLocalBaseline = try await openBudgetForBackgroundDiffIfNeeded(
             budget,
             serverURLString: serverURLString
@@ -43,6 +48,22 @@ extension LocalFirstActualStore {
 
     func schedulePendingLocalMessageFlush(database: BudgetDatabase, budgetID: String) async {
         let pendingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
+        if isDemoBudgetActive {
+            // Demo mode keeps writes entirely local. CRDT application already
+            // happened; drain the just-enqueued outbox rows so the pending count
+            // stays at zero and no server round-trip is ever attempted.
+            let drainedCount = (try? await database.drainAllPendingLocalSyncMessages()) ?? 0
+            await recordSyncStatus(budgetID: budgetID, uploadedCount: nil, appliedCount: nil, error: nil)
+            recordSyncDebugEvent(
+                outcome: .queued,
+                pendingBefore: pendingCount,
+                pendingAfter: 0,
+                message: drainedCount == 1
+                    ? "Demo mode: 1 local change kept on device"
+                    : "Demo mode: \(drainedCount) local changes kept on device"
+            )
+            return
+        }
         await recordSyncStatus(budgetID: budgetID, uploadedCount: nil, appliedCount: nil, error: nil)
         recordSyncDebugEvent(
             outcome: .queued,
@@ -237,6 +258,19 @@ extension LocalFirstActualStore {
         budgetID: String,
         serverURLString: String
     ) async throws -> LocalFirstSyncResult {
+        if isDemoBudgetActive {
+            // Local-only: never touch transports. Reload caches from the local
+            // database so a manual refresh still re-reads the local data.
+            let database = try requireDatabase(for: budgetID)
+            try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
+            await recordSyncStatus(
+                budgetID: budgetID,
+                uploadedCount: 0,
+                appliedCount: 0,
+                error: nil
+            )
+            return LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
+        }
         let token = keychain.readActualSyncToken()
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
@@ -408,6 +442,10 @@ extension LocalFirstActualStore {
     }
 
     func retryPendingLocalMessageFlush() async {
+        if isDemoBudgetActive {
+            // Nothing to retry: the outbox is drained on every demo write.
+            return
+        }
         guard let database,
               let budgetID = openedBudgetID,
               let serverURLString = openedServerURLString,

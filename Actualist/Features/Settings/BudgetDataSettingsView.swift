@@ -39,24 +39,26 @@ struct BudgetDataSettingsView: View {
             }
             .settingsSectionChrome()
 
-            Section {
-                Button(role: .destructive) {
-                    isReimportConfirmationPresented = true
-                } label: {
-                    SettingsActionLabel(
-                        title: isReimporting ? "Reimporting" : "Reimport Budget",
-                        systemImage: "arrow.down.circle"
-                    )
+            if !appState.isDemoMode {
+                Section {
+                    Button(role: .destructive) {
+                        isReimportConfirmationPresented = true
+                    } label: {
+                        SettingsActionLabel(
+                            title: isReimporting ? "Reimporting" : "Reimport Budget",
+                            systemImage: "arrow.down.circle"
+                        )
+                    }
+                    .disabled(isReimporting || appState.settings.selectedBudgetID == nil)
+                } header: {
+                    Text("Data")
+                } footer: {
+                    Text("Deletes the local copy of this budget and downloads a fresh one from the server.")
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
                 }
-                .disabled(isReimporting || appState.settings.selectedBudgetID == nil)
-            } header: {
-                Text("Data")
-            } footer: {
-                Text("Deletes the local copy of this budget and downloads a fresh one from the server.")
-                    .font(.caption)
-                    .foregroundStyle(ActualistTheme.secondaryText)
+                .settingsSectionChrome()
             }
-            .settingsSectionChrome()
 
             Section("Accounts") {
                 Button {

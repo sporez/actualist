@@ -50,6 +50,7 @@ enum BudgetTemplateConfirmation: String, Identifiable {
 
 struct ConnectionStatusDot: View {
     let status: ServerConnectionStatus
+    var isDemo = false
 
     var body: some View {
         Circle()
@@ -64,24 +65,30 @@ struct ConnectionStatusDot: View {
     }
 
     private var color: Color {
+        if isDemo {
+            return ActualistTheme.secondaryText.opacity(0.85)
+        }
         switch status {
         case .online:
-            Color(red: 0.22, green: 0.82, blue: 0.38)
+            return Color(red: 0.22, green: 0.82, blue: 0.38)
         case .connecting:
-            Color(red: 0.96, green: 0.76, blue: 0.20)
+            return Color(red: 0.96, green: 0.76, blue: 0.20)
         case .offline:
-            Color(red: 0.95, green: 0.26, blue: 0.32)
+            return Color(red: 0.95, green: 0.26, blue: 0.32)
         }
     }
 
     private var accessibilityLabel: String {
+        if isDemo {
+            return "Demo mode"
+        }
         switch status {
         case .online:
-            "Server connected"
+            return "Server connected"
         case .connecting:
-            "Server connecting"
+            return "Server connecting"
         case .offline:
-            "Server offline"
+            return "Server offline"
         }
     }
 }

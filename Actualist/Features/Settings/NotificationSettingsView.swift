@@ -11,10 +11,11 @@ struct NotificationSettingsView: View {
         List {
             Section {
                 Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
+                    .disabled(appState.isDemoMode)
             } header: {
                 Text("Transaction Alerts")
             } footer: {
-                Text("Actualist checks for new transactions using background refresh. Alerts require notifications to be allowed for Actualist in Settings › Notifications.")
+                Text(footerText)
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -36,5 +37,12 @@ struct NotificationSettingsView: View {
                 await appState.updateBackgroundTransactionRefreshEnabled(isEnabled)
             }
         }
+    }
+
+    private var footerText: String {
+        if appState.isDemoMode {
+            return "Background transaction alerts aren't available in demo mode, which never contacts a server."
+        }
+        return "Actualist checks for new transactions using background refresh. Alerts require notifications to be allowed for Actualist in Settings › Notifications."
     }
 }

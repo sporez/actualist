@@ -162,6 +162,9 @@ struct SettingsView: View {
     // MARK: - Live status subtitles
 
     private var connectionSubtitle: String {
+        if appState.isDemoMode {
+            return "Demo mode"
+        }
         let statusWord: String
         switch appState.connectionStatus {
         case .online: statusWord = "Connected"
@@ -196,10 +199,13 @@ struct SettingsView: View {
     }
 
     private var connectionSubtitleColor: Color {
+        if appState.isDemoMode {
+            return ActualistTheme.secondaryText
+        }
         switch appState.connectionStatus {
-        case .online: ActualistTheme.positive
-        case .connecting: ActualistTheme.warning
-        case .offline: ActualistTheme.danger
+        case .online: return ActualistTheme.positive
+        case .connecting: return ActualistTheme.warning
+        case .offline: return ActualistTheme.danger
         }
     }
 

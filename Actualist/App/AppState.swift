@@ -92,6 +92,46 @@ final class AppState {
         !settings.localFirstServerURLString.isEmpty && !keychain.readActualSyncToken().isEmpty
     }
 
+    /// `true` when the selected budget is the bundled demo budget. Derived from
+    /// the persisted selection so launch restore and erase work for demo with
+    /// no new settings keys. Presentation and store guards key off this.
+    var isDemoMode: Bool {
+        settings.selectedLocalFirstFileID == DemoBudget.fileID
+    }
+
+    /// Install and open the bundled demo budget, then route straight to the
+    /// main app shell. Only valid from `.needsConnection` (onboarding). Never
+    /// writes a sync token or encryption key, never contacts a server.
+    func enterDemoMode() async {
+        guard setupPhase == .needsConnection else {
+            return
+        }
+        do {
+            try await localFirstStore.openDemoBudget()
+            let budget = DemoBudget.budget
+            guard localFirstStore.isOpen(budgetID: budget.syncID) else {
+                throw LocalFirstError.budgetNotOpened
+            }
+            settings.selectedBudgetID = budget.syncID
+            settings.selectedBudgetName = DemoBudget.name
+            settings.selectedLocalFirstFileID = DemoBudget.fileID
+            settings.selectedLocalFirstGroupID = DemoBudget.groupID
+            settings.backgroundTransactionRefreshEnabled = false
+            settings.pendingNewTransactionIDsByAccount = [:]
+            updateApplicationBadge()
+            budgets = [budget]
+            selectedBudget = budget
+            setupPhase = .ready
+            connectionStatus = .offline
+            lastErrorMessage = nil
+            localDataRevision &+= 1
+            settingsStore.save(settings)
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            connectionStatus = .offline
+        }
+    }
+
     var isReadyForMainTabs: Bool {
         guard setupPhase == .ready,
               let selectedBudgetID = settings.selectedBudgetID,
@@ -317,6 +357,17 @@ final class AppState {
     func refreshLocalFirstData(budgetID: String, force: Bool = true) async -> Bool {
         guard localFirstStore.isOpen(budgetID: budgetID) else {
             return false
+        }
+
+        if isDemoMode {
+            // Demo mode never syncs. Perform a local cache reload and report
+            // success without flipping connection state or surfacing errors.
+            _ = try? await localFirstStore.refresh(
+                budgetID: budgetID,
+                serverURLString: settings.localFirstServerURLString
+            )
+            localDataRevision &+= 1
+            return true
         }
 
         if let task = localFirstRefreshTask,
@@ -693,6 +744,10 @@ final class AppState {
     func performBackgroundTransactionRefresh(
         timeLimit: Duration = .seconds(25)
     ) async -> Bool {
+        if isDemoMode {
+            // Demo mode is local-only and never schedules background refresh.
+            return false
+        }
         let debugRunID = recordBackgroundRefreshWake()
 
         guard !Task.isCancelled else {
@@ -807,7 +862,8 @@ final class AppState {
     }
 
     private func restoreSelectedBudgetForLaunch() async {
-        if await openSelectedCachedBudget(connectionStatus: .connecting) {
+        let restoredStatus: ServerConnectionStatus = isDemoMode ? .offline : .connecting
+        if await openSelectedCachedBudget(connectionStatus: restoredStatus) {
             lastErrorMessage = nil
             return
         }

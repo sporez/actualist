@@ -76,9 +76,16 @@ struct SettingsBudgetPickerSheet: View {
                 }
             }
             .task {
+                // Demo mode has a single bundled budget and no server list to load.
+                guard !appState.isDemoMode else {
+                    return
+                }
                 await viewModel.loadBudgetsForSelection(using: appState)
             }
             .refreshable {
+                guard !appState.isDemoMode else {
+                    return
+                }
                 await viewModel.loadBudgetsForSelection(using: appState)
             }
             .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in

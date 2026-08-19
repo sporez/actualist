@@ -284,6 +284,10 @@ extension LocalFirstActualStore {
     }
 
     func reimportBudget(_ budget: ActualBudget, serverURLString: String) async throws {
+        if isDemoBudgetActive {
+            // Demo mode is local-only; there is no server copy to re-download.
+            return
+        }
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
@@ -420,6 +424,7 @@ extension LocalFirstActualStore {
         openedGroupID = metadata.groupID
         openedNodeID = metadata.nodeID
         openedEncryptionContext = encryptionContext
+        isDemoBudgetActive = (metadata.cloudFileID == DemoBudget.fileID)
         let budgetID = metadata.groupID ?? metadata.cloudFileID
         accountsByBudget[budgetID] = try? await database.fetchAccountDisplays()
         payeesByBudget[budgetID] = try? await database.fetchPayeeManagementSnapshot()

@@ -128,7 +128,7 @@ struct BudgetView: View {
                             isMonthPickerPresented.toggle()
                         } label: {
                             HStack(spacing: 7) {
-                                ConnectionStatusDot(status: appState.connectionStatus)
+                                ConnectionStatusDot(status: appState.connectionStatus, isDemo: appState.isDemoMode)
                                 Text(viewModel.navigationTitle)
                                     .font(.headline.weight(.bold))
                                 Image(systemName: "chevron.down")

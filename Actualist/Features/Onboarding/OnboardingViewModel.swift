@@ -11,6 +11,7 @@ final class OnboardingViewModel {
     var isLoadingLoginMethods = false
     var isConnecting = false
     var isUsingPassword = false
+    var isEnteringDemo = false
 
     func hydrate(from appState: AppState) {
         serverURLString = appState.settings.localFirstServerURLString
@@ -32,6 +33,15 @@ final class OnboardingViewModel {
             return
         }
         await connectWithOpenID(using: appState, browserSession: browserSession)
+    }
+
+    /// Enter demo mode with sample data. No server traffic is involved; the
+    /// store seeds a local-only budget so the user can explore the app.
+    func enterDemo(using appState: AppState) async {
+        isEnteringDemo = true
+        appState.lastErrorMessage = nil
+        await appState.enterDemoMode()
+        isEnteringDemo = false
     }
 
     private func loadLoginMethods(using appState: AppState) async {
@@ -74,6 +84,7 @@ final class OnboardingViewModel {
         !serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isLoadingLoginMethods
             && !isConnecting
+            && !isEnteringDemo
     }
 
     var canConnectWithPassword: Bool {

@@ -6,6 +6,7 @@ struct OnboardingView: View {
     @Environment(\.actualistDensity) private var density
     @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @State private var viewModel = OnboardingViewModel()
+    @State private var showDemoConfirmation = false
 
     var body: some View {
         ZStack {
@@ -49,7 +50,6 @@ struct OnboardingView: View {
                                 .multilineTextAlignment(.leading)
                                 .accessibilityLabel("Server URL")
                             }
-
                         }
                     }
 
@@ -167,6 +167,24 @@ struct OnboardingView: View {
                         .disabled(viewModel.isConnecting)
                     }
 
+                    if !viewModel.hasLoadedLoginMethods {
+                        Button {
+                            showDemoConfirmation = true
+                        } label: {
+                            HStack {
+                                if viewModel.isEnteringDemo {
+                                    ProgressView()
+                                }
+                                Text(viewModel.isEnteringDemo ? "Starting Demo" : "Demo")
+                                    .font(ActualistTypography.control(for: density))
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
+                        .disabled(viewModel.isEnteringDemo || viewModel.isLoadingLoginMethods || viewModel.isConnecting)
+                        .accessibilityHint("Explore Actualist with sample data")
+                    }
+
                     if appState.canCancelReauthentication {
                         Button {
                             appState.cancelReauthentication()
@@ -184,6 +202,18 @@ struct OnboardingView: View {
                 .padding(24)
             }
             .scrollDismissesKeyboard(.interactively)
+            .confirmationDialog(
+                "Do you want to enter demo mode?",
+                isPresented: $showDemoConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Enter Demo") {
+                    Task { await viewModel.enterDemo(using: appState) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Actualist will load sample budget data. Nothing is sent to a server.")
+            }
         }
         .onAppear {
             viewModel.hydrate(from: appState)

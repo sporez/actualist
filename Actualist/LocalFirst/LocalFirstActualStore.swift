@@ -40,6 +40,12 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var fallbackServerURLString: String?
 
     var syncStatus: LocalFirstSyncStatus?
+    /// `true` while the open budget is the bundled demo budget. Set inside
+    /// `openImportedBudget` when `metadata.cloudFileID == DemoBudget.fileID`
+    /// and cleared in `closeOpenBudget()`, so the store layer is demo-aware
+    /// even on the generic cached-restore path. Sync/flush guards key off
+    /// this so demo mode never touches a transport.
+    var isDemoBudgetActive = false
     /// Endpoint used by the most recent sync/connection attempt. Set by the
     /// failover wrappers before each transport attempt so success and failure
     /// paths can attribute the result. Read by sync-status and debug-event
@@ -144,6 +150,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         reportsByKey = [:]
         syncStatus = nil
         isFlushingPendingLocalMessages = false
+        isDemoBudgetActive = false
         shouldFlushPendingLocalMessagesAgain = false
         resumePendingLocalMessageFlushWaiters()
     }

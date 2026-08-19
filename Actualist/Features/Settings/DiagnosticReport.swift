@@ -70,7 +70,7 @@ enum ActualistDiagnosticReportBuilder {
             "",
             "[Session]",
             "Setup phase: \(setupPhase(appState.setupPhase))",
-            "Connection status: \(connectionStatus(appState.connectionStatus))",
+            "Connection status: \(connectionStatusLine(appState))",
             "Selected tab: \(appState.selectedTab.rawValue)",
             "Server configured: \(yesNo(!settings.localFirstServerURLString.isEmpty))",
             "Server transport: \(serverTransport(settings.localFirstServerURLString))",
@@ -260,6 +260,13 @@ enum ActualistDiagnosticReportBuilder {
         case .restoringBudget: "restoringBudget"
         case .ready: "ready"
         }
+    }
+
+    private static func connectionStatusLine(_ appState: AppState) -> String {
+        if appState.isDemoMode {
+            return "demo"
+        }
+        return connectionStatus(appState.connectionStatus)
     }
 
     private static func connectionStatus(_ status: ServerConnectionStatus) -> String {

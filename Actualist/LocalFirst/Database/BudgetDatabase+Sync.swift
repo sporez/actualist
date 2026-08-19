@@ -383,6 +383,26 @@ extension BudgetDatabase {
         }
     }
 
+    /// Removes every queued local outbox message and returns how many were dropped.
+    ///
+    /// Demo mode keeps writes entirely local: CRDT messages still apply to the
+    /// local database, but the outbox is drained immediately so the pending
+    /// count stays at zero and no server round-trip is ever attempted. The
+    /// `messages_crdt` rows are preserved so the local sync timestamp advances
+    /// normally and later (non-demo) writes remain causally consistent.
+    func drainAllPendingLocalSyncMessages() throws -> Int {
+        try queue.write { db in
+            guard try tableExists("actualist_outbox", db: db) else {
+                return 0
+            }
+            let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM actualist_outbox") ?? 0
+            if count > 0 {
+                try db.execute(sql: "DELETE FROM actualist_outbox")
+            }
+            return count
+        }
+    }
+
     func markPendingLocalSyncMessagesFailed(_ messages: [PendingLocalSyncMessage], error: Error) throws {
         guard !messages.isEmpty else {
             return
