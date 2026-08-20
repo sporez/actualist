@@ -22,12 +22,8 @@ final class AppState {
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
-    @ObservationIgnored private let notificationAuthorizationRequester: @MainActor () async throws -> Bool
-    @ObservationIgnored private let applicationBadgeUpdater: @MainActor (Int) -> Void
-    @ObservationIgnored private let backgroundRefreshRunner = BackgroundTransactionRefreshRunner()
     @ObservationIgnored private let appSyncCoordinator = AppSyncCoordinator()
-    @ObservationIgnored private let backgroundRefreshDebugRecorder: BackgroundRefreshDebugRecorder
-    @ObservationIgnored private let transactionNotifications = NewTransactionNotificationCoordinator()
+    @ObservationIgnored private let backgroundTransactionWorkflow: BackgroundTransactionWorkflow
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
     private var developerUnlockTracker = DeveloperUnlockTracker()
 
@@ -61,9 +57,11 @@ final class AppState {
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
-        self.notificationAuthorizationRequester = notificationAuthorizationRequester
-        self.applicationBadgeUpdater = applicationBadgeUpdater
-        self.backgroundRefreshDebugRecorder = BackgroundRefreshDebugRecorder(settingsStore: settingsStore)
+        self.backgroundTransactionWorkflow = BackgroundTransactionWorkflow(
+            settingsStore: settingsStore,
+            notificationAuthorizationRequester: notificationAuthorizationRequester,
+            applicationBadgeUpdater: applicationBadgeUpdater
+        )
         self.providedLocalFirstStore = localFirstStore
         let loaded = settingsStore.load()
         self.settings = loaded
@@ -661,119 +659,47 @@ final class AppState {
     }
 
     func updateBackgroundTransactionRefreshEnabled(_ isEnabled: Bool) async {
-        if isEnabled {
-            do {
-                let granted = try await notificationAuthorizationRequester()
-                guard granted else {
-                    settings.backgroundTransactionRefreshEnabled = false
-                    settingsStore.save(settings)
-                    BackgroundTransactionRefreshCoordinator.shared.cancel()
-                    return
-                }
-                try keychain.promoteAllItemsForBackgroundRefresh()
-            } catch {
-                settings.backgroundTransactionRefreshEnabled = false
-                settingsStore.save(settings)
-                lastErrorMessage = error.localizedDescription
-                BackgroundTransactionRefreshCoordinator.shared.cancel()
-                return
-            }
-        }
-
-        settings.backgroundTransactionRefreshEnabled = isEnabled
+        let outcome = await backgroundTransactionWorkflow.enable(isEnabled, keychain: keychain)
+        settings.backgroundTransactionRefreshEnabled = (outcome == .enabled)
         settingsStore.save(settings)
-        if isEnabled {
+        switch outcome {
+        case .enabled:
             BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
-        } else {
+        case .disabled, .authorizationDenied:
+            BackgroundTransactionRefreshCoordinator.shared.cancel()
+        case .credentialPromotionFailed(let message):
+            lastErrorMessage = message
             BackgroundTransactionRefreshCoordinator.shared.cancel()
         }
     }
 
     func prepareBackgroundTransactionNotifications() async {
-        guard settings.backgroundTransactionRefreshEnabled else {
-            return
-        }
-        _ = try? await notificationAuthorizationRequester()
-        updateApplicationBadge()
+        await backgroundTransactionWorkflow.prepare(
+            isEnabled: settings.backgroundTransactionRefreshEnabled,
+            settings: settings
+        )
     }
 
     func performBackgroundTransactionRefresh(
         timeLimit: Duration = .seconds(25)
     ) async -> Bool {
-        if isDemoMode {
-            // Demo mode is local-only and never schedules background refresh.
-            return false
-        }
-        let debugRunID = backgroundRefreshDebugRecorder.beginRun(in: &settings)
-
-        guard !Task.isCancelled else {
-            backgroundRefreshDebugRecorder.completeRun(
-                debugRunID,
-                succeeded: false,
-                message: "Cancelled before sync",
-                in: &settings
-            )
-            return false
-        }
-
-        do {
-            let outcome = try await backgroundRefreshRunner.run(
-                settings: settings,
-                selectedBudget: selectedBudget,
-                budgets: budgets,
-                hasSyncCredentials: hasSyncCredentials,
-                store: localFirstStore,
-                timeLimit: timeLimit
-            )
-
-            if case .synced(let result) = outcome {
-                for pending in result.pendingTransactions {
-                    recordPendingNewTransactionIDs(
-                        pending.transactionIDs,
-                        budgetID: result.budgetID,
-                        accountID: pending.accountID
-                    )
-                }
-                if result.newTransactionCount > 0 {
-                    let badgeCount = updateApplicationBadge()
-                    try await transactionNotifications.post(
-                        budgetID: result.budgetID,
-                        badgeCount: badgeCount
-                    )
-                }
-            }
-
-            backgroundRefreshDebugRecorder.completeRun(
-                debugRunID,
-                succeeded: true,
-                message: outcome.message,
-                in: &settings
-            )
+        let result = await backgroundTransactionWorkflow.performRefresh(
+            timeLimit: timeLimit,
+            isDemoMode: isDemoMode,
+            settings: settings,
+            selectedBudget: selectedBudget,
+            budgets: budgets,
+            hasSyncCredentials: hasSyncCredentials,
+            store: localFirstStore
+        )
+        settings = result.settings
+        switch result.outcome {
+        case .success:
             return true
-        } catch is CancellationError {
-            backgroundRefreshDebugRecorder.completeRun(
-                debugRunID,
-                succeeded: false,
-                message: "Cancelled",
-                in: &settings
-            )
+        case .skipped, .cancelled, .timedOut:
             return false
-        } catch BackgroundTransactionRefreshRunnerError.timeLimitExceeded {
-            backgroundRefreshDebugRecorder.completeRun(
-                debugRunID,
-                succeeded: false,
-                message: "Timed out",
-                in: &settings
-            )
-            return false
-        } catch {
-            lastErrorMessage = error.localizedDescription
-            backgroundRefreshDebugRecorder.completeRun(
-                debugRunID,
-                succeeded: false,
-                message: error.localizedDescription,
-                in: &settings
-            )
+        case .failed(let message):
+            lastErrorMessage = message
             return false
         }
     }
@@ -841,7 +767,7 @@ final class AppState {
         earliestBeginDate: Date?,
         message: String
     ) {
-        backgroundRefreshDebugRecorder.recordScheduleAttempt(
+        backgroundTransactionWorkflow.recordScheduleAttempt(
             succeeded: succeeded,
             earliestBeginDate: earliestBeginDate,
             message: message,
@@ -850,50 +776,38 @@ final class AppState {
     }
 
     func pendingNewTransactionIDs(budgetID: String, accountID: String) -> Set<String> {
-        transactionNotifications.pendingIDs(
-            in: settings.pendingNewTransactionIDsByAccount,
+        backgroundTransactionWorkflow.pendingNewTransactionIDs(
             budgetID: budgetID,
-            accountID: accountID
+            accountID: accountID,
+            in: settings
         )
     }
 
     func pendingNewTransactionIDs(budgetID: String) -> Set<String> {
-        transactionNotifications.pendingIDs(
-            in: settings.pendingNewTransactionIDsByAccount,
-            budgetID: budgetID
+        backgroundTransactionWorkflow.pendingNewTransactionIDs(
+            budgetID: budgetID,
+            in: settings
         )
     }
 
     func clearPendingNewTransactionIDs(budgetID: String, accountID: String) {
-        guard transactionNotifications.clear(
+        backgroundTransactionWorkflow.clearPendingNewTransactionIDs(
             budgetID: budgetID,
             accountID: accountID,
-            in: &settings.pendingNewTransactionIDsByAccount
-        ) else {
-            return
-        }
-        settingsStore.save(settings)
-        updateApplicationBadge()
+            in: &settings
+        )
     }
 
     func clearPendingNewTransactionIDs(budgetID: String) {
-        guard transactionNotifications.clear(
+        backgroundTransactionWorkflow.clearPendingNewTransactionIDs(
             budgetID: budgetID,
-            in: &settings.pendingNewTransactionIDsByAccount
-        ) else {
-            return
-        }
-        settingsStore.save(settings)
-        updateApplicationBadge()
+            in: &settings
+        )
     }
 
     @discardableResult
     func updateApplicationBadge() -> Int {
-        let badgeCount = transactionNotifications.pendingIDCount(
-            in: settings.pendingNewTransactionIDsByAccount
-        )
-        applicationBadgeUpdater(badgeCount)
-        return badgeCount
+        backgroundTransactionWorkflow.updateApplicationBadge(in: settings)
     }
 
     func routeToSpendingFromNotification(budgetID _: String) async {
@@ -906,11 +820,9 @@ final class AppState {
         guard let budgetID = settings.selectedBudgetID else {
             throw DebugNotificationError.missingBudget
         }
-        let repository = accountRepository
-
-        try await transactionNotifications.postDebug(
+        try await backgroundTransactionWorkflow.postDebugNotification(
             budgetID: budgetID,
-            repository: repository
+            repository: accountRepository
         )
     }
     #endif
@@ -977,20 +889,6 @@ final class AppState {
 
     func recordLocalDataMutation() {
         localDataRevision &+= 1
-    }
-
-    private func recordPendingNewTransactionIDs(
-        _ transactionIDs: [String],
-        budgetID: String,
-        accountID: String
-    ) {
-        transactionNotifications.record(
-            transactionIDs,
-            budgetID: budgetID,
-            accountID: accountID,
-            in: &settings.pendingNewTransactionIDsByAccount
-        )
-        settingsStore.save(settings)
     }
 
 }

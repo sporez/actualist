@@ -69,8 +69,10 @@
 		010000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift */; };
 		010000000000000000000000C8 /* AppSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C8 /* AppSyncCoordinator.swift */; };
 		010000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift */; };
+		010000000000000000000000D8 /* BackgroundTransactionWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D8 /* BackgroundTransactionWorkflow.swift */; };
 		010000000000000000000000CA /* AppSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CA /* AppSyncCoordinatorTests.swift */; };
 		010000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift */; };
+		010000000000000000000000D9 /* BackgroundTransactionWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D9 /* BackgroundTransactionWorkflowTests.swift */; };
 		010000000000000000000000CC /* DeveloperUnlockTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CC /* DeveloperUnlockTracker.swift */; };
 		010000000000000000000000CD /* DeveloperUnlockTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CD /* DeveloperUnlockTrackerTests.swift */; };
 		010000000000000000000000CE /* TransactionEditorPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CE /* TransactionEditorPresentationTests.swift */; };
@@ -267,8 +269,10 @@
 		020000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionRulePreviewCoordinatorTests.swift; sourceTree = "<group>"; };
 		020000000000000000000000C8 /* AppSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSyncCoordinator.swift; sourceTree = "<group>"; };
 		020000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshDebugRecorder.swift; sourceTree = "<group>"; };
+		020000000000000000000000D8 /* BackgroundTransactionWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransactionWorkflow.swift; sourceTree = "<group>"; };
 		020000000000000000000000CA /* AppSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSyncCoordinatorTests.swift; sourceTree = "<group>"; };
 		020000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshDebugRecorderTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000D9 /* BackgroundTransactionWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransactionWorkflowTests.swift; sourceTree = "<group>"; };
 		020000000000000000000000CC /* DeveloperUnlockTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperUnlockTracker.swift; sourceTree = "<group>"; };
 		020000000000000000000000CD /* DeveloperUnlockTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperUnlockTrackerTests.swift; sourceTree = "<group>"; };
 		020000000000000000000000CE /* TransactionEditorPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorPresentationTests.swift; sourceTree = "<group>"; };
@@ -432,6 +436,7 @@
 				020000000000000000000000D3 /* AppStateModels.swift */,
 				020000000000000000000000C8 /* AppSyncCoordinator.swift */,
 				020000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift */,
+				020000000000000000000000D8 /* BackgroundTransactionWorkflow.swift */,
 				020000000000000000000000CC /* DeveloperUnlockTracker.swift */,
 				02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */,
 				02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */,
@@ -514,6 +519,7 @@
 				020000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift */,
 				020000000000000000000000CA /* AppSyncCoordinatorTests.swift */,
 				020000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift */,
+				020000000000000000000000D9 /* BackgroundTransactionWorkflowTests.swift */,
 				020000000000000000000000CD /* DeveloperUnlockTrackerTests.swift */,
 				020000000000000000000000CE /* TransactionEditorPresentationTests.swift */,
 				020000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift */,
@@ -890,6 +896,7 @@
 				010000000000000000000000D3 /* AppStateModels.swift in Sources */,
 				010000000000000000000000C8 /* AppSyncCoordinator.swift in Sources */,
 				010000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift in Sources */,
+				010000000000000000000000D8 /* BackgroundTransactionWorkflow.swift in Sources */,
 				010000000000000000000000CC /* DeveloperUnlockTracker.swift in Sources */,
 				01000000000000000000006E /* BackgroundTransactionRefreshRunner.swift in Sources */,
 				01000000000000000000006F /* NewTransactionNotificationCoordinator.swift in Sources */,
@@ -1025,6 +1032,7 @@
 				010000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift in Sources */,
 				010000000000000000000000CA /* AppSyncCoordinatorTests.swift in Sources */,
 				010000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift in Sources */,
+				010000000000000000000000D9 /* BackgroundTransactionWorkflowTests.swift in Sources */,
 				010000000000000000000000CD /* DeveloperUnlockTrackerTests.swift in Sources */,
 				010000000000000000000000CE /* TransactionEditorPresentationTests.swift in Sources */,
 				010000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift in Sources */,
