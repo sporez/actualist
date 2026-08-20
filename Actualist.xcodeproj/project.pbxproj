@@ -88,7 +88,10 @@
 		01000000000000000000006D /* BudgetAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006D /* BudgetAlert.swift */; };
 		010000000000000000000017 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001A /* OnboardingViewModel.swift */; };
 		010000000000000000000018 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* SettingsViewModel.swift */; };
-		010000000000000000000019 /* BudgetViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001C /* BudgetViewModelTests.swift */; };
+		0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */; };
+		0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */; };
+		0100000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */; };
+		0100000000000000000000A6 /* BudgetViewModelTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A6 /* BudgetViewModelTestSupport.swift */; };
 		01000000000000000000001A /* TransactionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001D /* TransactionEditorView.swift */; };
 		01000000000000000000001B /* TransactionEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001E /* TransactionEditorViewModel.swift */; };
 		01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001F /* TransactionEditorViewModelTests.swift */; };
@@ -110,13 +113,18 @@
 		010000000000000000000033 /* Sync.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000033 /* Sync.pb.swift */; };
 		010000000000000000000034 /* LocalFirstActualStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000034 /* LocalFirstActualStore.swift */; };
 		010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000035 /* LocalFirstActualStoreTests.swift */; };
-		010000000000000000000060 /* LocalFirstActualStoreSettingsSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000060 /* LocalFirstActualStoreSettingsSecurityTests.swift */; };
+		0100000000000000000000AB /* LocalFirstActualStoreAppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000AB /* LocalFirstActualStoreAppSettingsTests.swift */; };
+		0100000000000000000000AC /* LocalFirstActualStoreServerSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000AC /* LocalFirstActualStoreServerSecurityTests.swift */; };
+		0100000000000000000000AD /* LocalFirstActualStoreCryptoKeychainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000AD /* LocalFirstActualStoreCryptoKeychainTests.swift */; };
 		010000000000000000000061 /* LocalFirstActualStoreStorageTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000061 /* LocalFirstActualStoreStorageTransportTests.swift */; };
 		010000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift */; };
 		010000000000000000000063 /* LocalFirstActualStoreSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000063 /* LocalFirstActualStoreSyncTests.swift */; };
 		01000000000000000000008C /* ServerFailoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000008B /* ServerFailoverTests.swift */; };
 		010000000000000000000064 /* LocalFirstActualStoreReadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000064 /* LocalFirstActualStoreReadTests.swift */; };
-		010000000000000000000065 /* LocalFirstActualStoreMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000065 /* LocalFirstActualStoreMutationTests.swift */; };
+		0100000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift */; };
+		0100000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift */; };
+		0100000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift */; };
+		0100000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift */; };
 		010000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift */; };
 		010000000000000000000067 /* LocalFirstActualStoreTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000067 /* LocalFirstActualStoreTestSupport.swift */; };
 		010000000000000000000048 /* LocalFirstActualStore+Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000048 /* LocalFirstActualStore+Connection.swift */; };
@@ -252,7 +260,10 @@
 		02000000000000000000006D /* BudgetAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAlert.swift; sourceTree = "<group>"; };
 		02000000000000000000001A /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001B /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
-		02000000000000000000001C /* BudgetViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelDisplayTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelAssignmentWorkflowTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelMoveMoneyWorkflowTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000A6 /* BudgetViewModelTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelTestSupport.swift; sourceTree = "<group>"; };
 		02000000000000000000001D /* TransactionEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorView.swift; sourceTree = "<group>"; };
 		02000000000000000000001E /* TransactionEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001F /* TransactionEditorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModelTests.swift; sourceTree = "<group>"; };
@@ -298,13 +309,18 @@
 		020000000000000000000033 /* Sync.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sync.pb.swift; sourceTree = "<group>"; };
 		020000000000000000000034 /* LocalFirstActualStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStore.swift; sourceTree = "<group>"; };
 		020000000000000000000035 /* LocalFirstActualStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreTests.swift; sourceTree = "<group>"; };
-		020000000000000000000060 /* LocalFirstActualStoreSettingsSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreSettingsSecurityTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000AB /* LocalFirstActualStoreAppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreAppSettingsTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000AC /* LocalFirstActualStoreServerSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreServerSecurityTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000AD /* LocalFirstActualStoreCryptoKeychainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreCryptoKeychainTests.swift; sourceTree = "<group>"; };
 		020000000000000000000061 /* LocalFirstActualStoreStorageTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreStorageTransportTests.swift; sourceTree = "<group>"; };
 		020000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreDatabaseTests.swift; sourceTree = "<group>"; };
 		020000000000000000000063 /* LocalFirstActualStoreSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreSyncTests.swift; sourceTree = "<group>"; };
 		02000000000000000000008B /* ServerFailoverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFailoverTests.swift; sourceTree = "<group>"; };
 		020000000000000000000064 /* LocalFirstActualStoreReadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreReadTests.swift; sourceTree = "<group>"; };
-		020000000000000000000065 /* LocalFirstActualStoreMutationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreMutationTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreCreateCategorizeTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreAccountOutboxTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreAppStateSessionTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreBudgetMutationTests.swift; sourceTree = "<group>"; };
 		020000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreTransactionMutationTests.swift; sourceTree = "<group>"; };
 		020000000000000000000067 /* LocalFirstActualStoreTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreTestSupport.swift; sourceTree = "<group>"; };
 		020000000000000000000048 /* LocalFirstActualStore+Connection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Connection.swift"; sourceTree = "<group>"; };
@@ -517,7 +533,10 @@
 				020000000000000000000074 /* PayeeManagementTests.swift */,
 				020000000000000000000082 /* RuleConditionEvaluatorTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
-				02000000000000000000001C /* BudgetViewModelTests.swift */,
+				0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */,
+				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
+				0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */,
+				0200000000000000000000A6 /* BudgetViewModelTestSupport.swift */,
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
 				020000000000000000000000C6 /* TransactionEditorCategoryStateTests.swift */,
 				020000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift */,
@@ -533,13 +552,18 @@
 				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
 				020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */,
 				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
-				020000000000000000000060 /* LocalFirstActualStoreSettingsSecurityTests.swift */,
+				0200000000000000000000AB /* LocalFirstActualStoreAppSettingsTests.swift */,
+				0200000000000000000000AC /* LocalFirstActualStoreServerSecurityTests.swift */,
+				0200000000000000000000AD /* LocalFirstActualStoreCryptoKeychainTests.swift */,
 				020000000000000000000061 /* LocalFirstActualStoreStorageTransportTests.swift */,
 				020000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift */,
 				020000000000000000000063 /* LocalFirstActualStoreSyncTests.swift */,
 				02000000000000000000008B /* ServerFailoverTests.swift */,
 				020000000000000000000064 /* LocalFirstActualStoreReadTests.swift */,
-				020000000000000000000065 /* LocalFirstActualStoreMutationTests.swift */,
+				0200000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift */,
+				0200000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift */,
+				0200000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift */,
+				0200000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift */,
 				020000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift */,
 				020000000000000000000067 /* LocalFirstActualStoreTestSupport.swift */,
 				020000000000000000000042 /* LocalFirstTestSupport.swift */,
@@ -1034,7 +1058,10 @@
 				010000000000000000000074 /* PayeeManagementTests.swift in Sources */,
 				010000000000000000000082 /* RuleConditionEvaluatorTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
-				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
+				0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */,
+				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,
+				0100000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift in Sources */,
+				0100000000000000000000A6 /* BudgetViewModelTestSupport.swift in Sources */,
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
 				010000000000000000000000C6 /* TransactionEditorCategoryStateTests.swift in Sources */,
 				010000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift in Sources */,
@@ -1050,13 +1077,18 @@
 				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
 				010000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift in Sources */,
 				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,
-				010000000000000000000060 /* LocalFirstActualStoreSettingsSecurityTests.swift in Sources */,
+				0100000000000000000000AB /* LocalFirstActualStoreAppSettingsTests.swift in Sources */,
+				0100000000000000000000AC /* LocalFirstActualStoreServerSecurityTests.swift in Sources */,
+				0100000000000000000000AD /* LocalFirstActualStoreCryptoKeychainTests.swift in Sources */,
 				010000000000000000000061 /* LocalFirstActualStoreStorageTransportTests.swift in Sources */,
 				010000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift in Sources */,
 				010000000000000000000063 /* LocalFirstActualStoreSyncTests.swift in Sources */,
 				01000000000000000000008C /* ServerFailoverTests.swift in Sources */,
 				010000000000000000000064 /* LocalFirstActualStoreReadTests.swift in Sources */,
-				010000000000000000000065 /* LocalFirstActualStoreMutationTests.swift in Sources */,
+				0100000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift in Sources */,
+				0100000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift in Sources */,
+				0100000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift in Sources */,
+				0100000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift in Sources */,
 				010000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift in Sources */,
 				010000000000000000000067 /* LocalFirstActualStoreTestSupport.swift in Sources */,
 				010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */,
