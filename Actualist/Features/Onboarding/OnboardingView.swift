@@ -39,25 +39,21 @@ struct OnboardingView: View {
                                     .font(ActualistTypography.rowLabel(for: density))
                                     .foregroundStyle(ActualistTheme.secondaryText)
 
-                                ZStack(alignment: .leading) {
-                                    if viewModel.serverURLString.isEmpty {
-                                        Text("https://actual.example.com")
-                                            .font(ActualistTypography.rowTitle(for: density))
-                                            .foregroundStyle(.white)
-                                            .allowsHitTesting(false)
-                                    }
-
-                                    TextField("", text: $viewModel.serverURLString, prompt: Text(""))
-                                        .font(ActualistTypography.rowTitle(for: density))
-                                        .foregroundStyle(.white)
-                                        .tint(.white)
-                                        .textInputAutocapitalization(.never)
-                                        .autocorrectionDisabled()
-                                        .keyboardType(.URL)
-                                        .textContentType(.URL)
-                                        .multilineTextAlignment(.leading)
-                                        .accessibilityLabel("Server URL")
-                                }
+                                TextField(
+                                    "",
+                                    text: $viewModel.serverURLString,
+                                    prompt: Text("https://actual.example.com")
+                                        .foregroundStyle(.white.opacity(0.4))
+                                )
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(.white)
+                                .tint(.white)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .keyboardType(.URL)
+                                .textContentType(.URL)
+                                .multilineTextAlignment(.leading)
+                                .accessibilityLabel("Server URL")
                             }
                         }
                     }
