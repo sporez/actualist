@@ -25,7 +25,7 @@ import Foundation
 /// coordinated by AppState, not by this workflow.
 @MainActor
 final class BackgroundTransactionWorkflow {
-    private let runner = BackgroundTransactionRefreshRunner()
+    private let runner: any BackgroundTransactionRefreshing
     private let debugRecorder: BackgroundRefreshDebugRecorder
     private let notifications = NewTransactionNotificationCoordinator()
     private let notificationAuthorizationRequester: @MainActor () async throws -> Bool
@@ -35,12 +35,16 @@ final class BackgroundTransactionWorkflow {
     init(
         settingsStore: AppSettingsStore,
         notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool,
-        applicationBadgeUpdater: @escaping @MainActor (Int) -> Void
+        applicationBadgeUpdater: @escaping @MainActor (Int) -> Void,
+        runner: (any BackgroundTransactionRefreshing)? = nil
     ) {
         self.settingsStore = settingsStore
         self.notificationAuthorizationRequester = notificationAuthorizationRequester
         self.applicationBadgeUpdater = applicationBadgeUpdater
         self.debugRecorder = BackgroundRefreshDebugRecorder(settingsStore: settingsStore)
+        // Constructed in the main-actor init body (not a default argument) so
+        // the @MainActor struct is built in an isolated context.
+        self.runner = runner ?? BackgroundTransactionRefreshRunner()
     }
 
     // MARK: Enablement

@@ -278,18 +278,145 @@ struct BackgroundTransactionWorkflowTests {
         #expect(result.settings.backgroundRefreshDebug.totalWakeCount == 0)
     }
 
+    // MARK: Refresh execution — outcome mapping
+
+    @Test func performRefreshReturningSyncedWithNoNewTransactionsSucceedsAndRecordsRunnerMessage() async throws {
+        let synced = BackgroundTransactionRefreshResult(
+            budgetID: "budget",
+            accountCount: 2,
+            pendingTransactions: []
+        )
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(synced)))
+        let (workflow, _) = makeWorkflow(runner: runner)
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeThrowawayStore()
+        )
+
+        #expect(output.outcome == .success)
+        #expect(runner.callCount == 1)
+        #expect(runner.lastHasSyncCredentials == true)
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.succeeded == true)
+        #expect(run.message == synced.completionMessage)
+        // No new transactions: pending IDs are not recorded.
+        #expect(output.settings.pendingNewTransactionIDsByAccount.isEmpty)
+    }
+
+    @Test func performRefreshWhereRunnerSkipsStillSucceedsAndRecordsSkipMessage() async throws {
+        let skipMessage = "Skipped: alerts disabled, no selected budget"
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.skipped(skipMessage)))
+        let (workflow, _) = makeWorkflow(runner: runner)
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: false,
+            store: makeThrowawayStore()
+        )
+
+        // A runner-side skip is a successful completion from the workflow's
+        // perspective; only demo mode maps to RefreshOutcome.skipped before the
+        // runner even runs.
+        #expect(output.outcome == .success)
+        #expect(runner.callCount == 1)
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.succeeded == true)
+        #expect(run.message == skipMessage)
+    }
+
+    @Test func performRefreshCancelledDuringSyncMapsToCancelledOutcome() async throws {
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .failure(CancellationError()))
+        let (workflow, _) = makeWorkflow(runner: runner)
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeThrowawayStore()
+        )
+
+        #expect(output.outcome == .cancelled)
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.succeeded == false)
+        #expect(run.message == "Cancelled")
+    }
+
+    @Test func performRefreshExceedingTimeLimitMapsToTimedOutOutcome() async throws {
+        let runner = FakeBackgroundTransactionRefreshRunner(
+            result: .failure(BackgroundTransactionRefreshRunnerError.timeLimitExceeded)
+        )
+        let (workflow, _) = makeWorkflow(runner: runner)
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeThrowawayStore()
+        )
+
+        #expect(output.outcome == .timedOut)
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.succeeded == false)
+        #expect(run.message == "Timed out")
+    }
+
+    @Test func performRefreshThrowingSyncErrorMapsToFailedOutcomeWithMessage() async throws {
+        let runner = FakeBackgroundTransactionRefreshRunner(
+            result: .failure(FakeRefreshError(message: "Sync transport unreachable"))
+        )
+        let (workflow, _) = makeWorkflow(runner: runner)
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeThrowawayStore()
+        )
+
+        #expect(output.outcome == .failed("Sync transport unreachable"))
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.succeeded == false)
+        #expect(run.message == "Sync transport unreachable")
+    }
+
     // MARK: Helpers
 
     private func makeWorkflow(
         authorizationRequester: @escaping @MainActor () async throws -> Bool = { true },
         badgeUpdater: @escaping @MainActor (Int) -> Void = { _ in },
-        settingsStore: AppSettingsStore? = nil
+        settingsStore: AppSettingsStore? = nil,
+        runner: (any BackgroundTransactionRefreshing)? = nil
     ) -> (BackgroundTransactionWorkflow, AppSettingsStore) {
         let store = settingsStore ?? makeSettingsStore()
         let workflow = BackgroundTransactionWorkflow(
             settingsStore: store,
             notificationAuthorizationRequester: authorizationRequester,
-            applicationBadgeUpdater: badgeUpdater
+            applicationBadgeUpdater: badgeUpdater,
+            runner: runner
         )
         return (workflow, store)
     }
@@ -297,6 +424,15 @@ struct BackgroundTransactionWorkflowTests {
     private func makeSettingsStore() -> AppSettingsStore {
         let defaults = UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")!
         return AppSettingsStore(defaults: defaults)
+    }
+
+    private func makeThrowawayStore() -> LocalFirstActualStore {
+        LocalFirstActualStore(
+            keychain: KeychainStore(
+                service: Self.service,
+                account: UUID().uuidString
+            )
+        )
     }
 
     private func makeKeychain(backend: FakeKeychainBackend = FakeKeychainBackend()) -> KeychainStore {
@@ -314,4 +450,35 @@ struct BackgroundTransactionWorkflowTests {
         settings.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
         return settings
     }
+}
+
+@MainActor
+private final class FakeBackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
+    private(set) var callCount = 0
+    private(set) var lastHasSyncCredentials: Bool?
+    private(set) var lastTimeLimit: Duration?
+    private let result: Result<BackgroundTransactionRefreshOutcome, Error>
+
+    init(result: Result<BackgroundTransactionRefreshOutcome, Error>) {
+        self.result = result
+    }
+
+    func run(
+        settings: AppSettings,
+        selectedBudget: ActualBudget?,
+        budgets: [ActualBudget],
+        hasSyncCredentials: Bool,
+        store: LocalFirstActualStore,
+        timeLimit: Duration
+    ) async throws -> BackgroundTransactionRefreshOutcome {
+        callCount += 1
+        lastHasSyncCredentials = hasSyncCredentials
+        lastTimeLimit = timeLimit
+        return try result.get()
+    }
+}
+
+private struct FakeRefreshError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }

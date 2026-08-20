@@ -1,5 +1,23 @@
 import Foundation
 
+/// Execution seam for `BackgroundTransactionWorkflow`: the workflow composes
+/// the refresh run, recording, notifications, and badge, while a conforming
+/// type performs the actual sync. The production conformer is
+/// `BackgroundTransactionRefreshRunner`; tests inject a fake to exercide the
+/// `.synced`/`.skipped`/cancelled/timed-out/failed outcome paths without a
+/// real budget sync.
+@MainActor
+protocol BackgroundTransactionRefreshing {
+    func run(
+        settings: AppSettings,
+        selectedBudget: ActualBudget?,
+        budgets: [ActualBudget],
+        hasSyncCredentials: Bool,
+        store: LocalFirstActualStore,
+        timeLimit: Duration
+    ) async throws -> BackgroundTransactionRefreshOutcome
+}
+
 enum BackgroundTransactionRefreshRunnerError: LocalizedError, Sendable {
     case timeLimitExceeded
 
@@ -51,7 +69,7 @@ enum BackgroundTransactionRefreshOutcome: Sendable {
 }
 
 @MainActor
-struct BackgroundTransactionRefreshRunner {
+struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
     func run(
         settings: AppSettings,
         selectedBudget: ActualBudget?,
