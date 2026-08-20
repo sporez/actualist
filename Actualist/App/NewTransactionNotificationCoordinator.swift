@@ -1,6 +1,11 @@
 import Foundation
 import UserNotifications
 
+enum NewTransactionsNotificationCopy {
+    static let title = "Actualist"
+    static let body = "New transactions found"
+}
+
 @MainActor
 struct NewTransactionNotificationCoordinator {
     func pendingIDs(

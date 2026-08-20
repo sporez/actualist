@@ -25,18 +25,11 @@ final class AppState {
     @ObservationIgnored private let notificationAuthorizationRequester: @MainActor () async throws -> Bool
     @ObservationIgnored private let applicationBadgeUpdater: @MainActor (Int) -> Void
     @ObservationIgnored private let backgroundRefreshRunner = BackgroundTransactionRefreshRunner()
+    @ObservationIgnored private let appSyncCoordinator = AppSyncCoordinator()
+    @ObservationIgnored private let backgroundRefreshDebugRecorder: BackgroundRefreshDebugRecorder
     @ObservationIgnored private let transactionNotifications = NewTransactionNotificationCoordinator()
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
-    @ObservationIgnored private var foregroundSessionActive = false
-    @ObservationIgnored private var automaticSyncRequestedThisForeground = false
-    @ObservationIgnored private var localFirstRefreshTask: Task<Bool, Never>?
-    @ObservationIgnored private var localFirstRefreshTaskID: UUID?
-    @ObservationIgnored private var localFirstRefreshBudgetID: String?
-    private var developerUnlockTapCount = 0
-    private var developerUnlockLastTapDate: Date?
-    private let developerUnlockRequiredTapCount = 10
-    private let developerUnlockVisibleCountdownThreshold = 5
-    private let developerUnlockResetInterval: TimeInterval = 20
+    private var developerUnlockTracker = DeveloperUnlockTracker()
 
     @ObservationIgnored lazy var localFirstStore: LocalFirstActualStore = {
         let store = providedLocalFirstStore ?? LocalFirstActualStore(
@@ -70,6 +63,7 @@ final class AppState {
         self.keychain = keychain
         self.notificationAuthorizationRequester = notificationAuthorizationRequester
         self.applicationBadgeUpdater = applicationBadgeUpdater
+        self.backgroundRefreshDebugRecorder = BackgroundRefreshDebugRecorder(settingsStore: settingsStore)
         self.providedLocalFirstStore = localFirstStore
         let loaded = settingsStore.load()
         self.settings = loaded
@@ -217,7 +211,7 @@ final class AppState {
 
             try localFirstStore.commitConnection(staged)
             settings.localFirstServerURLString = normalized
-            budgets = Self.uniqueBudgets(staged.budgets)
+            budgets = AppBudgetList.unique(staged.budgets)
             if serverChanged {
                 settings.pendingNewTransactionIDsByAccount = [:]
                 updateApplicationBadge()
@@ -271,7 +265,7 @@ final class AppState {
 
     func disconnectAndEraseLocalData() {
         do {
-            cancelLocalFirstRefresh()
+            appSyncCoordinator.cancelRefresh()
             try localFirstStore.eraseLocalData()
             settings.localFirstServerURLString = ""
             settings.fallbackServerURLString = ""
@@ -329,11 +323,9 @@ final class AppState {
     }
 
     func beginForegroundSession() async {
-        guard !foregroundSessionActive else {
+        guard appSyncCoordinator.beginForegroundSession() else {
             return
         }
-        foregroundSessionActive = true
-        automaticSyncRequestedThisForeground = false
 
         if setupPhase == .restoringBudget {
             await restoreSelectedBudgetForLaunch()
@@ -348,11 +340,9 @@ final class AppState {
     }
 
     func endForegroundSession() {
-        foregroundSessionActive = false
-        automaticSyncRequestedThisForeground = false
+        appSyncCoordinator.endForegroundSession()
     }
 
-    // Concurrent refreshes share one task so foreground sync and pull-to-refresh do not race.
     @discardableResult
     func refreshLocalFirstData(budgetID: String, force: Bool = true) async -> Bool {
         guard localFirstStore.isOpen(budgetID: budgetID) else {
@@ -370,64 +360,42 @@ final class AppState {
             return true
         }
 
-        if let task = localFirstRefreshTask,
-           localFirstRefreshBudgetID == budgetID {
-            return await task.value
-        }
-
-        if !force {
-            guard !automaticSyncRequestedThisForeground else {
-                return true
+        let result = await appSyncCoordinator.refresh(
+            budgetID: budgetID,
+            serverURLString: settings.localFirstServerURLString,
+            force: force,
+            store: localFirstStore,
+            onStart: { [weak self] in
+                self?.connectionStatus = .connecting
+            },
+            isBudgetCurrent: { [weak self] in
+                guard let self else { return false }
+                return self.settings.selectedBudgetID == budgetID
+                    && self.localFirstStore.isOpen(budgetID: budgetID)
             }
-            automaticSyncRequestedThisForeground = true
-        }
-
-        let requestID = UUID()
-        localFirstRefreshTaskID = requestID
-        localFirstRefreshBudgetID = budgetID
-        connectionStatus = .connecting
-
-        let task = Task { @MainActor [weak self] in
-            guard let self else {
-                return false
+        )
+        switch result.outcome {
+        case .succeeded:
+            if result.shouldPublish {
+                connectionStatus = .online
+                lastErrorMessage = nil
+                localDataRevision &+= 1
             }
-
-            do {
-                try await self.localFirstStore.refresh(
-                    budgetID: budgetID,
-                    serverURLString: self.settings.localFirstServerURLString
-                )
-                guard !Task.isCancelled,
-                      self.settings.selectedBudgetID == budgetID,
-                      self.localFirstStore.isOpen(budgetID: budgetID) else {
-                    return false
-                }
-                self.connectionStatus = .online
-                self.lastErrorMessage = nil
-                self.localDataRevision &+= 1
-                return true
-            } catch is CancellationError {
-                return false
-            } catch {
-                guard self.settings.selectedBudgetID == budgetID else {
-                    return false
-                }
-                self.lastErrorMessage = error.localizedDescription
-                self.connectionStatus = .offline
-                if Self.isAuthenticationFailure(error) {
+            return true
+        case .alreadyRequested:
+            return true
+        case .cancelledOrStale:
+            return false
+        case .failed(let message, let requiresReauthentication):
+            if result.shouldPublish {
+                lastErrorMessage = message
+                connectionStatus = .offline
+                if requiresReauthentication {
                     self.requiresReauthentication = true
                 }
-                return false
             }
+            return false
         }
-        localFirstRefreshTask = task
-        let succeeded = await task.value
-        if localFirstRefreshTaskID == requestID {
-            localFirstRefreshTask = nil
-            localFirstRefreshTaskID = nil
-            localFirstRefreshBudgetID = nil
-        }
-        return succeeded
     }
 
     func retryPendingLocalFirstSync() async {
@@ -448,7 +416,7 @@ final class AppState {
             return
         }
 
-        cancelLocalFirstRefresh()
+        appSyncCoordinator.cancelRefresh()
         connectionStatus = .connecting
         do {
             try await localFirstStore.reimportBudget(
@@ -481,7 +449,7 @@ final class AppState {
 
         if isChangingBudget {
             isBudgetSwitchInProgress = canRestorePreviousBudget
-            cancelLocalFirstRefresh()
+            appSyncCoordinator.cancelRefresh()
             localFirstStore.closeOpenBudget()
             accountNavigationPath = []
         }
@@ -526,7 +494,7 @@ final class AppState {
     }
 
     func clearSelectionForBudgetChange() {
-        cancelLocalFirstRefresh()
+        appSyncCoordinator.cancelRefresh()
         localFirstStore.reset()
         accountNavigationPath = []
         selectedBudget = nil
@@ -626,32 +594,20 @@ final class AppState {
             return nil
         }
 
-        let now = Date()
-        if let developerUnlockLastTapDate,
-           now.timeIntervalSince(developerUnlockLastTapDate) > developerUnlockResetInterval {
-            developerUnlockTapCount = 0
-        }
-
-        developerUnlockLastTapDate = now
-        developerUnlockTapCount += 1
-
-        let remainingTaps = max(0, developerUnlockRequiredTapCount - developerUnlockTapCount)
-        if remainingTaps == 0 {
+        switch developerUnlockTracker.recordTap(at: Date()) {
+        case .unlocked:
             updateDeveloperModeUnlocked(true)
             return "You're a developer!"
-        }
-
-        guard remainingTaps <= developerUnlockVisibleCountdownThreshold else {
+        case .hidden:
             return nil
+        case .countdown(let remainingTaps):
+            let noun = remainingTaps == 1 ? "tap" : "taps"
+            return "\(remainingTaps) \(noun) from Developer Mode"
         }
-
-        let noun = remainingTaps == 1 ? "tap" : "taps"
-        return "\(remainingTaps) \(noun) from Developer Mode"
     }
 
     func resetDeveloperUnlockProgress() {
-        developerUnlockTapCount = 0
-        developerUnlockLastTapDate = nil
+        developerUnlockTracker.reset()
     }
 
     func updateTheme(_ theme: ActualistThemeOption) {
@@ -748,13 +704,14 @@ final class AppState {
             // Demo mode is local-only and never schedules background refresh.
             return false
         }
-        let debugRunID = recordBackgroundRefreshWake()
+        let debugRunID = backgroundRefreshDebugRecorder.beginRun(in: &settings)
 
         guard !Task.isCancelled else {
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: false,
-                message: "Cancelled before sync"
+            backgroundRefreshDebugRecorder.completeRun(
+                debugRunID,
+                succeeded: false,
+                message: "Cancelled before sync",
+                in: &settings
             )
             return false
         }
@@ -786,32 +743,36 @@ final class AppState {
                 }
             }
 
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: true,
-                message: outcome.message
+            backgroundRefreshDebugRecorder.completeRun(
+                debugRunID,
+                succeeded: true,
+                message: outcome.message,
+                in: &settings
             )
             return true
         } catch is CancellationError {
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: false,
-                message: "Cancelled"
+            backgroundRefreshDebugRecorder.completeRun(
+                debugRunID,
+                succeeded: false,
+                message: "Cancelled",
+                in: &settings
             )
             return false
         } catch BackgroundTransactionRefreshRunnerError.timeLimitExceeded {
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: false,
-                message: "Timed out"
+            backgroundRefreshDebugRecorder.completeRun(
+                debugRunID,
+                succeeded: false,
+                message: "Timed out",
+                in: &settings
             )
             return false
         } catch {
             lastErrorMessage = error.localizedDescription
-            recordBackgroundRefreshCompletion(
-                runID: debugRunID,
-                success: false,
-                message: error.localizedDescription
+            backgroundRefreshDebugRecorder.completeRun(
+                debugRunID,
+                succeeded: false,
+                message: error.localizedDescription,
+                in: &settings
             )
             return false
         }
@@ -851,7 +812,7 @@ final class AppState {
                 return false
             }
             selectedBudget = budget
-            budgets = Self.uniqueBudgets([budget] + budgets)
+            budgets = AppBudgetList.unique([budget] + budgets)
             setupPhase = .ready
             connectionStatus = restoredStatus
             localDataRevision &+= 1
@@ -880,19 +841,12 @@ final class AppState {
         earliestBeginDate: Date?,
         message: String
     ) {
-        let attempt = BackgroundRefreshScheduleAttempt(
-            id: UUID(),
-            date: Date(),
-            earliestBeginDate: earliestBeginDate,
+        backgroundRefreshDebugRecorder.recordScheduleAttempt(
             succeeded: succeeded,
-            message: message
+            earliestBeginDate: earliestBeginDate,
+            message: message,
+            in: &settings
         )
-        settings.backgroundRefreshDebug.totalScheduleAttemptCount += 1
-        settings.backgroundRefreshDebug.recentScheduleAttempts.insert(attempt, at: 0)
-        if settings.backgroundRefreshDebug.recentScheduleAttempts.count > 20 {
-            settings.backgroundRefreshDebug.recentScheduleAttempts.removeSubrange(20...)
-        }
-        settingsStore.save(settings)
     }
 
     func pendingNewTransactionIDs(budgetID: String, accountID: String) -> Set<String> {
@@ -970,7 +924,7 @@ final class AppState {
         }
 
         do {
-            budgets = Self.uniqueBudgets(
+            budgets = AppBudgetList.unique(
                 try await localFirstStore.loadBudgets(serverURLString: settings.localFirstServerURLString)
             )
 
@@ -1004,7 +958,7 @@ final class AppState {
         } catch {
             lastErrorMessage = error.localizedDescription
             connectionStatus = .offline
-            if Self.isAuthenticationFailure(error) {
+            if (error as? ActualAPIError)?.isAuthenticationFailure == true {
                 requiresReauthentication = true
             }
             if settings.selectedBudgetID == nil {
@@ -1039,68 +993,4 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    private func recordBackgroundRefreshWake() -> UUID {
-        let runID = UUID()
-        let run = BackgroundRefreshDebugRun(
-            id: runID,
-            wakeDate: Date(),
-            completionDate: nil,
-            succeeded: nil,
-            message: "Started"
-        )
-        settings.backgroundRefreshDebug.totalWakeCount += 1
-        settings.backgroundRefreshDebug.recentRuns.insert(run, at: 0)
-        if settings.backgroundRefreshDebug.recentRuns.count > 20 {
-            settings.backgroundRefreshDebug.recentRuns.removeSubrange(20...)
-        }
-        settingsStore.save(settings)
-        return runID
-    }
-
-    private func recordBackgroundRefreshCompletion(runID: UUID, success: Bool, message: String) {
-        guard let index = settings.backgroundRefreshDebug.recentRuns.firstIndex(where: { $0.id == runID }) else {
-            return
-        }
-
-        settings.backgroundRefreshDebug.recentRuns[index].completionDate = Date()
-        settings.backgroundRefreshDebug.recentRuns[index].succeeded = success
-        settings.backgroundRefreshDebug.recentRuns[index].message = message
-        settingsStore.save(settings)
-    }
-
-    private static func uniqueBudgets(_ budgets: [ActualBudget]) -> [ActualBudget] {
-        var seenSyncIDs: Set<String> = []
-        return budgets.filter { budget in
-            seenSyncIDs.insert(budget.syncID).inserted
-        }
-    }
-
-    private static func isAuthenticationFailure(_ error: any Error) -> Bool {
-        (error as? ActualAPIError)?.isAuthenticationFailure == true
-    }
-
-    private func cancelLocalFirstRefresh() {
-        localFirstRefreshTask?.cancel()
-        localFirstRefreshTask = nil
-        localFirstRefreshTaskID = nil
-        localFirstRefreshBudgetID = nil
-    }
-}
-
-enum SetupPhase: Equatable {
-    case needsConnection
-    case selectingBudget
-    case restoringBudget
-    case ready
-}
-
-enum ServerConnectionStatus: Equatable {
-    case online
-    case connecting
-    case offline
-}
-
-enum NewTransactionsNotificationCopy {
-    static let title = "Actualist"
-    static let body = "New transactions found"
 }

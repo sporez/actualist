@@ -62,6 +62,23 @@
 		010000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift */; };
 		010000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift */; };
 		010000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */; };
+		010000000000000000000000C3 /* TransactionCategorySelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C3 /* TransactionCategorySelectionView.swift */; };
+		010000000000000000000000C4 /* TransactionEditorCategoryState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C4 /* TransactionEditorCategoryState.swift */; };
+		010000000000000000000000C5 /* TransactionRulePreviewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C5 /* TransactionRulePreviewCoordinator.swift */; };
+		010000000000000000000000C6 /* TransactionEditorCategoryStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C6 /* TransactionEditorCategoryStateTests.swift */; };
+		010000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift */; };
+		010000000000000000000000C8 /* AppSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C8 /* AppSyncCoordinator.swift */; };
+		010000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift */; };
+		010000000000000000000000CA /* AppSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CA /* AppSyncCoordinatorTests.swift */; };
+		010000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift */; };
+		010000000000000000000000CC /* DeveloperUnlockTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CC /* DeveloperUnlockTracker.swift */; };
+		010000000000000000000000CD /* DeveloperUnlockTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CD /* DeveloperUnlockTrackerTests.swift */; };
+		010000000000000000000000CE /* TransactionEditorPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CE /* TransactionEditorPresentationTests.swift */; };
+		010000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift */; };
+		010000000000000000000000D0 /* AppStateBackgroundRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D0 /* AppStateBackgroundRefreshTests.swift */; };
+		010000000000000000000000D1 /* TransactionEditorPayeeOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D1 /* TransactionEditorPayeeOptions.swift */; };
+		010000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift */; };
+		010000000000000000000000D3 /* AppStateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D3 /* AppStateModels.swift */; };
 		01000000000000000000006D /* BudgetAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006D /* BudgetAlert.swift */; };
 		010000000000000000000017 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001A /* OnboardingViewModel.swift */; };
 		010000000000000000000018 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* SettingsViewModel.swift */; };
@@ -239,6 +256,23 @@
 		02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UncategorizedTransactionsViewModelTests.swift; sourceTree = "<group>"; };
 		020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionViewModelTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000C3 /* TransactionCategorySelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionCategorySelectionView.swift; sourceTree = "<group>"; };
+		020000000000000000000000C4 /* TransactionEditorCategoryState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorCategoryState.swift; sourceTree = "<group>"; };
+		020000000000000000000000C5 /* TransactionRulePreviewCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionRulePreviewCoordinator.swift; sourceTree = "<group>"; };
+		020000000000000000000000C6 /* TransactionEditorCategoryStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorCategoryStateTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionRulePreviewCoordinatorTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000C8 /* AppSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSyncCoordinator.swift; sourceTree = "<group>"; };
+		020000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshDebugRecorder.swift; sourceTree = "<group>"; };
+		020000000000000000000000CA /* AppSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSyncCoordinatorTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshDebugRecorderTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000CC /* DeveloperUnlockTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperUnlockTracker.swift; sourceTree = "<group>"; };
+		020000000000000000000000CD /* DeveloperUnlockTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperUnlockTrackerTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000CE /* TransactionEditorPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorPresentationTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModelTestSupport.swift; sourceTree = "<group>"; };
+		020000000000000000000000D0 /* AppStateBackgroundRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateBackgroundRefreshTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000D1 /* TransactionEditorPayeeOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorPayeeOptions.swift; sourceTree = "<group>"; };
+		020000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreLifecycleTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000D3 /* AppStateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateModels.swift; sourceTree = "<group>"; };
 		02000000000000000000002D /* AccountRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepository.swift; sourceTree = "<group>"; };
 		02000000000000000000002E /* LocalFirstModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstModels.swift; sourceTree = "<group>"; };
 		020000000000000000000039 /* ActualBudgetCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualBudgetCrypto.swift; sourceTree = "<group>"; };
@@ -387,6 +421,10 @@
 			children = (
 				020000000000000000000001 /* ActualistApp.swift */,
 				020000000000000000000002 /* AppState.swift */,
+				020000000000000000000000D3 /* AppStateModels.swift */,
+				020000000000000000000000C8 /* AppSyncCoordinator.swift */,
+				020000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift */,
+				020000000000000000000000CC /* DeveloperUnlockTracker.swift */,
 				02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */,
 				02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */,
 				020000000000000000000003 /* AppTab.swift */,
@@ -464,6 +502,15 @@
 				020000000000000000000013 /* MoneyTests.swift */,
 				02000000000000000000001C /* BudgetViewModelTests.swift */,
 				02000000000000000000001F /* TransactionEditorViewModelTests.swift */,
+				020000000000000000000000C6 /* TransactionEditorCategoryStateTests.swift */,
+				020000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift */,
+				020000000000000000000000CA /* AppSyncCoordinatorTests.swift */,
+				020000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift */,
+				020000000000000000000000CD /* DeveloperUnlockTrackerTests.swift */,
+				020000000000000000000000CE /* TransactionEditorPresentationTests.swift */,
+				020000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift */,
+				020000000000000000000000D0 /* AppStateBackgroundRefreshTests.swift */,
+				020000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift */,
 				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
 				020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */,
 				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
@@ -556,7 +603,11 @@
 				020000000000000000000069 /* SpendingTransactionsView.swift */,
 				020000000000000000000040 /* AccountTransactionPresentation.swift */,
 				02000000000000000000001D /* TransactionEditorView.swift */,
+				020000000000000000000000C3 /* TransactionCategorySelectionView.swift */,
+				020000000000000000000000C4 /* TransactionEditorCategoryState.swift */,
 				02000000000000000000001E /* TransactionEditorViewModel.swift */,
+				020000000000000000000000D1 /* TransactionEditorPayeeOptions.swift */,
+				020000000000000000000000C5 /* TransactionRulePreviewCoordinator.swift */,
 				020000000000000000000085 /* PayeePickerView.swift */,
 			);
 			path = Transactions;
@@ -824,6 +875,10 @@
 			files = (
 				010000000000000000000001 /* ActualistApp.swift in Sources */,
 				010000000000000000000002 /* AppState.swift in Sources */,
+				010000000000000000000000D3 /* AppStateModels.swift in Sources */,
+				010000000000000000000000C8 /* AppSyncCoordinator.swift in Sources */,
+				010000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift in Sources */,
+				010000000000000000000000CC /* DeveloperUnlockTracker.swift in Sources */,
 				01000000000000000000006E /* BackgroundTransactionRefreshRunner.swift in Sources */,
 				01000000000000000000006F /* NewTransactionNotificationCoordinator.swift in Sources */,
 				010000000000000000000003 /* AppTab.swift in Sources */,
@@ -932,7 +987,11 @@
 				010000000000000000000018 /* SettingsViewModel.swift in Sources */,
 				010000000000000000000053 /* DiagnosticReport.swift in Sources */,
 				01000000000000000000001A /* TransactionEditorView.swift in Sources */,
+				010000000000000000000000C3 /* TransactionCategorySelectionView.swift in Sources */,
+				010000000000000000000000C4 /* TransactionEditorCategoryState.swift in Sources */,
 				01000000000000000000001B /* TransactionEditorViewModel.swift in Sources */,
+				010000000000000000000000D1 /* TransactionEditorPayeeOptions.swift in Sources */,
+				010000000000000000000000C5 /* TransactionRulePreviewCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -947,6 +1006,15 @@
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				010000000000000000000019 /* BudgetViewModelTests.swift in Sources */,
 				01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */,
+				010000000000000000000000C6 /* TransactionEditorCategoryStateTests.swift in Sources */,
+				010000000000000000000000C7 /* TransactionRulePreviewCoordinatorTests.swift in Sources */,
+				010000000000000000000000CA /* AppSyncCoordinatorTests.swift in Sources */,
+				010000000000000000000000CB /* BackgroundRefreshDebugRecorderTests.swift in Sources */,
+				010000000000000000000000CD /* DeveloperUnlockTrackerTests.swift in Sources */,
+				010000000000000000000000CE /* TransactionEditorPresentationTests.swift in Sources */,
+				010000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift in Sources */,
+				010000000000000000000000D0 /* AppStateBackgroundRefreshTests.swift in Sources */,
+				010000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift in Sources */,
 				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
 				010000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift in Sources */,
 				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PayeePickerItem: Identifiable, Hashable {
+    static let transferSectionTitle = "Transfer To/From"
+
     let id: String
     let title: String
     let isTransfer: Bool
@@ -19,7 +21,45 @@ struct PayeePickerItem: Identifiable, Hashable {
         return title.localizedCaseInsensitiveContains(trimmedSearchText)
             || searchAliases.contains { $0.localizedCaseInsensitiveContains(trimmedSearchText) }
             || (isTransfer
-                && TransactionEditorPayeeSection.transferTitle.localizedCaseInsensitiveContains(trimmedSearchText))
+                && Self.transferSectionTitle.localizedCaseInsensitiveContains(trimmedSearchText))
+    }
+}
+
+struct PayeePickerSection: Identifiable, Equatable {
+    let id: String
+    let title: String?
+    let items: [PayeePickerItem]
+}
+
+struct PayeePickerProjection {
+    let items: [PayeePickerItem]
+    let searchText: String
+
+    private var trimmedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var shouldOfferCustomPayee: Bool {
+        guard !trimmedSearchText.isEmpty else { return false }
+        return !items.contains { item in
+            ([item.title] + item.searchAliases).contains {
+                $0.caseInsensitiveCompare(trimmedSearchText) == .orderedSame
+            }
+        }
+    }
+
+    var sections: [PayeePickerSection] {
+        let filteredItems = items.filter { $0.matches(searchText: trimmedSearchText) }
+        let regularItems = filteredItems.filter { !$0.isTransfer }
+        let transferItems = filteredItems.filter(\.isTransfer)
+        let regular = PayeePickerSection(id: "payees", title: nil, items: regularItems)
+        let transfers = PayeePickerSection(
+            id: "transfers",
+            title: PayeePickerItem.transferSectionTitle,
+            items: transferItems
+        )
+        return (trimmedSearchText.isEmpty ? [regular, transfers] : [transfers, regular])
+            .filter { !$0.items.isEmpty }
     }
 }
 
@@ -226,34 +266,14 @@ struct PayeePickerView: View {
     }
 
     private var shouldOfferCustomPayee: Bool {
-        guard onCustomSelect != nil, !trimmedSearchText.isEmpty else { return false }
-        return !items.contains { item in
-            ([item.title] + item.searchAliases).contains {
-                $0.caseInsensitiveCompare(trimmedSearchText) == .orderedSame
-            }
-        }
+        onCustomSelect != nil && projection.shouldOfferCustomPayee
     }
 
-    private var filteredItems: [PayeePickerItem] {
-        items.filter { $0.matches(searchText: trimmedSearchText) }
+    private var projection: PayeePickerProjection {
+        PayeePickerProjection(items: items, searchText: trimmedSearchText)
     }
 
-    private var sections: [PickerSection] {
-        let regularItems = filteredItems.filter { !$0.isTransfer }
-        let transferItems = filteredItems.filter(\.isTransfer)
-        let regular = PickerSection(id: "payees", title: nil, items: regularItems)
-        let transfers = PickerSection(
-            id: "transfers",
-            title: TransactionEditorPayeeSection.transferTitle,
-            items: transferItems
-        )
-        return (trimmedSearchText.isEmpty ? [regular, transfers] : [transfers, regular])
-            .filter { !$0.items.isEmpty }
-    }
-
-    private struct PickerSection: Identifiable {
-        let id: String
-        let title: String?
-        let items: [PayeePickerItem]
+    private var sections: [PayeePickerSection] {
+        projection.sections
     }
 }

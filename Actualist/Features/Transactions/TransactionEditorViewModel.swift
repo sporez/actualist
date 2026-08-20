@@ -17,69 +17,6 @@ enum TransactionSubmissionState: Equatable {
     case failed(String)
 }
 
-struct TransactionSplitEditorRow: Identifiable, Hashable {
-    let id: String
-    var transactionID: String?
-    var categoryID: String
-    var categoryName: String
-    var amountDigits: String
-
-    var amountCents: Int {
-        Int(amountDigits) ?? 0
-    }
-}
-
-struct TransactionSplitMismatch: Equatable {
-    let transactionTotal: Int
-    let splitTotal: Int
-
-    var difference: Int {
-        transactionTotal - splitTotal
-    }
-}
-
-struct TransactionEditorPayeeOption: Identifiable, Hashable {
-    let payee: ActualPayee
-    let transferAccountName: String?
-
-    var id: String {
-        payee.id ?? payee.name
-    }
-
-    var title: String {
-        transferAccountName ?? payee.name
-    }
-
-    var isTransfer: Bool {
-        payee.transferAccount != nil
-    }
-}
-
-struct TransactionEditorPayeeSection: Identifiable, Hashable {
-    static let transferTitle = "Transfer To/From"
-
-    enum Kind: String {
-        case payees
-        case transfers
-    }
-
-    let kind: Kind
-    let options: [TransactionEditorPayeeOption]
-
-    var id: Kind {
-        kind
-    }
-
-    var title: String? {
-        switch kind {
-        case .payees:
-            nil
-        case .transfers:
-            Self.transferTitle
-        }
-    }
-}
-
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
@@ -90,16 +27,14 @@ final class TransactionEditorViewModel {
     private let originalImportedPayee: String?
     private let originalReconciled: Bool
     private let originalIsParent: Bool
-    private var selectedCategoryFallbackName: String?
+    private var categoryState = TransactionEditorCategoryState()
+    private let rulePreviewCoordinator = TransactionRulePreviewCoordinator()
 
     var kind: TransactionFlowKind = .spend
     var amountDigits = ""
     var payeeName = ""
     var selectedPayeeID: String?
-    var selectedCategoryID: String?
     var selectedAccountID: String?
-    var splitRows: [TransactionSplitEditorRow] = []
-    var pendingSplitMismatch: TransactionSplitMismatch?
     var date = Date()
     var notes = ""
     var isCleared = false
@@ -109,10 +44,8 @@ final class TransactionEditorViewModel {
     var payees: [ActualPayee] = []
     var isLoading = false
     var isLoadingCategoryBalances = false
-    var isPreviewingRules = false
     var errorMessage: String?
     var submissionState: TransactionSubmissionState = .draft
-    private var rulePreviewSequence = 0
     private var loadedCategoryBalanceMonth: String?
 
     init(
@@ -126,7 +59,10 @@ final class TransactionEditorViewModel {
         originalImportedPayee = transaction?.importedPayee
         originalReconciled = transaction?.reconciled ?? false
         originalIsParent = transaction?.isParent ?? false
-        selectedCategoryFallbackName = fallbackCategoryName
+        categoryState = TransactionEditorCategoryState(
+            categoryID: transaction?.category,
+            fallbackName: fallbackCategoryName
+        )
 
         if let transaction {
             apply(transaction, payeeName: fallbackPayeeName)
@@ -159,6 +95,22 @@ final class TransactionEditorViewModel {
         }
     }
 
+    var isPreviewingRules: Bool {
+        rulePreviewCoordinator.isRunning
+    }
+
+    var selectedCategoryID: String? {
+        categoryState.selectedCategoryID
+    }
+
+    var splitRows: [TransactionSplitEditorRow] {
+        categoryState.splitRows
+    }
+
+    var pendingSplitMismatch: TransactionSplitMismatch? {
+        categoryState.pendingMismatch
+    }
+
     var saveButtonTitle: String {
         switch submissionState {
         case .draft, .failed:
@@ -185,18 +137,22 @@ final class TransactionEditorViewModel {
     }
 
     var isSplit: Bool {
-        splitRows.count >= 2
+        categoryState.isSplit
+    }
+
+    var isSelectingSplit: Bool {
+        categoryState.isSelectingSplit
     }
 
     var canRemoveSplitRow: Bool {
-        splitRows.count >= 2
+        categoryState.canRemoveSplitRow
     }
 
     var isCategoryReadOnly: Bool {
         if selectedPayeeIsTransfer {
             return !transferAllowsCategory
         }
-        return selectedAccountIsOffBudget || selectedCategoryFallbackName == "Off budget"
+        return selectedAccountIsOffBudget || categoryState.selectedCategoryFallbackName == "Off budget"
     }
 
     private var selectedAccountIsOffBudget: Bool {
@@ -215,11 +171,11 @@ final class TransactionEditorViewModel {
     }
 
     var splitTotalCents: Int {
-        checkedSplitTotalCents ?? Int.max
+        categoryState.splitTotalCents
     }
 
     var splitRemainingCents: Int {
-        amountCents.subtractingReportingOverflow(splitTotalCents).partialValue
+        categoryState.splitRemainingCents(transactionTotal: amountCents)
     }
 
     var splitRemainingText: String {
@@ -235,17 +191,13 @@ final class TransactionEditorViewModel {
     }
 
     var selectedCategoryName: String {
-        if (selectedAccountIsOffBudget || selectedCategoryFallbackName == "Off budget")
+        if (selectedAccountIsOffBudget || categoryState.selectedCategoryFallbackName == "Off budget")
             && !transferAllowsCategory {
             return "Off budget"
         }
 
-        if splitRows.count >= 2 {
-            let names = splitRows.map(\.categoryName)
-            if names.count <= 2 {
-                return names.joined(separator: ", ")
-            }
-            return "Split (\(splitRows.count))"
+        if let summaryName = categoryState.summaryName, categoryState.isSplit {
+            return summaryName
         }
 
         guard let selectedCategoryID else {
@@ -253,15 +205,14 @@ final class TransactionEditorViewModel {
                 // Cross-budget transfers need a category on the budget side.
                 return isCategoryReadOnly ? "Account Transfer" : "Select Category"
             }
-            if let selectedCategoryFallbackName,
-               selectedCategoryFallbackName == "Account Transfer" {
-                return selectedCategoryFallbackName
+            if categoryState.selectedCategoryFallbackName == "Account Transfer" {
+                return "Account Transfer"
             }
             return isEditing ? "Uncategorized" : "Select Category"
         }
 
         guard let category = categories.first(where: { $0.id == selectedCategoryID }) else {
-            return selectedCategoryFallbackName?.actualistCategoryNameParts.name ?? "Select Category"
+            return categoryState.selectedCategoryFallbackName?.actualistCategoryNameParts.name ?? "Select Category"
         }
 
         return category.name.actualistCategoryNameParts.name
@@ -297,58 +248,17 @@ final class TransactionEditorViewModel {
         return payees.first(where: { $0.id == selectedPayeeID })?.transferAccount != nil
     }
 
+    private var payeeOptions: TransactionEditorPayeeOptions {
+        TransactionEditorPayeeOptions(accounts: accounts, payees: payees)
+    }
+
+    var payeeSections: [TransactionEditorPayeeSection] {
+        payeeOptions.sections
+    }
+
     func setAmountInput(_ value: String) {
         amountDigits = Self.sanitizedAmountDigits(value)
-        pendingSplitMismatch = nil
-    }
-
-    func filteredPayees(matching searchText: String) -> [ActualPayee] {
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedSearch.isEmpty else {
-            return payees
-        }
-
-        return payees.filter { payee in
-            payee.name.localizedCaseInsensitiveContains(trimmedSearch)
-        }
-    }
-
-    func payeeSections(matching searchText: String) -> [TransactionEditorPayeeSection] {
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let options = payees.compactMap(payeeOption(for:))
-        let filteredOptions: [TransactionEditorPayeeOption]
-
-        if trimmedSearch.isEmpty {
-            filteredOptions = options
-        } else {
-            filteredOptions = options.filter { option in
-                option.title.localizedCaseInsensitiveContains(trimmedSearch)
-                    || option.transferAccountName?.localizedCaseInsensitiveContains(trimmedSearch) == true
-                    || (option.isTransfer
-                        && TransactionEditorPayeeSection.transferTitle.localizedCaseInsensitiveContains(trimmedSearch))
-            }
-        }
-
-        let transferOptions = filteredOptions.filter(\.isTransfer)
-        let regularOptions = filteredOptions.filter { !$0.isTransfer }
-
-        if trimmedSearch.isEmpty {
-            return payeeSections(regularOptions: regularOptions, transferOptions: transferOptions)
-        }
-
-        return payeeSections(regularOptions: regularOptions, transferOptions: transferOptions, transfersFirst: true)
-    }
-
-    func shouldOfferCustomPayee(matching searchText: String) -> Bool {
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedSearch.isEmpty else {
-            return false
-        }
-
-        return !payees.contains { payee in
-            payee.name.caseInsensitiveCompare(trimmedSearch) == .orderedSame
-                || transferAccountName(for: payee)?.caseInsensitiveCompare(trimmedSearch) == .orderedSame
-        }
+        categoryState.clearMismatch()
     }
 
     func categorySelectionGroups(matching searchText: String) -> [TransactionEditorCategoryGroup] {
@@ -379,14 +289,11 @@ final class TransactionEditorViewModel {
 
     func selectPayee(_ payee: ActualPayee) {
         selectedPayeeID = payee.id
-        // Transfer payees use the linked account name for display.
-        payeeName = transferAccountName(for: payee) ?? payee.name
+        payeeName = payeeOptions.displayName(for: payee)
         if payee.transferAccount != nil {
-            splitRows = []
-            pendingSplitMismatch = nil
+            categoryState.discardSplitSelection()
             if isCategoryReadOnly {
-                selectedCategoryID = nil
-                selectedCategoryFallbackName = nil
+                categoryState.clear()
             }
         }
     }
@@ -402,10 +309,7 @@ final class TransactionEditorViewModel {
     }
 
     func clearCategory() {
-        selectedCategoryID = nil
-        selectedCategoryFallbackName = nil
-        splitRows = []
-        pendingSplitMismatch = nil
+        categoryState.clear()
     }
 
     func selectCategory(_ category: ActualCategory) {
@@ -417,10 +321,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        selectedCategoryID = categoryID
-        selectedCategoryFallbackName = category.name
-        splitRows = []
-        pendingSplitMismatch = nil
+        categoryState.selectCategory(id: categoryID, name: category.name)
     }
 
     func selectCategory(_ option: TransactionEditorCategoryOption) {
@@ -428,14 +329,11 @@ final class TransactionEditorViewModel {
             return
         }
 
-        selectedCategoryID = option.id
-        selectedCategoryFallbackName = option.title
-        splitRows = []
-        pendingSplitMismatch = nil
+        categoryState.selectCategory(id: option.id, name: option.title)
     }
 
     func isSplitCategorySelected(_ option: TransactionEditorCategoryOption) -> Bool {
-        splitRows.contains { $0.categoryID == option.id }
+        categoryState.containsSplitCategory(id: option.id)
     }
 
     func beginSplitSelection() {
@@ -443,21 +341,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        pendingSplitMismatch = nil
-
-        guard splitRows.isEmpty, let selectedCategoryID else {
-            return
-        }
-
-        splitRows.append(
-            TransactionSplitEditorRow(
-                id: selectedCategoryID,
-                transactionID: nil,
-                categoryID: selectedCategoryID,
-                categoryName: selectedCategoryName,
-                amountDigits: ""
-            )
-        )
+        categoryState.beginSplitSelection()
     }
 
     func toggleSplitCategory(_ option: TransactionEditorCategoryOption) {
@@ -465,25 +349,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        pendingSplitMismatch = nil
-        if let index = splitRows.firstIndex(where: { $0.categoryID == option.id }) {
-            splitRows.remove(at: index)
-        } else {
-            splitRows.append(
-                TransactionSplitEditorRow(
-                    id: option.id,
-                    transactionID: nil,
-                    categoryID: option.id,
-                    categoryName: option.title,
-                    amountDigits: ""
-                )
-            )
-        }
-
-        if splitRows.count >= 2 {
-            selectedCategoryID = nil
-            selectedCategoryFallbackName = nil
-        }
+        categoryState.toggleSplitCategory(id: option.id, name: option.title)
     }
 
     func finalizeSplitSelection() {
@@ -491,14 +357,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        if splitRows.count == 1, let row = splitRows.first {
-            selectedCategoryID = row.categoryID
-            selectedCategoryFallbackName = row.categoryName
-            splitRows = []
-        } else if splitRows.count >= 2 {
-            selectedCategoryID = nil
-            selectedCategoryFallbackName = nil
-        }
+        categoryState.finalizeSplitSelection()
     }
 
     func setSplitAmount(rowID: String, value: String) {
@@ -506,21 +365,11 @@ final class TransactionEditorViewModel {
             return
         }
 
-        guard let index = splitRows.firstIndex(where: { $0.id == rowID }) else {
-            return
-        }
-
-        splitRows[index].amountDigits = Self.sanitizedAmountDigits(value)
-        pendingSplitMismatch = nil
+        categoryState.setSplitAmount(rowID: rowID, value: value)
     }
 
     func formattedSplitAmount(rowID: String) -> String {
-        guard let row = splitRows.first(where: { $0.id == rowID }),
-              row.amountCents > 0 else {
-            return ""
-        }
-
-        return Self.formattedAmountInput(cents: row.amountCents)
+        categoryState.formattedSplitAmount(rowID: rowID)
     }
 
     func removeSplit(rowID: String) {
@@ -528,21 +377,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        guard canRemoveSplitRow else {
-            return
-        }
-
-        guard let index = splitRows.firstIndex(where: { $0.id == rowID }) else {
-            return
-        }
-
-        splitRows.remove(at: index)
-        pendingSplitMismatch = nil
-        if splitRows.count == 1, let row = splitRows.first {
-            selectedCategoryID = row.categoryID
-            selectedCategoryFallbackName = row.categoryName
-            splitRows = []
-        }
+        categoryState.removeSplit(rowID: rowID)
     }
 
     func autoDistributeSplitMismatch() {
@@ -550,35 +385,20 @@ final class TransactionEditorViewModel {
             return
         }
 
-        guard isSplit else {
-            return
-        }
-
-        let currentTotal = splitTotalCents
-        let difference = amountCents - currentTotal
-        guard difference != 0 else {
-            pendingSplitMismatch = nil
-            return
-        }
-
-        let index = splitRows.lastIndex { $0.amountCents > 0 } ?? splitRows.indices.last
-        guard let index else {
-            return
-        }
-
-        let (adjustedAmount, overflow) = splitRows[index].amountCents.addingReportingOverflow(difference)
-        guard !overflow else {
+        do {
+            try categoryState.autoDistributeMismatch(transactionTotal: amountCents)
+        } catch {
             errorMessage = "The split amounts are too large."
-            return
         }
-        let adjusted = max(0, adjustedAmount)
-        splitRows[index].amountDigits = String(adjusted)
-        pendingSplitMismatch = nil
     }
 
     func updateTotalFromSplits() {
-        amountDigits = splitTotalCents == 0 ? "" : String(splitTotalCents)
-        pendingSplitMismatch = nil
+        guard let total = categoryState.checkedSplitTotalCents else {
+            errorMessage = "The split amounts are too large."
+            return
+        }
+        amountDigits = total == 0 ? "" : String(total)
+        categoryState.clearMismatch()
     }
 
     func adjustSplitsManually() {
@@ -586,7 +406,7 @@ final class TransactionEditorViewModel {
             return
         }
 
-        pendingSplitMismatch = nil
+        categoryState.clearMismatch()
     }
 
     func load(using appState: AppState, prefilledAccount: ActualAccount?) async {
@@ -676,7 +496,8 @@ final class TransactionEditorViewModel {
 
     func previewRules(
         budgetID: String,
-        repository: any TransactionRepositoryProtocol
+        repository: any TransactionRepositoryProtocol,
+        currentBudgetID: (@MainActor @Sendable () -> String?)? = nil
     ) async {
         guard !isSplit, !isCategoryReadOnly else {
             return
@@ -686,35 +507,31 @@ final class TransactionEditorViewModel {
             return
         }
 
-        guard let draft = makeRulePreviewDraft() else {
+        guard let request = makeRulePreviewRequest(budgetID: budgetID) else {
             return
         }
 
-        rulePreviewSequence += 1
-        let requestSequence = rulePreviewSequence
-        isPreviewingRules = true
-
-        do {
-            let preview = try await repository.previewRules(for: draft, budgetID: budgetID)
-            if requestSequence == rulePreviewSequence,
-               matchesCurrentRulePreviewDraft(draft) {
-                applyRulePreview(preview)
-                errorMessage = nil
-            }
-        } catch {
-            if requestSequence == rulePreviewSequence {
-                if let localFirstError = error as? LocalFirstError,
-                   localFirstError == .unsupportedWrite {
-                    errorMessage = nil
-                    isPreviewingRules = false
-                    return
+        let outcome = await rulePreviewCoordinator.preview(
+            request: request,
+            repository: repository,
+            currentRequest: { [weak self] in
+                let liveBudgetID = currentBudgetID?() ?? budgetID
+                guard liveBudgetID == budgetID else {
+                    return nil
                 }
-                errorMessage = "Could not apply payee rules: \(error.localizedDescription)"
+                return self?.makeRulePreviewRequest(budgetID: budgetID)
             }
-        }
-
-        if requestSequence == rulePreviewSequence {
-            isPreviewingRules = false
+        )
+        switch outcome {
+        case .applied(let preview):
+            applyRulePreview(preview)
+            errorMessage = nil
+        case .unsupported:
+            errorMessage = nil
+        case .failed(let message):
+            errorMessage = message
+        case .stale:
+            break
         }
     }
 
@@ -724,19 +541,19 @@ final class TransactionEditorViewModel {
     ) async -> Bool {
         let submitsAsTransfer = selectedPayeeIsTransfer
 
-        guard let checkedSplitTotalCents else {
+        switch categoryState.validate(
+            transactionTotal: amountCents,
+            submitsAsTransfer: submitsAsTransfer
+        ) {
+        case .overflow:
             let message = "The split amounts are too large."
             submissionState = .failed(message)
             errorMessage = message
             return false
-        }
-
-        if !submitsAsTransfer, isSplit, checkedSplitTotalCents != amountCents {
-            pendingSplitMismatch = TransactionSplitMismatch(
-                transactionTotal: amountCents,
-                splitTotal: checkedSplitTotalCents
-            )
+        case .mismatch:
             return false
+        case .valid:
+            break
         }
 
         guard !isSubmitting, let draft = makeDraft() else {
@@ -817,11 +634,11 @@ final class TransactionEditorViewModel {
             isParent: isSplit || originalIsParent,
             splits: selectedPayeeIsTransfer || isCategoryReadOnly
                 ? []
-                : splitDrafts(sign: kind == .spend ? -1 : 1)
+                : categoryState.splitDrafts(sign: kind == .spend ? -1 : 1)
         )
     }
 
-    private func makeRulePreviewDraft() -> TransactionDraft? {
+    private func makeRulePreviewRequest(budgetID: String) -> TransactionRulePreviewRequest? {
         guard let selectedAccountID else {
             return nil
         }
@@ -846,19 +663,23 @@ final class TransactionEditorViewModel {
         // saved draft keeps its real (nil) imported payee.
         let rulePreviewImportedPayee = originalImportedPayee ?? trimmedPayee
 
-        return TransactionDraft(
-            accountID: selectedAccountID,
-            date: date,
-            amountMinorUnits: signedAmount,
-            payeeID: selectedPayeeID,
-            payeeName: trimmedPayee,
-            categoryID: isCategoryReadOnly ? nil : selectedCategoryID,
-            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-            cleared: isCleared,
-            isTransfer: selectedPayeeIsTransfer,
-            importedPayee: rulePreviewImportedPayee,
-            reconciled: originalReconciled,
-            isParent: originalIsParent
+        return TransactionRulePreviewRequest(
+            budgetID: budgetID,
+            draft: TransactionDraft(
+                accountID: selectedAccountID,
+                date: date,
+                amountMinorUnits: signedAmount,
+                payeeID: selectedPayeeID,
+                payeeName: trimmedPayee,
+                categoryID: isCategoryReadOnly ? nil : selectedCategoryID,
+                notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+                cleared: isCleared,
+                isTransfer: selectedPayeeIsTransfer,
+                importedPayee: rulePreviewImportedPayee,
+                reconciled: originalReconciled,
+                isParent: originalIsParent
+            ),
+            categorySelection: categoryState.selection
         )
     }
 
@@ -867,7 +688,12 @@ final class TransactionEditorViewModel {
             return
         }
 
-        selectedCategoryID = preview.categoryID
+        if let categoryID = preview.categoryID {
+            let categoryName = categories.first(where: { $0.id == categoryID })?.name
+            categoryState.selectCategory(id: categoryID, name: categoryName)
+        } else {
+            categoryState.clear()
+        }
         notes = preview.notes ?? ""
         if let accountID = preview.accountID, accounts.contains(where: { $0.id == accountID }) {
             selectedAccountID = accountID
@@ -884,52 +710,20 @@ final class TransactionEditorViewModel {
         if let cleared = preview.cleared { isCleared = cleared }
     }
 
-    private var checkedSplitTotalCents: Int? {
-        var total = 0
-        for row in splitRows {
-            let result = total.addingReportingOverflow(row.amountCents)
-            guard !result.overflow else {
-                return nil
-            }
-            total = result.partialValue
-        }
-        return total
-    }
-
-    private func matchesCurrentRulePreviewDraft(_ draft: TransactionDraft) -> Bool {
-        draft.accountID == selectedAccountID
-            && draft.payeeID == selectedPayeeID
-            && draft.payeeName == payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private func apply(_ transaction: ActualTransaction, payeeName fallbackPayeeName: String?) {
         let amount = transaction.amount ?? 0
         kind = amount >= 0 ? .inflow : .spend
         amountDigits = String(amount.magnitude)
         selectedAccountID = transaction.account
         selectedPayeeID = transaction.payee
-        selectedCategoryID = transaction.category
         date = transaction.date.actualDate ?? date
         notes = transaction.notes ?? ""
         isCleared = transaction.cleared?.boolValue ?? false
-        splitRows = transaction.subtransactions.compactMap { child in
-            guard let categoryID = child.category else {
-                return nil
-            }
-
-            return TransactionSplitEditorRow(
-                id: child.id ?? categoryID,
-                transactionID: child.id,
-                categoryID: categoryID,
-                categoryName: categoryID,
-                amountDigits: String((child.amount ?? 0).magnitude)
-            )
-        }
-
-        if splitRows.count >= 2 {
-            selectedCategoryID = nil
-            selectedCategoryFallbackName = nil
-        }
+        categoryState.load(
+            categoryID: transaction.category,
+            fallbackName: categoryState.selectedCategoryFallbackName,
+            subtransactions: transaction.subtransactions
+        )
 
         if let fallbackPayeeName,
            !fallbackPayeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -944,66 +738,17 @@ final class TransactionEditorViewModel {
         }
     }
 
-    private func payeeOption(for payee: ActualPayee) -> TransactionEditorPayeeOption? {
-        let transferAccountName = transferAccountName(for: payee)
-        let title = transferAccountName ?? payee.name
-        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-
-        return TransactionEditorPayeeOption(
-            payee: payee,
-            transferAccountName: transferAccountName
-        )
-    }
-
-    private func transferAccountName(for payee: ActualPayee) -> String? {
-        guard let transferAccountID = payee.transferAccount else {
-            return nil
-        }
-
-        if let accountName = accounts.first(where: { $0.id == transferAccountID })?.name,
-           !accountName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return accountName
-        }
-
-        let fallbackName = payee.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return fallbackName.isEmpty ? nil : fallbackName
-    }
-
-    private func payeeSections(
-        regularOptions: [TransactionEditorPayeeOption],
-        transferOptions: [TransactionEditorPayeeOption],
-        transfersFirst: Bool = false
-    ) -> [TransactionEditorPayeeSection] {
-        let regularSection = TransactionEditorPayeeSection(kind: .payees, options: regularOptions)
-        let transferSection = TransactionEditorPayeeSection(kind: .transfers, options: transferOptions)
-        let orderedSections = transfersFirst ? [transferSection, regularSection] : [regularSection, transferSection]
-
-        return orderedSections.filter { !$0.options.isEmpty }
-    }
-
     private func applyLoadedOptionNamesIfNeeded() {
         if let selectedPayeeID,
            let matchedPayee = payees.first(where: { $0.id == selectedPayeeID }) {
-            // Transfer payees have an empty raw name.
-            payeeName = transferAccountName(for: matchedPayee) ?? matchedPayee.name
+            payeeName = payeeOptions.displayName(for: matchedPayee)
         }
 
-        if let selectedCategoryID,
-           let matchedCategory = categories.first(where: { $0.id == selectedCategoryID }) {
-            selectedCategoryFallbackName = matchedCategory.name
+        let categoryNames = categories.reduce(into: [String: String]()) { result, category in
+            guard let id = category.id else { return }
+            result[id] = category.name.actualistCategoryNameParts.name
         }
-
-        if !splitRows.isEmpty {
-            splitRows = splitRows.map { row in
-                var updated = row
-                if let matchedCategory = categories.first(where: { $0.id == row.categoryID }) {
-                    updated.categoryName = matchedCategory.name.actualistCategoryNameParts.name
-                }
-                return updated
-            }
-        }
+        categoryState.resolveNames(categoryNames)
     }
 
     func apply(_ options: TransactionEditorOptions, loadedMonth: String, preferredAccountIDs: [String] = []) {
@@ -1068,25 +813,6 @@ final class TransactionEditorViewModel {
         }
 
         return result
-    }
-
-    private func splitDrafts(sign: Int) -> [TransactionSplitDraft] {
-        guard isSplit else {
-            return []
-        }
-
-        return splitRows.map { row in
-            TransactionSplitDraft(
-                id: row.transactionID,
-                categoryID: row.categoryID,
-                categoryName: row.categoryName,
-                amountMinorUnits: row.amountCents * sign
-            )
-        }
-    }
-
-    private static func formattedAmountInput(cents: Int) -> String {
-        "\(cents / 100).\(String(format: "%02d", cents % 100))"
     }
 
     private static func sanitizedAmountDigits(_ value: String) -> String {
