@@ -124,6 +124,10 @@ final class OnboardingViewModel {
     var connectionSecurityWarning: String? {
         ActualServerConnectionSecurity.warningMessage(for: serverURLString)
     }
+
+    func showsLocalNetworkSettingsAction(for errorMessage: String?) -> Bool {
+        errorMessage == ActualAPIError.localNetworkDenied.localizedDescription
+    }
 }
 
 /// State machine for the budget-open workflow surfaced by `BudgetPickerView`.

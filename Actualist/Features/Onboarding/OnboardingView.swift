@@ -1,9 +1,11 @@
 import AuthenticationServices
 import SwiftUI
+import UIKit
 
 struct OnboardingView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.openURL) private var openURL
     @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @State private var viewModel = OnboardingViewModel()
     @State private var showDemoConfirmation = false
@@ -37,20 +39,25 @@ struct OnboardingView: View {
                                     .font(ActualistTypography.rowLabel(for: density))
                                     .foregroundStyle(ActualistTheme.secondaryText)
 
-                                TextField(
-                                    "Server URL",
-                                    text: $viewModel.serverURLString,
-                                    prompt: Text("https://actual.example.com")
-                                        .foregroundStyle(ActualistTheme.secondaryText)
-                                )
-                                .font(ActualistTypography.rowTitle(for: density))
-                                .foregroundStyle(ActualistTheme.primaryText)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .keyboardType(.URL)
-                                .textContentType(.URL)
-                                .multilineTextAlignment(.leading)
-                                .accessibilityLabel("Server URL")
+                                ZStack(alignment: .leading) {
+                                    if viewModel.serverURLString.isEmpty {
+                                        Text("https://actual.example.com")
+                                            .font(ActualistTypography.rowTitle(for: density))
+                                            .foregroundStyle(.white)
+                                            .allowsHitTesting(false)
+                                    }
+
+                                    TextField("", text: $viewModel.serverURLString, prompt: Text(""))
+                                        .font(ActualistTypography.rowTitle(for: density))
+                                        .foregroundStyle(.white)
+                                        .tint(.white)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                        .keyboardType(.URL)
+                                        .textContentType(.URL)
+                                        .multilineTextAlignment(.leading)
+                                        .accessibilityLabel("Server URL")
+                                }
                             }
                         }
                     }
@@ -92,6 +99,20 @@ struct OnboardingView: View {
                         Text(message)
                             .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.danger)
+
+                        if viewModel.showsLocalNetworkSettingsAction(for: message) {
+                            Button {
+                                guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
+                                    return
+                                }
+                                openURL(settingsURL)
+                            } label: {
+                                Label("Open Actualist Settings", systemImage: "gearshape.fill")
+                                    .font(ActualistTypography.control(for: density))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.glass)
+                        }
                     }
 
                     if !viewModel.hasLoadedLoginMethods {
@@ -198,11 +219,10 @@ struct OnboardingView: View {
                         .buttonStyle(.glass)
                         .disabled(viewModel.isConnecting || viewModel.isLoadingLoginMethods)
                     }
-
-                    Spacer(minLength: 120)
                 }
                 .padding(24)
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             .scrollDismissesKeyboard(.interactively)
             .confirmationDialog(
                 "Do you want to enter demo mode?",

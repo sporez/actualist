@@ -199,6 +199,22 @@ extension LocalFirstActualStoreTests {
         #expect(appState.lastErrorMessage != nil)
     }
 
+    @Test func onboardingOnlyOffersSettingsForLocalNetworkFailure() {
+        let viewModel = OnboardingViewModel()
+
+        #expect(
+            viewModel.showsLocalNetworkSettingsAction(
+                for: ActualAPIError.localNetworkDenied.localizedDescription
+            )
+        )
+        #expect(!viewModel.showsLocalNetworkSettingsAction(for: nil))
+        #expect(
+            !viewModel.showsLocalNetworkSettingsAction(
+                for: ActualAPIError.transport(.timedOut).localizedDescription
+            )
+        )
+    }
+
     @Test func openIDTransportSendsActualManagedLoginPayload() async throws {
         OpenIDRequestURLProtocol.capturedRequest = nil
         OpenIDRequestURLProtocol.capturedBody = nil
