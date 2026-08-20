@@ -141,7 +141,9 @@
 		010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000042 /* LocalFirstTestSupport.swift */; };
 		010000000000000000000043 /* BudgetDatabase+Reads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000043 /* BudgetDatabase+Reads.swift */; };
 		010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000044 /* BudgetDatabase+Sync.swift */; };
-		010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */; };
+		0100000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift */; };
+		0100000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift */; };
+		0100000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift */; };
 		010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */; };
 		010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000047 /* BudgetDatabase+Schema.swift */; };
 		01000000000000000000004C /* ReportsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000004C /* ReportsModels.swift */; };
@@ -323,7 +325,9 @@
 		020000000000000000000042 /* LocalFirstTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstTestSupport.swift; sourceTree = "<group>"; };
 		020000000000000000000043 /* BudgetDatabase+Reads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Reads.swift"; sourceTree = "<group>"; };
 		020000000000000000000044 /* BudgetDatabase+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Sync.swift"; sourceTree = "<group>"; };
-		020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionWrites.swift"; sourceTree = "<group>"; };
+		0200000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionCreation.swift"; sourceTree = "<group>"; };
+		0200000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionUpdates.swift"; sourceTree = "<group>"; };
+		0200000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionCategorization.swift"; sourceTree = "<group>"; };
 		020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BudgetWrites.swift"; sourceTree = "<group>"; };
 		020000000000000000000047 /* BudgetDatabase+Schema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Schema.swift"; sourceTree = "<group>"; };
 		02000000000000000000004C /* ReportsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsModels.swift; sourceTree = "<group>"; };
@@ -734,7 +738,9 @@
 				02000000000000000000007E /* BudgetDatabase+Rules.swift */,
 				020000000000000000000081 /* RuleConditionEvaluator.swift */,
 				020000000000000000000044 /* BudgetDatabase+Sync.swift */,
-				020000000000000000000045 /* BudgetDatabase+TransactionWrites.swift */,
+				0200000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift */,
+				0200000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift */,
+				0200000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift */,
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
 				020000000000000000000047 /* BudgetDatabase+Schema.swift */,
 				020000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift */,
@@ -971,7 +977,9 @@
 				01000000000000000000007E /* BudgetDatabase+Rules.swift in Sources */,
 				010000000000000000000081 /* RuleConditionEvaluator.swift in Sources */,
 				010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */,
-				010000000000000000000045 /* BudgetDatabase+TransactionWrites.swift in Sources */,
+				0100000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift in Sources */,
+				0100000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift in Sources */,
+				0100000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift in Sources */,
 				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
 				010000000000000000000055 /* BudgetTemplateEngine.swift in Sources */,
 				010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */,
