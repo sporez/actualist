@@ -345,16 +345,7 @@ final class UncategorizedTransactionsViewModel {
     }
 
     func payeeName(for transaction: ActualTransaction) -> String {
-        if let payeeName = transaction.payeeName, !payeeName.isEmpty {
-            return payeeName
-        }
-        if let payee = transaction.payee, let name = payeeNames[payee] {
-            return name
-        }
-        if let importedPayee = transaction.importedPayee, !importedPayee.isEmpty {
-            return importedPayee
-        }
-        return "Unknown Payee"
+        TransactionPayeePresentation.name(for: transaction, payeeNames: payeeNames)
     }
 
     func categoryNames(for transaction: ActualTransaction) -> [String] {

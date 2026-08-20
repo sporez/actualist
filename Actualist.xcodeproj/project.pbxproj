@@ -79,6 +79,10 @@
 		010000000000000000000000D1 /* TransactionEditorPayeeOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D1 /* TransactionEditorPayeeOptions.swift */; };
 		010000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift */; };
 		010000000000000000000000D3 /* AppStateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D3 /* AppStateModels.swift */; };
+		010000000000000000000000D4 /* AccountTransactionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D4 /* AccountTransactionsViewModel.swift */; };
+		010000000000000000000000D5 /* AccountTransactionFeedProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D5 /* AccountTransactionFeedProjection.swift */; };
+		010000000000000000000000D6 /* AccountTransactionsSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D6 /* AccountTransactionsSummaryView.swift */; };
+		010000000000000000000000D7 /* AccountTransactionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D7 /* AccountTransactionsViewModelTests.swift */; };
 		01000000000000000000006D /* BudgetAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006D /* BudgetAlert.swift */; };
 		010000000000000000000017 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001A /* OnboardingViewModel.swift */; };
 		010000000000000000000018 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* SettingsViewModel.swift */; };
@@ -273,6 +277,10 @@
 		020000000000000000000000D1 /* TransactionEditorPayeeOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorPayeeOptions.swift; sourceTree = "<group>"; };
 		020000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreLifecycleTests.swift; sourceTree = "<group>"; };
 		020000000000000000000000D3 /* AppStateModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateModels.swift; sourceTree = "<group>"; };
+		020000000000000000000000D4 /* AccountTransactionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionsViewModel.swift; sourceTree = "<group>"; };
+		020000000000000000000000D5 /* AccountTransactionFeedProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionFeedProjection.swift; sourceTree = "<group>"; };
+		020000000000000000000000D6 /* AccountTransactionsSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionsSummaryView.swift; sourceTree = "<group>"; };
+		020000000000000000000000D7 /* AccountTransactionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionsViewModelTests.swift; sourceTree = "<group>"; };
 		02000000000000000000002D /* AccountRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRepository.swift; sourceTree = "<group>"; };
 		02000000000000000000002E /* LocalFirstModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstModels.swift; sourceTree = "<group>"; };
 		020000000000000000000039 /* ActualBudgetCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualBudgetCrypto.swift; sourceTree = "<group>"; };
@@ -511,6 +519,7 @@
 				020000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift */,
 				020000000000000000000000D0 /* AppStateBackgroundRefreshTests.swift */,
 				020000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift */,
+				020000000000000000000000D7 /* AccountTransactionsViewModelTests.swift */,
 				02000000000000000000002B /* UncategorizedTransactionsViewModelTests.swift */,
 				020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */,
 				020000000000000000000035 /* LocalFirstActualStoreTests.swift */,
@@ -599,6 +608,9 @@
 			isa = PBXGroup;
 			children = (
 				020000000000000000000010 /* AccountTransactionsView.swift */,
+				020000000000000000000000D4 /* AccountTransactionsViewModel.swift */,
+				020000000000000000000000D5 /* AccountTransactionFeedProjection.swift */,
+				020000000000000000000000D6 /* AccountTransactionsSummaryView.swift */,
 				020000000000000000000068 /* TransactionFeedScope.swift */,
 				020000000000000000000069 /* SpendingTransactionsView.swift */,
 				020000000000000000000040 /* AccountTransactionPresentation.swift */,
@@ -925,6 +937,9 @@
 				01000000000000000000000F /* AccountsView.swift in Sources */,
 				010000000000000000000024 /* AddAccountViewModel.swift in Sources */,
 				010000000000000000000010 /* AccountTransactionsView.swift in Sources */,
+				010000000000000000000000D4 /* AccountTransactionsViewModel.swift in Sources */,
+				010000000000000000000000D5 /* AccountTransactionFeedProjection.swift in Sources */,
+				010000000000000000000000D6 /* AccountTransactionsSummaryView.swift in Sources */,
 				010000000000000000000068 /* TransactionFeedScope.swift in Sources */,
 				010000000000000000000069 /* SpendingTransactionsView.swift in Sources */,
 				010000000000000000000040 /* AccountTransactionPresentation.swift in Sources */,
@@ -1015,6 +1030,7 @@
 				010000000000000000000000CF /* TransactionEditorViewModelTestSupport.swift in Sources */,
 				010000000000000000000000D0 /* AppStateBackgroundRefreshTests.swift in Sources */,
 				010000000000000000000000D2 /* LocalFirstActualStoreLifecycleTests.swift in Sources */,
+				010000000000000000000000D7 /* AccountTransactionsViewModelTests.swift in Sources */,
 				010000000000000000000028 /* UncategorizedTransactionsViewModelTests.swift in Sources */,
 				010000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift in Sources */,
 				010000000000000000000035 /* LocalFirstActualStoreTests.swift in Sources */,

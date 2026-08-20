@@ -391,6 +391,18 @@ enum TransactionAmountPresentation {
     }
 }
 
+enum TransactionPayeePresentation {
+    static func name(
+        for transaction: ActualTransaction,
+        payeeNames: [String: String]
+    ) -> String {
+        if let payeeName = transaction.payeeName, !payeeName.isEmpty { return payeeName }
+        if let payee = transaction.payee, let name = payeeNames[payee] { return name }
+        if let importedPayee = transaction.importedPayee, !importedPayee.isEmpty { return importedPayee }
+        return "Unknown Payee"
+    }
+}
+
 enum TransactionCategoryPresentation {
     static func names(
         for transaction: ActualTransaction,

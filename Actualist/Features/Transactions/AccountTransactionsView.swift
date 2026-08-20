@@ -13,21 +13,8 @@ struct AccountTransactionsView: View {
     let onCategoryCarryoverChanged: (Bool) -> Void
 
     @FocusState private var isSearchFieldFocused: Bool
-
-    @State private var isLoading = true
-    @State private var isLoadingOlder = false
     @State private var isSearchFieldVisible = false
-    @State private var isSearching = false
-    @State private var searchText = ""
-    @State private var searchResults: LoadedAccountTransactions?
-    @State private var searchErrorMessage: String?
-    @State private var searchTask: Task<Void, Never>?
-    @State private var errorMessage: String?
-    @State private var transactionEditorPresentation: TransactionEditorPresentation?
-    @State private var deletePresentation: TransactionDeletePresentation?
-    @State private var deletingTransactionID: String?
-    @State private var deleteIntentHaptic = 0
-    @State private var deleteSuccessHaptic = 0
+    @State private var viewModel: AccountTransactionsViewModel
 
     init(account: ActualAccount) {
         self.scope = .account(account)
@@ -37,6 +24,7 @@ struct AccountTransactionsView: View {
         self.canEditCategoryCarryover = false
         self.categoryCarryoverErrorMessage = nil
         self.onCategoryCarryoverChanged = { _ in }
+        _viewModel = State(initialValue: AccountTransactionsViewModel(scope: .account(account)))
     }
 
     init(
@@ -55,6 +43,7 @@ struct AccountTransactionsView: View {
         self.canEditCategoryCarryover = canEditCategoryCarryover
         self.categoryCarryoverErrorMessage = categoryCarryoverErrorMessage
         self.onCategoryCarryoverChanged = onCategoryCarryoverChanged
+        _viewModel = State(initialValue: AccountTransactionsViewModel(scope: scope))
     }
 
     private var budgetID: String? {
@@ -63,53 +52,6 @@ struct AccountTransactionsView: View {
 
     private var transactionRepository: any TransactionRepositoryProtocol {
         appState.transactionRepository
-    }
-
-    private var loaded: LoadedAccountTransactions? {
-        guard let budgetID else {
-            return nil
-        }
-        let repository = transactionRepository
-        switch scope {
-        case .account(let account):
-            return repository.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
-        case .spending:
-            return repository.cachedSpendingTransactions(budgetID: budgetID)
-        case .category(let details):
-            return repository.cachedCategoryTransactions(
-                budgetID: budgetID,
-                categoryID: details.category.id,
-                month: details.month
-            )
-        }
-    }
-
-    private var transactions: [ActualTransaction] {
-        loaded?.transactions ?? []
-    }
-
-    private var balance: Int? {
-        loaded?.balance
-    }
-
-    private var categoryNames: [String: String] {
-        loaded?.categoryNames ?? [:]
-    }
-
-    private var accountNames: [String: String] {
-        loaded?.accountNames ?? [:]
-    }
-
-    private var payeeNames: [String: String] {
-        loaded?.payeeNames ?? [:]
-    }
-
-    private var transferPayeeIDs: Set<String> {
-        loaded?.transferPayeeIDs ?? []
-    }
-
-    private var reachedEnd: Bool {
-        loaded?.reachedEnd ?? false
     }
 
     private var pendingNewTransactionIDs: Set<String> {
@@ -124,69 +66,15 @@ struct AccountTransactionsView: View {
         }
     }
 
-    private var trimmedSearchText: String {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var isSearchActive: Bool {
-        !trimmedSearchText.isEmpty
-    }
-
-    private var displayedTransactions: [ActualTransaction] {
-        guard isSearchActive else {
-            return transactions
-        }
-        if let searchResults {
-            return searchResults.transactions
-        }
-        return locallyFilteredTransactions
-    }
-
-    private var locallyFilteredTransactions: [ActualTransaction] {
-        transactions.filter { transaction in
-            searchTextMatches(payeeName(for: transaction))
-                || categoryNames(for: transaction).contains(where: searchTextMatches)
-                || searchTextMatches(accountName(for: transaction))
-                || transaction.subtransactions.contains { child in
-                    searchTextMatches(child.notes)
-                }
-                || searchTextMatches(transaction.importedPayee)
-                || searchTextMatches(transaction.notes)
-        }
-    }
-
-    private var displayedGroups: [TransactionDateGroup] {
-        TransactionGrouping.grouped(displayedTransactions)
-    }
-
-    private var activeCategoryNames: [String: String] {
-        searchResults?.categoryNames ?? categoryNames
-    }
-
-    private var activeAccountNames: [String: String] {
-        searchResults?.accountNames ?? accountNames
-    }
-
-    private var activePayeeNames: [String: String] {
-        searchResults?.payeeNames ?? payeeNames
-    }
-
-    private var activeTransferPayeeIDs: Set<String> {
-        searchResults?.transferPayeeIDs ?? transferPayeeIDs
-    }
-
-    private var activeTransferAccountIDsByPayeeID: [String: String] {
-        searchResults?.transferAccountIDsByPayeeID
-            ?? loaded?.transferAccountIDsByPayeeID
-            ?? [:]
-    }
-
-    private var activeOffBudgetAccountIDs: Set<String> {
-        searchResults?.offBudgetAccountIDs ?? loaded?.offBudgetAccountIDs ?? []
-    }
-
     var body: some View {
-        List {
+        let displayState = viewModel.displayState(
+            budgetID: budgetID,
+            repository: transactionRepository,
+            pendingNewTransactionIDs: pendingNewTransactionIDs,
+            privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
+        )
+
+        return List {
             if isSearchFieldVisible {
                 Section {
                     searchBar
@@ -199,22 +87,22 @@ struct AccountTransactionsView: View {
 
             if scope.showsSummaryHeader {
                 Section {
-                    header
+                    header(displayState)
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }
             }
 
-            transactionList
+            transactionList(displayState)
 
-            if isSearchActive {
-                searchFooter
+            if viewModel.isSearchActive {
+                searchFooter(displayState)
             } else {
-                olderTransactionsFooter
+                olderTransactionsFooter(displayState)
             }
 
-            if isLoading {
+            if viewModel.isLoading {
                 ProgressView("Loading transactions")
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 16)
@@ -223,7 +111,7 @@ struct AccountTransactionsView: View {
                     .listRowBackground(Color.clear)
             }
 
-            if let errorMessage {
+            if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.danger)
@@ -236,7 +124,7 @@ struct AccountTransactionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
-        .navigationTitle(scopeTitle)
+        .navigationTitle(displayState.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if scope.categoryDetails != nil {
@@ -260,7 +148,7 @@ struct AccountTransactionsView: View {
                 .accessibilityLabel("Search Transactions")
 
                 Button {
-                    transactionEditorPresentation = .create
+                    viewModel.showCreateEditor()
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -269,37 +157,49 @@ struct AccountTransactionsView: View {
             }
         }
         .task {
-            await loadLocal()
+            await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository)
         }
-        .refreshable { await refresh() }
+        .refreshable {
+            await viewModel.refresh(
+                budgetID: budgetID,
+                repository: transactionRepository,
+                sync: {
+                    guard let budgetID else { return }
+                    _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+                },
+                onChanged: onChanged
+            )
+        }
         .onChange(of: appState.localDataRevision) {
-            Task { await loadLocal() }
+            Task {
+                await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository)
+            }
         }
-        .onChange(of: searchText) { _, updated in
-            scheduleSearch(updated)
+        .onChange(of: viewModel.searchText) {
+            viewModel.scheduleSearch(budgetID: budgetID, repository: transactionRepository)
         }
         .onDisappear {
-            searchTask?.cancel()
-            guard let budgetID else {
-                return
-            }
-            switch scope {
-            case .account(let account):
-                appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: account.id)
-            case .spending, .category:
-                appState.clearPendingNewTransactionIDs(budgetID: budgetID)
+            viewModel.cancelSearch()
+            viewModel.clearPendingNewTransactions(budgetID: budgetID) { budgetID, accountID in
+                if let accountID {
+                    appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: accountID)
+                } else {
+                    appState.clearPendingNewTransactionIDs(budgetID: budgetID)
+                }
             }
         }
-        .sensoryFeedback(.selection, trigger: deleteIntentHaptic)
-        .sensoryFeedback(.success, trigger: deleteSuccessHaptic)
-        .sheet(item: $transactionEditorPresentation) { presentation in
+        .sensoryFeedback(.selection, trigger: viewModel.deleteIntentFeedback)
+        .sensoryFeedback(.success, trigger: viewModel.deleteSuccessFeedback)
+        .sheet(item: editorPresentationBinding) { presentation in
             TransactionEditorView(
                 prefilledAccount: scope.account,
                 editingTransaction: presentation.transaction,
                 prefilledPayeeName: presentation.payeeName,
                 prefilledCategoryName: presentation.categoryName ?? scope.prefilledCategoryName
             ) {
-                Task { await loadLocal() }
+                Task {
+                    await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository)
+                }
             }
                 .environment(appState)
                 .appSwitcherPrivacyProtected()
@@ -307,154 +207,53 @@ struct AccountTransactionsView: View {
         .confirmationDialog(
             "Delete Transaction?",
             isPresented: Binding(
-                get: { deletePresentation != nil },
+                get: { viewModel.deletePresentation != nil },
                 set: { isPresented in
                     if !isPresented {
-                        deletePresentation = nil
+                        viewModel.deletePresentation = nil
                     }
                 }
             ),
             titleVisibility: .visible
         ) {
-            if let deletePresentation {
+            if let deletePresentation = viewModel.deletePresentation {
                 Button("Delete Transaction", role: .destructive) {
-                    Task { await delete(deletePresentation.transaction) }
+                    Task {
+                        await viewModel.delete(
+                            deletePresentation.transaction,
+                            budgetID: budgetID,
+                            repository: transactionRepository,
+                            onChanged: onChanged
+                        )
+                    }
                 }
             }
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            if let deletePresentation {
+            if let deletePresentation = viewModel.deletePresentation {
                 Text("Delete \(deletePresentation.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription).")
             }
         }
     }
 
-    private var header: some View {
-        Group {
-            if let details = scope.categoryDetails {
-                categorySummary(details)
-            } else {
-                VStack(spacing: 6) {
-                    Text(balanceText)
-                        .font(ActualistTypography.workScreenAmount(for: density))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                    Text("Working Balance")
-                        .font(ActualistTypography.body(for: density))
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 10)
-        .padding(.horizontal, 16)
-    }
-
-    private func categorySummary(_ details: CategoryMonthDetails) -> some View {
-        VStack(spacing: 0) {
-            Text(details.monthTitle)
-                .font(ActualistTypography.sectionTitle(for: density))
-                .foregroundStyle(ActualistTheme.secondaryText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 8)
-
-            categorySummaryRow(label: "Budgeted", amount: details.budgetedAmount)
-            Divider().overlay(ActualistTheme.separator)
-            categorySummaryRow(label: "Spent", amount: details.spentAmount)
-            Divider().overlay(ActualistTheme.separator)
-            categorySummaryRow(
-                label: "Remaining",
-                amount: details.remainingAmount,
-                foreground: remainingForeground(details.remainingAmount)
-            )
-
-            if let categoryCarryoverIsEnabled {
-                Divider().overlay(ActualistTheme.separator)
-
-                categoryCarryoverRow(isEnabled: categoryCarryoverIsEnabled)
-            }
-
-            if let categoryCarryoverErrorMessage {
-                Text(categoryCarryoverErrorMessage)
-                    .font(ActualistTypography.rowLabel(for: density))
-                    .foregroundStyle(ActualistTheme.danger)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 4)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func categoryCarryoverRow(isEnabled: Bool) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Rollover Overspending")
-                    .font(ActualistTypography.body(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
-
-                Text("Carry this category’s negative balance into following months.")
-                    .font(ActualistTypography.rowLabel(for: density))
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 8)
-
-            if categoryCarryoverIsUpdating {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(ActualistTheme.accent)
-            }
-
-            Toggle(
-                "Rollover Overspending",
-                isOn: Binding(
-                    get: { isEnabled },
-                    set: onCategoryCarryoverChanged
-                )
-            )
-            .labelsHidden()
-            .tint(ActualistTheme.accent)
-            .disabled(!canEditCategoryCarryover || categoryCarryoverIsUpdating)
-            .accessibilityValue(isEnabled ? "On" : "Off")
-        }
-        .padding(.vertical, 10)
-    }
-
-    private func categorySummaryRow(
-        label: String,
-        amount: Int,
-        foreground: Color = ActualistTheme.primaryText
-    ) -> some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(ActualistTypography.body(for: density))
-                .foregroundStyle(ActualistTheme.secondaryText)
-            Spacer()
-            Text(summaryAmountText(amount, label: label))
-                .font(ActualistTypography.rowValue(for: density))
-                .foregroundStyle(foreground)
-        }
-        .padding(.vertical, 10)
-    }
-
-    private func summaryAmountText(_ amount: Int, label: String) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return amount.actualMoney.formatted()
-        }
-        return PrivacyDisplay.money(
-            amount,
-            seed: "category-summary-\(scope.categoryDetails?.id ?? label)-\(label)",
-            maximumDollars: 2_500
+    private var editorPresentationBinding: Binding<TransactionEditorPresentation?> {
+        Binding(
+            get: { viewModel.transactionEditorPresentation },
+            set: { viewModel.transactionEditorPresentation = $0 }
         )
     }
 
-    private func remainingForeground(_ amount: Int) -> Color {
-        if amount < 0 { return ActualistTheme.danger }
-        if amount == 0 { return ActualistTheme.secondaryText }
-        return ActualistTheme.positive
+    private func header(_ displayState: AccountTransactionsDisplayState) -> some View {
+        AccountTransactionsSummaryView(
+            scope: scope,
+            displayState: displayState,
+            categoryCarryoverIsEnabled: categoryCarryoverIsEnabled,
+            categoryCarryoverIsUpdating: categoryCarryoverIsUpdating,
+            canEditCategoryCarryover: canEditCategoryCarryover,
+            categoryCarryoverErrorMessage: categoryCarryoverErrorMessage,
+            onCategoryCarryoverChanged: onCategoryCarryoverChanged
+        )
     }
 
     private var searchBar: some View {
@@ -464,7 +263,13 @@ struct AccountTransactionsView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .accessibilityHidden(true)
 
-            TextField("Search Transactions", text: $searchText)
+            TextField(
+                "Search Transactions",
+                text: Binding(
+                    get: { viewModel.searchText },
+                    set: { viewModel.searchText = $0 }
+                )
+            )
                 .focused($isSearchFieldFocused)
                 .font(ActualistTypography.body(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
@@ -474,11 +279,8 @@ struct AccountTransactionsView: View {
                 .autocorrectionDisabled()
 
             Button {
-                if isSearchActive {
-                    searchText = ""
-                    searchResults = nil
-                    searchErrorMessage = nil
-                    isSearching = false
+                if viewModel.isSearchActive {
+                    viewModel.clearSearch()
                     isSearchFieldFocused = true
                 } else {
                     hideSearch()
@@ -489,7 +291,7 @@ struct AccountTransactionsView: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isSearchActive ? "Clear Search" : "Close Search")
+            .accessibilityLabel(viewModel.isSearchActive ? "Clear Search" : "Close Search")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -499,8 +301,8 @@ struct AccountTransactionsView: View {
         .padding(.bottom, 2)
     }
 
-    private var transactionList: some View {
-        ForEach(displayedGroups, id: \.date) { group in
+    private func transactionList(_ displayState: AccountTransactionsDisplayState) -> some View {
+        ForEach(displayState.groups) { group in
             Text(group.title)
                 .font(ActualistTypography.sectionTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
@@ -512,10 +314,10 @@ struct AccountTransactionsView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
 
-            ForEach(Array(group.transactions.enumerated()), id: \.element.rowID) { index, transaction in
+            ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
                 transactionButton(
-                    for: transaction,
-                    showsBottomSeparator: index < group.transactions.count - 1
+                    for: row,
+                    showsBottomSeparator: index < group.rows.count - 1
                 )
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
@@ -525,16 +327,16 @@ struct AccountTransactionsView: View {
     }
 
     @ViewBuilder
-    private var searchFooter: some View {
+    private func searchFooter(_ displayState: AccountTransactionsDisplayState) -> some View {
         Group {
-            if isSearching {
+            if viewModel.isSearching {
                 ProgressView("Searching transactions")
                     .font(ActualistTypography.rowBadge(for: density))
-            } else if let searchErrorMessage {
+            } else if let searchErrorMessage = viewModel.searchErrorMessage {
                 Text(searchErrorMessage)
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.danger)
-            } else if displayedTransactions.isEmpty {
+            } else if displayState.transactionCount == 0 {
                 Text("No matching transactions")
                     .font(ActualistTypography.rowBadge(for: density))
                     .foregroundStyle(ActualistTheme.secondaryText)
@@ -549,19 +351,24 @@ struct AccountTransactionsView: View {
     }
 
     @ViewBuilder
-    private var olderTransactionsFooter: some View {
-        if loaded != nil {
+    private func olderTransactionsFooter(_ displayState: AccountTransactionsDisplayState) -> some View {
+        if displayState.hasLoadedSnapshot {
             Group {
-                if reachedEnd {
+                if displayState.reachedEnd {
                     Text("Beginning of history")
                         .font(ActualistTypography.rowBadge(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
-                } else if isLoadingOlder {
+                } else if viewModel.isLoadingOlder {
                     ProgressView("Loading older transactions")
                         .font(ActualistTypography.rowBadge(for: density))
                 } else {
                     Button {
-                        Task { await loadOlder() }
+                        Task {
+                            await viewModel.loadOlder(
+                                budgetID: budgetID,
+                                repository: transactionRepository
+                            )
+                        }
                     } label: {
                         Label("Load older transactions", systemImage: "clock.arrow.circlepath")
                             .font(ActualistTypography.control(for: density))
@@ -577,128 +384,53 @@ struct AccountTransactionsView: View {
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
             .onAppear {
-                Task { await loadOlder() }
+                Task {
+                    await viewModel.loadOlder(
+                        budgetID: budgetID,
+                        repository: transactionRepository
+                    )
+                }
             }
         }
     }
 
     private func transactionButton(
-        for transaction: ActualTransaction,
+        for row: AccountTransactionRowPresentation,
         showsBottomSeparator: Bool
     ) -> some View {
         Button {
-            transactionEditorPresentation = .edit(
-                transaction,
-                payeeName: payeeName(for: transaction),
-                categoryName: categoryNames(for: transaction).first ?? "Uncategorized"
+            viewModel.showEditor(
+                for: row.transaction,
+                budgetID: budgetID,
+                repository: transactionRepository
             )
         } label: {
             TransactionRow(
-                transaction: transaction,
-                payeeName: displayPayeeName(for: transaction),
-                categoryNames: displayCategoryNames(for: transaction),
-                accountName: displayAccountName(for: transaction),
+                transaction: row.transaction,
+                payeeName: row.payeeName,
+                categoryNames: row.categoryNames,
+                accountName: row.accountName,
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                 highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
-                isNew: transaction.id.map { pendingNewTransactionIDs.contains($0) } ?? false,
+                isNew: row.isNew,
                 showsBottomSeparator: showsBottomSeparator
             )
         }
         .buttonStyle(.plain)
-        .disabled(deletingTransactionID == transaction.rowID)
+        .disabled(viewModel.deletingTransactionID == row.transaction.rowID)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
-                requestDelete(transaction)
+                viewModel.requestDelete(
+                    row.transaction,
+                    budgetID: budgetID,
+                    repository: transactionRepository
+                )
             } label: {
                 Label("Delete", systemImage: "trash")
             }
             .tint(ActualistTheme.danger)
-            .disabled(transaction.id == nil || deletingTransactionID != nil)
+            .disabled(row.transaction.id == nil || viewModel.deletingTransactionID != nil)
         }
-    }
-
-    private func requestDelete(_ transaction: ActualTransaction) {
-        guard transaction.id != nil else {
-            errorMessage = "This transaction cannot be deleted because it is missing its transaction ID."
-            return
-        }
-
-        deleteIntentHaptic += 1
-        deletePresentation = TransactionDeletePresentation(
-            transaction: transaction,
-            payeeName: payeeName(for: transaction)
-        )
-    }
-
-    private func delete(_ transaction: ActualTransaction) async {
-        guard let budgetID else {
-            return
-        }
-
-        deletingTransactionID = transaction.rowID
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            let repository = transactionRepository
-            _ = try await repository.deleteTransactionAndRefresh(
-                transaction,
-                budgetID: budgetID
-            ) {}
-            if case .category(let details) = scope {
-                try await repository.refreshCategoryTransactions(
-                    budgetID: budgetID,
-                    categoryID: details.category.id,
-                    month: details.month
-                )
-                onChanged()
-            }
-            deleteSuccessHaptic += 1
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-
-        isLoading = false
-        deletingTransactionID = nil
-    }
-
-    private func payeeName(for transaction: ActualTransaction) -> String {
-        if let payeeName = transaction.payeeName, !payeeName.isEmpty {
-            return payeeName
-        }
-        if let payee = transaction.payee, let name = activePayeeNames[payee] {
-            return name
-        }
-        if let importedPayee = transaction.importedPayee, !importedPayee.isEmpty {
-            return importedPayee
-        }
-        return "Unknown Payee"
-    }
-
-    private func categoryNames(for transaction: ActualTransaction) -> [String] {
-        TransactionCategoryPresentation.names(
-            for: transaction,
-            categoryNames: activeCategoryNames,
-            transferPayeeIDs: activeTransferPayeeIDs,
-            transferAccountIDsByPayeeID: activeTransferAccountIDsByPayeeID,
-            offBudgetAccountIDs: activeOffBudgetAccountIDs
-        )
-    }
-
-    private func accountName(for transaction: ActualTransaction) -> String? {
-        guard scope.showsAccountNames else {
-            return nil
-        }
-
-        let name = activeAccountNames[transaction.account]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name?.isEmpty == false ? name : "Unknown Account"
-    }
-
-    private func searchTextMatches(_ value: String?) -> Bool {
-        guard let value, !trimmedSearchText.isEmpty else {
-            return false
-        }
-        return value.localizedCaseInsensitiveContains(trimmedSearchText)
     }
 
     private func showSearch() {
@@ -716,205 +448,11 @@ struct AccountTransactionsView: View {
     }
 
     private func hideSearch() {
-        searchTask?.cancel()
-        isSearching = false
-        searchText = ""
-        searchResults = nil
-        searchErrorMessage = nil
+        viewModel.clearSearch()
         isSearchFieldFocused = false
 
         withAnimation(.snappy(duration: 0.2)) {
             isSearchFieldVisible = false
         }
-    }
-
-    private func loadLocal() async {
-        guard let budgetID else {
-            isLoading = false
-            return
-        }
-
-        let hadLoadedSnapshot = loaded != nil
-        isLoading = !hadLoadedSnapshot
-        errorMessage = nil
-        do {
-            let repository = transactionRepository
-            switch scope {
-            case .account(let account):
-                try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
-            case .spending:
-                try await repository.refreshSpendingTransactions(budgetID: budgetID)
-            case .category(let details):
-                try await repository.refreshCategoryTransactions(
-                    budgetID: budgetID,
-                    categoryID: details.category.id,
-                    month: details.month
-                )
-            }
-            isLoading = false
-        } catch {
-            errorMessage = loaded == nil ? error.localizedDescription : nil
-        }
-        isLoading = false
-    }
-
-    private func refresh() async {
-        guard let budgetID else {
-            return
-        }
-        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
-        await loadLocal()
-        onChanged()
-    }
-
-    private func loadOlder() async {
-        guard let budgetID, loaded != nil, !reachedEnd, !isLoading, !isLoadingOlder else {
-            return
-        }
-
-        isLoadingOlder = true
-        errorMessage = nil
-        do {
-            let repository = transactionRepository
-            switch scope {
-            case .account(let account):
-                try await repository.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
-            case .spending:
-                try await repository.loadOlderSpendingTransactions(budgetID: budgetID)
-            case .category:
-                break
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoadingOlder = false
-    }
-
-    private func scheduleSearch(_ query: String) {
-        searchTask?.cancel()
-        searchErrorMessage = nil
-        searchResults = nil
-
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else {
-            isSearching = false
-            return
-        }
-
-        if case .category = scope {
-            // Category-month feeds are complete local snapshots.
-            isSearching = false
-            return
-        }
-
-        searchTask = Task {
-            isSearching = true
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else {
-                isSearching = false
-                return
-            }
-            await search(trimmedQuery)
-        }
-    }
-
-    private func search(_ query: String) async {
-        guard let budgetID else {
-            isSearching = false
-            return
-        }
-
-        do {
-            let repository = transactionRepository
-            let results: LoadedAccountTransactions
-            switch scope {
-            case .account(let account):
-                results = try await repository.searchAccountTransactions(
-                    budgetID: budgetID,
-                    accountID: account.id,
-                    query: query,
-                    limit: 50,
-                    offset: 0
-                )
-            case .spending:
-                results = try await repository.searchSpendingTransactions(
-                    budgetID: budgetID,
-                    query: query,
-                    limit: 50,
-                    offset: 0
-                )
-            case .category:
-                isSearching = false
-                return
-            }
-            guard !Task.isCancelled, query == trimmedSearchText else {
-                return
-            }
-            searchResults = results
-        } catch {
-            guard !Task.isCancelled else {
-                return
-            }
-            searchErrorMessage = error.localizedDescription
-        }
-        isSearching = false
-    }
-
-    private var scopeTitle: String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return scope.title
-        }
-
-        switch scope {
-        case .account(let account):
-            return PrivacyDisplay.name(for: .account, seed: account.id)
-        case .spending:
-            return scope.title
-        case .category(let details):
-            return PrivacyDisplay.name(for: .category, seed: details.category.id)
-        }
-    }
-
-    private var balanceText: String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return (balance ?? 0).actualMoney.formatted()
-        }
-
-        let seed = scope.account.map { "account-header-\($0.id)" } ?? "spending-header"
-        return PrivacyDisplay.money(balance, seed: seed, maximumDollars: 15_000)
-    }
-
-    private func displayPayeeName(for transaction: ActualTransaction) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return payeeName(for: transaction)
-        }
-
-        return PrivacyDisplay.name(for: .payee, seed: "payee-\(transaction.rowID)")
-    }
-
-    private func displayCategoryNames(for transaction: ActualTransaction) -> [String] {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return categoryNames(for: transaction)
-        }
-
-        if !transaction.subtransactions.isEmpty {
-            return transaction.subtransactions.map { child in
-                PrivacyDisplay.name(for: .category, seed: "category-\(child.rowID)")
-            }
-        }
-
-        return [PrivacyDisplay.name(for: .category, seed: "category-\(transaction.rowID)")]
-    }
-
-    private func displayAccountName(for transaction: ActualTransaction) -> String? {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return accountName(for: transaction)
-        }
-
-        guard scope.showsAccountNames else {
-            return nil
-        }
-
-        return PrivacyDisplay.name(for: .account, seed: transaction.account)
     }
 }
