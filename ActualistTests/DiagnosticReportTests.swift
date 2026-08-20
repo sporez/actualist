@@ -193,7 +193,7 @@ struct ActualServerErrorRedactionTests {
             Issue.record("Expected the transport to fail")
         } catch {
             let message = error.localizedDescription
-            #expect(message == "Actualist could not reach the server. If iOS asked for Local Network access, tap Allow and try again; otherwise check the URL and that the server is running.")
+            #expect(message == "Actualist could not reach the server. If iOS asked for Local Network access and you tapped Don't Allow, enable it for Actualist in Settings > Privacy & Security > Local Network, then try again. Otherwise, check that the server is running and the URL is correct.")
             #expect(!message.contains("offline.actual.private.example"))
             #expect(!message.contains("private-token"))
         }

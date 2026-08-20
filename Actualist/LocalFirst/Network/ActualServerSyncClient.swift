@@ -433,13 +433,19 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     /// no risk of duplicate side effects. This deliberately covers error codes
     /// (and non-`URLError` failures that surface as `.transport(nil)`) beyond the
     /// `.cannotConnectToHost`/`.cannotFindHost` pair iOS historically produced
-    /// while the Local Network sheet is pending; iOS 26 has been observed failing
-    /// the first socket with other codes, and the safety invariant does not
-    /// depend on which code was returned, only on the fact that `hasConnected` is
-    /// still false. `LocalFirstError` (resource limits, app errors) and
-    /// non-transport `ActualAPIError` (HTTP statuses, decoding) are not retried:
-    /// they either are not network failures or imply the server already
-    /// responded, so the permission gate is no longer the issue.
+    /// while the Local Network sheet is pending. On iOS 26 a *denied* Local
+    /// Network grant kills the TLS handshake and surfaces as
+    /// `.secureConnectionFailed` (-1200) while a raw TCP connect still succeeds
+    /// — verified on-device. The safety invariant does not depend on which code
+    /// was returned, only on the fact that `hasConnected` is still false.
+    /// `LocalFirstError` (resource limits, app errors) and non-transport
+    /// `ActualAPIError` (HTTP statuses, decoding) are not retried: they either
+    /// are not network failures or imply the server already responded, so the
+    /// permission gate is no longer the issue. When retries exhaust the failure
+    /// is labeled `.localNetworkDenied`; the error copy is hedged because a
+    /// genuinely-down server on first connect is indistinguishable without a
+    /// public permission-state API, and checking the toggle in Settings is the
+    /// correct first remedy either way.
     private func withFirstConnectionRecovery<T>(
         _ operation: () async throws -> T
     ) async throws -> T {
@@ -601,7 +607,7 @@ enum ActualAPIError: LocalizedError {
                 "Actualist could not reach the server."
             }
         case .localNetworkDenied:
-            "Actualist could not reach the server. If iOS asked for Local Network access, tap Allow and try again; otherwise check the URL and that the server is running."
+            "Actualist could not reach the server. If iOS asked for Local Network access and you tapped Don't Allow, enable it for Actualist in Settings > Privacy & Security > Local Network, then try again. Otherwise, check that the server is running and the URL is correct."
         }
     }
 }

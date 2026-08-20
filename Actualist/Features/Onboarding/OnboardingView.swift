@@ -46,7 +46,9 @@ struct OnboardingView: View {
                                 .font(ActualistTypography.rowTitle(for: density))
                                 .foregroundStyle(ActualistTheme.primaryText)
                                 .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
                                 .keyboardType(.URL)
+                                .textContentType(.URL)
                                 .multilineTextAlignment(.leading)
                                 .accessibilityLabel("Server URL")
                             }
