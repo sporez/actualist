@@ -9,14 +9,6 @@ enum TransactionFlowKind: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum TransactionSubmissionState: Equatable {
-    case draft
-    case submitting
-    case refetching
-    case clean
-    case failed(String)
-}
-
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
@@ -29,6 +21,7 @@ final class TransactionEditorViewModel {
     private let originalIsParent: Bool
     private var categoryState = TransactionEditorCategoryState()
     private let rulePreviewCoordinator = TransactionRulePreviewCoordinator()
+    private let submissionCoordinator = TransactionEditorSubmissionCoordinator()
 
     var kind: TransactionFlowKind = .spend
     var amountDigits = ""
@@ -45,7 +38,9 @@ final class TransactionEditorViewModel {
     var isLoading = false
     var isLoadingCategoryBalances = false
     var errorMessage: String?
-    var submissionState: TransactionSubmissionState = .draft
+    var submissionState: TransactionSubmissionState {
+        submissionCoordinator.submissionState
+    }
     private var loadedCategoryBalanceMonth: String?
 
     init(
@@ -87,12 +82,7 @@ final class TransactionEditorViewModel {
     }
 
     var isSubmitting: Bool {
-        switch submissionState {
-        case .submitting, .refetching:
-            true
-        case .draft, .clean, .failed:
-            false
-        }
+        submissionCoordinator.isSubmitting
     }
 
     var isPreviewingRules: Bool {
@@ -539,146 +529,102 @@ final class TransactionEditorViewModel {
         budgetID: String,
         repository: any TransactionRepositoryProtocol
     ) async -> Bool {
-        let submitsAsTransfer = selectedPayeeIsTransfer
-
-        switch categoryState.validate(
+        let validation = categoryState.validate(
             transactionTotal: amountCents,
-            submitsAsTransfer: submitsAsTransfer
+            submitsAsTransfer: selectedPayeeIsTransfer
+        )
+        switch submissionCoordinator.preflight(
+            validation: validation,
+            draft: makeDraft(),
+            editingIdentity: makeEditingIdentity()
         ) {
-        case .overflow:
-            let message = "The split amounts are too large."
-            submissionState = .failed(message)
-            errorMessage = message
-            return false
-        case .mismatch:
-            return false
-        case .valid:
-            break
-        }
-
-        guard !isSubmitting, let draft = makeDraft() else {
-            return false
-        }
-
-        guard !isEditing || (editingTransactionID != nil && originalAccountID != nil && originalMonth != nil) else {
-            return false
-        }
-
-        submissionState = .submitting
-        errorMessage = nil
-
-        do {
-            if isEditing {
-                guard let editingTransactionID,
-                      let originalAccountID,
-                      let originalMonth else {
-                    return false
-                }
-
-                _ = try await repository.updateTransactionAndRefresh(
-                    editingTransactionID,
-                    with: draft,
-                    budgetID: budgetID,
-                    originalAccountID: originalAccountID,
-                    originalMonth: originalMonth
-                ) { [weak self] in
-                    await MainActor.run {
-                        self?.submissionState = .refetching
-                    }
-                }
-            } else {
-                _ = try await repository.createTransactionAndRefresh(
-                    draft,
-                    budgetID: budgetID
-                ) { [weak self] in
-                    await MainActor.run {
-                        self?.submissionState = .refetching
-                    }
-                }
+        case .proceed(let identity, let draft):
+            errorMessage = nil
+            switch await submissionCoordinator.execute(
+                editingIdentity: identity,
+                draft: draft,
+                budgetID: budgetID,
+                repository: repository
+            ) {
+            case .succeeded:
+                return true
+            case .failed(let message):
+                errorMessage = message
+                return false
             }
-            submissionState = .clean
-            return true
-        } catch {
-            let message = error.localizedDescription
-            submissionState = .failed(message)
+        case .rejectedSplitOverflow(let message):
             errorMessage = message
+            return false
+        case .rejectedSplitMismatch,
+             .rejectedInvalidDraft,
+             .rejectedAlreadySubmitting,
+             .rejectedInvalidEditingIdentity:
             return false
         }
     }
 
     private func makeDraft() -> TransactionDraft? {
-        guard let selectedAccountID else {
-            return nil
-        }
-
-        let trimmedPayee = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard amountCents > 0, !trimmedPayee.isEmpty else {
-            return nil
-        }
-
-        let signedAmount = kind == .spend ? -amountCents : amountCents
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return TransactionDraft(
-            accountID: selectedAccountID,
-            date: date,
-            amountMinorUnits: signedAmount,
-            payeeID: selectedPayeeID,
-            payeeName: trimmedPayee,
-            categoryID: isCategoryReadOnly || isSplit ? nil : selectedCategoryID,
-            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-            cleared: isCleared,
-            isTransfer: selectedPayeeIsTransfer,
-            importedPayee: originalImportedPayee,
-            reconciled: originalReconciled,
-            isParent: isSplit || originalIsParent,
-            splits: selectedPayeeIsTransfer || isCategoryReadOnly
-                ? []
-                : categoryState.splitDrafts(sign: kind == .spend ? -1 : 1)
-        )
+        TransactionDraftBuilder.makeSubmissionDraft(from: makeSubmissionInput())
     }
 
     private func makeRulePreviewRequest(budgetID: String) -> TransactionRulePreviewRequest? {
-        guard let selectedAccountID else {
-            return nil
+        TransactionDraftBuilder.makeRulePreviewRequest(from: makeRulePreviewInput(budgetID: budgetID))
+    }
+
+    private func makeEditingIdentity() -> TransactionEditorSubmissionCoordinator.EditingIdentity? {
+        if isEditing {
+            guard let editingTransactionID,
+                  let originalAccountID,
+                  let originalMonth else {
+                return nil
+            }
+            return .updating(
+                transactionID: editingTransactionID,
+                originalAccountID: originalAccountID,
+                originalMonth: originalMonth
+            )
         }
+        return .creating
+    }
 
-        let trimmedPayee = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPayee.isEmpty else {
-            return nil
-        }
+    private func makeSubmissionInput() -> TransactionDraftBuilder.SubmissionInput {
+        TransactionDraftBuilder.SubmissionInput(
+            accountID: selectedAccountID,
+            amountCents: amountCents,
+            kind: kind,
+            payeeID: selectedPayeeID,
+            payeeName: payeeName,
+            notes: notes,
+            cleared: isCleared,
+            categoryID: selectedCategoryID,
+            isCategoryReadOnly: isCategoryReadOnly,
+            isSplit: isSplit,
+            isTransfer: selectedPayeeIsTransfer,
+            realImportedPayee: originalImportedPayee,
+            reconciled: originalReconciled,
+            originalIsParent: originalIsParent,
+            date: date,
+            splitDrafts: categoryState.splitDrafts(sign: kind == .spend ? -1 : 1)
+        )
+    }
 
-        let signedAmount: Int
-        if amountCents > 0 {
-            signedAmount = kind == .spend ? -amountCents : amountCents
-        } else {
-            signedAmount = 0
-        }
-
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Manually-added transactions have no imported payee, but the rules Actual
-        // records when categorizing an imported transaction match on `imported_payee`.
-        // Feed the entered payee name as that text for preview matching only; the
-        // saved draft keeps its real (nil) imported payee.
-        let rulePreviewImportedPayee = originalImportedPayee ?? trimmedPayee
-
-        return TransactionRulePreviewRequest(
+    private func makeRulePreviewInput(budgetID: String) -> TransactionDraftBuilder.RulePreviewInput {
+        TransactionDraftBuilder.RulePreviewInput(
+            accountID: selectedAccountID,
+            amountCents: amountCents,
+            kind: kind,
+            payeeID: selectedPayeeID,
+            payeeName: payeeName,
+            notes: notes,
+            cleared: isCleared,
+            categoryID: selectedCategoryID,
+            isCategoryReadOnly: isCategoryReadOnly,
+            isTransfer: selectedPayeeIsTransfer,
+            realImportedPayee: originalImportedPayee,
+            reconciled: originalReconciled,
+            originalIsParent: originalIsParent,
+            date: date,
             budgetID: budgetID,
-            draft: TransactionDraft(
-                accountID: selectedAccountID,
-                date: date,
-                amountMinorUnits: signedAmount,
-                payeeID: selectedPayeeID,
-                payeeName: trimmedPayee,
-                categoryID: isCategoryReadOnly ? nil : selectedCategoryID,
-                notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
-                cleared: isCleared,
-                isTransfer: selectedPayeeIsTransfer,
-                importedPayee: rulePreviewImportedPayee,
-                reconciled: originalReconciled,
-                isParent: originalIsParent
-            ),
             categorySelection: categoryState.selection
         )
     }
