@@ -156,7 +156,9 @@
 		010000000000000000000040 /* AccountTransactionPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000040 /* AccountTransactionPresentation.swift */; };
 		010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000041 /* BudgetDatabaseModels.swift */; };
 		010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000042 /* LocalFirstTestSupport.swift */; };
-		010000000000000000000043 /* BudgetDatabase+Reads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000043 /* BudgetDatabase+Reads.swift */; };
+		010000000000000000000000DF /* BudgetDatabase+BasicReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000DF /* BudgetDatabase+BasicReads.swift */; };
+		010000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift */; };
+		010000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift */; };
 		010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000044 /* BudgetDatabase+Sync.swift */; };
 		0100000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift */; };
 		0100000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift */; };
@@ -357,7 +359,9 @@
 		020000000000000000000040 /* AccountTransactionPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTransactionPresentation.swift; sourceTree = "<group>"; };
 		020000000000000000000041 /* BudgetDatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDatabaseModels.swift; sourceTree = "<group>"; };
 		020000000000000000000042 /* LocalFirstTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstTestSupport.swift; sourceTree = "<group>"; };
-		020000000000000000000043 /* BudgetDatabase+Reads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Reads.swift"; sourceTree = "<group>"; };
+		020000000000000000000000DF /* BudgetDatabase+BasicReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BasicReads.swift"; sourceTree = "<group>"; };
+		020000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionReads.swift"; sourceTree = "<group>"; };
+		020000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BudgetReads.swift"; sourceTree = "<group>"; };
 		020000000000000000000044 /* BudgetDatabase+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Sync.swift"; sourceTree = "<group>"; };
 		0200000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionCreation.swift"; sourceTree = "<group>"; };
 		0200000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionUpdates.swift"; sourceTree = "<group>"; };
@@ -784,7 +788,9 @@
 				020000000000000000000030 /* BudgetFileManager.swift */,
 				020000000000000000000031 /* BudgetDatabase.swift */,
 				020000000000000000000041 /* BudgetDatabaseModels.swift */,
-				020000000000000000000043 /* BudgetDatabase+Reads.swift */,
+				020000000000000000000000DF /* BudgetDatabase+BasicReads.swift */,
+				020000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift */,
+				020000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift */,
 				020000000000000000000071 /* BudgetDatabase+Payees.swift */,
 				02000000000000000000007E /* BudgetDatabase+Rules.swift */,
 				020000000000000000000081 /* RuleConditionEvaluator.swift */,
@@ -1027,7 +1033,9 @@
 				010000000000000000000030 /* BudgetFileManager.swift in Sources */,
 				010000000000000000000031 /* BudgetDatabase.swift in Sources */,
 				010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */,
-				010000000000000000000043 /* BudgetDatabase+Reads.swift in Sources */,
+				010000000000000000000000DF /* BudgetDatabase+BasicReads.swift in Sources */,
+				010000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift in Sources */,
+				010000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift in Sources */,
 				010000000000000000000071 /* BudgetDatabase+Payees.swift in Sources */,
 				01000000000000000000007E /* BudgetDatabase+Rules.swift in Sources */,
 				010000000000000000000081 /* RuleConditionEvaluator.swift in Sources */,
