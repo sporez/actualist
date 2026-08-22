@@ -75,9 +75,10 @@ final class ShortcutsBudgetSession {
     func categories(
         includeHidden: Bool,
         includeIncome: Bool = false,
-        matching query: String? = nil
+        matching query: String? = nil,
+        month preferredMonth: String? = nil
     ) async throws -> [CategoryEntity] {
-        let month = try await loadedMonth()
+        let month = try await loadedMonth(preferred: preferredMonth)
         let groupNames = Dictionary(
             uniqueKeysWithValues: month.month.categoryGroups.map { ($0.id, $0.name) }
         )

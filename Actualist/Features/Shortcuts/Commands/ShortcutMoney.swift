@@ -37,4 +37,15 @@ enum ShortcutMoney {
     static func minorUnits(from amount: IntentCurrencyAmount) throws -> Int {
         try minorUnits(from: amount.amount)
     }
+
+    static func spoken(_ amount: IntentCurrencyAmount?) -> String {
+        guard let amount else {
+            return Money(minorUnits: 0).formatted()
+        }
+        return Money(minorUnits: (try? minorUnits(from: amount)) ?? 0).formatted()
+    }
+
+    static func spoken(minorUnits: Int) -> String {
+        Money(minorUnits: minorUnits).formatted()
+    }
 }

@@ -1,0 +1,228 @@
+import Foundation
+
+extension ShortcutsBudgetSession {
+    static let suggestedTransactionLimit = 50
+    static let maximumTransactionLimit = 100
+    static let defaultTransactionLimit = 25
+
+    func account(id: String, includeClosed: Bool = true) async throws -> AccountEntity {
+        let accounts = try await accounts(includeClosed: includeClosed)
+        guard let account = accounts.first(where: { $0.id == id }) else {
+            throw ShortcutsError.accountNotFound
+        }
+        return account
+    }
+
+    func category(
+        id: String,
+        includeHidden: Bool = true,
+        includeIncome: Bool = true,
+        month: String? = nil
+    ) async throws -> CategoryEntity {
+        let categories = try await categories(
+            includeHidden: includeHidden,
+            includeIncome: includeIncome,
+            month: month
+        )
+        guard let category = categories.first(where: { $0.id == id }) else {
+            throw ShortcutsError.categoryNotFound
+        }
+        return category
+    }
+
+    func payee(id: String, includeTransfers: Bool = true) async throws -> PayeeEntity {
+        let payees = try await payees(includeTransfers: includeTransfers)
+        guard let payee = payees.first(where: { $0.id == id }) else {
+            throw ShortcutsError.payeeNotFound
+        }
+        return payee
+    }
+
+    func budgetSummary(month: String? = nil) async throws -> BudgetSummaryEntity {
+        let loaded = try await loadedMonth(preferred: month)
+        return BudgetSummaryEntity.make(from: loaded)
+    }
+
+    func overspentCategories(month: String? = nil) async throws -> [CategoryEntity] {
+        let loaded = try await loadedMonth(preferred: month)
+        return loaded.month.categoryGroups.flatMap { group in
+            group.categories.compactMap { category in
+                let isHidden = category.hidden ?? false
+                guard !isHidden, !category.isIncome, category.balance < 0 else {
+                    return nil
+                }
+                return CategoryEntity.make(from: category, groupName: group.name)
+            }
+        }
+    }
+
+    func budgetAlerts(month: String? = nil) async throws -> [BudgetAlertEntity] {
+        let loaded = try await loadedMonth(preferred: month)
+        return loaded.alerts.map { alert in
+            BudgetAlertEntity.make(from: alert, month: loaded.selectedMonth)
+        }
+    }
+
+    func uncategorizedTransactions(
+        month: String? = nil,
+        limit: Int = defaultTransactionLimit
+    ) async throws -> [TransactionEntity] {
+        let loaded = try await uncategorizedPayload(month: month)
+        let capped = Self.cappedTransactionLimit(limit)
+        return loaded.transactions.prefix(capped).compactMap { transaction in
+            TransactionEntity.make(from: transaction, maps: .init(loaded))
+        }
+    }
+
+    func uncategorizedCount(month: String? = nil) async throws -> Int {
+        try await uncategorizedPayload(month: month).transactions.count
+    }
+
+    func transactions(
+        accountID: String? = nil,
+        search: String? = nil,
+        limit: Int = defaultTransactionLimit
+    ) async throws -> [TransactionEntity] {
+        let prepared = try await prepare()
+        let capped = Self.cappedTransactionLimit(limit)
+        let loaded = try await transactionPayload(
+            store: prepared.store,
+            budgetID: prepared.budgetID,
+            accountID: accountID,
+            search: search,
+            limit: capped
+        )
+        return loaded.transactions.prefix(capped).compactMap { transaction in
+            TransactionEntity.make(from: transaction, maps: .init(loaded))
+        }
+    }
+
+    func transaction(id: String) async throws -> TransactionEntity {
+        let recent = try await transactions(limit: Self.maximumTransactionLimit)
+        if let match = recent.first(where: { $0.id == id }) {
+            return match
+        }
+        let uncategorized = try await uncategorizedTransactions(limit: Self.maximumTransactionLimit)
+        if let match = uncategorized.first(where: { $0.id == id }) {
+            return match
+        }
+        throw ShortcutsError.transactionNotFound
+    }
+
+    func reportsDashboard(month: String? = nil) async throws -> ReportsDashboardSnapshot {
+        let prepared = try await prepare()
+        let loaded = try await loadedMonth(preferred: month)
+        let range = Self.reportRange(for: loaded.selectedMonth)
+        if let cached = prepared.store.cachedReportsDashboard(budgetID: prepared.budgetID, range: range) {
+            return cached
+        }
+        return try await prepared.store.refreshReportsDashboard(
+            budgetID: prepared.budgetID,
+            range: range
+        )
+    }
+
+    static func cappedTransactionLimit(_ limit: Int) -> Int {
+        min(max(limit, 1), maximumTransactionLimit)
+    }
+
+    static func reportRange(for monthID: String) -> ReportDateRange {
+        let calendar = ReportCalendar.gregorianLocal
+        guard let monthStart = ReportCalendar.date(fromMonthID: monthID, calendar: calendar) else {
+            return .dashboard(through: Date())
+        }
+        let today = calendar.startOfDay(for: Date())
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart) ?? monthStart
+        let monthEnd = calendar.date(byAdding: .day, value: -1, to: nextMonth) ?? monthStart
+        let currentMonthID = ReportCalendar.monthID(for: today, calendar: calendar)
+        let through = monthID == currentMonthID ? today : monthEnd
+        return .dashboard(through: through, calendar: calendar)
+    }
+
+    private func uncategorizedPayload(month: String? = nil) async throws -> LoadedUncategorizedTransactions {
+        let prepared = try await prepare()
+        let loadedMonth = try await loadedMonth(preferred: month)
+        if let cached = prepared.store.cachedUncategorizedTransactions(
+            budgetID: prepared.budgetID,
+            month: loadedMonth.selectedMonth
+        ) {
+            return cached
+        }
+        return try await prepared.store.uncategorizedTransactions(
+            budgetID: prepared.budgetID,
+            month: loadedMonth.selectedMonth
+        )
+    }
+
+    private func transactionPayload(
+        store: LocalFirstActualStore,
+        budgetID: String,
+        accountID: String?,
+        search: String?,
+        limit: Int
+    ) async throws -> LoadedAccountTransactions {
+        let query = search?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasQuery = query.map { !$0.isEmpty } ?? false
+        if let accountID {
+            if hasQuery, let query {
+                return try await store.searchAccountTransactions(
+                    budgetID: budgetID,
+                    accountID: accountID,
+                    query: query,
+                    limit: limit,
+                    offset: 0
+                )
+            }
+            if let cached = store.cachedAccountTransactions(budgetID: budgetID, accountID: accountID) {
+                return cached
+            }
+            try await store.refreshAccountTransactions(budgetID: budgetID, accountID: accountID)
+            return try requireCachedTransactions(
+                store.cachedAccountTransactions(budgetID: budgetID, accountID: accountID)
+            )
+        }
+        if hasQuery, let query {
+            return try await store.searchSpendingTransactions(
+                budgetID: budgetID,
+                query: query,
+                limit: limit,
+                offset: 0
+            )
+        }
+        if let cached = store.cachedSpendingTransactions(budgetID: budgetID) {
+            return cached
+        }
+        try await store.refreshSpendingTransactions(budgetID: budgetID)
+        return try requireCachedTransactions(store.cachedSpendingTransactions(budgetID: budgetID))
+    }
+
+    private func requireCachedTransactions(
+        _ loaded: LoadedAccountTransactions?
+    ) throws -> LoadedAccountTransactions {
+        guard let loaded else {
+            throw ShortcutsError.transactionNotFound
+        }
+        return loaded
+    }
+}
+
+struct TransactionNameMaps {
+    let accountNames: [String: String]
+    let categoryNames: [String: String]
+    let payeeNames: [String: String]
+    let transferPayeeIDs: Set<String>
+
+    init(_ loaded: LoadedAccountTransactions) {
+        accountNames = loaded.accountNames
+        categoryNames = loaded.categoryNames
+        payeeNames = loaded.payeeNames
+        transferPayeeIDs = loaded.transferPayeeIDs
+    }
+
+    init(_ loaded: LoadedUncategorizedTransactions) {
+        accountNames = loaded.accountNames
+        categoryNames = loaded.categoryNames
+        payeeNames = loaded.payeeNames
+        transferPayeeIDs = loaded.transferPayeeIDs
+    }
+}

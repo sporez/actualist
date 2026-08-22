@@ -24,11 +24,14 @@ navigation action that prefills the existing editor; it is not a write gate.
       files; focused money/session/entity tests pass; full suite 613 tests /
       33 suites; plutil lint OK; liquid glass lint passed; error strings
       contain no paths or tokens; AppState 894 → 899.
-- [ ] **Not started — Phase 2: Read catalog.**
-      Rich getters for accounts, category metrics, payees, ready-to-assign,
-      month summary, overspent categories, uncategorized items, recent /
-      searched transactions, net worth, and cash flow. Money returns use
-      `IntentCurrencyAmount` plus a spoken dialog.
+- [x] **Complete — Phase 2: Read catalog.**
+      2026-08-22, this commit. Rich getters for accounts, category metrics,
+      payees, ready-to-assign, month summary, overspent categories,
+      uncategorized items, recent / searched transactions, net worth, and
+      cash flow. Money returns use `IntentCurrencyAmount` plus a spoken
+      dialog. Evidence: normal + complete-concurrency builds succeeded with
+      no new warnings in changed files; focused shortcut suites pass; full
+      suite 621 tests / 34 suites; largest new intent file 284 lines.
 - [ ] **Not started — Phase 3: Transaction writes and text import.**
       Log, transfer, update, categorize, set cleared, delete, and import from
       text. All go through `TransactionDraft` / the existing repository write
