@@ -40,9 +40,11 @@ navigation action that prefills the existing editor; it is not a write gate.
       parser table + command tests pass; normal + complete-concurrency
       builds succeeded; full suite 632 tests / 36 suites; command split at
       286 / 131 lines.
-- [ ] **Not started — Phase 4: Budget writes and creates.**
-      Assign, add-to-category, move money, apply template, set carryover,
-      create payee, create account. No new budget math.
+- [x] **Complete — Phase 4: Budget writes and creates.**
+      2026-08-22, this commit. Assign, add-to-category, move money, apply
+      template, set carryover, create payee, create account. No new budget
+      math. Evidence: focused command tests pass; complete-concurrency
+      build succeeded; full suite 637 tests / 37 suites.
 - [ ] **Not started — Phase 5: Open-in-app routes, Siri phrases, handoff.**
       `AppRouteCoordinator` for Open Account / Category / Uncategorized /
       New Transaction / tabs. App Shortcut phrases. Privacy copy. Full
