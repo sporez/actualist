@@ -32,10 +32,14 @@ navigation action that prefills the existing editor; it is not a write gate.
       dialog. Evidence: normal + complete-concurrency builds succeeded with
       no new warnings in changed files; focused shortcut suites pass; full
       suite 621 tests / 34 suites; largest new intent file 284 lines.
-- [ ] **Not started — Phase 3: Transaction writes and text import.**
-      Log, transfer, update, categorize, set cleared, delete, and import from
-      text. All go through `TransactionDraft` / the existing repository write
-      methods. Unspecified category runs rule preview and applies a match.
+- [x] **Complete — Phase 3: Transaction writes and text import.**
+      2026-08-22, this commit. Log, transfer, update, categorize, set
+      cleared, delete, and import from text. All go through
+      `TransactionDraft` / the existing repository write methods.
+      Unspecified category runs rule preview and applies a match. Evidence:
+      parser table + command tests pass; normal + complete-concurrency
+      builds succeeded; full suite 632 tests / 36 suites; command split at
+      286 / 131 lines.
 - [ ] **Not started — Phase 4: Budget writes and creates.**
       Assign, add-to-category, move money, apply template, set carryover,
       create payee, create account. No new budget math.

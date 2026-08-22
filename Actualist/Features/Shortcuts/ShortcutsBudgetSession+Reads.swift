@@ -98,12 +98,45 @@ extension ShortcutsBudgetSession {
     }
 
     func transaction(id: String) async throws -> TransactionEntity {
-        let recent = try await transactions(limit: Self.maximumTransactionLimit)
-        if let match = recent.first(where: { $0.id == id }) {
+        let original = try await actualTransaction(id: id)
+        let prepared = try await prepare()
+        try await prepared.store.refreshAccountTransactions(
+            budgetID: prepared.budgetID,
+            accountID: original.account
+        )
+        if let loaded = prepared.store.cachedAccountTransactions(
+            budgetID: prepared.budgetID,
+            accountID: original.account
+        ), let entity = loaded.transactions.first(where: { $0.id == id }).flatMap({
+            TransactionEntity.make(from: $0, maps: .init(loaded))
+        }) {
+            return entity
+        }
+        throw ShortcutsError.transactionNotFound
+    }
+
+    func actualTransaction(id: String) async throws -> ActualTransaction {
+        let prepared = try await prepare()
+        try await prepared.store.refreshSpendingTransactions(budgetID: prepared.budgetID)
+        if let match = prepared.store.cachedSpendingTransactions(budgetID: prepared.budgetID)?
+            .transactions.first(where: { $0.id == id }) {
             return match
         }
-        let uncategorized = try await uncategorizedTransactions(limit: Self.maximumTransactionLimit)
-        if let match = uncategorized.first(where: { $0.id == id }) {
+        let accounts = try await accounts(includeClosed: true)
+        for account in accounts {
+            try await prepared.store.refreshAccountTransactions(
+                budgetID: prepared.budgetID,
+                accountID: account.id
+            )
+            if let match = prepared.store.cachedAccountTransactions(
+                budgetID: prepared.budgetID,
+                accountID: account.id
+            )?.transactions.first(where: { $0.id == id }) {
+                return match
+            }
+        }
+        let uncategorized = try await uncategorizedPayload()
+        if let match = uncategorized.transactions.first(where: { $0.id == id }) {
             return match
         }
         throw ShortcutsError.transactionNotFound
@@ -211,6 +244,18 @@ struct TransactionNameMaps {
     let categoryNames: [String: String]
     let payeeNames: [String: String]
     let transferPayeeIDs: Set<String>
+
+    init(
+        accountNames: [String: String],
+        categoryNames: [String: String],
+        payeeNames: [String: String],
+        transferPayeeIDs: Set<String>
+    ) {
+        self.accountNames = accountNames
+        self.categoryNames = categoryNames
+        self.payeeNames = payeeNames
+        self.transferPayeeIDs = transferPayeeIDs
+    }
 
     init(_ loaded: LoadedAccountTransactions) {
         accountNames = loaded.accountNames

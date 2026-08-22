@@ -15,6 +15,7 @@ enum ShortcutsError: LocalizedError, Equatable {
     case transferDestinationMissing
     case defaultAccountMissing
     case textImportAmountMissing
+    case ambiguousMatch
 
     var errorDescription: String? {
         switch self {
@@ -46,6 +47,8 @@ enum ShortcutsError: LocalizedError, Equatable {
             "Choose an account or set a default account in Settings."
         case .textImportAmountMissing:
             "That text does not include an amount."
+        case .ambiguousMatch:
+            "That name matches more than one item. Be more specific."
         }
     }
 

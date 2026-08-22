@@ -225,6 +225,12 @@
 		010000000000000000000000F3 /* ReportReadIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000F3 /* ReportReadIntents.swift */; };
 		010000000000000000000000F4 /* ShortcutsBudgetSession+Reads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000F4 /* ShortcutsBudgetSession+Reads.swift */; };
 		010000000000000000000000F5 /* ShortcutReadCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000F5 /* ShortcutReadCatalogTests.swift */; };
+		010000000000000000000000F6 /* ShortcutTextImportParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000F6 /* ShortcutTextImportParser.swift */; };
+		010000000000000000000000F7 /* ShortcutTransactionCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000F7 /* ShortcutTransactionCommand.swift */; };
+		010000000000000000000000F8 /* TransactionWriteIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000F8 /* TransactionWriteIntents.swift */; };
+		010000000000000000000000F9 /* ShortcutTextImportParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000F9 /* ShortcutTextImportParserTests.swift */; };
+		010000000000000000000000FA /* ShortcutTransactionCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000FA /* ShortcutTransactionCommandTests.swift */; };
+		010000000000000000000000FB /* ShortcutTransactionCommand+Updates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000FB /* ShortcutTransactionCommand+Updates.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -455,6 +461,12 @@
 		020000000000000000000000F3 /* ReportReadIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportReadIntents.swift; sourceTree = "<group>"; };
 		020000000000000000000000F4 /* ShortcutsBudgetSession+Reads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShortcutsBudgetSession+Reads.swift"; sourceTree = "<group>"; };
 		020000000000000000000000F5 /* ShortcutReadCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutReadCatalogTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000F6 /* ShortcutTextImportParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutTextImportParser.swift; sourceTree = "<group>"; };
+		020000000000000000000000F7 /* ShortcutTransactionCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutTransactionCommand.swift; sourceTree = "<group>"; };
+		020000000000000000000000F8 /* TransactionWriteIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionWriteIntents.swift; sourceTree = "<group>"; };
+		020000000000000000000000F9 /* ShortcutTextImportParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutTextImportParserTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000FA /* ShortcutTransactionCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutTransactionCommandTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000FB /* ShortcutTransactionCommand+Updates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShortcutTransactionCommand+Updates.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -651,6 +663,8 @@
 				020000000000000000000000EC /* ShortcutEntityQueryTests.swift */,
 				020000000000000000000000ED /* ShortcutMoneyTests.swift */,
 				020000000000000000000000F5 /* ShortcutReadCatalogTests.swift */,
+				020000000000000000000000F9 /* ShortcutTextImportParserTests.swift */,
+				020000000000000000000000FA /* ShortcutTransactionCommandTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -922,6 +936,7 @@
 				020000000000000000000000F1 /* BudgetReadIntents.swift */,
 				020000000000000000000000F2 /* TransactionReadIntents.swift */,
 				020000000000000000000000F3 /* ReportReadIntents.swift */,
+				020000000000000000000000F8 /* TransactionWriteIntents.swift */,
 			);
 			path = Intents;
 			sourceTree = "<group>";
@@ -930,6 +945,9 @@
 			isa = PBXGroup;
 			children = (
 				020000000000000000000000EA /* ShortcutMoney.swift */,
+				020000000000000000000000F6 /* ShortcutTextImportParser.swift */,
+				020000000000000000000000F7 /* ShortcutTransactionCommand.swift */,
+				020000000000000000000000FB /* ShortcutTransactionCommand+Updates.swift */,
 			);
 			path = Commands;
 			sourceTree = "<group>";
@@ -1081,6 +1099,10 @@
 				010000000000000000000000F2 /* TransactionReadIntents.swift in Sources */,
 				010000000000000000000000F3 /* ReportReadIntents.swift in Sources */,
 				010000000000000000000000F4 /* ShortcutsBudgetSession+Reads.swift in Sources */,
+				010000000000000000000000F6 /* ShortcutTextImportParser.swift in Sources */,
+				010000000000000000000000F7 /* ShortcutTransactionCommand.swift in Sources */,
+				010000000000000000000000FB /* ShortcutTransactionCommand+Updates.swift in Sources */,
+				010000000000000000000000F8 /* TransactionWriteIntents.swift in Sources */,
 				010000000000000000000004 /* ActualistTheme.swift in Sources */,
 				010000000000000000000005 /* GlassPanel.swift in Sources */,
 				010000000000000000000006 /* ActualModels.swift in Sources */,
@@ -1266,6 +1288,8 @@
 				010000000000000000000000EC /* ShortcutEntityQueryTests.swift in Sources */,
 				010000000000000000000000ED /* ShortcutMoneyTests.swift in Sources */,
 				010000000000000000000000F5 /* ShortcutReadCatalogTests.swift in Sources */,
+				010000000000000000000000F9 /* ShortcutTextImportParserTests.swift in Sources */,
+				010000000000000000000000FA /* ShortcutTransactionCommandTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
