@@ -205,6 +205,10 @@ struct BudgetView: View {
                 .onChange(of: appState.settings.includeCarryoverCategoriesInOverspentAlerts) { _, isEnabled in
                     viewModel.includeCarryoverCategoriesInOverspentAlerts = isEnabled
                 }
+                .onAppear { applyShortcutRoute() }
+                .onChange(of: appState.routeCoordinator.pendingRoute) {
+                    applyShortcutRoute()
+                }
                 .sheet(isPresented: $isTransactionEditorPresented) {
                     TransactionEditorView(prefilledAccount: nil) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
@@ -378,6 +382,25 @@ struct BudgetView: View {
         .padding(.vertical, 10)
         .background {
             alert.backgroundView
+        }
+    }
+
+    private func applyShortcutRoute() {
+        if case .uncategorized = appState.routeCoordinator.consume(if: {
+            if case .uncategorized = $0 { return true }
+            return false
+        }) {
+            isUncategorizedTransactionsPresented = true
+            return
+        }
+        guard case .category(let id, let month) = appState.routeCoordinator.consume(if: {
+            if case .category = $0 { return true }
+            return false
+        }) else {
+            return
+        }
+        if let category = viewModel.visibleGroups.flatMap(\.categories).first(where: { $0.id == id }) {
+            categoryDetailsPresentation = CategoryMonthDetails(category: category, month: month)
         }
     }
 

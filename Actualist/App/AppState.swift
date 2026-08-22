@@ -19,6 +19,7 @@ final class AppState {
     var developerUnlockToastMessage: String?
     private(set) var isAppSwitcherCoverSuppressedForSystemUI = false
     private(set) var isBudgetSwitchInProgress = false
+    let routeCoordinator = AppRouteCoordinator()
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
@@ -818,6 +819,7 @@ final class AppState {
     func routeToSpendingFromNotification(budgetID _: String) async {
         accountNavigationPath = []
         selectedTab = .spending
+        routeCoordinator.enqueue(.tab(.spending))
     }
 
     #if DEBUG

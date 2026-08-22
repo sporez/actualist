@@ -54,6 +54,27 @@ final class ShortcutsBudgetSession {
         appState.recordLocalDataMutation()
     }
 
+    func enqueueRoute(_ route: AppRoute) {
+        appState.routeCoordinator.enqueue(route)
+        switch route {
+        case .tab(let tab):
+            appState.accountNavigationPath = []
+            appState.selectedTab = tab
+        case .account(let id):
+            appState.selectedTab = .accounts
+            if let budgetID = appState.settings.selectedBudgetID,
+               let account = appState.localFirstStore.accountDisplays(budgetID: budgetID)
+                .map(\.account)
+                .first(where: { $0.id == id }) {
+                appState.accountNavigationPath = [account]
+            }
+        case .category, .uncategorized:
+            appState.selectedTab = .budget
+        case .newTransaction:
+            break
+        }
+    }
+
     func accounts(includeClosed: Bool, matching query: String? = nil) async throws -> [AccountEntity] {
         let prepared = try await prepare()
         var displays = prepared.store.accountDisplays(budgetID: prepared.budgetID)

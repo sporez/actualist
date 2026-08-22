@@ -17,15 +17,27 @@ struct TransactionEditorView: View {
         editingTransaction: ActualTransaction? = nil,
         prefilledPayeeName: String? = nil,
         prefilledCategoryName: String? = nil,
+        shortcutPrefill: ShortcutEditorPrefill? = nil,
         onSaved: (() -> Void)? = nil
     ) {
-        _viewModel = State(
-            initialValue: TransactionEditorViewModel(
-                editing: editingTransaction,
-                payeeName: prefilledPayeeName,
-                categoryName: prefilledCategoryName
-            )
+        let model = TransactionEditorViewModel(
+            editing: editingTransaction,
+            payeeName: shortcutPrefill?.payeeName ?? prefilledPayeeName,
+            categoryName: shortcutPrefill?.categoryName ?? prefilledCategoryName
         )
+        if let shortcutPrefill {
+            model.kind = shortcutPrefill.direction
+            if let amount = shortcutPrefill.amountMinorUnits {
+                model.amountDigits = String(abs(amount))
+            }
+            if let notes = shortcutPrefill.notes {
+                model.notes = notes
+            }
+            if let accountID = shortcutPrefill.accountID {
+                model.selectedAccountID = accountID
+            }
+        }
+        _viewModel = State(initialValue: model)
         self.prefilledAccount = prefilledAccount
         self.onSaved = onSaved
     }

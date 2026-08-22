@@ -45,10 +45,12 @@ navigation action that prefills the existing editor; it is not a write gate.
       template, set carryover, create payee, create account. No new budget
       math. Evidence: focused command tests pass; complete-concurrency
       build succeeded; full suite 637 tests / 37 suites.
-- [ ] **Not started — Phase 5: Open-in-app routes, Siri phrases, handoff.**
-      `AppRouteCoordinator` for Open Account / Category / Uncategorized /
-      New Transaction / tabs. App Shortcut phrases. Privacy copy. Full
-      pre-handoff gate.
+- [x] **Complete — Phase 5: Open-in-app routes, Siri phrases, handoff.**
+      2026-08-22, this commit. `AppRouteCoordinator` for Open Account /
+      Category / Uncategorized / New Transaction / tabs. Notification
+      spending route uses the coordinator. App Shortcut phrases. Privacy
+      copy. Evidence: route tests pass; complete-concurrency build
+      succeeded; full suite 640 tests / 38 suites; AppState 894 → 901.
 
 ## Intent And Why This Is Tractable
 

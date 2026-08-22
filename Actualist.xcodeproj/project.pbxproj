@@ -234,6 +234,10 @@
 		010000000000000000000000FC /* ShortcutBudgetCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000FC /* ShortcutBudgetCommand.swift */; };
 		010000000000000000000000FD /* BudgetWriteIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000FD /* BudgetWriteIntents.swift */; };
 		010000000000000000000000FE /* ShortcutBudgetCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000FE /* ShortcutBudgetCommandTests.swift */; };
+		010000000000000000000000FF /* AppRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000FF /* AppRoute.swift */; };
+		01000000000000000000000100 /* AppRouteCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000100 /* AppRouteCoordinator.swift */; };
+		01000000000000000000000101 /* OpenIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000101 /* OpenIntents.swift */; };
+		01000000000000000000000102 /* AppRouteCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000102 /* AppRouteCoordinatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -473,6 +477,10 @@
 		020000000000000000000000FC /* ShortcutBudgetCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBudgetCommand.swift; sourceTree = "<group>"; };
 		020000000000000000000000FD /* BudgetWriteIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetWriteIntents.swift; sourceTree = "<group>"; };
 		020000000000000000000000FE /* ShortcutBudgetCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutBudgetCommandTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000FF /* AppRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRoute.swift; sourceTree = "<group>"; };
+		02000000000000000000000100 /* AppRouteCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteCoordinator.swift; sourceTree = "<group>"; };
+		02000000000000000000000101 /* OpenIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntents.swift; sourceTree = "<group>"; };
+		02000000000000000000000102 /* AppRouteCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteCoordinatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -672,6 +680,7 @@
 				020000000000000000000000F9 /* ShortcutTextImportParserTests.swift */,
 				020000000000000000000000FA /* ShortcutTransactionCommandTests.swift */,
 				020000000000000000000000FE /* ShortcutBudgetCommandTests.swift */,
+				02000000000000000000000102 /* AppRouteCoordinatorTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -918,6 +927,7 @@
 				040000000000000000000021 /* Entities */,
 				040000000000000000000023 /* Commands */,
 				040000000000000000000022 /* Intents */,
+				040000000000000000000024 /* Routing */,
 			);
 			path = Shortcuts;
 			sourceTree = "<group>";
@@ -945,6 +955,7 @@
 				020000000000000000000000F3 /* ReportReadIntents.swift */,
 				020000000000000000000000F8 /* TransactionWriteIntents.swift */,
 				020000000000000000000000FD /* BudgetWriteIntents.swift */,
+				02000000000000000000000101 /* OpenIntents.swift */,
 			);
 			path = Intents;
 			sourceTree = "<group>";
@@ -959,6 +970,15 @@
 				020000000000000000000000FC /* ShortcutBudgetCommand.swift */,
 			);
 			path = Commands;
+			sourceTree = "<group>";
+		};
+		040000000000000000000024 /* Routing */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000000FF /* AppRoute.swift */,
+				02000000000000000000000100 /* AppRouteCoordinator.swift */,
+			);
+			path = Routing;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1113,6 +1133,9 @@
 				010000000000000000000000FB /* ShortcutTransactionCommand+Updates.swift in Sources */,
 				010000000000000000000000FC /* ShortcutBudgetCommand.swift in Sources */,
 				010000000000000000000000FD /* BudgetWriteIntents.swift in Sources */,
+				010000000000000000000000FF /* AppRoute.swift in Sources */,
+				01000000000000000000000100 /* AppRouteCoordinator.swift in Sources */,
+				01000000000000000000000101 /* OpenIntents.swift in Sources */,
 				010000000000000000000000F8 /* TransactionWriteIntents.swift in Sources */,
 				010000000000000000000004 /* ActualistTheme.swift in Sources */,
 				010000000000000000000005 /* GlassPanel.swift in Sources */,
@@ -1302,6 +1325,7 @@
 				010000000000000000000000F9 /* ShortcutTextImportParserTests.swift in Sources */,
 				010000000000000000000000FA /* ShortcutTransactionCommandTests.swift in Sources */,
 				010000000000000000000000FE /* ShortcutBudgetCommandTests.swift in Sources */,
+				01000000000000000000000102 /* AppRouteCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
