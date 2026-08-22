@@ -542,6 +542,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateShortcutsEnabled(_ isEnabled: Bool) {
+        settings.shortcutsEnabled = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateAppSwitcherPrivacyMode(_ mode: AppSwitcherPrivacyMode) {
         settings.appSwitcherPrivacyMode = mode
         if mode != .always {

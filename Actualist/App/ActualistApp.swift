@@ -1,3 +1,4 @@
+import AppIntents
 import BackgroundTasks
 import SwiftUI
 import UserNotifications
@@ -28,6 +29,8 @@ struct ActualistApp: App {
         let appState = AppState()
         _appState = State(initialValue: appState)
         BackgroundTransactionRefreshCoordinator.shared.configure(appState: appState)
+        let session = ShortcutsBudgetSession(appState: appState)
+        AppDependencyManager.shared.add { session }
     }
 
     var body: some Scene {

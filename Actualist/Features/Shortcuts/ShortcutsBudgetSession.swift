@@ -1,0 +1,199 @@
+import Foundation
+
+struct PreparedBudget {
+    let budgetID: String
+    let store: LocalFirstActualStore
+    let defaultAccountID: String?
+}
+
+@MainActor
+final class ShortcutsBudgetSession {
+    private let appState: AppState
+
+    init(appState: AppState) {
+        self.appState = appState
+    }
+
+    @discardableResult
+    func prepare() async throws -> PreparedBudget {
+        let settings = appState.settings
+        guard settings.shortcutsEnabled else {
+            throw ShortcutsError.shortcutsDisabled
+        }
+        guard appState.setupPhase != .needsConnection,
+              let budgetID = settings.selectedBudgetID,
+              !budgetID.isEmpty else {
+            throw ShortcutsError.noBudgetSelected
+        }
+
+        let store = appState.localFirstStore
+        if store.isOpen(budgetID: budgetID) {
+            return preparedBudget(budgetID: budgetID, store: store, settings: settings)
+        }
+        if store.hasOpenBudget {
+            throw ShortcutsError.budgetBusy
+        }
+
+        guard let budget = reconstructedBudget(budgetID: budgetID, settings: settings) else {
+            throw ShortcutsError.noBudgetSelected
+        }
+
+        do {
+            let didOpen = try await store.openCachedBudget(budget)
+            guard didOpen, store.isOpen(budgetID: budgetID) else {
+                throw ShortcutsError.budgetFileMissing
+            }
+        } catch {
+            throw ShortcutsError.mapping(error)
+        }
+
+        return preparedBudget(budgetID: budgetID, store: store, settings: settings)
+    }
+
+    func recordSuccessfulWrite() {
+        appState.recordLocalDataMutation()
+    }
+
+    func accounts(includeClosed: Bool, matching query: String? = nil) async throws -> [AccountEntity] {
+        let prepared = try await prepare()
+        var displays = prepared.store.accountDisplays(budgetID: prepared.budgetID)
+        if displays.isEmpty {
+            try await prepared.store.refreshAccountsWithBalances(budgetID: prepared.budgetID)
+            displays = prepared.store.accountDisplays(budgetID: prepared.budgetID)
+        }
+        return displays.compactMap { display in
+            if !includeClosed, display.account.closed {
+                return nil
+            }
+            if let query, !ShortcutEntityMatching.name(display.account.name, matches: query) {
+                return nil
+            }
+            return AccountEntity.make(from: display)
+        }
+    }
+
+    func categories(
+        includeHidden: Bool,
+        includeIncome: Bool = false,
+        matching query: String? = nil
+    ) async throws -> [CategoryEntity] {
+        let month = try await loadedMonth()
+        let groupNames = Dictionary(
+            uniqueKeysWithValues: month.month.categoryGroups.map { ($0.id, $0.name) }
+        )
+        return month.month.categoryGroups.flatMap(\.categories).compactMap { category in
+            let isHidden = category.hidden ?? false
+            if !includeHidden, isHidden {
+                return nil
+            }
+            if !includeIncome, category.isIncome {
+                return nil
+            }
+            if let query, !ShortcutEntityMatching.name(category.name, matches: query) {
+                return nil
+            }
+            return CategoryEntity.make(
+                from: category,
+                groupName: groupNames[category.groupID] ?? ""
+            )
+        }
+    }
+
+    func payees(includeTransfers: Bool, matching query: String? = nil) async throws -> [PayeeEntity] {
+        let prepared = try await prepare()
+        if prepared.store.cachedPayeeManagementSnapshot(budgetID: prepared.budgetID) == nil {
+            try await prepared.store.refreshPayeeManagementSnapshot(budgetID: prepared.budgetID)
+        }
+        let payees = prepared.store.cachedPayeeManagementSnapshot(budgetID: prepared.budgetID)?.payees ?? []
+        return payees.compactMap { payee in
+            if !includeTransfers, payee.isTransfer {
+                return nil
+            }
+            if let query, !ShortcutEntityMatching.name(payee.displayName, matches: query) {
+                return nil
+            }
+            return PayeeEntity.make(from: payee)
+        }
+    }
+
+    func months(matching query: String? = nil) async throws -> [BudgetMonthEntity] {
+        let month = try await loadedMonth()
+        return month.availableMonths.compactMap { monthID in
+            let entity = BudgetMonthEntity.make(monthID: monthID)
+            if let query {
+                let matchesID = ShortcutEntityMatching.name(monthID, matches: query)
+                let matchesName = ShortcutEntityMatching.name(entity.name, matches: query)
+                guard matchesID || matchesName else {
+                    return nil
+                }
+            }
+            return entity
+        }
+    }
+
+    func loadedMonth(preferred: String? = nil) async throws -> LoadedBudgetMonth {
+        let prepared = try await prepare()
+        if let cached = prepared.store.cachedBudgetMonth(budgetID: prepared.budgetID) {
+            if let preferred, preferred != cached.selectedMonth {
+                return try await prepared.store.budgetMonth(
+                    budgetID: prepared.budgetID,
+                    selectedMonth: preferred
+                )
+            }
+            return cached
+        }
+        if let preferred {
+            return try await prepared.store.budgetMonth(
+                budgetID: prepared.budgetID,
+                selectedMonth: preferred
+            )
+        }
+        let available = try await prepared.store.availableMonths(budgetID: prepared.budgetID)
+        let selected = available.last ?? YearMonth(date: Date()).rawValue
+        return try await prepared.store.currentBudgetMonth(
+            budgetID: prepared.budgetID,
+            preferredMonth: selected
+        )
+    }
+
+    private func preparedBudget(
+        budgetID: String,
+        store: LocalFirstActualStore,
+        settings: AppSettings
+    ) -> PreparedBudget {
+        PreparedBudget(
+            budgetID: budgetID,
+            store: store,
+            defaultAccountID: settings.defaultAccountIDByBudgetID[budgetID]
+        )
+    }
+
+    private func reconstructedBudget(budgetID: String, settings: AppSettings) -> ActualBudget? {
+        if let selected = appState.selectedBudget, selected.syncID == budgetID {
+            return selected
+        }
+        if let budget = appState.budgets.first(where: { $0.syncID == budgetID }) {
+            return budget
+        }
+        guard let fileID = settings.selectedLocalFirstFileID else {
+            return nil
+        }
+        return ActualBudget(
+            budgetID: fileID,
+            cloudFileId: fileID,
+            groupId: settings.selectedLocalFirstGroupID,
+            name: settings.selectedBudgetName ?? "Selected Budget",
+            state: nil
+        )
+    }
+}
+
+enum ShortcutEntityMatching {
+    static func name(_ name: String, matches query: String) -> Bool {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else {
+            return true
+        }
+        return name.localizedStandardContains(needle)
+    }
+}

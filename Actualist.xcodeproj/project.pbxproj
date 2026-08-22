@@ -205,6 +205,18 @@
 		28C36EC42FE377C800A9F4A8 /* AppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C36EC32FE377C800A9F4A8 /* AppIcon.swift */; };
 		28C36EC52FE377C800A9F4A8 /* icon_purple.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC62FE377C800A9F4A8 /* icon_purple.icon */; };
 		28C36EC72FE377C800A9F4A8 /* coin.icon in Resources */ = {isa = PBXBuildFile; fileRef = 28C36EC82FE377C800A9F4A8 /* coin.icon */; };
+		010000000000000000000000E2 /* ShortcutsBudgetSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E2 /* ShortcutsBudgetSession.swift */; };
+		010000000000000000000000E3 /* ActualistShortcutsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E3 /* ActualistShortcutsProvider.swift */; };
+		010000000000000000000000E4 /* ShortcutsErrors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E4 /* ShortcutsErrors.swift */; };
+		010000000000000000000000E5 /* AccountEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E5 /* AccountEntity.swift */; };
+		010000000000000000000000E6 /* CategoryEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E6 /* CategoryEntity.swift */; };
+		010000000000000000000000E7 /* PayeeEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E7 /* PayeeEntity.swift */; };
+		010000000000000000000000E8 /* BudgetMonthEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E8 /* BudgetMonthEntity.swift */; };
+		010000000000000000000000E9 /* AccountReadIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E9 /* AccountReadIntents.swift */; };
+		010000000000000000000000EA /* ShortcutMoney.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000EA /* ShortcutMoney.swift */; };
+		010000000000000000000000EB /* ShortcutsBudgetSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000EB /* ShortcutsBudgetSessionTests.swift */; };
+		010000000000000000000000EC /* ShortcutEntityQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000EC /* ShortcutEntityQueryTests.swift */; };
+		010000000000000000000000ED /* ShortcutMoneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000ED /* ShortcutMoneyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -415,6 +427,18 @@
 		28C36EC32FE377C800A9F4A8 /* AppIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIcon.swift; sourceTree = "<group>"; };
 		28C36EC62FE377C800A9F4A8 /* icon_purple.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = icon_purple.icon; sourceTree = "<group>"; };
 		28C36EC82FE377C800A9F4A8 /* coin.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = coin.icon; sourceTree = "<group>"; };
+		020000000000000000000000E2 /* ShortcutsBudgetSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsBudgetSession.swift; sourceTree = "<group>"; };
+		020000000000000000000000E3 /* ActualistShortcutsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistShortcutsProvider.swift; sourceTree = "<group>"; };
+		020000000000000000000000E4 /* ShortcutsErrors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsErrors.swift; sourceTree = "<group>"; };
+		020000000000000000000000E5 /* AccountEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountEntity.swift; sourceTree = "<group>"; };
+		020000000000000000000000E6 /* CategoryEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryEntity.swift; sourceTree = "<group>"; };
+		020000000000000000000000E7 /* PayeeEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeEntity.swift; sourceTree = "<group>"; };
+		020000000000000000000000E8 /* BudgetMonthEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetMonthEntity.swift; sourceTree = "<group>"; };
+		020000000000000000000000E9 /* AccountReadIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountReadIntents.swift; sourceTree = "<group>"; };
+		020000000000000000000000EA /* ShortcutMoney.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutMoney.swift; sourceTree = "<group>"; };
+		020000000000000000000000EB /* ShortcutsBudgetSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsBudgetSessionTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000EC /* ShortcutEntityQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutEntityQueryTests.swift; sourceTree = "<group>"; };
+		020000000000000000000000ED /* ShortcutMoneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutMoneyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -538,6 +562,7 @@
 				040000000000000000000016 /* Transactions */,
 				040000000000000000000017 /* Settings */,
 				04000000000000000000001F /* Reports */,
+				040000000000000000000020 /* Shortcuts */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -606,6 +631,9 @@
 				020000000000000000000056 /* BudgetTemplateEngineTests.swift */,
 				02000000000000000000009E /* DemoModeStoreTests.swift */,
 				02000000000000000000009F /* DemoModeSessionTests.swift */,
+				020000000000000000000000EB /* ShortcutsBudgetSessionTests.swift */,
+				020000000000000000000000EC /* ShortcutEntityQueryTests.swift */,
+				020000000000000000000000ED /* ShortcutMoneyTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -842,6 +870,46 @@
 			path = DemoMode;
 			sourceTree = "<group>";
 		};
+		040000000000000000000020 /* Shortcuts */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000000E2 /* ShortcutsBudgetSession.swift */,
+				020000000000000000000000E3 /* ActualistShortcutsProvider.swift */,
+				020000000000000000000000E4 /* ShortcutsErrors.swift */,
+				040000000000000000000021 /* Entities */,
+				040000000000000000000023 /* Commands */,
+				040000000000000000000022 /* Intents */,
+			);
+			path = Shortcuts;
+			sourceTree = "<group>";
+		};
+		040000000000000000000021 /* Entities */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000000E5 /* AccountEntity.swift */,
+				020000000000000000000000E6 /* CategoryEntity.swift */,
+				020000000000000000000000E7 /* PayeeEntity.swift */,
+				020000000000000000000000E8 /* BudgetMonthEntity.swift */,
+			);
+			path = Entities;
+			sourceTree = "<group>";
+		};
+		040000000000000000000022 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000000E9 /* AccountReadIntents.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		040000000000000000000023 /* Commands */ = {
+			isa = PBXGroup;
+			children = (
+				020000000000000000000000EA /* ShortcutMoney.swift */,
+			);
+			path = Commands;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -973,6 +1041,15 @@
 				01000000000000000000006E /* BackgroundTransactionRefreshRunner.swift in Sources */,
 				01000000000000000000006F /* NewTransactionNotificationCoordinator.swift in Sources */,
 				010000000000000000000003 /* AppTab.swift in Sources */,
+				010000000000000000000000E2 /* ShortcutsBudgetSession.swift in Sources */,
+				010000000000000000000000E3 /* ActualistShortcutsProvider.swift in Sources */,
+				010000000000000000000000E4 /* ShortcutsErrors.swift in Sources */,
+				010000000000000000000000E5 /* AccountEntity.swift in Sources */,
+				010000000000000000000000E6 /* CategoryEntity.swift in Sources */,
+				010000000000000000000000E7 /* PayeeEntity.swift in Sources */,
+				010000000000000000000000E8 /* BudgetMonthEntity.swift in Sources */,
+				010000000000000000000000E9 /* AccountReadIntents.swift in Sources */,
+				010000000000000000000000EA /* ShortcutMoney.swift in Sources */,
 				010000000000000000000004 /* ActualistTheme.swift in Sources */,
 				010000000000000000000005 /* GlassPanel.swift in Sources */,
 				010000000000000000000006 /* ActualModels.swift in Sources */,
@@ -1154,6 +1231,9 @@
 				010000000000000000000056 /* BudgetTemplateEngineTests.swift in Sources */,
 				01000000000000000000009E /* DemoModeStoreTests.swift in Sources */,
 				01000000000000000000009F /* DemoModeSessionTests.swift in Sources */,
+				010000000000000000000000EB /* ShortcutsBudgetSessionTests.swift in Sources */,
+				010000000000000000000000EC /* ShortcutEntityQueryTests.swift in Sources */,
+				010000000000000000000000ED /* ShortcutMoneyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

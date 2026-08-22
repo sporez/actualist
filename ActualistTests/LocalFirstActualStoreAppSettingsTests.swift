@@ -29,6 +29,17 @@ extension LocalFirstActualStoreTests {
         #expect(!settings.greenIncomeTransactionAmountsEnabled)
         #expect(!settings.includeCarryoverCategoriesInOverspentAlerts)
         #expect(settings.appSwitcherPrivacyMode == .whenBackgrounded)
+        #expect(settings.shortcutsEnabled)
+    }
+
+    @Test func shortcutsEnabledDefaultsOnWhenKeyIsMissingAndPersists() throws {
+        let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: Data("{}".utf8))
+        #expect(decoded.shortcutsEnabled)
+
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+        store.save(AppSettings(shortcutsEnabled: false))
+        #expect(!store.load().shortcutsEnabled)
     }
 
     @Test func greenIncomeTransactionAmountsPreferencePersists() throws {

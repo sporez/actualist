@@ -22,6 +22,15 @@ struct PrivacySettingsView: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
             .settingsSectionChrome()
+
+            Section {
+                Toggle("Allow Shortcuts & Siri", isOn: shortcutsEnabledSelection)
+            } footer: {
+                Text("Shortcuts and Siri can read balances and log transactions in the selected budget. Turn this off to refuse every action. The device passcode or Face ID is still required for money actions.")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+            .settingsSectionChrome()
         }
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
@@ -36,6 +45,14 @@ struct PrivacySettingsView: View {
             appState.settings.appSwitcherPrivacyMode
         } set: { mode in
             appState.updateAppSwitcherPrivacyMode(mode)
+        }
+    }
+
+    private var shortcutsEnabledSelection: Binding<Bool> {
+        Binding {
+            appState.settings.shortcutsEnabled
+        } set: { isEnabled in
+            appState.updateShortcutsEnabled(isEnabled)
         }
     }
 }

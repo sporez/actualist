@@ -57,6 +57,7 @@ struct AppSettings: Codable, Equatable {
     var greenIncomeTransactionAmountsEnabled: Bool = false
     var includeCarryoverCategoriesInOverspentAlerts: Bool = false
     var randomizedDisplayValuesEnabled: Bool = false
+    var shortcutsEnabled: Bool = true
     var appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded
     var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
@@ -80,6 +81,7 @@ struct AppSettings: Codable, Equatable {
         greenIncomeTransactionAmountsEnabled: Bool = false,
         includeCarryoverCategoriesInOverspentAlerts: Bool = false,
         randomizedDisplayValuesEnabled: Bool = false,
+        shortcutsEnabled: Bool = true,
         appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded,
         enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
@@ -102,6 +104,7 @@ struct AppSettings: Codable, Equatable {
         self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
         self.includeCarryoverCategoriesInOverspentAlerts = includeCarryoverCategoriesInOverspentAlerts
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
+        self.shortcutsEnabled = shortcutsEnabled
         self.appSwitcherPrivacyMode = appSwitcherPrivacyMode
         self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
@@ -136,6 +139,10 @@ struct AppSettings: Codable, Equatable {
             Bool.self,
             forKey: .randomizedDisplayValuesEnabled
         ) ?? false
+        shortcutsEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .shortcutsEnabled
+        ) ?? true
         appSwitcherPrivacyMode = try container.decodeIfPresent(
             AppSwitcherPrivacyMode.self,
             forKey: .appSwitcherPrivacyMode
