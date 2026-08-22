@@ -7,6 +7,88 @@ extension BudgetDatabase {
         try fetchTransactionPage(accountID: accountID, matching: query, limit: nil, offset: 0).transactions
     }
 
+    func fetchTransaction(id: String) throws -> ActualTransaction? {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        return try queue.read { db in
+            guard try tableExists("transactions", db: db) else {
+                return nil
+            }
+
+            let columns = try columnSet(for: "transactions", db: db)
+            func expr(_ names: [String], fallback: String) -> String {
+                for name in names where columns.contains(name) {
+                    return "t.\(name)"
+                }
+                return fallback
+            }
+
+            let account = expr(["acct", "account"], fallback: "NULL")
+            let date = expr(["date"], fallback: "NULL")
+            let amount = expr(["amount"], fallback: "0")
+            let payee = expr(["payee", "description"], fallback: "NULL")
+            let category = expr(["category"], fallback: "NULL")
+            let notes = expr(["notes"], fallback: "NULL")
+            let cleared = expr(["cleared"], fallback: "0")
+            let reconciled = expr(["reconciled"], fallback: "0")
+            let importedPayee = expr(["imported_description", "imported_payee"], fallback: "NULL")
+            let parentID = expr(["parent_id"], fallback: "NULL")
+            let isParent = expr(["isParent", "is_parent"], fallback: "0")
+            let normalizedDate = normalizedDateExpression(date)
+            let live = predicateForLiveRows(columns: columns, tableAlias: "t")
+            let familyPredicate: String
+            if columns.contains("parent_id") {
+                let subqueryLive = predicateForLiveRows(columns: columns)
+                familyPredicate = """
+                    t.id = ?
+                    OR t.parent_id = ?
+                    OR t.id = (
+                        SELECT parent_id FROM transactions
+                        WHERE id = ? AND \(subqueryLive)
+                    )
+                    """
+            } else {
+                familyPredicate = "t.id = ?"
+            }
+
+            let sql = """
+                SELECT t.id AS id,
+                       \(account) AS account_id,
+                       \(normalizedDate) AS date,
+                       \(amount) AS amount,
+                       \(payee) AS payee_id,
+                       NULL AS payee_name,
+                       \(importedPayee) AS imported_payee,
+                       \(category) AS category_id,
+                       \(notes) AS notes,
+                       \(cleared) AS cleared,
+                       \(reconciled) AS reconciled,
+                       \(parentID) AS parent_id,
+                       \(isParent) AS is_parent
+                FROM transactions t
+                WHERE \(live)
+                  AND (\(familyPredicate))
+                """
+            let arguments: [DatabaseValueConvertible] = columns.contains("parent_id")
+                ? [trimmed, trimmed, trimmed]
+                : [trimmed]
+            let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
+            let assembled = assembleTransactions(from: rows)
+            if let match = assembled.first(where: { $0.id == trimmed }) {
+                return match
+            }
+            for parent in assembled {
+                if let child = parent.subtransactions.first(where: { $0.id == trimmed }) {
+                    return child
+                }
+            }
+            return nil
+        }
+    }
+
     func fetchTransactionPage(
         accountID: String? = nil,
         matching query: String? = nil,

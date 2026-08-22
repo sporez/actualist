@@ -63,7 +63,18 @@ struct BudgetAlertEntityQuery: EntityQuery {
 
     func entities(for identifiers: [BudgetAlertEntity.ID]) async throws -> [BudgetAlertEntity] {
         let wanted = Set(identifiers)
-        return try await session.budgetAlerts().filter { wanted.contains($0.id) }
+        let months = Set(wanted.compactMap { identifier -> String? in
+            identifier.split(separator: "|", maxSplits: 1).first.map(String.init)
+        })
+        var alerts: [BudgetAlertEntity] = []
+        if months.isEmpty {
+            alerts = try await session.budgetAlerts()
+        } else {
+            for month in months {
+                alerts.append(contentsOf: try await session.budgetAlerts(month: month))
+            }
+        }
+        return alerts.filter { wanted.contains($0.id) }
     }
 
     func suggestedEntities() async throws -> [BudgetAlertEntity] {

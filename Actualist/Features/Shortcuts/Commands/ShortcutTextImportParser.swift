@@ -30,12 +30,13 @@ enum ShortcutTextImportParser {
             return transfer
         }
 
-        guard let amountMatch = firstAmount(in: normalized) else {
+        let withoutDates = strippingDates(from: normalized)
+        guard let amountMatch = firstAmount(in: withoutDates) else {
             throw ShortcutsError.textImportAmountMissing
         }
         let amountMinorUnits = try ShortcutMoney.minorUnits(from: amountMatch.decimal)
 
-        var working = removing(amountMatch.raw, from: normalized)
+        var working = removing(amountMatch.raw, from: withoutDates)
         let direction = parseDirection(in: working) ?? .spend
         working = removingKeywords(from: working)
 
@@ -131,15 +132,27 @@ enum ShortcutTextImportParser {
         return working
     }
 
+    private static func strippingDates(from text: String) -> String {
+        text.replacingOccurrences(
+            of: #"\b\d{4}-\d{1,2}-\d{1,2}\b"#,
+            with: " ",
+            options: .regularExpression
+        )
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func capture(after prefixes: [String], in text: inout String) -> String? {
         for prefix in prefixes {
-            let pattern = #"\b"# + NSRegularExpression.escapedPattern(for: prefix) + #"\s+([^\s]+)"#
+            let pattern = #"\b"#
+                + NSRegularExpression.escapedPattern(for: prefix)
+                + #"\s+(.+?)(?=\s+(?:in|on|at)\b|$)"#
             guard let match = firstMatch(pattern, in: text, options: [.caseInsensitive]),
                   let value = match.capture(1, in: text) else {
                 continue
             }
             text = removing(match.capture(0, in: text) ?? "", from: text)
-            return value
+            return value.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return nil
     }

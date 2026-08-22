@@ -1,7 +1,7 @@
 import AppIntents
 import Foundation
 
-struct OpenBudgetIntent: AppIntent {
+struct OpenBudgetIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Budget"
     static var description = IntentDescription("Opens the Budget tab.")
     static var openAppWhenRun = true
@@ -10,12 +10,12 @@ struct OpenBudgetIntent: AppIntent {
     var session: ShortcutsBudgetSession
 
     func perform() async throws -> some IntentResult {
-        await session.enqueueRoute(.tab(.budget))
+        try await session.enqueueRoute(.tab(.budget))
         return .result()
     }
 }
 
-struct OpenAccountsIntent: AppIntent {
+struct OpenAccountsIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Accounts"
     static var description = IntentDescription("Opens the Accounts tab.")
     static var openAppWhenRun = true
@@ -24,12 +24,12 @@ struct OpenAccountsIntent: AppIntent {
     var session: ShortcutsBudgetSession
 
     func perform() async throws -> some IntentResult {
-        await session.enqueueRoute(.tab(.accounts))
+        try await session.enqueueRoute(.tab(.accounts))
         return .result()
     }
 }
 
-struct OpenSpendingIntent: AppIntent {
+struct OpenSpendingIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Spending"
     static var description = IntentDescription("Opens the Spending tab.")
     static var openAppWhenRun = true
@@ -38,12 +38,12 @@ struct OpenSpendingIntent: AppIntent {
     var session: ShortcutsBudgetSession
 
     func perform() async throws -> some IntentResult {
-        await session.enqueueRoute(.tab(.spending))
+        try await session.enqueueRoute(.tab(.spending))
         return .result()
     }
 }
 
-struct OpenReportsIntent: AppIntent {
+struct OpenReportsIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Reports"
     static var description = IntentDescription("Opens the Reports tab.")
     static var openAppWhenRun = true
@@ -52,15 +52,16 @@ struct OpenReportsIntent: AppIntent {
     var session: ShortcutsBudgetSession
 
     func perform() async throws -> some IntentResult {
-        await session.enqueueRoute(.tab(.reports))
+        try await session.enqueueRoute(.tab(.reports))
         return .result()
     }
 }
 
-struct OpenAccountIntent: AppIntent {
+struct OpenAccountIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Account"
     static var description = IntentDescription("Opens one account in Actualist.")
     static var openAppWhenRun = true
+    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")
     var account: AccountEntity
@@ -74,15 +75,16 @@ struct OpenAccountIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         _ = try await session.prepare()
-        await session.enqueueRoute(.account(id: account.id))
+        try await session.enqueueRoute(.account(id: account.id))
         return .result()
     }
 }
 
-struct OpenCategoryIntent: AppIntent {
+struct OpenCategoryIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Category"
     static var description = IntentDescription("Opens one category's month details.")
     static var openAppWhenRun = true
+    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Category")
     var category: CategoryEntity
@@ -101,15 +103,16 @@ struct OpenCategoryIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let loaded = try await session.loadedMonth(preferred: month?.id)
-        await session.enqueueRoute(.category(id: category.id, month: loaded.selectedMonth))
+        try await session.enqueueRoute(.category(id: category.id, month: loaded.selectedMonth))
         return .result()
     }
 }
 
-struct OpenUncategorizedIntent: AppIntent {
+struct OpenUncategorizedIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Uncategorized"
     static var description = IntentDescription("Opens uncategorized transactions for a month.")
     static var openAppWhenRun = true
+    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")
     var month: BudgetMonthEntity?
@@ -125,15 +128,16 @@ struct OpenUncategorizedIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         let loaded = try await session.loadedMonth(preferred: month?.id)
-        await session.enqueueRoute(.uncategorized(month: loaded.selectedMonth))
+        try await session.enqueueRoute(.uncategorized(month: loaded.selectedMonth))
         return .result()
     }
 }
 
-struct OpenNewTransactionIntent: AppIntent {
+struct OpenNewTransactionIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open New Transaction"
     static var description = IntentDescription("Opens the transaction editor with optional prefill. Does not write.")
     static var openAppWhenRun = true
+    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")
     var account: AccountEntity?
@@ -172,11 +176,13 @@ struct OpenNewTransactionIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        await session.enqueueRoute(
+        _ = try await session.prepare()
+        try await session.enqueueRoute(
             .newTransaction(
                 ShortcutEditorPrefill(
                     accountID: account?.id,
                     amountMinorUnits: try amount.map { try ShortcutMoney.minorUnits(from: $0) },
+                    payeeID: payee?.id,
                     payeeName: payeeName ?? payee?.name,
                     categoryID: category?.id,
                     categoryName: category?.name,

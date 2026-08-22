@@ -16,6 +16,13 @@ enum ShortcutsError: LocalizedError, Equatable {
     case defaultAccountMissing
     case textImportAmountMissing
     case ambiguousMatch
+    case unsupportedSplit
+    case unsupportedTransfer
+    case accountClosed
+    case currencyMismatch
+    case invalidName
+    case writeFailed
+    case templateUnsupported
 
     var errorDescription: String? {
         switch self {
@@ -49,10 +56,24 @@ enum ShortcutsError: LocalizedError, Equatable {
             "That text does not include an amount."
         case .ambiguousMatch:
             "That name matches more than one item. Be more specific."
+        case .unsupportedSplit:
+            "Split transactions can only be changed in Actualist. Shortcuts will not change a split."
+        case .unsupportedTransfer:
+            "That transfer cannot be changed that way. Open it in Actualist."
+        case .accountClosed:
+            "That account is closed. Choose an open account."
+        case .currencyMismatch:
+            "Use the same currency as this iPhone."
+        case .invalidName:
+            "Enter a name."
+        case .writeFailed:
+            "Actualist could not apply that change."
+        case .templateUnsupported:
+            "That budget template cannot be applied in Shortcuts. Open Actualist to apply it."
         }
     }
 
-    static func mapping(_ error: Error) -> ShortcutsError {
+    static func mapping(_ error: Error, fallback: ShortcutsError = .writeFailed) -> ShortcutsError {
         if let error = error as? ShortcutsError {
             return error
         }
@@ -62,10 +83,20 @@ enum ShortcutsError: LocalizedError, Equatable {
                 return .encryptedBudgetNeedsUnlock
             case .missingImportedDatabase, .missingBudgetFileID, .invalidBudgetFileID:
                 return .budgetFileMissing
+            case .unsupportedSplitWrite:
+                return .unsupportedSplit
+            case .unsupportedTransferWrite:
+                return .unsupportedTransfer
+            case .budgetNotOpened:
+                return .budgetBusy
+            case .invalidLocalWrite, .unsupportedWrite:
+                return .writeFailed
+            case .unsupportedTemplate:
+                return .templateUnsupported
             default:
-                return .budgetFileMissing
+                return fallback
             }
         }
-        return .budgetFileMissing
+        return fallback
     }
 }

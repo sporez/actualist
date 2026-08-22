@@ -823,6 +823,10 @@ final class AppState {
     }
 
     #if DEBUG
+    func setBudgetSwitchInProgressForTesting(_ isInProgress: Bool) {
+        isBudgetSwitchInProgress = isInProgress
+    }
+
     func postDebugNewTransactionNotification() async throws {
         guard let budgetID = settings.selectedBudgetID else {
             throw DebugNotificationError.missingBudget

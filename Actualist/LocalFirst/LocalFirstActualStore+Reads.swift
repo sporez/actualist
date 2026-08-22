@@ -60,6 +60,11 @@ extension LocalFirstActualStore {
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
     }
 
+    func fetchTransaction(budgetID: String, id: String) async throws -> ActualTransaction? {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.fetchTransaction(id: id)
+    }
+
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
         accountTransactionsByKey[transactionKey(budgetID, accountID)]?.loaded
     }

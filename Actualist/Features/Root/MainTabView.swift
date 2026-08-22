@@ -83,7 +83,6 @@ struct MainTabView: View {
     private func consumeShortcutRoute() {
         _ = appState.routeCoordinator.consume {
             if case .tab = $0 { return true }
-            if case .account = $0 { return true }
             return false
         }
         guard case .newTransaction(let prefill) = appState.routeCoordinator.consume(if: {

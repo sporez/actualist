@@ -28,18 +28,9 @@ enum ShortcutTransactionCommand {
 
     @MainActor
     static func log(_ input: LogInput, session: ShortcutsBudgetSession) async throws -> TransactionEntity {
-        let prepared = try await session.prepare()
-        let draft = try await makeLogDraft(input, session: session, prepared: prepared)
-        let result = try await prepared.store.createTransactionAndRefresh(
-            draft,
-            budgetID: prepared.budgetID,
-            didCreate: {}
-        )
-        session.recordSuccessfulWrite()
-        guard let transactionID = result.changed.transactions.first else {
-            throw ShortcutsError.transactionNotFound
+        return try await session.withExclusiveWrite { prepared in
+            try await logLocked(input, session: session, prepared: prepared)
         }
-        return try await session.transaction(id: transactionID)
     }
 
     @MainActor
@@ -51,71 +42,66 @@ enum ShortcutTransactionCommand {
         notes: String?,
         session: ShortcutsBudgetSession
     ) async throws -> TransactionEntity {
-        guard fromAccountID != toAccountID else {
-            throw ShortcutsError.transferDestinationMissing
-        }
-        let prepared = try await session.prepare()
-        let destination = try await session.account(id: toAccountID, includeClosed: false)
-        let transferPayee = try await transferPayee(for: destination, session: session)
-        return try await log(
-            LogInput(
+        return try await session.withExclusiveWrite { prepared in
+            try await transferLocked(
+                fromAccountID: fromAccountID,
+                toAccountID: toAccountID,
                 amountMinorUnits: amountMinorUnits,
-                direction: .spend,
-                accountID: fromAccountID,
-                payeeID: transferPayee.id,
-                payeeName: transferPayee.name,
-                categoryID: nil,
-                notes: notes,
                 date: date,
-                cleared: false
-            ),
-            session: session
-        )
+                notes: notes,
+                session: session,
+                prepared: prepared
+            )
+        }
     }
 
     @MainActor
     static func importFromText(_ text: String, session: ShortcutsBudgetSession) async throws -> TransactionEntity {
         let parsed = try ShortcutTextImportParser.parse(text)
-        if parsed.direction == .transfer {
-            let source = try await resolveAccount(
-                text: parsed.accountText,
-                required: true,
-                session: session
-            )
-            let destination = try await resolveAccount(
-                text: parsed.destinationAccountText,
-                required: true,
-                session: session
-            )
-            guard let source, let destination else {
-                throw ShortcutsError.transferDestinationMissing
+        return try await session.withExclusiveWrite { prepared in
+            if parsed.direction == .transfer {
+                let source = try await resolveAccount(
+                    text: parsed.accountText,
+                    required: true,
+                    session: session
+                )
+                let destination = try await resolveAccount(
+                    text: parsed.destinationAccountText,
+                    required: true,
+                    session: session
+                )
+                guard let source, let destination else {
+                    throw ShortcutsError.transferDestinationMissing
+                }
+                return try await transferLocked(
+                    fromAccountID: source.id,
+                    toAccountID: destination.id,
+                    amountMinorUnits: parsed.amountMinorUnits,
+                    date: parsed.date,
+                    notes: parsed.notes,
+                    session: session,
+                    prepared: prepared
+                )
             }
-            return try await transfer(
-                fromAccountID: source.id,
-                toAccountID: destination.id,
-                amountMinorUnits: parsed.amountMinorUnits,
-                date: parsed.date,
-                notes: parsed.notes,
-                session: session
+
+            let account = try await resolveAccount(text: parsed.accountText, required: false, session: session)
+            let category = try await resolveCategory(text: parsed.categoryText, session: session)
+            return try await logLocked(
+                LogInput(
+                    amountMinorUnits: parsed.amountMinorUnits,
+                    direction: parsed.direction ?? .spend,
+                    accountID: account?.id,
+                    payeeID: nil,
+                    payeeName: parsed.payeeText,
+                    categoryID: category?.id,
+                    notes: parsed.notes,
+                    date: parsed.date,
+                    cleared: false
+                ),
+                session: session,
+                prepared: prepared
             )
         }
-
-        let account = try await resolveAccount(text: parsed.accountText, required: false, session: session)
-        let category = try await resolveCategory(text: parsed.categoryText, session: session)
-        return try await log(
-            LogInput(
-                amountMinorUnits: parsed.amountMinorUnits,
-                direction: parsed.direction ?? .spend,
-                accountID: account?.id,
-                payeeID: nil,
-                payeeName: parsed.payeeText,
-                categoryID: category?.id,
-                notes: parsed.notes,
-                date: parsed.date,
-                cleared: false
-            ),
-            session: session
-        )
     }
 
     static func uniqueMatch<Item>(
@@ -148,6 +134,57 @@ enum ShortcutTransactionCommand {
     }
 
     @MainActor
+    private static func logLocked(
+        _ input: LogInput,
+        session: ShortcutsBudgetSession,
+        prepared: PreparedBudget
+    ) async throws -> TransactionEntity {
+        let draft = try await makeLogDraft(input, session: session, prepared: prepared)
+        let result = try await prepared.store.createTransactionAndRefresh(
+            draft,
+            budgetID: prepared.budgetID,
+            didCreate: {}
+        )
+        session.recordSuccessfulWrite()
+        guard let transactionID = result.changed.transactions.first else {
+            throw ShortcutsError.transactionNotFound
+        }
+        return try await session.transaction(id: transactionID)
+    }
+
+    @MainActor
+    private static func transferLocked(
+        fromAccountID: String,
+        toAccountID: String,
+        amountMinorUnits: Int,
+        date: Date?,
+        notes: String?,
+        session: ShortcutsBudgetSession,
+        prepared: PreparedBudget
+    ) async throws -> TransactionEntity {
+        guard fromAccountID != toAccountID else {
+            throw ShortcutsError.transferDestinationMissing
+        }
+        let destination = try await session.account(id: toAccountID, includeClosed: false)
+        let transferPayee = try await session.transferPayee(forAccountID: destination.id)
+        return try await logLocked(
+            LogInput(
+                amountMinorUnits: amountMinorUnits,
+                direction: .spend,
+                accountID: fromAccountID,
+                payeeID: transferPayee.id,
+                payeeName: transferPayee.name,
+                categoryID: nil,
+                notes: notes,
+                date: date,
+                cleared: false
+            ),
+            session: session,
+            prepared: prepared
+        )
+    }
+
+    @MainActor
     private static func makeLogDraft(
         _ input: LogInput,
         session: ShortcutsBudgetSession,
@@ -155,6 +192,9 @@ enum ShortcutTransactionCommand {
     ) async throws -> TransactionDraft {
         let accountID = try resolvedAccountID(input.accountID, prepared: prepared)
         let account = try await session.account(id: accountID, includeClosed: true)
+        if account.closed {
+            throw ShortcutsError.accountClosed
+        }
         let amountCents = abs(input.amountMinorUnits)
         guard amountCents > 0 else {
             throw ShortcutsError.amountInvalid
@@ -245,18 +285,6 @@ enum ShortcutTransactionCommand {
             query: text,
             notFound: .categoryNotFound
         )
-    }
-
-    @MainActor
-    private static func transferPayee(
-        for account: AccountEntity,
-        session: ShortcutsBudgetSession
-    ) async throws -> PayeeEntity {
-        let payees = try await session.payees(includeTransfers: true)
-        guard let payee = payees.first(where: { $0.isTransfer && $0.name == account.name }) else {
-            throw ShortcutsError.transferDestinationMissing
-        }
-        return payee
     }
 
     @MainActor

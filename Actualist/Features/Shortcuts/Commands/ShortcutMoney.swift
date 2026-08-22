@@ -35,7 +35,11 @@ enum ShortcutMoney {
     }
 
     static func minorUnits(from amount: IntentCurrencyAmount) throws -> Int {
-        try minorUnits(from: amount.amount)
+        let code = amount.currencyCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !code.isEmpty, code.caseInsensitiveCompare(currencyCode) != .orderedSame {
+            throw ShortcutsError.currencyMismatch
+        }
+        return try minorUnits(from: amount.amount)
     }
 
     static func spoken(_ amount: IntentCurrencyAmount?) -> String {

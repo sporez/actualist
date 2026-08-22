@@ -91,9 +91,7 @@ struct TransactionEntityQuery: EntityQuery {
     @Dependency var session: ShortcutsBudgetSession
 
     func entities(for identifiers: [TransactionEntity.ID]) async throws -> [TransactionEntity] {
-        let wanted = Set(identifiers)
-        let recent = try await session.transactions(limit: ShortcutsBudgetSession.maximumTransactionLimit)
-        return recent.filter { wanted.contains($0.id) }
+        try await session.transactions(ids: identifiers)
     }
 
     func suggestedEntities() async throws -> [TransactionEntity] {

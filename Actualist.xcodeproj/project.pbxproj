@@ -238,6 +238,9 @@
 		01000000000000000000000100 /* AppRouteCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000100 /* AppRouteCoordinator.swift */; };
 		01000000000000000000000101 /* OpenIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000101 /* OpenIntents.swift */; };
 		01000000000000000000000102 /* AppRouteCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000102 /* AppRouteCoordinatorTests.swift */; };
+		01000000000000000000000103 /* ShortcutErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000103 /* ShortcutErrorTests.swift */; };
+		01000000000000000000000104 /* ShortcutIntentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000104 /* ShortcutIntentTests.swift */; };
+		01000000000000000000000105 /* ShortcutCatalogCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -481,6 +484,9 @@
 		02000000000000000000000100 /* AppRouteCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteCoordinator.swift; sourceTree = "<group>"; };
 		02000000000000000000000101 /* OpenIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenIntents.swift; sourceTree = "<group>"; };
 		02000000000000000000000102 /* AppRouteCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteCoordinatorTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000103 /* ShortcutErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutErrorTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000104 /* ShortcutIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutIntentTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogCoverageTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -681,6 +687,9 @@
 				020000000000000000000000FA /* ShortcutTransactionCommandTests.swift */,
 				020000000000000000000000FE /* ShortcutBudgetCommandTests.swift */,
 				02000000000000000000000102 /* AppRouteCoordinatorTests.swift */,
+				02000000000000000000000103 /* ShortcutErrorTests.swift */,
+				02000000000000000000000104 /* ShortcutIntentTests.swift */,
+				02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -1326,6 +1335,9 @@
 				010000000000000000000000FA /* ShortcutTransactionCommandTests.swift in Sources */,
 				010000000000000000000000FE /* ShortcutBudgetCommandTests.swift in Sources */,
 				01000000000000000000000102 /* AppRouteCoordinatorTests.swift in Sources */,
+				01000000000000000000000103 /* ShortcutErrorTests.swift in Sources */,
+				01000000000000000000000104 /* ShortcutIntentTests.swift in Sources */,
+				01000000000000000000000105 /* ShortcutCatalogCoverageTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

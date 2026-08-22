@@ -166,6 +166,28 @@ struct ShortcutsBudgetSessionTests {
         #expect(bundle.store.isOpen(budgetID: "group-1"))
     }
 
+    @Test func budgetSwitchInProgressRefusesPrepare() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        appState.setBudgetSwitchInProgressForTesting(true)
+        let session = ShortcutsBudgetSession(appState: appState)
+
+        await #expect(throws: ShortcutsError.budgetBusy) {
+            try await session.prepare()
+        }
+    }
+
+    @Test func disabledShortcutsRefuseOpenRoutes() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        appState.updateShortcutsEnabled(false)
+        let session = ShortcutsBudgetSession(appState: appState)
+
+        #expect(throws: ShortcutsError.shortcutsDisabled) {
+            try session.enqueueRoute(.tab(.budget))
+        }
+    }
+
     @Test func successfulWriteBumpsLocalDataRevision() async throws {
         let bundle = try await fixtures.makeOpenedWritableStoreBundle()
         let appState = try fixtures.makeAppState(for: bundle)

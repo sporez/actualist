@@ -44,4 +44,38 @@ struct ShortcutTextImportParserTests {
         #expect(parsed.direction == .spend)
         #expect(parsed.payeeText == "Coffee")
     }
+
+    @Test func datesAreNotTreatedAsAmounts() throws {
+        let parsed = try ShortcutTextImportParser.parse("2026-04-01 coffee 12.50")
+        #expect(parsed.amountMinorUnits == 1_250)
+        #expect(parsed.payeeText == "coffee")
+    }
+
+    @Test func multiWordPayeeAfterAtIsPreserved() throws {
+        let parsed = try ShortcutTextImportParser.parse("12.50 at Starbucks Reserve")
+        #expect(parsed.amountMinorUnits == 1_250)
+        #expect(parsed.payeeText == "Starbucks Reserve")
+        #expect(parsed.categoryText == nil)
+    }
+
+    @Test func emptyTextAndInflowKeywordsAreCovered() throws {
+        #expect(throws: ShortcutsError.textImportAmountMissing) {
+            _ = try ShortcutTextImportParser.parse("   ")
+        }
+        let received = try ShortcutTextImportParser.parse("got 15 paycheck")
+        #expect(received.direction == .inflow)
+        #expect(received.amountMinorUnits == 1_500)
+        let inflow = try ShortcutTextImportParser.parse("inflow 20 bonus")
+        #expect(inflow.direction == .inflow)
+        let spend = try ShortcutTextImportParser.parse("spend 8 snacks")
+        #expect(spend.direction == .spend)
+        let comma = try ShortcutTextImportParser.parse("$1,250.50 coffee")
+        #expect(comma.amountMinorUnits == 125_050)
+        let leftoverAccount = try ShortcutTextImportParser.parse("spent 9 on coffee in Checking Extra")
+        #expect(leftoverAccount.payeeText == "coffee")
+        #expect(leftoverAccount.accountText == "Checking Extra")
+        #expect(throws: ShortcutsError.textImportAmountMissing) {
+            _ = try ShortcutTextImportParser.parse("transfer nope from Checking to Savings")
+        }
+    }
 }

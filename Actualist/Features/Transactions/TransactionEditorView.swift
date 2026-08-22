@@ -26,16 +26,7 @@ struct TransactionEditorView: View {
             categoryName: shortcutPrefill?.categoryName ?? prefilledCategoryName
         )
         if let shortcutPrefill {
-            model.kind = shortcutPrefill.direction
-            if let amount = shortcutPrefill.amountMinorUnits {
-                model.amountDigits = String(abs(amount))
-            }
-            if let notes = shortcutPrefill.notes {
-                model.notes = notes
-            }
-            if let accountID = shortcutPrefill.accountID {
-                model.selectedAccountID = accountID
-            }
+            model.applyShortcutPrefill(shortcutPrefill)
         }
         _viewModel = State(initialValue: model)
         self.prefilledAccount = prefilledAccount

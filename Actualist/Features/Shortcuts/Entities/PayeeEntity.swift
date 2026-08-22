@@ -13,21 +13,25 @@ struct PayeeEntity: AppEntity {
     @Property(title: "Transfer")
     var isTransfer: Bool
 
+    var transferAccountID: String?
+
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)")
     }
 
-    init(id: String, name: String, isTransfer: Bool) {
+    init(id: String, name: String, isTransfer: Bool, transferAccountID: String? = nil) {
         self.id = id
         self.name = name
         self.isTransfer = isTransfer
+        self.transferAccountID = transferAccountID
     }
 
     static func make(from payee: ManagedPayee) -> PayeeEntity {
         PayeeEntity(
             id: payee.id,
             name: payee.displayName,
-            isTransfer: payee.isTransfer
+            isTransfer: payee.isTransfer,
+            transferAccountID: payee.transferAccountID
         )
     }
 }

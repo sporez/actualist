@@ -7,14 +7,29 @@ struct ShortcutTransactionCommandTests {
     private let fixtures = LocalFirstActualStoreTests()
 
     private func makeSession(
-        defaultAccountID: String? = nil
+        defaultAccountID: String? = nil,
+        extraSQL: String = ""
     ) async throws -> (session: ShortcutsBudgetSession, appState: AppState) {
-        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle(additionalFixtureSQL: extraSQL)
         let appState = try fixtures.makeAppState(for: bundle)
         if let defaultAccountID {
             appState.settings.defaultAccountIDByBudgetID["group-1"] = defaultAccountID
         }
         return (ShortcutsBudgetSession(appState: appState), appState)
+    }
+
+    private func makeSplitSession() async throws -> ShortcutsBudgetSession {
+        let (session, _) = try await makeSession(
+            extraSQL: """
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent)
+                VALUES ('split-parent', 'checking', 20260710, -5000, NULL, 0, NULL, 1);
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent)
+                VALUES ('split-a', 'checking', 20260710, -2000, 'groceries', 0, 'split-parent', 0);
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent)
+                VALUES ('split-b', 'checking', 20260710, -3000, 'utilities', 0, 'split-parent', 0);
+            """
+        )
+        return session
     }
 
     @Test func logSpendUsesNegativeAmountAndPayeeName() async throws {
@@ -165,6 +180,148 @@ struct ShortcutTransactionCommandTests {
                 query: "check",
                 notFound: .accountNotFound
             )
+        }
+    }
+
+    @Test func omittedCategoryAppliesMatchingPayeeRule() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'cafe-rule',
+                '[{"field":"payee_name","op":"is","value":"Rule Cafe"}]',
+                '[{"field":"category","op":"set","value":"groceries"}]',
+                0
+            );
+            """
+        )
+        let appState = try fixtures.makeAppState(for: bundle)
+        let session = ShortcutsBudgetSession(appState: appState)
+        let transaction = try await ShortcutTransactionCommand.log(
+            .init(
+                amountMinorUnits: 800,
+                direction: .spend,
+                accountID: "checking",
+                payeeName: "Rule Cafe",
+                cleared: false
+            ),
+            session: session
+        )
+        #expect(transaction.category == "Groceries")
+    }
+
+    @Test func logRejectsClosedAccounts() async throws {
+        let (session, _) = try await makeSession(
+            extraSQL: "INSERT INTO accounts VALUES ('closed', 'Old Card', 0, 1, 0, 9);"
+        )
+        await #expect(throws: ShortcutsError.accountClosed) {
+            _ = try await ShortcutTransactionCommand.log(
+                .init(
+                    amountMinorUnits: 500,
+                    direction: .spend,
+                    accountID: "closed",
+                    payeeName: "Nope",
+                    cleared: false
+                ),
+                session: session
+            )
+        }
+    }
+
+    @Test func transactionLookupFindsRowsOutsideTheRecentPage() async throws {
+        var inserts = ["INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent) VALUES ('old-txn', 'checking', 20200101, -111, 'groceries', 0, NULL, 0);"]
+        for index in 0..<110 {
+            inserts.append(
+                "INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent) VALUES ('page-\(index)', 'checking', 20260715, -100, 'groceries', 0, NULL, 0);"
+            )
+        }
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: inserts.joined(separator: "\n")
+        )
+        let session = ShortcutsBudgetSession(appState: try fixtures.makeAppState(for: bundle))
+        let entity = try await session.transaction(id: "old-txn")
+        #expect(entity.id == "old-txn")
+        let resolved = try await session.transactions(ids: ["old-txn", "missing"])
+        #expect(resolved.map(\.id) == ["old-txn"])
+    }
+
+    @Test func splitParentNotesAndClearedPreserveChildren() async throws {
+        let session = try await makeSplitSession()
+        let updated = try await ShortcutTransactionCommand.update(
+            .init(transactionID: "split-parent", notes: "Kept split"),
+            session: session
+        )
+        #expect(updated.notes == "Kept split")
+        #expect(try await session.actualTransaction(id: "split-a").parentID == "split-parent")
+        #expect(try await session.actualTransaction(id: "split-b").parentID == "split-parent")
+
+        let cleared = try await ShortcutTransactionCommand.setCleared(
+            transactionID: "split-parent",
+            cleared: true,
+            session: session
+        )
+        #expect(cleared.cleared)
+        #expect(try await session.actualTransaction(id: "split-a").id == "split-a")
+        #expect(try await session.actualTransaction(id: "split-b").id == "split-b")
+    }
+
+    @Test func splitStructureChangesFailInsteadOfCorrupting() async throws {
+        let session = try await makeSplitSession()
+
+        await #expect(throws: ShortcutsError.unsupportedSplit) {
+            _ = try await ShortcutTransactionCommand.update(
+                .init(transactionID: "split-parent", amountMinorUnits: 9_000),
+                session: session
+            )
+        }
+        await #expect(throws: ShortcutsError.unsupportedSplit) {
+            _ = try await ShortcutTransactionCommand.update(
+                .init(transactionID: "split-a", notes: "child"),
+                session: session
+            )
+        }
+        await #expect(throws: ShortcutsError.unsupportedSplit) {
+            _ = try await ShortcutTransactionCommand.setCleared(
+                transactionID: "split-b",
+                cleared: true,
+                session: session
+            )
+        }
+        await #expect(throws: ShortcutsError.unsupportedSplit) {
+            _ = try await ShortcutTransactionCommand.categorize(
+                transactionID: "split-parent",
+                categoryID: "groceries",
+                session: session
+            )
+        }
+        await #expect(throws: ShortcutsError.unsupportedSplit) {
+            _ = try await ShortcutTransactionCommand.delete(
+                transactionID: "split-a",
+                session: session
+            )
+        }
+
+        #expect(try await session.actualTransaction(id: "split-parent").isParent)
+        #expect(try await session.actualTransaction(id: "split-a").amount == -2_000)
+        #expect(try await session.actualTransaction(id: "split-b").amount == -3_000)
+    }
+
+    @Test func deletingSplitParentRemovesTheWholeSplit() async throws {
+        let session = try await makeSplitSession()
+        _ = try await ShortcutTransactionCommand.delete(transactionID: "split-parent", session: session)
+        await #expect(throws: ShortcutsError.transactionNotFound) {
+            _ = try await session.actualTransaction(id: "split-parent")
+        }
+        await #expect(throws: ShortcutsError.transactionNotFound) {
+            _ = try await session.actualTransaction(id: "split-a")
+        }
+        await #expect(throws: ShortcutsError.transactionNotFound) {
+            _ = try await session.actualTransaction(id: "split-b")
         }
     }
 

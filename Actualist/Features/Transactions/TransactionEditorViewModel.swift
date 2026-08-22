@@ -198,6 +198,10 @@ final class TransactionEditorViewModel {
             if categoryState.selectedCategoryFallbackName == "Account Transfer" {
                 return "Account Transfer"
             }
+            if let fallback = categoryState.selectedCategoryFallbackName?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !fallback.isEmpty {
+                return fallback.actualistCategoryNameParts.name
+            }
             return isEditing ? "Uncategorized" : "Select Category"
         }
 
@@ -285,6 +289,32 @@ final class TransactionEditorViewModel {
             if isCategoryReadOnly {
                 categoryState.clear()
             }
+        }
+    }
+
+    func applyShortcutPrefill(_ prefill: ShortcutEditorPrefill) {
+        kind = prefill.direction
+        if let amount = prefill.amountMinorUnits {
+            amountDigits = String(abs(amount))
+        }
+        if let notes = prefill.notes {
+            self.notes = notes
+        }
+        if let accountID = prefill.accountID {
+            selectedAccountID = accountID
+        }
+        if let payeeID = prefill.payeeID {
+            selectedPayeeID = payeeID
+        }
+        if let payeeName = prefill.payeeName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !payeeName.isEmpty {
+            self.payeeName = payeeName
+        }
+        if let categoryID = prefill.categoryID {
+            categoryState.selectCategory(id: categoryID, name: prefill.categoryName)
+        } else if let categoryName = prefill.categoryName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !categoryName.isEmpty {
+            categoryState = TransactionEditorCategoryState(categoryID: nil, fallbackName: categoryName)
         }
     }
 
@@ -695,6 +725,23 @@ final class TransactionEditorViewModel {
             result[id] = category.name.actualistCategoryNameParts.name
         }
         categoryState.resolveNames(categoryNames)
+        resolvePrefillCategoryIfNeeded()
+    }
+
+    private func resolvePrefillCategoryIfNeeded() {
+        guard selectedCategoryID == nil,
+              let fallback = categoryState.selectedCategoryFallbackName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !fallback.isEmpty else {
+            return
+        }
+        let match = categories.first { category in
+            category.name.localizedCaseInsensitiveCompare(fallback) == .orderedSame
+                || category.name.actualistCategoryNameParts.name.localizedCaseInsensitiveCompare(fallback) == .orderedSame
+        }
+        guard let match, let id = match.id else {
+            return
+        }
+        categoryState.selectCategory(id: id, name: match.name)
     }
 
     func apply(_ options: TransactionEditorOptions, loadedMonth: String, preferredAccountIDs: [String] = []) {

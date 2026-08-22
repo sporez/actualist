@@ -68,10 +68,18 @@ struct AccountsView: View {
             .navigationDestination(for: ActualAccount.self) { account in
                 AccountTransactionsView(account: account)
             }
-            .task { await loadLocal() }
+            .task {
+                await loadLocal()
+                applyShortcutRoute()
+            }
             .refreshable { await refresh() }
+            .onAppear { applyShortcutRoute() }
+            .onChange(of: appState.routeCoordinator.pendingRoute) {
+                applyShortcutRoute()
+            }
             .onChange(of: appState.localDataRevision) {
                 Task { await loadLocal() }
+                applyShortcutRoute()
             }
             .sheet(isPresented: $isAddAccountPresented) {
                 AddAccountSheet(viewModel: addAccountViewModel)
@@ -100,6 +108,17 @@ struct AccountsView: View {
         } set: { path in
             appState.accountNavigationPath = path
         }
+    }
+
+    private func applyShortcutRoute() {
+        guard let account = AppRouteApplication.account(
+            from: appState.routeCoordinator.pendingRoute,
+            in: accounts.map(\.account)
+        ) else {
+            return
+        }
+        appState.accountNavigationPath = [account]
+        _ = appState.routeCoordinator.consume()
     }
 
     @ViewBuilder

@@ -93,4 +93,27 @@ struct ShortcutBudgetCommandTests {
         #expect(account.name == "Cash")
         #expect(account.offBudget)
     }
+
+    @Test func emptyCreateNamesAndReadyToAssignOnlyMoveFailCleanly() async throws {
+        let session = try await makeSession()
+        await #expect(throws: ShortcutsError.invalidName) {
+            _ = try await ShortcutBudgetCommand.createPayee(name: "   ", session: session)
+        }
+        await #expect(throws: ShortcutsError.invalidName) {
+            _ = try await ShortcutBudgetCommand.createAccount(
+                name: "",
+                offBudget: false,
+                session: session
+            )
+        }
+        await #expect(throws: ShortcutsError.categoryNotFound) {
+            _ = try await ShortcutBudgetCommand.move(
+                fromCategoryID: nil,
+                toCategoryID: nil,
+                amountMinorUnits: 1_000,
+                month: "2026-07",
+                session: session
+            )
+        }
+    }
 }

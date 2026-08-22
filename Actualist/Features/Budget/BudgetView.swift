@@ -8,6 +8,7 @@ struct BudgetView: View {
     @State private var isSettingsPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
+    @State private var uncategorizedRouteMonth: String?
     @State private var categoryDetailsPresentation: CategoryMonthDetails?
     @State private var isOverspentCategoriesPresented = false
     @State private var assignmentKeypadHeight: CGFloat = 0
@@ -209,6 +210,14 @@ struct BudgetView: View {
                 .onChange(of: appState.routeCoordinator.pendingRoute) {
                     applyShortcutRoute()
                 }
+                .onChange(of: viewModel.isLoading) {
+                    if !viewModel.isLoading {
+                        applyShortcutRoute()
+                    }
+                }
+                .onChange(of: viewModel.selectedMonth) {
+                    applyShortcutRoute()
+                }
                 .sheet(isPresented: $isTransactionEditorPresented) {
                     TransactionEditorView(prefilledAccount: nil) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
@@ -223,7 +232,7 @@ struct BudgetView: View {
                 }
                 .sheet(isPresented: $isUncategorizedTransactionsPresented) {
                     UncategorizedTransactionsView(
-                        month: viewModel.selectedMonth ?? viewModel.preferredMonth,
+                        month: uncategorizedRouteMonth ?? viewModel.selectedMonth ?? viewModel.preferredMonth,
                         cachedSnapshot: cachedUncategorizedTransactions,
                         onChanged: {
                             Task { await viewModel.refreshSelectedMonth(using: appState) }
@@ -386,22 +395,27 @@ struct BudgetView: View {
     }
 
     private func applyShortcutRoute() {
-        if case .uncategorized = appState.routeCoordinator.consume(if: {
-            if case .uncategorized = $0 { return true }
-            return false
-        }) {
+        if let month = AppRouteApplication.uncategorizedMonth(from: appState.routeCoordinator.pendingRoute) {
+            uncategorizedRouteMonth = month
             isUncategorizedTransactionsPresented = true
+            _ = appState.routeCoordinator.consume()
             return
         }
-        guard case .category(let id, let month) = appState.routeCoordinator.consume(if: {
-            if case .category = $0 { return true }
-            return false
-        }) else {
+        let categories = viewModel.budgetMonth?.categoryGroups.flatMap(\.categories) ?? []
+        guard let applied = AppRouteApplication.category(
+            from: appState.routeCoordinator.pendingRoute,
+            in: categories
+        ) else {
             return
         }
-        if let category = viewModel.visibleGroups.flatMap(\.categories).first(where: { $0.id == id }) {
-            categoryDetailsPresentation = CategoryMonthDetails(category: category, month: month)
+        _ = appState.routeCoordinator.consume()
+        if viewModel.selectedMonth != applied.month {
+            Task { await viewModel.selectMonth(applied.month, using: appState) }
         }
+        categoryDetailsPresentation = CategoryMonthDetails(
+            category: applied.category,
+            month: applied.month
+        )
     }
 
     private func open(_ alert: BudgetAlert) {
@@ -426,7 +440,7 @@ struct BudgetView: View {
         let repository = appState.transactionRepository
         return repository.cachedUncategorizedTransactions(
             budgetID: budgetID,
-            month: viewModel.selectedMonth ?? viewModel.preferredMonth
+            month: uncategorizedRouteMonth ?? viewModel.selectedMonth ?? viewModel.preferredMonth
         )
     }
 

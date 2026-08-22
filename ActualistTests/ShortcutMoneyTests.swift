@@ -45,7 +45,31 @@ struct ShortcutMoneyTests {
         #expect(try ShortcutMoney.minorUnits(from: amount) == 2_000)
     }
 
+    @Test func rejectsMismatchedCurrencyCodes() {
+        let amount = IntentCurrencyAmount(
+            amount: Decimal(string: "20.00")!,
+            currencyCode: ShortcutMoney.currencyCode == "EUR" ? "USD" : "EUR"
+        )
+        #expect(throws: ShortcutsError.currencyMismatch) {
+            _ = try ShortcutMoney.minorUnits(from: amount)
+        }
+    }
+
     @Test func usesLocaleCurrencyCode() {
         #expect(!ShortcutMoney.currencyCode.isEmpty)
+    }
+
+    @Test func spokenAmountsUseFormattedMoney() {
+        #expect(!ShortcutMoney.spoken(minorUnits: 1_250).isEmpty)
+        #expect(!ShortcutMoney.spoken(nil).isEmpty)
+        let amount = ShortcutMoney.intentAmount(minorUnits: 50)
+        #expect(!ShortcutMoney.spoken(amount).isEmpty)
+        let mismatched = IntentCurrencyAmount(amount: Decimal(1), currencyCode: "ZZZ")
+        #expect(!ShortcutMoney.spoken(mismatched).isEmpty)
+    }
+
+    @Test func blankCurrencyCodeIsAcceptedAsLocaleCurrency() throws {
+        let amount = IntentCurrencyAmount(amount: Decimal(string: "1.00")!, currencyCode: "")
+        #expect(try ShortcutMoney.minorUnits(from: amount) == 100)
     }
 }

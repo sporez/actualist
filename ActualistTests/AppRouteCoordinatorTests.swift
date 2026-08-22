@@ -50,4 +50,41 @@ struct AppRouteCoordinatorTests {
         #expect(state.accountNavigationPath.isEmpty)
         #expect(state.routeCoordinator.pendingRoute == .tab(.spending))
     }
+
+    @Test func routeApplicationDoesNotGuessMissingDestinations() {
+        let accounts = [
+            ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)
+        ]
+        #expect(
+            AppRouteApplication.account(from: .account(id: "checking"), in: accounts)?.id == "checking"
+        )
+        #expect(AppRouteApplication.account(from: .account(id: "missing"), in: accounts) == nil)
+        #expect(AppRouteApplication.account(from: .tab(.accounts), in: accounts) == nil)
+
+        let groceries = BudgetMonthCategory(
+            id: "groceries",
+            name: "Groceries",
+            isIncome: false,
+            hidden: false,
+            groupID: "group",
+            budgeted: 1,
+            spent: 0,
+            balance: 1,
+            carryover: false
+        )
+        let applied = AppRouteApplication.category(
+            from: .category(id: "groceries", month: "2026-03"),
+            in: [groceries]
+        )
+        #expect(applied?.month == "2026-03")
+        #expect(applied?.category.id == "groceries")
+        #expect(
+            AppRouteApplication.category(
+                from: .category(id: "hidden", month: "2026-03"),
+                in: [groceries]
+            ) == nil
+        )
+        #expect(AppRouteApplication.uncategorizedMonth(from: .uncategorized(month: "2026-03")) == "2026-03")
+        #expect(AppRouteApplication.uncategorizedMonth(from: .tab(.budget)) == nil)
+    }
 }

@@ -9,17 +9,26 @@ struct PreparedBudget {
 @MainActor
 final class ShortcutsBudgetSession {
     private let appState: AppState
+    private var isWriting = false
+    private var writeWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(appState: AppState) {
         self.appState = appState
     }
 
-    @discardableResult
-    func prepare() async throws -> PreparedBudget {
-        let settings = appState.settings
-        guard settings.shortcutsEnabled else {
+    func requireEnabled() throws {
+        guard appState.settings.shortcutsEnabled else {
             throw ShortcutsError.shortcutsDisabled
         }
+    }
+
+    @discardableResult
+    func prepare() async throws -> PreparedBudget {
+        try requireEnabled()
+        if appState.isBudgetSwitchInProgress {
+            throw ShortcutsError.budgetBusy
+        }
+        let settings = appState.settings
         guard appState.setupPhase != .needsConnection,
               let budgetID = settings.selectedBudgetID,
               !budgetID.isEmpty else {
@@ -30,7 +39,7 @@ final class ShortcutsBudgetSession {
         if store.isOpen(budgetID: budgetID) {
             return preparedBudget(budgetID: budgetID, store: store, settings: settings)
         }
-        if store.hasOpenBudget {
+        if store.hasOpenBudget || appState.isBudgetSwitchInProgress {
             throw ShortcutsError.budgetBusy
         }
 
@@ -44,34 +53,64 @@ final class ShortcutsBudgetSession {
                 throw ShortcutsError.budgetFileMissing
             }
         } catch {
-            throw ShortcutsError.mapping(error)
+            throw ShortcutsError.mapping(error, fallback: .budgetFileMissing)
         }
 
+        if appState.isBudgetSwitchInProgress {
+            throw ShortcutsError.budgetBusy
+        }
         return preparedBudget(budgetID: budgetID, store: store, settings: settings)
+    }
+
+    func withExclusiveWrite<T: Sendable>(
+        _ work: @MainActor (PreparedBudget) async throws -> T
+    ) async throws -> T {
+        if isWriting {
+            await withCheckedContinuation { continuation in
+                writeWaiters.append(continuation)
+            }
+        }
+        isWriting = true
+        defer { finishWrite() }
+        if appState.isBudgetSwitchInProgress {
+            throw ShortcutsError.budgetBusy
+        }
+        let prepared = try await prepare()
+        guard prepared.store.isOpen(budgetID: prepared.budgetID),
+              !appState.isBudgetSwitchInProgress else {
+            throw ShortcutsError.budgetBusy
+        }
+        do {
+            return try await work(prepared)
+        } catch {
+            throw ShortcutsError.mapping(error)
+        }
     }
 
     func recordSuccessfulWrite() {
         appState.recordLocalDataMutation()
     }
 
-    func enqueueRoute(_ route: AppRoute) {
+    func enqueueRoute(_ route: AppRoute) throws {
+        try requireEnabled()
         appState.routeCoordinator.enqueue(route)
         switch route {
         case .tab(let tab):
             appState.accountNavigationPath = []
             appState.selectedTab = tab
-        case .account(let id):
+        case .account:
             appState.selectedTab = .accounts
-            if let budgetID = appState.settings.selectedBudgetID,
-               let account = appState.localFirstStore.accountDisplays(budgetID: budgetID)
-                .map(\.account)
-                .first(where: { $0.id == id }) {
-                appState.accountNavigationPath = [account]
-            }
         case .category, .uncategorized:
             appState.selectedTab = .budget
         case .newTransaction:
             break
+        }
+    }
+
+    private func finishWrite() {
+        isWriting = false
+        if !writeWaiters.isEmpty {
+            writeWaiters.removeFirst().resume()
         }
     }
 

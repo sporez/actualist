@@ -99,47 +99,67 @@ extension ShortcutsBudgetSession {
 
     func transaction(id: String) async throws -> TransactionEntity {
         let original = try await actualTransaction(id: id)
-        let prepared = try await prepare()
-        try await prepared.store.refreshAccountTransactions(
-            budgetID: prepared.budgetID,
-            accountID: original.account
-        )
-        if let loaded = prepared.store.cachedAccountTransactions(
-            budgetID: prepared.budgetID,
-            accountID: original.account
-        ), let entity = loaded.transactions.first(where: { $0.id == id }).flatMap({
-            TransactionEntity.make(from: $0, maps: .init(loaded))
-        }) {
-            return entity
+        let maps = try await nameMaps(for: original)
+        guard let entity = TransactionEntity.make(from: original, maps: maps) else {
+            throw ShortcutsError.transactionNotFound
         }
-        throw ShortcutsError.transactionNotFound
+        return entity
+    }
+
+    func transactions(ids: [String]) async throws -> [TransactionEntity] {
+        var results: [TransactionEntity] = []
+        results.reserveCapacity(ids.count)
+        for id in ids {
+            do {
+                results.append(try await transaction(id: id))
+            } catch ShortcutsError.transactionNotFound {
+                continue
+            }
+        }
+        return results
     }
 
     func actualTransaction(id: String) async throws -> ActualTransaction {
         let prepared = try await prepare()
-        try await prepared.store.refreshSpendingTransactions(budgetID: prepared.budgetID)
-        if let match = prepared.store.cachedSpendingTransactions(budgetID: prepared.budgetID)?
-            .transactions.first(where: { $0.id == id }) {
-            return match
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw ShortcutsError.transactionNotFound
         }
-        let accounts = try await accounts(includeClosed: true)
-        for account in accounts {
-            try await prepared.store.refreshAccountTransactions(
-                budgetID: prepared.budgetID,
-                accountID: account.id
-            )
-            if let match = prepared.store.cachedAccountTransactions(
-                budgetID: prepared.budgetID,
-                accountID: account.id
-            )?.transactions.first(where: { $0.id == id }) {
-                return match
-            }
+        guard let match = try await prepared.store.fetchTransaction(
+            budgetID: prepared.budgetID,
+            id: trimmed
+        ) else {
+            throw ShortcutsError.transactionNotFound
         }
-        let uncategorized = try await uncategorizedPayload()
-        if let match = uncategorized.transactions.first(where: { $0.id == id }) {
-            return match
+        return match
+    }
+
+    func nameMaps(for transaction: ActualTransaction) async throws -> TransactionNameMaps {
+        let prepared = try await prepare()
+        try await prepared.store.refreshAccountTransactions(
+            budgetID: prepared.budgetID,
+            accountID: transaction.account
+        )
+        if let loaded = prepared.store.cachedAccountTransactions(
+            budgetID: prepared.budgetID,
+            accountID: transaction.account
+        ) {
+            return TransactionNameMaps(loaded)
         }
-        throw ShortcutsError.transactionNotFound
+        return TransactionNameMaps(
+            accountNames: [:],
+            categoryNames: [:],
+            payeeNames: [:],
+            transferPayeeIDs: []
+        )
+    }
+
+    func transferPayee(forAccountID accountID: String) async throws -> PayeeEntity {
+        let payees = try await payees(includeTransfers: true)
+        guard let payee = payees.first(where: { $0.transferAccountID == accountID }) else {
+            throw ShortcutsError.transferDestinationMissing
+        }
+        return payee
     }
 
     func reportsDashboard(month: String? = nil) async throws -> ReportsDashboardSnapshot {

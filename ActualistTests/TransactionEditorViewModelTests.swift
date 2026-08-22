@@ -44,6 +44,51 @@ struct TransactionEditorViewModelTests {
         #expect(draft.notes == nil)
     }
 
+    @Test func applyShortcutPrefillSetsPayeeCategoryAndAmount() {
+        let model = TransactionEditorViewModel()
+        model.applyShortcutPrefill(
+            ShortcutEditorPrefill(
+                accountID: "checking",
+                amountMinorUnits: 1_250,
+                payeeID: "coffee",
+                payeeName: "Coffee Shop",
+                categoryID: "groceries",
+                categoryName: "Groceries",
+                notes: "Latte",
+                direction: .spend
+            )
+        )
+
+        #expect(model.kind == .spend)
+        #expect(model.amountDigits == "1250")
+        #expect(model.selectedAccountID == "checking")
+        #expect(model.selectedPayeeID == "coffee")
+        #expect(model.payeeName == "Coffee Shop")
+        #expect(model.selectedCategoryID == "groceries")
+        #expect(model.selectedCategoryName == "Groceries")
+        #expect(model.notes == "Latte")
+    }
+
+    @Test func applyShortcutPrefillResolvesCategoryNameWhenOptionsLoad() {
+        let model = TransactionEditorViewModel()
+        model.applyShortcutPrefill(ShortcutEditorPrefill(categoryName: "Dining"))
+        #expect(model.selectedCategoryID == nil)
+        #expect(model.selectedCategoryName == "Dining")
+
+        model.apply(
+            TransactionEditorOptions(
+                accounts: [],
+                categories: [
+                    ActualCategory(id: "dining", name: "Dining", isIncome: false, hidden: false, groupID: "group")
+                ],
+                categoryGroups: [],
+                payees: []
+            ),
+            loadedMonth: "2026-07"
+        )
+        #expect(model.selectedCategoryID == "dining")
+    }
+
     @Test func prefilledEditModelMatchesTransaction() {
         let model = TransactionEditorViewModel(
             editing: ActualTransaction(

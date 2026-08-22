@@ -103,6 +103,18 @@ struct ShortcutEntityQueryTests {
         #expect(matches.map(\.id) == ["coffee"])
     }
 
+    @Test func transactionEntitiesResolveByIDOutsideTheSuggestedPage() async throws {
+        var inserts = ["INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent) VALUES ('buried', 'checking', 20200102, -222, 'groceries', 0, NULL, 0);"]
+        for index in 0..<110 {
+            inserts.append(
+                "INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent) VALUES ('recent-\(index)', 'checking', 20260716, -100, 'groceries', 0, NULL, 0);"
+            )
+        }
+        let (session, _) = try await makeSession(extraSQL: inserts.joined(separator: "\n"))
+        let matches = try await session.transactions(ids: ["buried"])
+        #expect(matches.map(\.id) == ["buried"])
+    }
+
     @Test func monthsUseCachedBudgetMonthAndFormatDisplayNames() async throws {
         let (session, _) = try await makeSession()
         let months = try await session.months()
