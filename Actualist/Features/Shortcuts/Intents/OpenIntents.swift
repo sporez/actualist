@@ -3,7 +3,10 @@ import Foundation
 
 struct OpenBudgetIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Budget"
-    static var description = IntentDescription("Opens the Budget tab.")
+    static var description = IntentDescription(
+        "Opens the Budget tab.",
+        categoryName: "Budget"
+    )
     static var openAppWhenRun = true
 
     @Dependency
@@ -17,7 +20,10 @@ struct OpenBudgetIntent: ForegroundContinuableIntent {
 
 struct OpenAccountsIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Accounts"
-    static var description = IntentDescription("Opens the Accounts tab.")
+    static var description = IntentDescription(
+        "Opens the Accounts tab.",
+        categoryName: "Accounts"
+    )
     static var openAppWhenRun = true
 
     @Dependency
@@ -31,7 +37,10 @@ struct OpenAccountsIntent: ForegroundContinuableIntent {
 
 struct OpenSpendingIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Spending"
-    static var description = IntentDescription("Opens the Spending tab.")
+    static var description = IntentDescription(
+        "Opens the Spending tab.",
+        categoryName: "Transactions"
+    )
     static var openAppWhenRun = true
 
     @Dependency
@@ -45,7 +54,10 @@ struct OpenSpendingIntent: ForegroundContinuableIntent {
 
 struct OpenReportsIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Reports"
-    static var description = IntentDescription("Opens the Reports tab.")
+    static var description = IntentDescription(
+        "Opens the Reports tab.",
+        categoryName: "Reports"
+    )
     static var openAppWhenRun = true
 
     @Dependency
@@ -59,7 +71,10 @@ struct OpenReportsIntent: ForegroundContinuableIntent {
 
 struct OpenAccountIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Account"
-    static var description = IntentDescription("Opens one account in Actualist.")
+    static var description = IntentDescription(
+        "Opens one account in Actualist.",
+        categoryName: "Accounts"
+    )
     static var openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
@@ -82,7 +97,10 @@ struct OpenAccountIntent: ForegroundContinuableIntent {
 
 struct OpenCategoryIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Category"
-    static var description = IntentDescription("Opens one category's month details.")
+    static var description = IntentDescription(
+        "Opens one category's month details.",
+        categoryName: "Budget"
+    )
     static var openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
@@ -110,7 +128,10 @@ struct OpenCategoryIntent: ForegroundContinuableIntent {
 
 struct OpenUncategorizedIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open Uncategorized"
-    static var description = IntentDescription("Opens uncategorized transactions for a month.")
+    static var description = IntentDescription(
+        "Opens uncategorized transactions for a month.",
+        categoryName: "Budget"
+    )
     static var openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
@@ -135,7 +156,10 @@ struct OpenUncategorizedIntent: ForegroundContinuableIntent {
 
 struct OpenNewTransactionIntent: ForegroundContinuableIntent {
     static var title: LocalizedStringResource = "Open New Transaction"
-    static var description = IntentDescription("Opens the transaction editor with optional prefill. Does not write.")
+    static var description = IntentDescription(
+        "Opens the transaction editor with optional prefill. Does not write.",
+        categoryName: "Transactions"
+    )
     static var openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 

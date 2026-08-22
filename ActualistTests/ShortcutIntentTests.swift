@@ -44,6 +44,70 @@ struct ShortcutIntentTests {
         #expect(ActualistShortcutsProvider.appShortcuts.count == 6)
     }
 
+    @Test func extractedIntentMetadataUsesShortcutCategories() throws {
+        let url = try #require(
+            Bundle.main.url(
+                forResource: "extract",
+                withExtension: "actionsdata",
+                subdirectory: "Metadata.appintents"
+            )
+        )
+        let payload = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        let actions = try #require(payload?["actions"] as? [String: Any])
+        let expected: [String: String] = [
+            "GetAccountsIntent": "Accounts",
+            "GetAccountIntent": "Accounts",
+            "GetAccountBalanceIntent": "Accounts",
+            "GetAccountTransactionsIntent": "Accounts",
+            "CreateAccountIntent": "Accounts",
+            "OpenAccountsIntent": "Accounts",
+            "OpenAccountIntent": "Accounts",
+            "GetCategoriesIntent": "Budget",
+            "GetCategoryIntent": "Budget",
+            "GetCategoryBalanceIntent": "Budget",
+            "GetReadyToAssignIntent": "Budget",
+            "GetBudgetSummaryIntent": "Budget",
+            "GetOverspentCategoriesIntent": "Budget",
+            "GetUncategorizedTransactionsIntent": "Budget",
+            "GetUncategorizedCountIntent": "Budget",
+            "GetBudgetAlertsIntent": "Budget",
+            "AssignCategoryBudgetIntent": "Budget",
+            "AddToCategoryBudgetIntent": "Budget",
+            "MoveMoneyIntent": "Budget",
+            "ApplyBudgetTemplateIntent": "Budget",
+            "SetCategoryCarryoverIntent": "Budget",
+            "OpenBudgetIntent": "Budget",
+            "OpenCategoryIntent": "Budget",
+            "OpenUncategorizedIntent": "Budget",
+            "GetPayeesIntent": "Transactions",
+            "CreatePayeeIntent": "Transactions",
+            "GetTransactionsIntent": "Transactions",
+            "GetTransactionIntent": "Transactions",
+            "LogTransactionIntent": "Transactions",
+            "LogTransferIntent": "Transactions",
+            "UpdateTransactionIntent": "Transactions",
+            "CategorizeTransactionIntent": "Transactions",
+            "SetTransactionClearedIntent": "Transactions",
+            "DeleteTransactionIntent": "Transactions",
+            "ImportTransactionFromTextIntent": "Transactions",
+            "OpenNewTransactionIntent": "Transactions",
+            "OpenSpendingIntent": "Transactions",
+            "GetNetWorthIntent": "Reports",
+            "GetCashFlowIntent": "Reports",
+            "GetBudgetOverviewIntent": "Reports",
+            "OpenReportsIntent": "Reports"
+        ]
+
+        #expect(Set(actions.keys) == Set(expected.keys))
+        for (identifier, category) in expected {
+            let action = try #require(actions[identifier] as? [String: Any])
+            let metadata = try #require(action["descriptionMetadata"] as? [String: Any])
+            let categoryName = try #require(metadata["categoryName"] as? [String: Any])
+            let title = try #require(categoryName["title"] as? [String: Any])
+            #expect(title["key"] as? String == category)
+        }
+    }
+
     @Test func intentMetadataGettersAreReachable() {
         _ = GetAccountsIntent.authenticationPolicy
         _ = GetAccountsIntent.parameterSummary

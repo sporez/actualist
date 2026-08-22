@@ -16,7 +16,10 @@ enum CategoryBalanceMetric: String, AppEnum {
 
 struct GetCategoriesIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Categories"
-    static var description = IntentDescription("Returns categories in the selected budget.")
+    static var description = IntentDescription(
+        "Returns categories in the selected budget.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Include Hidden", default: false)
@@ -46,7 +49,10 @@ struct GetCategoriesIntent: AppIntent {
 
 struct GetCategoryIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Category"
-    static var description = IntentDescription("Returns one category, including available, budgeted, and spent.")
+    static var description = IntentDescription(
+        "Returns one category, including available, budgeted, and spent.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Category")
@@ -73,7 +79,10 @@ struct GetCategoryIntent: AppIntent {
 
 struct GetCategoryBalanceIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Category Balance"
-    static var description = IntentDescription("Returns available, budgeted, or spent for one category.")
+    static var description = IntentDescription(
+        "Returns available, budgeted, or spent for one category.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Category")
@@ -117,7 +126,10 @@ struct GetCategoryBalanceIntent: AppIntent {
 
 struct GetPayeesIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Payees"
-    static var description = IntentDescription("Returns payees in the selected budget.")
+    static var description = IntentDescription(
+        "Returns payees in the selected budget.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Include Transfers", default: false)
@@ -140,7 +152,10 @@ struct GetPayeesIntent: AppIntent {
 
 struct GetReadyToAssignIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Ready to Assign"
-    static var description = IntentDescription("Returns the amount ready to assign for a budget month.")
+    static var description = IntentDescription(
+        "Returns the amount ready to assign for a budget month.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")
@@ -165,7 +180,10 @@ struct GetReadyToAssignIntent: AppIntent {
 
 struct GetBudgetSummaryIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Budget Summary"
-    static var description = IntentDescription("Returns ready to assign and month totals.")
+    static var description = IntentDescription(
+        "Returns ready to assign and month totals.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")
@@ -189,7 +207,10 @@ struct GetBudgetSummaryIntent: AppIntent {
 
 struct GetOverspentCategoriesIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Overspent Categories"
-    static var description = IntentDescription("Returns visible expense categories that are overspent.")
+    static var description = IntentDescription(
+        "Returns visible expense categories that are overspent.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")
@@ -212,7 +233,10 @@ struct GetOverspentCategoriesIntent: AppIntent {
 
 struct GetUncategorizedTransactionsIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Uncategorized Transactions"
-    static var description = IntentDescription("Returns uncategorized transactions for a budget month.")
+    static var description = IntentDescription(
+        "Returns uncategorized transactions for a budget month.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")
@@ -239,7 +263,10 @@ struct GetUncategorizedTransactionsIntent: AppIntent {
 
 struct GetUncategorizedCountIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Uncategorized Count"
-    static var description = IntentDescription("Returns how many transactions are uncategorized in a month.")
+    static var description = IntentDescription(
+        "Returns how many transactions are uncategorized in a month.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")
@@ -262,7 +289,10 @@ struct GetUncategorizedCountIntent: AppIntent {
 
 struct GetBudgetAlertsIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Budget Alerts"
-    static var description = IntentDescription("Returns ready-to-assign, overspent, and uncategorized alerts.")
+    static var description = IntentDescription(
+        "Returns ready-to-assign, overspent, and uncategorized alerts.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")

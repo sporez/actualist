@@ -21,7 +21,10 @@ enum ShortcutTransactionDirectionAppEnum: String, AppEnum {
 
 struct LogTransactionIntent: AppIntent {
     static var title: LocalizedStringResource = "Log Transaction"
-    static var description = IntentDescription("Logs a transaction in the selected budget immediately.")
+    static var description = IntentDescription(
+        "Logs a transaction in the selected budget immediately.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Amount")
@@ -89,7 +92,10 @@ struct LogTransactionIntent: AppIntent {
 
 struct LogTransferIntent: AppIntent {
     static var title: LocalizedStringResource = "Log Transfer"
-    static var description = IntentDescription("Transfers money between two accounts immediately.")
+    static var description = IntentDescription(
+        "Transfers money between two accounts immediately.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "From Account")
@@ -136,7 +142,10 @@ struct LogTransferIntent: AppIntent {
 
 struct UpdateTransactionIntent: AppIntent {
     static var title: LocalizedStringResource = "Update Transaction"
-    static var description = IntentDescription("Updates a transaction immediately.")
+    static var description = IntentDescription(
+        "Updates a transaction immediately.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Transaction")
@@ -209,7 +218,10 @@ struct UpdateTransactionIntent: AppIntent {
 
 struct CategorizeTransactionIntent: AppIntent {
     static var title: LocalizedStringResource = "Categorize Transaction"
-    static var description = IntentDescription("Sets a transaction's category immediately.")
+    static var description = IntentDescription(
+        "Sets a transaction's category immediately.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Transaction")
@@ -237,7 +249,10 @@ struct CategorizeTransactionIntent: AppIntent {
 
 struct SetTransactionClearedIntent: AppIntent {
     static var title: LocalizedStringResource = "Set Transaction Cleared"
-    static var description = IntentDescription("Marks a transaction cleared or uncleared immediately.")
+    static var description = IntentDescription(
+        "Marks a transaction cleared or uncleared immediately.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Transaction")
@@ -266,7 +281,10 @@ struct SetTransactionClearedIntent: AppIntent {
 
 struct DeleteTransactionIntent: AppIntent {
     static var title: LocalizedStringResource = "Delete Transaction"
-    static var description = IntentDescription("Deletes a transaction immediately.")
+    static var description = IntentDescription(
+        "Deletes a transaction immediately.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Transaction")
@@ -291,7 +309,10 @@ struct DeleteTransactionIntent: AppIntent {
 
 struct ImportTransactionFromTextIntent: AppIntent {
     static var title: LocalizedStringResource = "Import Transaction from Text"
-    static var description = IntentDescription("Parses text and logs the transaction immediately.")
+    static var description = IntentDescription(
+        "Parses text and logs the transaction immediately.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Text")

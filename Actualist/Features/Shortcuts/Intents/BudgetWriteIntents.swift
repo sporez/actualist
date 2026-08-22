@@ -21,7 +21,10 @@ enum ShortcutTemplateMode: String, AppEnum {
 
 struct AssignCategoryBudgetIntent: AppIntent {
     static var title: LocalizedStringResource = "Assign Category Budget"
-    static var description = IntentDescription("Sets the budgeted amount for a category.")
+    static var description = IntentDescription(
+        "Sets the budgeted amount for a category.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Category")
@@ -56,7 +59,10 @@ struct AssignCategoryBudgetIntent: AppIntent {
 
 struct AddToCategoryBudgetIntent: AppIntent {
     static var title: LocalizedStringResource = "Add to Category Budget"
-    static var description = IntentDescription("Adds an amount to a category's current budgeted value.")
+    static var description = IntentDescription(
+        "Adds an amount to a category's current budgeted value.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Category")
@@ -91,7 +97,10 @@ struct AddToCategoryBudgetIntent: AppIntent {
 
 struct MoveMoneyIntent: AppIntent {
     static var title: LocalizedStringResource = "Move Money"
-    static var description = IntentDescription("Moves money between categories or Ready to Assign.")
+    static var description = IntentDescription(
+        "Moves money between categories or Ready to Assign.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "From Category")
@@ -132,7 +141,10 @@ struct MoveMoneyIntent: AppIntent {
 
 struct ApplyBudgetTemplateIntent: AppIntent {
     static var title: LocalizedStringResource = "Apply Budget Template"
-    static var description = IntentDescription("Applies a budget template to a month or one category.")
+    static var description = IntentDescription(
+        "Applies a budget template to a month or one category.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Mode", default: ShortcutTemplateMode.fillEmpty)
@@ -167,7 +179,10 @@ struct ApplyBudgetTemplateIntent: AppIntent {
 
 struct SetCategoryCarryoverIntent: AppIntent {
     static var title: LocalizedStringResource = "Set Category Carryover"
-    static var description = IntentDescription("Enables or disables category carryover from a start month.")
+    static var description = IntentDescription(
+        "Enables or disables category carryover from a start month.",
+        categoryName: "Budget"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Category")
@@ -203,7 +218,10 @@ struct SetCategoryCarryoverIntent: AppIntent {
 
 struct CreatePayeeIntent: AppIntent {
     static var title: LocalizedStringResource = "Create Payee"
-    static var description = IntentDescription("Creates a payee in the selected budget.")
+    static var description = IntentDescription(
+        "Creates a payee in the selected budget.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Name")
@@ -224,7 +242,10 @@ struct CreatePayeeIntent: AppIntent {
 
 struct CreateAccountIntent: AppIntent {
     static var title: LocalizedStringResource = "Create Account"
-    static var description = IntentDescription("Creates an account in the selected budget.")
+    static var description = IntentDescription(
+        "Creates an account in the selected budget.",
+        categoryName: "Accounts"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Name")

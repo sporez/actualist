@@ -3,7 +3,10 @@ import Foundation
 
 struct GetAccountsIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Accounts"
-    static var description = IntentDescription("Returns accounts in the selected budget.")
+    static var description = IntentDescription(
+        "Returns accounts in the selected budget.",
+        categoryName: "Accounts"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Include Closed", default: false)
@@ -35,7 +38,10 @@ struct GetAccountsIntent: AppIntent {
 
 struct GetAccountIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Account"
-    static var description = IntentDescription("Returns one account, including its balance.")
+    static var description = IntentDescription(
+        "Returns one account, including its balance.",
+        categoryName: "Accounts"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")
@@ -57,7 +63,10 @@ struct GetAccountIntent: AppIntent {
 
 struct GetAccountBalanceIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Account Balance"
-    static var description = IntentDescription("Returns the balance of one account.")
+    static var description = IntentDescription(
+        "Returns the balance of one account.",
+        categoryName: "Accounts"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")
@@ -80,7 +89,10 @@ struct GetAccountBalanceIntent: AppIntent {
 
 struct GetAccountTransactionsIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Account Transactions"
-    static var description = IntentDescription("Returns recent transactions for one account.")
+    static var description = IntentDescription(
+        "Returns recent transactions for one account.",
+        categoryName: "Accounts"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")

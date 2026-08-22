@@ -3,7 +3,10 @@ import Foundation
 
 struct GetTransactionsIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Transactions"
-    static var description = IntentDescription("Returns recent or matching transactions in the selected budget.")
+    static var description = IntentDescription(
+        "Returns recent or matching transactions in the selected budget.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")
@@ -38,7 +41,10 @@ struct GetTransactionsIntent: AppIntent {
 
 struct GetTransactionIntent: AppIntent {
     static var title: LocalizedStringResource = "Get Transaction"
-    static var description = IntentDescription("Returns one transaction.")
+    static var description = IntentDescription(
+        "Returns one transaction.",
+        categoryName: "Transactions"
+    )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Transaction")
