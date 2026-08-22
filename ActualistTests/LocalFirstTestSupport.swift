@@ -99,6 +99,118 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
     }
 }
 
+/// Connection transport with per-method error injection and call recording.
+/// Use `error:` to fail every method (replacing `FailingConnectionTransport`),
+/// or `methodErrors:` to fail one call while serving files/download data.
+actor ConfigurableConnectionTransport: ActualServerConnectionTransport {
+    enum Method: String, Sendable, Equatable, Hashable {
+        case loginMethods
+        case loginWithPassword
+        case beginOpenIDLogin
+        case listUserFiles
+        case userFileInfo
+        case downloadUserFile
+        case userKey
+    }
+
+    private let defaultError: ActualAPIError?
+    private let methodErrors: [Method: ActualAPIError]
+    private let files: [ActualSyncRemoteFile]
+    private let downloadData: Data
+    private let writePartialPrefixBeforeThrowingDownloadError: Bool
+    private let userKeyResponse: ActualUserKeyResponse?
+    private let token: String
+    private let loginMethodsData: Data
+    private var recorded: [Method] = []
+
+    init(
+        error: ActualAPIError? = nil,
+        methodErrors: [Method: ActualAPIError] = [:],
+        files: [ActualSyncRemoteFile] = [],
+        downloadData: Data = Data(),
+        writePartialPrefixBeforeThrowingDownloadError: Bool = false,
+        userKeyResponse: ActualUserKeyResponse? = nil,
+        token: String = "staged-token",
+        loginMethodsData: Data = Data(#"{"methods":["password"]}"#.utf8)
+    ) {
+        self.defaultError = error
+        self.methodErrors = methodErrors
+        self.files = files
+        self.downloadData = downloadData
+        self.writePartialPrefixBeforeThrowingDownloadError = writePartialPrefixBeforeThrowingDownloadError
+        self.userKeyResponse = userKeyResponse
+        self.token = token
+        self.loginMethodsData = loginMethodsData
+    }
+
+    func recordedMethods() -> [Method] {
+        recorded
+    }
+
+    private func record(_ method: Method) throws {
+        recorded.append(method)
+        if let error = methodErrors[method] ?? defaultError {
+            throw error
+        }
+    }
+
+    func loginMethods() async throws -> ActualLoginMethodsResponse {
+        try record(.loginMethods)
+        return try JSONDecoder.actual.decode(
+            ActualLoginMethodsResponse.self,
+            from: loginMethodsData
+        )
+    }
+
+    func loginWithPassword(password: String) async throws -> ActualLoginResponse {
+        try record(.loginWithPassword)
+        return try JSONDecoder.actual.decode(
+            ActualLoginResponse.self,
+            from: Data(#"{"token":"\(token)"}"#.utf8)
+        )
+    }
+
+    func beginOpenIDLogin(
+        returnURL: URL,
+        firstTimeLoginPassword: String?
+    ) async throws -> ActualOpenIDStartResponse {
+        try record(.beginOpenIDLogin)
+        return try JSONDecoder.actual.decode(
+            ActualOpenIDStartResponse.self,
+            from: Data(#"{"data":{"returnUrl":"https://identity.example/authorize"}}"#.utf8)
+        )
+    }
+
+    func listUserFiles(token: String) async throws -> [ActualSyncRemoteFile] {
+        try record(.listUserFiles)
+        return files
+    }
+
+    func userFileInfo(fileID: String, token: String) async throws -> ActualSyncRemoteFile? {
+        try record(.userFileInfo)
+        return files.first { $0.fileID == fileID }
+    }
+
+    func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws {
+        recorded.append(.downloadUserFile)
+        if let error = methodErrors[.downloadUserFile] ?? defaultError {
+            if writePartialPrefixBeforeThrowingDownloadError {
+                try downloadData.prefix(max(1, downloadData.count / 2)).write(to: destinationURL)
+            }
+            throw error
+        }
+        try downloadData.write(to: destinationURL)
+    }
+
+    func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse {
+        try record(.userKey)
+        if let userKeyResponse {
+            return userKeyResponse
+        }
+        throw LocalFirstTestSyncError.failed
+    }
+}
+
 actor RecordingSyncTransport: ActualSyncTransport {
     private var remainingFailureCount = 0
     private var dropsUploadedMessages = false

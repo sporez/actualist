@@ -38,7 +38,7 @@ extension LocalFirstActualStore {
     ///   upstream Actual server is down. The server never produced a
     ///   response, and sync pushes re-sent through the fallback are
     ///   deduplicated by CRDT timestamp server-side.
-    static func isFailoverEligible(_ error: Error) -> Bool {
+    nonisolated static func isFailoverEligible(_ error: Error) -> Bool {
         guard let apiError = error as? ActualAPIError else {
             return false
         }
@@ -64,7 +64,7 @@ extension LocalFirstActualStore {
 
     /// HTTP statuses emitted by a reverse-proxy layer when the Actual server
     /// behind it is down: bad gateway, service unavailable, gateway timeout.
-    static let gatewayFailureStatuses: Set<Int> = [502, 503, 504]
+    nonisolated static let gatewayFailureStatuses: Set<Int> = [502, 503, 504]
 
     /// Runs a sync operation against the primary endpoint, retrying against the
     /// fallback when the primary is unreachable. The operation closure receives
@@ -74,29 +74,17 @@ extension LocalFirstActualStore {
     ///
     /// Stamps `lastSyncEndpoint` to the endpoint actually tried so sync-status
     /// and debug-event recording can attribute the result to primary or
-    /// fallback.
+    /// fallback. After a successful failover the primary is cached as down
+    /// for a TTL so later calls skip it.
     func withSyncFailover<T>(
         serverURLString: String,
         operation: @escaping @Sendable (any ActualSyncTransport) async throws -> T
     ) async throws -> T {
-        let endpoints = failoverEndpoints(for: serverURLString)
-        guard let primaryURL = endpoints.primary else {
-            throw ActualAPIError.invalidURL
-        }
-        let primaryTransport = syncTransport(for: primaryURL)
-        lastSyncEndpoint = .primary
-        do {
-            let result = try await operation(primaryTransport)
-            return result
-        } catch {
-            guard let fallbackURL = endpoints.fallback,
-                  Self.isFailoverEligible(error) else {
-                throw error
-            }
-            let fallbackTransport = syncTransport(for: fallbackURL)
-            lastSyncEndpoint = .fallback
-            return try await operation(fallbackTransport)
-        }
+        try await withFailover(
+            serverURLString: serverURLString,
+            resolveTransport: syncTransport(for:),
+            operation: operation
+        )
     }
 
     /// Runs a connection-operation against the primary endpoint, retrying against
@@ -105,23 +93,52 @@ extension LocalFirstActualStore {
         serverURLString: String,
         operation: @escaping @Sendable (any ActualServerConnectionTransport) async throws -> T
     ) async throws -> T {
+        try await withFailover(
+            serverURLString: serverURLString,
+            resolveTransport: connectionTransport(for:),
+            operation: operation
+        )
+    }
+
+    private func withFailover<Transport, T>(
+        serverURLString: String,
+        resolveTransport: (URL) -> Transport,
+        operation: (Transport) async throws -> T
+    ) async throws -> T {
         let endpoints = failoverEndpoints(for: serverURLString)
         guard let primaryURL = endpoints.primary else {
             throw ActualAPIError.invalidURL
         }
-        let primaryTransport = connectionTransport(for: primaryURL)
+
+        if let fallbackURL = endpoints.fallback,
+           shouldSkipPrimary(primary: primaryURL, fallback: fallbackURL) {
+            lastSyncEndpoint = .fallback
+            do {
+                return try await operation(resolveTransport(fallbackURL))
+            } catch {
+                if Self.isFailoverEligible(error) {
+                    notePrimarySucceeded(primary: primaryURL, fallback: fallbackURL)
+                }
+                throw error
+            }
+        }
+
         lastSyncEndpoint = .primary
         do {
-            let result = try await operation(primaryTransport)
+            let result = try await operation(resolveTransport(primaryURL))
+            if let fallbackURL = endpoints.fallback {
+                notePrimarySucceeded(primary: primaryURL, fallback: fallbackURL)
+            }
             return result
         } catch {
             guard let fallbackURL = endpoints.fallback,
                   Self.isFailoverEligible(error) else {
                 throw error
             }
-            let fallbackTransport = connectionTransport(for: fallbackURL)
             lastSyncEndpoint = .fallback
-            return try await operation(fallbackTransport)
+            let result = try await operation(resolveTransport(fallbackURL))
+            notePrimaryUnreachable(primary: primaryURL, fallback: fallbackURL)
+            return result
         }
     }
 }

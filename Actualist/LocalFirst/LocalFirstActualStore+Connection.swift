@@ -168,16 +168,16 @@ extension LocalFirstActualStore {
                 guard !token.isEmpty else {
                     throw LocalFirstError.missingSyncToken
                 }
-                guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
-                    throw ActualAPIError.invalidURL
+                let context = try await withConnectionFailover(
+                    serverURLString: serverURLString
+                ) { client in
+                    try await self.encryptionContext(
+                        metadata: metadata,
+                        client: client,
+                        token: token,
+                        password: encryptionPassword
+                    )
                 }
-                let client = connectionTransport(for: baseURL)
-                let context = try await encryptionContext(
-                    metadata: metadata,
-                    client: client,
-                    token: token,
-                    password: encryptionPassword
-                )
                 try await openImportedBudget(fileID: fileID, metadata: metadata, encryptionContext: context)
             }
             openedServerURLString = serverURLString
@@ -189,11 +189,7 @@ extension LocalFirstActualStore {
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
         }
-        guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
-            throw ActualAPIError.invalidURL
-        }
 
-        let client = connectionTransport(for: baseURL)
         let fallbackRemote = ActualSyncRemoteFile(
             fileID: fileID,
             groupID: budget.groupId,
@@ -203,18 +199,31 @@ extension LocalFirstActualStore {
             requiresEncryptionPassword: false
         )
         let cachedRemote = remoteFilesByFileID[fileID]
-        let fileInfo = try? await client.userFileInfo(fileID: fileID, token: token)
-        let remote = fileInfo ?? cachedRemote ?? fallbackRemote
-        let encryptionContext = try await encryptionContext(
-            remote: remote,
-            client: client,
-            token: token,
-            password: encryptionPassword
-        )
-
         let stagedArchiveURL = try fileManager.prepareDownloadStaging(fileID: fileID)
         defer { fileManager.cleanupDownloadStaging(at: stagedArchiveURL) }
-        try await client.downloadUserFile(fileID: fileID, token: token, to: stagedArchiveURL)
+        let (remote, encryptionContext) = try await withConnectionFailover(
+            serverURLString: serverURLString
+        ) { client in
+            let fileInfo: ActualSyncRemoteFile?
+            do {
+                fileInfo = try await client.userFileInfo(fileID: fileID, token: token)
+            } catch {
+                // Transport / gateway / local-network errors propagate so the
+                // failover wrapper retries them against the fallback. Other
+                // server/app errors stay tolerated as "file info unavailable".
+                if LocalFirstActualStore.isFailoverEligible(error) { throw error }
+                fileInfo = nil
+            }
+            let remote = fileInfo ?? cachedRemote ?? fallbackRemote
+            let encryptionContext = try await self.encryptionContext(
+                remote: remote,
+                client: client,
+                token: token,
+                password: encryptionPassword
+            )
+            try await client.downloadUserFile(fileID: fileID, token: token, to: stagedArchiveURL)
+            return (remote, encryptionContext)
+        }
         try fileManager.validateStagedDownload(at: stagedArchiveURL)
         if let encryptMeta = remote.encryptMeta {
             guard let encryptionContext else {
@@ -299,29 +308,30 @@ extension LocalFirstActualStore {
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
         }
-        guard let baseURL = URL(string: ActualServerURLNormalizer.normalize(serverURLString)) else {
-            throw ActualAPIError.invalidURL
-        }
 
-        let client = connectionTransport(for: baseURL)
         let fallbackRemote = ActualSyncRemoteFile(
             fileID: fileID,
             groupID: budget.groupId,
             name: budget.name
         )
-        let remote = try await client.userFileInfo(fileID: fileID, token: token)
-            ?? remoteFilesByFileID[fileID]
-            ?? fallbackRemote
-        let encryptionContext = try await encryptionContext(
-            remote: remote,
-            client: client,
-            token: token,
-            password: nil
-        )
-
+        let cachedRemote = remoteFilesByFileID[fileID]
         let workspace = try fileManager.prepareReimportWorkspace(fileID: fileID)
         defer { fileManager.cleanupReimportWorkspace(workspace) }
-        try await client.downloadUserFile(fileID: fileID, token: token, to: workspace.archiveURL)
+        let (remote, encryptionContext) = try await withConnectionFailover(
+            serverURLString: serverURLString
+        ) { client in
+            let remote = try await client.userFileInfo(fileID: fileID, token: token)
+                ?? cachedRemote
+                ?? fallbackRemote
+            let encryptionContext = try await self.encryptionContext(
+                remote: remote,
+                client: client,
+                token: token,
+                password: nil
+            )
+            try await client.downloadUserFile(fileID: fileID, token: token, to: workspace.archiveURL)
+            return (remote, encryptionContext)
+        }
         try fileManager.reimportCheckpoint(.afterDownload)
         try fileManager.validateStagedDownload(at: workspace.archiveURL)
         try fileManager.reimportCheckpoint(.beforeDecrypt)

@@ -18,7 +18,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var openedGroupID: String?
     var database: BudgetDatabase?
     var openedNodeID: String?
-    var openedServerURLString: String?
+    var openedServerURLString: String? {
+        didSet { refreshEndpointHealthDisplay() }
+    }
     var openedEncryptionContext: ActualBudgetEncryptionContext?
     var cachedBudgets: [ActualBudget] = []
     var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
@@ -37,7 +39,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     /// Set by `AppState` from `AppSettings.fallbackServerURLString`. When non-nil
     /// and distinct from the primary URL, sync and connection operations retry
     /// against this endpoint on host-unreachable failures.
-    var fallbackServerURLString: String?
+    var fallbackServerURLString: String? {
+        didSet { refreshEndpointHealthDisplay() }
+    }
 
     var syncStatus: LocalFirstSyncStatus?
     /// `true` while the open budget is the bundled demo budget. Set inside
@@ -65,6 +69,12 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     private var cachedSyncTransportsByURL: [String: any ActualSyncTransport] = [:]
     private var cachedConnectionTransportsByURL: [String: any ActualServerConnectionTransport] = [:]
 
+    /// Raw TTL cache. Ignored so mutations do not publish; the Developer sheet
+    /// observes `endpointHealthDisplay` instead.
+    @ObservationIgnored private var endpointHealth: ServerEndpointHealth
+    /// Prepared Developer-sheet snapshot of the primary-unreachable cache.
+    private(set) var endpointHealthDisplay = ServerEndpointHealthDisplay.empty
+
     func syncTransport(for url: URL) -> any ActualSyncTransport {
         if let cached = cachedSyncTransportsByURL[url.absoluteString] {
             return cached
@@ -91,7 +101,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
             ActualServerSyncClient(baseURL: $0)
         },
         syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
-        pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)]
+        pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
+        endpointHealth: ServerEndpointHealth? = nil
     ) {
         self.keychain = keychain
         self.fileManager = fileManager
@@ -99,6 +110,10 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         self.connectionTransportFactory = connectionTransportFactory
         self.syncDebugRecorder = syncDebugRecorder
         self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
+        // Constructed in the main-actor init body (not a default argument) so
+        // the @MainActor struct is built in an isolated context.
+        self.endpointHealth = endpointHealth ?? ServerEndpointHealth()
+        refreshEndpointHealthDisplay()
     }
 
     struct TransactionFeedPage: Sendable {
@@ -157,9 +172,33 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     func eraseLocalData() throws {
         reset()
+        endpointHealth.clear()
+        refreshEndpointHealthDisplay()
         try keychain.removeActualSyncToken()
         try keychain.removeAllLocalFirstEncryptionKeys()
         try fileManager.deleteAllImportedBudgets()
+    }
+
+    func shouldSkipPrimary(primary: URL, fallback: URL) -> Bool {
+        endpointHealth.shouldSkipPrimary(primary: primary, fallback: fallback)
+    }
+
+    func notePrimaryUnreachable(primary: URL, fallback: URL) {
+        endpointHealth.notePrimaryUnreachable(primary: primary, fallback: fallback)
+        refreshEndpointHealthDisplay()
+    }
+
+    func notePrimarySucceeded(primary: URL, fallback: URL) {
+        endpointHealth.notePrimarySucceeded(primary: primary, fallback: fallback)
+        refreshEndpointHealthDisplay()
+    }
+
+    func refreshEndpointHealthDisplay() {
+        let endpoints = failoverEndpoints(for: openedServerURLString ?? "")
+        endpointHealthDisplay = endpointHealth.display(
+            currentPrimary: endpoints.primary,
+            currentFallback: endpoints.fallback
+        )
     }
 
     func syncStatus(budgetID: String) -> LocalFirstSyncStatus? {

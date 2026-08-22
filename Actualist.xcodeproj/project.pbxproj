@@ -129,6 +129,7 @@
 		010000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift */; };
 		010000000000000000000063 /* LocalFirstActualStoreSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000063 /* LocalFirstActualStoreSyncTests.swift */; };
 		01000000000000000000008C /* ServerFailoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000008B /* ServerFailoverTests.swift */; };
+		0100000000000000000000AE /* BudgetDownloadFailoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000AE /* BudgetDownloadFailoverTests.swift */; };
 		010000000000000000000064 /* LocalFirstActualStoreReadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000064 /* LocalFirstActualStoreReadTests.swift */; };
 		0100000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift */; };
 		0100000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift */; };
@@ -138,6 +139,8 @@
 		010000000000000000000067 /* LocalFirstActualStoreTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000067 /* LocalFirstActualStoreTestSupport.swift */; };
 		010000000000000000000048 /* LocalFirstActualStore+Connection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000048 /* LocalFirstActualStore+Connection.swift */; };
 		01000000000000000000008A /* LocalFirstActualStore+Failover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000089 /* LocalFirstActualStore+Failover.swift */; };
+		0100000000000000000000B3 /* ServerEndpointHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B3 /* ServerEndpointHealth.swift */; };
+		0100000000000000000000B4 /* ServerEndpointHealthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B4 /* ServerEndpointHealthTests.swift */; };
 		01000000000000000000009A /* DemoBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000009A /* DemoBudget.swift */; };
 		01000000000000000000009B /* LocalFirstActualStore+Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000009B /* LocalFirstActualStore+Demo.swift */; };
 		01000000000000000000009C /* DemoBudget.zip in Resources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000009C /* DemoBudget.zip */; };
@@ -336,6 +339,7 @@
 		020000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreDatabaseTests.swift; sourceTree = "<group>"; };
 		020000000000000000000063 /* LocalFirstActualStoreSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreSyncTests.swift; sourceTree = "<group>"; };
 		02000000000000000000008B /* ServerFailoverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerFailoverTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000AE /* BudgetDownloadFailoverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDownloadFailoverTests.swift; sourceTree = "<group>"; };
 		020000000000000000000064 /* LocalFirstActualStoreReadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreReadTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreCreateCategorizeTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstActualStoreAccountOutboxTests.swift; sourceTree = "<group>"; };
@@ -350,6 +354,8 @@
 		02000000000000000000009E /* DemoModeStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeStoreTests.swift; sourceTree = "<group>"; };
 		02000000000000000000009F /* DemoModeSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeSessionTests.swift; sourceTree = "<group>"; };
 		020000000000000000000089 /* LocalFirstActualStore+Failover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Failover.swift"; sourceTree = "<group>"; };
+		0200000000000000000000B3 /* ServerEndpointHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEndpointHealth.swift; sourceTree = "<group>"; };
+		0200000000000000000000B4 /* ServerEndpointHealthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerEndpointHealthTests.swift; sourceTree = "<group>"; };
 		020000000000000000000049 /* LocalFirstActualStore+Reads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Reads.swift"; sourceTree = "<group>"; };
 		02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Mutations.swift"; sourceTree = "<group>"; };
 		02000000000000000000004B /* LocalFirstActualStore+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+Sync.swift"; sourceTree = "<group>"; };
@@ -584,6 +590,8 @@
 				020000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift */,
 				020000000000000000000063 /* LocalFirstActualStoreSyncTests.swift */,
 				02000000000000000000008B /* ServerFailoverTests.swift */,
+				0200000000000000000000B4 /* ServerEndpointHealthTests.swift */,
+				0200000000000000000000AE /* BudgetDownloadFailoverTests.swift */,
 				020000000000000000000064 /* LocalFirstActualStoreReadTests.swift */,
 				0200000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift */,
 				0200000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift */,
@@ -760,6 +768,7 @@
 					020000000000000000000034 /* LocalFirstActualStore.swift */,
 					020000000000000000000048 /* LocalFirstActualStore+Connection.swift */,
 				020000000000000000000089 /* LocalFirstActualStore+Failover.swift */,
+				0200000000000000000000B3 /* ServerEndpointHealth.swift */,
 					020000000000000000000049 /* LocalFirstActualStore+Reads.swift */,
 					02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */,
 					02000000000000000000004B /* LocalFirstActualStore+Sync.swift */,
@@ -1052,6 +1061,7 @@
 				010000000000000000000034 /* LocalFirstActualStore.swift in Sources */,
 				010000000000000000000048 /* LocalFirstActualStore+Connection.swift in Sources */,
 				01000000000000000000008A /* LocalFirstActualStore+Failover.swift in Sources */,
+				0100000000000000000000B3 /* ServerEndpointHealth.swift in Sources */,
 				010000000000000000000049 /* LocalFirstActualStore+Reads.swift in Sources */,
 				01000000000000000000004A /* LocalFirstActualStore+Mutations.swift in Sources */,
 				01000000000000000000004B /* LocalFirstActualStore+Sync.swift in Sources */,
@@ -1128,6 +1138,8 @@
 				010000000000000000000062 /* LocalFirstActualStoreDatabaseTests.swift in Sources */,
 				010000000000000000000063 /* LocalFirstActualStoreSyncTests.swift in Sources */,
 				01000000000000000000008C /* ServerFailoverTests.swift in Sources */,
+				0100000000000000000000B4 /* ServerEndpointHealthTests.swift in Sources */,
+				0100000000000000000000AE /* BudgetDownloadFailoverTests.swift in Sources */,
 				010000000000000000000064 /* LocalFirstActualStoreReadTests.swift in Sources */,
 				0100000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift in Sources */,
 				0100000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift in Sources */,

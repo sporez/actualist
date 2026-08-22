@@ -8,6 +8,7 @@ struct SettingsDeveloperDiagnosticsSheet: View {
     let debug: BackgroundRefreshDebugInfo
     let syncStatus: LocalFirstSyncStatus?
     let syncDebug: LocalFirstSyncDebugInfo
+    let endpointHealth: ServerEndpointHealthDisplay
     let retryPendingSync: () async -> Void
     @State private var isRetryingSync = false
     #if DEBUG
@@ -25,7 +26,11 @@ struct SettingsDeveloperDiagnosticsSheet: View {
                 .settingsSectionChrome()
 
                 Section("Local-First Sync") {
-                    LocalFirstSyncDiagnosticRows(status: syncStatus, debug: syncDebug)
+                    LocalFirstSyncDiagnosticRows(
+                        status: syncStatus,
+                        debug: syncDebug,
+                        endpointHealth: endpointHealth
+                    )
 
                     Button {
                         Task { await retrySync() }
@@ -104,8 +109,37 @@ struct SettingsDeveloperDiagnosticsSheet: View {
 private struct LocalFirstSyncDiagnosticRows: View {
     let status: LocalFirstSyncStatus?
     let debug: LocalFirstSyncDebugInfo
+    let endpointHealth: ServerEndpointHealthDisplay
 
     var body: some View {
+        LabeledContent("Endpoint cache") {
+            Text(endpointHealth.summaryText)
+                .foregroundStyle(
+                    endpointHealth.willSkipPrimary
+                        ? ActualistTheme.warning
+                        : ActualistTheme.secondaryText
+                )
+        }
+
+        ForEach(endpointHealth.pairs) { pair in
+            VStack(alignment: .leading, spacing: 4) {
+                LabeledContent(pair.isCurrentPair ? "Primary" : "Cached primary") {
+                    Text(pair.statusText)
+                        .foregroundStyle(
+                            pair.isDown ? ActualistTheme.warning : ActualistTheme.secondaryText
+                        )
+                }
+                Text(pair.primaryHost)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.primaryText)
+                if !pair.fallbackHost.isEmpty {
+                    Text(pair.fallbackHost)
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+            }
+        }
+
         LabeledContent("Pending Changes") {
             Text((status?.pendingLocalMessageCount ?? 0).formatted())
                 .foregroundStyle(pendingColor)

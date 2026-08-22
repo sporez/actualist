@@ -209,7 +209,7 @@ struct ServerFailoverTests {
 
     @Test("Connection fails over to fallback when primary is unreachable")
     func connectionFailsOverToFallback() async throws {
-        let primary = FailingConnectionTransport(error: .transport(.cannotConnectToHost))
+        let primary = ConfigurableConnectionTransport(error: .transport(.cannotConnectToHost))
         let fallback = StubConnectionTransport(files: [])
         let store = LocalFirstActualStore(
             connectionTransportFactory: { url in
@@ -227,7 +227,7 @@ struct ServerFailoverTests {
 
     @Test("Connection does not fail over on server errors")
     func connectionNoFailoverOnServerError() async throws {
-        let primary = FailingConnectionTransport(error: .serverRejected(status: 500, reason: "internal", details: nil))
+        let primary = ConfigurableConnectionTransport(error: .serverRejected(status: 500, reason: "internal", details: nil))
         let fallback = StubConnectionTransport(files: [])
         let store = LocalFirstActualStore(
             connectionTransportFactory: { url in
@@ -245,7 +245,7 @@ struct ServerFailoverTests {
 
     @Test("Connection fails over when the primary reverse proxy reports 503")
     func connectionFailsOverOnServiceUnavailable() async throws {
-        let primary = FailingConnectionTransport(error: .httpStatus(503))
+        let primary = ConfigurableConnectionTransport(error: .httpStatus(503))
         let fallback = StubConnectionTransport(files: [])
         let store = LocalFirstActualStore(
             connectionTransportFactory: { url in
@@ -297,6 +297,269 @@ struct ServerFailoverTests {
         }
 
         #expect(store.lastSyncEndpoint == .fallback)
+    }
+
+    // MARK: - Sticky skip-primary cache
+
+    @Test("After a successful failover the next sync skips the primary")
+    func secondSyncSkipsPrimaryWhileCachedDown() async throws {
+        let primary = FailingSyncTransport(error: .transport(.cannotConnectToHost))
+        let fallback = RecordingSyncTransport()
+        let store = makeStickyStore(
+            syncTransportFactory: { url in
+                (url.absoluteString == "https://primary.example.com" ? primary : fallback)
+                    as any ActualSyncTransport
+            }
+        )
+
+        try await performSync(on: store)
+        try await performSync(on: store)
+
+        #expect(await primary.callCount() == 1)
+        #expect(await fallback.messageCounts() == [0, 0])
+        #expect(store.lastSyncEndpoint == .fallback)
+        #expect(store.endpointHealthDisplay.willSkipPrimary)
+        #expect(store.endpointHealthDisplay.summaryText == "Skipping primary")
+    }
+
+    @Test("Connection failover shares the sync sticky cache")
+    func connectionSkipsPrimaryAfterSyncFailover() async throws {
+        let syncPrimary = FailingSyncTransport(error: .transport(.cannotConnectToHost))
+        let syncFallback = RecordingSyncTransport()
+        let connectionPrimary = ConfigurableConnectionTransport(
+            error: .transport(.cannotConnectToHost)
+        )
+        let connectionFallback = StubConnectionTransport(files: [])
+        let store = makeStickyStore(
+            syncTransportFactory: { url in
+                (url.absoluteString == "https://primary.example.com" ? syncPrimary : syncFallback)
+                    as any ActualSyncTransport
+            },
+            connectionTransportFactory: { url in
+                (url.absoluteString == "https://primary.example.com"
+                    ? connectionPrimary : connectionFallback)
+                    as any ActualServerConnectionTransport
+            }
+        )
+
+        try await performSync(on: store)
+        _ = try await store.withConnectionFailover(
+            serverURLString: "https://primary.example.com"
+        ) { client in
+            try await client.loginMethods()
+        }
+
+        #expect(await connectionPrimary.recordedMethods().isEmpty)
+        #expect(store.lastSyncEndpoint == .fallback)
+    }
+
+    @Test("No fallback configured never skips and never caches health")
+    func noFallbackNeverSkips() async throws {
+        let primary = RecordingSyncTransport()
+        let store = makeStickyStore(
+            fallbackURL: nil,
+            syncTransportFactory: { _ in primary }
+        )
+
+        try await performSync(on: store)
+        try await performSync(on: store)
+
+        #expect(await primary.messageCounts() == [0, 0])
+        #expect(!store.endpointHealthDisplay.willSkipPrimary)
+        #expect(store.endpointHealthDisplay.summaryText == "No fallback configured")
+    }
+
+    @Test("TTL expiry re-probes primary and success clears sticky")
+    func ttlExpiryReprobesPrimaryAndSuccessClearsSticky() async throws {
+        let clock = ControllableClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let primary = CountingSyncTransport(
+            error: .transport(.cannotConnectToHost),
+            failureCount: 1
+        )
+        let fallback = RecordingSyncTransport()
+        let store = makeStickyStore(
+            now: { clock.now },
+            ttl: 60,
+            syncTransportFactory: { url in
+                (url.absoluteString == "https://primary.example.com" ? primary : fallback)
+                    as any ActualSyncTransport
+            }
+        )
+
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 1)
+        #expect(store.endpointHealthDisplay.willSkipPrimary)
+
+        clock.now = clock.now.addingTimeInterval(60)
+        try await performSync(on: store)
+
+        #expect(await primary.callCount() == 2)
+        #expect(await fallback.messageCounts() == [0])
+        #expect(store.lastSyncEndpoint == .primary)
+        #expect(!store.endpointHealthDisplay.willSkipPrimary)
+        #expect(store.endpointHealthDisplay.pairs.first?.statusText == "Not cached")
+
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 3)
+        #expect(await fallback.messageCounts() == [0])
+    }
+
+    @Test("TTL expiry with primary still down refreshes sticky")
+    func ttlExpiryWithPrimaryStillDownUsesFallbackAgain() async throws {
+        let clock = ControllableClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let primary = FailingSyncTransport(error: .httpStatus(502))
+        let fallback = RecordingSyncTransport()
+        let store = makeStickyStore(
+            now: { clock.now },
+            ttl: 60,
+            syncTransportFactory: { url in
+                (url.absoluteString == "https://primary.example.com" ? primary : fallback)
+                    as any ActualSyncTransport
+            }
+        )
+
+        try await performSync(on: store)
+        clock.now = clock.now.addingTimeInterval(60)
+        try await performSync(on: store)
+
+        #expect(await primary.callCount() == 2)
+        #expect(await fallback.messageCounts() == [0, 0])
+        #expect(store.endpointHealthDisplay.willSkipPrimary)
+    }
+
+    @Test("Eligible fallback failure while skipping clears sticky")
+    func eligibleFallbackFailureWhileSkippingClearsSticky() async throws {
+        let primary = FailingSyncTransport(error: .transport(.cannotConnectToHost))
+        let fallback = CountingSyncTransport()
+        let store = makeStickyStore(
+            syncTransportFactory: { url in
+                url.absoluteString == "https://primary.example.com"
+                    ? (primary as any ActualSyncTransport)
+                    : fallback
+            }
+        )
+
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 1)
+        #expect(store.endpointHealthDisplay.willSkipPrimary)
+
+        await fallback.failNext(.transport(.cannotConnectToHost))
+        await #expect(throws: ActualAPIError.self) {
+            try await performSync(on: store)
+        }
+        #expect(await primary.callCount() == 1)
+        #expect(await fallback.callCount() == 2)
+        #expect(!store.endpointHealthDisplay.willSkipPrimary)
+
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 2)
+    }
+
+    @Test("Non-eligible fallback failure while skipping keeps sticky")
+    func nonEligibleFallbackFailureWhileSkippingKeepsSticky() async throws {
+        let primary = FailingSyncTransport(error: .transport(.cannotConnectToHost))
+        let fallback = CountingSyncTransport(
+            error: .httpStatus(401),
+            failureCount: .max
+        )
+        let store = makeStickyStore(
+            syncTransportFactory: { url in
+                url.absoluteString == "https://primary.example.com"
+                    ? (primary as any ActualSyncTransport)
+                    : fallback
+            }
+        )
+        store.notePrimaryUnreachable(
+            primary: URL(string: "https://primary.example.com")!,
+            fallback: URL(string: "https://fallback.example.com")!
+        )
+        store.openedServerURLString = "https://primary.example.com"
+
+        await #expect(throws: ActualAPIError.self) {
+            try await performSync(on: store)
+        }
+        #expect(await primary.callCount() == 0)
+        #expect(store.endpointHealthDisplay.willSkipPrimary)
+
+        await #expect(throws: ActualAPIError.self) {
+            try await performSync(on: store)
+        }
+        #expect(await primary.callCount() == 0)
+    }
+
+    @Test("Changing fallback URL probes primary; restoring it can still skip")
+    func fallbackURLChangeMissesThenRestoresStickyPair() async throws {
+        let primary = FailingSyncTransport(error: .httpStatus(502))
+        let firstFallback = RecordingSyncTransport()
+        let secondFallback = RecordingSyncTransport()
+        let store = makeStickyStore(
+            syncTransportFactory: { url in
+                switch url.absoluteString {
+                case "https://primary.example.com":
+                    primary as any ActualSyncTransport
+                case "https://fallback.example.com":
+                    firstFallback
+                default:
+                    secondFallback
+                }
+            }
+        )
+
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 1)
+
+        store.fallbackServerURLString = "https://other-fallback.example.com"
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 2)
+        #expect(await secondFallback.messageCounts() == [0])
+        #expect(store.endpointHealthDisplay.pairs.contains(where: { !$0.isCurrentPair && $0.isDown }))
+
+        store.fallbackServerURLString = "https://fallback.example.com"
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 2)
+        #expect(await firstFallback.messageCounts() == [0, 0])
+    }
+
+    @Test("reset() preserves sticky; eraseLocalData() clears it")
+    func resetPreservesStickyAndEraseClearsIt() async throws {
+        let primary = FailingSyncTransport(error: .transport(.cannotConnectToHost))
+        let fallback = RecordingSyncTransport()
+        let backend = FakeKeychainBackend()
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString,
+            backend: backend
+        )
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistStickyErase-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let clock = ControllableClock(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            fileManager: fileManager,
+            syncTransportFactory: { url in
+                (url.absoluteString == "https://primary.example.com" ? primary : fallback)
+                    as any ActualSyncTransport
+            },
+            endpointHealth: ServerEndpointHealth(now: { clock.now }, ttl: 15 * 60)
+        )
+        store.fallbackServerURLString = "https://fallback.example.com"
+        store.openedServerURLString = "https://primary.example.com"
+
+        try await performSync(on: store)
+        store.reset()
+        store.openedServerURLString = "https://primary.example.com"
+        store.fallbackServerURLString = "https://fallback.example.com"
+
+        try await performSync(on: store)
+        #expect(await primary.callCount() == 1)
+        #expect(store.endpointHealthDisplay.willSkipPrimary)
+
+        try store.eraseLocalData()
+        store.fallbackServerURLString = "https://fallback.example.com"
+        store.openedServerURLString = "https://primary.example.com"
+        #expect(!store.endpointHealthDisplay.willSkipPrimary)
     }
 
     // MARK: - Transport client reuse
@@ -358,6 +621,33 @@ struct ServerFailoverTests {
 
         #expect(creations.count == 2)
     }
+
+    private func makeStickyStore(
+        fallbackURL: String? = "https://fallback.example.com",
+        now: @escaping () -> Date = Date.init,
+        ttl: TimeInterval = 15 * 60,
+        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { _ in
+            RecordingSyncTransport()
+        },
+        connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = { _ in
+            StubConnectionTransport(files: [])
+        }
+    ) -> LocalFirstActualStore {
+        let store = LocalFirstActualStore(
+            syncTransportFactory: syncTransportFactory,
+            connectionTransportFactory: connectionTransportFactory,
+            endpointHealth: ServerEndpointHealth(now: now, ttl: ttl)
+        )
+        store.fallbackServerURLString = fallbackURL
+        store.openedServerURLString = "https://primary.example.com"
+        return store
+    }
+
+    private func performSync(on store: LocalFirstActualStore) async throws {
+        _ = try await store.withSyncFailover(serverURLString: "https://primary.example.com") { transport in
+            _ = try await transport.sync(data: Data(), token: "token")
+        }
+    }
 }
 
 // MARK: - Test Helpers
@@ -366,54 +656,62 @@ struct ServerFailoverTests {
 /// triggering without real networking.
 private actor FailingSyncTransport: ActualSyncTransport {
     private let error: ActualAPIError
+    private var calls = 0
 
     init(error: ActualAPIError) {
         self.error = error
     }
 
     func sync(data: Data, token: String) async throws -> Data {
+        calls += 1
         throw error
+    }
+
+    func callCount() -> Int {
+        calls
     }
 }
 
-/// A connection transport that always throws a fixed error, for testing
-/// failover triggering without real networking.
-private actor FailingConnectionTransport: ActualServerConnectionTransport {
-    private let error: ActualAPIError
+/// Succeeds after `failureCount` failover-eligible (or other) errors.
+private actor CountingSyncTransport: ActualSyncTransport {
+    private let error: ActualAPIError?
+    private var remainingFailures: Int
+    private var nextError: ActualAPIError?
+    private var calls = 0
 
-    init(error: ActualAPIError) {
+    init(error: ActualAPIError? = nil, failureCount: Int = 0) {
         self.error = error
+        self.remainingFailures = failureCount
     }
 
-    func loginMethods() async throws -> ActualLoginMethodsResponse {
-        throw error
+    func sync(data: Data, token: String) async throws -> Data {
+        calls += 1
+        if let nextError {
+            self.nextError = nil
+            throw nextError
+        }
+        if remainingFailures > 0, let error {
+            remainingFailures -= 1
+            throw error
+        }
+        return Data()
     }
 
-    func loginWithPassword(password: String) async throws -> ActualLoginResponse {
-        throw error
+    func failNext(_ error: ActualAPIError) {
+        nextError = error
     }
 
-    func beginOpenIDLogin(
-        returnURL: URL,
-        firstTimeLoginPassword: String?
-    ) async throws -> ActualOpenIDStartResponse {
-        throw error
+    func callCount() -> Int {
+        calls
     }
+}
 
-    func listUserFiles(token: String) async throws -> [ActualSyncRemoteFile] {
-        throw error
-    }
+@MainActor
+private final class ControllableClock {
+    var now: Date
 
-    func userFileInfo(fileID: String, token: String) async throws -> ActualSyncRemoteFile? {
-        throw error
-    }
-
-    func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws {
-        throw error
-    }
-
-    func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse {
-        throw error
+    init(now: Date) {
+        self.now = now
     }
 }
 

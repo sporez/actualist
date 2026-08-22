@@ -68,6 +68,7 @@ struct AdvancedSettingsView: View {
                 debug: appState.settings.backgroundRefreshDebug,
                 syncStatus: appState.localFirstSyncStatus,
                 syncDebug: appState.settings.localFirstSyncDebug,
+                endpointHealth: appState.localFirstStore.endpointHealthDisplay,
                 retryPendingSync: appState.retryPendingLocalFirstSync,
                 isPostingDebugNotification: $isPostingDebugNotification,
                 debugNotificationMessage: $debugNotificationMessage,
@@ -80,6 +81,7 @@ struct AdvancedSettingsView: View {
                 debug: appState.settings.backgroundRefreshDebug,
                 syncStatus: appState.localFirstSyncStatus,
                 syncDebug: appState.settings.localFirstSyncDebug,
+                endpointHealth: appState.localFirstStore.endpointHealthDisplay,
                 retryPendingSync: appState.retryPendingLocalFirstSync
             )
             #endif
