@@ -30,6 +30,8 @@
 		0100000000000000000000B9 /* RuleDeleteActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B9 /* RuleDeleteActionTests.swift */; };
 		0100000000000000000000BA /* RuleSplitActionExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BA /* RuleSplitActionExecutor.swift */; };
 		0100000000000000000000BB /* RuleSplitActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BB /* RuleSplitActionTests.swift */; };
+		0100000000000000000000BC /* RuleRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BC /* RuleRanking.swift */; };
+		0100000000000000000000BD /* RuleRankingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BD /* RuleRankingTests.swift */; };
 		010000000000000000000074 /* PayeeManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000074 /* PayeeManagementTests.swift */; };
 		010000000000000000000082 /* RuleConditionEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000082 /* RuleConditionEvaluatorTests.swift */; };
 		010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000075 /* OpenSourceLicensesView.swift */; };
@@ -290,6 +292,8 @@
 		0200000000000000000000B9 /* RuleDeleteActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleDeleteActionTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000BA /* RuleSplitActionExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleSplitActionExecutor.swift; sourceTree = "<group>"; };
 		0200000000000000000000BB /* RuleSplitActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleSplitActionTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000BC /* RuleRanking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleRanking.swift; sourceTree = "<group>"; };
+		0200000000000000000000BD /* RuleRankingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleRankingTests.swift; sourceTree = "<group>"; };
 		020000000000000000000074 /* PayeeManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeManagementTests.swift; sourceTree = "<group>"; };
 		020000000000000000000082 /* RuleConditionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleConditionEvaluatorTests.swift; sourceTree = "<group>"; };
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
@@ -665,6 +669,7 @@
 				0200000000000000000000B7 /* RuleScheduleRuntimeTests.swift */,
 				0200000000000000000000B9 /* RuleDeleteActionTests.swift */,
 				0200000000000000000000BB /* RuleSplitActionTests.swift */,
+				0200000000000000000000BD /* RuleRankingTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
 				0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */,
 				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
@@ -927,6 +932,7 @@
 				0200000000000000000000B5 /* RuleScheduleIndex.swift */,
 				0200000000000000000000B6 /* BudgetDatabase+Schedules.swift */,
 				0200000000000000000000BA /* RuleSplitActionExecutor.swift */,
+				0200000000000000000000BC /* RuleRanking.swift */,
 				020000000000000000000081 /* RuleConditionEvaluator.swift */,
 				020000000000000000000044 /* BudgetDatabase+Sync.swift */,
 				0200000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift */,
@@ -1267,6 +1273,7 @@
 				0100000000000000000000B5 /* RuleScheduleIndex.swift in Sources */,
 				0100000000000000000000B6 /* BudgetDatabase+Schedules.swift in Sources */,
 				0100000000000000000000BA /* RuleSplitActionExecutor.swift in Sources */,
+				0100000000000000000000BC /* RuleRanking.swift in Sources */,
 				010000000000000000000081 /* RuleConditionEvaluator.swift in Sources */,
 				010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */,
 				0100000000000000000000A0 /* BudgetDatabase+TransactionCreation.swift in Sources */,
@@ -1333,6 +1340,7 @@
 				0100000000000000000000B7 /* RuleScheduleRuntimeTests.swift in Sources */,
 				0100000000000000000000B9 /* RuleDeleteActionTests.swift in Sources */,
 				0100000000000000000000BB /* RuleSplitActionTests.swift in Sources */,
+				0100000000000000000000BD /* RuleRankingTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */,
 				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,

@@ -173,13 +173,7 @@ extension BudgetDatabase {
                     rawConditionsJoin: row["conditions_op"] as String?
                 )
             }
-            .sorted { lhs, rhs in
-                let lhsStage = lhs.draft?.stage ?? .normal
-                let rhsStage = rhs.draft?.stage ?? .normal
-                let order: [RuleStage: Int] = [.pre: 0, .normal: 1, .post: 2]
-                if lhsStage != rhsStage { return order[lhsStage, default: 1] < order[rhsStage, default: 1] }
-                return lhs.id < rhs.id
-            }
+            .rankedForExecution()
         }
     }
 
