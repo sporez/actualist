@@ -267,6 +267,34 @@ extension BudgetDatabase {
         }
     }
 
+    func existingImportedIDs(accountID: String) throws -> Set<String> {
+        try queue.read { db in
+            guard try tableExists("transactions", db: db) else {
+                return []
+            }
+            let columns = try columnSet(for: "transactions", db: db)
+            guard let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains),
+                  let accountColumn = ["acct", "account"].first(where: columns.contains) else {
+                return []
+            }
+            let values = try String.fetchAll(
+                db,
+                sql: """
+                    SELECT \(importedIDColumn)
+                    FROM transactions
+                    WHERE \(accountColumn) = ?
+                      AND \(importedIDColumn) IS NOT NULL
+                      AND \(predicateForLiveRows(columns: columns))
+                    """,
+                arguments: [accountID]
+            )
+            return Set(values.compactMap { value in
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return trimmed.isEmpty ? nil : trimmed
+            })
+        }
+    }
+
     func mapTransactionRow(_ row: Row) -> ActualTransaction {
         let parentID = row["parent_id"] as String?
         let payeeName = (row["payee_name"] as String?).flatMap { $0.isEmpty ? nil : $0 }

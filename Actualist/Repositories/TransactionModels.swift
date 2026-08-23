@@ -24,6 +24,8 @@ struct TransactionDraft: Hashable, Sendable {
     let cleared: Bool
     let isTransfer: Bool
     var importedPayee: String? = nil
+    var importedID: String? = nil
+    var sortOrder: Double? = nil
     var reconciled = false
     var isParent = false
     var splits: [TransactionSplitDraft] = []

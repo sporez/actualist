@@ -34,6 +34,18 @@ struct SettingsView: View {
                             subtitle: budgetSubtitle
                         )
                     }
+
+                    if WalletImportAvailability.isFinancialDataAvailable {
+                        NavigationLink {
+                            WalletSettingsView()
+                        } label: {
+                            SettingsCategoryRow(
+                                systemImage: "wallet.pass",
+                                title: "Wallet",
+                                subtitle: walletSubtitle
+                            )
+                        }
+                    }
                 }
                 .settingsSectionChrome()
 
@@ -217,6 +229,10 @@ struct SettingsView: View {
             ? "Encrypted"
             : "Not encrypted"
         return "\(selectedBudgetDisplayName) · \(security)"
+    }
+
+    private var walletSubtitle: String {
+        "Import transactions"
     }
 
     private var notificationsSubtitle: String {

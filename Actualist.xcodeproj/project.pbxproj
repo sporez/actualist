@@ -241,6 +241,13 @@
 		01000000000000000000000103 /* ShortcutErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000103 /* ShortcutErrorTests.swift */; };
 		01000000000000000000000104 /* ShortcutIntentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000104 /* ShortcutIntentTests.swift */; };
 		01000000000000000000000105 /* ShortcutCatalogCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */; };
+		01000000000000000000000106 /* WalletTransactionMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000106 /* WalletTransactionMapping.swift */; };
+		01000000000000000000000107 /* WalletImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000107 /* WalletImportView.swift */; };
+		0100000000000000000000010D /* WalletSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010D /* WalletSettingsView.swift */; };
+		01000000000000000000000108 /* WalletImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000108 /* WalletImportViewModel.swift */; };
+		01000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift */; };
+		0100000000000000000000010A /* WalletTransactionMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010A /* WalletTransactionMappingTests.swift */; };
+		0100000000000000000000010B /* WalletTransactionImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010B /* WalletTransactionImportTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -487,6 +494,14 @@
 		02000000000000000000000103 /* ShortcutErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutErrorTests.swift; sourceTree = "<group>"; };
 		02000000000000000000000104 /* ShortcutIntentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutIntentTests.swift; sourceTree = "<group>"; };
 		02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogCoverageTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000106 /* WalletTransactionMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTransactionMapping.swift; sourceTree = "<group>"; };
+		02000000000000000000000107 /* WalletImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletImportView.swift; sourceTree = "<group>"; };
+		0200000000000000000000010D /* WalletSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletSettingsView.swift; sourceTree = "<group>"; };
+		02000000000000000000000108 /* WalletImportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletImportViewModel.swift; sourceTree = "<group>"; };
+		02000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+WalletImport.swift"; sourceTree = "<group>"; };
+		0200000000000000000000010A /* WalletTransactionMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTransactionMappingTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000010B /* WalletTransactionImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTransactionImportTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000010C /* Actualist.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Actualist.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -527,6 +542,7 @@
 			isa = PBXGroup;
 			children = (
 				020000000000000000000014 /* Info.plist */,
+				0200000000000000000000010C /* Actualist.entitlements */,
 				020000000000000000000012 /* Assets.xcassets */,
 				02000000000000000000009C /* DemoBudget.zip */,
 				040000000000000000000003 /* App */,
@@ -622,6 +638,7 @@
 				020000000000000000000017 /* CategoryNameParts.swift */,
 				020000000000000000000087 /* ActualDateParsing.swift */,
 				020000000000000000000026 /* TransactionGrouping.swift */,
+				02000000000000000000000106 /* WalletTransactionMapping.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -690,6 +707,8 @@
 				02000000000000000000000103 /* ShortcutErrorTests.swift */,
 				02000000000000000000000104 /* ShortcutIntentTests.swift */,
 				02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */,
+				0200000000000000000000010A /* WalletTransactionMappingTests.swift */,
+				0200000000000000000000010B /* WalletTransactionImportTests.swift */,
 			);
 			path = ActualistTests;
 			sourceTree = "<group>";
@@ -784,6 +803,9 @@
 				28C36EC32FE377C800A9F4A8 /* AppIcon.swift */,
 				020000000000000000000075 /* OpenSourceLicensesView.swift */,
 				02000000000000000000000D /* SettingsView.swift */,
+				02000000000000000000000107 /* WalletImportView.swift */,
+				0200000000000000000000010D /* WalletSettingsView.swift */,
+				02000000000000000000000108 /* WalletImportViewModel.swift */,
 				020000000000000000000073 /* PayeesView.swift */,
 				020000000000000000000072 /* PayeesViewModel.swift */,
 				020000000000000000000080 /* PayeeRulesView.swift */,
@@ -855,6 +877,7 @@
 				0200000000000000000000B3 /* ServerEndpointHealth.swift */,
 					020000000000000000000049 /* LocalFirstActualStore+Reads.swift */,
 					02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */,
+					02000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift */,
 					02000000000000000000004B /* LocalFirstActualStore+Sync.swift */,
 					02000000000000000000007F /* LocalFirstActualStore+Rules.swift */,
 					02000000000000000000004F /* LocalFirstActualStore+Reports.swift */,
@@ -1157,6 +1180,9 @@
 				01000000000000000000000B /* MainTabView.swift in Sources */,
 				01000000000000000000000C /* OnboardingView.swift in Sources */,
 				01000000000000000000000D /* SettingsView.swift in Sources */,
+				01000000000000000000000107 /* WalletImportView.swift in Sources */,
+				0100000000000000000000010D /* WalletSettingsView.swift in Sources */,
+				01000000000000000000000108 /* WalletImportViewModel.swift in Sources */,
 				010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */,
 				010000000000000000000073 /* PayeesView.swift in Sources */,
 				010000000000000000000072 /* PayeesViewModel.swift in Sources */,
@@ -1200,6 +1226,7 @@
 				010000000000000000000069 /* SpendingTransactionsView.swift in Sources */,
 				010000000000000000000040 /* AccountTransactionPresentation.swift in Sources */,
 				010000000000000000000011 /* Money.swift in Sources */,
+				01000000000000000000000106 /* WalletTransactionMapping.swift in Sources */,
 				010000000000000000000014 /* CategoryNameParts.swift in Sources */,
 				010000000000000000000088 /* ActualDateParsing.swift in Sources */,
 				010000000000000000000015 /* BudgetRepository.swift in Sources */,
@@ -1237,6 +1264,7 @@
 				0100000000000000000000B3 /* ServerEndpointHealth.swift in Sources */,
 				010000000000000000000049 /* LocalFirstActualStore+Reads.swift in Sources */,
 				01000000000000000000004A /* LocalFirstActualStore+Mutations.swift in Sources */,
+				01000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift in Sources */,
 				01000000000000000000004B /* LocalFirstActualStore+Sync.swift in Sources */,
 				01000000000000000000009A /* DemoBudget.swift in Sources */,
 				01000000000000000000009B /* LocalFirstActualStore+Demo.swift in Sources */,
@@ -1338,6 +1366,8 @@
 				01000000000000000000000103 /* ShortcutErrorTests.swift in Sources */,
 				01000000000000000000000104 /* ShortcutIntentTests.swift in Sources */,
 				01000000000000000000000105 /* ShortcutCatalogCoverageTests.swift in Sources */,
+				0100000000000000000000010A /* WalletTransactionMappingTests.swift in Sources */,
+				0100000000000000000000010B /* WalletTransactionImportTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1519,6 +1549,7 @@
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "coin icon_purple icon_blue icon_orange";
 				ASSETCATALOG_COMPILER_APPICON_NAME = default;
+				CODE_SIGN_ENTITLEMENTS = Actualist/Actualist.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -1548,6 +1579,7 @@
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "coin icon_purple icon_blue icon_orange";
 				ASSETCATALOG_COMPILER_APPICON_NAME = default;
+				CODE_SIGN_ENTITLEMENTS = Actualist/Actualist.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "";

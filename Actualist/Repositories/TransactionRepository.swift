@@ -43,6 +43,12 @@ protocol TransactionRepositoryProtocol: Sendable {
         for draft: TransactionDraft,
         budgetID: String
     ) async throws -> TransactionRulePreview
+    func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String>
+    func importWalletTransactions(
+        _ candidates: [WalletTransactionCandidate],
+        intoAccountID accountID: String,
+        budgetID: String
+    ) async throws -> WalletTransactionImportResult
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
@@ -76,6 +82,18 @@ protocol TransactionRepositoryProtocol: Sendable {
 }
 
 extension TransactionRepositoryProtocol {
+    func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
+        []
+    }
+
+    func importWalletTransactions(
+        _ candidates: [WalletTransactionCandidate],
+        intoAccountID accountID: String,
+        budgetID: String
+    ) async throws -> WalletTransactionImportResult {
+        throw LocalFirstError.unsupportedWrite
+    }
+
     func cachedUncategorizedTransactions(
         budgetID: String,
         month: String

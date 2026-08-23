@@ -1,0 +1,143 @@
+import Foundation
+import Testing
+@testable import Actualist
+
+extension LocalFirstActualStoreTests {
+    @Test func importWalletTransactionsSkipsExistingFinancialIDs() async throws {
+        let firstID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        let secondID = UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.walletImportColumnsSQL)
+        let date = try makeDate(year: 2026, month: 7, day: 18)
+        let first = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: firstID,
+                    amount: Decimal(string: "8.40")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: "SQ * WALLET CAFE #99",
+                    transactionDescription: "SQ * WALLET CAFE #99",
+                    transactionDate: date,
+                    status: .booked
+                )
+            )
+        )
+        let second = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: secondID,
+                    amount: Decimal(string: "15.00")!,
+                    creditDebitIndicator: .credit,
+                    merchantName: "Refund",
+                    transactionDescription: "Refund",
+                    transactionDate: date,
+                    status: .pending
+                )
+            )
+        )
+
+        let firstResult = try await store.importWalletTransactions(
+            [first],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+        let secondResult = try await store.importWalletTransactions(
+            [first, second],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+
+        let existing = try await store.existingImportedIDs(budgetID: "group-1", accountID: "checking")
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let importedCafe = try #require(loaded.transactions.first { $0.importedPayee == "Wallet Cafe" })
+        let importedRefund = try #require(loaded.transactions.first { $0.importedPayee == "Refund" })
+
+        #expect(firstResult == WalletTransactionImportResult(importedCount: 1, duplicateCount: 0))
+        #expect(secondResult == WalletTransactionImportResult(importedCount: 1, duplicateCount: 1))
+        #expect(existing == [firstID.uuidString.lowercased(), secondID.uuidString.lowercased()])
+        #expect(importedCafe.amount == -840)
+        #expect(importedCafe.cleared == .bool(true))
+        #expect(importedCafe.payeeName == "Wallet Cafe")
+        #expect(importedRefund.amount == 1_500)
+        #expect(importedRefund.cleared == .bool(false))
+        #expect(loaded.transactions.filter { $0.importedPayee == "Wallet Cafe" }.count == 1)
+    }
+
+    @Test func importWalletTransactionsAppliesMatchingPayeeRule() async throws {
+        let store = try await makeOpenedWritableStore(
+            additionalFixtureSQL: """
+            \(Self.walletImportColumnsSQL)
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'wallet-cafe-rule',
+                '[{"field":"payee_name","op":"is","value":"Rule Cafe"}]',
+                '[{"field":"category","op":"set","value":"groceries"}]',
+                0
+            );
+            """
+        )
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: UUID(uuidString: "99999999-8888-7777-6666-555555555555")!,
+                    amount: Decimal(string: "6.25")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: "Rule Cafe",
+                    transactionDescription: "Rule Cafe",
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 19),
+                    status: .booked
+                )
+            )
+        )
+
+        let result = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let imported = try #require(loaded.transactions.first { $0.importedPayee == "Rule Cafe" })
+
+        #expect(result.importedCount == 1)
+        #expect(imported.category == "groceries")
+        #expect(imported.amount == -625)
+    }
+
+    @Test func existingImportedIDsAreScopedToTheAccount() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.walletImportColumnsSQL)
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: UUID(uuidString: "12121212-3434-5656-7878-909090909090")!,
+                    amount: Decimal(string: "4.00")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: "Scoped",
+                    transactionDescription: "Scoped",
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 20),
+                    status: .booked
+                )
+            )
+        )
+
+        _ = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+
+        let checking = try await store.existingImportedIDs(budgetID: "group-1", accountID: "checking")
+        let credit = try await store.existingImportedIDs(budgetID: "group-1", accountID: "credit")
+        #expect(checking == [candidate.financialID])
+        #expect(credit.isEmpty)
+    }
+
+    private static let walletImportColumnsSQL = """
+        ALTER TABLE transactions ADD COLUMN financial_id TEXT;
+        ALTER TABLE transactions ADD COLUMN imported_description TEXT;
+        ALTER TABLE transactions ADD COLUMN sort_order REAL;
+        """
+}

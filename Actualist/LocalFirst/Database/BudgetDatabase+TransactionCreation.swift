@@ -174,6 +174,45 @@ extension BudgetDatabase {
                     )
                 )
             }
+            if let importedPayee = draft.importedPayee {
+                let importedPayeeColumn = ["imported_description", "imported_payee"]
+                    .first { columns.contains($0) }
+                if let importedPayeeColumn {
+                    messages.append(
+                        try builder.makeMessage(
+                            dataset: "transactions",
+                            row: transactionID,
+                            column: importedPayeeColumn,
+                            value: .string(importedPayee)
+                        )
+                    )
+                }
+            }
+            if let importedID = draft.importedID, !importedID.isEmpty {
+                let importedIDColumn = try firstExistingColumn(
+                    ["financial_id", "imported_id"],
+                    in: columns,
+                    table: "transactions"
+                )
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: importedIDColumn,
+                        value: .string(importedID)
+                    )
+                )
+            }
+            if let sortOrder = draft.sortOrder, columns.contains("sort_order") {
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "sort_order",
+                        value: .double(sortOrder)
+                    )
+                )
+            }
         }
         return messages
     }
