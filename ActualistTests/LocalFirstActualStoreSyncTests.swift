@@ -699,7 +699,7 @@ extension LocalFirstActualStoreTests {
         }
     }
 
-    @Test func remoteUnknownDatasetOrColumnAdvancesSyncWithoutMutatingLocalTables() async throws {
+    @Test func remoteUnknownDatasetOrColumnIsRetainedInCRDTWithoutMutatingLocalTables() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let unknownDataset = ActualSyncDecodedMessage(
@@ -707,23 +707,36 @@ extension LocalFirstActualStoreTests {
             dataset: "future_table",
             row: "row-1",
             column: "name",
-            serializedValue: LocalFirstSyncValue.string("ignored").serialized
+            serializedValue: LocalFirstSyncValue.string("Cash").serialized
         )
         let unknownColumn = ActualSyncDecodedMessage(
             timestamp: "2026-07-04T12:34:57.789Z-0000-node1",
             dataset: "transactions",
             row: "txn",
             column: "future_column",
-            serializedValue: LocalFirstSyncValue.string("ignored").serialized
+            serializedValue: LocalFirstSyncValue.string("group-1").serialized
+        )
+        let laterKnownColumn = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:58.789Z-0000-node1",
+            dataset: "transactions",
+            row: "txn",
+            column: "category",
+            serializedValue: LocalFirstSyncValue.string("gas").serialized
         )
 
-        let appliedCount = try await database.applyRemoteSyncMessages([unknownColumn, unknownDataset])
+        let appliedCount = try await database.applyRemoteSyncMessages(
+            [unknownColumn, unknownDataset, laterKnownColumn]
+        )
         let transactions = try await database.fetchTransactions(accountID: "checking")
         let transaction = try #require(transactions.first { $0.id == "txn" })
+        let stored = try storedCRDTMessages(at: fixtureURL)
 
-        #expect(appliedCount == 2)
-        #expect(transaction.category == "groceries")
-        #expect(try await database.latestSyncTimestamp() == unknownColumn.timestamp)
+        #expect(appliedCount == 3)
+        #expect(transaction.category == "gas")
+        #expect(try await database.latestSyncTimestamp() == laterKnownColumn.timestamp)
+        #expect(stored == [unknownDataset, unknownColumn, laterKnownColumn])
+        #expect(try sqliteTables(at: fixtureURL).contains("future_table") == false)
+        #expect(try sqliteColumns("transactions", at: fixtureURL).contains("future_column") == false)
     }
 
 }

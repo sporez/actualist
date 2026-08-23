@@ -412,4 +412,46 @@ extension LocalFirstActualStoreTests {
         }
         return url
     }
+
+    func storedCRDTMessages(at databaseURL: URL) throws -> [ActualSyncDecodedMessage] {
+        let queue = try DatabaseQueue(path: databaseURL.path)
+        return try queue.read { db in
+            try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT timestamp, dataset, row, column, value
+                    FROM messages_crdt
+                    ORDER BY timestamp, dataset, row, column
+                    """
+            ).map { row in
+                ActualSyncDecodedMessage(
+                    timestamp: row["timestamp"] ?? "",
+                    dataset: row["dataset"] ?? "",
+                    row: row["row"] ?? "",
+                    column: row["column"] ?? "",
+                    serializedValue: row["value"] ?? ""
+                )
+            }
+        }
+    }
+
+    func sqliteTables(at databaseURL: URL) throws -> Set<String> {
+        let queue = try DatabaseQueue(path: databaseURL.path)
+        return try queue.read { db in
+            Set(try String.fetchAll(
+                db,
+                sql: "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ))
+        }
+    }
+
+    func sqliteColumns(_ table: String, at databaseURL: URL) throws -> Set<String> {
+        let queue = try DatabaseQueue(path: databaseURL.path)
+        return try queue.read { db in
+            Set(
+                try Row.fetchAll(db, sql: "PRAGMA table_info(\(table))")
+                    .compactMap { $0["name"] as String? }
+            )
+        }
+    }
 }

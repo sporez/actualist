@@ -31,6 +31,70 @@ extension LocalFirstActualStoreTests {
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
     }
 
+    @Test func createAccountOutboxOnlyWritesKnownAccountColumns() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        try await store.createAccountAndRefresh(
+            budgetID: "group-1",
+            name: "Travel Checking",
+            offbudget: false
+        )
+
+        let database = try #require(store.database)
+        let pending = try await database.pendingLocalSyncMessages()
+        let accountColumns = Set(
+            pending.compactMap { message in
+                message.message.dataset == "accounts" ? message.message.column : nil
+            }
+        )
+
+        #expect(accountColumns.isSubset(of: ["name", "offbudget", "closed", "tombstone", "sort_order"]))
+        #expect(accountColumns.contains("name"))
+        #expect(!pending.contains { $0.message.dataset == "account_groups" })
+        #expect(!pending.contains { $0.message.column == "account_group_id" })
+    }
+
+    @Test func createAccountAfterUnknownAccountGroupMessagesDoesNotEmitThoseFields() async throws {
+        let store = try await makeOpenedWritableStore()
+        let database = try #require(store.database)
+        let groupName = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:56.789Z-0000-remote",
+            dataset: "account_groups",
+            row: "group-cash",
+            column: "name",
+            serializedValue: LocalFirstSyncValue.string("Cash").serialized
+        )
+        let membership = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:34:57.789Z-0000-remote",
+            dataset: "accounts",
+            row: "checking",
+            column: "account_group_id",
+            serializedValue: LocalFirstSyncValue.string("group-cash").serialized
+        )
+
+        #expect(try await database.applyRemoteSyncMessages([groupName, membership]) == 2)
+
+        try await store.createAccountAndRefresh(
+            budgetID: "group-1",
+            name: "New Cash",
+            offbudget: false
+        )
+
+        let pending = try await database.pendingLocalSyncMessages()
+        let stored = try storedCRDTMessages(at: await database.databaseURL)
+        let checking = try #require(
+            try await database.fetchAccounts().first { $0.id == "checking" }
+        )
+
+        #expect(stored.contains(groupName))
+        #expect(stored.contains(membership))
+        #expect(!pending.contains { $0.message.dataset == "account_groups" })
+        #expect(!pending.contains { $0.message.column == "account_group_id" })
+        #expect(checking.name == "Checking")
+        #expect(try sqliteTables(at: await database.databaseURL).contains("account_groups") == false)
+        #expect(try sqliteColumns("accounts", at: await database.databaseURL).contains("account_group_id") == false)
+    }
+
     @Test func createOffBudgetAccountLocallyMarksAccountAsOffBudget() async throws {
         let store = try await makeOpenedWritableStore()
 
