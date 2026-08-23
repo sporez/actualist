@@ -190,6 +190,15 @@ struct RuleDraft: Hashable, Sendable {
             && actions.allSatisfy(\.canRoundTripAndEvaluate)
     }
 
+    static var blank: RuleDraft {
+        RuleDraft(
+            stage: .normal,
+            conditionsJoin: .and,
+            conditions: [RuleCondition(field: "notes", operation: "is", value: .string(""), type: "string")],
+            actions: [RuleAction(operation: "set", field: "category", value: .null, type: "id")]
+        )
+    }
+
     static func categoryRule(payeeID: String) -> RuleDraft {
         RuleDraft(
             stage: .normal,

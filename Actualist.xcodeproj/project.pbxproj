@@ -32,6 +32,9 @@
 		0100000000000000000000BB /* RuleSplitActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BB /* RuleSplitActionTests.swift */; };
 		0100000000000000000000BC /* RuleRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BC /* RuleRanking.swift */; };
 		0100000000000000000000BD /* RuleRankingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BD /* RuleRankingTests.swift */; };
+		0100000000000000000000BE /* RulesListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BE /* RulesListViewModel.swift */; };
+		0100000000000000000000BF /* BudgetRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000BF /* BudgetRulesView.swift */; };
+		0100000000000000000000C2 /* RulesListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000C2 /* RulesListViewModelTests.swift */; };
 		010000000000000000000074 /* PayeeManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000074 /* PayeeManagementTests.swift */; };
 		010000000000000000000082 /* RuleConditionEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000082 /* RuleConditionEvaluatorTests.swift */; };
 		010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000075 /* OpenSourceLicensesView.swift */; };
@@ -294,6 +297,9 @@
 		0200000000000000000000BB /* RuleSplitActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleSplitActionTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000BC /* RuleRanking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleRanking.swift; sourceTree = "<group>"; };
 		0200000000000000000000BD /* RuleRankingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleRankingTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000BE /* RulesListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesListViewModel.swift; sourceTree = "<group>"; };
+		0200000000000000000000BF /* BudgetRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRulesView.swift; sourceTree = "<group>"; };
+		0200000000000000000000C2 /* RulesListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesListViewModelTests.swift; sourceTree = "<group>"; };
 		020000000000000000000074 /* PayeeManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeManagementTests.swift; sourceTree = "<group>"; };
 		020000000000000000000082 /* RuleConditionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleConditionEvaluatorTests.swift; sourceTree = "<group>"; };
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
@@ -670,6 +676,7 @@
 				0200000000000000000000B9 /* RuleDeleteActionTests.swift */,
 				0200000000000000000000BB /* RuleSplitActionTests.swift */,
 				0200000000000000000000BD /* RuleRankingTests.swift */,
+				0200000000000000000000C2 /* RulesListViewModelTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
 				0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */,
 				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
@@ -830,6 +837,8 @@
 				020000000000000000000073 /* PayeesView.swift */,
 				020000000000000000000072 /* PayeesViewModel.swift */,
 				020000000000000000000080 /* PayeeRulesView.swift */,
+				0200000000000000000000BE /* RulesListViewModel.swift */,
+				0200000000000000000000BF /* BudgetRulesView.swift */,
 				020000000000000000000083 /* RuleMatchPreview.swift */,
 				020000000000000000000000DA /* RuleEditorDraftState.swift */,
 				020000000000000000000000DC /* RuleEditorView.swift */,
@@ -1211,6 +1220,8 @@
 				010000000000000000000073 /* PayeesView.swift in Sources */,
 				010000000000000000000072 /* PayeesViewModel.swift in Sources */,
 				010000000000000000000080 /* PayeeRulesView.swift in Sources */,
+				0100000000000000000000BE /* RulesListViewModel.swift in Sources */,
+				0100000000000000000000BF /* BudgetRulesView.swift in Sources */,
 				010000000000000000000083 /* RuleMatchPreview.swift in Sources */,
 				010000000000000000000000DA /* RuleEditorDraftState.swift in Sources */,
 				010000000000000000000000DC /* RuleEditorView.swift in Sources */,
@@ -1341,6 +1352,7 @@
 				0100000000000000000000B9 /* RuleDeleteActionTests.swift in Sources */,
 				0100000000000000000000BB /* RuleSplitActionTests.swift in Sources */,
 				0100000000000000000000BD /* RuleRankingTests.swift in Sources */,
+				0100000000000000000000C2 /* RulesListViewModelTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */,
 				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,

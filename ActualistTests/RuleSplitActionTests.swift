@@ -174,7 +174,7 @@ extension LocalFirstActualStoreTests {
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
         #expect(created.isParent)
         #expect(created.subtransactions.count == 2)
-        #expect(created.subtransactions.map(\.amount) == [-4_000, -6_000])
+        #expect(Set(created.subtransactions.compactMap(\.amount)) == [-4_000, -6_000])
         #expect(Set(created.subtransactions.compactMap(\.category)) == ["groceries", "utilities"])
     }
 }

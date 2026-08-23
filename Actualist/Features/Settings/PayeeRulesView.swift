@@ -1,75 +1,4 @@
-import Observation
 import SwiftUI
-
-@MainActor
-@Observable
-final class PayeeRulesViewModel {
-    var rules: [ManagedRule] = []
-    var options: RuleEditorOptions?
-    var isLoading = false
-    var isSubmitting = false
-    var errorMessage: String?
-
-    func load(payeeID: String, using appState: AppState) async {
-        guard let budgetID = appState.settings.selectedBudgetID else { return }
-        if let cached = appState.ruleRepository.cachedRules(budgetID: budgetID) {
-            rules = cached.filter { $0.payeeIDs.contains(payeeID) && !$0.isCompletedScheduleRule }
-        }
-        isLoading = rules.isEmpty
-        options = try? await appState.ruleRepository.ruleEditorOptions(budgetID: budgetID)
-        do {
-            try await appState.ruleRepository.refreshRules(budgetID: budgetID)
-            rules = (appState.ruleRepository.cachedRules(budgetID: budgetID) ?? [])
-                .filter { $0.payeeIDs.contains(payeeID) && !$0.isCompletedScheduleRule }
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
-    }
-
-    func save(ruleID: String?, draft: RuleDraft, payeeID: String, using appState: AppState) async -> Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else { return false }
-        isSubmitting = true
-        defer { isSubmitting = false }
-        do {
-            if let ruleID {
-                try await appState.ruleRepository.updateRuleAndRefresh(
-                    budgetID: budgetID,
-                    ruleID: ruleID,
-                    draft: draft
-                )
-            } else {
-                try await appState.ruleRepository.createRuleAndRefresh(budgetID: budgetID, draft: draft)
-            }
-            rules = (appState.ruleRepository.cachedRules(budgetID: budgetID) ?? [])
-                .filter { $0.payeeIDs.contains(payeeID) && !$0.isCompletedScheduleRule }
-            appState.recordLocalDataMutation()
-            errorMessage = nil
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
-    }
-
-    func delete(ruleID: String, payeeID: String, using appState: AppState) async -> Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else { return false }
-        isSubmitting = true
-        defer { isSubmitting = false }
-        do {
-            try await appState.ruleRepository.deleteRuleAndRefresh(budgetID: budgetID, ruleID: ruleID)
-            rules = (appState.ruleRepository.cachedRules(budgetID: budgetID) ?? [])
-                .filter { $0.payeeIDs.contains(payeeID) && !$0.isCompletedScheduleRule }
-            appState.recordLocalDataMutation()
-            errorMessage = nil
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
-    }
-}
 
 /// The payee-associated rules list screen: loads, adds, edits, and deletes rules
 /// scoped to a single payee. Renders display state and calls view-model intents;
@@ -77,7 +6,7 @@ final class PayeeRulesViewModel {
 struct PayeeRulesView: View {
     @Environment(AppState.self) private var appState
     let payee: ManagedPayee
-    @State private var viewModel = PayeeRulesViewModel()
+    @State private var viewModel = RulesListViewModel()
     @State private var editorTarget: RuleEditorTarget?
     @State private var pendingDeleteRule: ManagedRule?
 
@@ -93,14 +22,14 @@ struct PayeeRulesView: View {
             Section {
                 if viewModel.isLoading && viewModel.rules.isEmpty {
                     ProgressView("Loading rules")
-                } else if viewModel.rules.isEmpty {
+                } else if viewModel.displayedRules(for: .payee(payee.id)).isEmpty {
                     ContentUnavailableView(
                         "No Rules",
                         systemImage: "wand.and.stars",
                         description: Text("Create a rule that applies whenever this payee is used.")
                     )
                 } else {
-                    ForEach(viewModel.rules) { rule in
+                    ForEach(viewModel.displayedRules(for: .payee(payee.id))) { rule in
                         Button {
                             editorTarget = RuleEditorTarget(rule: rule, fallbackPayeeID: payee.id)
                         } label: {
@@ -154,8 +83,8 @@ struct PayeeRulesView: View {
                 .disabled(viewModel.isSubmitting)
             }
         }
-        .task { await viewModel.load(payeeID: payee.id, using: appState) }
-        .refreshable { await viewModel.load(payeeID: payee.id, using: appState) }
+        .task { await viewModel.load(scope: .payee(payee.id), using: appState) }
+        .refreshable { await viewModel.load(scope: .payee(payee.id), using: appState) }
         .sheet(item: $editorTarget) { target in
             RuleEditorView(
                 target: target,
@@ -165,7 +94,6 @@ struct PayeeRulesView: View {
                 await viewModel.save(
                     ruleID: target.rule?.id,
                     draft: draft,
-                    payeeID: payee.id,
                     using: appState
                 )
             }
@@ -183,7 +111,7 @@ struct PayeeRulesView: View {
             if let rule = pendingDeleteRule {
                 Button("Delete Rule", role: .destructive) {
                     pendingDeleteRule = nil
-                    Task { _ = await viewModel.delete(ruleID: rule.id, payeeID: payee.id, using: appState) }
+                    Task { _ = await viewModel.delete(ruleID: rule.id, using: appState) }
                 }
             }
             Button("Cancel", role: .cancel) { pendingDeleteRule = nil }
@@ -203,6 +131,8 @@ struct RuleEditorTarget: Identifiable {
     let fallbackPayeeID: String
 
     var initialDraft: RuleDraft {
-        rule?.draft ?? .categoryRule(payeeID: fallbackPayeeID)
+        if let draft = rule?.draft { return draft }
+        if fallbackPayeeID.isEmpty { return .blank }
+        return .categoryRule(payeeID: fallbackPayeeID)
     }
 }

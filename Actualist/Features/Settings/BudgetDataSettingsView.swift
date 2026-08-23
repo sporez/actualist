@@ -37,6 +37,13 @@ struct BudgetDataSettingsView: View {
                     SettingsActionLabel(title: "Payees", systemImage: "person.2")
                 }
                 .disabled(appState.settings.selectedBudgetID == nil)
+
+                NavigationLink {
+                    BudgetRulesView()
+                } label: {
+                    SettingsActionLabel(title: "Rules", systemImage: "wand.and.stars")
+                }
+                .disabled(appState.settings.selectedBudgetID == nil)
             }
             .settingsSectionChrome()
 
