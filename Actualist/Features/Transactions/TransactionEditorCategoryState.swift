@@ -321,6 +321,23 @@ struct TransactionEditorCategoryState: Equatable, Sendable {
         pendingMismatch = nil
     }
 
+    mutating func applyRuleSplits(_ splits: [TransactionSplitDraft]) {
+        let rows: [TransactionSplitEditorRow] = splits.enumerated().map { index, split in
+            let categoryID = split.categoryID ?? "split-\(index)"
+            return TransactionSplitEditorRow(
+                id: split.id ?? categoryID,
+                transactionID: split.id,
+                categoryID: categoryID,
+                categoryName: split.categoryName ?? categoryID,
+                amountDigits: String(split.amountMinorUnits.magnitude)
+            )
+        }
+        if rows.count >= 2 {
+            selection = .split(rows)
+            pendingMismatch = nil
+        }
+    }
+
     mutating func load(
         categoryID: String?,
         fallbackName: String?,

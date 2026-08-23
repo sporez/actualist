@@ -20,6 +20,7 @@ struct RuleEvaluationContext {
     var isParent: Bool
     var scheduleID: String? = nil
     var deletesTransaction = false
+    var splits: [RuleEvaluationSplit] = []
     var accountNames: [String: String]
     var offBudgetAccountIDs: Set<String>
     var categoryNames: [String: String]
@@ -52,9 +53,14 @@ enum RuleConditionEvaluator {
             if !forceExecute {
                 guard conditionsMatch(execution, context: result) else { continue }
             }
-            if execution.actions.contains(where: { $0.operation == "delete-transaction" }) {
+            if execution.actions.contains(where: { $0.operation == "delete-transaction" && $0.splitIndex == nil }) {
                 result.deletesTransaction = true
                 break
+            }
+            if RuleSplitActionExecutor.applies(to: execution.actions) {
+                RuleSplitActionExecutor.apply(execution.actions, to: &result)
+                if result.deletesTransaction { break }
+                continue
             }
             for action in execution.actions {
                 apply(action: action, context: &result)
@@ -273,7 +279,7 @@ enum RuleConditionEvaluator {
         }
     }
 
-    private static func apply(action: RuleAction, context: inout RuleEvaluationContext) {
+    static func apply(action: RuleAction, context: inout RuleEvaluationContext) {
         switch action.operation {
         case "set":
             switch action.field {

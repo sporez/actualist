@@ -61,6 +61,10 @@ extension BudgetDatabase {
         if let scheduleID = preview.scheduleID {
             resolved.scheduleID = scheduleID
         }
+        if preview.splits.count >= 2 {
+            resolved.splits = preview.splits
+            resolved.isParent = true
+        }
         return resolved
     }
 }

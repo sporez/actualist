@@ -61,7 +61,15 @@ extension BudgetDatabase {
             date: Calendar.current.isDate(result.date, inSameDayAs: draft.date) ? nil : result.date,
             cleared: result.cleared == draft.cleared ? nil : result.cleared,
             scheduleID: result.scheduleID,
-            deletesTransaction: result.deletesTransaction
+            deletesTransaction: result.deletesTransaction,
+            splits: result.splits.map { split in
+                TransactionSplitDraft(
+                    id: nil,
+                    categoryID: split.categoryID,
+                    categoryName: split.categoryID.flatMap { result.categoryNames[$0] },
+                    amountMinorUnits: split.amount
+                )
+            }
         )
     }
 

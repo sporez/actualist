@@ -55,6 +55,7 @@ struct RuleActionEditor: View {
                 Text("Prepend notes").tag("prepend-notes")
                 Text("Append notes").tag("append-notes")
                 Text("Delete transaction").tag("delete-transaction")
+                Text("Set split amount").tag("set-split-amount")
             }
             if action.operation == "set" {
                 RuleMenuPickerRow("Field", selection: actionFieldBinding) {
@@ -63,10 +64,30 @@ struct RuleActionEditor: View {
                     }
                 }
             }
-            if action.operation != "delete-transaction" {
+            if action.operation == "set-split-amount" {
+                RuleMenuPickerRow("Method", selection: splitMethodBinding) {
+                    Text("Fixed amount").tag("fixed-amount")
+                    Text("Percent").tag("fixed-percent")
+                    Text("Remainder").tag("remainder")
+                }
+            }
+            if action.operation == "set" || action.operation == "set-split-amount" {
+                RuleMenuPickerRow("Apply to", selection: splitTargetBinding) {
+                    if action.operation == "set" {
+                        Text("Whole transaction").tag(-1)
+                    }
+                    ForEach(0..<8, id: \.self) { index in
+                        Text("Split \(index + 1)").tag(index)
+                    }
+                }
+            }
+            if action.operation != "delete-transaction",
+               action.operation != "set-split-amount" || action.splitMethod != "remainder" {
                 RuleValueEditor(
                     value: $action.value,
-                    field: action.editorField ?? action.operation,
+                    field: action.operation == "set-split-amount"
+                        ? (action.splitMethod == "fixed-amount" ? "amount" : "percent")
+                        : (action.editorField ?? action.operation),
                     operation: action.operation,
                     options: options
                 )
@@ -75,6 +96,25 @@ struct RuleActionEditor: View {
         .onChange(of: action.operation) {
             action = RuleEditorDraftState.action(afterOperationChange: action.operation, from: action)
         }
+    }
+
+    private var splitMethodBinding: Binding<String> {
+        Binding(
+            get: { action.splitMethod ?? "fixed-amount" },
+            set: { action = RuleEditorDraftState.action(action, settingSplitMethod: $0) }
+        )
+    }
+
+    private var splitTargetBinding: Binding<Int> {
+        Binding(
+            get: { action.splitIndex ?? (action.operation == "set-split-amount" ? 0 : -1) },
+            set: { newValue in
+                action = RuleEditorDraftState.action(
+                    action,
+                    settingSplitIndex: newValue < 0 ? nil : newValue
+                )
+            }
+        )
     }
 
     private var actionFieldBinding: Binding<String> {

@@ -131,7 +131,7 @@ enum WalletTransactionMapper {
             amountMinorUnits: draft.amountMinorUnits,
             payeeID: preview.payeeID ?? draft.payeeID,
             payeeName: draft.payeeName,
-            categoryID: preview.categoryID ?? draft.categoryID,
+            categoryID: preview.splits.count >= 2 ? nil : (preview.categoryID ?? draft.categoryID),
             notes: preview.notes ?? draft.notes,
             cleared: preview.cleared ?? draft.cleared,
             isTransfer: draft.isTransfer,
@@ -139,8 +139,8 @@ enum WalletTransactionMapper {
             importedID: draft.importedID,
             sortOrder: draft.sortOrder,
             reconciled: draft.reconciled,
-            isParent: draft.isParent,
-            splits: draft.splits
+            isParent: preview.splits.count >= 2 || draft.isParent,
+            splits: preview.splits.count >= 2 ? preview.splits : draft.splits
         )
     }
 

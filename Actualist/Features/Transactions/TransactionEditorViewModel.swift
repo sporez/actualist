@@ -685,7 +685,9 @@ final class TransactionEditorViewModel {
             return
         }
 
-        if let categoryID = preview.categoryID {
+        if preview.splits.count >= 2 {
+            categoryState.applyRuleSplits(preview.splits)
+        } else if let categoryID = preview.categoryID {
             let categoryName = categories.first(where: { $0.id == categoryID })?.name
             categoryState.selectCategory(id: categoryID, name: categoryName)
         } else {

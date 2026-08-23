@@ -50,12 +50,22 @@ extension LocalFirstActualStore {
                 builder: &builder
             )
             let transactionID = UUID().uuidString
-            let transactionMessages = try await database.createSimpleTransactionMessages(
-                draft,
-                transactionID: transactionID,
-                payeeID: payeeResolution.payeeID,
-                builder: &builder
-            )
+            let transactionMessages: [ActualSyncDecodedMessage]
+            if draft.isSplit {
+                transactionMessages = try await database.createSplitTransactionMessages(
+                    draft: draft,
+                    parentTransactionID: transactionID,
+                    payeeID: payeeResolution.payeeID,
+                    builder: &builder
+                )
+            } else {
+                transactionMessages = try await database.createSimpleTransactionMessages(
+                    draft,
+                    transactionID: transactionID,
+                    payeeID: payeeResolution.payeeID,
+                    builder: &builder
+                )
+            }
 
             messages.append(contentsOf: payeeResolution.messages)
             messages.append(contentsOf: transactionMessages)

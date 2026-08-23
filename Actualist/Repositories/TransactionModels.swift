@@ -72,6 +72,7 @@ struct TransactionRulePreview: Hashable, Sendable {
     let cleared: Bool?
     let scheduleID: String?
     let deletesTransaction: Bool
+    let splits: [TransactionSplitDraft]
 
     init(
         categoryID: String?,
@@ -82,7 +83,8 @@ struct TransactionRulePreview: Hashable, Sendable {
         date: Date? = nil,
         cleared: Bool? = nil,
         scheduleID: String? = nil,
-        deletesTransaction: Bool = false
+        deletesTransaction: Bool = false,
+        splits: [TransactionSplitDraft] = []
     ) {
         self.categoryID = categoryID
         self.notes = notes
@@ -93,5 +95,6 @@ struct TransactionRulePreview: Hashable, Sendable {
         self.cleared = cleared
         self.scheduleID = scheduleID
         self.deletesTransaction = deletesTransaction
+        self.splits = splits
     }
 }

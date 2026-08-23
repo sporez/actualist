@@ -375,7 +375,7 @@ extension RuleAction {
     }
 
     var canRoundTripAndEvaluate: Bool {
-        guard options?.isEmpty != false else { return false }
+        guard hasSupportedActionOptions else { return false }
         switch operation {
         case "set":
             switch editorField {
@@ -385,12 +385,60 @@ extension RuleAction {
             default: return false
             }
         case "prepend-notes", "append-notes":
-            return field == nil && value.isStringLike
+            return field == nil && value.isStringLike && splitIndex == nil
         case "delete-transaction":
-            return field == nil && value.isStringLike
+            return field == nil && value.isStringLike && splitIndex == nil
+        case "set-split-amount":
+            return field == nil && value.isNumberLike && splitMethod != nil && splitIndex != nil
         default:
             return false
         }
+    }
+
+    var splitIndex: Int? {
+        guard let value = options?["splitIndex"] else { return nil }
+        switch value {
+        case .number(let number):
+            guard number.isFinite, number >= 0, number == number.rounded() else { return nil }
+            return Int(number)
+        case .string(let text):
+            return Int(text)
+        default:
+            return nil
+        }
+    }
+
+    var splitMethod: String? {
+        guard case .string(let method) = options?["method"] else { return nil }
+        return method
+    }
+
+    private var hasSupportedActionOptions: Bool {
+        guard let options, !options.isEmpty else { return true }
+        let allowed: Set<String> = ["splitIndex", "method"]
+        guard Set(options.keys).isSubset(of: allowed) else { return false }
+        if let method = options["method"] {
+            guard case .string(let name) = method,
+                  ["fixed-amount", "fixed-percent", "remainder"].contains(name) else {
+                return false
+            }
+        }
+        if operation == "set-split-amount", options["method"] == nil {
+            return false
+        }
+        if let index = options["splitIndex"] {
+            switch index {
+            case .number(let number):
+                guard number.isFinite, number >= 0, number == number.rounded(), number < 100 else {
+                    return false
+                }
+            case .string(let text):
+                guard let value = Int(text), value >= 0, value < 100 else { return false }
+            default:
+                return false
+            }
+        }
+        return true
     }
 }
 
