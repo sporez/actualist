@@ -71,6 +71,7 @@ struct TransactionRulePreview: Hashable, Sendable {
     let date: Date?
     let cleared: Bool?
     let scheduleID: String?
+    let deletesTransaction: Bool
 
     init(
         categoryID: String?,
@@ -80,7 +81,8 @@ struct TransactionRulePreview: Hashable, Sendable {
         amountMinorUnits: Int? = nil,
         date: Date? = nil,
         cleared: Bool? = nil,
-        scheduleID: String? = nil
+        scheduleID: String? = nil,
+        deletesTransaction: Bool = false
     ) {
         self.categoryID = categoryID
         self.notes = notes
@@ -90,5 +92,6 @@ struct TransactionRulePreview: Hashable, Sendable {
         self.date = date
         self.cleared = cleared
         self.scheduleID = scheduleID
+        self.deletesTransaction = deletesTransaction
     }
 }

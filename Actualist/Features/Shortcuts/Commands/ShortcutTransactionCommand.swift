@@ -214,8 +214,11 @@ enum ShortcutTransactionCommand {
             cleared: input.cleared,
             isTransfer: transfer
         )
+        let preview = try await prepared.store.previewRules(for: draft, budgetID: prepared.budgetID)
+        if preview.deletesTransaction {
+            throw ShortcutsError.writeFailed
+        }
         if categoryID == nil, !omitCategory {
-            let preview = try await prepared.store.previewRules(for: draft, budgetID: prepared.budgetID)
             categoryID = preview.categoryID
             if categoryID != nil {
                 draft = TransactionDraft(

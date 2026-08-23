@@ -26,6 +26,8 @@
 		0100000000000000000000B5 /* RuleScheduleIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B5 /* RuleScheduleIndex.swift */; };
 		0100000000000000000000B6 /* BudgetDatabase+Schedules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B6 /* BudgetDatabase+Schedules.swift */; };
 		0100000000000000000000B7 /* RuleScheduleRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B7 /* RuleScheduleRuntimeTests.swift */; };
+		0100000000000000000000B8 /* TransactionRuleDeleteReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B8 /* TransactionRuleDeleteReview.swift */; };
+		0100000000000000000000B9 /* RuleDeleteActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000B9 /* RuleDeleteActionTests.swift */; };
 		010000000000000000000074 /* PayeeManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000074 /* PayeeManagementTests.swift */; };
 		010000000000000000000082 /* RuleConditionEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000082 /* RuleConditionEvaluatorTests.swift */; };
 		010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000075 /* OpenSourceLicensesView.swift */; };
@@ -282,6 +284,8 @@
 		0200000000000000000000B5 /* RuleScheduleIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleScheduleIndex.swift; sourceTree = "<group>"; };
 		0200000000000000000000B6 /* BudgetDatabase+Schedules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Schedules.swift"; sourceTree = "<group>"; };
 		0200000000000000000000B7 /* RuleScheduleRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleScheduleRuntimeTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000B8 /* TransactionRuleDeleteReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionRuleDeleteReview.swift; sourceTree = "<group>"; };
+		0200000000000000000000B9 /* RuleDeleteActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleDeleteActionTests.swift; sourceTree = "<group>"; };
 		020000000000000000000074 /* PayeeManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeManagementTests.swift; sourceTree = "<group>"; };
 		020000000000000000000082 /* RuleConditionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleConditionEvaluatorTests.swift; sourceTree = "<group>"; };
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
@@ -655,6 +659,7 @@
 				020000000000000000000074 /* PayeeManagementTests.swift */,
 				020000000000000000000082 /* RuleConditionEvaluatorTests.swift */,
 				0200000000000000000000B7 /* RuleScheduleRuntimeTests.swift */,
+				0200000000000000000000B9 /* RuleDeleteActionTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
 				0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */,
 				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
@@ -797,6 +802,7 @@
 				020000000000000000000000AE /* TransactionEditorSubmissionCoordinator.swift */,
 				020000000000000000000000AF /* TransactionDraftBuilder.swift */,
 				020000000000000000000000C5 /* TransactionRulePreviewCoordinator.swift */,
+				0200000000000000000000B8 /* TransactionRuleDeleteReview.swift */,
 				020000000000000000000085 /* PayeePickerView.swift */,
 			);
 			path = Transactions;
@@ -1305,6 +1311,7 @@
 				010000000000000000000000AE /* TransactionEditorSubmissionCoordinator.swift in Sources */,
 				010000000000000000000000AF /* TransactionDraftBuilder.swift in Sources */,
 				010000000000000000000000C5 /* TransactionRulePreviewCoordinator.swift in Sources */,
+				0100000000000000000000B8 /* TransactionRuleDeleteReview.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1317,6 +1324,7 @@
 				010000000000000000000074 /* PayeeManagementTests.swift in Sources */,
 				010000000000000000000082 /* RuleConditionEvaluatorTests.swift in Sources */,
 				0100000000000000000000B7 /* RuleScheduleRuntimeTests.swift in Sources */,
+				0100000000000000000000B9 /* RuleDeleteActionTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */,
 				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,

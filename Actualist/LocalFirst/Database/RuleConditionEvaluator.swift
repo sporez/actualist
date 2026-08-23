@@ -19,6 +19,7 @@ struct RuleEvaluationContext {
     var isTransfer: Bool
     var isParent: Bool
     var scheduleID: String? = nil
+    var deletesTransaction = false
     var accountNames: [String: String]
     var offBudgetAccountIDs: Set<String>
     var categoryNames: [String: String]
@@ -50,6 +51,10 @@ enum RuleConditionEvaluator {
             }
             if !forceExecute {
                 guard conditionsMatch(execution, context: result) else { continue }
+            }
+            if execution.actions.contains(where: { $0.operation == "delete-transaction" }) {
+                result.deletesTransaction = true
+                break
             }
             for action in execution.actions {
                 apply(action: action, context: &result)

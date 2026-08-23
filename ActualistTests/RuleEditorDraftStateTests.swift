@@ -232,6 +232,14 @@ struct RuleEditorDraftStateTests {
         #expect(updated.value == .string("note"))
     }
 
+    @Test func actionOpChange_toDeleteTransactionClearsField() {
+        let original = RuleAction(operation: "set", field: "category", value: .string("groceries"), type: "id")
+        let updated = RuleEditorDraftState.action(afterOperationChange: "delete-transaction", from: original)
+        #expect(updated.operation == "delete-transaction")
+        #expect(updated.field == nil)
+        #expect(updated.value == .string("groceries") || updated.value == .string(""))
+    }
+
     @Test func actionOpChange_toAppendNotesSeedsEmptyStringWhenValueNotString() {
         let original = RuleAction(operation: "set", field: "category", value: .null, type: "id")
         let updated = RuleEditorDraftState.action(afterOperationChange: "append-notes", from: original)

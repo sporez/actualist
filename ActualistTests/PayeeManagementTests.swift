@@ -538,7 +538,7 @@ extension LocalFirstActualStoreTests {
                 'unsupported',
                 NULL,
                 '[{"field":"payee","op":"is","value":"coffee","customName":"Coffee"}]',
-                '[{"op":"delete-transaction","value":""}]',
+                '[{"op":"set-split-amount","value":100,"options":{"method":"fixed-amount"}}]',
                 'and',
                 0
             );
@@ -548,13 +548,13 @@ extension LocalFirstActualStoreTests {
 
         #expect(!rule.isEditable)
         #expect(rule.rawConditionsJSON.contains("customName"))
-        #expect(rule.rawActionsJSON.contains("delete-transaction"))
+        #expect(rule.rawActionsJSON.contains("set-split-amount"))
 
         let unsupportedDraft = RuleDraft(
             stage: .normal,
             conditionsJoin: .and,
             conditions: [RuleCondition(field: "payee", operation: "is", value: .string("coffee"))],
-            actions: [RuleAction(operation: "delete-transaction")]
+            actions: [RuleAction(operation: "set-split-amount", value: .number(100))]
         )
         await #expect(throws: LocalFirstError.self) {
             try await store.createRuleAndRefresh(budgetID: "group-1", draft: unsupportedDraft)

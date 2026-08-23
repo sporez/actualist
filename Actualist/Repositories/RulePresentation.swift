@@ -44,6 +44,7 @@ enum RulePresentation {
         case "prepend-notes": "Prepend notes with"
         case "append-notes": "Append notes with"
         case "link-schedule": "Link to schedule"
+        case "delete-transaction": "Delete transaction"
         default: "Unsupported action"
         }
     }
@@ -258,6 +259,7 @@ extension ManagedRule {
            let actions = try? decoder.decode([RuleAction].self, from: data) {
             details += actions.map { action in
                 if action.operation == "link-schedule" { return "Action: Link to schedule" }
+                if action.operation == "delete-transaction" { return "Action: Delete transaction" }
                 guard ["set", "prepend-notes", "append-notes"].contains(action.operation) else {
                     return "Unsupported action"
                 }
@@ -292,6 +294,7 @@ extension ManagedRule {
 
     private func readOnlyActionText(_ action: RuleAction, options: RuleEditorOptions?) -> String {
         if action.operation == "link-schedule" { return "link to schedule" }
+        if action.operation == "delete-transaction" { return "delete transaction" }
         guard ["set", "prepend-notes", "append-notes"].contains(action.operation) else {
             return "Unsupported action"
         }

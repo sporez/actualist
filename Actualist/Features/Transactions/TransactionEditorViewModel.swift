@@ -22,6 +22,7 @@ final class TransactionEditorViewModel {
     private var categoryState = TransactionEditorCategoryState()
     private let rulePreviewCoordinator = TransactionRulePreviewCoordinator()
     private let submissionCoordinator = TransactionEditorSubmissionCoordinator()
+    let deleteReview = TransactionRuleDeleteReview()
 
     var kind: TransactionFlowKind = .spend
     var amountDigits = ""
@@ -79,6 +80,7 @@ final class TransactionEditorViewModel {
             && (!isEditing || (editingTransactionID != nil && originalMonth != nil))
             && !isSubmitting
             && !isPreviewingRules
+            && !deleteReview.blocksSave
     }
 
     var isSubmitting: Bool {
@@ -505,6 +507,22 @@ final class TransactionEditorViewModel {
         }
     }
 
+    func confirmRuleDelete(using appState: AppState) async -> Bool {
+        guard let budgetID = appState.settings.selectedBudgetID else { return false }
+        if let message = await deleteReview.confirmDeletion(
+            transactionID: editingTransactionID,
+            accountID: originalAccountID,
+            date: date,
+            budgetID: budgetID,
+            repository: appState.transactionRepository,
+            didDelete: { appState.recordLocalDataMutation() }
+        ) {
+            errorMessage = message
+            return false
+        }
+        return true
+    }
+
     func submit(using appState: AppState) async -> Bool {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return false
@@ -544,7 +562,10 @@ final class TransactionEditorViewModel {
         )
         switch outcome {
         case .applied(let preview):
-            applyRulePreview(preview)
+            deleteReview.consider(preview)
+            if !preview.deletesTransaction {
+                applyRulePreview(preview)
+            }
             errorMessage = nil
         case .unsupported:
             errorMessage = nil

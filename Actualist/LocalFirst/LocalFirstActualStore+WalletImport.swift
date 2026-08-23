@@ -38,6 +38,9 @@ extension LocalFirstActualStore {
                 sortOrder: sortOrderBase + Double(index)
             )
             let preview = try await database.previewRules(for: draft)
+            if preview.deletesTransaction {
+                continue
+            }
             draft = WalletTransactionMapper.applyingImportPreview(draft, preview)
 
             let payeeResolution = try await resolveImportPayee(

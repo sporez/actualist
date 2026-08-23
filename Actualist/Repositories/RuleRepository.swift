@@ -386,6 +386,8 @@ extension RuleAction {
             }
         case "prepend-notes", "append-notes":
             return field == nil && value.isStringLike
+        case "delete-transaction":
+            return field == nil && value.isStringLike
         default:
             return false
         }

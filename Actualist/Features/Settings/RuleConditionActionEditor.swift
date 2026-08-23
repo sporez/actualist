@@ -54,6 +54,7 @@ struct RuleActionEditor: View {
                 Text("Set field").tag("set")
                 Text("Prepend notes").tag("prepend-notes")
                 Text("Append notes").tag("append-notes")
+                Text("Delete transaction").tag("delete-transaction")
             }
             if action.operation == "set" {
                 RuleMenuPickerRow("Field", selection: actionFieldBinding) {
@@ -62,12 +63,14 @@ struct RuleActionEditor: View {
                     }
                 }
             }
-            RuleValueEditor(
-                value: $action.value,
-                field: action.editorField ?? action.operation,
-                operation: action.operation,
-                options: options
-            )
+            if action.operation != "delete-transaction" {
+                RuleValueEditor(
+                    value: $action.value,
+                    field: action.editorField ?? action.operation,
+                    operation: action.operation,
+                    options: options
+                )
+            }
         }
         .onChange(of: action.operation) {
             action = RuleEditorDraftState.action(afterOperationChange: action.operation, from: action)

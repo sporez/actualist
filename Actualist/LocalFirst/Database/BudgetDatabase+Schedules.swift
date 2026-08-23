@@ -54,7 +54,11 @@ extension BudgetDatabase {
         if resolved.scheduleID == nil, let existingTransactionID {
             resolved.scheduleID = try fetchTransaction(id: existingTransactionID)?.schedule
         }
-        if let scheduleID = try previewRules(for: resolved).scheduleID {
+        let preview = try previewRules(for: resolved)
+        if preview.deletesTransaction {
+            throw LocalFirstError.invalidLocalWrite("a matching rule would delete this transaction")
+        }
+        if let scheduleID = preview.scheduleID {
             resolved.scheduleID = scheduleID
         }
         return resolved

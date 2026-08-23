@@ -91,6 +91,31 @@ struct TransactionEditorView: View {
                 .appSwitcherPrivacyProtected()
         }
         .confirmationDialog(
+            "A Rule Would Delete This Transaction",
+            isPresented: deleteReviewBinding,
+            titleVisibility: .visible
+        ) {
+            if viewModel.isEditing {
+                Button("Delete Transaction", role: .destructive) {
+                    Task {
+                        if await viewModel.confirmRuleDelete(using: appState) {
+                            onSaved?()
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            Button("Keep Editing", role: .cancel) {
+                viewModel.deleteReview.dismissReview()
+            }
+        } message: {
+            Text(
+                viewModel.isEditing
+                    ? "A matching rule wants to delete this transaction. Delete it, or keep the existing row and leave it unsaved."
+                    : "A matching rule would delete this transaction, so it will not be saved."
+            )
+        }
+        .confirmationDialog(
             "Something Doesn't Add Up",
             isPresented: splitMismatchBinding,
             titleVisibility: .visible
@@ -366,6 +391,16 @@ struct TransactionEditorView: View {
             viewModel.amountDigits
         } set: { newValue in
             viewModel.setAmountInput(newValue)
+        }
+    }
+
+    private var deleteReviewBinding: Binding<Bool> {
+        Binding {
+            viewModel.deleteReview.isReviewPresented
+        } set: { isPresented in
+            if !isPresented {
+                viewModel.deleteReview.dismissReview()
+            }
         }
     }
 

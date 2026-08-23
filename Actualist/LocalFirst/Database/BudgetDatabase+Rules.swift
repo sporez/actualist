@@ -60,7 +60,8 @@ extension BudgetDatabase {
             amountMinorUnits: result.amount == draft.amountMinorUnits ? nil : result.amount,
             date: Calendar.current.isDate(result.date, inSameDayAs: draft.date) ? nil : result.date,
             cleared: result.cleared == draft.cleared ? nil : result.cleared,
-            scheduleID: result.scheduleID
+            scheduleID: result.scheduleID,
+            deletesTransaction: result.deletesTransaction
         )
     }
 
