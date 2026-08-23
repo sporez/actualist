@@ -37,6 +37,7 @@ extension BudgetDatabase {
             let importedPayee = expr(["imported_description", "imported_payee"], fallback: "NULL")
             let parentID = expr(["parent_id"], fallback: "NULL")
             let isParent = expr(["isParent", "is_parent"], fallback: "0")
+            let schedule = expr(["schedule"], fallback: "NULL")
             let normalizedDate = normalizedDateExpression(date)
             let live = predicateForLiveRows(columns: columns, tableAlias: "t")
             let familyPredicate: String
@@ -67,7 +68,8 @@ extension BudgetDatabase {
                        \(cleared) AS cleared,
                        \(reconciled) AS reconciled,
                        \(parentID) AS parent_id,
-                       \(isParent) AS is_parent
+                       \(isParent) AS is_parent,
+                       \(schedule) AS schedule
                 FROM transactions t
                 WHERE \(live)
                   AND (\(familyPredicate))
@@ -120,6 +122,7 @@ extension BudgetDatabase {
             let importedPayee = expr(["imported_description", "imported_payee"], fallback: "NULL")
             let parentID = expr(["parent_id"], fallback: "NULL")
             let isParent = expr(["isParent", "is_parent"], fallback: "0")
+            let schedule = expr(["schedule"], fallback: "NULL")
             let normalizedDate = normalizedDateExpression(date)
             let hasCategoryMapping = try tableExists("category_mapping", db: db)
             let mappedCategory = hasCategoryMapping ? "COALESCE(cm.transferId, \(category))" : category
@@ -224,7 +227,8 @@ extension BudgetDatabase {
                        \(cleared) AS cleared,
                        \(reconciled) AS reconciled,
                        \(parentID) AS parent_id,
-                       \(isParent) AS is_parent
+                       \(isParent) AS is_parent,
+                       \(schedule) AS schedule
                 FROM transactions t
                 \(categoryMappingJoin)
                 \(payeeMappingJoin)
@@ -313,7 +317,8 @@ extension BudgetDatabase {
             reconciled: flexibleBool(row["reconciled"]),
             isParent: flexibleBool(row["is_parent"]),
             isChild: (parentID?.isEmpty == false),
-            parentID: parentID
+            parentID: parentID,
+            schedule: row["schedule"]
         )
     }
 }

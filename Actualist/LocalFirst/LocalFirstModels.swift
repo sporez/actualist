@@ -650,7 +650,8 @@ extension ActualTransaction {
             subtransactions: subtransactions,
             isParent: isParent,
             isChild: isChild,
-            parentID: parentID
+            parentID: parentID,
+            schedule: schedule
         )
     }
 }

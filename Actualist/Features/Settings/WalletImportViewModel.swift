@@ -36,7 +36,7 @@ final class WalletImportViewModel {
 
     var importButtonTitle: String {
         let count = newCandidates.count
-        return count == 1 ? "Import 1 Transaction" : "Import \(count) Transactions"
+        return count == 1 ? "Add 1 Transaction" : "Add \(count) Transactions"
     }
 
     func openAccounts(from appState: AppState) -> [ActualAccount] {

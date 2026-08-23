@@ -168,6 +168,7 @@ actor BudgetDatabase {
         var hasCleared: Bool { all.contains("cleared") }
         var hasTombstone: Bool { all.contains("tombstone") }
         var hasParentID: Bool { all.contains("parent_id") }
+        var hasSchedule: Bool { all.contains("schedule") }
     }
 
     struct TransactionWriteResult {

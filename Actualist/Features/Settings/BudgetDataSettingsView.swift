@@ -10,6 +10,7 @@ struct BudgetDataSettingsView: View {
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
     @State private var isReimportConfirmationPresented = false
+    @State private var isWalletPickerPresented = false
 
     var body: some View {
         List {
@@ -61,7 +62,7 @@ struct BudgetDataSettingsView: View {
             }
 
             if WalletImportAvailability.isFinancialDataAvailable {
-                WalletImportSettingsSection()
+                WalletImportSettingsSection(isWalletPickerPresented: $isWalletPickerPresented)
             }
 
             Section("Accounts") {
@@ -160,6 +161,7 @@ struct BudgetDataSettingsView: View {
                 .presentationDetents([.medium, .large])
                 .appSwitcherPrivacyAwareDragIndicator()
         }
+        .walletImportPresentation(isPickerPresented: $isWalletPickerPresented)
     }
 
     private var selectedBudgetDisplayName: String {

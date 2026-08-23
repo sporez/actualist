@@ -576,7 +576,7 @@ extension BudgetDatabase {
             db,
             sql: "SELECT \(selectedColumns) FROM rules WHERE \(predicateForLiveRows(columns: columns))"
         )
-        let completedScheduleRules = try completedPayeeScheduleRuleIDs(db: db)
+        let completedScheduleRules = try fetchRuleScheduleIndex(db: db).completedRuleIDs
 
         var mappedPayeeIDs = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
         if let mapping = try usablePayeeMappingColumns(db: db) {
@@ -625,16 +625,6 @@ extension BudgetDatabase {
             }
         }
         return (counts, hasUnreadableRules)
-    }
-
-    private func completedPayeeScheduleRuleIDs(db: Database) throws -> Set<String> {
-        guard try tableExists("schedules", db: db) else { return [] }
-        let columns = try columnSet(for: "schedules", db: db)
-        guard columns.contains("rule"), columns.contains("completed") else { return [] }
-        return Set(try String.fetchAll(
-            db,
-            sql: "SELECT rule FROM schedules WHERE completed = 1 AND rule IS NOT NULL AND \(predicateForLiveRows(columns: columns))"
-        ))
     }
 
     private func collectPayeeReferences(

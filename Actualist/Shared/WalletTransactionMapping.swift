@@ -38,15 +38,15 @@ struct WalletTransactionImportResult: Equatable, Sendable {
     var duplicateCount: Int
 
     var summaryText: String {
-        "Imported \(Self.transactionPhrase(importedCount)), skipped \(Self.duplicatePhrase(duplicateCount))."
+        "Added \(Self.transactionPhrase(importedCount)), skipped \(Self.alreadyPhrase(duplicateCount))."
     }
 
     private static func transactionPhrase(_ count: Int) -> String {
         count == 1 ? "1 transaction" : "\(count) transactions"
     }
 
-    private static func duplicatePhrase(_ count: Int) -> String {
-        count == 1 ? "1 duplicate" : "\(count) duplicates"
+    private static func alreadyPhrase(_ count: Int) -> String {
+        count == 1 ? "1 already on this account" : "\(count) already on this account"
     }
 }
 

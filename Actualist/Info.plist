@@ -45,7 +45,7 @@
 	<key>NSSiriUsageDescription</key>
 	<string>Actualist uses Siri to log transactions and read budget amounts you ask for.</string>
 	<key>NSFinancialDataUsageDescription</key>
-	<string>Import transactions you select from Apple Wallet into your budget.</string>
+	<string>Actualist adds Apple Wallet transactions you choose to the selected budget.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.sporez.actualist.transactions.refresh</string>

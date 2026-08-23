@@ -119,15 +119,15 @@ struct WalletTransactionMappingTests {
     @Test func importSummaryUsesPluralization() {
         #expect(
             WalletTransactionImportResult(importedCount: 1, duplicateCount: 0).summaryText
-                == "Imported 1 transaction, skipped 0 duplicates."
+                == "Added 1 transaction, skipped 0 already on this account."
         )
         #expect(
             WalletTransactionImportResult(importedCount: 3, duplicateCount: 2).summaryText
-                == "Imported 3 transactions, skipped 2 duplicates."
+                == "Added 3 transactions, skipped 2 already on this account."
         )
         #expect(
             WalletTransactionImportResult(importedCount: 0, duplicateCount: 1).summaryText
-                == "Imported 0 transactions, skipped 1 duplicate."
+                == "Added 0 transactions, skipped 1 already on this account."
         )
     }
 

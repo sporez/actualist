@@ -2,13 +2,12 @@ import FinanceKit
 import FinanceKitUI
 import SwiftUI
 
-/// Wallet import controls hosted on Budget & Data. Owns the system picker and
-/// review sheet so FinanceKit presentation stays off the Settings directory.
+/// Wallet import row hosted on Budget & Data. The system picker and review
+/// sheet must attach to the screen root via `walletImportPresentation` —
+/// hanging them off this `Section` dismisses Settings' fullScreenCover.
 struct WalletImportSettingsSection: View {
     @Environment(AppState.self) private var appState
-    @State private var isWalletImportPresented = false
-    @State private var isWalletPickerPresented = false
-    @State private var walletSelection: [FinanceKit.Transaction] = []
+    @Binding var isWalletPickerPresented: Bool
 
     var body: some View {
         Section {
@@ -16,40 +15,57 @@ struct WalletImportSettingsSection: View {
                 isWalletPickerPresented = true
             } label: {
                 SettingsActionLabel(
-                    title: "Import Wallet Transactions",
-                    systemImage: "wallet.pass"
+                    title: "Add Activity",
+                    systemImage: "wallet.bifold"
                 )
             }
             .disabled(appState.settings.selectedBudgetID == nil)
         } header: {
-            Text("Wallet")
+            Text("Apple Wallet")
         } footer: {
             Text(footerText)
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .settingsSectionChrome()
-        .transactionPicker(isPresented: $isWalletPickerPresented, selection: $walletSelection)
-        .onChange(of: walletSelection) { _, transactions in
-            guard !transactions.isEmpty else {
-                return
-            }
-            isWalletImportPresented = true
-        }
-        .sheet(isPresented: $isWalletImportPresented, onDismiss: {
-            walletSelection = []
-        }) {
-            WalletImportView(
-                initialFields: walletSelection.map(WalletTransactionFields.init(transaction:))
-            )
-            .environment(appState)
-        }
     }
 
     private var footerText: String {
         if appState.settings.selectedBudgetID == nil {
-            return "Select a budget before importing Wallet transactions."
+            return "Choose a budget first, then you can add Apple Wallet activity."
         }
-        return "Apple shares only the transactions you pick — this app has no ongoing access to your Wallet. You can also log tap-to-pay purchases with a Shortcuts automation."
+        return "Actualist only receives the transactions you select. It does not keep access to Wallet."
+    }
+}
+
+private struct WalletImportPresentationModifier: ViewModifier {
+    @Environment(AppState.self) private var appState
+    @Binding var isWalletPickerPresented: Bool
+    @State private var isWalletImportPresented = false
+    @State private var walletSelection: [FinanceKit.Transaction] = []
+
+    func body(content: Content) -> some View {
+        content
+            .transactionPicker(isPresented: $isWalletPickerPresented, selection: $walletSelection)
+            .onChange(of: walletSelection) { _, transactions in
+                guard !transactions.isEmpty else {
+                    return
+                }
+                isWalletImportPresented = true
+            }
+            .sheet(isPresented: $isWalletImportPresented, onDismiss: {
+                walletSelection = []
+            }) {
+                WalletImportView(
+                    initialFields: walletSelection.map(WalletTransactionFields.init(transaction:))
+                )
+                .environment(appState)
+            }
+    }
+}
+
+extension View {
+    func walletImportPresentation(isPickerPresented: Binding<Bool>) -> some View {
+        modifier(WalletImportPresentationModifier(isWalletPickerPresented: isPickerPresented))
     }
 }

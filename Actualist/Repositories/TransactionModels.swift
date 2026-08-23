@@ -29,6 +29,7 @@ struct TransactionDraft: Hashable, Sendable {
     var reconciled = false
     var isParent = false
     var splits: [TransactionSplitDraft] = []
+    var scheduleID: String? = nil
 
     var month: YearMonth {
         YearMonth(date: date)
@@ -69,6 +70,7 @@ struct TransactionRulePreview: Hashable, Sendable {
     let amountMinorUnits: Int?
     let date: Date?
     let cleared: Bool?
+    let scheduleID: String?
 
     init(
         categoryID: String?,
@@ -77,7 +79,8 @@ struct TransactionRulePreview: Hashable, Sendable {
         payeeID: String? = nil,
         amountMinorUnits: Int? = nil,
         date: Date? = nil,
-        cleared: Bool? = nil
+        cleared: Bool? = nil,
+        scheduleID: String? = nil
     ) {
         self.categoryID = categoryID
         self.notes = notes
@@ -86,5 +89,6 @@ struct TransactionRulePreview: Hashable, Sendable {
         self.amountMinorUnits = amountMinorUnits
         self.date = date
         self.cleared = cleared
+        self.scheduleID = scheduleID
     }
 }

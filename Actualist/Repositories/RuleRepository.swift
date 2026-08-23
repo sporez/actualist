@@ -417,7 +417,27 @@ struct ManagedRule: Identifiable, Hashable, Sendable {
     let rawActionsJSON: String
     let payeeIDs: Set<String>
     let isCompletedScheduleRule: Bool
+    let rawConditionsJoin: String?
+
+    init(
+        id: String,
+        draft: RuleDraft?,
+        rawStage: String?,
+        rawConditionsJSON: String,
+        rawActionsJSON: String,
+        payeeIDs: Set<String>,
+        isCompletedScheduleRule: Bool,
+        rawConditionsJoin: String? = nil
+    ) {
+        self.id = id
+        self.draft = draft
+        self.rawStage = rawStage
+        self.rawConditionsJSON = rawConditionsJSON
+        self.rawActionsJSON = rawActionsJSON
+        self.payeeIDs = payeeIDs
+        self.isCompletedScheduleRule = isCompletedScheduleRule
+        self.rawConditionsJoin = rawConditionsJoin
+    }
 
     var isEditable: Bool { draft != nil }
-
 }

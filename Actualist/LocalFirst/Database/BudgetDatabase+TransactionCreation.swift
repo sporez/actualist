@@ -213,6 +213,16 @@ extension BudgetDatabase {
                     )
                 )
             }
+            if let scheduleID = draft.scheduleID, columns.contains("schedule") {
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "schedule",
+                        value: .string(scheduleID)
+                    )
+                )
+            }
         }
         return messages
     }
@@ -249,7 +259,8 @@ extension BudgetDatabase {
         transferID: String?,
         sortOrder: Double?,
         columns: TransactionRowColumns,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        scheduleID: String? = nil
     ) throws -> [ActualSyncDecodedMessage] {
         var fields: [(String, LocalFirstSyncValue)] = [
             (columns.account, .string(accountID)),
@@ -281,6 +292,9 @@ extension BudgetDatabase {
         }
         if columns.hasTombstone {
             fields.append(("tombstone", .bool(false)))
+        }
+        if let scheduleID, columns.hasSchedule {
+            fields.append(("schedule", .string(scheduleID)))
         }
 
         var messages: [ActualSyncDecodedMessage] = []
@@ -341,7 +355,8 @@ extension BudgetDatabase {
                 transferID: pairedTransactionID,
                 sortOrder: nil,
                 columns: columns,
-                builder: &builder
+                builder: &builder,
+                scheduleID: draft.scheduleID
             )
             let pairedMessages = try transactionRowMessages(
                 rowID: pairedTransactionID,
@@ -404,7 +419,8 @@ extension BudgetDatabase {
                 transferID: nil,
                 sortOrder: nil,
                 columns: columns,
-                builder: &builder
+                builder: &builder,
+                scheduleID: draft.scheduleID
             )
             for (index, split) in draft.splits.enumerated() {
                 if let categoryID = split.categoryID,

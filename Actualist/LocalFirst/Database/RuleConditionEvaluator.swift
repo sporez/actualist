@@ -18,6 +18,7 @@ struct RuleEvaluationContext {
     var reconciled: Bool
     var isTransfer: Bool
     var isParent: Bool
+    var scheduleID: String? = nil
     var accountNames: [String: String]
     var offBudgetAccountIDs: Set<String>
     var categoryNames: [String: String]
@@ -27,12 +28,30 @@ struct RuleEvaluationContext {
 }
 
 enum RuleConditionEvaluator {
-    static func applying(_ rules: [ManagedRule], to context: RuleEvaluationContext) -> RuleEvaluationContext {
+    static func applying(
+        _ rules: [ManagedRule],
+        to context: RuleEvaluationContext,
+        schedules: RuleScheduleIndex = .empty
+    ) -> RuleEvaluationContext {
         var result = context
-        for rule in rules where !rule.isCompletedScheduleRule {
-            guard let draft = rule.draft else { continue }
-            guard conditionsMatch(draft, context: result) else { continue }
-            for action in draft.actions {
+        let attachedRuleID = schedules.ruleID(forScheduleID: context.scheduleID)
+        for rule in rules {
+            if schedules.shouldSkip(ruleID: rule.id, attachedRuleID: attachedRuleID)
+                || rule.isCompletedScheduleRule {
+                continue
+            }
+            let forceExecute = schedules.shouldForceExecute(
+                ruleID: rule.id,
+                attachedRuleID: attachedRuleID
+            )
+            guard let execution = rule.executionDraft(),
+                  execution.actions.allSatisfy(\.canExecuteAtRuntime) else {
+                continue
+            }
+            if !forceExecute {
+                guard conditionsMatch(execution, context: result) else { continue }
+            }
+            for action in execution.actions {
                 apply(action: action, context: &result)
             }
         }
@@ -48,23 +67,24 @@ enum RuleConditionEvaluator {
     }
 
     static func conditionMatches(_ condition: RuleCondition, context: RuleEvaluationContext) -> Bool {
-        if condition.field == "account" && condition.operation == "onBudget" {
+        let field = RulePresentation.presentationField(condition.field)
+        if field == "account" && condition.operation == "onBudget" {
             return !context.accountIsOffBudget
         }
-        if condition.field == "account" && condition.operation == "offBudget" {
+        if field == "account" && condition.operation == "offBudget" {
             return context.accountIsOffBudget
         }
 
-        let kind = RuleCondition.valueKind(for: condition.field)
+        let kind = RuleCondition.valueKind(for: field)
         var actual: RuleJSONValue
-        switch condition.field {
+        switch field {
         case "account": actual = .string(context.accountID)
         case "amount": actual = .number(Double(context.amount))
         case "category": actual = context.categoryID.map(RuleJSONValue.string) ?? .null
         case "category_group": actual = context.categoryGroupID.map(RuleJSONValue.string) ?? .null
         case "date": actual = .string(ruleDateFormatter.string(from: context.date))
         case "notes": actual = .string(context.notes ?? "")
-        case "payee", "description": actual = context.payeeID.map(RuleJSONValue.string) ?? .null
+        case "payee": actual = context.payeeID.map(RuleJSONValue.string) ?? .null
         case "imported_payee": actual = .string(context.importedPayee ?? "")
         case "payee_name": actual = .string(context.payeeName)
         case "cleared": actual = .bool(context.cleared)
@@ -74,7 +94,7 @@ enum RuleConditionEvaluator {
         default: return false
         }
 
-        if condition.field == "amount", let options = condition.options {
+        if field == "amount", let options = condition.options {
             if options["outflow"] == .bool(true) {
                 guard context.amount <= 0 else { return false }
                 actual = .number(-Double(context.amount))
@@ -84,7 +104,7 @@ enum RuleConditionEvaluator {
         }
 
         if ["contains", "doesNotContain", "matches"].contains(condition.operation) {
-            switch condition.field {
+            switch field {
             case "account": actual = .string(context.accountName)
             case "category":
                 guard context.categoryID != nil else { return false }
@@ -92,7 +112,7 @@ enum RuleConditionEvaluator {
             case "category_group":
                 guard context.categoryGroupID != nil else { return false }
                 actual = .string(context.categoryGroupName ?? "")
-            case "payee", "description":
+            case "payee":
                 guard context.payeeID != nil else { return false }
                 actual = .string(context.payeeName)
             default: break
@@ -281,6 +301,10 @@ enum RuleConditionEvaluator {
             if case .string(let value) = action.value { context.notes = value + (context.notes ?? "") }
         case "append-notes":
             if case .string(let value) = action.value { context.notes = (context.notes ?? "") + value }
+        case "link-schedule":
+            if case .string(let value) = action.value, !value.isEmpty {
+                context.scheduleID = value
+            }
         default: break
         }
     }

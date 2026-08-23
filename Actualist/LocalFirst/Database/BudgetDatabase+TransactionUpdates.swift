@@ -84,7 +84,8 @@ extension BudgetDatabase {
                 transferID: nil,
                 sortOrder: nil,
                 columns: columns,
-                builder: &builder
+                builder: &builder,
+                scheduleID: draft.scheduleID
             )
 
             if draft.isSplit {

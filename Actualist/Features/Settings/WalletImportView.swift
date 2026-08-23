@@ -18,7 +18,7 @@ struct WalletImportView: View {
             Form {
                 if !WalletImportAvailability.isFinancialDataAvailable {
                     Section {
-                        Text("Wallet transactions aren't available on this device. Apple Card, Apple Cash and Savings are required, and are currently US-only.")
+                        Text("Apple Wallet activity isn't available on this iPhone. It needs Apple Card, Apple Cash, or Savings, which are only offered in the United States.")
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
                     .settingsSectionChrome()
@@ -48,7 +48,7 @@ struct WalletImportView: View {
             .background(ActualistTheme.background)
             .foregroundStyle(ActualistTheme.primaryText)
             .tint(ActualistTheme.accent)
-            .navigationTitle("Import from Wallet")
+            .navigationTitle("Review Apple Wallet Activity")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -88,7 +88,7 @@ struct WalletImportView: View {
                 }
             }
         } footer: {
-            Text("These Wallet transactions will be added to this account and sync to your Actual server like any other transaction.")
+            Text("They'll be added to this account and sync with the rest of this budget.")
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
@@ -96,7 +96,7 @@ struct WalletImportView: View {
     }
 
     private var candidatesSection: some View {
-        Section("Selected") {
+        Section("To Add") {
             ForEach(viewModel.displayedCandidates) { row in
                 WalletImportCandidateRow(row: row)
             }
@@ -146,7 +146,7 @@ private struct WalletImportCandidateRow: View {
             }
             Spacer(minLength: 8)
             if row.isDuplicate {
-                Text("Imported")
+                Text("Already added")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .padding(.horizontal, 8)

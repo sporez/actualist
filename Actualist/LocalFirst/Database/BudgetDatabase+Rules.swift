@@ -49,8 +49,9 @@ extension BudgetDatabase {
 
     func previewRules(for draft: TransactionDraft) throws -> TransactionRulePreview {
         let rules = try fetchRules()
+        let schedules = try fetchRuleScheduleIndex()
         let context = try ruleEvaluationContext(for: draft)
-        let result = RuleConditionEvaluator.applying(rules, to: context)
+        let result = RuleConditionEvaluator.applying(rules, to: context, schedules: schedules)
         return TransactionRulePreview(
             categoryID: result.categoryID,
             notes: result.notes,
@@ -58,7 +59,8 @@ extension BudgetDatabase {
             payeeID: result.payeeID == draft.payeeID ? nil : result.payeeID,
             amountMinorUnits: result.amount == draft.amountMinorUnits ? nil : result.amount,
             date: Calendar.current.isDate(result.date, inSameDayAs: draft.date) ? nil : result.date,
-            cleared: result.cleared == draft.cleared ? nil : result.cleared
+            cleared: result.cleared == draft.cleared ? nil : result.cleared,
+            scheduleID: result.scheduleID
         )
     }
 
@@ -118,7 +120,8 @@ extension BudgetDatabase {
                     WHERE \(predicateForLiveRows(columns: columns))
                     """
             )
-            let completedScheduleRuleIDs = try completedScheduleRuleIDs(db: db)
+            let scheduleIndex = try fetchRuleScheduleIndex(db: db)
+            let completedScheduleRuleIDs = scheduleIndex.completedRuleIDs
             let payeeTargets = try payeeMappingTargets(db: db)
             let decoder = JSONDecoder()
 
@@ -157,7 +160,8 @@ extension BudgetDatabase {
                     rawConditionsJSON: rawConditions,
                     rawActionsJSON: rawActions,
                     payeeIDs: Set(payeeIDs(in: [rawConditions, rawActions]).map { payeeTargets[$0] ?? $0 }),
-                    isCompletedScheduleRule: completedScheduleRuleIDs.contains(id)
+                    isCompletedScheduleRule: completedScheduleRuleIDs.contains(id),
+                    rawConditionsJoin: row["conditions_op"] as String?
                 )
             }
             .sorted { lhs, rhs in
@@ -523,6 +527,7 @@ extension BudgetDatabase {
             reconciled: draft.reconciled,
             isTransfer: draft.isTransfer,
             isParent: draft.isParent,
+            scheduleID: draft.scheduleID,
             accountNames: metadata.accountNames,
             offBudgetAccountIDs: metadata.offBudgetAccountIDs,
             categoryNames: metadata.categoryNames,
@@ -558,6 +563,7 @@ extension BudgetDatabase {
             reconciled: transaction.reconciled,
             isTransfer: transaction.payee.map { metadata.transferPayeeIDs.contains($0) } ?? false,
             isParent: transaction.isParent,
+            scheduleID: transaction.schedule,
             accountNames: metadata.accountNames,
             offBudgetAccountIDs: metadata.offBudgetAccountIDs,
             categoryNames: metadata.categoryNames,
@@ -576,17 +582,6 @@ extension BudgetDatabase {
         formatter.isLenient = false
         return formatter
     }()
-
-    private func completedScheduleRuleIDs(db: Database) throws -> Set<String> {
-        guard try tableExists("schedules", db: db) else { return [] }
-        let columns = try columnSet(for: "schedules", db: db)
-        guard columns.contains("rule"), columns.contains("completed") else { return [] }
-        let ids = try String.fetchAll(
-            db,
-            sql: "SELECT rule FROM schedules WHERE completed = 1 AND rule IS NOT NULL AND \(predicateForLiveRows(columns: columns))"
-        )
-        return Set(ids)
-    }
 
     private func globalCategoryLearningEnabled(db: Database) throws -> Bool {
         guard try tableExists("preferences", db: db) else { return true }

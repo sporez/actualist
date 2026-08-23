@@ -265,6 +265,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
     let isParent: Bool
     let isChild: Bool
     let parentID: String?
+    let schedule: String?
 
     init(
         id: String?,
@@ -281,7 +282,8 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         subtransactions: [ActualTransaction] = [],
         isParent: Bool = false,
         isChild: Bool = false,
-        parentID: String? = nil
+        parentID: String? = nil,
+        schedule: String? = nil
     ) {
         self.id = id
         self.account = account
@@ -298,10 +300,11 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         self.isParent = isParent
         self.isChild = isChild
         self.parentID = parentID
+        self.schedule = schedule
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, account, date, amount, payee, category, notes, cleared, reconciled
+        case id, account, date, amount, payee, category, notes, cleared, reconciled, schedule
         case payeeName = "payee_name"
         case importedPayee = "imported_payee"
         case subtransactions
@@ -327,6 +330,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         isParent = try container.decodeIfPresent(Bool.self, forKey: .isParent) ?? !subtransactions.isEmpty
         isChild = try container.decodeIfPresent(Bool.self, forKey: .isChild) ?? false
         parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
+        schedule = try container.decodeIfPresent(String.self, forKey: .schedule)
     }
 }
 
