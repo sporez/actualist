@@ -34,32 +34,10 @@ struct SettingsView: View {
                             subtitle: budgetSubtitle
                         )
                     }
-
-                    if WalletImportAvailability.isFinancialDataAvailable {
-                        NavigationLink {
-                            WalletSettingsView()
-                        } label: {
-                            SettingsCategoryRow(
-                                systemImage: "wallet.pass",
-                                title: "Wallet",
-                                subtitle: walletSubtitle
-                            )
-                        }
-                    }
                 }
                 .settingsSectionChrome()
 
                 Section {
-                    NavigationLink {
-                        NotificationSettingsView()
-                    } label: {
-                        SettingsCategoryRow(
-                            systemImage: "bell.badge",
-                            title: "Notifications",
-                            subtitle: notificationsSubtitle
-                        )
-                    }
-
                     NavigationLink {
                         AppearanceSettingsView()
                     } label: {
@@ -75,7 +53,7 @@ struct SettingsView: View {
                     } label: {
                         SettingsCategoryRow(
                             systemImage: "hand.raised.fill",
-                            title: "Privacy",
+                            title: "Privacy & Notifications",
                             subtitle: privacySubtitle
                         )
                     }
@@ -231,16 +209,6 @@ struct SettingsView: View {
         return "\(selectedBudgetDisplayName) · \(security)"
     }
 
-    private var walletSubtitle: String {
-        "Import transactions"
-    }
-
-    private var notificationsSubtitle: String {
-        appState.settings.backgroundTransactionRefreshEnabled
-            ? "Alerts on"
-            : "Alerts off"
-    }
-
     private var appearanceSubtitle: String {
         let themeName = appState.settings.theme.title
             .replacingOccurrences(of: " (dark)", with: "")
@@ -249,11 +217,16 @@ struct SettingsView: View {
     }
 
     private var privacySubtitle: String {
+        let alerts = appState.settings.backgroundTransactionRefreshEnabled
+            ? "Alerts on"
+            : "Alerts off"
+        let switcher: String
         switch appState.settings.appSwitcherPrivacyMode {
-        case .off: "App Switcher off"
-        case .whenBackgrounded: "App Switcher · When Backgrounded"
-        case .always: "App Switcher · Always"
+        case .off: switcher = "App Switcher off"
+        case .whenBackgrounded: switcher = "App Switcher · When Backgrounded"
+        case .always: switcher = "App Switcher · Always"
         }
+        return "\(alerts) · \(switcher)"
     }
 
     private var reportsSubtitle: String {

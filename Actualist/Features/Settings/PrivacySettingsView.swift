@@ -1,11 +1,27 @@
 import SwiftUI
 
-/// Privacy settings: app switcher protection and future privacy/security options.
+/// Privacy & Notifications: transaction alerts, app switcher protection, and
+/// Shortcuts / Siri access.
+///
+/// "Include Rollover in Alerts" lives in Appearance — it controls the overspent
+/// banner on the Budget screen, not notification delivery.
 struct PrivacySettingsView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
         List {
+            Section {
+                Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
+                    .disabled(appState.isDemoMode)
+            } header: {
+                Text("Transaction Alerts")
+            } footer: {
+                Text(transactionAlertsFooterText)
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+            .settingsSectionChrome()
+
             Section {
                 Picker("App Switcher", selection: appSwitcherPrivacyModeSelection) {
                     ForEach(AppSwitcherPrivacyMode.allCases) { mode in
@@ -36,8 +52,18 @@ struct PrivacySettingsView: View {
         .background(ActualistTheme.background)
         .foregroundStyle(ActualistTheme.primaryText)
         .tint(ActualistTheme.accent)
-        .navigationTitle("Privacy")
+        .navigationTitle("Privacy & Notifications")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var backgroundRefreshSelection: Binding<Bool> {
+        Binding {
+            appState.settings.backgroundTransactionRefreshEnabled
+        } set: { isEnabled in
+            Task {
+                await appState.updateBackgroundTransactionRefreshEnabled(isEnabled)
+            }
+        }
     }
 
     private var appSwitcherPrivacyModeSelection: Binding<AppSwitcherPrivacyMode> {
@@ -54,5 +80,12 @@ struct PrivacySettingsView: View {
         } set: { isEnabled in
             appState.updateShortcutsEnabled(isEnabled)
         }
+    }
+
+    private var transactionAlertsFooterText: String {
+        if appState.isDemoMode {
+            return "Background transaction alerts aren't available in demo mode, which never contacts a server."
+        }
+        return "Actualist checks for new transactions using background refresh. Alerts require notifications to be allowed for Actualist in Settings › Notifications."
     }
 }

@@ -192,7 +192,6 @@
 		010000000000000000000090 /* SettingsCategoryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000090 /* SettingsCategoryRow.swift */; };
 		010000000000000000000091 /* ConnectionSyncSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000091 /* ConnectionSyncSettingsView.swift */; };
 		010000000000000000000092 /* BudgetDataSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000092 /* BudgetDataSettingsView.swift */; };
-		010000000000000000000093 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000093 /* NotificationSettingsView.swift */; };
 		010000000000000000000094 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000094 /* AppearanceSettingsView.swift */; };
 		010000000000000000000095 /* PrivacySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000095 /* PrivacySettingsView.swift */; };
 		010000000000000000000096 /* ReportsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000096 /* ReportsSettingsView.swift */; };
@@ -243,7 +242,7 @@
 		01000000000000000000000105 /* ShortcutCatalogCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */; };
 		01000000000000000000000106 /* WalletTransactionMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000106 /* WalletTransactionMapping.swift */; };
 		01000000000000000000000107 /* WalletImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000107 /* WalletImportView.swift */; };
-		0100000000000000000000010D /* WalletSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010D /* WalletSettingsView.swift */; };
+		0100000000000000000000010D /* WalletImportSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010D /* WalletImportSettingsSection.swift */; };
 		01000000000000000000000108 /* WalletImportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000108 /* WalletImportViewModel.swift */; };
 		01000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift */; };
 		0100000000000000000000010A /* WalletTransactionMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010A /* WalletTransactionMappingTests.swift */; };
@@ -441,7 +440,6 @@
 		020000000000000000000090 /* SettingsCategoryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCategoryRow.swift; sourceTree = "<group>"; };
 		020000000000000000000091 /* ConnectionSyncSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSyncSettingsView.swift; sourceTree = "<group>"; };
 		020000000000000000000092 /* BudgetDataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDataSettingsView.swift; sourceTree = "<group>"; };
-		020000000000000000000093 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		020000000000000000000094 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
 		020000000000000000000095 /* PrivacySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacySettingsView.swift; sourceTree = "<group>"; };
 		020000000000000000000096 /* ReportsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsSettingsView.swift; sourceTree = "<group>"; };
@@ -496,7 +494,7 @@
 		02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutCatalogCoverageTests.swift; sourceTree = "<group>"; };
 		02000000000000000000000106 /* WalletTransactionMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTransactionMapping.swift; sourceTree = "<group>"; };
 		02000000000000000000000107 /* WalletImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletImportView.swift; sourceTree = "<group>"; };
-		0200000000000000000000010D /* WalletSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletSettingsView.swift; sourceTree = "<group>"; };
+		0200000000000000000000010D /* WalletImportSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletImportSettingsSection.swift; sourceTree = "<group>"; };
 		02000000000000000000000108 /* WalletImportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletImportViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+WalletImport.swift"; sourceTree = "<group>"; };
 		0200000000000000000000010A /* WalletTransactionMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTransactionMappingTests.swift; sourceTree = "<group>"; };
@@ -804,7 +802,7 @@
 				020000000000000000000075 /* OpenSourceLicensesView.swift */,
 				02000000000000000000000D /* SettingsView.swift */,
 				02000000000000000000000107 /* WalletImportView.swift */,
-				0200000000000000000000010D /* WalletSettingsView.swift */,
+				0200000000000000000000010D /* WalletImportSettingsSection.swift */,
 				02000000000000000000000108 /* WalletImportViewModel.swift */,
 				020000000000000000000073 /* PayeesView.swift */,
 				020000000000000000000072 /* PayeesViewModel.swift */,
@@ -821,7 +819,6 @@
 				020000000000000000000090 /* SettingsCategoryRow.swift */,
 				020000000000000000000091 /* ConnectionSyncSettingsView.swift */,
 				020000000000000000000092 /* BudgetDataSettingsView.swift */,
-				020000000000000000000093 /* NotificationSettingsView.swift */,
 				020000000000000000000094 /* AppearanceSettingsView.swift */,
 				020000000000000000000095 /* PrivacySettingsView.swift */,
 				020000000000000000000096 /* ReportsSettingsView.swift */,
@@ -1181,7 +1178,7 @@
 				01000000000000000000000C /* OnboardingView.swift in Sources */,
 				01000000000000000000000D /* SettingsView.swift in Sources */,
 				01000000000000000000000107 /* WalletImportView.swift in Sources */,
-				0100000000000000000000010D /* WalletSettingsView.swift in Sources */,
+				0100000000000000000000010D /* WalletImportSettingsSection.swift in Sources */,
 				01000000000000000000000108 /* WalletImportViewModel.swift in Sources */,
 				010000000000000000000075 /* OpenSourceLicensesView.swift in Sources */,
 				010000000000000000000073 /* PayeesView.swift in Sources */,
@@ -1200,7 +1197,6 @@
 				010000000000000000000090 /* SettingsCategoryRow.swift in Sources */,
 				010000000000000000000091 /* ConnectionSyncSettingsView.swift in Sources */,
 				010000000000000000000092 /* BudgetDataSettingsView.swift in Sources */,
-				010000000000000000000093 /* NotificationSettingsView.swift in Sources */,
 				010000000000000000000094 /* AppearanceSettingsView.swift in Sources */,
 				010000000000000000000095 /* PrivacySettingsView.swift in Sources */,
 				010000000000000000000096 /* ReportsSettingsView.swift in Sources */,

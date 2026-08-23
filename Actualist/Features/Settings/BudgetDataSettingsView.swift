@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Budget & Data settings: selected budget, change budget, payees, encryption
-/// status, reimport, default account, and account order.
+/// status, reimport, Wallet import, default account, and account order.
 struct BudgetDataSettingsView: View {
     @Environment(AppState.self) private var appState
 
@@ -58,6 +58,10 @@ struct BudgetDataSettingsView: View {
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }
                 .settingsSectionChrome()
+            }
+
+            if WalletImportAvailability.isFinancialDataAvailable {
+                WalletImportSettingsSection()
             }
 
             Section("Accounts") {
