@@ -69,23 +69,27 @@ struct BudgetMoveMoneyView: View {
                 .appSwitcherPrivacyProtected()
         }
         .task(id: viewModel.moveMoneyDraft?.focusedCategoryID) {
-            let hadCoverIntro = viewModel.hasPendingMoveMoneyCoverIntro
-            await viewModel.playMoveMoneyCoverIntro()
-
             guard !didAutoPresentDestinationPicker else {
                 return
             }
 
             didAutoPresentDestinationPicker = true
-            if !hadCoverIntro {
-                try? await Task.sleep(nanoseconds: 320_000_000)
-            }
+            try? await Task.sleep(nanoseconds: 320_000_000)
             guard viewModel.isMoveMoneyPresented,
                   viewModel.moveMoneyDraft?.destination == nil else {
                 return
             }
 
             isDestinationPickerPresented = true
+        }
+        .onChange(of: isDestinationPickerPresented) { _, presented in
+            guard !presented else {
+                return
+            }
+
+            Task {
+                await viewModel.playMoveMoneyCoverIntro()
+            }
         }
     }
 

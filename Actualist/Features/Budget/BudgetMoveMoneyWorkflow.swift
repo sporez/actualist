@@ -105,6 +105,9 @@ final class BudgetMoveMoneyWorkflow {
         guard let target = coverIntroTarget, target > 0 else {
             return
         }
+        guard draft?.destination != nil, draft?.allocations.isEmpty == true else {
+            return
+        }
 
         coverIntroTarget = nil
         let generation = coverIntroGeneration
@@ -275,7 +278,6 @@ final class BudgetMoveMoneyWorkflow {
     }
 
     func selectDestination(_ destination: BudgetMoveMoneyDestination) {
-        cancelCoverIntro()
         guard var draft = editableDraft else {
             return
         }

@@ -50,19 +50,14 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(model.moveMoneyDraft?.amount == 0)
         #expect(model.hasPendingMoveMoneyCoverIntro)
         await finishCoverIntro(model)
+        #expect(model.moveMoneyDraft?.amount == 0)
+        #expect(model.hasPendingMoveMoneyCoverIntro)
+
+        model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        await finishCoverIntro(model)
         #expect(model.moveMoneyDraft?.amount == 7_693)
         #expect(abs(model.moveMoneyAmountDollars - 76.93) < 0.001)
         #expect(model.moveMoneySliderDetentFeedback == 1)
-        #expect(model.moveMoneySliderSpec().detentAmount == 0)
-        #expect(
-            model.moveMoneyMaximumAmount
-                == BudgetMoveMoneySliderMetrics.maximumAmount(baselineAmount: 7_693, currentAmount: 7_693)
-        )
-        #expect(model.canSubmitMoveMoney == false)
-
-        model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
-
-        #expect(model.moveMoneyDraft?.amount == 7_693)
         #expect(model.moveMoneySliderSpec().detentAmount == 12_000)
         #expect(
             model.moveMoneyMaximumAmount
@@ -93,7 +88,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
         #expect(model.moveMoneyDraft?.amount == 0)
         await finishCoverIntro(model)
-        #expect(model.moveMoneyDraft?.amount == 7_693)
+        #expect(model.moveMoneyDraft?.amount == 0)
     }
 
     @Test func moveMoneyCoverAmountDoesNotClampToSelectedSourceAvailability() async throws {
@@ -109,8 +104,8 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         let category = try #require(month.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
         model.beginAssignmentEditing(for: category)
         model.beginMoveMoney()
-        await finishCoverIntro(model)
         model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        await finishCoverIntro(model)
 
         #expect(model.moveMoneyDraft?.amount == 7_693)
         #expect(model.moveMoneySliderSpec().detentAmount == 5_000)
@@ -439,6 +434,11 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(model.moveMoneySliderDetentFeedback == 0)
 
         await finishCoverIntro(model)
+        #expect(model.moveMoneyDraft?.amount == 0)
+        #expect(model.hasPendingMoveMoneyCoverIntro)
+
+        model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        await finishCoverIntro(model)
 
         #expect(model.moveMoneyDraft?.amount == 7_693)
         #expect(model.hasPendingMoveMoneyCoverIntro == false)
@@ -448,6 +448,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
 
     @Test func grabbingTheSliderCancelsTheOverspentCoverIntro() async throws {
         let model = try makeMoveMoneyModel(visibleCategoryBalance: -7_693)
+        model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
 
         await model.moveMoneyWorkflow.playCoverIntro { _ in
             await MainActor.run {
