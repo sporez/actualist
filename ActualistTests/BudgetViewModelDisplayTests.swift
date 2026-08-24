@@ -329,5 +329,147 @@ struct BudgetViewModelDisplayTests {
         )
 
         #expect(model.budgetAlerts.isEmpty)
+        #expect(
+            BudgetMonthSummaryPresentation.alerts(
+                from: model.budgetAlerts,
+                month: model.budgetMonth,
+                showTotalAssigned: false
+            ).isEmpty
+        )
+    }
+}
+
+struct BudgetMonthSummaryPresentationTests {
+    @Test func disabledSettingLeavesLoadedAlertsUnchanged() {
+        let month = makeMonth(toBudget: 0, totalBudgeted: 12_847_42)
+        let loaded = [
+            BudgetAlert(
+                kind: .overspending,
+                title: "Overspent",
+                count: 2,
+                actionTitle: "Cover",
+                severity: .danger
+            )
+        ]
+
+        #expect(
+            BudgetMonthSummaryPresentation.alerts(
+                from: loaded,
+                month: month,
+                showTotalAssigned: false
+            ) == loaded
+        )
+        #expect(
+            BudgetMonthSummaryPresentation.assignedValueText(
+                for: loaded[0],
+                month: month,
+                showTotalAssigned: false,
+                isPrivacyModeEnabled: false
+            ) == nil
+        )
+    }
+
+    @Test func enabledSettingInsertsZeroToBudgetAlertWithoutDuplicating() {
+        let month = makeMonth(toBudget: 0, totalBudgeted: 12_847_42)
+        let overspent = BudgetAlert(
+            kind: .overspending,
+            title: "Overspent",
+            count: 1,
+            actionTitle: "Cover",
+            severity: .danger
+        )
+
+        let inserted = BudgetMonthSummaryPresentation.alerts(
+            from: [overspent],
+            month: month,
+            showTotalAssigned: true
+        )
+        #expect(inserted.map(\.kind) == [.toBudget, .overspending])
+        #expect(inserted.first?.valueText == 0.actualMoney.formatted())
+        #expect(inserted.first?.severity == .positive)
+
+        let existing = BudgetAlert(
+            kind: .toBudget,
+            title: "To Budget",
+            valueText: 200_83.actualMoney.formatted(),
+            actionTitle: nil,
+            severity: .positive
+        )
+        #expect(
+            BudgetMonthSummaryPresentation.alerts(
+                from: [existing],
+                month: month,
+                showTotalAssigned: true
+            ) == [existing]
+        )
+    }
+
+    @Test func assignedValueUsesMonthTotalBudgetedAndUpdatesWithMonth() {
+        let july = makeMonth(toBudget: 200_83, totalBudgeted: 12_847_42, month: "2026-07")
+        let august = makeMonth(toBudget: 0, totalBudgeted: 32_000, month: "2026-08")
+        let alert = BudgetAlert(
+            kind: .toBudget,
+            title: "To Budget",
+            valueText: july.toBudget.actualMoney.formatted(),
+            actionTitle: nil,
+            severity: .positive
+        )
+
+        #expect(
+            BudgetMonthSummaryPresentation.assignedValueText(
+                for: alert,
+                month: july,
+                showTotalAssigned: true,
+                isPrivacyModeEnabled: false
+            ) == 12_847_42.actualMoney.formatted()
+        )
+        #expect(
+            BudgetMonthSummaryPresentation.assignedValueText(
+                for: alert,
+                month: august,
+                showTotalAssigned: true,
+                isPrivacyModeEnabled: false
+            ) == 32_000.actualMoney.formatted()
+        )
+    }
+
+    @Test func assignedValueUsesPrivacyDisplayWhenEnabled() {
+        let month = makeMonth(toBudget: 200_83, totalBudgeted: 12_847_42)
+        let alert = BudgetAlert(
+            kind: .toBudget,
+            title: "To Budget",
+            valueText: month.toBudget.actualMoney.formatted(),
+            actionTitle: nil,
+            severity: .positive
+        )
+
+        #expect(
+            BudgetMonthSummaryPresentation.assignedValueText(
+                for: alert,
+                month: month,
+                showTotalAssigned: true,
+                isPrivacyModeEnabled: true
+            ) == PrivacyDisplay.money(
+                month.totalBudgeted,
+                seed: "budget-alert-assigned-\(month.month)",
+                maximumDollars: 900
+            )
+        )
+    }
+
+    private func makeMonth(toBudget: Int, totalBudgeted: Int, month: String = "2026-07") -> BudgetMonth {
+        BudgetMonth(
+            month: month,
+            incomeAvailable: toBudget,
+            lastMonthOverspent: 0,
+            forNextMonth: 0,
+            totalBudgeted: totalBudgeted,
+            toBudget: toBudget,
+            fromLastMonth: 0,
+            totalIncome: 0,
+            totalSpent: 0,
+            totalBalance: 0,
+            categoryGroups: []
+        )
     }
 }

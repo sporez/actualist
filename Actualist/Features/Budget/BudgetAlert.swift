@@ -81,3 +81,53 @@ extension BudgetMonthCategoryGroup {
         categories.filter { !($0.hidden ?? false) }
     }
 }
+
+/// Optional Total Assigned presentation for the Budget summary bar.
+/// Assigned uses `BudgetMonth.totalBudgeted`, the sum of non-income group
+/// `budgeted` amounts already shown as group Assigned totals.
+enum BudgetMonthSummaryPresentation {
+    static func alerts(
+        from loaded: [BudgetAlert],
+        month: BudgetMonth?,
+        showTotalAssigned: Bool
+    ) -> [BudgetAlert] {
+        guard showTotalAssigned, month != nil else {
+            return loaded
+        }
+        if loaded.contains(where: { $0.kind == .toBudget }) {
+            return loaded
+        }
+        guard let alert = BudgetAlert(alert: zeroToBudgetMonthAlert) else {
+            return loaded
+        }
+        return [alert] + loaded
+    }
+
+    static func assignedValueText(
+        for alert: BudgetAlert,
+        month: BudgetMonth?,
+        showTotalAssigned: Bool,
+        isPrivacyModeEnabled: Bool
+    ) -> String? {
+        guard showTotalAssigned, alert.kind == .toBudget, let month else {
+            return nil
+        }
+        if isPrivacyModeEnabled {
+            return PrivacyDisplay.money(
+                month.totalBudgeted,
+                seed: "budget-alert-assigned-\(month.month)",
+                maximumDollars: 900
+            )
+        }
+        return month.totalBudgeted.actualMoney.formatted()
+    }
+
+    private static let zeroToBudgetMonthAlert = BudgetMonthAlert(
+        kind: "toBudget",
+        severity: "positive",
+        title: "To Budget",
+        amount: 0,
+        count: nil,
+        actionTitle: nil
+    )
+}

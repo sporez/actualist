@@ -538,6 +538,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateShowTotalAssigned(_ isEnabled: Bool) {
+        settings.showTotalAssigned = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateRandomizedDisplayValuesEnabled(_ isEnabled: Bool) {
         settings.randomizedDisplayValuesEnabled = isEnabled
         settingsStore.save(settings)

@@ -336,8 +336,16 @@ struct BudgetView: View {
         }
     }
 
+    private var displayedBudgetAlerts: [BudgetAlert] {
+        BudgetMonthSummaryPresentation.alerts(
+            from: viewModel.budgetAlerts,
+            month: viewModel.budgetMonth,
+            showTotalAssigned: appState.settings.showTotalAssigned
+        )
+    }
+
     private var budgetAlertBanners: some View {
-        ForEach(viewModel.budgetAlerts) { alert in
+        ForEach(displayedBudgetAlerts) { alert in
             if alert.isActionable {
                 Button {
                     open(alert)
@@ -352,7 +360,8 @@ struct BudgetView: View {
     }
 
     private func budgetAlertLabel(_ alert: BudgetAlert) -> some View {
-        HStack(spacing: 10) {
+        let assignedText = assignedDisplayText(for: alert)
+        return HStack(spacing: 10) {
             if let valueText = alert.valueText {
                 Text(displayAlertValueText(alert, fallback: valueText))
                     .font(ActualistTypography.workScreenAmount(for: density))
@@ -375,6 +384,10 @@ struct BudgetView: View {
 
             Spacer()
 
+            if let assignedText {
+                assignedMetric(text: assignedText)
+            }
+
             if let actionTitle = alert.actionTitle {
                 Text(actionTitle)
                     .font(ActualistTypography.control(for: density))
@@ -392,6 +405,37 @@ struct BudgetView: View {
         .background {
             alert.backgroundView
         }
+    }
+
+    private func assignedDisplayText(for alert: BudgetAlert) -> String? {
+        BudgetMonthSummaryPresentation.assignedValueText(
+            for: alert,
+            month: viewModel.budgetMonth,
+            showTotalAssigned: appState.settings.showTotalAssigned,
+            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
+        )
+    }
+
+    private func assignedMetric(text: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                Text(text)
+                    .font(ActualistTypography.control(for: density))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text("Assigned")
+                    .font(ActualistTypography.body(for: density))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.86)
+            }
+            Text(text)
+                .font(ActualistTypography.control(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .layoutPriority(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Assigned \(text)")
     }
 
     private func applyShortcutRoute() {

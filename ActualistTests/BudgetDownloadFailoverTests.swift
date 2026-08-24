@@ -95,7 +95,11 @@ struct BudgetDownloadFailoverTests {
     @Test("openBudget encrypted-already-imported path fails over on userKey")
     func openBudgetEncryptedAlreadyImportedFailsOverOnUserKey() async throws {
         let password = "budget password"
-        let keyResponse = try makeUserKeyResponse(password: password, keyID: "key-1", salt: "server-salt")
+        // Encryption keys are stored as service + fileID + keyID. The KeychainStore
+        // account UUID only isolates the sync token, so a shared "key-1" is reused
+        // by any other test writing to `com.sporez.actualist.tests`.
+        let keyID = "failover-userkey-\(UUID().uuidString)"
+        let keyResponse = try makeUserKeyResponse(password: password, keyID: keyID, salt: "server-salt")
         let primary = ConfigurableConnectionTransport(error: .transport(.cannotConnectToHost))
         let fallback = ConfigurableConnectionTransport(userKeyResponse: keyResponse)
         let bundle = try await fixtures.makeOpenedWritableStoreBundle(
@@ -104,13 +108,16 @@ struct BudgetDownloadFailoverTests {
                 url.absoluteString == primaryServerURLString ? primary : fallback
             }
         )
+        defer {
+            try? bundle.keychain.removeLocalFirstEncryptionKey(fileID: "file-1", keyID: keyID)
+        }
         bundle.store.closeOpenBudget()
         let encryptedMetadata = LocalFirstBudgetMetadata(
             localBudgetID: "file-1",
             cloudFileID: "file-1",
             groupID: "group-1",
             budgetName: "Writable Budget",
-            encryptionKeyID: "key-1",
+            encryptionKeyID: keyID,
             nodeID: "node1"
         )
         try JSONEncoder.actual.encode(encryptedMetadata)

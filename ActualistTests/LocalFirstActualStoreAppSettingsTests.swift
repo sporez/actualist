@@ -28,6 +28,7 @@ extension LocalFirstActualStoreTests {
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
         #expect(!settings.greenIncomeTransactionAmountsEnabled)
         #expect(!settings.includeCarryoverCategoriesInOverspentAlerts)
+        #expect(!settings.showTotalAssigned)
         #expect(settings.appSwitcherPrivacyMode == .whenBackgrounded)
         #expect(settings.shortcutsEnabled)
     }
@@ -50,6 +51,29 @@ extension LocalFirstActualStoreTests {
         store.save(settings)
 
         #expect(store.load().greenIncomeTransactionAmountsEnabled)
+    }
+
+    @Test func showTotalAssignedPreferenceDefaultsOffAndPersists() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+
+        #expect(!AppSettings().showTotalAssigned)
+        let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: Data("{}".utf8))
+        #expect(!decoded.showTotalAssigned)
+
+        store.save(AppSettings(showTotalAssigned: true))
+
+        #expect(store.load().showTotalAssigned)
+    }
+
+    @Test func showTotalAssignedPreferenceUpdatesThroughAppState() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+
+        #expect(!state.settings.showTotalAssigned)
+        state.updateShowTotalAssigned(true)
+        #expect(state.settings.showTotalAssigned)
+        #expect(AppSettingsStore(defaults: defaults).load().showTotalAssigned)
     }
 
     @Test func carryoverOverspendingAlertPreferenceDefaultsOffAndPersists() throws {

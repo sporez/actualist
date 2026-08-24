@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Appearance settings: theme, layout/display size, app icon, amount colors,
-/// and the budget overspent banner.
+/// and Budget screen banner options.
 struct AppearanceSettingsView: View {
     @Environment(AppState.self) private var appState
 
@@ -113,6 +113,24 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
             .settingsSectionChrome()
+
+            Section {
+                Toggle(isOn: showTotalAssignedSelection) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Show Total Assigned")
+                        Text("Show the total amount assigned across all categories for the selected month.")
+                            .font(.caption)
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
+                }
+            } header: {
+                Text("Budget Summary")
+            } footer: {
+                Text("Adds the monthly assigned total to the To Budget bar on the Budget screen.")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+            .settingsSectionChrome()
         }
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
@@ -160,6 +178,14 @@ struct AppearanceSettingsView: View {
             appState.settings.includeCarryoverCategoriesInOverspentAlerts
         } set: { isEnabled in
             appState.updateIncludeCarryoverCategoriesInOverspentAlerts(isEnabled)
+        }
+    }
+
+    private var showTotalAssignedSelection: Binding<Bool> {
+        Binding {
+            appState.settings.showTotalAssigned
+        } set: { isEnabled in
+            appState.updateShowTotalAssigned(isEnabled)
         }
     }
 }

@@ -595,4 +595,46 @@ extension LocalFirstActualStoreTests {
         #expect(month.forNextMonth == 0)
     }
 
+    @Test func totalBudgetedMatchesExpenseGroupAssignedAndChangesWithMonth() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            INSERT INTO category_groups VALUES ('goals', 'Goals', 0, 0, 0, 2);
+            INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 3);
+            INSERT INTO category_groups VALUES ('hidden-grp', 'Hidden Group', 0, 1, 0, 4);
+            INSERT INTO categories VALUES ('dining', 'Dining', 'group', 0, 0, 0, 2);
+            INSERT INTO categories VALUES ('hidden-cat', 'Hidden Cat', 'group', 0, 1, 0, 3);
+            INSERT INTO categories VALUES ('vacation', 'Vacation', 'goals', 0, 0, 0, 1);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 1);
+            INSERT INTO categories VALUES ('deleted', 'Deleted', 'group', 0, 0, 1, 4);
+            INSERT INTO categories VALUES ('secret', 'Secret', 'hidden-grp', 0, 0, 0, 1);
+            INSERT INTO zero_budgets VALUES (202607, 'dining', 10000, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'hidden-cat', 5000, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'vacation', 20000, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'salary', 99999, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'deleted', 88888, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'secret', 4000, 0);
+            INSERT INTO zero_budgets VALUES (202608, 'groceries', 30000, 0);
+            INSERT INTO zero_budgets VALUES (202608, 'dining', 2000, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let julyExpenseAssigned = july.categoryGroups
+            .filter { !$0.isIncome }
+            .reduce(0) { $0 + $1.budgeted }
+        let julyIncomeAssigned = july.categoryGroups
+            .filter(\.isIncome)
+            .reduce(0) { $0 + $1.budgeted }
+        let everydayAssigned = try #require(
+            july.categoryGroups.first { $0.id == "group" }?.budgeted
+        )
+
+        #expect(everydayAssigned == 65_000)
+        #expect(julyIncomeAssigned == 99_999)
+        #expect(july.totalBudgeted == 89_000)
+        #expect(july.totalBudgeted == julyExpenseAssigned)
+        #expect(august.totalBudgeted == 32_000)
+        #expect(august.totalBudgeted != july.totalBudgeted)
+    }
+
 }
