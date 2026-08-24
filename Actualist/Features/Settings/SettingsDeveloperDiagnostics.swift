@@ -3,7 +3,6 @@ import SwiftUI
 struct SettingsDeveloperDiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @Binding var randomizedDisplayValuesSelection: Bool
     let hideDeveloperMode: () -> Void
     let debug: BackgroundRefreshDebugInfo
     let syncStatus: LocalFirstSyncStatus?
@@ -20,11 +19,6 @@ struct SettingsDeveloperDiagnosticsSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Privacy") {
-                    Toggle("Generic Screenshot Data", isOn: $randomizedDisplayValuesSelection)
-                }
-                .settingsSectionChrome()
-
                 Section("Local-First Sync") {
                     LocalFirstSyncDiagnosticRows(
                         status: syncStatus,

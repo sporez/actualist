@@ -41,7 +41,7 @@ enum PrivacyDisplayKind {
 
 enum PrivacyDisplay {
     /// Resolves the displayed name of the currently selected budget, applying
-    /// the randomized display toggle used for screenshots when enabled.
+    /// the sample-values privacy toggle when enabled.
     static func selectedBudgetName(
         name: String?,
         id: String?,

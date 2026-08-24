@@ -313,7 +313,7 @@ struct PayeesView: View {
 
     private var privacyBanner: some View {
         Label {
-            Text("Payee names and editing are unavailable while randomized display data is enabled.")
+            Text("Payee names and editing are hidden while sample values are on.")
         } icon: {
             Image(systemName: "eye.slash.fill")
                 .foregroundStyle(ActualistTheme.warning)

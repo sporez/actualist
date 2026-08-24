@@ -15,13 +15,13 @@ struct SettingsCategoryRow: View {
         Label {
             HStack(spacing: 8) {
                 Text(title)
+                    .lineLimit(1)
                 Spacer(minLength: 8)
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline)
                         .foregroundStyle(subtitleColor ?? ActualistTheme.secondaryText)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
                         .multilineTextAlignment(.trailing)
                 }
             }

@@ -63,7 +63,6 @@ struct AdvancedSettingsView: View {
         .sheet(isPresented: $isDeveloperDiagnosticsPresented) {
             #if DEBUG
             SettingsDeveloperDiagnosticsSheet(
-                randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
                 hideDeveloperMode: hideDeveloperMode,
                 debug: appState.settings.backgroundRefreshDebug,
                 syncStatus: appState.localFirstSyncStatus,
@@ -76,7 +75,6 @@ struct AdvancedSettingsView: View {
             )
             #else
             SettingsDeveloperDiagnosticsSheet(
-                randomizedDisplayValuesSelection: randomizedDisplayValuesSelection,
                 hideDeveloperMode: hideDeveloperMode,
                 debug: appState.settings.backgroundRefreshDebug,
                 syncStatus: appState.localFirstSyncStatus,
@@ -85,14 +83,6 @@ struct AdvancedSettingsView: View {
                 retryPendingSync: appState.retryPendingLocalFirstSync
             )
             #endif
-        }
-    }
-
-    private var randomizedDisplayValuesSelection: Binding<Bool> {
-        Binding {
-            appState.settings.randomizedDisplayValuesEnabled
-        } set: { isEnabled in
-            appState.updateRandomizedDisplayValuesEnabled(isEnabled)
         }
     }
 

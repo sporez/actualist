@@ -85,7 +85,7 @@ enum ActualistDiagnosticReportBuilder {
             "Display density: \(settings.displayDensity.rawValue)",
             "Green income amounts: \(yesNo(settings.greenIncomeTransactionAmountsEnabled))",
             "Rollover overspent alerts: \(yesNo(settings.includeCarryoverCategoriesInOverspentAlerts))",
-            "Generic screenshot data: \(yesNo(settings.randomizedDisplayValuesEnabled))",
+            "Sample display values: \(yesNo(settings.randomizedDisplayValuesEnabled))",
             "Background transaction alerts: \(yesNo(settings.backgroundTransactionRefreshEnabled))",
             "Developer mode unlocked: \(yesNo(settings.developerModeUnlocked))",
             "Experimental features enabled: \(list(settings.enabledExperimentalFeatures.map(\.rawValue).sorted()))",

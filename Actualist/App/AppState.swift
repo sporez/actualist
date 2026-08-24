@@ -586,9 +586,6 @@ final class AppState {
 
     func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
         settings.developerModeUnlocked = isUnlocked
-        if !isUnlocked {
-            settings.randomizedDisplayValuesEnabled = false
-        }
         resetDeveloperUnlockProgress()
         settingsStore.save(settings)
     }

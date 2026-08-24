@@ -217,16 +217,9 @@ struct SettingsView: View {
     }
 
     private var privacySubtitle: String {
-        let alerts = appState.settings.backgroundTransactionRefreshEnabled
+        appState.settings.backgroundTransactionRefreshEnabled
             ? "Alerts on"
             : "Alerts off"
-        let switcher: String
-        switch appState.settings.appSwitcherPrivacyMode {
-        case .off: switcher = "App Switcher off"
-        case .whenBackgrounded: switcher = "App Switcher · When Backgrounded"
-        case .always: switcher = "App Switcher · Always"
-        }
-        return "\(alerts) · \(switcher)"
     }
 
     private var reportsSubtitle: String {
