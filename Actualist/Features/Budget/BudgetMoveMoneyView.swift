@@ -69,12 +69,17 @@ struct BudgetMoveMoneyView: View {
                 .appSwitcherPrivacyProtected()
         }
         .task(id: viewModel.moveMoneyDraft?.focusedCategoryID) {
+            let hadCoverIntro = viewModel.hasPendingMoveMoneyCoverIntro
+            await viewModel.playMoveMoneyCoverIntro()
+
             guard !didAutoPresentDestinationPicker else {
                 return
             }
 
             didAutoPresentDestinationPicker = true
-            try? await Task.sleep(nanoseconds: 320_000_000)
+            if !hadCoverIntro {
+                try? await Task.sleep(nanoseconds: 320_000_000)
+            }
             guard viewModel.isMoveMoneyPresented,
                   viewModel.moveMoneyDraft?.destination == nil else {
                 return
@@ -228,13 +233,19 @@ struct BudgetMoveMoneyView: View {
             }
 
             if draft.allocations.isEmpty {
-                Slider(
-                    value: moveAmountDollarsBinding,
-                    in: 0...sliderUpperBound,
-                    step: 1
+                BudgetMoveMoneyAmountSlider(
+                    spec: viewModel.moveMoneySliderSpec(),
+                    isDisabled: draft.isSubmitting,
+                    onEditingChanged: { isEditing in
+                        viewModel.setMoveMoneySliderEditing(isEditing)
+                        if isEditing {
+                            isNumberPadVisible = false
+                        }
+                    },
+                    onAmountDollarsChanged: { value in
+                        viewModel.setMoveMoneySliderAmountDollars(value)
+                    }
                 )
-                .tint(ActualistTheme.accent)
-                .disabled(draft.isSubmitting)
             } else {
                 VStack(spacing: 14) {
                     ForEach(draft.allocations) { allocation in
@@ -260,14 +271,7 @@ struct BudgetMoveMoneyView: View {
         }
         .padding(22)
         .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-    }
-
-    private var moveAmountDollarsBinding: Binding<Double> {
-        Binding {
-            viewModel.moveMoneyAmountDollars
-        } set: { value in
-            viewModel.setMoveMoneyAmountDollars(value)
-        }
+        .modifier(BudgetMoveMoneyDetentHaptic(trigger: viewModel.moveMoneySliderDetentFeedback))
     }
 
     private func moveDestinationTitle(for draft: BudgetMoveMoneyDraft) -> String {
@@ -385,35 +389,21 @@ struct BudgetMoveMoneyView: View {
                     }
             }
 
-            Slider(
-                value: moveAllocationAmountDollarsBinding(for: allocation.id),
-                in: 0...sliderUpperBound,
-                step: 1
-            ) { isEditing in
-                if isEditing {
-                    viewModel.setFocusedMoveMoneyAllocation(allocation.id)
-                    isNumberPadVisible = false
+            BudgetMoveMoneyAmountSlider(
+                spec: viewModel.moveMoneySliderSpec(for: allocation.id),
+                isDisabled: draft.isSubmitting,
+                onEditingChanged: { isEditing in
+                    if isEditing {
+                        viewModel.setFocusedMoveMoneyAllocation(allocation.id)
+                        isNumberPadVisible = false
+                    }
+                    viewModel.setMoveMoneySliderEditing(isEditing, allocationID: allocation.id)
+                },
+                onAmountDollarsChanged: { value in
+                    viewModel.setMoveMoneySliderAmountDollars(value, allocationID: allocation.id)
                 }
-            }
-            .tint(ActualistTheme.accent)
-            .disabled(draft.isSubmitting)
+            )
         }
-    }
-
-    private func moveAllocationAmountDollarsBinding(for id: String) -> Binding<Double> {
-        Binding {
-            guard let allocation = viewModel.moveMoneyDraft?.allocations.first(where: { $0.id == id }) else {
-                return 0
-            }
-            return Double(allocation.amount) / 100
-        } set: { value in
-            viewModel.setFocusedMoveMoneyAllocation(id)
-            viewModel.setMoveMoneyAmountDollars(value)
-        }
-    }
-
-    private var sliderUpperBound: Double {
-        max(1, viewModel.moveMoneyMaximumDollars)
     }
 
     private var moveCounterpartyAvailableBackground: Color {

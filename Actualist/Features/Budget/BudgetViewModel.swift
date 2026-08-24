@@ -208,6 +208,44 @@ final class BudgetViewModel {
         moveMoneyWorkflow.displayAmount
     }
 
+    var moveMoneySliderDetentFeedback: Int {
+        moveMoneyWorkflow.sliderDetentFeedback
+    }
+
+    func moveMoneySliderSpec(for allocationID: String? = nil) -> BudgetMoveMoneySliderSpec {
+        moveMoneyWorkflow.sliderSpec(
+            for: allocationID,
+            budgetMonth: budgetMonth,
+            visibleGroups: visibleGroups
+        )
+    }
+
+    func setMoveMoneySliderEditing(_ isEditing: Bool, allocationID: String? = nil) {
+        moveMoneyWorkflow.setSliderEditing(
+            isEditing,
+            allocationID: allocationID,
+            budgetMonth: budgetMonth,
+            visibleGroups: visibleGroups
+        )
+    }
+
+    func setMoveMoneySliderAmountDollars(_ value: Double, allocationID: String? = nil) {
+        moveMoneyWorkflow.setSliderAmountDollars(
+            value,
+            allocationID: allocationID,
+            budgetMonth: budgetMonth,
+            visibleGroups: visibleGroups
+        )
+    }
+
+    var hasPendingMoveMoneyCoverIntro: Bool {
+        moveMoneyWorkflow.hasPendingCoverIntro
+    }
+
+    func playMoveMoneyCoverIntro() async {
+        await moveMoneyWorkflow.playCoverIntro()
+    }
+
     func load(using appState: AppState) async {
         includeCarryoverCategoriesInOverspentAlerts =
             appState.settings.includeCarryoverCategoriesInOverspentAlerts
