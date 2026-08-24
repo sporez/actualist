@@ -13,6 +13,6 @@ Please test:
 Report problems through Settings → Support → Share Diagnostic Report. Include reproduction steps and redacted screenshots.
 
 Known limitations:
-- Bank imports, reconciliation, and rules are unavailable.
+- Bank sync and reconciliation are unavailable.
 - Account lifecycle actions are incomplete.
 - Budget Templates are experimental.

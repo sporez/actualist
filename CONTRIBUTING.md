@@ -16,6 +16,7 @@ tests can be submitted directly as pull requests.
 - Add every new Swift file to `Actualist.xcodeproj/project.pbxproj`.
 - Run the relevant tests and `git diff --check` before submitting.
 - Run `scripts/lint-liquid-glass.sh` after UI or design-system changes.
+- Run `scripts/lint-testflight-notes.sh` after adding `TestFlight-Note` trailers.
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full development and
 verification workflow.

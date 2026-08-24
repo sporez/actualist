@@ -47,25 +47,43 @@ changes are listed explicitly and stop the release.
 
 The wizard generates one What to Test file from the consumer checklist in
 `config/testflight/what-to-test.txt`, previews it, and pauses for review. By
-default, tester-facing commit trailers from the upcoming build and two previous
-tagged builds are grouped by build and deduplicated. Newer notes take priority
-when trimming to App Store Connect's 4,000-character limit. At review, keep the
-notes, add one or more focus items, or edit the complete text in
-`$VISUAL`/`$EDITOR`. The reviewed file is used for both TestFlight metadata and
-the GitHub prerelease body; no separate release-notes artifact is generated.
+default, `TestFlight-Note` trailers from the upcoming build and two previous
+tagged builds are grouped by build. The newest note for each `[topic]` replaces
+earlier notes with that topic. Untagged historical notes are still included and
+deduplicated by exact text. Newer notes take priority when trimming to App Store
+Connect's 4,000-character limit. At review, keep the notes, add a focus item, or
+edit the complete text in `$VISUAL`/`$EDITOR`. The reviewed file is used for
+both TestFlight metadata and the GitHub prerelease body.
 
-Every commit that changes something a TestFlight tester should logically know
-about or verify must add one or more trailers. Each value should describe an
-action and its expected result in language a tester can follow:
+Write trailers as the What to Test changelog, not QA scripts. Decide in this
+order:
+
+1. Internal (docs, tests, refactor, TestFlight prepare, no user-visible change)?
+   Omit the trailer. Never write a placeholder.
+2. Same product surface as an earlier unreleased commit? Rewrite that topic's
+   full note. Do not add a second topic or a delta line.
+3. New tester-visible surface? Add exactly one trailer using a topic from
+   `config/testflight/topics.txt`. Add a topic there only when this commit
+   introduces a new surface.
 
 ```text
-TestFlight-Note: Force-quit with a budget open, relaunch, and verify the budget appears immediately.
+TestFlight-Note: [rules] Added a Rules screen under Settings → Budget & Data. Rules apply in Actual's order and can split a match, link it to a schedule, or stop a matching new transaction from being saved.
 ```
 
-Omit trailers only from strictly internal commits that give testers nothing
-meaningful to observe or verify. Do not add placeholder trailers for those
-commits. The stable consumer checklist remains the fallback, and the wizard
-still offers an interactive focus-item step.
+A commit has zero or one trailer. Two trailers only if it ships two unrelated
+surfaces. The newest note for a topic replaces earlier ones. The text must be
+the complete current summary, start with Added/Fixed/Improved/Moved/Renamed/
+Removed/Combined, and describe what changed and where to find it. Do not tell
+the tester what to tap, say, search, try, confirm, or verify. Omit layout-only
+and developer-only notes.
+
+Wrong: `Try Import Transaction from Text with "spent 12.50 on coffee".`
+Wrong: `Added split rule actions.`
+Wrong: `[shortcuts-siri] Say “Open spending” and confirm the tab comes forward.`
+
+Lint new trailers with `scripts/lint-testflight-notes.sh --range <base>..HEAD`.
+The standing consumer checklist remains the fallback, and the wizard still
+offers an interactive focus-item step.
 
 Run `scripts/testflight-release.sh --help` for non-interactive commands and
 authentication options.

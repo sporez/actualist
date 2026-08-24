@@ -1,0 +1,17 @@
+# Product surfaces for TestFlight-Note [topic] prefixes.
+# One topic per tester-facing area. Do not add a topic per commit.
+# Add a topic here only when the commit introduces a new surface.
+accounts
+appearance
+budget
+demo
+onboarding
+payees
+privacy
+reports
+rules
+settings
+shortcuts
+sync
+transactions
+wallet
