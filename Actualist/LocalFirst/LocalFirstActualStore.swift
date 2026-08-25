@@ -25,6 +25,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var cachedBudgets: [ActualBudget] = []
     var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
     var accountsByBudget: [String: [AccountDisplay]] = [:]
+    var accountGroupsByBudget: [String: [ActualAccountGroup]] = [:]
+    var accountGroupManagementEnabledByBudget: [String: Bool] = [:]
     var payeesByBudget: [String: PayeeManagementSnapshot] = [:]
     var lastPayeeUndoMessagesByBudget: [String: [ActualSyncDecodedMessage]] = [:]
     var rulesByBudget: [String: [ManagedRule]] = [:]
@@ -153,6 +155,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         openedEncryptionContext = nil
         database = nil
         accountsByBudget = [:]
+        accountGroupsByBudget = [:]
+        accountGroupManagementEnabledByBudget = [:]
         payeesByBudget = [:]
         lastPayeeUndoMessagesByBudget = [:]
         rulesByBudget = [:]

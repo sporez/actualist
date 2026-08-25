@@ -581,7 +581,7 @@ extension LocalFirstActualStore {
     ) async throws {
         invalidateReports(budgetID: budgetID)
         monthsByBudget[budgetID] = nil
-        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
+        try await reloadAccountCaches(database: database, budgetID: budgetID)
         if let currentSpending = spendingTransactionsByBudget[budgetID] {
             let limit = max(currentSpending.nextOffset, transactionPageSize)
             spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
@@ -616,7 +616,7 @@ extension LocalFirstActualStore {
     ) async throws {
         invalidateReports(budgetID: budgetID)
         monthsByBudget[budgetID] = nil
-        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
+        try await reloadAccountCaches(database: database, budgetID: budgetID)
         if let currentSpending = spendingTransactionsByBudget[budgetID] {
             let limit = max(currentSpending.nextOffset, transactionPageSize)
             spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
@@ -636,7 +636,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws {
         invalidateReports(budgetID: budgetID)
-        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
+        try await reloadAccountCaches(database: database, budgetID: budgetID)
     }
 
 }

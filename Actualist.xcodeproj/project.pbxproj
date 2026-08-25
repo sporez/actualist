@@ -263,6 +263,16 @@
 		01000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift */; };
 		0100000000000000000000010A /* WalletTransactionMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010A /* WalletTransactionMappingTests.swift */; };
 		0100000000000000000000010B /* WalletTransactionImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000010B /* WalletTransactionImportTests.swift */; };
+		01000000000000000000000120 /* BudgetDatabase+AccountGroupCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000120 /* BudgetDatabase+AccountGroupCompatibility.swift */; };
+		01000000000000000000000121 /* AccountListLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000121 /* AccountListLayout.swift */; };
+		01000000000000000000000122 /* AccountsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000122 /* AccountsViewModel.swift */; };
+		01000000000000000000000123 /* AccountGroupCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000123 /* AccountGroupCompatibilityTests.swift */; };
+		01000000000000000000000124 /* AccountListLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000124 /* AccountListLayoutTests.swift */; };
+		01000000000000000000000125 /* BudgetDatabase+AccountGroupWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000125 /* BudgetDatabase+AccountGroupWrites.swift */; };
+		01000000000000000000000126 /* AccountGroupEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000126 /* AccountGroupEditorSheet.swift */; };
+		01000000000000000000000127 /* LocalFirstActualStore+AccountGroups.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000127 /* LocalFirstActualStore+AccountGroups.swift */; };
+		01000000000000000000000128 /* AccountGroupWriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000128 /* AccountGroupWriteTests.swift */; };
+		01000000000000000000000129 /* AccountsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000129 /* AccountsViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -532,6 +542,16 @@
 		0200000000000000000000010A /* WalletTransactionMappingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTransactionMappingTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000010B /* WalletTransactionImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTransactionImportTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000010C /* Actualist.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Actualist.entitlements; sourceTree = "<group>"; };
+		02000000000000000000000120 /* BudgetDatabase+AccountGroupCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+AccountGroupCompatibility.swift"; sourceTree = "<group>"; };
+		02000000000000000000000121 /* AccountListLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountListLayout.swift; sourceTree = "<group>"; };
+		02000000000000000000000122 /* AccountsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsViewModel.swift; sourceTree = "<group>"; };
+		02000000000000000000000123 /* AccountGroupCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountGroupCompatibilityTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000124 /* AccountListLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountListLayoutTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000125 /* BudgetDatabase+AccountGroupWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+AccountGroupWrites.swift"; sourceTree = "<group>"; };
+		02000000000000000000000126 /* AccountGroupEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountGroupEditorSheet.swift; sourceTree = "<group>"; };
+		02000000000000000000000127 /* LocalFirstActualStore+AccountGroups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalFirstActualStore+AccountGroups.swift"; sourceTree = "<group>"; };
+		02000000000000000000000128 /* AccountGroupWriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountGroupWriteTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000129 /* AccountsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -722,6 +742,10 @@
 				020000000000000000000064 /* LocalFirstActualStoreReadTests.swift */,
 				0200000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift */,
 				0200000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift */,
+				02000000000000000000000123 /* AccountGroupCompatibilityTests.swift */,
+				02000000000000000000000124 /* AccountListLayoutTests.swift */,
+				02000000000000000000000128 /* AccountGroupWriteTests.swift */,
+				02000000000000000000000129 /* AccountsViewModelTests.swift */,
 				0200000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift */,
 				0200000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift */,
 				020000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift */,
@@ -808,6 +832,9 @@
 			isa = PBXGroup;
 			children = (
 				02000000000000000000000F /* AccountsView.swift */,
+				02000000000000000000000121 /* AccountListLayout.swift */,
+				02000000000000000000000122 /* AccountsViewModel.swift */,
+				02000000000000000000000126 /* AccountGroupEditorSheet.swift */,
 				020000000000000000000027 /* AddAccountViewModel.swift */,
 			);
 			path = Accounts;
@@ -918,6 +945,7 @@
 				0200000000000000000000B3 /* ServerEndpointHealth.swift */,
 					020000000000000000000049 /* LocalFirstActualStore+Reads.swift */,
 					02000000000000000000004A /* LocalFirstActualStore+Mutations.swift */,
+					02000000000000000000000127 /* LocalFirstActualStore+AccountGroups.swift */,
 					02000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift */,
 					02000000000000000000004B /* LocalFirstActualStore+Sync.swift */,
 					02000000000000000000007F /* LocalFirstActualStore+Rules.swift */,
@@ -961,6 +989,8 @@
 				0200000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift */,
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
 				020000000000000000000047 /* BudgetDatabase+Schema.swift */,
+				02000000000000000000000120 /* BudgetDatabase+AccountGroupCompatibility.swift */,
+				02000000000000000000000125 /* BudgetDatabase+AccountGroupWrites.swift */,
 				020000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift */,
 				02000000000000000000004E /* BudgetDatabase+Reports.swift */,
 				020000000000000000000055 /* BudgetTemplateEngine.swift */,
@@ -1264,6 +1294,9 @@
 				01000000000000000000003F /* BudgetViewSupport.swift in Sources */,
 				01000000000000000000000112 /* BudgetMonthPrivacyProjection.swift in Sources */,
 				01000000000000000000000F /* AccountsView.swift in Sources */,
+				01000000000000000000000121 /* AccountListLayout.swift in Sources */,
+				01000000000000000000000122 /* AccountsViewModel.swift in Sources */,
+				01000000000000000000000126 /* AccountGroupEditorSheet.swift in Sources */,
 				010000000000000000000024 /* AddAccountViewModel.swift in Sources */,
 				010000000000000000000010 /* AccountTransactionsView.swift in Sources */,
 				010000000000000000000000D4 /* AccountTransactionsViewModel.swift in Sources */,
@@ -1306,6 +1339,8 @@
 				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
 				010000000000000000000055 /* BudgetTemplateEngine.swift in Sources */,
 				010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */,
+				01000000000000000000000120 /* BudgetDatabase+AccountGroupCompatibility.swift in Sources */,
+				01000000000000000000000125 /* BudgetDatabase+AccountGroupWrites.swift in Sources */,
 				010000000000000000000032 /* SyncClient.swift in Sources */,
 				01000000000000000000003C /* LocalFirstSyncMessageBuilder.swift in Sources */,
 				010000000000000000000033 /* Sync.pb.swift in Sources */,
@@ -1315,6 +1350,7 @@
 				0100000000000000000000B3 /* ServerEndpointHealth.swift in Sources */,
 				010000000000000000000049 /* LocalFirstActualStore+Reads.swift in Sources */,
 				01000000000000000000004A /* LocalFirstActualStore+Mutations.swift in Sources */,
+				01000000000000000000000127 /* LocalFirstActualStore+AccountGroups.swift in Sources */,
 				01000000000000000000000109 /* LocalFirstActualStore+WalletImport.swift in Sources */,
 				01000000000000000000004B /* LocalFirstActualStore+Sync.swift in Sources */,
 				01000000000000000000009A /* DemoBudget.swift in Sources */,
@@ -1404,6 +1440,10 @@
 				010000000000000000000064 /* LocalFirstActualStoreReadTests.swift in Sources */,
 				0100000000000000000000A7 /* LocalFirstActualStoreCreateCategorizeTests.swift in Sources */,
 				0100000000000000000000A8 /* LocalFirstActualStoreAccountOutboxTests.swift in Sources */,
+				01000000000000000000000123 /* AccountGroupCompatibilityTests.swift in Sources */,
+				01000000000000000000000124 /* AccountListLayoutTests.swift in Sources */,
+				01000000000000000000000128 /* AccountGroupWriteTests.swift in Sources */,
+				01000000000000000000000129 /* AccountsViewModelTests.swift in Sources */,
 				0100000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift in Sources */,
 				0100000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift in Sources */,
 				010000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift in Sources */,

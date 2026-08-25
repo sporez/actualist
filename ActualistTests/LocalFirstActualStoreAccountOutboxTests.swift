@@ -91,8 +91,9 @@ extension LocalFirstActualStoreTests {
         #expect(!pending.contains { $0.message.dataset == "account_groups" })
         #expect(!pending.contains { $0.message.column == "account_group_id" })
         #expect(checking.name == "Checking")
-        #expect(try sqliteTables(at: await database.databaseURL).contains("account_groups") == false)
-        #expect(try sqliteColumns("accounts", at: await database.databaseURL).contains("account_group_id") == false)
+        #expect(checking.accountGroupId == "group-cash")
+        #expect(try sqliteTables(at: await database.databaseURL).contains("account_groups"))
+        #expect(try sqliteColumns("accounts", at: await database.databaseURL).contains("account_group_id"))
     }
 
     @Test func createOffBudgetAccountLocallyMarksAccountAsOffBudget() async throws {

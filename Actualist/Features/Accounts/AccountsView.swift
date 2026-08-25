@@ -3,46 +3,58 @@ import SwiftUI
 struct AccountsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
-    @State private var isLoading = true
-    @State private var errorMessage: String?
-    @State private var expandedSections: Set<AccountSectionKind> = [.budget, .offBudget]
-    @State private var isAddAccountPresented = false
-    @State private var addAccountViewModel = AddAccountViewModel()
+    @State private var viewModel = AccountsViewModel()
+    @State private var expandedSections: Set<AccountListLayout.Kind> = [.budget, .offBudget]
 
-    private var accounts: [AccountDisplay] {
+    private var sections: [AccountListLayout.Section] {
+        _ = viewModel.contentRevision
         guard let budgetID = appState.settings.selectedBudgetID else {
             return []
         }
-        let repository = appState.accountRepository
-        return appState.orderedAccountDisplays(
-            repository.accountDisplays(budgetID: budgetID),
-            budgetID: budgetID
+        return AccountListLayout.sections(
+            displays: appState.accountRepository.accountDisplays(budgetID: budgetID),
+            groups: appState.accountRepository.accountGroups(budgetID: budgetID),
+            preferredIDs: appState.settings.accountOrderByBudgetID[budgetID] ?? []
         )
+    }
+
+    private var accounts: [AccountDisplay] {
+        sections.flatMap(\.accounts)
+    }
+
+    private var groups: [ActualAccountGroup] {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return []
+        }
+        return appState.accountRepository.accountGroups(budgetID: budgetID)
+    }
+
+    private var canManageGroups: Bool {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return false
+        }
+        return appState.accountRepository.accountGroupManagementEnabled(budgetID: budgetID)
     }
 
     var body: some View {
         NavigationStack(path: accountNavigationPath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    accountSection(kind: .budget, title: "Budget Accounts", rows: openBudgetAccounts)
-                    accountSection(kind: .offBudget, title: "Off Budget", rows: offBudgetAccounts)
-                    accountSection(
-                        kind: .closed,
-                        title: "Closed",
-                        rows: closedAccounts
-                    )
+                    ForEach(sections) { section in
+                        accountSection(section)
+                    }
 
-                    if isLoading && accounts.isEmpty {
+                    if viewModel.isLoading && accounts.isEmpty {
                         AccountsLoadingView()
                             .padding(.vertical, 48)
                     }
 
-                    if !isLoading && accounts.isEmpty && errorMessage == nil {
+                    if !viewModel.isLoading && accounts.isEmpty && viewModel.errorMessage == nil {
                         AccountsEmptyView()
                             .padding(.vertical, 48)
                     }
 
-                    if let errorMessage {
+                    if let errorMessage = viewModel.errorMessage {
                         Text(errorMessage)
                             .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.danger)
@@ -55,9 +67,21 @@ struct AccountsView: View {
             .background(ActualistTheme.background)
             .navigationTitle("Accounts")
             .toolbar {
+                if canManageGroups {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            viewModel.presentCreateGroup()
+                        } label: {
+                            Image(systemName: "folder.badge.plus")
+                        }
+                        .font(.body.weight(.semibold))
+                        .controlSize(.small)
+                        .accessibilityLabel("New Group")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        isAddAccountPresented = true
+                        viewModel.isAddAccountPresented = true
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -81,25 +105,82 @@ struct AccountsView: View {
                 Task { await loadLocal() }
                 applyShortcutRoute()
             }
-            .sheet(isPresented: $isAddAccountPresented) {
-                AddAccountSheet(viewModel: addAccountViewModel)
+            .sheet(isPresented: $viewModel.isAddAccountPresented) {
+                AddAccountSheet(viewModel: viewModel.addAccountViewModel)
                     .presentationDetents([.medium, .large])
                     .appSwitcherPrivacyAwareDragIndicator()
                     .appSwitcherPrivacyProtected()
             }
+            .sheet(isPresented: $viewModel.isGroupEditorPresented) {
+                AccountGroupEditorSheet(
+                    title: viewModel.groupEditor?.title ?? "Group",
+                    name: $viewModel.groupEditorName,
+                    errorMessage: viewModel.errorMessage,
+                    isSubmitting: viewModel.isSubmitting,
+                    canSubmit: viewModel.canSubmitGroupEditor,
+                    onCancel: {
+                        viewModel.isGroupEditorPresented = false
+                    },
+                    onSubmit: {
+                        await viewModel.submitGroupEditor(
+                            budgetID: appState.settings.selectedBudgetID,
+                            repository: appState.accountRepository
+                        )
+                    }
+                )
+                .presentationDetents([.medium])
+                .appSwitcherPrivacyAwareDragIndicator()
+                .appSwitcherPrivacyProtected()
+            }
+            .alert(
+                deleteDialogTitle,
+                isPresented: $viewModel.isDeleteReviewPresented
+            ) {
+                Button("Delete Group", role: .destructive) {
+                    Task {
+                        await viewModel.confirmDelete(
+                            budgetID: appState.settings.selectedBudgetID,
+                            repository: appState.accountRepository
+                        )
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    viewModel.cancelDelete()
+                }
+            } message: {
+                Text(deleteDialogMessage)
+            }
         }
     }
 
-    private var openBudgetAccounts: [AccountDisplay] {
-        accounts.filter { !$0.account.closed && !$0.account.offbudget }
+    private var deleteDialogTitle: String {
+        guard let name = viewModel.deleteReview?.group.name else {
+            return "Delete Group"
+        }
+        return "Delete \(name)?"
     }
 
-    private var offBudgetAccounts: [AccountDisplay] {
-        accounts.filter { !$0.account.closed && $0.account.offbudget }
+    private var deleteDialogMessage: String {
+        let names = viewModel.deleteReview?.memberNames ?? []
+        if names.isEmpty {
+            return "This group has no accounts."
+        }
+        return "\(ListFormatter.localizedString(byJoining: names)) will become ungrouped."
     }
 
-    private var closedAccounts: [AccountDisplay] {
-        accounts.filter { $0.account.closed }
+    private func moveAccount(_ row: AccountDisplay, toGroupID groupID: String?) {
+        Task {
+            await viewModel.moveAccount(
+                row,
+                toGroupID: groupID,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.accountRepository
+            )
+        }
+    }
+
+    private func destinationGroups(for row: AccountDisplay) -> [ActualAccountGroup] {
+        groups.filter { $0.id != row.account.accountGroupId }
     }
 
     private var accountNavigationPath: Binding<[ActualAccount]> {
@@ -122,27 +203,33 @@ struct AccountsView: View {
     }
 
     @ViewBuilder
-    private func accountSection(kind: AccountSectionKind, title: String, rows: [AccountDisplay]) -> some View {
-        if !rows.isEmpty {
-            let isExpanded = expandedSections.contains(kind)
+    private func accountSection(_ section: AccountListLayout.Section) -> some View {
+        if !section.accounts.isEmpty {
+            let isExpanded = expandedSections.contains(section.kind)
 
             VStack(alignment: .leading, spacing: 10) {
                 Button {
                     withAnimation(.smooth(duration: 0.2)) {
                         if isExpanded {
-                            expandedSections.remove(kind)
+                            expandedSections.remove(section.kind)
                         } else {
-                            expandedSections.insert(kind)
+                            expandedSections.insert(section.kind)
                         }
                     }
                 } label: {
                     HStack {
                         Image(systemName: "chevron.down")
                             .rotationEffect(.degrees(isExpanded ? 0 : -90))
-                        Text(sectionTitle(title, count: rows.count, isExpanded: isExpanded))
+                        Text(
+                            sectionTitle(
+                                section.kind.title,
+                                count: section.accounts.count,
+                                isExpanded: isExpanded
+                            )
+                        )
                             .font(ActualistTypography.sectionTitle(for: density))
                         Spacer()
-                        Text(sectionTotalText(rows, title: title))
+                        Text(sectionTotalText(section.accounts, title: section.kind.title))
                             .font(ActualistTypography.rowValue(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
@@ -151,20 +238,165 @@ struct AccountsView: View {
                 .buttonStyle(.plain)
 
                 if isExpanded {
-                    VStack(spacing: 0) {
-                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                            NavigationLink(value: row.account) {
-                                AccountRow(
-                                    row: row,
-                                    isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                                    showsBottomSeparator: index < rows.count - 1
-                                )
+                    if section.showsGroupHeaders {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(section.buckets) { bucket in
+                                accountBucket(bucket)
                             }
-                            .buttonStyle(.plain)
                         }
+                    } else {
+                        accountCard(section.accounts)
                     }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func accountBucket(_ bucket: AccountListLayout.Bucket) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let group = bucket.group {
+                groupHeader(group)
+            }
+            if bucket.accounts.isEmpty {
+                if canManageGroups, let group = bucket.group {
+                    Menu {
+                        ForEach(accounts.filter { $0.account.accountGroupId != group.id }) { row in
+                            Button(row.account.name) {
+                                moveAccount(row, toGroupID: group.id)
+                            }
+                        }
+                    } label: {
+                        Text("Add Account")
+                            .font(ActualistTypography.rowLabel(for: density))
+                            .foregroundStyle(ActualistTheme.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
                     .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
+            } else {
+                accountCard(bucket.accounts)
+            }
+        }
+    }
+
+    private func groupHeader(_ group: ActualAccountGroup) -> some View {
+        HStack {
+            Text(group.name)
+                .font(ActualistTypography.rowLabel(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+            Spacer()
+            if canManageGroups {
+                Menu {
+                    groupManagementMenu(group)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Group actions")
+            }
+        }
+        .padding(.horizontal, 4)
+        .contextMenu {
+            if canManageGroups {
+                groupManagementMenu(group)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func groupManagementMenu(_ group: ActualAccountGroup) -> some View {
+        Button("Rename") {
+            viewModel.presentRename(group)
+        }
+        if groups.first?.id != group.id {
+            Button("Move Up") {
+                Task {
+                    await viewModel.moveGroupUp(
+                        group,
+                        groups: groups,
+                        budgetID: appState.settings.selectedBudgetID,
+                        repository: appState.accountRepository
+                    )
+                }
+            }
+        }
+        if groups.last?.id != group.id {
+            Button("Move Down") {
+                Task {
+                    await viewModel.moveGroupDown(
+                        group,
+                        groups: groups,
+                        budgetID: appState.settings.selectedBudgetID,
+                        repository: appState.accountRepository
+                    )
+                }
+            }
+        }
+        Button("Delete", role: .destructive) {
+            viewModel.presentDelete(group, displays: accounts)
+        }
+    }
+
+    private func accountCard(_ rows: [AccountDisplay]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                HStack(spacing: 0) {
+                    NavigationLink(value: row.account) {
+                        AccountRow(
+                            row: row,
+                            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                            showsBottomSeparator: index < rows.count - 1
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        if canManageGroups {
+                            accountGroupMenu(row)
+                        }
+                    }
+
+                    if canManageGroups {
+                        Menu {
+                            accountGroupMenu(row)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                                .frame(width: 36, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Account actions")
+                    }
+                }
+            }
+        }
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func accountGroupMenu(_ row: AccountDisplay) -> some View {
+        let destinations = destinationGroups(for: row)
+        if !destinations.isEmpty {
+            Menu("Move to Group") {
+                ForEach(destinations) { group in
+                    Button(group.name) {
+                        moveAccount(row, toGroupID: group.id)
+                    }
+                }
+            }
+        }
+        if row.account.accountGroupId != nil {
+            Button("Remove from Group") {
+                moveAccount(row, toGroupID: nil)
             }
         }
     }
@@ -191,28 +423,25 @@ struct AccountsView: View {
     }
 
     private func loadLocal() async {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            isLoading = false
-            return
-        }
-
-        isLoading = accounts.isEmpty
-        errorMessage = nil
-        do {
-            let repository = appState.accountRepository
-            try await repository.refreshAccountsWithBalances(budgetID: budgetID)
-        } catch {
-            errorMessage = accounts.isEmpty ? error.localizedDescription : nil
-        }
-        isLoading = false
+        await viewModel.loadLocal(
+            budgetID: appState.settings.selectedBudgetID,
+            hasCachedAccounts: !accounts.isEmpty,
+            repository: appState.accountRepository
+        )
     }
 
     private func refresh() async {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return
-        }
-        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
-        await loadLocal()
+        await viewModel.refresh(
+            budgetID: appState.settings.selectedBudgetID,
+            hasCachedAccounts: !accounts.isEmpty,
+            repository: appState.accountRepository,
+            sync: {
+                guard let budgetID = appState.settings.selectedBudgetID else {
+                    return
+                }
+                _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
+            }
+        )
     }
 }
 
@@ -353,12 +582,6 @@ private struct AddAccountSheet: View {
 
         dismiss()
     }
-}
-
-private enum AccountSectionKind: Hashable {
-    case budget
-    case offBudget
-    case closed
 }
 
 struct AccountRow: View {

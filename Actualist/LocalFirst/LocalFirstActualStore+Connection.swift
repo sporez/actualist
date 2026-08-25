@@ -436,7 +436,7 @@ extension LocalFirstActualStore {
         openedEncryptionContext = encryptionContext
         isDemoBudgetActive = (metadata.cloudFileID == DemoBudget.fileID)
         let budgetID = metadata.groupID ?? metadata.cloudFileID
-        accountsByBudget[budgetID] = try? await database.fetchAccountDisplays()
+        try? await reloadAccountCaches(database: database, budgetID: budgetID)
         payeesByBudget[budgetID] = try? await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         let checkpoint = try? await database.localSyncCheckpoint()

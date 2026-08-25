@@ -38,6 +38,7 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
     let closed: Bool
     let bankSyncLinked: Bool
     let bankSyncStatus: String?
+    let accountGroupId: String?
 
     init(
         id: String,
@@ -45,7 +46,8 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
         offbudget: Bool,
         closed: Bool,
         bankSyncLinked: Bool = false,
-        bankSyncStatus: String? = nil
+        bankSyncStatus: String? = nil,
+        accountGroupId: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -53,10 +55,11 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
         self.closed = closed
         self.bankSyncLinked = bankSyncLinked
         self.bankSyncStatus = bankSyncStatus
+        self.accountGroupId = accountGroupId
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, offbudget, closed, bankSyncLinked, bankSyncStatus
+        case id, name, offbudget, closed, bankSyncLinked, bankSyncStatus, accountGroupId
     }
 
     init(from decoder: Decoder) throws {
@@ -67,6 +70,7 @@ struct ActualAccount: Codable, Identifiable, Hashable, Sendable {
         closed = try container.decode(Bool.self, forKey: .closed)
         bankSyncLinked = try container.decodeIfPresent(Bool.self, forKey: .bankSyncLinked) ?? false
         bankSyncStatus = try container.decodeIfPresent(String.self, forKey: .bankSyncStatus)
+        accountGroupId = try container.decodeIfPresent(String.self, forKey: .accountGroupId)
     }
 
     var bankSyncState: ActualBankSyncState? {
@@ -90,6 +94,12 @@ enum ActualBankSyncState: Hashable, Sendable {
     case healthy
     case pending
     case failed
+}
+
+struct ActualAccountGroup: Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let sortOrder: Double
 }
 
 struct AccountDisplay: Identifiable, Hashable, Sendable {

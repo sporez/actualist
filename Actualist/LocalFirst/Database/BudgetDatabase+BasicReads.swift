@@ -21,6 +21,7 @@ extension BudgetDatabase {
                 columns: columns
             )
             let bankSyncStatus = column("bank_sync_status", fallback: "NULL", columns: columns)
+            let accountGroupID = column("account_group_id", fallback: "NULL", columns: columns)
             let tombstonePredicate = predicateForLiveRows(columns: columns)
             let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
             let sql = """
@@ -30,7 +31,8 @@ extension BudgetDatabase {
                        \(closed) AS closed,
                        \(bank) AS bank,
                        \(accountSyncSource) AS account_sync_source,
-                       \(bankSyncStatus) AS bank_sync_status
+                       \(bankSyncStatus) AS bank_sync_status,
+                       \(accountGroupID) AS account_group_id
                 FROM accounts
                 WHERE \(tombstonePredicate)
                 ORDER BY \(order)
@@ -39,13 +41,47 @@ extension BudgetDatabase {
             return try Row.fetchAll(db, sql: sql).map { row in
                 let bankID = row["bank"] as String?
                 let syncSource = row["account_sync_source"] as String?
+                let groupID = (row["account_group_id"] as String?).flatMap { value in
+                    value.isEmpty ? nil : value
+                }
                 return ActualAccount(
                     id: row["id"] ?? "",
                     name: row["name"] ?? "",
                     offbudget: flexibleBool(row["offbudget"]),
                     closed: flexibleBool(row["closed"]),
                     bankSyncLinked: bankID?.isEmpty == false || syncSource?.isEmpty == false,
-                    bankSyncStatus: row["bank_sync_status"]
+                    bankSyncStatus: row["bank_sync_status"],
+                    accountGroupId: groupID
+                )
+            }
+        }
+    }
+
+    func fetchAccountGroups() throws -> [ActualAccountGroup] {
+        try queue.read { db in
+            guard try tableExists("account_groups", db: db) else {
+                return []
+            }
+
+            let columns = try columnSet(for: "account_groups", db: db)
+            let name = column("name", fallback: "''", columns: columns)
+            let sortOrder = column("sort_order", fallback: "0", columns: columns)
+            let order = columns.contains("sort_order") ? "sort_order, id" : "id"
+            let sql = """
+                SELECT id, \(name) AS name, \(sortOrder) AS sort_order
+                FROM account_groups
+                WHERE \(predicateForLiveRows(columns: columns))
+                ORDER BY \(order)
+                """
+            return try Row.fetchAll(db, sql: sql).compactMap { row in
+                let id = row["id"] as String? ?? ""
+                guard !id.isEmpty else {
+                    return nil
+                }
+                return ActualAccountGroup(
+                    id: id,
+                    name: row["name"] ?? "",
+                    sortOrder: flexibleDouble(row["sort_order"])
                 )
             }
         }

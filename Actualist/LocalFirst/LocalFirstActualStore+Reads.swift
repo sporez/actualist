@@ -45,9 +45,19 @@ extension LocalFirstActualStore {
         accountsByBudget[budgetID] ?? []
     }
 
+    func accountGroups(budgetID: String) -> [ActualAccountGroup] {
+        accountGroupsByBudget[budgetID] ?? []
+    }
+
     func refreshAccountsWithBalances(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
+        try await reloadAccountCaches(database: database, budgetID: budgetID)
+    }
+
+    func reloadAccountCaches(database: BudgetDatabase, budgetID: String) async throws {
         accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
+        accountGroupsByBudget[budgetID] = try await database.fetchAccountGroups()
+        accountGroupManagementEnabledByBudget[budgetID] = try await database.accountGroupManagementEnabled()
     }
 
     func cachedPayeeManagementSnapshot(budgetID: String) -> PayeeManagementSnapshot? {
