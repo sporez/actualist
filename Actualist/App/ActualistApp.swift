@@ -45,6 +45,9 @@ struct ActualistApp: App {
                 .task {
                     await appState.prepareBackgroundTransactionNotifications()
                     await appState.beginForegroundSession()
+                    if let command = SimulatorLaunchCommand.fromProcessInfo() {
+                        await SimulatorLaunchApplier.apply(command, to: appState)
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {

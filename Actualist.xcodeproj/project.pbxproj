@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		010000000000000000000001 /* ActualistApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000001 /* ActualistApp.swift */; };
 		010000000000000000000002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000002 /* AppState.swift */; };
+		01000000000000000000000130 /* SimulatorLaunchCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000130 /* SimulatorLaunchCommand.swift */; };
+		01000000000000000000000131 /* SimulatorLaunchCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000131 /* SimulatorLaunchCommandTests.swift */; };
 		01000000000000000000006E /* BackgroundTransactionRefreshRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */; };
 		01000000000000000000006F /* NewTransactionNotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */; };
 		010000000000000000000070 /* PayeeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000070 /* PayeeRepository.swift */; };
@@ -292,6 +294,8 @@
 /* Begin PBXFileReference section */
 		020000000000000000000001 /* ActualistApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistApp.swift; sourceTree = "<group>"; };
 		020000000000000000000002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		02000000000000000000000130 /* SimulatorLaunchCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorLaunchCommand.swift; sourceTree = "<group>"; };
+		02000000000000000000000131 /* SimulatorLaunchCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorLaunchCommandTests.swift; sourceTree = "<group>"; };
 		02000000000000000000006E /* BackgroundTransactionRefreshRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTransactionRefreshRunner.swift; sourceTree = "<group>"; };
 		02000000000000000000006F /* NewTransactionNotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTransactionNotificationCoordinator.swift; sourceTree = "<group>"; };
 		020000000000000000000070 /* PayeeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeRepository.swift; sourceTree = "<group>"; };
@@ -627,6 +631,7 @@
 			children = (
 				020000000000000000000001 /* ActualistApp.swift */,
 				020000000000000000000002 /* AppState.swift */,
+				02000000000000000000000130 /* SimulatorLaunchCommand.swift */,
 				020000000000000000000000D3 /* AppStateModels.swift */,
 				020000000000000000000000C8 /* AppSyncCoordinator.swift */,
 				020000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift */,
@@ -776,6 +781,7 @@
 				020000000000000000000000FA /* ShortcutTransactionCommandTests.swift */,
 				020000000000000000000000FE /* ShortcutBudgetCommandTests.swift */,
 				02000000000000000000000102 /* AppRouteCoordinatorTests.swift */,
+				02000000000000000000000131 /* SimulatorLaunchCommandTests.swift */,
 				02000000000000000000000103 /* ShortcutErrorTests.swift */,
 				02000000000000000000000104 /* ShortcutIntentTests.swift */,
 				02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */,
@@ -1223,6 +1229,7 @@
 			files = (
 				010000000000000000000001 /* ActualistApp.swift in Sources */,
 				010000000000000000000002 /* AppState.swift in Sources */,
+				01000000000000000000000130 /* SimulatorLaunchCommand.swift in Sources */,
 				010000000000000000000000D3 /* AppStateModels.swift in Sources */,
 				010000000000000000000000C8 /* AppSyncCoordinator.swift in Sources */,
 				010000000000000000000000C9 /* BackgroundRefreshDebugRecorder.swift in Sources */,
@@ -1479,6 +1486,7 @@
 				010000000000000000000000FA /* ShortcutTransactionCommandTests.swift in Sources */,
 				010000000000000000000000FE /* ShortcutBudgetCommandTests.swift in Sources */,
 				01000000000000000000000102 /* AppRouteCoordinatorTests.swift in Sources */,
+				01000000000000000000000131 /* SimulatorLaunchCommandTests.swift in Sources */,
 				01000000000000000000000103 /* ShortcutErrorTests.swift in Sources */,
 				01000000000000000000000104 /* ShortcutIntentTests.swift in Sources */,
 				01000000000000000000000105 /* ShortcutCatalogCoverageTests.swift in Sources */,

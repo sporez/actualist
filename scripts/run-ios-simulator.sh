@@ -16,6 +16,10 @@ SCREENSHOT_DIR="${SCREENSHOT_DIR:-.artifacts/screenshots}"
 BOOT_IF_NEEDED="${BOOT_IF_NEEDED:-0}"
 CAPTURE_SCREENSHOT="${CAPTURE_SCREENSHOT:-0}"
 LAUNCH_APP="${LAUNCH_APP:-1}"
+RESET_APP="${RESET_APP:-0}"
+ENTER_DEMO="${ENTER_DEMO:-0}"
+SCREEN_NAME="${SCREEN_NAME:-}"
+LAUNCH_WAIT_SECONDS="${LAUNCH_WAIT_SECONDS:-}"
 
 DESTINATION="platform=iOS Simulator,id=${SIMULATOR_ID}"
 APP_PATH="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}-iphonesimulator/${SCHEME}.app"
@@ -24,19 +28,22 @@ usage() {
   cat <<'EOF'
 Usage: scripts/run-ios-simulator.sh [options]
 
-Fast default:
-  Build, install into the already-booted simulator, and launch the app.
+Build, install into the UDID-pinned simulator, and launch the app.
 
 Options:
-  --boot          Boot SIMULATOR_NAME if no simulator is already booted.
-  --screenshot    Capture a screenshot after launch.
-  --no-launch     Build and install without launching the app.
-  -h, --help      Show this help.
+  --boot              Boot the pinned simulator if none is booted.
+  --demo              Launch into the bundled demo budget (onboarding only).
+  --screen NAME       Open a screen after launch:
+                      budget | spending | accounts | reports | settings | uncategorized
+  --reset             Uninstall first so demo starts from a clean onboarding.
+  --screenshot        Capture a screenshot after the settle delay.
+  --settle SECONDS    Wait after launch before screenshot (default 3, 5 with --demo).
+  --no-launch         Build and install without launching.
+  -h, --help          Show this help.
 
 Environment overrides:
   PROJECT, SCHEME, CONFIGURATION, SIMULATOR_ID, SIMULATOR_NAME, BUNDLE_ID,
-  DERIVED_DATA_PATH, SCREENSHOT_DIR, BOOT_IF_NEEDED, CAPTURE_SCREENSHOT,
-  LAUNCH_APP, LAUNCH_WAIT_SECONDS
+  DERIVED_DATA_PATH, SCREENSHOT_DIR, LAUNCH_WAIT_SECONDS
 EOF
 }
 
@@ -45,8 +52,24 @@ while [[ $# -gt 0 ]]; do
     --boot)
       BOOT_IF_NEEDED=1
       ;;
+    --demo)
+      ENTER_DEMO=1
+      ;;
+    --screen)
+      SCREEN_NAME="${2:-}"
+      [[ -n "$SCREEN_NAME" ]] || { echo "error: --screen requires a name" >&2; exit 2; }
+      shift
+      ;;
+    --reset)
+      RESET_APP=1
+      ;;
     --screenshot)
       CAPTURE_SCREENSHOT=1
+      ;;
+    --settle)
+      LAUNCH_WAIT_SECONDS="${2:-}"
+      [[ -n "$LAUNCH_WAIT_SECONDS" ]] || { echo "error: --settle requires seconds" >&2; exit 2; }
+      shift
       ;;
     --no-launch)
       LAUNCH_APP=0
@@ -69,6 +92,24 @@ if [[ -z "${SIMULATOR_ID}" ]]; then
   exit 2
 fi
 
+if [[ -n "$SCREEN_NAME" ]]; then
+  case "$SCREEN_NAME" in
+    budget|spending|accounts|reports|settings|uncategorized) ;;
+    *)
+      echo "error: unknown --screen $SCREEN_NAME" >&2
+      exit 2
+      ;;
+  esac
+fi
+
+if [[ -z "$LAUNCH_WAIT_SECONDS" ]]; then
+  if [[ "$ENTER_DEMO" == "1" ]]; then
+    LAUNCH_WAIT_SECONDS=5
+  else
+    LAUNCH_WAIT_SECONDS=3
+  fi
+fi
+
 echo "Building ${SCHEME} for ${DESTINATION}"
 xcodebuild \
   -project "${PROJECT}" \
@@ -89,18 +130,31 @@ if ! xcrun simctl list devices booted | grep -q "(Booted)"; then
   fi
 fi
 
+if [[ "${RESET_APP}" == "1" ]]; then
+  echo "Uninstalling ${BUNDLE_ID}"
+  xcrun simctl uninstall booted "${BUNDLE_ID}" >/dev/null 2>&1 || true
+fi
+
 echo "Installing ${APP_PATH}"
 xcrun simctl install booted "${APP_PATH}"
 
 if [[ "${LAUNCH_APP}" == "1" ]]; then
-  echo "Launching ${BUNDLE_ID}"
-  xcrun simctl launch booted "${BUNDLE_ID}"
+  xcrun simctl terminate booted "${BUNDLE_ID}" >/dev/null 2>&1 || true
+  launch_args=()
+  if [[ "${ENTER_DEMO}" == "1" ]]; then
+    launch_args+=(-actualist-demo)
+  fi
+  if [[ -n "${SCREEN_NAME}" ]]; then
+    launch_args+=(-actualist-screen "${SCREEN_NAME}")
+  fi
+  echo "Launching ${BUNDLE_ID} ${launch_args[*]:-}"
+  xcrun simctl launch booted "${BUNDLE_ID}" "${launch_args[@]+"${launch_args[@]}"}"
 fi
 
 if [[ "${CAPTURE_SCREENSHOT}" == "1" ]]; then
   mkdir -p "${SCREENSHOT_DIR}"
-  sleep "${LAUNCH_WAIT_SECONDS:-2}"
-  SCREENSHOT_PATH="${SCREENSHOT_DIR}/actualist-$(date +%Y%m%d-%H%M%S).png"
+  sleep "${LAUNCH_WAIT_SECONDS}"
+  SCREENSHOT_PATH="${SCREENSHOT_DIR}/actualist-${SCREEN_NAME:-app}-$(date +%Y%m%d-%H%M%S).png"
   echo "Capturing ${SCREENSHOT_PATH}"
   xcrun simctl io booted screenshot "${SCREENSHOT_PATH}"
   echo "Done: ${SCREENSHOT_PATH}"

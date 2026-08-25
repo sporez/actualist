@@ -453,8 +453,13 @@ struct BudgetView: View {
     }
 
     private func applyShortcutRoute() {
+        if case .settings = appState.routeCoordinator.pendingRoute {
+            isSettingsPresented = true
+            _ = appState.routeCoordinator.consume()
+            return
+        }
         if let month = AppRouteApplication.uncategorizedMonth(from: appState.routeCoordinator.pendingRoute) {
-            uncategorizedRouteMonth = month
+            uncategorizedRouteMonth = month.isEmpty ? nil : month
             isUncategorizedTransactionsPresented = true
             _ = appState.routeCoordinator.consume()
             return

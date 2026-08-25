@@ -13,6 +13,16 @@ Environment overrides are documented by `--help`.
 scripts/run-ios-simulator.sh --boot
 ```
 
+Open the bundled demo budget on a screen and capture a screenshot:
+
+```sh
+scripts/run-ios-simulator.sh --boot --reset --demo --screen accounts --screenshot
+```
+
+`--screen` may be `budget`, `spending`, `accounts`, `reports`, `settings`, or
+`uncategorized`. `--reset` uninstalls first so demo always starts from
+onboarding. Screenshots write to `.artifacts/screenshots/`.
+
 To build without launching:
 
 ```sh
