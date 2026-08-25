@@ -57,7 +57,10 @@ enum ShortcutTransactionCommand {
 
     @MainActor
     static func importFromText(_ text: String, session: ShortcutsBudgetSession) async throws -> TransactionEntity {
-        let parsed = try ShortcutTextImportParser.parse(text)
+        let parsed = try ShortcutTextImportParser.parse(
+            text,
+            currency: try await session.budgetCurrency()
+        )
         return try await session.withExclusiveWrite { prepared in
             if parsed.direction == .transfer {
                 let source = try await resolveAccount(

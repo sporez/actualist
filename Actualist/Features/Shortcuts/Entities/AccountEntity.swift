@@ -40,11 +40,14 @@ struct AccountEntity: AppEntity {
         self.closed = closed
     }
 
-    static func make(from display: AccountDisplay) -> AccountEntity {
+    static func make(
+        from display: AccountDisplay,
+        currency: BudgetCurrency? = nil
+    ) -> AccountEntity {
         AccountEntity(
             id: display.account.id,
             name: display.account.name,
-            balance: display.balance.map(ShortcutMoney.intentAmount(minorUnits:)),
+            balance: display.balance.map { ShortcutMoney.intentAmount(minorUnits: $0, currency: currency) },
             offBudget: display.account.offbudget,
             closed: display.account.closed
         )

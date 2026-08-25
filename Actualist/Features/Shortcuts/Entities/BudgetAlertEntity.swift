@@ -37,12 +37,16 @@ struct BudgetAlertEntity: AppEntity {
         self.count = count
     }
 
-    static func make(from alert: BudgetMonthAlert, month: String) -> BudgetAlertEntity {
+    static func make(
+        from alert: BudgetMonthAlert,
+        month: String,
+        currency: BudgetCurrency? = nil
+    ) -> BudgetAlertEntity {
         BudgetAlertEntity(
             id: "\(month)|\(alert.kind)|\(alert.title)",
             title: alert.title,
             severity: alert.severity,
-            amount: alert.amount.map(ShortcutMoney.intentAmount(minorUnits:)),
+            amount: alert.amount.map { ShortcutMoney.intentAmount(minorUnits: $0, currency: currency) },
             count: alert.count
         )
     }
@@ -52,7 +56,7 @@ struct BudgetAlertEntity: AppEntity {
             return "\(count)"
         }
         if let amount {
-            return "\(Money(minorUnits: (try? ShortcutMoney.minorUnits(from: amount)) ?? 0).formatted())"
+            return "\(ShortcutMoney.spoken(amount, currency: BudgetCurrency.catalog(code: amount.currencyCode)))"
         }
         return nil
     }

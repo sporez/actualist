@@ -32,7 +32,9 @@ struct TransactionEntity: AppEntity {
     var isTransfer: Bool
 
     var displayRepresentation: DisplayRepresentation {
-        let amountText = amount.map { Money(minorUnits: (try? ShortcutMoney.minorUnits(from: $0)) ?? 0).formatted() }
+        let amountText = amount.map {
+            ShortcutMoney.spoken($0, currency: BudgetCurrency.catalog(code: $0.currencyCode))
+        }
             ?? "—"
         return DisplayRepresentation(title: "\(payee) · \(amountText) · \(dateText)")
     }
@@ -59,7 +61,11 @@ struct TransactionEntity: AppEntity {
         self.isTransfer = isTransfer
     }
 
-    static func make(from transaction: ActualTransaction, maps: TransactionNameMaps) -> TransactionEntity? {
+    static func make(
+        from transaction: ActualTransaction,
+        maps: TransactionNameMaps,
+        currency: BudgetCurrency? = nil
+    ) -> TransactionEntity? {
         guard let id = transaction.id, !id.isEmpty else {
             return nil
         }
@@ -68,7 +74,7 @@ struct TransactionEntity: AppEntity {
             ?? "Unknown payee"
         return TransactionEntity(
             id: id,
-            amount: transaction.amount.map(ShortcutMoney.intentAmount(minorUnits:)),
+            amount: transaction.amount.map { ShortcutMoney.intentAmount(minorUnits: $0, currency: currency) },
             date: transaction.date.actualDate,
             payee: payeeName,
             account: maps.accountNames[transaction.account] ?? transaction.account,

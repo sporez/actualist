@@ -92,7 +92,7 @@ struct ShortcutReadCatalogTests {
         let session = try await makeSession()
         let summary = try await session.budgetSummary()
         let alerts = try await session.budgetAlerts()
-        let ready = (try? summary.readyToAssign.map(ShortcutMoney.minorUnits(from:))) ?? 0
+        let ready = (try? summary.readyToAssign.map { try ShortcutMoney.minorUnits(from: $0) }) ?? 0
         if ready != 0 {
             #expect(alerts.contains { $0.title == "To Budget" })
         }

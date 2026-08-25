@@ -217,16 +217,25 @@ enum RuleEditorDraftState {
 
     /// Editable display text for an amount value, in dollars with no currency
     /// symbol (suitable for a `TextField`). Minor units are divided by 100.
-    static func amountDisplayText(_ raw: RuleJSONValue) -> String {
+    static func amountDisplayText(
+        _ raw: RuleJSONValue,
+        currency: BudgetCurrency = .usd
+    ) -> String {
         guard let number = minorUnits(in: raw) else { return "" }
-        return editableAmount(number / 100)
+        return editableAmount(currency.displayUnits(fromMinorUnits: Int(number.rounded())))
     }
 
-    /// Parses typed dollars into the Actual minor-units value to store. Invalid or
-    /// empty input becomes `.number(0)`, matching the original editor behavior.
-    static func amountValue(from text: String) -> RuleJSONValue {
-        guard let decimal = Decimal(string: text) else { return .number(0) }
-        return .number(NSDecimalNumber(decimal: decimal * 100).doubleValue)
+    /// Parses typed display units into the Actual minor-units value to store.
+    /// Invalid or empty input becomes `.number(0)`, matching the original editor.
+    static func amountValue(
+        from text: String,
+        currency: BudgetCurrency = .usd
+    ) -> RuleJSONValue {
+        guard let decimal = Decimal(string: text),
+              let minorUnits = currency.minorUnits(fromDisplay: decimal) else {
+            return .number(0)
+        }
+        return .number(Double(minorUnits))
     }
 
     /// Editable display text for a non-amount scalar value. Numbers are shown
@@ -243,9 +252,13 @@ enum RuleEditorDraftState {
     // MARK: Range (isbetween) get/set
 
     /// Display text for one bound of an `isbetween` range object.
-    static func rangeDisplayText(_ raw: RuleJSONValue, key: String) -> String {
+    static func rangeDisplayText(
+        _ raw: RuleJSONValue,
+        key: String,
+        currency: BudgetCurrency = .usd
+    ) -> String {
         guard case .object(let range) = raw, let cell = range[key] else { return "" }
-        return amountDisplayText(cell)
+        return amountDisplayText(cell, currency: currency)
     }
 
     /// Sets one bound of an `isbetween` range object, creating the object when
@@ -253,7 +266,8 @@ enum RuleEditorDraftState {
     static func rangeValue(
         from text: String,
         current: RuleJSONValue,
-        key: String
+        key: String,
+        currency: BudgetCurrency = .usd
     ) -> RuleJSONValue {
         var range: [String: RuleJSONValue]
         if case .object(let existing) = current {
@@ -261,7 +275,7 @@ enum RuleEditorDraftState {
         } else {
             range = [:]
         }
-        range[key] = amountValue(from: text)
+        range[key] = amountValue(from: text, currency: currency)
         return .object(range)
     }
 

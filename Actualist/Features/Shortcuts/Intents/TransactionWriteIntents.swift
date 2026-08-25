@@ -73,7 +73,7 @@ struct LogTransactionIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<TransactionEntity> & ProvidesDialog {
         let transaction = try await ShortcutTransactionCommand.log(
             .init(
-                amountMinorUnits: try ShortcutMoney.minorUnits(from: amount),
+                amountMinorUnits: try await session.minorUnits(from: amount),
                 direction: direction.commandDirection,
                 accountID: account?.id,
                 payeeID: payee?.id,
@@ -127,7 +127,7 @@ struct LogTransferIntent: AppIntent {
         let transaction = try await ShortcutTransactionCommand.transfer(
             fromAccountID: fromAccount.id,
             toAccountID: toAccount.id,
-            amountMinorUnits: try ShortcutMoney.minorUnits(from: amount),
+            amountMinorUnits: try await session.minorUnits(from: amount),
             date: date,
             notes: notes,
             session: session
@@ -199,7 +199,10 @@ struct UpdateTransactionIntent: AppIntent {
         let updated = try await ShortcutTransactionCommand.update(
             .init(
                 transactionID: transaction.id,
-                amountMinorUnits: try amount.map { try ShortcutMoney.minorUnits(from: $0) },
+                amountMinorUnits: try await {
+                    guard let amount else { return nil as Int? }
+                    return try await session.minorUnits(from: amount)
+                }(),
                 direction: direction?.commandDirection,
                 accountID: account?.id,
                 payeeID: payee?.id,

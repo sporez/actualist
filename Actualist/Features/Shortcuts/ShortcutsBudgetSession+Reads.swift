@@ -51,7 +51,11 @@ extension ShortcutsBudgetSession {
                 guard !isHidden, !category.isIncome, category.balance < 0 else {
                     return nil
                 }
-                return CategoryEntity.make(from: category, groupName: group.name)
+                return CategoryEntity.make(
+                    from: category,
+                    groupName: group.name,
+                    currency: loaded.currency
+                )
             }
         }
     }
@@ -59,7 +63,7 @@ extension ShortcutsBudgetSession {
     func budgetAlerts(month: String? = nil) async throws -> [BudgetAlertEntity] {
         let loaded = try await loadedMonth(preferred: month)
         return loaded.alerts.map { alert in
-            BudgetAlertEntity.make(from: alert, month: loaded.selectedMonth)
+            BudgetAlertEntity.make(from: alert, month: loaded.selectedMonth, currency: loaded.currency)
         }
     }
 
@@ -68,9 +72,10 @@ extension ShortcutsBudgetSession {
         limit: Int = defaultTransactionLimit
     ) async throws -> [TransactionEntity] {
         let loaded = try await uncategorizedPayload(month: month)
+        let prepared = try await prepare()
         let capped = Self.cappedTransactionLimit(limit)
         return loaded.transactions.prefix(capped).compactMap { transaction in
-            TransactionEntity.make(from: transaction, maps: .init(loaded))
+            TransactionEntity.make(from: transaction, maps: .init(loaded), currency: prepared.currency)
         }
     }
 
@@ -93,14 +98,15 @@ extension ShortcutsBudgetSession {
             limit: capped
         )
         return loaded.transactions.prefix(capped).compactMap { transaction in
-            TransactionEntity.make(from: transaction, maps: .init(loaded))
+            TransactionEntity.make(from: transaction, maps: .init(loaded), currency: prepared.currency)
         }
     }
 
     func transaction(id: String) async throws -> TransactionEntity {
         let original = try await actualTransaction(id: id)
         let maps = try await nameMaps(for: original)
-        guard let entity = TransactionEntity.make(from: original, maps: maps) else {
+        let prepared = try await prepare()
+        guard let entity = TransactionEntity.make(from: original, maps: maps, currency: prepared.currency) else {
             throw ShortcutsError.transactionNotFound
         }
         return entity

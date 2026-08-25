@@ -205,7 +205,10 @@ struct OpenNewTransactionIntent: ForegroundContinuableIntent {
             .newTransaction(
                 ShortcutEditorPrefill(
                     accountID: account?.id,
-                    amountMinorUnits: try amount.map { try ShortcutMoney.minorUnits(from: $0) },
+                    amountMinorUnits: try await {
+                        guard let amount else { return nil as Int? }
+                        return try await session.minorUnits(from: amount)
+                    }(),
                     payeeID: payee?.id,
                     payeeName: payeeName ?? payee?.name,
                     categoryID: category?.id,

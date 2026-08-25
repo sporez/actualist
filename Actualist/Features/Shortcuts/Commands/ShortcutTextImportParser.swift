@@ -18,7 +18,7 @@ struct ShortcutTextImportParse: Equatable, Sendable {
 }
 
 enum ShortcutTextImportParser {
-    static func parse(_ text: String) throws -> ShortcutTextImportParse {
+    static func parse(_ text: String, currency: BudgetCurrency = ShortcutMoney.fallback) throws -> ShortcutTextImportParse {
         let normalized = text
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -26,7 +26,7 @@ enum ShortcutTextImportParser {
             throw ShortcutsError.textImportAmountMissing
         }
 
-        if let transfer = parseTransfer(normalized) {
+        if let transfer = parseTransfer(normalized, currency: currency) {
             return transfer
         }
 
@@ -34,7 +34,7 @@ enum ShortcutTextImportParser {
         guard let amountMatch = firstAmount(in: withoutDates) else {
             throw ShortcutsError.textImportAmountMissing
         }
-        let amountMinorUnits = try ShortcutMoney.minorUnits(from: amountMatch.decimal)
+        let amountMinorUnits = try ShortcutMoney.minorUnits(from: amountMatch.decimal, currency: currency)
 
         var working = removing(amountMatch.raw, from: withoutDates)
         let direction = parseDirection(in: working) ?? .spend
@@ -67,14 +67,17 @@ enum ShortcutTextImportParser {
         )
     }
 
-    private static func parseTransfer(_ text: String) -> ShortcutTextImportParse? {
+    private static func parseTransfer(
+        _ text: String,
+        currency: BudgetCurrency
+    ) -> ShortcutTextImportParse? {
         let pattern = #"^transfer\s+(\$?[\d,]+(?:\.\d{1,2})?)\s+from\s+(.+?)\s+to\s+(.+)$"#
         guard let match = firstMatch(pattern, in: text, options: [.caseInsensitive]) else {
             return nil
         }
         guard let amountText = match.capture(1, in: text),
               let amount = decimal(from: amountText),
-              let minorUnits = try? ShortcutMoney.minorUnits(from: amount) else {
+              let minorUnits = try? ShortcutMoney.minorUnits(from: amount, currency: currency) else {
             return nil
         }
         let source = match.capture(2, in: text)?.trimmingCharacters(in: .whitespacesAndNewlines)

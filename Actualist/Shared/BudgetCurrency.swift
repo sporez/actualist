@@ -56,12 +56,24 @@ struct BudgetCurrency: Hashable, Sendable {
         Decimal(value) / scale
     }
 
+    func displayUnits(fromMinorUnits value: Int) -> Double {
+        NSDecimalNumber(decimal: displayAmount(fromMinorUnits: value)).doubleValue
+    }
+
     var displayedFractionDigits: Int {
         hideFraction ? 0 : decimalPlaces
     }
 
     func formatted(_ minorUnits: Int) -> String {
         Money(minorUnits: minorUnits).formatted(using: self)
+    }
+
+    func editableAmountText(fromMinorUnits value: Int) -> String {
+        let style = Decimal.FormatStyle
+            .number
+            .precision(.fractionLength(displayedFractionDigits...displayedFractionDigits))
+            .locale(Locale(identifier: "en_US_POSIX"))
+        return displayAmount(fromMinorUnits: value).formatted(style)
     }
 
     /// Whole-currency rounding used by template `removeFraction`.

@@ -10,6 +10,7 @@ enum WalletImportAvailability {
 struct WalletImportView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.budgetCurrency) private var currency
     var initialFields: [WalletTransactionFields] = []
     @State private var viewModel = WalletImportViewModel()
 
@@ -60,7 +61,7 @@ struct WalletImportView: View {
             .task {
                 await viewModel.prepare(using: appState)
                 if !initialFields.isEmpty {
-                    viewModel.updateFields(initialFields)
+                    viewModel.updateFields(initialFields, currency: currency)
                 }
             }
             .onChange(of: viewModel.selectedAccountID) {

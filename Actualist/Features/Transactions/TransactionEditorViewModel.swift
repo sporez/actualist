@@ -392,7 +392,7 @@ final class TransactionEditorViewModel {
     }
 
     func formattedSplitAmount(rowID: String) -> String {
-        categoryState.formattedSplitAmount(rowID: rowID)
+        categoryState.formattedSplitAmount(rowID: rowID, currency: currency)
     }
 
     func removeSplit(rowID: String) {

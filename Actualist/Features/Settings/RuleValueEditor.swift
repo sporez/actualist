@@ -8,6 +8,7 @@ import SwiftUI
 /// payee selection) is delegated to ``RuleEditorDraftState`` so the view never
 /// computes a payload value in a binding setter.
 struct RuleValueEditor: View {
+    @Environment(\.budgetCurrency) private var currency
     @Binding var value: RuleJSONValue
     let field: String
     let operation: String
@@ -205,12 +206,12 @@ struct RuleValueEditor: View {
         Binding(
             get: {
                 field == "amount"
-                    ? RuleEditorDraftState.amountDisplayText(value)
+                    ? RuleEditorDraftState.amountDisplayText(value, currency: currency)
                     : RuleEditorDraftState.editableString(value)
             },
             set: { text in
                 if field == "amount" {
-                    value = RuleEditorDraftState.amountValue(from: text)
+                    value = RuleEditorDraftState.amountValue(from: text, currency: currency)
                 } else {
                     value = text.isEmpty ? .null : .string(text)
                 }
@@ -220,8 +221,8 @@ struct RuleValueEditor: View {
 
     private func rangeBinding(key: String) -> Binding<String> {
         Binding(
-            get: { RuleEditorDraftState.rangeDisplayText(value, key: key) },
-            set: { text in value = RuleEditorDraftState.rangeValue(from: text, current: value, key: key) }
+            get: { RuleEditorDraftState.rangeDisplayText(value, key: key, currency: currency) },
+            set: { text in value = RuleEditorDraftState.rangeValue(from: text, current: value, key: key, currency: currency) }
         )
     }
 

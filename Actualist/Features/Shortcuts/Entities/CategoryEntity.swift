@@ -60,14 +60,18 @@ struct CategoryEntity: AppEntity {
         self.isHidden = isHidden
     }
 
-    static func make(from category: BudgetMonthCategory, groupName: String) -> CategoryEntity {
+    static func make(
+        from category: BudgetMonthCategory,
+        groupName: String,
+        currency: BudgetCurrency? = nil
+    ) -> CategoryEntity {
         CategoryEntity(
             id: category.id,
             name: category.name,
             group: groupName,
-            available: ShortcutMoney.intentAmount(minorUnits: category.balance),
-            budgeted: ShortcutMoney.intentAmount(minorUnits: category.budgeted),
-            spent: ShortcutMoney.intentAmount(minorUnits: category.spent),
+            available: ShortcutMoney.intentAmount(minorUnits: category.balance, currency: currency),
+            budgeted: ShortcutMoney.intentAmount(minorUnits: category.budgeted, currency: currency),
+            spent: ShortcutMoney.intentAmount(minorUnits: category.spent, currency: currency),
             carryover: category.carryover,
             isIncome: category.isIncome,
             isHidden: category.hidden ?? false

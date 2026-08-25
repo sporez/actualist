@@ -71,7 +71,8 @@ extension ShortcutTransactionCommand {
             try rejectSplitChild(original)
             let snapshot = TransactionEntity.make(
                 from: original,
-                maps: try await session.nameMaps(for: original)
+                maps: try await session.nameMaps(for: original),
+                currency: prepared.currency
             )
             _ = try await prepared.store.deleteTransactionAndRefresh(
                 original,

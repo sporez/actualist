@@ -248,11 +248,11 @@ struct TransactionEditorCategoryState: Equatable, Sendable {
         pendingMismatch = nil
     }
 
-    func formattedSplitAmount(rowID: String) -> String {
+    func formattedSplitAmount(rowID: String, currency: BudgetCurrency) -> String {
         guard let row = splitRows.first(where: { $0.id == rowID }), row.amountCents > 0 else {
             return ""
         }
-        return "\(row.amountCents / 100).\(String(format: "%02d", row.amountCents % 100))"
+        return currency.editableAmountText(fromMinorUnits: row.amountCents)
     }
 
     mutating func removeSplit(rowID: String) {

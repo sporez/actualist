@@ -58,13 +58,14 @@ struct BudgetMoveMoneySliderSpec: Equatable, Sendable {
     let amount: Int
     let detentAmount: Int
     let maximumAmount: Int
+    var currency: BudgetCurrency = .usd
 
     var amountDollars: Double {
-        Double(amount) / 100
+        currency.displayUnits(fromMinorUnits: amount)
     }
 
     var maximumDollars: Double {
-        Double(max(maximumAmount, 1)) / 100
+        currency.displayUnits(fromMinorUnits: max(maximumAmount, 1))
     }
 
     var isOvershooting: Bool {

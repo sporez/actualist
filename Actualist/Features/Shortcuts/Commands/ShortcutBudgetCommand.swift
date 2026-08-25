@@ -28,7 +28,9 @@ enum ShortcutBudgetCommand {
     ) async throws -> CategoryEntity {
         return try await session.withExclusiveWrite { prepared in
             let current = try await session.category(id: categoryID, month: month)
-            let currentBudgeted = try current.budgeted.map(ShortcutMoney.minorUnits(from:)) ?? 0
+            let currentBudgeted = try current.budgeted.map {
+                try ShortcutMoney.minorUnits(from: $0, currency: prepared.currency)
+            } ?? 0
             return try await assignLocked(
                 categoryID: categoryID,
                 amountMinorUnits: currentBudgeted + amountMinorUnits,

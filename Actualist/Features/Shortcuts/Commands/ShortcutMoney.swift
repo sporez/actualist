@@ -2,54 +2,60 @@ import AppIntents
 import Foundation
 
 enum ShortcutMoney {
-    static var currencyCode: String {
-        Locale.current.currency?.identifier ?? "USD"
+    static var fallback: BudgetCurrency {
+        BudgetCurrency.catalog(code: Locale.current.currency?.identifier ?? "USD")
     }
 
-    static func intentAmount(minorUnits: Int) -> IntentCurrencyAmount {
-        IntentCurrencyAmount(
-            amount: Decimal(minorUnits) / 100,
-            currencyCode: currencyCode
+    static var currencyCode: String {
+        fallback.code
+    }
+
+    static func intentAmount(
+        minorUnits: Int,
+        currency: BudgetCurrency? = nil
+    ) -> IntentCurrencyAmount {
+        let resolved = currency ?? fallback
+        return IntentCurrencyAmount(
+            amount: resolved.displayAmount(fromMinorUnits: minorUnits),
+            currencyCode: resolved.code
         )
     }
 
-    static func minorUnits(from decimal: Decimal) throws -> Int {
-        guard decimal.isFinite else {
+    static func minorUnits(
+        from decimal: Decimal,
+        currency: BudgetCurrency? = nil
+    ) throws -> Int {
+        let resolved = currency ?? fallback
+        guard let value = resolved.minorUnits(fromDisplay: decimal) else {
             throw ShortcutsError.amountInvalid
         }
-
-        var value = decimal
-        var rounded = Decimal()
-        NSDecimalRound(&rounded, &value, 2, .plain)
-
-        var cents = rounded * 100
-        var centsRounded = Decimal()
-        NSDecimalRound(&centsRounded, &cents, 0, .plain)
-
-        let number = NSDecimalNumber(decimal: centsRounded)
-        let minorUnits = number.intValue
-        guard NSDecimalNumber(value: minorUnits) == number else {
-            throw ShortcutsError.amountInvalid
-        }
-        return minorUnits
+        return value
     }
 
-    static func minorUnits(from amount: IntentCurrencyAmount) throws -> Int {
+    static func minorUnits(
+        from amount: IntentCurrencyAmount,
+        currency: BudgetCurrency? = nil
+    ) throws -> Int {
+        let resolved = currency ?? fallback
         let code = amount.currencyCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !code.isEmpty, code.caseInsensitiveCompare(currencyCode) != .orderedSame {
+        if !code.isEmpty, code.caseInsensitiveCompare(resolved.code) != .orderedSame {
             throw ShortcutsError.currencyMismatch
         }
-        return try minorUnits(from: amount.amount)
+        return try minorUnits(from: amount.amount, currency: resolved)
     }
 
-    static func spoken(_ amount: IntentCurrencyAmount?) -> String {
+    static func spoken(
+        _ amount: IntentCurrencyAmount?,
+        currency: BudgetCurrency? = nil
+    ) -> String {
+        let resolved = currency ?? fallback
         guard let amount else {
-            return Money(minorUnits: 0).formatted()
+            return resolved.formatted(0)
         }
-        return Money(minorUnits: (try? minorUnits(from: amount)) ?? 0).formatted()
+        return resolved.formatted((try? minorUnits(from: amount, currency: resolved)) ?? 0)
     }
 
-    static func spoken(minorUnits: Int) -> String {
-        Money(minorUnits: minorUnits).formatted()
+    static func spoken(minorUnits: Int, currency: BudgetCurrency? = nil) -> String {
+        (currency ?? fallback).formatted(minorUnits)
     }
 }

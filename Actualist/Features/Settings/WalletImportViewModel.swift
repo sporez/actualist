@@ -86,8 +86,11 @@ final class WalletImportViewModel {
         }
     }
 
-    func updateFields(_ fields: [WalletTransactionFields]) {
-        candidates = fields.compactMap(WalletTransactionMapper.map)
+    func updateFields(
+        _ fields: [WalletTransactionFields],
+        currency: BudgetCurrency = .usd
+    ) {
+        candidates = fields.compactMap { WalletTransactionMapper.map($0, currency: currency) }
         result = nil
         errorMessage = nil
     }

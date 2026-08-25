@@ -1,9 +1,33 @@
+import AppIntents
 import Foundation
 
 struct PreparedBudget {
     let budgetID: String
     let store: LocalFirstActualStore
     let defaultAccountID: String?
+
+    @MainActor
+    var currency: BudgetCurrency {
+        store.budgetCurrency(budgetID: budgetID)
+    }
+}
+
+extension ShortcutsBudgetSession {
+    func budgetCurrency() async throws -> BudgetCurrency {
+        try await prepare().currency
+    }
+
+    func minorUnits(from amount: IntentCurrencyAmount) async throws -> Int {
+        try ShortcutMoney.minorUnits(from: amount, currency: try await budgetCurrency())
+    }
+
+    func spoken(_ amount: IntentCurrencyAmount?) async throws -> String {
+        ShortcutMoney.spoken(amount, currency: try await budgetCurrency())
+    }
+
+    func spoken(minorUnits: Int) async throws -> String {
+        ShortcutMoney.spoken(minorUnits: minorUnits, currency: try await budgetCurrency())
+    }
 }
 
 @MainActor
@@ -128,7 +152,7 @@ final class ShortcutsBudgetSession {
             if let query, !ShortcutEntityMatching.name(display.account.name, matches: query) {
                 return nil
             }
-            return AccountEntity.make(from: display)
+            return AccountEntity.make(from: display, currency: prepared.currency)
         }
     }
 
@@ -155,7 +179,8 @@ final class ShortcutsBudgetSession {
             }
             return CategoryEntity.make(
                 from: category,
-                groupName: groupNames[category.groupID] ?? ""
+                groupName: groupNames[category.groupID] ?? "",
+                currency: month.currency
             )
         }
     }

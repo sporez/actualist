@@ -1,6 +1,8 @@
 import Foundation
 
 struct BudgetTemplateEngine {
+    var currency: BudgetCurrency = .usd
+
     struct Category: Sendable {
         let entries: [BudgetTemplateEntry]
         let fromLastMonth: Int
@@ -188,7 +190,7 @@ struct BudgetTemplateEngine {
             throw LocalFirstError.unsupportedTemplate("periodic")
         }
 
-        let amountInMinorUnits = try Self.amountToMinorUnits(amount)
+        let amountInMinorUnits = try amountToMinorUnits(amount)
         let monthStart = "\(Self.monthID(try Self.validatedMonth(monthValue)))-01"
         let starting = entry.starting?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let monthStartDate = Self.validatedDate(monthStart),
@@ -273,18 +275,15 @@ struct BudgetTemplateEngine {
         return result.partialValue
     }
 
-    static func amountToMinorUnits(_ amount: Double) throws -> Int {
+    func amountToMinorUnits(_ amount: Double) throws -> Int {
         // goal_def amounts are display decimals, not Actual's integer units.
         guard amount.isFinite, Bounds.amount.contains(amount) else {
             throw LocalFirstError.numericValueOutOfRange
         }
-        let scaled = amount * 100
-        guard scaled.isFinite,
-              scaled >= Double(Int.min),
-              scaled <= Double(Int.max) else {
+        guard let value = currency.minorUnits(fromDisplay: amount) else {
             throw LocalFirstError.numericValueOutOfRange
         }
-        return Int(scaled.rounded())
+        return value
     }
 
     private func validate(_ entry: BudgetTemplateEntry) throws {
@@ -455,7 +454,7 @@ struct BudgetTemplateEngine {
         }
 
         return LimitState(
-            limitAmount: try Self.amountToMinorUnits(amount),
+            limitAmount: try amountToMinorUnits(amount),
             fromLastMonth: category.fromLastMonth,
             holdsExcess: limit.hold == true
         )
@@ -470,7 +469,7 @@ struct BudgetTemplateEngine {
         switch entry.type {
         case "simple":
             if let monthly = entry.monthly {
-                return try Self.amountToMinorUnits(monthly)
+                return try amountToMinorUnits(monthly)
             }
             guard let limitState else {
                 throw LocalFirstError.unsupportedTemplate("simple without monthly amount")
@@ -595,7 +594,7 @@ struct BudgetTemplateEngine {
         }
 
         return (
-            amount: try Self.amountToMinorUnits(amount),
+            amount: try amountToMinorUnits(amount),
             monthsRemaining: monthsRemaining,
             repeatPeriod: repeatPeriod
         )

@@ -53,8 +53,12 @@ final class AccountReconciliationViewModel {
     var submissionState: AccountReconciliationSubmissionState = .draft
     var currency: BudgetCurrency = .usd
 
-    init(currentBalance: Int?) {
-        statementBalanceText = Self.formattedInput(cents: currentBalance ?? 0)
+    init(currentBalance: Int?, currency: BudgetCurrency = .usd) {
+        self.currency = currency
+        statementBalanceText = Self.formattedInput(
+            minorUnits: currentBalance ?? 0,
+            currency: currency
+        )
     }
 
     var canSubmit: Bool {
@@ -73,7 +77,7 @@ final class AccountReconciliationViewModel {
     }
 
     var statementBalanceMinorUnits: Int? {
-        Self.minorUnits(from: statementBalanceText)
+        Self.minorUnits(from: statementBalanceText, currency: currency)
     }
 
     var resultTitle: String? {
@@ -144,15 +148,11 @@ final class AccountReconciliationViewModel {
         }
     }
 
-    private static func formattedInput(cents: Int) -> String {
-        let sign = cents < 0 ? "-" : ""
-        let absolute = cents.magnitude
-        let centsValue = absolute % 100
-        let centsText = centsValue < 10 ? "0\(centsValue)" : "\(centsValue)"
-        return "\(sign)\(absolute / 100).\(centsText)"
+    static func formattedInput(minorUnits: Int, currency: BudgetCurrency) -> String {
+        currency.editableAmountText(fromMinorUnits: minorUnits)
     }
 
-    private static func minorUnits(from text: String) -> Int? {
+    private static func minorUnits(from text: String, currency: BudgetCurrency) -> Int? {
         let sanitized = text
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "$", with: "")
@@ -169,35 +169,26 @@ final class AccountReconciliationViewModel {
         let isNegative = sanitized.hasPrefix("-")
         let unsigned = isNegative ? String(sanitized.dropFirst()) : sanitized
         let pieces = unsigned.split(separator: ".", omittingEmptySubsequences: false)
-        guard (1...2).contains(pieces.count),
-              let dollars = Int(pieces[0]),
-              pieces[0].allSatisfy(\.isNumber) else {
-            return nil
-        }
-
-        let cents: Int
-        if pieces.count == 2 {
-            guard pieces[1].count <= 2, pieces[1].allSatisfy(\.isNumber) else {
+        if currency.decimalPlaces == 0 {
+            guard pieces.count == 1, unsigned.allSatisfy(\.isNumber) else {
                 return nil
             }
-            cents = Int(pieces[1].padding(toLength: 2, withPad: "0", startingAt: 0)) ?? 0
         } else {
-            cents = 0
+            guard (1...2).contains(pieces.count),
+                  pieces[0].allSatisfy(\.isNumber) else {
+                return nil
+            }
+            if pieces.count == 2 {
+                guard pieces[1].count <= currency.decimalPlaces,
+                      pieces[1].allSatisfy(\.isNumber) else {
+                    return nil
+                }
+            }
         }
-
-        let (dollarMinorUnits, multiplicationOverflow) = dollars.multipliedReportingOverflow(by: 100)
-        guard !multiplicationOverflow else {
+        guard let decimal = Decimal(string: isNegative ? "-\(unsigned)" : unsigned) else {
             return nil
         }
-        let (amount, additionOverflow) = dollarMinorUnits.addingReportingOverflow(cents)
-        guard !additionOverflow else {
-            return nil
-        }
-        if isNegative {
-            let (negativeAmount, negationOverflow) = 0.subtractingReportingOverflow(amount)
-            return negationOverflow ? nil : negativeAmount
-        }
-        return amount
+        return currency.minorUnits(fromDisplay: decimal)
     }
 }
 
@@ -257,6 +248,10 @@ struct AccountReconciliationSheet: View {
         .appSwitcherPrivacyAwareDragIndicator()
         .onAppear {
             viewModel.currency = currency
+            viewModel.statementBalanceText = AccountReconciliationViewModel.formattedInput(
+                minorUnits: currentBalance ?? 0,
+                currency: currency
+            )
         }
         .task {
             await Task.yield()

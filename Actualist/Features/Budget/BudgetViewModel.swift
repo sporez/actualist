@@ -180,11 +180,11 @@ final class BudgetViewModel {
     }
 
     var moveMoneyAmountDollars: Double {
-        moveMoneyWorkflow.amountDollars
+        moveMoneyWorkflow.amountDollars(using: currency)
     }
 
     var moveMoneyMaximumDollars: Double {
-        Double(moveMoneyMaximumAmount) / 100
+        currency.displayUnits(fromMinorUnits: max(moveMoneyMaximumAmount, 1))
     }
 
     var moveMoneyMaximumAmount: Int {
@@ -217,7 +217,8 @@ final class BudgetViewModel {
         moveMoneyWorkflow.sliderSpec(
             for: allocationID,
             budgetMonth: budgetMonth,
-            visibleGroups: visibleGroups
+            visibleGroups: visibleGroups,
+            currency: currency
         )
     }
 
@@ -235,7 +236,8 @@ final class BudgetViewModel {
             value,
             allocationID: allocationID,
             budgetMonth: budgetMonth,
-            visibleGroups: visibleGroups
+            visibleGroups: visibleGroups,
+            currency: currency
         )
     }
 
@@ -510,7 +512,7 @@ final class BudgetViewModel {
     }
 
     func setMoveMoneyAmountDollars(_ value: Double) {
-        moveMoneyWorkflow.setAmountDollars(value)
+        moveMoneyWorkflow.setAmountDollars(value, currency: currency)
     }
 
     func appendMoveMoneyDigit(_ digit: Int) {

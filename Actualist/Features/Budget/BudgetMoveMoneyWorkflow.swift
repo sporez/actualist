@@ -41,16 +41,16 @@ final class BudgetMoveMoneyWorkflow {
         return message
     }
 
-    var amountDollars: Double {
+    func amountDollars(using currency: BudgetCurrency) -> Double {
         guard let draft else {
             return 0
         }
 
         if let allocation = focusedAllocation(in: draft) {
-            return Double(allocation.amount) / 100
+            return currency.displayUnits(fromMinorUnits: allocation.amount)
         }
 
-        return Double(draft.amount) / 100
+        return currency.displayUnits(fromMinorUnits: draft.amount)
     }
 
     var displayAmount: Int {
@@ -150,16 +150,13 @@ final class BudgetMoveMoneyWorkflow {
         coverIntroTarget = nil
     }
 
-    func setAmountDollars(_ value: Double) {
+    func setAmountDollars(_ value: Double, currency: BudgetCurrency) {
         cancelCoverIntro()
         guard var draft = editableDraft else {
             return
         }
 
-        let cents = (max(0, value) * 100).rounded()
-        guard cents.isFinite,
-              cents <= Double(Self.maximumUserAmountMinorUnits),
-              let amount = Int(exactly: cents) else {
+        guard let amount = sliderMinorUnits(from: value, currency: currency) else {
             return
         }
         setFocusedAmount(amount, draft: &draft)
@@ -198,7 +195,8 @@ final class BudgetMoveMoneyWorkflow {
         _ value: Double,
         allocationID: String? = nil,
         budgetMonth: BudgetMonth?,
-        visibleGroups: [BudgetMonthCategoryGroup]
+        visibleGroups: [BudgetMonthCategoryGroup],
+        currency: BudgetCurrency
     ) {
         // Ignore the trailing set SwiftUI Slider sends after finger-up. That
         // value is the raw touch location, not the committed detent amount.
@@ -218,10 +216,7 @@ final class BudgetMoveMoneyWorkflow {
             self.draft = draft
         }
 
-        let cents = (max(0, value) * 100).rounded()
-        guard cents.isFinite,
-              cents <= Double(Self.maximumUserAmountMinorUnits),
-              let proposed = Int(exactly: cents) else {
+        guard let proposed = sliderMinorUnits(from: value, currency: currency) else {
             return
         }
 
@@ -366,7 +361,8 @@ final class BudgetMoveMoneyWorkflow {
     func sliderSpec(
         for allocationID: String? = nil,
         budgetMonth: BudgetMonth?,
-        visibleGroups: [BudgetMonthCategoryGroup]
+        visibleGroups: [BudgetMonthCategoryGroup],
+        currency: BudgetCurrency
     ) -> BudgetMoveMoneySliderSpec {
         BudgetMoveMoneySliderSpec(
             amount: sliderAmount(for: allocationID),
@@ -379,8 +375,17 @@ final class BudgetMoveMoneyWorkflow {
                 for: allocationID,
                 budgetMonth: budgetMonth,
                 visibleGroups: visibleGroups
-            )
+            ),
+            currency: currency
         )
+    }
+
+    private func sliderMinorUnits(from value: Double, currency: BudgetCurrency) -> Int? {
+        guard let amount = currency.minorUnits(fromDisplay: max(0, value)),
+              amount <= Self.maximumUserAmountMinorUnits else {
+            return nil
+        }
+        return amount
     }
 
     func maximumAmount(

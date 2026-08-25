@@ -59,13 +59,17 @@ enum WalletTransactionMapper {
         "SP "
     ]
 
-    static func map(_ fields: WalletTransactionFields) -> WalletTransactionCandidate? {
+    static func map(
+        _ fields: WalletTransactionFields,
+        currency: BudgetCurrency = .usd
+    ) -> WalletTransactionCandidate? {
         guard fields.status != .rejected else {
             return nil
         }
         guard let amountMinorUnits = signedMinorUnits(
             amount: fields.amount,
-            indicator: fields.creditDebitIndicator
+            indicator: fields.creditDebitIndicator,
+            currency: currency
         ) else {
             return nil
         }
@@ -146,20 +150,12 @@ enum WalletTransactionMapper {
 
     static func signedMinorUnits(
         amount: Decimal,
-        indicator: WalletCreditDebitIndicator
+        indicator: WalletCreditDebitIndicator,
+        currency: BudgetCurrency = .usd
     ) -> Int? {
-        guard amount.isFinite else {
-            return nil
-        }
-
-        let magnitude = amount.magnitude
-        var scaled = magnitude * 100
-        var cents = Decimal()
-        NSDecimalRound(&cents, &scaled, 0, .plain)
-
-        let number = NSDecimalNumber(decimal: cents)
-        let value = number.intValue
-        guard NSDecimalNumber(value: value) == number, value != 0 else {
+        guard amount.isFinite,
+              let value = currency.minorUnits(fromDisplay: amount.magnitude),
+              value != 0 else {
             return nil
         }
         return indicator == .credit ? value : -value

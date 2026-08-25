@@ -48,7 +48,7 @@ struct AssignCategoryBudgetIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<CategoryEntity> & ProvidesDialog {
         let updated = try await ShortcutBudgetCommand.assign(
             categoryID: category.id,
-            amountMinorUnits: try ShortcutMoney.minorUnits(from: amount),
+            amountMinorUnits: try await session.minorUnits(from: amount),
             month: month?.id,
             session: session
         )
@@ -86,7 +86,7 @@ struct AddToCategoryBudgetIntent: AppIntent {
     func perform() async throws -> some IntentResult & ReturnsValue<CategoryEntity> & ProvidesDialog {
         let updated = try await ShortcutBudgetCommand.add(
             categoryID: category.id,
-            amountMinorUnits: try ShortcutMoney.minorUnits(from: amount),
+            amountMinorUnits: try await session.minorUnits(from: amount),
             month: month?.id,
             session: session
         )
@@ -130,7 +130,7 @@ struct MoveMoneyIntent: AppIntent {
         let updated = try await ShortcutBudgetCommand.move(
             fromCategoryID: fromCategory?.id,
             toCategoryID: toCategory?.id,
-            amountMinorUnits: try ShortcutMoney.minorUnits(from: amount),
+            amountMinorUnits: try await session.minorUnits(from: amount),
             month: month?.id,
             session: session
         )

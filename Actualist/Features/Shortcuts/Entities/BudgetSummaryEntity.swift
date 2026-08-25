@@ -65,19 +65,19 @@ struct BudgetSummaryEntity: AppEntity {
         return BudgetSummaryEntity(
             id: loaded.selectedMonth,
             month: loaded.selectedMonth,
-            readyToAssign: ShortcutMoney.intentAmount(minorUnits: month.toBudget),
-            totalBudgeted: ShortcutMoney.intentAmount(minorUnits: month.totalBudgeted),
-            totalSpent: ShortcutMoney.intentAmount(minorUnits: month.totalSpent),
-            totalIncome: ShortcutMoney.intentAmount(minorUnits: month.totalIncome),
-            fromLastMonth: ShortcutMoney.intentAmount(minorUnits: month.fromLastMonth),
-            forNextMonth: ShortcutMoney.intentAmount(minorUnits: month.forNextMonth),
-            incomeAvailable: ShortcutMoney.intentAmount(minorUnits: month.incomeAvailable)
+            readyToAssign: ShortcutMoney.intentAmount(minorUnits: month.toBudget, currency: loaded.currency),
+            totalBudgeted: ShortcutMoney.intentAmount(minorUnits: month.totalBudgeted, currency: loaded.currency),
+            totalSpent: ShortcutMoney.intentAmount(minorUnits: month.totalSpent, currency: loaded.currency),
+            totalIncome: ShortcutMoney.intentAmount(minorUnits: month.totalIncome, currency: loaded.currency),
+            fromLastMonth: ShortcutMoney.intentAmount(minorUnits: month.fromLastMonth, currency: loaded.currency),
+            forNextMonth: ShortcutMoney.intentAmount(minorUnits: month.forNextMonth, currency: loaded.currency),
+            incomeAvailable: ShortcutMoney.intentAmount(minorUnits: month.incomeAvailable, currency: loaded.currency)
         )
     }
 
     private var readyToAssignSubtitle: LocalizedStringResource {
         let spoken = readyToAssign.map {
-            Money(minorUnits: (try? ShortcutMoney.minorUnits(from: $0)) ?? 0).formatted()
+            ShortcutMoney.spoken($0, currency: BudgetCurrency.catalog(code: $0.currencyCode))
         } ?? "—"
         return "Ready to assign \(spoken)"
     }

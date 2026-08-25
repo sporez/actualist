@@ -192,9 +192,9 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let monthValue = try Self.actualMonthValue(month)
-        let templateEngine = BudgetTemplateEngine()
 
         return try queue.read { db in
+            let templateEngine = BudgetTemplateEngine(currency: try budgetCurrency(db: db))
             let columns = try requiredColumns(
                 table: "zero_budgets",
                 required: ["month", "category", "amount"],
