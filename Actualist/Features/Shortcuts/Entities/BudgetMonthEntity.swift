@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct BudgetMonthEntity: AppEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Budget Month"
-    static var defaultQuery = BudgetMonthEntityQuery()
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Budget Month"
+    static let defaultQuery = BudgetMonthEntityQuery()
 
     var id: String
 

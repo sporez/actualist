@@ -152,7 +152,7 @@ enum WalletTransactionMapper {
             return nil
         }
 
-        var magnitude = amount.magnitude
+        let magnitude = amount.magnitude
         var scaled = magnitude * 100
         var cents = Decimal()
         NSDecimalRound(&cents, &scaled, 0, .plain)

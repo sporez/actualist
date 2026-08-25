@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct GetNetWorthIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Net Worth"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Net Worth"
+    static let description = IntentDescription(
         "Returns net worth and the change over the report range.",
         categoryName: "Reports"
     )
@@ -31,8 +31,8 @@ struct GetNetWorthIntent: AppIntent {
 }
 
 struct GetCashFlowIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Cash Flow"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Cash Flow"
+    static let description = IntentDescription(
         "Returns income, expenses, net, and uncategorized for a month.",
         categoryName: "Reports"
     )
@@ -65,8 +65,8 @@ struct GetCashFlowIntent: AppIntent {
 }
 
 struct GetBudgetOverviewIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Budget Overview"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Budget Overview"
+    static let description = IntentDescription(
         "Returns actual vs budgeted spending and the variance.",
         categoryName: "Reports"
     )

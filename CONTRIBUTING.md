@@ -14,9 +14,8 @@ tests can be submitted directly as pull requests.
 - Keep production reads and writes behind `LocalFirstActualStore` and the
   repository protocols.
 - Add every new Swift file to `Actualist.xcodeproj/project.pbxproj`.
-- Run the relevant tests and `git diff --check` before submitting.
-- Run `scripts/lint-liquid-glass.sh` after UI or design-system changes.
-- Run `scripts/lint-testflight-notes.sh` after adding `TestFlight-Note` trailers.
+- Run `scripts/check.sh` and the relevant tests before submitting.
+- Pin simulator destinations by UDID, not display name.
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full development and
 verification workflow.

@@ -403,7 +403,9 @@ final class CredentialHeaderURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-final class FakeKeychainBackend: KeychainBackend {
+// Test-only. Mutated from the test's single cooperative thread, never shared
+// with production code or a second test at the same time.
+final class FakeKeychainBackend: KeychainBackend, @unchecked Sendable {
     var updateFailureStatus: OSStatus?
     var addFailureStatus: OSStatus?
     var deleteFailureStatus: OSStatus?

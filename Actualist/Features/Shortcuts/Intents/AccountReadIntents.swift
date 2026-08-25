@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct GetAccountsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Accounts"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Accounts"
+    static let description = IntentDescription(
         "Returns accounts in the selected budget.",
         categoryName: "Accounts"
     )
@@ -37,8 +37,8 @@ struct GetAccountsIntent: AppIntent {
 }
 
 struct GetAccountIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Account"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Account"
+    static let description = IntentDescription(
         "Returns one account, including its balance.",
         categoryName: "Accounts"
     )
@@ -62,8 +62,8 @@ struct GetAccountIntent: AppIntent {
 }
 
 struct GetAccountBalanceIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Account Balance"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Account Balance"
+    static let description = IntentDescription(
         "Returns the balance of one account.",
         categoryName: "Accounts"
     )
@@ -88,8 +88,8 @@ struct GetAccountBalanceIntent: AppIntent {
 }
 
 struct GetAccountTransactionsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Account Transactions"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Account Transactions"
+    static let description = IntentDescription(
         "Returns recent transactions for one account.",
         categoryName: "Accounts"
     )

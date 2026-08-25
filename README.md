@@ -142,9 +142,10 @@ them and verify the result in Actual.
   Actual server or another Actual client will arrive through normal sync.
 - Account reconciliation is not yet available.
 - Account lifecycle actions beyond adding an account are incomplete.
-- Payee rules support Actual's common conditions and field-setting/note actions.
-  Schedule, split-formula, delete-transaction, and other unsupported rule shapes
-  remain visible but read-only so their JSON is never rewritten or lost.
+- Payee rules support Actual's common conditions, field-setting and note
+  actions, delete-transaction, and fixed/percent/remainder splits. Formula
+  actions, some date and recurrence shapes, and schedule-owned rules stay
+  visible but read-only so their JSON is never rewritten or lost.
 - Budget Templates support only a subset of Actual's template behavior and remain
   experimental.
 
@@ -204,13 +205,19 @@ scripts/run-ios-simulator.sh --boot
 Run the test suite with an installed iOS 26 simulator:
 
 ```sh
+scripts/check.sh
+
 xcodebuild \
   -project Actualist.xcodeproj \
   -scheme Actualist \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,id=C5B2326B-19F7-4CB8-A2CA-E33C7EDBABA6' \
   -derivedDataPath .derivedData \
   test
 ```
+
+Pin the simulator by UDID, not display name. The id above is this repo's
+known-good iOS 26.3.1 iPhone 17 Pro. List yours with
+`xcrun simctl list devices available`.
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full development and
 release workflow.

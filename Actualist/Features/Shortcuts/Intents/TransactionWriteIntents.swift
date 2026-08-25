@@ -5,8 +5,8 @@ enum ShortcutTransactionDirectionAppEnum: String, AppEnum {
     case spend
     case inflow
 
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Direction")
-    static var caseDisplayRepresentations: [ShortcutTransactionDirectionAppEnum: DisplayRepresentation] = [
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Direction")
+    static let caseDisplayRepresentations: [ShortcutTransactionDirectionAppEnum: DisplayRepresentation] = [
         .spend: "Spend",
         .inflow: "Inflow"
     ]
@@ -20,8 +20,8 @@ enum ShortcutTransactionDirectionAppEnum: String, AppEnum {
 }
 
 struct LogTransactionIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Transaction"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Log Transaction"
+    static let description = IntentDescription(
         "Logs a transaction in the selected budget immediately.",
         categoryName: "Transactions"
     )
@@ -91,8 +91,8 @@ struct LogTransactionIntent: AppIntent {
 }
 
 struct LogTransferIntent: AppIntent {
-    static var title: LocalizedStringResource = "Log Transfer"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Log Transfer"
+    static let description = IntentDescription(
         "Transfers money between two accounts immediately.",
         categoryName: "Transactions"
     )
@@ -141,8 +141,8 @@ struct LogTransferIntent: AppIntent {
 }
 
 struct UpdateTransactionIntent: AppIntent {
-    static var title: LocalizedStringResource = "Update Transaction"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Update Transaction"
+    static let description = IntentDescription(
         "Updates a transaction immediately.",
         categoryName: "Transactions"
     )
@@ -217,8 +217,8 @@ struct UpdateTransactionIntent: AppIntent {
 }
 
 struct CategorizeTransactionIntent: AppIntent {
-    static var title: LocalizedStringResource = "Categorize Transaction"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Categorize Transaction"
+    static let description = IntentDescription(
         "Sets a transaction's category immediately.",
         categoryName: "Transactions"
     )
@@ -248,8 +248,8 @@ struct CategorizeTransactionIntent: AppIntent {
 }
 
 struct SetTransactionClearedIntent: AppIntent {
-    static var title: LocalizedStringResource = "Set Transaction Cleared"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Set Transaction Cleared"
+    static let description = IntentDescription(
         "Marks a transaction cleared or uncleared immediately.",
         categoryName: "Transactions"
     )
@@ -280,8 +280,8 @@ struct SetTransactionClearedIntent: AppIntent {
 }
 
 struct DeleteTransactionIntent: AppIntent {
-    static var title: LocalizedStringResource = "Delete Transaction"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Delete Transaction"
+    static let description = IntentDescription(
         "Deletes a transaction immediately.",
         categoryName: "Transactions"
     )
@@ -308,8 +308,8 @@ struct DeleteTransactionIntent: AppIntent {
 }
 
 struct ImportTransactionFromTextIntent: AppIntent {
-    static var title: LocalizedStringResource = "Import Transaction from Text"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Import Transaction from Text"
+    static let description = IntentDescription(
         "Parses text and logs the transaction immediately.",
         categoryName: "Transactions"
     )

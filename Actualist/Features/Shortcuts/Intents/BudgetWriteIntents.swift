@@ -5,8 +5,8 @@ enum ShortcutTemplateMode: String, AppEnum {
     case fillEmpty
     case overwrite
 
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Template Mode")
-    static var caseDisplayRepresentations: [ShortcutTemplateMode: DisplayRepresentation] = [
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Template Mode")
+    static let caseDisplayRepresentations: [ShortcutTemplateMode: DisplayRepresentation] = [
         .fillEmpty: "Fill Empty",
         .overwrite: "Overwrite"
     ]
@@ -20,8 +20,8 @@ enum ShortcutTemplateMode: String, AppEnum {
 }
 
 struct AssignCategoryBudgetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Assign Category Budget"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Assign Category Budget"
+    static let description = IntentDescription(
         "Sets the budgeted amount for a category.",
         categoryName: "Budget"
     )
@@ -58,8 +58,8 @@ struct AssignCategoryBudgetIntent: AppIntent {
 }
 
 struct AddToCategoryBudgetIntent: AppIntent {
-    static var title: LocalizedStringResource = "Add to Category Budget"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Add to Category Budget"
+    static let description = IntentDescription(
         "Adds an amount to a category's current budgeted value.",
         categoryName: "Budget"
     )
@@ -96,8 +96,8 @@ struct AddToCategoryBudgetIntent: AppIntent {
 }
 
 struct MoveMoneyIntent: AppIntent {
-    static var title: LocalizedStringResource = "Move Money"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Move Money"
+    static let description = IntentDescription(
         "Moves money between categories or Ready to Assign.",
         categoryName: "Budget"
     )
@@ -140,8 +140,8 @@ struct MoveMoneyIntent: AppIntent {
 }
 
 struct ApplyBudgetTemplateIntent: AppIntent {
-    static var title: LocalizedStringResource = "Apply Budget Template"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Apply Budget Template"
+    static let description = IntentDescription(
         "Applies a budget template to a month or one category.",
         categoryName: "Budget"
     )
@@ -178,8 +178,8 @@ struct ApplyBudgetTemplateIntent: AppIntent {
 }
 
 struct SetCategoryCarryoverIntent: AppIntent {
-    static var title: LocalizedStringResource = "Set Category Carryover"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Set Category Carryover"
+    static let description = IntentDescription(
         "Enables or disables category carryover from a start month.",
         categoryName: "Budget"
     )
@@ -217,8 +217,8 @@ struct SetCategoryCarryoverIntent: AppIntent {
 }
 
 struct CreatePayeeIntent: AppIntent {
-    static var title: LocalizedStringResource = "Create Payee"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Create Payee"
+    static let description = IntentDescription(
         "Creates a payee in the selected budget.",
         categoryName: "Transactions"
     )
@@ -241,8 +241,8 @@ struct CreatePayeeIntent: AppIntent {
 }
 
 struct CreateAccountIntent: AppIntent {
-    static var title: LocalizedStringResource = "Create Account"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Create Account"
+    static let description = IntentDescription(
         "Creates an account in the selected budget.",
         categoryName: "Accounts"
     )

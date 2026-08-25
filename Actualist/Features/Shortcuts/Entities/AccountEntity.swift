@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct AccountEntity: AppEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Account"
-    static var defaultQuery = AccountEntityQuery()
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Account"
+    static let defaultQuery = AccountEntityQuery()
 
     var id: String
 

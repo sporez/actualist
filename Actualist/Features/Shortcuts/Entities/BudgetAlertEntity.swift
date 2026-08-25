@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct BudgetAlertEntity: AppEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Budget Alert"
-    static var defaultQuery = BudgetAlertEntityQuery()
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Budget Alert"
+    static let defaultQuery = BudgetAlertEntityQuery()
 
     var id: String
 

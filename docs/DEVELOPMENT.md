@@ -4,8 +4,10 @@ Actualist is an iPhone SwiftUI app targeting iOS 26+. Use Xcode 26 or later.
 
 ## Build And Run
 
-The simulator helper builds, installs, and launches the app. It uses an iPhone
-17 Pro by default and accepts environment overrides documented by `--help`.
+The simulator helper builds, installs, and launches the app. Pin the
+simulator by UDID: copy `scripts/lib/destinations.example.sh` to
+`scripts/lib/destinations.sh` (gitignored) and set `ACTUALIST_SIMULATOR_ID`.
+Environment overrides are documented by `--help`.
 
 ```sh
 scripts/run-ios-simulator.sh --boot
@@ -17,18 +19,33 @@ To build without launching:
 scripts/run-ios-simulator.sh --no-launch
 ```
 
+## Mechanical Check
+
+Run the cheap pre-handoff gate before a commit. It does not build or test:
+
+```sh
+scripts/check.sh
+```
+
+That covers `git diff --check`, Liquid Glass lint, TestFlight-note lint when
+trailers are present, `project.pbxproj` membership for every Swift file, and
+file-size warnings for touched sources.
+
 ## Tests
 
-Run the unit tests with an installed iOS 26 simulator:
+Run the unit tests against the pinned iOS 26 simulator:
 
 ```sh
 xcodebuild \
   -project Actualist.xcodeproj \
   -scheme Actualist \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -destination 'platform=iOS Simulator,id=C5B2326B-19F7-4CB8-A2CA-E33C7EDBABA6' \
   -derivedDataPath .derivedData \
   test
 ```
+
+Do not use `name=iPhone 17 Pro`. A second simulator with that name can hang
+`xcodebuild`. Override the id with `ACTUALIST_SIMULATOR_ID` if needed.
 
 ## TestFlight
 

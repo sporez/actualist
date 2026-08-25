@@ -40,6 +40,7 @@ enum AppIcon: String, CaseIterable, Identifiable {
         }
     }
 
+    @MainActor
     static func current(in application: UIApplication = .shared) -> AppIcon {
         let name = application.alternateIconName
         return allCases.first { $0.alternateIconName == name } ?? .default

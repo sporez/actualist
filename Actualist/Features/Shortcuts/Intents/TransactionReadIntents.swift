@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct GetTransactionsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Transactions"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Transactions"
+    static let description = IntentDescription(
         "Returns recent or matching transactions in the selected budget.",
         categoryName: "Transactions"
     )
@@ -40,8 +40,8 @@ struct GetTransactionsIntent: AppIntent {
 }
 
 struct GetTransactionIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Transaction"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Transaction"
+    static let description = IntentDescription(
         "Returns one transaction.",
         categoryName: "Transactions"
     )

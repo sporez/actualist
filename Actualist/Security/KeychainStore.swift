@@ -1,14 +1,14 @@
 import Foundation
 import Security
 
-protocol KeychainBackend {
+protocol KeychainBackend: Sendable {
     func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus
     func update(_ query: CFDictionary, attributes: CFDictionary) -> OSStatus
     func add(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus
     func delete(_ query: CFDictionary) -> OSStatus
 }
 
-struct SystemKeychainBackend: KeychainBackend {
+struct SystemKeychainBackend: KeychainBackend, Sendable {
     func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus {
         SecItemCopyMatching(query, result)
     }
@@ -26,12 +26,22 @@ struct SystemKeychainBackend: KeychainBackend {
     }
 }
 
-struct KeychainStore {
+struct KeychainStore: Sendable {
     static let actualist = KeychainStore(service: "com.sporez.actualist", account: "actual-sync-token")
 
     let service: String
     let account: String
-    var backend: any KeychainBackend = SystemKeychainBackend()
+    let backend: any KeychainBackend
+
+    init(
+        service: String,
+        account: String,
+        backend: any KeychainBackend = SystemKeychainBackend()
+    ) {
+        self.service = service
+        self.account = account
+        self.backend = backend
+    }
 
     func readActualSyncToken() -> String {
         guard let data = readData(),

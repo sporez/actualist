@@ -2,8 +2,8 @@ import AppIntents
 import Foundation
 
 struct PayeeEntity: AppEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Payee"
-    static var defaultQuery = PayeeEntityQuery()
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Payee"
+    static let defaultQuery = PayeeEntityQuery()
 
     var id: String
 

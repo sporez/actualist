@@ -6,8 +6,8 @@ enum CategoryBalanceMetric: String, AppEnum {
     case budgeted
     case spent
 
-    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Category Metric")
-    static var caseDisplayRepresentations: [CategoryBalanceMetric: DisplayRepresentation] = [
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Category Metric")
+    static let caseDisplayRepresentations: [CategoryBalanceMetric: DisplayRepresentation] = [
         .available: "Available",
         .budgeted: "Budgeted",
         .spent: "Spent"
@@ -15,8 +15,8 @@ enum CategoryBalanceMetric: String, AppEnum {
 }
 
 struct GetCategoriesIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Categories"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Categories"
+    static let description = IntentDescription(
         "Returns categories in the selected budget.",
         categoryName: "Budget"
     )
@@ -48,8 +48,8 @@ struct GetCategoriesIntent: AppIntent {
 }
 
 struct GetCategoryIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Category"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Category"
+    static let description = IntentDescription(
         "Returns one category, including available, budgeted, and spent.",
         categoryName: "Budget"
     )
@@ -78,8 +78,8 @@ struct GetCategoryIntent: AppIntent {
 }
 
 struct GetCategoryBalanceIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Category Balance"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Category Balance"
+    static let description = IntentDescription(
         "Returns available, budgeted, or spent for one category.",
         categoryName: "Budget"
     )
@@ -125,8 +125,8 @@ struct GetCategoryBalanceIntent: AppIntent {
 }
 
 struct GetPayeesIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Payees"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Payees"
+    static let description = IntentDescription(
         "Returns payees in the selected budget.",
         categoryName: "Transactions"
     )
@@ -151,8 +151,8 @@ struct GetPayeesIntent: AppIntent {
 }
 
 struct GetReadyToAssignIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Ready to Assign"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Ready to Assign"
+    static let description = IntentDescription(
         "Returns the amount ready to assign for a budget month.",
         categoryName: "Budget"
     )
@@ -179,8 +179,8 @@ struct GetReadyToAssignIntent: AppIntent {
 }
 
 struct GetBudgetSummaryIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Budget Summary"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Budget Summary"
+    static let description = IntentDescription(
         "Returns ready to assign and month totals.",
         categoryName: "Budget"
     )
@@ -206,8 +206,8 @@ struct GetBudgetSummaryIntent: AppIntent {
 }
 
 struct GetOverspentCategoriesIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Overspent Categories"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Overspent Categories"
+    static let description = IntentDescription(
         "Returns visible expense categories that are overspent.",
         categoryName: "Budget"
     )
@@ -232,8 +232,8 @@ struct GetOverspentCategoriesIntent: AppIntent {
 }
 
 struct GetUncategorizedTransactionsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Uncategorized Transactions"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Uncategorized Transactions"
+    static let description = IntentDescription(
         "Returns uncategorized transactions for a budget month.",
         categoryName: "Budget"
     )
@@ -262,8 +262,8 @@ struct GetUncategorizedTransactionsIntent: AppIntent {
 }
 
 struct GetUncategorizedCountIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Uncategorized Count"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Uncategorized Count"
+    static let description = IntentDescription(
         "Returns how many transactions are uncategorized in a month.",
         categoryName: "Budget"
     )
@@ -288,8 +288,8 @@ struct GetUncategorizedCountIntent: AppIntent {
 }
 
 struct GetBudgetAlertsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Get Budget Alerts"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Get Budget Alerts"
+    static let description = IntentDescription(
         "Returns ready-to-assign, overspent, and uncategorized alerts.",
         categoryName: "Budget"
     )

@@ -2,12 +2,12 @@ import AppIntents
 import Foundation
 
 struct OpenBudgetIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open Budget"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open Budget"
+    static let description = IntentDescription(
         "Opens the Budget tab.",
         categoryName: "Budget"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
 
     @Dependency
     var session: ShortcutsBudgetSession
@@ -19,12 +19,12 @@ struct OpenBudgetIntent: ForegroundContinuableIntent {
 }
 
 struct OpenAccountsIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open Accounts"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open Accounts"
+    static let description = IntentDescription(
         "Opens the Accounts tab.",
         categoryName: "Accounts"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
 
     @Dependency
     var session: ShortcutsBudgetSession
@@ -36,12 +36,12 @@ struct OpenAccountsIntent: ForegroundContinuableIntent {
 }
 
 struct OpenSpendingIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open Spending"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open Spending"
+    static let description = IntentDescription(
         "Opens the Spending tab.",
         categoryName: "Transactions"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
 
     @Dependency
     var session: ShortcutsBudgetSession
@@ -53,12 +53,12 @@ struct OpenSpendingIntent: ForegroundContinuableIntent {
 }
 
 struct OpenReportsIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open Reports"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open Reports"
+    static let description = IntentDescription(
         "Opens the Reports tab.",
         categoryName: "Reports"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
 
     @Dependency
     var session: ShortcutsBudgetSession
@@ -70,12 +70,12 @@ struct OpenReportsIntent: ForegroundContinuableIntent {
 }
 
 struct OpenAccountIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open Account"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open Account"
+    static let description = IntentDescription(
         "Opens one account in Actualist.",
         categoryName: "Accounts"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")
@@ -96,12 +96,12 @@ struct OpenAccountIntent: ForegroundContinuableIntent {
 }
 
 struct OpenCategoryIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open Category"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open Category"
+    static let description = IntentDescription(
         "Opens one category's month details.",
         categoryName: "Budget"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Category")
@@ -127,12 +127,12 @@ struct OpenCategoryIntent: ForegroundContinuableIntent {
 }
 
 struct OpenUncategorizedIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open Uncategorized"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open Uncategorized"
+    static let description = IntentDescription(
         "Opens uncategorized transactions for a month.",
         categoryName: "Budget"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Month")
@@ -155,12 +155,12 @@ struct OpenUncategorizedIntent: ForegroundContinuableIntent {
 }
 
 struct OpenNewTransactionIntent: ForegroundContinuableIntent {
-    static var title: LocalizedStringResource = "Open New Transaction"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Open New Transaction"
+    static let description = IntentDescription(
         "Opens the transaction editor with optional prefill. Does not write.",
         categoryName: "Transactions"
     )
-    static var openAppWhenRun = true
+    static let openAppWhenRun = true
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Account")

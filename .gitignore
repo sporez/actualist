@@ -58,7 +58,16 @@ Local.xcconfig
 # Local development artifacts
 .artifacts/
 .release/
-scripts/
+scripts/*
+!scripts/check.sh
+!scripts/lint-liquid-glass.sh
+!scripts/lint-testflight-notes.sh
+!scripts/run-ios-simulator.sh
+!scripts/lib/
+!scripts/lib/destinations.example.sh
+!scripts/lib/load-destinations.sh
+!scripts/lib/testflight-notes.sh
+scripts/lib/destinations.sh
 .xcode-ota.yml
 .xcode-ota/
 .xcode-ota/builds/
