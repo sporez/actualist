@@ -167,6 +167,10 @@ struct BudgetTemplateEngine {
                     }
                 }
 
+                if currency.hideFraction {
+                    amount = currency.removingFraction(fromMinorUnits: amount)
+                }
+
                 if priority > 0, amount > 0, remainingAvailable < amount {
                     amount = max(0, remainingAvailable)
                 }

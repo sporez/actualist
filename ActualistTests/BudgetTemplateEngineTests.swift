@@ -97,6 +97,123 @@ struct BudgetTemplateEngineTests {
         #expect(amounts["copy"] == 12_345)
     }
 
+    @Test func hideFractionRoundsEachPriorityIncrementToWholeCurrencyUnits() throws {
+        let hidden = BudgetTemplateEngine(
+            currency: BudgetCurrency.catalog(code: "USD", hideFraction: true)
+        )
+        let visible = BudgetTemplateEngine()
+        let decoded = try hidden.decodeSupportedEntries(
+            json: """
+                [{
+                  "directive": "template",
+                  "type": "simple",
+                  "monthly": 12.34,
+                  "priority": 0
+                }]
+                """
+        )
+        let entries = try #require(decoded)
+
+        #expect(
+            try hidden.computeWrites(
+                categories: [
+                    "rounded": .init(
+                        entries: entries,
+                        fromLastMonth: 0,
+                        copiedBudgetedByLookBack: [:]
+                    )
+                ],
+                monthValue: 202607,
+                availableBudget: 100_000
+            ).map(\.amount) == [1_200]
+        )
+        #expect(
+            try visible.computeWrites(
+                categories: [
+                    "exact": .init(
+                        entries: entries,
+                        fromLastMonth: 0,
+                        copiedBudgetedByLookBack: [:]
+                    )
+                ],
+                monthValue: 202607,
+                availableBudget: 100_000
+            ).map(\.amount) == [1_234]
+        )
+    }
+
+    @Test func hideFractionRoundsHalfAwayFromZeroThenAvailableClampStillApplies() throws {
+        let engine = BudgetTemplateEngine(
+            currency: BudgetCurrency.catalog(code: "USD", hideFraction: true)
+        )
+        let decoded = try engine.decodeSupportedEntries(
+            json: """
+                [{
+                  "directive": "template",
+                  "type": "simple",
+                  "monthly": 12.50,
+                  "priority": 1
+                }]
+                """
+        )
+        let entries = try #require(decoded)
+
+        let unclamped = try engine.computeWrites(
+            categories: [
+                "half": .init(
+                    entries: entries,
+                    fromLastMonth: 0,
+                    copiedBudgetedByLookBack: [:]
+                )
+            ],
+            monthValue: 202607,
+            availableBudget: 100_000
+        )
+        #expect(unclamped.map(\.amount) == [1_300])
+
+        let clamped = try engine.computeWrites(
+            categories: [
+                "half": .init(
+                    entries: entries,
+                    fromLastMonth: 0,
+                    copiedBudgetedByLookBack: [:]
+                )
+            ],
+            monthValue: 202607,
+            availableBudget: 1_250
+        )
+        #expect(clamped.map(\.amount) == [1_250])
+    }
+
+    @Test func hideFractionDoesNotRescaleZeroDecimalCurrencies() throws {
+        let engine = BudgetTemplateEngine(
+            currency: BudgetCurrency.catalog(code: "JPY", hideFraction: true)
+        )
+        let decoded = try engine.decodeSupportedEntries(
+            json: """
+                [{
+                  "directive": "template",
+                  "type": "simple",
+                  "monthly": 1234,
+                  "priority": 0
+                }]
+                """
+        )
+        let entries = try #require(decoded)
+        let writes = try engine.computeWrites(
+            categories: [
+                "yen": .init(
+                    entries: entries,
+                    fromLastMonth: 0,
+                    copiedBudgetedByLookBack: [:]
+                )
+            ],
+            monthValue: 202607,
+            availableBudget: 100_000
+        )
+        #expect(writes.map(\.amount) == [1_234])
+    }
+
     @Test func targetValidationRejectsAnExpiredNonRepeatingMonth() throws {
         let decoded = try engine.decodeSupportedEntries(
             json: """
