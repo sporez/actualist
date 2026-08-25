@@ -90,27 +90,11 @@ struct BudgetGroupSection: View {
     }
 
     private var groupBudgetedText: String {
-        guard isPrivacyModeEnabled else {
-            return group.budgeted.actualMoney.formatted()
-        }
-
-        return PrivacyDisplay.money(
-            group.budgeted,
-            seed: "budget-group-budgeted-\(group.id)",
-            maximumDollars: 2_500
-        )
+        group.budgeted.actualMoney.formatted()
     }
 
     private var groupBalanceText: String {
-        guard isPrivacyModeEnabled else {
-            return group.balance.actualMoney.formatted()
-        }
-
-        return PrivacyDisplay.money(
-            group.balance,
-            seed: "budget-group-balance-\(group.id)",
-            maximumDollars: 2_500
-        )
+        group.balance.actualMoney.formatted()
     }
 }
 
@@ -264,27 +248,11 @@ struct BudgetCategoryRow: View {
     }
 
     private var assignedPrimaryText: String {
-        guard isPrivacyModeEnabled, !assignedDisplay.isEditing else {
-            return assignedDisplay.primaryText
-        }
-
-        return PrivacyDisplay.money(
-            category.budgeted,
-            seed: "budget-category-budgeted-\(category.id)",
-            maximumDollars: 900
-        )
+        assignedDisplay.primaryText
     }
 
     private var availableText: String {
-        guard isPrivacyModeEnabled else {
-            return category.balance.actualMoney.formatted()
-        }
-
-        return PrivacyDisplay.money(
-            category.balance,
-            seed: "budget-category-available-\(category.id)",
-            maximumDollars: 900
-        )
+        category.balance.actualMoney.formatted()
     }
 }
 

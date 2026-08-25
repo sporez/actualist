@@ -336,11 +336,23 @@ struct BudgetView: View {
         }
     }
 
+    private var displayedBudgetMonth: BudgetMonth? {
+        BudgetMonthPrivacyProjection.displayMonth(
+            viewModel.budgetMonth,
+            isEnabled: appState.settings.randomizedDisplayValuesEnabled
+        )
+    }
+
+    private var displayedGroups: [BudgetMonthCategoryGroup] {
+        displayedBudgetMonth?.categoryGroups.filter { !$0.isIncome } ?? []
+    }
+
     private var displayedBudgetAlerts: [BudgetAlert] {
         BudgetMonthSummaryPresentation.alerts(
             from: viewModel.budgetAlerts,
-            month: viewModel.budgetMonth,
-            showTotalAssigned: appState.settings.showTotalAssigned
+            month: displayedBudgetMonth,
+            showTotalAssigned: appState.settings.showTotalAssigned,
+            includeCarryoverInOverspent: appState.settings.includeCarryoverCategoriesInOverspentAlerts
         )
     }
 
@@ -363,7 +375,7 @@ struct BudgetView: View {
         let assignedText = assignedDisplayText(for: alert)
         return HStack(spacing: 10) {
             if let valueText = alert.valueText {
-                Text(displayAlertValueText(alert, fallback: valueText))
+                Text(valueText)
                     .font(ActualistTypography.workScreenAmount(for: density))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -410,9 +422,8 @@ struct BudgetView: View {
     private func assignedDisplayText(for alert: BudgetAlert) -> String? {
         BudgetMonthSummaryPresentation.assignedValueText(
             for: alert,
-            month: viewModel.budgetMonth,
-            showTotalAssigned: appState.settings.showTotalAssigned,
-            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
+            month: displayedBudgetMonth,
+            showTotalAssigned: appState.settings.showTotalAssigned
         )
     }
 
@@ -462,6 +473,13 @@ struct BudgetView: View {
         )
     }
 
+    private func realExpenseCategory(id: String) -> BudgetMonthCategory? {
+        viewModel.budgetMonth?.categoryGroups
+            .filter { !$0.isIncome }
+            .flatMap(\.visibleCategories)
+            .first { $0.id == id }
+    }
+
     private func open(_ alert: BudgetAlert) {
         guard alert.isActionable else {
             return
@@ -488,22 +506,9 @@ struct BudgetView: View {
         )
     }
 
-    private func displayAlertValueText(_ alert: BudgetAlert, fallback: String) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return fallback
-        }
-
-        let signSource = alert.severity == .danger ? -1 : 1
-        return PrivacyDisplay.money(
-            signSource,
-            seed: "budget-alert-\(alert.id)-\(viewModel.selectedMonth ?? viewModel.preferredMonth)",
-            maximumDollars: 900
-        )
-    }
-
     private var categoryGroups: some View {
         LazyVStack(spacing: 0, pinnedViews: []) {
-            ForEach(viewModel.visibleGroups) { group in
+            ForEach(displayedGroups) { group in
                 BudgetGroupSection(
                     group: group,
                     isExpanded: viewModel.isExpanded(group),
@@ -515,9 +520,12 @@ struct BudgetView: View {
                         viewModel.isEditingAssignment(for: category)
                     },
                     beginAssignmentEditing: { category, categoryFrame in
+                        guard let realCategory = realExpenseCategory(id: category.id) else {
+                            return
+                        }
                         assignmentEditingCategoryFrame = categoryFrame
                         withAnimation(.smooth(duration: 0.16)) {
-                            viewModel.beginAssignmentEditing(for: category)
+                            viewModel.beginAssignmentEditing(for: realCategory)
                         }
                     },
                     toggle: {

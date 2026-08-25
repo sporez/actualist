@@ -109,6 +109,8 @@
 		010000000000000000000000D6 /* AccountTransactionsSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D6 /* AccountTransactionsSummaryView.swift */; };
 		010000000000000000000000D7 /* AccountTransactionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000D7 /* AccountTransactionsViewModelTests.swift */; };
 		01000000000000000000006D /* BudgetAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006D /* BudgetAlert.swift */; };
+		01000000000000000000000112 /* BudgetMonthPrivacyProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000112 /* BudgetMonthPrivacyProjection.swift */; };
+		01000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift */; };
 		010000000000000000000017 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001A /* OnboardingViewModel.swift */; };
 		010000000000000000000018 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001B /* SettingsViewModel.swift */; };
 		0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */; };
@@ -342,6 +344,8 @@
 		020000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionWorkflow.swift; sourceTree = "<group>"; };
 		020000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000006D /* BudgetAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAlert.swift; sourceTree = "<group>"; };
+		02000000000000000000000112 /* BudgetMonthPrivacyProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetMonthPrivacyProjection.swift; sourceTree = "<group>"; };
+		02000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetMonthPrivacyProjectionTests.swift; sourceTree = "<group>"; };
 		02000000000000000000001A /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001B /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelDisplayTests.swift; sourceTree = "<group>"; };
@@ -683,6 +687,7 @@
 				0200000000000000000000C2 /* RulesListViewModelTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
 				0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */,
+				02000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift */,
 				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
 				0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */,
 				02000000000000000000000111 /* BudgetMoveMoneySliderTests.swift */,
@@ -789,6 +794,7 @@
 				02000000000000000000000110 /* BudgetMoveMoneySlider.swift */,
 				02000000000000000000006C /* BudgetTemplateWorkflow.swift */,
 				02000000000000000000006D /* BudgetAlert.swift */,
+				02000000000000000000000112 /* BudgetMonthPrivacyProjection.swift */,
 				02000000000000000000003E /* BudgetDraftModels.swift */,
 				020000000000000000000029 /* UncategorizedTransactionsView.swift */,
 				02000000000000000000002A /* UncategorizedTransactionsViewModel.swift */,
@@ -1256,6 +1262,7 @@
 				01000000000000000000005A /* BudgetMoveMoneyView.swift in Sources */,
 				01000000000000000000005B /* BudgetAssignmentKeypad.swift in Sources */,
 				01000000000000000000003F /* BudgetViewSupport.swift in Sources */,
+				01000000000000000000000112 /* BudgetMonthPrivacyProjection.swift in Sources */,
 				01000000000000000000000F /* AccountsView.swift in Sources */,
 				010000000000000000000024 /* AddAccountViewModel.swift in Sources */,
 				010000000000000000000010 /* AccountTransactionsView.swift in Sources */,
@@ -1362,6 +1369,7 @@
 				0100000000000000000000C2 /* RulesListViewModelTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */,
+				01000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift in Sources */,
 				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,
 				0100000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift in Sources */,
 				01000000000000000000000111 /* BudgetMoveMoneySliderTests.swift in Sources */,

@@ -333,7 +333,8 @@ struct BudgetViewModelDisplayTests {
             BudgetMonthSummaryPresentation.alerts(
                 from: model.budgetAlerts,
                 month: model.budgetMonth,
-                showTotalAssigned: false
+                showTotalAssigned: false,
+                includeCarryoverInOverspent: false
             ).isEmpty
         )
     }
@@ -356,15 +357,15 @@ struct BudgetMonthSummaryPresentationTests {
             BudgetMonthSummaryPresentation.alerts(
                 from: loaded,
                 month: month,
-                showTotalAssigned: false
-            ) == loaded
+                showTotalAssigned: false,
+                includeCarryoverInOverspent: true
+            ) == []
         )
         #expect(
             BudgetMonthSummaryPresentation.assignedValueText(
                 for: loaded[0],
                 month: month,
-                showTotalAssigned: false,
-                isPrivacyModeEnabled: false
+                showTotalAssigned: false
             ) == nil
         )
     }
@@ -382,9 +383,10 @@ struct BudgetMonthSummaryPresentationTests {
         let inserted = BudgetMonthSummaryPresentation.alerts(
             from: [overspent],
             month: month,
-            showTotalAssigned: true
+            showTotalAssigned: true,
+            includeCarryoverInOverspent: true
         )
-        #expect(inserted.map(\.kind) == [.toBudget, .overspending])
+        #expect(inserted.map(\.kind) == [.toBudget])
         #expect(inserted.first?.valueText == 0.actualMoney.formatted())
         #expect(inserted.first?.severity == .positive)
 
@@ -395,12 +397,20 @@ struct BudgetMonthSummaryPresentationTests {
             actionTitle: nil,
             severity: .positive
         )
+        let rebuiltZero = BudgetAlert(
+            kind: .toBudget,
+            title: "To Budget",
+            valueText: 0.actualMoney.formatted(),
+            actionTitle: nil,
+            severity: .positive
+        )
         #expect(
             BudgetMonthSummaryPresentation.alerts(
                 from: [existing],
                 month: month,
-                showTotalAssigned: true
-            ) == [existing]
+                showTotalAssigned: true,
+                includeCarryoverInOverspent: true
+            ) == [rebuiltZero]
         )
     }
 
@@ -419,26 +429,141 @@ struct BudgetMonthSummaryPresentationTests {
             BudgetMonthSummaryPresentation.assignedValueText(
                 for: alert,
                 month: july,
-                showTotalAssigned: true,
-                isPrivacyModeEnabled: false
+                showTotalAssigned: true
             ) == 12_847_42.actualMoney.formatted()
         )
         #expect(
             BudgetMonthSummaryPresentation.assignedValueText(
                 for: alert,
                 month: august,
-                showTotalAssigned: true,
-                isPrivacyModeEnabled: false
+                showTotalAssigned: true
             ) == 32_000.actualMoney.formatted()
         )
     }
 
-    @Test func assignedValueUsesPrivacyDisplayWhenEnabled() {
+    @Test func toBudgetAlertUsesTheMonthAmountAndKeepsOtherAlerts() {
+        let month = makeMonth(toBudget: -12_500, totalBudgeted: 80_000)
+        let overspent = BudgetAlert(
+            kind: .overspending,
+            title: "Overspent",
+            count: 1,
+            actionTitle: "Cover",
+            severity: .danger
+        )
+        let stale = BudgetAlert(
+            kind: .toBudget,
+            title: "To Budget",
+            valueText: 9_999.actualMoney.formatted(),
+            actionTitle: nil,
+            severity: .positive
+        )
+
+        let alerts = BudgetMonthSummaryPresentation.alerts(
+            from: [stale, overspent],
+            month: month,
+            showTotalAssigned: false,
+            includeCarryoverInOverspent: true
+        )
+        #expect(alerts.map(\.kind) == [.toBudget])
+        #expect(alerts.first?.valueText == (-12_500).actualMoney.formatted())
+        #expect(alerts.first?.severity == .warning)
+    }
+
+    @Test func overspentBannerUsesDisplayMonthAndHonorsCarryoverSetting() {
+        let shopping = makeCategory(id: "shopping", balance: -4_318, carryover: false)
+        let gifts = makeCategory(id: "gifts", balance: -19_380, carryover: true)
+        let utilities = makeCategory(id: "utilities", balance: -11_029, carryover: false)
+        let month = makeMonth(
+            toBudget: 0,
+            totalBudgeted: 80_000,
+            groups: [
+                BudgetMonthCategoryGroup(
+                    id: "goals",
+                    name: "Goals",
+                    isIncome: false,
+                    hidden: false,
+                    budgeted: 80_000,
+                    spent: -40_000,
+                    balance: -34_727,
+                    categories: [shopping, gifts, utilities]
+                )
+            ]
+        )
+        let loaded = [
+            BudgetAlert(
+                kind: .overspending,
+                title: "Overspent categories",
+                count: 1,
+                actionTitle: "Cover",
+                severity: .danger
+            )
+        ]
+
+        let includingRollover = BudgetMonthSummaryPresentation.alerts(
+            from: loaded,
+            month: month,
+            showTotalAssigned: false,
+            includeCarryoverInOverspent: true
+        )
+        #expect(includingRollover.map(\.kind) == [.overspending])
+        #expect(includingRollover.first?.count == 3)
+
+        let excludingRollover = BudgetMonthSummaryPresentation.alerts(
+            from: loaded,
+            month: month,
+            showTotalAssigned: false,
+            includeCarryoverInOverspent: false
+        )
+        #expect(excludingRollover.first?.count == 2)
+    }
+
+    @Test func overspentBannerFollowsSampleValuesProjection() {
+        let real = makeMonth(
+            toBudget: 200_83,
+            totalBudgeted: 35_000,
+            groups: [
+                BudgetMonthCategoryGroup(
+                    id: "goals",
+                    name: "Goals",
+                    isIncome: false,
+                    hidden: false,
+                    budgeted: 35_000,
+                    spent: 0,
+                    balance: 35_000,
+                    categories: [
+                        makeCategory(id: "dining", balance: 6_000, carryover: false),
+                        makeCategory(id: "gifts", balance: 8_000, carryover: true),
+                        makeCategory(id: "utilities", balance: 21_000, carryover: false)
+                    ]
+                )
+            ]
+        )
+        let projected = BudgetMonthPrivacyProjection.project(real)
+        let projectedOverspent = BudgetMonthSummaryPresentation.overspentCount(
+            in: projected,
+            includeCarryover: true
+        )
+
+        #expect(BudgetMonthSummaryPresentation.overspentCount(in: real, includeCarryover: true) == 0)
+
+        let alerts = BudgetMonthSummaryPresentation.alerts(
+            from: [],
+            month: projected,
+            showTotalAssigned: false,
+            includeCarryoverInOverspent: true
+        )
+        #expect(alerts.first { $0.kind == .overspending }?.count == (
+            projectedOverspent == 0 ? nil : projectedOverspent
+        ))
+    }
+
+    @Test func assignedValueUsesTheMonthItIsGiven() {
         let month = makeMonth(toBudget: 200_83, totalBudgeted: 12_847_42)
+        let projected = BudgetMonthPrivacyProjection.project(month)
         let alert = BudgetAlert(
             kind: .toBudget,
             title: "To Budget",
-            valueText: month.toBudget.actualMoney.formatted(),
+            valueText: projected.toBudget.actualMoney.formatted(),
             actionTitle: nil,
             severity: .positive
         )
@@ -446,18 +571,26 @@ struct BudgetMonthSummaryPresentationTests {
         #expect(
             BudgetMonthSummaryPresentation.assignedValueText(
                 for: alert,
-                month: month,
+                month: projected,
+                showTotalAssigned: true
+            ) == projected.totalBudgeted.actualMoney.formatted()
+        )
+        #expect(
+            BudgetMonthSummaryPresentation.alerts(
+                from: [],
+                month: projected,
                 showTotalAssigned: true,
-                isPrivacyModeEnabled: true
-            ) == PrivacyDisplay.money(
-                month.totalBudgeted,
-                seed: "budget-alert-assigned-\(month.month)",
-                maximumDollars: 900
-            )
+                includeCarryoverInOverspent: true
+            ).first { $0.kind == .toBudget }?.valueText == projected.toBudget.actualMoney.formatted()
         )
     }
 
-    private func makeMonth(toBudget: Int, totalBudgeted: Int, month: String = "2026-07") -> BudgetMonth {
+    private func makeMonth(
+        toBudget: Int,
+        totalBudgeted: Int,
+        month: String = "2026-07",
+        groups: [BudgetMonthCategoryGroup] = []
+    ) -> BudgetMonth {
         BudgetMonth(
             month: month,
             incomeAvailable: toBudget,
@@ -469,7 +602,25 @@ struct BudgetMonthSummaryPresentationTests {
             totalIncome: 0,
             totalSpent: 0,
             totalBalance: 0,
-            categoryGroups: []
+            categoryGroups: groups
+        )
+    }
+
+    private func makeCategory(
+        id: String,
+        balance: Int,
+        carryover: Bool
+    ) -> BudgetMonthCategory {
+        BudgetMonthCategory(
+            id: id,
+            name: id,
+            isIncome: false,
+            hidden: false,
+            groupID: "goals",
+            budgeted: 0,
+            spent: balance,
+            balance: balance,
+            carryover: carryover
         )
     }
 }

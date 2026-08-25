@@ -82,52 +82,96 @@ extension BudgetMonthCategoryGroup {
     }
 }
 
-/// Optional Total Assigned presentation for the Budget summary bar.
-/// Assigned uses `BudgetMonth.totalBudgeted`, the sum of non-income group
-/// `budgeted` amounts already shown as group Assigned totals.
+/// Budget summary-bar presentation.
+/// Pass the sample-values projected month when that setting is on so To Budget,
+/// Assigned, and the overspent count match the rows. Cover still uses real data.
 enum BudgetMonthSummaryPresentation {
     static func alerts(
         from loaded: [BudgetAlert],
         month: BudgetMonth?,
-        showTotalAssigned: Bool
+        showTotalAssigned: Bool,
+        includeCarryoverInOverspent: Bool
     ) -> [BudgetAlert] {
-        guard showTotalAssigned, month != nil else {
-            return loaded
+        let remainder = loaded.filter { $0.kind != .toBudget && $0.kind != .overspending }
+        var result: [BudgetAlert] = []
+        if let toBudget = toBudgetAlert(from: month, includeZero: showTotalAssigned) {
+            result.append(toBudget)
         }
-        if loaded.contains(where: { $0.kind == .toBudget }) {
-            return loaded
+        if let overspent = overspentAlert(
+            from: month,
+            includeCarryover: includeCarryoverInOverspent,
+            template: loaded.first { $0.kind == .overspending }
+        ) {
+            result.append(overspent)
         }
-        guard let alert = BudgetAlert(alert: zeroToBudgetMonthAlert) else {
-            return loaded
-        }
-        return [alert] + loaded
+        result.append(contentsOf: remainder)
+        return result
     }
 
     static func assignedValueText(
         for alert: BudgetAlert,
         month: BudgetMonth?,
-        showTotalAssigned: Bool,
-        isPrivacyModeEnabled: Bool
+        showTotalAssigned: Bool
     ) -> String? {
         guard showTotalAssigned, alert.kind == .toBudget, let month else {
             return nil
         }
-        if isPrivacyModeEnabled {
-            return PrivacyDisplay.money(
-                month.totalBudgeted,
-                seed: "budget-alert-assigned-\(month.month)",
-                maximumDollars: 900
-            )
-        }
         return month.totalBudgeted.actualMoney.formatted()
     }
 
-    private static let zeroToBudgetMonthAlert = BudgetMonthAlert(
-        kind: "toBudget",
-        severity: "positive",
-        title: "To Budget",
-        amount: 0,
-        count: nil,
-        actionTitle: nil
-    )
+    static func overspentCount(
+        in month: BudgetMonth,
+        includeCarryover: Bool
+    ) -> Int {
+        month.categoryGroups
+            .filter { !$0.isIncome }
+            .flatMap(\.visibleCategories)
+            .filter { category in
+                category.balance < 0 && (includeCarryover || !category.carryover)
+            }
+            .count
+    }
+
+    private static func overspentAlert(
+        from month: BudgetMonth?,
+        includeCarryover: Bool,
+        template: BudgetAlert?
+    ) -> BudgetAlert? {
+        guard let month else {
+            return template
+        }
+        let count = overspentCount(in: month, includeCarryover: includeCarryover)
+        guard count > 0 else {
+            return nil
+        }
+        if let template {
+            return template.replacingCount(with: count)
+        }
+        return BudgetAlert(
+            kind: .overspending,
+            title: "Overspent categories",
+            count: count,
+            actionTitle: "Cover",
+            severity: .danger
+        )
+    }
+
+    private static func toBudgetAlert(
+        from month: BudgetMonth?,
+        includeZero: Bool
+    ) -> BudgetAlert? {
+        guard let month else {
+            return nil
+        }
+        if month.toBudget == 0 && !includeZero {
+            return nil
+        }
+        return BudgetAlert(
+            kind: .toBudget,
+            title: "To Budget",
+            valueText: month.toBudget.actualMoney.formatted(),
+            actionTitle: nil,
+            severity: month.toBudget < 0 ? .warning : .positive
+        )
+    }
 }
