@@ -117,11 +117,14 @@ final class BudgetAssignmentWorkflow {
         self.draft = draft
     }
 
-    func amountDisplay(for category: BudgetMonthCategory) -> BudgetAssignedAmountDisplay {
+    func amountDisplay(
+        for category: BudgetMonthCategory,
+        currency: BudgetCurrency
+    ) -> BudgetAssignedAmountDisplay {
         guard let draft,
               draft.categoryID == category.id else {
             return BudgetAssignedAmountDisplay(
-                primaryText: category.budgeted.actualMoney.formatted(),
+                primaryText: currency.formatted(category.budgeted),
                 secondaryText: nil,
                 isEditing: false,
                 isDeltaMode: false
@@ -131,17 +134,18 @@ final class BudgetAssignmentWorkflow {
         switch draft.inputMode {
         case .direct:
             return BudgetAssignedAmountDisplay(
-                primaryText: draft.finalBudgeted.actualMoney.formatted(),
+                primaryText: currency.formatted(draft.finalBudgeted),
                 secondaryText: nil,
                 isEditing: true,
                 isDeltaMode: false
             )
         case .addition, .subtraction:
             return BudgetAssignedAmountDisplay(
-                primaryText: draft.originalBudgeted.actualMoney.formatted(),
+                primaryText: currency.formatted(draft.originalBudgeted),
                 secondaryText: Self.deltaText(
                     for: draft.inputAmount,
-                    mode: draft.inputMode
+                    mode: draft.inputMode,
+                    currency: currency
                 ),
                 isEditing: true,
                 isDeltaMode: true
@@ -258,9 +262,10 @@ final class BudgetAssignmentWorkflow {
 
     private static func deltaText(
         for amount: Int,
-        mode: BudgetAssignmentInputMode
+        mode: BudgetAssignmentInputMode,
+        currency: BudgetCurrency
     ) -> String {
-        let formatted = amount.actualMoney.formatted()
+        let formatted = currency.formatted(amount)
         return mode == .subtraction ? "-\(formatted)" : "+\(formatted)"
     }
 }

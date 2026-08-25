@@ -210,7 +210,7 @@ struct BudgetOverspentCategoryOption: Identifiable, Equatable {
         category.name.actualistCategoryNameParts.name
     }
 
-    var amountText: String {
-        category.balance.actualMoney.formatted()
+    func amountText(using currency: BudgetCurrency) -> String {
+        currency.formatted(category.balance)
     }
 }

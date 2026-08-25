@@ -74,29 +74,35 @@ enum PrivacyDisplay {
     static func amount(
         _ original: Int?,
         seed: String,
+        currency: BudgetCurrency = .usd,
         minimumDollars: Int = 4,
         maximumDollars: Int = 900
     ) -> Int {
         let value = stableHash(seed)
-        let dollarSpan = max(maximumDollars - minimumDollars, 1)
-        let dollars = minimumDollars + Int(value % UInt64(dollarSpan + 1))
-        let cents = Int((value / 97) % 100)
+        let unitSpan = max(maximumDollars - minimumDollars, 1)
+        let units = minimumDollars + Int(value % UInt64(unitSpan + 1))
+        let scale = NSDecimalNumber(decimal: currency.scale).intValue
+        let fraction = currency.decimalPlaces == 0
+            ? 0
+            : Int((value / 97) % UInt64(scale))
         let sign = (original ?? 0) < 0 ? -1 : 1
-        return sign * ((dollars * 100) + cents)
+        return sign * ((units * scale) + fraction)
     }
 
     static func money(
         _ original: Int?,
         seed: String,
+        currency: BudgetCurrency = .usd,
         minimumDollars: Int = 4,
         maximumDollars: Int = 900
     ) -> String {
         amount(
             original,
             seed: seed,
+            currency: currency,
             minimumDollars: minimumDollars,
             maximumDollars: maximumDollars
-        ).actualMoney.formatted()
+        ).actualMoney.formatted(using: currency)
     }
 
     static func stableHash(_ value: String) -> UInt64 {

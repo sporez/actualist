@@ -38,14 +38,14 @@ struct BudgetAlert: Identifiable, Equatable {
         self.severity = severity
     }
 
-    init?(alert: BudgetMonthAlert) {
+    init?(alert: BudgetMonthAlert, currency: BudgetCurrency = .usd) {
         guard let kind = Kind(rawValue: alert.kind) else {
             return nil
         }
 
         self.kind = kind
         title = alert.title
-        valueText = alert.amount?.actualMoney.formatted()
+        valueText = alert.amount.map(currency.formatted)
         count = alert.count
         actionTitle = alert.actionTitle
         severity = Severity(apiValue: alert.severity)
@@ -90,11 +90,12 @@ enum BudgetMonthSummaryPresentation {
         from loaded: [BudgetAlert],
         month: BudgetMonth?,
         showTotalAssigned: Bool,
-        includeCarryoverInOverspent: Bool
+        includeCarryoverInOverspent: Bool,
+        currency: BudgetCurrency = .usd
     ) -> [BudgetAlert] {
         let remainder = loaded.filter { $0.kind != .toBudget && $0.kind != .overspending }
         var result: [BudgetAlert] = []
-        if let toBudget = toBudgetAlert(from: month, includeZero: showTotalAssigned) {
+        if let toBudget = toBudgetAlert(from: month, includeZero: showTotalAssigned, currency: currency) {
             result.append(toBudget)
         }
         if let overspent = overspentAlert(
@@ -111,12 +112,13 @@ enum BudgetMonthSummaryPresentation {
     static func assignedValueText(
         for alert: BudgetAlert,
         month: BudgetMonth?,
-        showTotalAssigned: Bool
+        showTotalAssigned: Bool,
+        currency: BudgetCurrency = .usd
     ) -> String? {
         guard showTotalAssigned, alert.kind == .toBudget, let month else {
             return nil
         }
-        return month.totalBudgeted.actualMoney.formatted()
+        return currency.formatted(month.totalBudgeted)
     }
 
     static func overspentCount(
@@ -158,7 +160,8 @@ enum BudgetMonthSummaryPresentation {
 
     private static func toBudgetAlert(
         from month: BudgetMonth?,
-        includeZero: Bool
+        includeZero: Bool,
+        currency: BudgetCurrency
     ) -> BudgetAlert? {
         guard let month else {
             return nil
@@ -169,7 +172,7 @@ enum BudgetMonthSummaryPresentation {
         return BudgetAlert(
             kind: .toBudget,
             title: "To Budget",
-            valueText: month.toBudget.actualMoney.formatted(),
+            valueText: currency.formatted(month.toBudget),
             actionTitle: nil,
             severity: month.toBudget < 0 ? .warning : .positive
         )

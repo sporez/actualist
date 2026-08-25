@@ -12,6 +12,7 @@ final class BudgetViewModel {
     var expandedGroupIDs: Set<String> = []
     var isLoading = true
     var errorMessage: String?
+    var currency: BudgetCurrency = .usd
     var includeCarryoverCategoriesInOverspentAlerts = false
 
     let assignmentWorkflow = BudgetAssignmentWorkflow()
@@ -429,7 +430,7 @@ final class BudgetViewModel {
     func overspentCoverSourcePickerGroups() -> [TransactionEditorCategoryGroup] {
         let selectedIDs = selectedOverspentCategoryIDs
         let selectedOverspentIDs = Set(overspentCategoryOptions.map(\.id))
-        let baseGroups = budgetMonth?.editorCategoryGroups() ?? []
+        let baseGroups = budgetMonth?.editorCategoryGroups(currency: currency) ?? []
         return baseGroups.compactMap { group -> TransactionEditorCategoryGroup? in
             // "To Budget" represents available income, not an expense category,
             // so it is always a valid cover source.
@@ -466,7 +467,8 @@ final class BudgetViewModel {
                 group.visibleCategories.contains { category in
                     !overspentCoverSelection.selectedCategoryIDs.contains(category.id)
                 }
-            }
+            },
+            currency: currency
         ).map { group in
             var filtered = group
             filtered.options = group.options.filter { option in
@@ -564,7 +566,7 @@ final class BudgetViewModel {
     }
 
     func assignedAmountDisplay(for category: BudgetMonthCategory) -> BudgetAssignedAmountDisplay {
-        assignmentWorkflow.amountDisplay(for: category)
+        assignmentWorkflow.amountDisplay(for: category, currency: currency)
     }
 
     func isEditingAssignment(for category: BudgetMonthCategory) -> Bool {
@@ -696,7 +698,8 @@ final class BudgetViewModel {
     func moveMoneyDestinationGroups(matching searchText: String) -> [BudgetMoveMoneyDestinationGroup] {
         moveMoneyWorkflow.destinationGroups(
             matching: searchText,
-            visibleGroups: visibleGroups
+            visibleGroups: visibleGroups,
+            currency: currency
         )
     }
 
@@ -705,7 +708,7 @@ final class BudgetViewModel {
             id: "to-budget",
             title: "To Budget",
             amount: budgetMonth?.toBudget ?? 0,
-            valueText: (budgetMonth?.toBudget ?? 0).actualMoney.formatted(),
+            valueText: currency.formatted(budgetMonth?.toBudget ?? 0),
             destination: .toBudget
         )
     }
@@ -737,7 +740,10 @@ final class BudgetViewModel {
         availableMonths = Self.monthPickerMonths(for: loadedMonth)
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
-        loadedBudgetAlerts = loadedMonth.alerts.compactMap(BudgetAlert.init(alert:))
+        currency = loadedMonth.currency
+        loadedBudgetAlerts = loadedMonth.alerts.compactMap {
+            BudgetAlert(alert: $0, currency: loadedMonth.currency)
+        }
         if isSameBudget && isSameMonth {
             let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
             expandedGroupIDs = previousExpandedGroupIDs.intersection(loadedGroupIDs)

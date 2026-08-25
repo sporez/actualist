@@ -18,6 +18,7 @@ final class ReportsViewModel {
     private(set) var isRefreshing = false
     private(set) var errorMessage: String?
     private(set) var isPrivacyModeEnabled = false
+    private(set) var currency: BudgetCurrency = .usd
 
     func load(using appState: AppState, now: Date = Date()) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
@@ -30,6 +31,7 @@ final class ReportsViewModel {
             budgetID: budgetID,
             repository: repository,
             privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            currency: appState.localFirstStore.budgetCurrency(budgetID: budgetID),
             now: now
         )
     }
@@ -49,11 +51,13 @@ final class ReportsViewModel {
         budgetID: String,
         repository: any ReportsRepositoryProtocol,
         privacyModeEnabled: Bool,
+        currency: BudgetCurrency = .usd,
         now: Date
     ) async {
         let requestedRange = ReportDateRange.dashboard(through: now)
         range = requestedRange
         isPrivacyModeEnabled = privacyModeEnabled
+        self.currency = currency
         errorMessage = nil
 
         if let cached = repository.cachedReportsDashboard(budgetID: budgetID, range: requestedRange) {
@@ -141,10 +145,10 @@ final class ReportsViewModel {
     }
 
     func axisLabel(_ value: Int) -> String {
-        let dollars = Double(value) / 100
-        let absolute = Double(value.magnitude) / 100
-        let symbol = Locale.current.currencySymbol ?? "$"
-        let sign = dollars < 0 ? "−" : ""
+        let amount = NSDecimalNumber(decimal: currency.displayAmount(fromMinorUnits: value)).doubleValue
+        let absolute = amount.magnitude
+        let symbol = axisSymbol
+        let sign = amount < 0 ? "−" : ""
         if absolute >= 1_000_000 {
             return "\(sign)\(symbol)\(String(format: "%.1fM", absolute / 1_000_000))"
         }
@@ -152,6 +156,14 @@ final class ReportsViewModel {
             return "\(sign)\(symbol)\(String(format: "%.1fK", absolute / 1_000))"
         }
         return "\(sign)\(symbol)\(String(format: "%.0f", absolute))"
+    }
+
+    private var axisSymbol: String {
+        let sample = currency.formatted(0)
+        let stripped = sample.filter { character in
+            !character.isNumber && character != "." && character != "," && character != "-" && character != "−" && !character.isWhitespace
+        }
+        return stripped.isEmpty ? currency.code : stripped
     }
 
     func calendarIntensity(_ amount: Int) -> Double {
@@ -296,13 +308,14 @@ final class ReportsViewModel {
         return PrivacyDisplay.amount(
             amount,
             seed: seed,
+            currency: currency,
             minimumDollars: 4,
             maximumDollars: maximumDollars
         )
     }
 
     private func money(_ amount: Int) -> String {
-        amount.actualMoney.formatted()
+        currency.formatted(amount)
     }
 
     private func signedMoney(_ amount: Int) -> String {

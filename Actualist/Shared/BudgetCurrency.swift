@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// The open budget's currency: ISO code, minor-unit scale, and hide-fraction.
 ///
@@ -55,6 +56,14 @@ struct BudgetCurrency: Hashable, Sendable {
         Decimal(value) / scale
     }
 
+    var displayedFractionDigits: Int {
+        hideFraction ? 0 : decimalPlaces
+    }
+
+    func formatted(_ minorUnits: Int) -> String {
+        Money(minorUnits: minorUnits).formatted(using: self)
+    }
+
     /// Whole-currency rounding used by template `removeFraction`.
     /// USD `12345` → `12300`; zero-decimal currencies are unchanged.
     func removingFraction(fromMinorUnits value: Int) -> Int {
@@ -79,7 +88,7 @@ private extension BudgetCurrency {
     static let zeroDecimalCodes: Set<String> = ["JPY", "KRW"]
 
     var displayFormat: Decimal.FormatStyle.Currency {
-        .init(code: code).precision(.fractionLength(decimalPlaces...decimalPlaces))
+        .init(code: code).precision(.fractionLength(displayedFractionDigits...displayedFractionDigits))
     }
 }
 
@@ -89,5 +98,16 @@ private extension Decimal {
         var result = Decimal()
         NSDecimalRound(&result, &value, scale, .plain)
         return result
+    }
+}
+
+private enum BudgetCurrencyEnvironmentKey: EnvironmentKey {
+    static let defaultValue = BudgetCurrency.usd
+}
+
+extension EnvironmentValues {
+    var budgetCurrency: BudgetCurrency {
+        get { self[BudgetCurrencyEnvironmentKey.self] }
+        set { self[BudgetCurrencyEnvironmentKey.self] = newValue }
     }
 }

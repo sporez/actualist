@@ -37,6 +37,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
+    var currencyByBudget: [String: BudgetCurrency] = [:]
     /// Optional fallback server URL used when the primary server is unreachable.
     /// Set by `AppState` from `AppSettings.fallbackServerURLString`. When non-nil
     /// and distinct from the primary URL, sync and connection operations retry
@@ -167,6 +168,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         categoryTransactionsByKey = [:]
         uncategorizedTransactionsByKey = [:]
         reportsByKey = [:]
+        currencyByBudget = [:]
         syncStatus = nil
         isFlushingPendingLocalMessages = false
         isDemoBudgetActive = false

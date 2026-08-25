@@ -34,6 +34,7 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.reports)
         }
+        .environment(\.budgetCurrency, displayedBudgetCurrency)
         .safeAreaInset(edge: .top, spacing: 0) {
             if appState.requiresReauthentication {
                 HStack(spacing: 12) {
@@ -66,8 +67,16 @@ struct MainTabView: View {
                 shortcutPrefill: editorPrefill
             )
             .environment(appState)
+            .environment(\.budgetCurrency, displayedBudgetCurrency)
             .appSwitcherPrivacyProtected()
         }
+    }
+
+    private var displayedBudgetCurrency: BudgetCurrency {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return .usd
+        }
+        return appState.localFirstStore.budgetCurrency(budgetID: budgetID)
     }
 
     private var prefilledAccount: ActualAccount? {

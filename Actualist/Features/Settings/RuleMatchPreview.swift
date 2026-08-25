@@ -76,6 +76,7 @@ final class RuleEditorViewModel {
 
 struct RuleTransactionMatchRow: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.budgetCurrency) private var currency
     let transaction: RuleTransactionMatch
 
     var body: some View {
@@ -108,9 +109,10 @@ struct RuleTransactionMatchRow: View {
             return PrivacyDisplay.money(
                 transaction.amountMinorUnits,
                 seed: "rule-match-\(transaction.id)",
+                currency: currency,
                 maximumDollars: 275
             )
         }
-        return transaction.amountMinorUnits.actualMoney.formatted()
+        return currency.formatted(transaction.amountMinorUnits)
     }
 }

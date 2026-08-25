@@ -51,6 +51,7 @@ enum AccountReconciliationSubmissionState: Equatable {
 final class AccountReconciliationViewModel {
     var statementBalanceText: String
     var submissionState: AccountReconciliationSubmissionState = .draft
+    var currency: BudgetCurrency = .usd
 
     init(currentBalance: Int?) {
         statementBalanceText = Self.formattedInput(cents: currentBalance ?? 0)
@@ -96,7 +97,7 @@ final class AccountReconciliationViewModel {
             let count = result.updated.count
             return count == 1 ? "Marked 1 transaction reconciled." : "Marked \(count) transactions reconciled."
         case .mismatch(let result):
-            return "Actual cleared balance is \(result.clearedBalance.actualMoney.formatted()). Statement balance is \(result.statementBalance.actualMoney.formatted()). Difference is \(result.difference.actualMoney.formatted()). No data changed."
+            return "Actual cleared balance is \(currency.formatted(result.clearedBalance)). Statement balance is \(currency.formatted(result.statementBalance)). Difference is \(currency.formatted(result.difference)). No data changed."
         case .failed(let message):
             return message
         }
@@ -204,6 +205,7 @@ struct AccountReconciliationSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var currency
     @State private var viewModel: AccountReconciliationViewModel
     @FocusState private var isStatementBalanceFocused: Bool
 
@@ -253,6 +255,9 @@ struct AccountReconciliationSheet: View {
         }
         .presentationDetents([.medium, .large])
         .appSwitcherPrivacyAwareDragIndicator()
+        .onAppear {
+            viewModel.currency = currency
+        }
         .task {
             await Task.yield()
             isStatementBalanceFocused = true
@@ -287,12 +292,13 @@ struct AccountReconciliationSheet: View {
 
     private var currentBalanceText: String {
         guard appState.settings.randomizedDisplayValuesEnabled else {
-            return (currentBalance ?? 0).actualMoney.formatted()
+            return currency.formatted(currentBalance ?? 0)
         }
 
         return PrivacyDisplay.money(
             currentBalance,
             seed: "reconcile-balance-\(account.id)",
+            currency: currency,
             maximumDollars: 15_000
         )
     }
@@ -464,6 +470,7 @@ enum TransactionCategoryPresentation {
 
 struct TransactionRow: View {
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var currency
 
     let transaction: ActualTransaction
     let payeeName: String
@@ -603,12 +610,13 @@ struct TransactionRow: View {
 
     private var amountText: String {
         guard isPrivacyModeEnabled else {
-            return (transaction.amount ?? 0).actualMoney.formatted()
+            return currency.formatted(transaction.amount ?? 0)
         }
 
         return PrivacyDisplay.money(
             transaction.amount,
             seed: "transaction-amount-\(transaction.rowID)",
+            currency: currency,
             maximumDollars: 275
         )
     }

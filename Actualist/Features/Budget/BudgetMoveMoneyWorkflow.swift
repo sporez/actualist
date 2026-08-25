@@ -459,7 +459,8 @@ final class BudgetMoveMoneyWorkflow {
 
     func destinationGroups(
         matching searchText: String,
-        visibleGroups: [BudgetMonthCategoryGroup]
+        visibleGroups: [BudgetMonthCategoryGroup],
+        currency: BudgetCurrency
     ) -> [BudgetMoveMoneyDestinationGroup] {
         guard let focusedID = draft?.focusedCategoryID else {
             return []
@@ -483,7 +484,7 @@ final class BudgetMoveMoneyWorkflow {
                     id: category.id,
                     title: title,
                     amount: category.balance,
-                    valueText: category.balance.actualMoney.formatted(),
+                    valueText: currency.formatted(category.balance),
                     destination: .category(id: category.id, name: category.name)
                 )
             }

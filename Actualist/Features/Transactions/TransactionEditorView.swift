@@ -133,7 +133,7 @@ struct TransactionEditorView: View {
             }
         } message: {
             if let mismatch = viewModel.pendingSplitMismatch {
-                Text("The total is \(mismatch.transactionTotal.actualMoney.formatted()), but the splits add up to \(mismatch.splitTotal.actualMoney.formatted()). How would you like to handle the unassigned \(Int(clamping: mismatch.difference.magnitude).actualMoney.formatted())?")
+                Text("The total is \(viewModel.currency.formatted(mismatch.transactionTotal)), but the splits add up to \(viewModel.currency.formatted(mismatch.splitTotal)). How would you like to handle the unassigned \(viewModel.currency.formatted(Int(clamping: mismatch.difference.magnitude)))?")
             }
         }
     }

@@ -218,6 +218,7 @@ struct BudgetMoveMoneyAmountSlider: View {
     let isDisabled: Bool
     var onEditingChanged: (Bool) -> Void = { _ in }
     let onAmountDollarsChanged: (Double) -> Void
+    @Environment(\.budgetCurrency) private var currency
 
     var body: some View {
         Slider(
@@ -233,8 +234,8 @@ struct BudgetMoveMoneyAmountSlider: View {
         .disabled(isDisabled)
         .accessibilityValue(
             spec.isOvershooting
-                ? "\(spec.amount.actualMoney.formatted()), past available"
-                : spec.amount.actualMoney.formatted()
+                ? "\(currency.formatted(spec.amount)), past available"
+                : currency.formatted(spec.amount)
         )
     }
 }

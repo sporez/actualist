@@ -188,7 +188,7 @@ enum RulePresentation {
               number <= Double(Int.max) else {
             return "Unsupported value"
         }
-        return Int(number.rounded()).actualMoney.formatted()
+        return BudgetCurrency.usd.formatted(Int(number.rounded()))
     }
 }
 

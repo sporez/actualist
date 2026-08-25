@@ -49,6 +49,7 @@ struct LoadedBudgetMonth: Equatable {
     let selectedMonth: String
     let month: BudgetMonth
     let alerts: [BudgetMonthAlert]
+    var currency: BudgetCurrency = .usd
 }
 
 struct BudgetMoveMoneyCommand: Hashable, Sendable {

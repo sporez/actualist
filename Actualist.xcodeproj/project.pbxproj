@@ -64,6 +64,7 @@
 		010000000000000000000011 /* Money.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000011 /* Money.swift */; };
 		0100000000000000000000012A /* BudgetCurrency.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000012A /* BudgetCurrency.swift */; };
 		0100000000000000000000012B /* BudgetCurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000012B /* BudgetCurrencyTests.swift */; };
+		0100000000000000000000012D /* BudgetCurrencyPreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000012D /* BudgetCurrencyPreferenceTests.swift */; };
 		010000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* Assets.xcassets */; };
 		010000000000000000000013 /* MoneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000013 /* MoneyTests.swift */; };
 		010000000000000000000014 /* CategoryNameParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000017 /* CategoryNameParts.swift */; };
@@ -178,6 +179,7 @@
 		010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000041 /* BudgetDatabaseModels.swift */; };
 		010000000000000000000042 /* LocalFirstTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000042 /* LocalFirstTestSupport.swift */; };
 		010000000000000000000000DF /* BudgetDatabase+BasicReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000DF /* BudgetDatabase+BasicReads.swift */; };
+		0100000000000000000000012C /* BudgetDatabase+Currency.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000012C /* BudgetDatabase+Currency.swift */; };
 		010000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift */; };
 		010000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift */; };
 		010000000000000000000044 /* BudgetDatabase+Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000044 /* BudgetDatabase+Sync.swift */; };
@@ -341,6 +343,7 @@
 		020000000000000000000011 /* Money.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Money.swift; sourceTree = "<group>"; };
 		0200000000000000000000012A /* BudgetCurrency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCurrency.swift; sourceTree = "<group>"; };
 		0200000000000000000000012B /* BudgetCurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCurrencyTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000012D /* BudgetCurrencyPreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCurrencyPreferenceTests.swift; sourceTree = "<group>"; };
 		020000000000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		020000000000000000000013 /* MoneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyTests.swift; sourceTree = "<group>"; };
 		020000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -454,6 +457,7 @@
 		020000000000000000000041 /* BudgetDatabaseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetDatabaseModels.swift; sourceTree = "<group>"; };
 		020000000000000000000042 /* LocalFirstTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFirstTestSupport.swift; sourceTree = "<group>"; };
 		020000000000000000000000DF /* BudgetDatabase+BasicReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BasicReads.swift"; sourceTree = "<group>"; };
+		0200000000000000000000012C /* BudgetDatabase+Currency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Currency.swift"; sourceTree = "<group>"; };
 		020000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TransactionReads.swift"; sourceTree = "<group>"; };
 		020000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BudgetReads.swift"; sourceTree = "<group>"; };
 		020000000000000000000044 /* BudgetDatabase+Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+Sync.swift"; sourceTree = "<group>"; };
@@ -712,6 +716,7 @@
 				0200000000000000000000C2 /* RulesListViewModelTests.swift */,
 				020000000000000000000013 /* MoneyTests.swift */,
 				0200000000000000000000012B /* BudgetCurrencyTests.swift */,
+				0200000000000000000000012D /* BudgetCurrencyPreferenceTests.swift */,
 				0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */,
 				02000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift */,
 				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
@@ -980,6 +985,7 @@
 				020000000000000000000031 /* BudgetDatabase.swift */,
 				020000000000000000000041 /* BudgetDatabaseModels.swift */,
 				020000000000000000000000DF /* BudgetDatabase+BasicReads.swift */,
+				0200000000000000000000012C /* BudgetDatabase+Currency.swift */,
 				020000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift */,
 				020000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift */,
 				020000000000000000000071 /* BudgetDatabase+Payees.swift */,
@@ -1330,6 +1336,7 @@
 				010000000000000000000031 /* BudgetDatabase.swift in Sources */,
 				010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */,
 				010000000000000000000000DF /* BudgetDatabase+BasicReads.swift in Sources */,
+				0100000000000000000000012C /* BudgetDatabase+Currency.swift in Sources */,
 				010000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift in Sources */,
 				010000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift in Sources */,
 				010000000000000000000071 /* BudgetDatabase+Payees.swift in Sources */,
@@ -1412,6 +1419,7 @@
 				0100000000000000000000C2 /* RulesListViewModelTests.swift in Sources */,
 				010000000000000000000013 /* MoneyTests.swift in Sources */,
 				0100000000000000000000012B /* BudgetCurrencyTests.swift in Sources */,
+				0100000000000000000000012D /* BudgetCurrencyPreferenceTests.swift in Sources */,
 				0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */,
 				01000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift in Sources */,
 				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,

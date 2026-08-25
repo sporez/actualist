@@ -133,6 +133,7 @@ struct WalletImportView: View {
 }
 
 private struct WalletImportCandidateRow: View {
+    @Environment(\.budgetCurrency) private var currency
     let row: WalletImportDisplayedCandidate
 
     var body: some View {
@@ -153,7 +154,7 @@ private struct WalletImportCandidateRow: View {
                     .padding(.vertical, 3)
                     .background(ActualistTheme.elevatedSurface, in: Capsule())
             }
-            Text(row.candidate.amountMinorUnits.actualMoney.formatted())
+            Text(currency.formatted(row.candidate.amountMinorUnits))
                 .foregroundStyle(amountColor)
         }
     }

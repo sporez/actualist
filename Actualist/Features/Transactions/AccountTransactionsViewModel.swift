@@ -43,13 +43,15 @@ final class AccountTransactionsViewModel {
         budgetID: String?,
         repository: any TransactionRepositoryProtocol,
         pendingNewTransactionIDs: Set<String>,
-        privacyModeEnabled: Bool
+        privacyModeEnabled: Bool,
+        currency: BudgetCurrency = .usd
     ) -> AccountTransactionsDisplayState {
         projection(
             budgetID: budgetID,
             repository: repository,
             pendingNewTransactionIDs: pendingNewTransactionIDs,
-            privacyModeEnabled: privacyModeEnabled
+            privacyModeEnabled: privacyModeEnabled,
+            currency: currency
         ).displayState
     }
 
@@ -336,7 +338,8 @@ final class AccountTransactionsViewModel {
         budgetID: String?,
         repository: any TransactionRepositoryProtocol,
         pendingNewTransactionIDs: Set<String> = [],
-        privacyModeEnabled: Bool = false
+        privacyModeEnabled: Bool = false,
+        currency: BudgetCurrency = .usd
     ) -> AccountTransactionFeedProjection {
         AccountTransactionFeedProjection(
             scope: scope,
@@ -344,7 +347,8 @@ final class AccountTransactionsViewModel {
             searchLoaded: matchingSearchResult(budgetID: budgetID)?.loaded,
             query: trimmedSearchText,
             pendingNewTransactionIDs: pendingNewTransactionIDs,
-            privacyModeEnabled: privacyModeEnabled
+            privacyModeEnabled: privacyModeEnabled,
+            currency: currency
         )
     }
 

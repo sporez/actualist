@@ -256,7 +256,7 @@ struct BudgetOverspentCategoriesView: View {
             }
             return partial + (-option.category.balance)
         }
-        return total.actualMoney.formatted()
+        return viewModel.currency.formatted(total)
     }
 
     private func categoryName(_ category: BudgetOverspentCategoryOption) -> String {
@@ -277,12 +277,13 @@ struct BudgetOverspentCategoriesView: View {
 
     private func amountText(_ category: BudgetOverspentCategoryOption) -> String {
         guard isPrivacyModeEnabled else {
-            return category.amountText
+            return category.amountText(using: viewModel.currency)
         }
 
         return PrivacyDisplay.money(
             category.category.balance,
             seed: "overspent-category-\(category.id)",
+            currency: viewModel.currency,
             maximumDollars: 900
         )
     }

@@ -300,36 +300,39 @@ struct BudgetMoveMoneyView: View {
 
     private func moveHeaderAmountText(_ draft: BudgetMoveMoneyDraft) -> String {
         guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.moveMoneyAvailableDisplayAmount.actualMoney.formatted()
+            return viewModel.currency.formatted(viewModel.moveMoneyAvailableDisplayAmount)
         }
 
         return PrivacyDisplay.money(
             viewModel.moveMoneyAvailableDisplayAmount,
             seed: "move-header-\(draft.focusedCategoryID)",
+            currency: viewModel.currency,
             maximumDollars: 900
         )
     }
 
     private func moveDisplayAmountText(_ draft: BudgetMoveMoneyDraft) -> String {
         guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.moveMoneyDisplayAmount.actualMoney.formatted()
+            return viewModel.currency.formatted(viewModel.moveMoneyDisplayAmount)
         }
 
         return PrivacyDisplay.money(
             viewModel.moveMoneyDisplayAmount,
             seed: "move-display-\(draft.focusedCategoryID)-\(viewModel.moveMoneyDisplayAmount)",
+            currency: viewModel.currency,
             maximumDollars: 900
         )
     }
 
     private func moveCounterpartyAvailableText(_ draft: BudgetMoveMoneyDraft) -> String {
         guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.moveMoneyCounterpartyAvailableDisplayAmount.actualMoney.formatted()
+            return viewModel.currency.formatted(viewModel.moveMoneyCounterpartyAvailableDisplayAmount)
         }
 
         return PrivacyDisplay.money(
             viewModel.moveMoneyCounterpartyAvailableDisplayAmount,
             seed: "move-counterparty-\(draft.focusedCategoryID)",
+            currency: viewModel.currency,
             maximumDollars: 900
         )
     }
@@ -344,12 +347,13 @@ struct BudgetMoveMoneyView: View {
 
     private func moveAllocationAmountText(_ allocation: BudgetMoveMoneyAllocation) -> String {
         guard appState.settings.randomizedDisplayValuesEnabled else {
-            return allocation.amount.actualMoney.formatted()
+            return viewModel.currency.formatted(allocation.amount)
         }
 
         return PrivacyDisplay.money(
             allocation.amount,
             seed: "move-allocation-\(allocation.id)-\(allocation.amount)",
+            currency: viewModel.currency,
             maximumDollars: 900
         )
     }
@@ -758,6 +762,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
         return PrivacyDisplay.money(
             option.amount,
             seed: "move-option-\(option.id)",
+            currency: viewModel.currency,
             maximumDollars: 900
         )
     }

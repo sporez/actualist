@@ -38,6 +38,7 @@ final class TransactionEditorViewModel {
     var payees: [ActualPayee] = []
     var isLoading = false
     var isLoadingCategoryBalances = false
+    var currency: BudgetCurrency = .usd
     var errorMessage: String?
     var submissionState: TransactionSubmissionState {
         submissionCoordinator.submissionState
@@ -121,7 +122,7 @@ final class TransactionEditorViewModel {
     }
 
     var formattedAmount: String {
-        Money(minorUnits: amountCents).formatted()
+        currency.formatted(amountCents)
     }
 
     var amountColor: Color {
@@ -171,12 +172,12 @@ final class TransactionEditorViewModel {
     }
 
     var splitRemainingText: String {
-        splitRemainingCents.actualMoney.formatted()
+        currency.formatted(splitRemainingCents)
     }
 
     var splitRemainingStatusText: String {
         if splitRemainingCents < 0 {
-            return "\(Int(clamping: splitRemainingCents.magnitude).actualMoney.formatted()) Over"
+            return "\(currency.formatted(Int(clamping: splitRemainingCents.magnitude))) Over"
         }
 
         return "\(splitRemainingText) Remaining"
@@ -437,6 +438,7 @@ final class TransactionEditorViewModel {
         }
         let repository = appState.transactionRepository
         let preferredAccountIDs = appState.settings.accountOrderByBudgetID[budgetID] ?? []
+        currency = appState.localFirstStore.budgetCurrency(budgetID: budgetID)
 
         if !isEditing, let prefilledAccount {
             selectedAccountID = prefilledAccount.id

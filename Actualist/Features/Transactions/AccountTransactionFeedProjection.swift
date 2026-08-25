@@ -51,6 +51,7 @@ struct AccountTransactionFeedProjection {
     let query: String
     let pendingNewTransactionIDs: Set<String>
     let privacyModeEnabled: Bool
+    var currency: BudgetCurrency = .usd
 
     var displayState: AccountTransactionsDisplayState {
         let groups = TransactionGrouping.grouped(displayedTransactions).map { group in
@@ -161,9 +162,9 @@ struct AccountTransactionFeedProjection {
     }
 
     private var balanceText: String {
-        guard privacyModeEnabled else { return (loaded?.balance ?? 0).actualMoney.formatted() }
+        guard privacyModeEnabled else { return currency.formatted(loaded?.balance ?? 0) }
         let seed = scope.account.map { "account-header-\($0.id)" } ?? "spending-header"
-        return PrivacyDisplay.money(loaded?.balance, seed: seed, maximumDollars: 15_000)
+        return PrivacyDisplay.money(loaded?.balance, seed: seed, currency: currency, maximumDollars: 15_000)
     }
 
     private var categorySummary: AccountTransactionCategorySummaryPresentation? {
@@ -177,10 +178,11 @@ struct AccountTransactionFeedProjection {
     }
 
     private func summaryAmountText(_ amount: Int, label: String) -> String {
-        guard privacyModeEnabled else { return amount.actualMoney.formatted() }
+        guard privacyModeEnabled else { return currency.formatted(amount) }
         return PrivacyDisplay.money(
             amount,
             seed: "category-summary-\(scope.categoryDetails?.id ?? label)-\(label)",
+            currency: currency,
             maximumDollars: 2_500
         )
     }

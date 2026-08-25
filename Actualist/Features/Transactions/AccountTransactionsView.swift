@@ -50,6 +50,11 @@ struct AccountTransactionsView: View {
         appState.settings.selectedBudgetID
     }
 
+    private var budgetCurrency: BudgetCurrency {
+        guard let budgetID else { return .usd }
+        return appState.localFirstStore.budgetCurrency(budgetID: budgetID)
+    }
+
     private var transactionRepository: any TransactionRepositoryProtocol {
         appState.transactionRepository
     }
@@ -71,7 +76,8 @@ struct AccountTransactionsView: View {
             budgetID: budgetID,
             repository: transactionRepository,
             pendingNewTransactionIDs: pendingNewTransactionIDs,
-            privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
+            privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            currency: budgetCurrency
         )
 
         return List {

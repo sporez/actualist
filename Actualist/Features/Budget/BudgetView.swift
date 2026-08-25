@@ -339,7 +339,8 @@ struct BudgetView: View {
     private var displayedBudgetMonth: BudgetMonth? {
         BudgetMonthPrivacyProjection.displayMonth(
             viewModel.budgetMonth,
-            isEnabled: appState.settings.randomizedDisplayValuesEnabled
+            isEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            currency: viewModel.currency
         )
     }
 
@@ -352,7 +353,8 @@ struct BudgetView: View {
             from: viewModel.budgetAlerts,
             month: displayedBudgetMonth,
             showTotalAssigned: appState.settings.showTotalAssigned,
-            includeCarryoverInOverspent: appState.settings.includeCarryoverCategoriesInOverspentAlerts
+            includeCarryoverInOverspent: appState.settings.includeCarryoverCategoriesInOverspentAlerts,
+            currency: viewModel.currency
         )
     }
 
@@ -423,7 +425,8 @@ struct BudgetView: View {
         BudgetMonthSummaryPresentation.assignedValueText(
             for: alert,
             month: displayedBudgetMonth,
-            showTotalAssigned: appState.settings.showTotalAssigned
+            showTotalAssigned: appState.settings.showTotalAssigned,
+            currency: viewModel.currency
         )
     }
 

@@ -6,18 +6,24 @@ import Foundation
 /// and month totals with the same identities `BudgetDatabase.fetchBudgetMonth`
 /// uses. The real `BudgetMonth` stays the source of truth for writes.
 enum BudgetMonthPrivacyProjection {
-    static func displayMonth(_ month: BudgetMonth?, isEnabled: Bool) -> BudgetMonth? {
+    static func displayMonth(
+        _ month: BudgetMonth?,
+        isEnabled: Bool,
+        currency: BudgetCurrency = .usd
+    ) -> BudgetMonth? {
         guard let month else {
             return nil
         }
         guard isEnabled else {
             return month
         }
-        return project(month)
+        return project(month, currency: currency)
     }
 
-    static func project(_ month: BudgetMonth) -> BudgetMonth {
-        let groups = month.categoryGroups.map { project(group: $0, month: month.month) }
+    static func project(_ month: BudgetMonth, currency: BudgetCurrency = .usd) -> BudgetMonth {
+        let groups = month.categoryGroups.map {
+            project(group: $0, month: month.month, currency: currency)
+        }
         let expenseGroups = groups.filter { !$0.isIncome }
         let incomeGroups = groups.filter(\.isIncome)
         let totalBudgeted = expenseGroups.reduce(0) { $0 + $1.budgeted }
@@ -27,6 +33,7 @@ enum BudgetMonthPrivacyProjection {
         let toBudget = leafAmount(
             sign: toBudgetSign(month: month.month),
             seed: "budget-leaf-to-budget-\(month.month)",
+            currency: currency,
             maximumDollars: 2_000
         )
 
@@ -47,9 +54,12 @@ enum BudgetMonthPrivacyProjection {
 
     private static func project(
         group: BudgetMonthCategoryGroup,
-        month: String
+        month: String,
+        currency: BudgetCurrency
     ) -> BudgetMonthCategoryGroup {
-        let categories = group.categories.map { project(category: $0, month: month) }
+        let categories = group.categories.map {
+            project(category: $0, month: month, currency: currency)
+        }
         return BudgetMonthCategoryGroup(
             id: group.id,
             name: group.name,
@@ -64,23 +74,27 @@ enum BudgetMonthPrivacyProjection {
 
     private static func project(
         category: BudgetMonthCategory,
-        month: String
+        month: String,
+        currency: BudgetCurrency
     ) -> BudgetMonthCategory {
         let budgeted = category.isIncome
             ? 0
             : leafAmount(
                 sign: 1,
                 seed: "budget-leaf-budgeted-\(month)-\(category.id)",
+                currency: currency,
                 maximumDollars: 900
             )
         let spent = leafAmount(
             sign: category.isIncome ? 1 : -1,
             seed: "budget-leaf-spent-\(month)-\(category.id)",
+            currency: currency,
             maximumDollars: 600
         )
         let leftover = leafAmount(
             sign: leftoverSign(month: month, categoryID: category.id),
             seed: "budget-leaf-leftover-\(month)-\(category.id)",
+            currency: currency,
             maximumDollars: 400
         )
 
@@ -97,10 +111,16 @@ enum BudgetMonthPrivacyProjection {
         )
     }
 
-    private static func leafAmount(sign: Int, seed: String, maximumDollars: Int) -> Int {
+    private static func leafAmount(
+        sign: Int,
+        seed: String,
+        currency: BudgetCurrency,
+        maximumDollars: Int
+    ) -> Int {
         PrivacyDisplay.amount(
             sign,
             seed: seed,
+            currency: currency,
             minimumDollars: 4,
             maximumDollars: maximumDollars
         )

@@ -9,6 +9,14 @@ extension LocalFirstActualStore {
         loadedBudgetMonthsByBudget[budgetID]
     }
 
+    func budgetCurrency(budgetID: String) -> BudgetCurrency {
+        currencyByBudget[budgetID] ?? .usd
+    }
+
+    func reloadBudgetCurrency(database: BudgetDatabase, budgetID: String) async {
+        currencyByBudget[budgetID] = (try? await database.fetchBudgetCurrency()) ?? .usd
+    }
+
     func currentBudgetMonth(
         budgetID: String,
         preferredMonth: String
@@ -26,6 +34,7 @@ extension LocalFirstActualStore {
         let months = try await availableMonths(budgetID: budgetID)
         let monthID = selectedMonth
         let month = try await database.fetchBudgetMonth(month: monthID)
+        await reloadBudgetCurrency(database: database, budgetID: budgetID)
         let loaded = LoadedBudgetMonth(
             availableMonths: months,
             selectedMonth: monthID,
@@ -35,7 +44,8 @@ extension LocalFirstActualStore {
                 budgetID: budgetID,
                 month: month,
                 monthID: monthID
-            )
+            ),
+            currency: budgetCurrency(budgetID: budgetID)
         )
         loadedBudgetMonthsByBudget[budgetID] = loaded
         return loaded
@@ -238,7 +248,7 @@ extension LocalFirstActualStore {
         return TransactionEditorOptions(
             accounts: try await database.fetchAccounts().filter { !$0.closed },
             categories: try await database.fetchCategories().filter { !($0.hidden ?? false) },
-            categoryGroups: try await editorCategoryGroups(database: database, month: month),
+            categoryGroups: try await editorCategoryGroups(database: database, month: month, budgetID: budgetID),
             payees: try await database.fetchPayees()
         )
     }
@@ -265,7 +275,7 @@ extension LocalFirstActualStore {
             transferPayeeIDs: maps.transferPayeeIDs,
             transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
-            categoryGroups: try await editorCategoryGroups(database: database, month: month)
+            categoryGroups: try await editorCategoryGroups(database: database, month: month, budgetID: budgetID)
         )
         uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)] = loaded
         return loaded
@@ -376,7 +386,7 @@ extension LocalFirstActualStore {
                 transferPayeeIDs: maps.transferPayeeIDs,
                 transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
                 offBudgetAccountIDs: maps.offBudgetAccountIDs,
-                categoryGroups: editorCategoryGroups(from: month)
+                categoryGroups: editorCategoryGroups(from: month, budgetID: budgetID)
             )
         return Self.budgetAlerts(
             month: month,
@@ -490,13 +500,20 @@ extension LocalFirstActualStore {
             && !isOnBudgetTransfer
     }
 
-    func editorCategoryGroups(database: BudgetDatabase, month: String) async throws -> [TransactionEditorCategoryGroup] {
+    func editorCategoryGroups(
+        database: BudgetDatabase,
+        month: String,
+        budgetID: String
+    ) async throws -> [TransactionEditorCategoryGroup] {
         let budgetMonth = try await database.fetchBudgetMonth(month: month)
-        return budgetMonth.editorCategoryGroups()
+        return budgetMonth.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID))
     }
 
-    func editorCategoryGroups(from budgetMonth: BudgetMonth) -> [TransactionEditorCategoryGroup] {
-        budgetMonth.editorCategoryGroups()
+    func editorCategoryGroups(
+        from budgetMonth: BudgetMonth,
+        budgetID: String
+    ) -> [TransactionEditorCategoryGroup] {
+        budgetMonth.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID))
     }
 
     func nameMaps(
@@ -567,7 +584,7 @@ extension BudgetMonth {
     // overspent cover source picker. A synthetic "To Budget" group (backed by the
     // first visible income category) is prepended so available income can be
     // selected as a source/destination, matching Actual's budgeting model.
-    func editorCategoryGroups() -> [TransactionEditorCategoryGroup] {
+    func editorCategoryGroups(currency: BudgetCurrency = .usd) -> [TransactionEditorCategoryGroup] {
         let incomeGroups = categoryGroups.filter { $0.isIncome }
         let expenseGroups = categoryGroups.filter { !$0.isIncome }
 
@@ -582,7 +599,7 @@ extension BudgetMonth {
                         id: firstIncomeCategory.id,
                         title: "To Budget",
                         amount: toBudget,
-                        valueText: toBudget.actualMoney.formatted()
+                        valueText: currency.formatted(toBudget)
                     )
                 ]
             ))
@@ -596,7 +613,7 @@ extension BudgetMonth {
                         id: category.id,
                         title: category.name.actualistCategoryNameParts.name,
                         amount: category.balance,
-                        valueText: category.balance.actualMoney.formatted()
+                        valueText: currency.formatted(category.balance)
                     )
                 }
             guard !options.isEmpty else {

@@ -3,6 +3,7 @@ import SwiftUI
 struct AccountsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var currency
     @State private var viewModel = AccountsViewModel()
     @State private var expandedSections: Set<AccountListLayout.Kind> = [.budget, .offBudget]
 
@@ -412,12 +413,13 @@ struct AccountsView: View {
     private func sectionTotalText(_ rows: [AccountDisplay], title: String) -> String {
         let amount = total(rows)
         guard appState.settings.randomizedDisplayValuesEnabled else {
-            return amount.actualMoney.formatted()
+            return currency.formatted(amount)
         }
 
         return PrivacyDisplay.money(
             amount,
             seed: "account-section-\(title)-\(rows.map(\.id).joined(separator: "-"))",
+            currency: currency,
             maximumDollars: 15_000
         )
     }
@@ -586,6 +588,7 @@ private struct AddAccountSheet: View {
 
 struct AccountRow: View {
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var currency
 
     let row: AccountDisplay
     let isPrivacyModeEnabled: Bool
@@ -658,12 +661,13 @@ struct AccountRow: View {
 
     private var balanceText: String {
         guard isPrivacyModeEnabled else {
-            return (row.balance ?? 0).actualMoney.formatted()
+            return currency.formatted(row.balance ?? 0)
         }
 
         return PrivacyDisplay.money(
             row.balance,
             seed: "account-balance-\(row.account.id)",
+            currency: currency,
             maximumDollars: 15_000
         )
     }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BudgetGroupSection: View {
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var currency
 
     let group: BudgetMonthCategoryGroup
     let isExpanded: Bool
@@ -90,16 +91,17 @@ struct BudgetGroupSection: View {
     }
 
     private var groupBudgetedText: String {
-        group.budgeted.actualMoney.formatted()
+        currency.formatted(group.budgeted)
     }
 
     private var groupBalanceText: String {
-        group.balance.actualMoney.formatted()
+        currency.formatted(group.balance)
     }
 }
 
 struct BudgetCategoryRow: View {
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var currency
 
     let category: BudgetMonthCategory
     let assignedDisplay: BudgetAssignedAmountDisplay
@@ -252,7 +254,7 @@ struct BudgetCategoryRow: View {
     }
 
     private var availableText: String {
-        category.balance.actualMoney.formatted()
+        currency.formatted(category.balance)
     }
 }
 

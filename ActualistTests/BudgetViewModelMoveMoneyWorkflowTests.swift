@@ -82,7 +82,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         model.beginMoveMoney(for: option.id)
 
         #expect(option.categoryName == "Mortgage")
-        #expect(option.amountText.contains("76.93"))
+        #expect(option.amountText(using: model.currency).contains("76.93"))
         #expect(model.assignmentDraft == nil)
         #expect(model.moveMoneyDraft?.focusedCategoryID == option.id)
         #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
