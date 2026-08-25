@@ -215,8 +215,8 @@ enum RuleEditorDraftState {
         }
     }
 
-    /// Editable display text for an amount value, in dollars with no currency
-    /// symbol (suitable for a `TextField`). Minor units are divided by 100.
+    /// Editable display text for an amount value, in budget display units with
+    /// no currency symbol (suitable for a `TextField`).
     static func amountDisplayText(
         _ raw: RuleJSONValue,
         currency: BudgetCurrency = .usd
