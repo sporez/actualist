@@ -42,6 +42,12 @@ struct ConnectionSyncSettingsView: View {
                         )
                     }
                     .disabled(isErasingLocalData)
+                    .eraseLocalDataConfirmationDialog(
+                        isPresented: $isEraseLocalDataConfirmationPresented,
+                        isDemoMode: true,
+                        message: eraseLocalDataConfirmationMessage,
+                        onConfirm: eraseLocalData
+                    )
                 } header: {
                     Text("Demo")
                 } footer: {
@@ -71,18 +77,6 @@ struct ConnectionSyncSettingsView: View {
         }
         .refreshable {
             await syncNow()
-        }
-        .confirmationDialog(
-            appState.isDemoMode ? "Exit Demo Mode?" : "Disconnect & Erase Local Data?",
-            isPresented: $isEraseLocalDataConfirmationPresented,
-            titleVisibility: .visible
-        ) {
-            Button(appState.isDemoMode ? "Exit Demo Mode" : "Disconnect & Erase", role: .destructive) {
-                eraseLocalData()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(eraseLocalDataConfirmationMessage)
         }
     }
 
@@ -262,6 +256,8 @@ struct ConnectionSyncSettingsView: View {
                 )
             }
             .disabled(isSyncingNow || appState.settings.selectedBudgetID == nil)
+        } header: {
+            Text("Connection")
         }
         .settingsSectionChrome()
     }
@@ -278,6 +274,12 @@ struct ConnectionSyncSettingsView: View {
                 )
             }
             .disabled(isErasingLocalData)
+            .eraseLocalDataConfirmationDialog(
+                isPresented: $isEraseLocalDataConfirmationPresented,
+                isDemoMode: false,
+                message: eraseLocalDataConfirmationMessage,
+                onConfirm: eraseLocalData
+            )
         } header: {
             Text("Danger Zone")
         } footer: {
@@ -286,6 +288,30 @@ struct ConnectionSyncSettingsView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .settingsSectionChrome()
+    }
+}
+
+private extension View {
+    func eraseLocalDataConfirmationDialog(
+        isPresented: Binding<Bool>,
+        isDemoMode: Bool,
+        message: String,
+        onConfirm: @escaping () -> Void
+    ) -> some View {
+        confirmationDialog(
+            isDemoMode ? "Exit Demo Mode?" : "Disconnect & Erase Local Data?",
+            isPresented: isPresented,
+            titleVisibility: .visible
+        ) {
+            Button(
+                isDemoMode ? "Exit Demo Mode" : "Disconnect & Erase",
+                role: .destructive,
+                action: onConfirm
+            )
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(message)
+        }
     }
 }
 

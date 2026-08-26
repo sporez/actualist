@@ -19,9 +19,11 @@ Open the bundled demo budget on a screen and capture a screenshot:
 scripts/run-ios-simulator.sh --boot --reset --demo --screen accounts --screenshot
 ```
 
-`--screen` may be `budget`, `spending`, `accounts`, `reports`, `settings`, or
-`uncategorized`. `--reset` uninstalls first so demo always starts from
-onboarding. Screenshots write to `.artifacts/screenshots/`.
+`--screen` is a slash path forwarded to the app. Roots are `budget`,
+`spending`, `accounts`, `reports`, `settings`, and `uncategorized`. Settings
+pages can be nested (`settings/appearance`) or used as a unique shorthand
+(`appearance`, `privacy`, `connection`). `--reset` uninstalls first so demo
+always starts from onboarding. Screenshots write to `.artifacts/screenshots/`.
 
 To build without launching:
 

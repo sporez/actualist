@@ -6,21 +6,17 @@ import Foundation
 /// `-actualist-demo` installs the bundled demo budget only from onboarding; it
 /// never erases a real selected budget. Use the simulator helper `--reset` for
 /// a clean install.
+///
+/// `-actualist-screen` takes a slash path, not a closed enum. Roots are tabs,
+/// `settings`, and `uncategorized`. Nested settings pages use the
+/// `SettingsPage` slug (`settings/appearance`). Unique slugs also work as
+/// shorthand (`appearance`). Unknown paths are kept but do not change routing.
 struct SimulatorLaunchCommand: Equatable, Sendable {
-    enum Screen: String, CaseIterable, Sendable {
-        case budget
-        case spending
-        case accounts
-        case reports
-        case settings
-        case uncategorized
-    }
-
     var enterDemo = false
-    var screen: Screen?
+    var screenPath: [String] = []
 
     var isEmpty: Bool {
-        !enterDemo && screen == nil
+        !enterDemo && screenPath.isEmpty
     }
 
     static func parse(arguments: [String]) -> SimulatorLaunchCommand? {
@@ -32,17 +28,26 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
                 command.enterDemo = true
             } else if argument == "-actualist-screen" {
                 let next = arguments.index(after: index)
-                guard next < arguments.endIndex,
-                      let screen = Screen(rawValue: arguments[next].lowercased()) else {
+                guard next < arguments.endIndex else {
                     index = arguments.index(after: index)
                     continue
                 }
-                command.screen = screen
+                let path = Self.path(from: arguments[next])
+                if !path.isEmpty {
+                    command.screenPath = path
+                }
                 index = next
             }
             index = arguments.index(after: index)
         }
         return command.isEmpty ? nil : command
+    }
+
+    static func path(from rawValue: String) -> [String] {
+        rawValue
+            .split(separator: "/")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
     }
 
     static func fromProcessInfo(
@@ -52,22 +57,19 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
     }
 
     var route: AppRoute? {
-        switch screen {
-        case .budget:
-            .tab(.budget)
-        case .spending:
-            .tab(.spending)
-        case .accounts:
-            .tab(.accounts)
-        case .reports:
-            .tab(.reports)
-        case .settings:
-            .settings
-        case .uncategorized:
-            .uncategorized(month: "")
-        case nil:
-            enterDemo ? .tab(.budget) : nil
+        guard let first = screenPath.first else {
+            return enterDemo ? .tab(.budget) : nil
         }
+        if let tab = AppTab(rawValue: first) {
+            return .tab(tab)
+        }
+        if first == "uncategorized" {
+            return .uncategorized(month: "")
+        }
+        if first == "settings" || SettingsPage(rawValue: first) != nil {
+            return .settings
+        }
+        return enterDemo ? .tab(.budget) : nil
     }
 }
 

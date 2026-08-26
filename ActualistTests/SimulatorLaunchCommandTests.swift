@@ -11,14 +11,14 @@ struct SimulatorLaunchCommandTests {
     @Test func parsesDemoAndKnownScreens() {
         let demo = SimulatorLaunchCommand.parse(arguments: ["/Actualist", "-actualist-demo"])
         #expect(demo?.enterDemo == true)
-        #expect(demo?.screen == nil)
+        #expect(demo?.screenPath == [])
         #expect(demo?.route == .tab(.budget))
 
         let accounts = SimulatorLaunchCommand.parse(
             arguments: ["/Actualist", "-actualist-demo", "-actualist-screen", "Accounts"]
         )
         #expect(accounts?.enterDemo == true)
-        #expect(accounts?.screen == .accounts)
+        #expect(accounts?.screenPath == ["accounts"])
         #expect(accounts?.route == .tab(.accounts))
 
         let settings = SimulatorLaunchCommand.parse(
@@ -33,12 +33,44 @@ struct SimulatorLaunchCommandTests {
         #expect(uncategorized?.route == .uncategorized(month: ""))
     }
 
-    @Test func unknownScreenIsIgnored() {
+    @Test func parsesSlashPathsAndSettingsShorthand() {
+        let nested = SimulatorLaunchCommand.parse(
+            arguments: ["/Actualist", "-actualist-screen", "settings/appearance"]
+        )
+        #expect(nested?.screenPath == ["settings", "appearance"])
+        #expect(nested?.route == .settings)
+        #expect(SettingsPage.stack(fromScreenPath: nested?.screenPath ?? []) == [.appearance])
+
+        let shorthand = SimulatorLaunchCommand.parse(
+            arguments: ["/Actualist", "-actualist-screen", "Privacy"]
+        )
+        #expect(shorthand?.screenPath == ["privacy"])
+        #expect(shorthand?.route == .settings)
+        #expect(SettingsPage.stack(fromScreenPath: shorthand?.screenPath ?? []) == [.privacy])
+
+        let reportsTab = SimulatorLaunchCommand.parse(
+            arguments: ["/Actualist", "-actualist-screen", "reports"]
+        )
+        let reportsTabStack = SettingsPage.stack(fromScreenPath: reportsTab?.screenPath ?? [])
+        #expect(reportsTab?.route == .tab(.reports))
+        #expect(reportsTabStack == [])
+
+        let reportsSettings = SimulatorLaunchCommand.parse(
+            arguments: ["/Actualist", "-actualist-screen", "settings/reports"]
+        )
+        #expect(reportsSettings?.route == .settings)
+        #expect(SettingsPage.stack(fromScreenPath: reportsSettings?.screenPath ?? []) == [.reports])
+    }
+
+    @Test func unknownScreenKeepsDemoRoute() {
         let command = SimulatorLaunchCommand.parse(
             arguments: ["/Actualist", "-actualist-demo", "-actualist-screen", "wallet"]
         )
+        let unknownStack = SettingsPage.stack(fromScreenPath: command?.screenPath ?? [])
         #expect(command?.enterDemo == true)
-        #expect(command?.screen == nil)
+        #expect(command?.screenPath == ["wallet"])
+        #expect(command?.route == .tab(.budget))
+        #expect(unknownStack == [])
     }
 }
 
@@ -68,7 +100,7 @@ struct SimulatorLaunchApplierTests {
         #expect(state.setupPhase == .needsConnection)
 
         await SimulatorLaunchApplier.apply(
-            SimulatorLaunchCommand(enterDemo: true, screen: .accounts),
+            SimulatorLaunchCommand(enterDemo: true, screenPath: ["accounts"]),
             to: state
         )
 
@@ -87,7 +119,7 @@ struct SimulatorLaunchApplierTests {
         state.settings.selectedLocalFirstFileID = "real-file"
 
         await SimulatorLaunchApplier.apply(
-            SimulatorLaunchCommand(enterDemo: true, screen: .spending),
+            SimulatorLaunchCommand(enterDemo: true, screenPath: ["spending"]),
             to: state
         )
 

@@ -33,8 +33,9 @@ Build, install into the UDID-pinned simulator, and launch the app.
 Options:
   --boot              Boot the pinned simulator if none is booted.
   --demo              Launch into the bundled demo budget (onboarding only).
-  --screen NAME       Open a screen after launch:
-                      budget | spending | accounts | reports | settings | uncategorized
+  --screen PATH       Open a screen after launch. Slash paths are allowed
+                      (settings/appearance). Unique settings pages also work
+                      as shorthand (appearance, privacy, connection).
   --reset             Uninstall first so demo starts from a clean onboarding.
   --screenshot        Capture a screenshot after the settle delay.
   --settle SECONDS    Wait after launch before screenshot (default 3, 5 with --demo).
@@ -92,16 +93,6 @@ if [[ -z "${SIMULATOR_ID}" ]]; then
   exit 2
 fi
 
-if [[ -n "$SCREEN_NAME" ]]; then
-  case "$SCREEN_NAME" in
-    budget|spending|accounts|reports|settings|uncategorized) ;;
-    *)
-      echo "error: unknown --screen $SCREEN_NAME" >&2
-      exit 2
-      ;;
-  esac
-fi
-
 if [[ -z "$LAUNCH_WAIT_SECONDS" ]]; then
   if [[ "$ENTER_DEMO" == "1" ]]; then
     LAUNCH_WAIT_SECONDS=5
@@ -154,7 +145,9 @@ fi
 if [[ "${CAPTURE_SCREENSHOT}" == "1" ]]; then
   mkdir -p "${SCREENSHOT_DIR}"
   sleep "${LAUNCH_WAIT_SECONDS}"
-  SCREENSHOT_PATH="${SCREENSHOT_DIR}/actualist-${SCREEN_NAME:-app}-$(date +%Y%m%d-%H%M%S).png"
+  screen_slug="${SCREEN_NAME:-app}"
+  screen_slug="${screen_slug//\//-}"
+  SCREENSHOT_PATH="${SCREENSHOT_DIR}/actualist-${screen_slug}-$(date +%Y%m%d-%H%M%S).png"
   echo "Capturing ${SCREENSHOT_PATH}"
   xcrun simctl io booted screenshot "${SCREENSHOT_PATH}"
   echo "Done: ${SCREENSHOT_PATH}"

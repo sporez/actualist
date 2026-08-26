@@ -14,7 +14,7 @@ struct PrivacySettingsView: View {
                 Toggle("New Transaction Alerts", isOn: backgroundRefreshSelection)
                     .disabled(appState.isDemoMode)
             } header: {
-                Text("Transaction Alerts")
+                Text("Notifications")
             } footer: {
                 Text(transactionAlertsFooterText)
                     .font(.caption)
@@ -30,21 +30,12 @@ struct PrivacySettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-            } header: {
-                Text("App Switcher")
-            } footer: {
-                Text(appState.settings.appSwitcherPrivacyMode.detail)
-                    .font(.caption)
-                    .foregroundStyle(ActualistTheme.secondaryText)
-            }
-            .settingsSectionChrome()
 
-            Section {
                 Toggle("Use Sample Values", isOn: sampleValuesSelection)
             } header: {
-                Text("Sample Values")
+                Text("Privacy")
             } footer: {
-                Text("Replaces amounts, account names, payees, and categories with sample values. Your real budget is unchanged and still syncs normally.")
+                Text("Controls how Actualist protects your financial information when displaying the app or sharing screenshots.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -52,8 +43,10 @@ struct PrivacySettingsView: View {
 
             Section {
                 Toggle("Allow Shortcuts & Siri", isOn: shortcutsEnabledSelection)
+            } header: {
+                Text("System Access")
             } footer: {
-                Text("Shortcuts and Siri can read balances and log transactions in the selected budget. Turn this off to refuse every action. The device passcode or Face ID is still required for money actions.")
+                Text("Shortcuts and Siri can read balances and log transactions in the selected budget.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -105,6 +98,6 @@ struct PrivacySettingsView: View {
         if appState.isDemoMode {
             return "Background transaction alerts aren't available in demo mode, which never contacts a server."
         }
-        return "Actualist checks for new transactions using background refresh. Alerts require notifications to be allowed for Actualist in Settings › Notifications."
+        return "Actualist checks for new transactions using background refresh. Notifications must be enabled in Settings."
     }
 }

@@ -1,9 +1,33 @@
 import SwiftUI
 
+/// Slugs for Settings pages. Launch paths use these values (`appearance`,
+/// `settings/privacy`). Unique slugs also work as `-actualist-screen` shorthand.
+enum SettingsPage: String, CaseIterable, Hashable, Sendable {
+    case connection
+    case budgetData = "budget-data"
+    case appearance
+    case privacy
+    case reports
+    case advanced
+    case support
+
+    static func stack(fromScreenPath path: [String]) -> [SettingsPage] {
+        if path.first == "settings" {
+            return path.dropFirst().compactMap(SettingsPage.init(rawValue:))
+        }
+        if let first = path.first, AppTab(rawValue: first) != nil {
+            return []
+        }
+        return path.compactMap(SettingsPage.init(rawValue:))
+    }
+}
+
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     let showsDismissButton: Bool
+    @State private var path: [SettingsPage] = []
+    @State private var didApplyLaunchDestination = false
     @State private var developerUnlockToastTask: Task<Void, Never>?
 
     init(showsDismissButton: Bool = false) {
@@ -11,12 +35,10 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 Section {
-                    NavigationLink {
-                        ConnectionSyncSettingsView()
-                    } label: {
+                    NavigationLink(value: SettingsPage.connection) {
                         SettingsCategoryRow(
                             systemImage: "antenna.radiowaves.left.and.right",
                             title: "Connection & Sync",
@@ -25,9 +47,7 @@ struct SettingsView: View {
                         )
                     }
 
-                    NavigationLink {
-                        BudgetDataSettingsView()
-                    } label: {
+                    NavigationLink(value: SettingsPage.budgetData) {
                         SettingsCategoryRow(
                             systemImage: "banknote",
                             title: "Budget & Data",
@@ -38,9 +58,7 @@ struct SettingsView: View {
                 .settingsSectionChrome()
 
                 Section {
-                    NavigationLink {
-                        AppearanceSettingsView()
-                    } label: {
+                    NavigationLink(value: SettingsPage.appearance) {
                         SettingsCategoryRow(
                             systemImage: "paintbrush",
                             title: "Appearance",
@@ -48,9 +66,7 @@ struct SettingsView: View {
                         )
                     }
 
-                    NavigationLink {
-                        PrivacySettingsView()
-                    } label: {
+                    NavigationLink(value: SettingsPage.privacy) {
                         SettingsCategoryRow(
                             systemImage: "hand.raised.fill",
                             title: "Privacy & Notifications",
@@ -58,9 +74,7 @@ struct SettingsView: View {
                         )
                     }
 
-                    NavigationLink {
-                        ReportsSettingsView()
-                    } label: {
+                    NavigationLink(value: SettingsPage.reports) {
                         SettingsCategoryRow(
                             systemImage: "chart.xyaxis.line",
                             title: "Reports",
@@ -71,9 +85,7 @@ struct SettingsView: View {
                 .settingsSectionChrome()
 
                 Section {
-                    NavigationLink {
-                        AdvancedSettingsView()
-                    } label: {
+                    NavigationLink(value: SettingsPage.advanced) {
                         SettingsCategoryRow(
                             systemImage: "wrench.and.screwdriver",
                             title: "Advanced",
@@ -81,9 +93,7 @@ struct SettingsView: View {
                         )
                     }
 
-                    NavigationLink {
-                        SupportSettingsView()
-                    } label: {
+                    NavigationLink(value: SettingsPage.support) {
                         SettingsCategoryRow(
                             systemImage: "questionmark.circle",
                             title: "Support",
@@ -105,6 +115,27 @@ struct SettingsView: View {
             .tint(ActualistTheme.accent)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: SettingsPage.self) { page in
+                switch page {
+                case .connection:
+                    ConnectionSyncSettingsView()
+                case .budgetData:
+                    BudgetDataSettingsView()
+                case .appearance:
+                    AppearanceSettingsView()
+                case .privacy:
+                    PrivacySettingsView()
+                case .reports:
+                    ReportsSettingsView()
+                case .advanced:
+                    AdvancedSettingsView()
+                case .support:
+                    SupportSettingsView()
+                }
+            }
+            .onAppear {
+                applyLaunchDestination()
+            }
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Button {
@@ -256,6 +287,19 @@ struct SettingsView: View {
         }
 
         return "Actualist \(version) (\(build))"
+    }
+
+    // MARK: - Simulator launch
+
+    private func applyLaunchDestination() {
+        guard !didApplyLaunchDestination else {
+            return
+        }
+        didApplyLaunchDestination = true
+
+        path = SettingsPage.stack(
+            fromScreenPath: SimulatorLaunchCommand.fromProcessInfo()?.screenPath ?? []
+        )
     }
 
     // MARK: - Developer unlock

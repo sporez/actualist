@@ -79,54 +79,26 @@ struct AppearanceSettingsView: View {
             .settingsSectionChrome()
 
             Section {
-                Toggle(isOn: greenIncomeTransactionAmountsSelection) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Green Income Amounts")
-                        Text("Show positive transaction amounts in green.")
-                            .font(.caption)
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                }
+                Toggle("Green Income Amounts", isOn: greenIncomeTransactionAmountsSelection)
             } header: {
                 Text("Amounts")
             } footer: {
-                Text("Affects transaction amount colors across the app.")
+                Text("Show positive transaction amounts in green.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
             .settingsSectionChrome()
 
             Section {
-                Toggle(isOn: includeCarryoverCategoriesInOverspentAlertsSelection) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Include Rollover in Alerts")
-                        Text("Show negative rollover categories in the overspent banner and Cover list on the Budget screen.")
-                            .font(.caption)
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                }
+                Toggle(
+                    "Include Rollover in Alerts",
+                    isOn: includeCarryoverCategoriesInOverspentAlertsSelection
+                )
+                Toggle("Show Total Assigned", isOn: showTotalAssignedSelection)
             } header: {
-                Text("Budget Banner")
+                Text("Budget Options")
             } footer: {
-                Text("Controls the overspent banner shown at the top of the Budget screen.")
-                    .font(.caption)
-                    .foregroundStyle(ActualistTheme.secondaryText)
-            }
-            .settingsSectionChrome()
-
-            Section {
-                Toggle(isOn: showTotalAssignedSelection) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Show Total Assigned")
-                        Text("Show the total amount assigned across all categories for the selected month.")
-                            .font(.caption)
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                }
-            } header: {
-                Text("Budget Summary")
-            } footer: {
-                Text("Adds the monthly assigned total to the To Budget bar on the Budget screen.")
+                Text("Controls additional information shown on the Budget screen.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
