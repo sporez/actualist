@@ -15,6 +15,11 @@ enum BudgetLayout {
     static let rolloverIndicatorSize: CGFloat = 7
     static let rolloverIndicatorTopPadding: CGFloat = 3
     static let rolloverIndicatorTrailingPadding: CGFloat = 4
+    static let alertHorizontalPadding: CGFloat = 16
+    static let alertVerticalPadding: CGFloat = 10
+    static let summaryStackedVerticalPadding: CGFloat = 6
+    static let summaryMetricSpacing: CGFloat = 2
+    static let summaryColumnSpacing: CGFloat = 12
     static let assignmentScrollBottomClearance: CGFloat = 160
     static let assignmentScrollVisibilityMargin: CGFloat = 20
     static let assignmentKeypadAnimation = Animation.smooth(duration: 0.24)

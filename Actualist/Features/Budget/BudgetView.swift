@@ -374,51 +374,10 @@ struct BudgetView: View {
     }
 
     private func budgetAlertLabel(_ alert: BudgetAlert) -> some View {
-        let assignedText = assignedDisplayText(for: alert)
-        return HStack(spacing: 10) {
-            if let valueText = alert.valueText {
-                Text(valueText)
-                    .font(ActualistTypography.workScreenAmount(for: density))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-
-            if let count = alert.count {
-                Text("\(count)")
-                    .font(ActualistTypography.control(for: density))
-                    .foregroundStyle(alert.countForeground)
-                    .frame(width: 28, height: 28)
-                    .background(alert.countBackground, in: Circle())
-            }
-
-            Text(alert.title)
-                .font(ActualistTypography.body(for: density))
-                .lineLimit(1)
-                .minimumScaleFactor(0.86)
-
-            Spacer()
-
-            if let assignedText {
-                assignedMetric(text: assignedText)
-            }
-
-            if let actionTitle = alert.actionTitle {
-                Text(actionTitle)
-                    .font(ActualistTypography.control(for: density))
-                    .lineLimit(1)
-            }
-
-            if alert.isActionable {
-                Image(systemName: "chevron.right")
-                    .font(.body.weight(.bold))
-            }
-        }
-        .foregroundStyle(alert.foreground)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background {
-            alert.backgroundView
-        }
+        BudgetAlertBanner(
+            alert: alert,
+            assignedText: assignedDisplayText(for: alert)
+        )
     }
 
     private func assignedDisplayText(for alert: BudgetAlert) -> String? {
@@ -428,28 +387,6 @@ struct BudgetView: View {
             showTotalAssigned: appState.settings.showTotalAssigned,
             currency: viewModel.currency
         )
-    }
-
-    private func assignedMetric(text: String) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                Text(text)
-                    .font(ActualistTypography.control(for: density))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Text("Assigned")
-                    .font(ActualistTypography.body(for: density))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.86)
-            }
-            Text(text)
-                .font(ActualistTypography.control(for: density))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-        }
-        .layoutPriority(1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Assigned \(text)")
     }
 
     private func applyShortcutRoute() {

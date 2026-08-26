@@ -145,3 +145,153 @@ extension BudgetAlert {
         }
     }
 }
+
+struct BudgetAlertBanner: View {
+    @Environment(\.actualistDensity) private var density
+
+    let alert: BudgetAlert
+    let assignedText: String?
+
+    var body: some View {
+        Group {
+            if alert.kind == .toBudget {
+                toBudgetContent
+            } else {
+                standardContent
+            }
+        }
+        .foregroundStyle(alert.foreground)
+        .padding(.horizontal, BudgetLayout.alertHorizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .background {
+            alert.backgroundView
+        }
+    }
+
+    private var verticalPadding: CGFloat {
+        if alert.kind == .toBudget, assignedText != nil {
+            BudgetLayout.summaryStackedVerticalPadding
+        } else {
+            BudgetLayout.alertVerticalPadding
+        }
+    }
+
+    @ViewBuilder
+    private var toBudgetContent: some View {
+        if let assignedText {
+            stackedSummary(assignedText: assignedText)
+        } else {
+            inlineSummary
+        }
+    }
+
+    private var inlineSummary: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let valueText = alert.valueText {
+                Text(valueText)
+                    .font(ActualistTypography.workScreenAmount(for: density))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            Text(alert.title)
+                .font(ActualistTypography.body(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.86)
+                .layoutPriority(1)
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(inlineAccessibilityLabel)
+    }
+
+    private var inlineAccessibilityLabel: String {
+        if let valueText = alert.valueText {
+            "\(alert.title) \(valueText)"
+        } else {
+            alert.title
+        }
+    }
+
+    private func stackedSummary(assignedText: String) -> some View {
+        HStack(alignment: .center, spacing: BudgetLayout.summaryColumnSpacing) {
+            summaryMetric(
+                value: alert.valueText ?? "",
+                label: alert.title,
+                amountFont: ActualistTypography.workScreenAmount(for: density),
+                alignment: .leading
+            )
+            summaryMetric(
+                value: assignedText,
+                label: "Assigned",
+                amountFont: ActualistTypography.summarySecondaryAmount(for: density),
+                alignment: .trailing
+            )
+        }
+    }
+
+    private func summaryMetric(
+        value: String,
+        label: String,
+        amountFont: Font,
+        alignment: HorizontalAlignment
+    ) -> some View {
+        let frameAlignment = Alignment(horizontal: alignment, vertical: .center)
+        let textAlignment: TextAlignment = alignment == .trailing ? .trailing : .leading
+        return VStack(alignment: alignment, spacing: BudgetLayout.summaryMetricSpacing) {
+            Text(value)
+                .font(amountFont)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+                .multilineTextAlignment(textAlignment)
+                .frame(maxWidth: .infinity, alignment: frameAlignment)
+            Text(label)
+                .font(ActualistTypography.body(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.86)
+                .multilineTextAlignment(textAlignment)
+                .frame(maxWidth: .infinity, alignment: frameAlignment)
+        }
+        .frame(maxWidth: .infinity, alignment: frameAlignment)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label) \(value)")
+    }
+
+    private var standardContent: some View {
+        HStack(spacing: 10) {
+            if let valueText = alert.valueText {
+                Text(valueText)
+                    .font(ActualistTypography.workScreenAmount(for: density))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            if let count = alert.count {
+                Text("\(count)")
+                    .font(ActualistTypography.control(for: density))
+                    .foregroundStyle(alert.countForeground)
+                    .frame(width: 28, height: 28)
+                    .background(alert.countBackground, in: Circle())
+            }
+
+            Text(alert.title)
+                .font(ActualistTypography.body(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.86)
+
+            Spacer()
+
+            if let actionTitle = alert.actionTitle {
+                Text(actionTitle)
+                    .font(ActualistTypography.control(for: density))
+                    .lineLimit(1)
+            }
+
+            if alert.isActionable {
+                Image(systemName: "chevron.right")
+                    .font(.body.weight(.bold))
+            }
+        }
+    }
+}

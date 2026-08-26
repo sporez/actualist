@@ -392,6 +392,14 @@ enum ActualistTypography {
         .system(size: density.workScreenAmountSize, weight: .bold, design: .rounded)
     }
 
+    static func summarySecondaryAmount(for density: ActualistDisplayDensity) -> Font {
+        .system(
+            size: max(density.workScreenAmountSize - 4, 15),
+            weight: .semibold,
+            design: .rounded
+        )
+    }
+
     static func editorAmount(for density: ActualistDisplayDensity) -> Font {
         .system(size: density.editorAmountSize, weight: .bold, design: .rounded)
     }
