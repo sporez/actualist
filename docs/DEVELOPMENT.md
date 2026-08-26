@@ -78,11 +78,15 @@ The wizard generates one What to Test file from the consumer checklist in
 `config/testflight/what-to-test.txt`, previews it, and pauses for review. By
 default, `TestFlight-Note` trailers from the upcoming build and two previous
 tagged builds are grouped by build. The newest note for each `[topic]` replaces
-earlier notes with that topic. Untagged historical notes are still included and
-deduplicated by exact text. Newer notes take priority when trimming to App Store
-Connect's 4,000-character limit. At review, keep the notes, add a focus item, or
-edit the complete text in `$VISUAL`/`$EDITOR`. The reviewed file is used for
-both TestFlight metadata and the GitHub prerelease body.
+earlier notes with that topic. Only tagged, public-facing summaries are
+included: the note must have a `[topic]`, start with Added/Fixed/Improved/
+Moved/Renamed/Removed/Combined, and must not read as a Try/confirm test
+script. Untagged, instructional, and verb-less notes are omitted, with a
+warning when they appear in the upcoming build. Newer notes take priority when
+trimming to App Store Connect's 4,000-character limit. At review, keep the
+notes, add a focus item, or edit the complete text in `$VISUAL`/`$EDITOR`.
+The reviewed file is used for both TestFlight metadata and the GitHub
+prerelease body.
 
 Write trailers as the What to Test changelog, not QA scripts. Decide in this
 order:

@@ -76,6 +76,19 @@ testflight_note_has_required_verb() {
   esac
 }
 
+# Tagged, public-facing changelog line. Untagged, instructional, and
+# verb-less notes stay out of What to Test.
+testflight_note_is_publishable() {
+  local topic="$1"
+  local note="$2"
+  [[ -n "$topic" ]] || return 1
+  testflight_note_has_required_verb "$note" || return 1
+  if testflight_note_is_instructional "$note"; then
+    return 1
+  fi
+  return 0
+}
+
 testflight_lint_extracted_note() {
   local source_label="$1"
   local topic="$2"
