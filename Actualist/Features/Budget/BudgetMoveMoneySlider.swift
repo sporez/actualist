@@ -36,8 +36,8 @@ struct BudgetMoveMoneySliderMetrics: Equatable, Sendable {
 }
 
 enum BudgetMoveMoneyCoverIntro {
-    static let startDelayNanoseconds: UInt64 = 280_000_000
-    static let animationNanoseconds: UInt64 = 520_000_000
+    static let startDelayNanoseconds: UInt64 = 120_000_000
+    static let animationNanoseconds: UInt64 = 280_000_000
     static let stepCount = 20
 
     static func amount(progress: Double, target: Int) -> Int {
