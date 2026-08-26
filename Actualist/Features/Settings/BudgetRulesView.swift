@@ -76,24 +76,6 @@ struct BudgetRulesView: View {
             .appSwitcherPrivacyAwareDragIndicator()
             .appSwitcherPrivacyProtected()
         }
-        .confirmationDialog(
-            "Delete Rule?",
-            isPresented: Binding(
-                get: { pendingDeleteRule != nil },
-                set: { if !$0 { pendingDeleteRule = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let rule = pendingDeleteRule {
-                Button("Delete Rule", role: .destructive) {
-                    pendingDeleteRule = nil
-                    Task { _ = await viewModel.delete(ruleID: rule.id, using: appState) }
-                }
-            }
-            Button("Cancel", role: .cancel) { pendingDeleteRule = nil }
-        } message: {
-            Text("Future transactions will no longer be processed by this rule.")
-        }
     }
 
     private func ruleRow(_ rule: ManagedRule) -> some View {
@@ -135,6 +117,18 @@ struct BudgetRulesView: View {
                 }
                 .tint(ActualistTheme.accent)
             }
+        }
+        .confirmationDialog(
+            "Delete Rule?",
+            isPresented: $pendingDeleteRule.isPresented(matching: rule.id),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Rule", role: .destructive) {
+                Task { _ = await viewModel.delete(ruleID: rule.id, using: appState) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Future transactions will no longer be processed by this rule.")
         }
     }
 }

@@ -202,6 +202,18 @@ struct OnboardingView: View {
                         .buttonStyle(.glass)
                         .disabled(viewModel.isEnteringDemo || viewModel.isLoadingLoginMethods || viewModel.isConnecting)
                         .accessibilityHint("Explore Actualist with sample data")
+                        .confirmationDialog(
+                            "Do you want to enter demo mode?",
+                            isPresented: $showDemoConfirmation,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Enter Demo") {
+                                Task { await viewModel.enterDemo(using: appState) }
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Actualist will load sample budget data. Nothing is sent to a server.")
+                        }
                     }
 
                     if appState.canCancelReauthentication {
@@ -220,18 +232,6 @@ struct OnboardingView: View {
             }
             .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             .scrollDismissesKeyboard(.interactively)
-            .confirmationDialog(
-                "Do you want to enter demo mode?",
-                isPresented: $showDemoConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Enter Demo") {
-                    Task { await viewModel.enterDemo(using: appState) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Actualist will load sample budget data. Nothing is sent to a server.")
-            }
         }
         .onAppear {
             viewModel.hydrate(from: appState)

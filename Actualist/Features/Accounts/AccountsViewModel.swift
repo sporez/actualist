@@ -16,9 +16,11 @@ final class AccountsViewModel {
         }
     }
 
-    struct DeleteReview: Equatable {
+    struct DeleteReview: Equatable, Identifiable, Sendable {
         var group: ActualAccountGroup
         var memberNames: [String]
+
+        var id: String { group.id }
     }
 
     var isLoading = true
@@ -30,7 +32,6 @@ final class AccountsViewModel {
     var groupEditor: GroupEditor?
     var groupEditorName = ""
     var deleteReview: DeleteReview?
-    var isDeleteReviewPresented = false
     var movingAccount: AccountDisplay?
     var isMovePresented = false
     var addingToGroup: ActualAccountGroup?
@@ -70,7 +71,6 @@ final class AccountsViewModel {
             groupEditor = nil
             groupEditorName = ""
             deleteReview = nil
-            isDeleteReviewPresented = false
             movingAccount = nil
             isMovePresented = false
             addingToGroup = nil
@@ -131,13 +131,11 @@ final class AccountsViewModel {
                 .filter { $0.account.accountGroupId == group.id }
                 .map(\.account.name)
         )
-        isDeleteReviewPresented = true
         errorMessage = nil
     }
 
     func cancelDelete() {
         deleteReview = nil
-        isDeleteReviewPresented = false
     }
 
     func presentMove(_ account: AccountDisplay) {
@@ -230,7 +228,6 @@ final class AccountsViewModel {
                 return
             }
             deleteReview = nil
-            isDeleteReviewPresented = false
             noteContentChange()
         } catch {
             guard generation == submitGeneration else {

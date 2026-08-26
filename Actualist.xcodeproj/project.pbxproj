@@ -50,6 +50,8 @@
 		010000000000000000000003 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000003 /* AppTab.swift */; };
 		010000000000000000000004 /* ActualistTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000004 /* ActualistTheme.swift */; };
 		010000000000000000000005 /* GlassPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000005 /* GlassPanel.swift */; };
+		01000000000000000000000132 /* Binding+PresentedItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000132 /* Binding+PresentedItem.swift */; };
+		01000000000000000000000133 /* BindingPresentedItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000133 /* BindingPresentedItemTests.swift */; };
 		010000000000000000000006 /* ActualModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000006 /* ActualModels.swift */; };
 		010000000000000000000008 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000008 /* KeychainStore.swift */; };
 		010000000000000000000009 /* AppSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000009 /* AppSettingsStore.swift */; };
@@ -327,6 +329,8 @@
 		020000000000000000000003 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
 		020000000000000000000004 /* ActualistTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualistTheme.swift; sourceTree = "<group>"; };
 		020000000000000000000005 /* GlassPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassPanel.swift; sourceTree = "<group>"; };
+		02000000000000000000000132 /* Binding+PresentedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Binding+PresentedItem.swift"; sourceTree = "<group>"; };
+		02000000000000000000000133 /* BindingPresentedItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BindingPresentedItemTests.swift; sourceTree = "<group>"; };
 		020000000000000000000006 /* ActualModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualModels.swift; sourceTree = "<group>"; };
 		020000000000000000000008 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		020000000000000000000079 /* ActualOpenIDAuthenticationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualOpenIDAuthenticationCoordinator.swift; sourceTree = "<group>"; };
@@ -649,6 +653,7 @@
 			children = (
 				020000000000000000000004 /* ActualistTheme.swift */,
 				020000000000000000000005 /* GlassPanel.swift */,
+				02000000000000000000000132 /* Binding+PresentedItem.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -762,6 +767,7 @@
 				02000000000000000000000124 /* AccountListLayoutTests.swift */,
 				02000000000000000000000128 /* AccountGroupWriteTests.swift */,
 				02000000000000000000000129 /* AccountsViewModelTests.swift */,
+				02000000000000000000000133 /* BindingPresentedItemTests.swift */,
 				0200000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift */,
 				0200000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift */,
 				020000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift */,
@@ -1265,6 +1271,7 @@
 				010000000000000000000000F8 /* TransactionWriteIntents.swift in Sources */,
 				010000000000000000000004 /* ActualistTheme.swift in Sources */,
 				010000000000000000000005 /* GlassPanel.swift in Sources */,
+				01000000000000000000000132 /* Binding+PresentedItem.swift in Sources */,
 				010000000000000000000006 /* ActualModels.swift in Sources */,
 				010000000000000000000079 /* ActualOpenIDAuthenticationCoordinator.swift in Sources */,
 				010000000000000000000008 /* KeychainStore.swift in Sources */,
@@ -1467,6 +1474,7 @@
 				01000000000000000000000124 /* AccountListLayoutTests.swift in Sources */,
 				01000000000000000000000128 /* AccountGroupWriteTests.swift in Sources */,
 				01000000000000000000000129 /* AccountsViewModelTests.swift in Sources */,
+				01000000000000000000000133 /* BindingPresentedItemTests.swift in Sources */,
 				0100000000000000000000A9 /* LocalFirstActualStoreAppStateSessionTests.swift in Sources */,
 				0100000000000000000000AA /* LocalFirstActualStoreBudgetMutationTests.swift in Sources */,
 				010000000000000000000066 /* LocalFirstActualStoreTransactionMutationTests.swift in Sources */,

@@ -58,6 +58,18 @@ struct BudgetDataSettingsView: View {
                         )
                     }
                     .disabled(isReimporting || appState.settings.selectedBudgetID == nil)
+                    .confirmationDialog(
+                        "Reimport Budget?",
+                        isPresented: $isReimportConfirmationPresented,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Reimport", role: .destructive) {
+                            Task { await reimport() }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text(reimportConfirmationMessage)
+                    }
                 } header: {
                     Text("Data")
                 } footer: {
@@ -142,18 +154,6 @@ struct BudgetDataSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.hydrate(from: appState)
-        }
-        .confirmationDialog(
-            "Reimport Budget?",
-            isPresented: $isReimportConfirmationPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Reimport", role: .destructive) {
-                Task { await reimport() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(reimportConfirmationMessage)
         }
         .sheet(isPresented: $isBudgetPickerPresented) {
             SettingsBudgetPickerSheet(

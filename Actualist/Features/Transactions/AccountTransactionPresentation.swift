@@ -29,7 +29,7 @@ struct TransactionEditorPresentation: Identifiable, Hashable {
     }
 }
 
-struct TransactionDeletePresentation: Identifiable, Hashable {
+struct TransactionDeletePresentation: Identifiable, Hashable, Sendable {
     let transaction: ActualTransaction
     let payeeName: String
 

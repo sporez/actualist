@@ -133,25 +133,14 @@ struct AccountsView: View {
                 .appSwitcherPrivacyAwareDragIndicator()
                 .appSwitcherPrivacyProtected()
             }
-            .alert(
-                deleteDialogTitle,
-                isPresented: $viewModel.isDeleteReviewPresented
-            ) {
-                Button("Delete Group", role: .destructive) {
-                    Task {
-                        await viewModel.confirmDelete(
-                            budgetID: appState.settings.selectedBudgetID,
-                            repository: appState.accountRepository
-                        )
-                    }
-                }
-                Button("Cancel", role: .cancel) {
-                    viewModel.cancelDelete()
-                }
-            } message: {
-                Text(deleteDialogMessage)
-            }
         }
+    }
+
+    private var deleteReviewBinding: Binding<AccountsViewModel.DeleteReview?> {
+        Binding(
+            get: { viewModel.deleteReview },
+            set: { viewModel.deleteReview = $0 }
+        )
     }
 
     private var deleteDialogTitle: String {
@@ -309,6 +298,25 @@ struct AccountsView: View {
             if canManageGroups {
                 groupManagementMenu(group)
             }
+        }
+        .confirmationDialog(
+            deleteDialogTitle,
+            isPresented: deleteReviewBinding.isPresented(matching: group.id),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Group", role: .destructive) {
+                Task {
+                    await viewModel.confirmDelete(
+                        budgetID: appState.settings.selectedBudgetID,
+                        repository: appState.accountRepository
+                    )
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                viewModel.cancelDelete()
+            }
+        } message: {
+            Text(deleteDialogMessage)
         }
     }
 

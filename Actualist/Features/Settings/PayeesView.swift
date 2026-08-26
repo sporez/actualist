@@ -5,7 +5,6 @@ struct PayeesView: View {
     @State private var viewModel = PayeesViewModel()
     @State private var isCreatePresented = false
     @State private var isMergeTargetPresented = false
-    @State private var pendingMergeTarget: ManagedPayee?
     @State private var pendingDeletePayee: ManagedPayee?
     @State private var isBulkDeleteConfirmationPresented = false
 
@@ -60,6 +59,18 @@ struct PayeesView: View {
                                     }
                                     .tint(ActualistTheme.danger)
                                 }
+                            }
+                            .confirmationDialog(
+                                "Delete Payee?",
+                                isPresented: $pendingDeletePayee.isPresented(matching: payee.id),
+                                titleVisibility: .visible
+                            ) {
+                                Button("Delete \(payee.displayName)", role: .destructive) {
+                                    Task { _ = await viewModel.delete(payeeID: payee.id, using: appState) }
+                                }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("Only unused payees without rule references can be deleted.")
                             }
                     }
                 }
@@ -182,6 +193,18 @@ struct PayeesView: View {
                             Label("\(viewModel.selectedPayeeIDs.count) Selected", systemImage: "ellipsis.circle")
                         }
                         .disabled(viewModel.selectedPayeeIDs.isEmpty || viewModel.isSubmitting)
+                        .confirmationDialog(
+                            "Delete Selected Payees?",
+                            isPresented: $isBulkDeleteConfirmationPresented,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete \(viewModel.selectedPayeeIDs.count) Payees", role: .destructive) {
+                                Task { _ = await viewModel.deleteSelection(using: appState) }
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Only the selected unused payees without rule references will be removed. You can undo this change while this budget remains open.")
+                        }
                     }
                 }
 
@@ -211,65 +234,11 @@ struct PayeesView: View {
         }
         .sheet(isPresented: $isMergeTargetPresented) {
             PayeeMergeTargetSheet(payees: viewModel.selectedPayees) { payee in
-                pendingMergeTarget = payee
                 isMergeTargetPresented = false
+                Task { _ = await viewModel.merge(into: payee.id, using: appState) }
             }
             .appSwitcherPrivacyAwareDragIndicator()
             .appSwitcherPrivacyProtected()
-        }
-        .confirmationDialog(
-            "Merge Payees?",
-            isPresented: Binding(
-                get: { pendingMergeTarget != nil },
-                set: { if !$0 { pendingMergeTarget = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let target = pendingMergeTarget {
-                Button("Merge into \(target.displayName)", role: .destructive) {
-                    pendingMergeTarget = nil
-                    Task { _ = await viewModel.merge(into: target.id, using: appState) }
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                pendingMergeTarget = nil
-            }
-        } message: {
-            if let target = pendingMergeTarget {
-                Text("Transactions will display as \(target.displayName). The other selected payees will be removed.")
-            }
-        }
-        .confirmationDialog(
-            "Delete Payee?",
-            isPresented: Binding(
-                get: { pendingDeletePayee != nil },
-                set: { if !$0 { pendingDeletePayee = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let payee = pendingDeletePayee {
-                Button("Delete \(payee.displayName)", role: .destructive) {
-                    pendingDeletePayee = nil
-                    Task { _ = await viewModel.delete(payeeID: payee.id, using: appState) }
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                pendingDeletePayee = nil
-            }
-        } message: {
-            Text("Only unused payees without rule references can be deleted.")
-        }
-        .confirmationDialog(
-            "Delete Selected Payees?",
-            isPresented: $isBulkDeleteConfirmationPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Delete \(viewModel.selectedPayeeIDs.count) Payees", role: .destructive) {
-                Task { _ = await viewModel.deleteSelection(using: appState) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Only the selected unused payees without rule references will be removed. You can undo this change while this budget remains open.")
         }
     }
 
@@ -479,6 +448,22 @@ private struct PayeeDetailView: View {
                             isDeleteConfirmationPresented = true
                         }
                         .disabled(viewModel.isSubmitting)
+                        .confirmationDialog(
+                            "Delete Payee?",
+                            isPresented: $isDeleteConfirmationPresented,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete", role: .destructive) {
+                                Task {
+                                    if await viewModel.delete(payeeID: payeeID, using: appState) {
+                                        dismiss()
+                                    }
+                                }
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("This unused payee will be removed.")
+                        }
                     } footer: {
                         Text("This payee is unused and is not referenced by any rule.")
                     }
@@ -513,22 +498,6 @@ private struct PayeeDetailView: View {
         .onAppear {
             viewModel.errorMessage = nil
             name = payee?.name ?? ""
-        }
-        .confirmationDialog(
-            "Delete Payee?",
-            isPresented: $isDeleteConfirmationPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                Task {
-                    if await viewModel.delete(payeeID: payeeID, using: appState) {
-                        dismiss()
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This unused payee will be removed.")
         }
     }
 
@@ -607,12 +576,13 @@ private struct PayeeMergeTargetSheet: View {
     @Environment(\.dismiss) private var dismiss
     let payees: [ManagedPayee]
     let onChoose: (ManagedPayee) -> Void
+    @State private var pendingMergeTarget: ManagedPayee?
 
     var body: some View {
         NavigationStack {
             List(payees) { payee in
                 Button {
-                    onChoose(payee)
+                    pendingMergeTarget = payee
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(payee.displayName)
@@ -626,6 +596,18 @@ private struct PayeeMergeTargetSheet: View {
                 }
                 .buttonStyle(.plain)
                 .settingsRowChrome()
+                .confirmationDialog(
+                    "Merge Payees?",
+                    isPresented: $pendingMergeTarget.isPresented(matching: payee.id),
+                    titleVisibility: .visible
+                ) {
+                    Button("Merge into \(payee.displayName)", role: .destructive) {
+                        onChoose(payee)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Transactions will display as \(payee.displayName). The other selected payees will be removed.")
+                }
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)

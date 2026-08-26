@@ -90,52 +90,6 @@ struct TransactionEditorView: View {
             TransactionCategorySelectionView(viewModel: viewModel)
                 .appSwitcherPrivacyProtected()
         }
-        .confirmationDialog(
-            "A Rule Would Delete This Transaction",
-            isPresented: deleteReviewBinding,
-            titleVisibility: .visible
-        ) {
-            if viewModel.isEditing {
-                Button("Delete Transaction", role: .destructive) {
-                    Task {
-                        if await viewModel.confirmRuleDelete(using: appState) {
-                            onSaved?()
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            Button("Keep Editing", role: .cancel) {
-                viewModel.deleteReview.dismissReview()
-            }
-        } message: {
-            Text(
-                viewModel.isEditing
-                    ? "A matching rule wants to delete this transaction. Delete it, or keep the existing row and leave it unsaved."
-                    : "A matching rule would delete this transaction, so it will not be saved."
-            )
-        }
-        .confirmationDialog(
-            "Something Doesn't Add Up",
-            isPresented: splitMismatchBinding,
-            titleVisibility: .visible
-        ) {
-            Button("Auto-Distribute") {
-                viewModel.autoDistributeSplitMismatch()
-                Task { await submitAndDismissIfSaved() }
-            }
-            Button("Update Total") {
-                viewModel.updateTotalFromSplits()
-                Task { await submitAndDismissIfSaved() }
-            }
-            Button("Adjust Manually", role: .cancel) {
-                viewModel.adjustSplitsManually()
-            }
-        } message: {
-            if let mismatch = viewModel.pendingSplitMismatch {
-                Text("The total is \(viewModel.currency.formatted(mismatch.transactionTotal)), but the splits add up to \(viewModel.currency.formatted(mismatch.splitTotal)). How would you like to handle the unassigned \(viewModel.currency.formatted(Int(clamping: mismatch.difference.magnitude)))?")
-            }
-        }
     }
 
     private var amountHeader: some View {
@@ -363,6 +317,52 @@ struct TransactionEditorView: View {
         .buttonStyle(.glassProminent)
         .tint(ActualistTheme.accent)
         .disabled(!viewModel.canSave)
+        .confirmationDialog(
+            "A Rule Would Delete This Transaction",
+            isPresented: deleteReviewBinding,
+            titleVisibility: .visible
+        ) {
+            if viewModel.isEditing {
+                Button("Delete Transaction", role: .destructive) {
+                    Task {
+                        if await viewModel.confirmRuleDelete(using: appState) {
+                            onSaved?()
+                            dismiss()
+                        }
+                    }
+                }
+            }
+            Button("Keep Editing", role: .cancel) {
+                viewModel.deleteReview.dismissReview()
+            }
+        } message: {
+            Text(
+                viewModel.isEditing
+                    ? "A matching rule wants to delete this transaction. Delete it, or keep the existing row and leave it unsaved."
+                    : "A matching rule would delete this transaction, so it will not be saved."
+            )
+        }
+        .confirmationDialog(
+            "Something Doesn't Add Up",
+            isPresented: splitMismatchBinding,
+            titleVisibility: .visible
+        ) {
+            Button("Auto-Distribute") {
+                viewModel.autoDistributeSplitMismatch()
+                Task { await submitAndDismissIfSaved() }
+            }
+            Button("Update Total") {
+                viewModel.updateTotalFromSplits()
+                Task { await submitAndDismissIfSaved() }
+            }
+            Button("Adjust Manually", role: .cancel) {
+                viewModel.adjustSplitsManually()
+            }
+        } message: {
+            if let mismatch = viewModel.pendingSplitMismatch {
+                Text("The total is \(viewModel.currency.formatted(mismatch.transactionTotal)), but the splits add up to \(viewModel.currency.formatted(mismatch.splitTotal)). How would you like to handle the unassigned \(viewModel.currency.formatted(Int(clamping: mismatch.difference.magnitude)))?")
+            }
+        }
         .padding(.top, 4)
     }
 

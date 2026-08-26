@@ -30,37 +30,7 @@ struct PayeeRulesView: View {
                     )
                 } else {
                     ForEach(viewModel.displayedRules(for: .payee(payee.id))) { rule in
-                        Button {
-                            editorTarget = RuleEditorTarget(rule: rule, fallbackPayeeID: payee.id)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(rule.isScheduleOwned ? "Schedule · Read-only" : rule.draft?.stage.displayName ?? "Read-only")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(ActualistTheme.secondaryText)
-                                Text(rule.summary(options: viewModel.options))
-                                    .foregroundStyle(ActualistTheme.primaryText)
-                                    .multilineTextAlignment(.leading)
-                                if !rule.isEditable {
-                                    Label(
-                                        rule.isScheduleOwned
-                                            ? "Managed by an Actual schedule"
-                                            : "Contains fields this version cannot safely edit",
-                                        systemImage: "lock.fill"
-                                    )
-                                        .font(.caption2)
-                                        .foregroundStyle(ActualistTheme.warning)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            if !rule.isScheduleOwned {
-                                Button("Delete") { pendingDeleteRule = rule }
-                                    .tint(ActualistTheme.danger)
-                            }
-                        }
+                        ruleRow(rule)
                     }
                 }
             } header: {
@@ -100,21 +70,49 @@ struct PayeeRulesView: View {
             .appSwitcherPrivacyAwareDragIndicator()
             .appSwitcherPrivacyProtected()
         }
-        .confirmationDialog(
-            "Delete Rule?",
-            isPresented: Binding(
-                get: { pendingDeleteRule != nil },
-                set: { if !$0 { pendingDeleteRule = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let rule = pendingDeleteRule {
-                Button("Delete Rule", role: .destructive) {
-                    pendingDeleteRule = nil
-                    Task { _ = await viewModel.delete(ruleID: rule.id, using: appState) }
+    }
+
+    private func ruleRow(_ rule: ManagedRule) -> some View {
+        Button {
+            editorTarget = RuleEditorTarget(rule: rule, fallbackPayeeID: payee.id)
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(rule.isScheduleOwned ? "Schedule · Read-only" : rule.draft?.stage.displayName ?? "Read-only")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                Text(rule.summary(options: viewModel.options))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .multilineTextAlignment(.leading)
+                if !rule.isEditable {
+                    Label(
+                        rule.isScheduleOwned
+                            ? "Managed by an Actual schedule"
+                            : "Contains fields this version cannot safely edit",
+                        systemImage: "lock.fill"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(ActualistTheme.warning)
                 }
             }
-            Button("Cancel", role: .cancel) { pendingDeleteRule = nil }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !rule.isScheduleOwned {
+                Button("Delete") { pendingDeleteRule = rule }
+                    .tint(ActualistTheme.danger)
+            }
+        }
+        .confirmationDialog(
+            "Delete Rule?",
+            isPresented: $pendingDeleteRule.isPresented(matching: rule.id),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Rule", role: .destructive) {
+                Task { _ = await viewModel.delete(ruleID: rule.id, using: appState) }
+            }
+            Button("Cancel", role: .cancel) {}
         } message: {
             Text("Future transactions will no longer be processed by this rule.")
         }

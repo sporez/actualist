@@ -210,43 +210,19 @@ struct AccountTransactionsView: View {
                 .environment(appState)
                 .appSwitcherPrivacyProtected()
         }
-        .confirmationDialog(
-            "Delete Transaction?",
-            isPresented: Binding(
-                get: { viewModel.deletePresentation != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        viewModel.deletePresentation = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let deletePresentation = viewModel.deletePresentation {
-                Button("Delete Transaction", role: .destructive) {
-                    Task {
-                        await viewModel.delete(
-                            deletePresentation.transaction,
-                            budgetID: budgetID,
-                            repository: transactionRepository,
-                            onChanged: onChanged
-                        )
-                    }
-                }
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if let deletePresentation = viewModel.deletePresentation {
-                Text("Delete \(deletePresentation.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription).")
-            }
-        }
     }
 
     private var editorPresentationBinding: Binding<TransactionEditorPresentation?> {
         Binding(
             get: { viewModel.transactionEditorPresentation },
             set: { viewModel.transactionEditorPresentation = $0 }
+        )
+    }
+
+    private var deletePresentationBinding: Binding<TransactionDeletePresentation?> {
+        Binding(
+            get: { viewModel.deletePresentation },
+            set: { viewModel.deletePresentation = $0 }
         )
     }
 
@@ -424,8 +400,8 @@ struct AccountTransactionsView: View {
         }
         .buttonStyle(.plain)
         .disabled(viewModel.deletingTransactionID == row.transaction.rowID)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
                 viewModel.requestDelete(
                     row.transaction,
                     budgetID: budgetID,
@@ -436,6 +412,26 @@ struct AccountTransactionsView: View {
             }
             .tint(ActualistTheme.danger)
             .disabled(row.transaction.id == nil || viewModel.deletingTransactionID != nil)
+        }
+        .confirmationDialog(
+            "Delete Transaction?",
+            isPresented: deletePresentationBinding.isPresented(matching: row.id),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Transaction", role: .destructive) {
+                Task {
+                    await viewModel.delete(
+                        row.transaction,
+                        budgetID: budgetID,
+                        repository: transactionRepository,
+                        onChanged: onChanged
+                    )
+                }
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Delete \(row.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription).")
         }
     }
 
