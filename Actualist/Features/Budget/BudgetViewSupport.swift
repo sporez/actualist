@@ -186,7 +186,9 @@ struct BudgetAlertBanner: View {
     }
 
     private var inlineSummary: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        // Mixed-size amount + title: firstTextBaseline sits the title on the
+        // amount's baseline and reads as bottom-aligned in the capsule.
+        HStack(alignment: .center, spacing: 10) {
             if let valueText = alert.valueText {
                 Text(valueText)
                     .font(ActualistTypography.workScreenAmount(for: density))
