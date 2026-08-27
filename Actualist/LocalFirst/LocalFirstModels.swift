@@ -119,6 +119,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let month: String?
     let annual: Bool?
     let repeatInterval: Int?
+    let weight: Double?
 
     // `goal` entries are display-only; `template` entries change the budget.
     var setsBudget: Bool { (directive ?? "template") == "template" }
@@ -139,6 +140,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         case month
         case annual
         case repeatInterval = "repeat"
+        case weight
     }
 
     init(from decoder: Decoder) throws {
@@ -155,6 +157,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         month = try container.decodeIfPresent(String.self, forKey: .month)
         annual = try container.decodeIfPresent(Bool.self, forKey: .annual)
         repeatInterval = try container.decodeIfPresent(Int.self, forKey: .repeatInterval)
+        weight = try container.decodeIfPresent(Double.self, forKey: .weight)
 
         if type == "limit" {
             period = nil

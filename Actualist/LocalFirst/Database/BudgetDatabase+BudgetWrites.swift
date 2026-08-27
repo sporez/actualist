@@ -299,7 +299,8 @@ extension BudgetDatabase {
             let writes = try templateEngine.computeWrites(
                 categories: categories,
                 monthValue: monthValue,
-                availableBudget: availableBudget
+                availableBudget: availableBudget,
+                skipAvailableClamp: targeted.count == 1
             )
 
             var messages: [ActualSyncDecodedMessage] = []

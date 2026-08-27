@@ -13,7 +13,8 @@ struct BudgetTemplateEngineTests {
             #"{"directive":"template","type":"periodic","amount":1,"period":{"period":"day","amount":1201},"starting":"2026-07-01","priority":0}"#,
             #"{"directive":"template","type":"copy","lookBack":1201,"priority":0}"#,
             #"{"directive":"template","type":"by","amount":10,"month":"2026-08","repeat":1201,"priority":0}"#,
-            #"{"directive":"template","type":"simple","monthly":10,"priority":1001}"#
+            #"{"directive":"template","type":"simple","monthly":10,"priority":1001}"#,
+            #"{"directive":"template","type":"remainder","weight":-1}"#
         ]
 
         for entry in invalidEntries {
@@ -212,6 +213,233 @@ struct BudgetTemplateEngineTests {
             availableBudget: 100_000
         )
         #expect(writes.map(\.amount) == [1_234])
+    }
+
+    @Test func remainderSplitsLeftoverAvailableByWeight() throws {
+        let first = try #require(try engine.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"remainder","weight":1}]"#
+        ))
+        let second = try #require(try engine.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"remainder","weight":2}]"#
+        ))
+
+        let writes = try engine.computeWrites(
+            categories: [
+                "a": .init(entries: first, fromLastMonth: 0, copiedBudgetedByLookBack: [:]),
+                "b": .init(entries: second, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202607,
+            availableBudget: 30_000
+        )
+        let amounts = Dictionary(uniqueKeysWithValues: writes.map { ($0.categoryID, $0.amount) })
+
+        #expect(amounts["a"] == 10_000)
+        #expect(amounts["b"] == 20_000)
+    }
+
+    @Test func remainderDefaultsMissingWeightToOne() throws {
+        let decoded = try #require(try engine.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"remainder"}]"#
+        ))
+
+        let writes = try engine.computeWrites(
+            categories: [
+                "only": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202607,
+            availableBudget: 4_321
+        )
+
+        #expect(writes.map(\.amount) == [4_321])
+    }
+
+    @Test func remainderHideFractionAbsorbsLeftoverWholeUnits() throws {
+        let hidden = BudgetTemplateEngine(
+            currency: BudgetCurrency.catalog(code: "USD", hideFraction: true)
+        )
+        let first = try #require(try hidden.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"remainder","weight":1}]"#
+        ))
+        let second = try #require(try hidden.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"remainder","weight":1}]"#
+        ))
+
+        let writes = try hidden.computeWrites(
+            categories: [
+                "a": .init(entries: first, fromLastMonth: 0, copiedBudgetedByLookBack: [:]),
+                "b": .init(entries: second, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202607,
+            availableBudget: 10_050
+        )
+        let amounts = Dictionary(uniqueKeysWithValues: writes.map { ($0.categoryID, $0.amount) })
+
+        #expect(amounts["a"] == 5_000)
+        #expect(amounts["b"] == 5_050)
+    }
+
+    @Test func remainderRedistributesAfterACategoryHitsItsLimit() throws {
+        let limited = try #require(try engine.decodeSupportedEntries(
+            json: """
+                [{
+                  "directive": "template",
+                  "type": "remainder",
+                  "weight": 1,
+                  "limit": {"amount": 10, "period": "monthly", "hold": false, "start": null}
+                }]
+                """
+        ))
+        let open = try #require(try engine.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"remainder","weight":1}]"#
+        ))
+
+        let writes = try engine.computeWrites(
+            categories: [
+                "capped": .init(entries: limited, fromLastMonth: 0, copiedBudgetedByLookBack: [:]),
+                "open": .init(entries: open, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202607,
+            availableBudget: 10_000
+        )
+        let amounts = Dictionary(uniqueKeysWithValues: writes.map { ($0.categoryID, $0.amount) })
+
+        #expect(amounts["capped"] == 1_000)
+        #expect(amounts["open"] == 9_000)
+    }
+
+    @Test func dailyLimitScalesByDaysInTheMonth() throws {
+        let decoded = try #require(try engine.decodeSupportedEntries(
+            json: """
+                [{
+                  "directive": "template",
+                  "type": "simple",
+                  "monthly": 100,
+                  "limit": {"amount": 1, "period": "daily", "hold": false},
+                  "priority": 0
+                }]
+                """
+        ))
+
+        let july = try engine.computeWrites(
+            categories: [
+                "daily": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202607,
+            availableBudget: 100_000
+        )
+        let february = try engine.computeWrites(
+            categories: [
+                "daily": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202602,
+            availableBudget: 100_000
+        )
+
+        #expect(july.map(\.amount) == [3_100])
+        #expect(february.map(\.amount) == [2_800])
+    }
+
+    @Test func weeklyLimitCountsOccurrencesFromTheStartDate() throws {
+        let decoded = try #require(try engine.decodeSupportedEntries(
+            json: """
+                [{
+                  "directive": "template",
+                  "type": "simple",
+                  "monthly": 1000,
+                  "limit": {
+                    "amount": 10,
+                    "period": "weekly",
+                    "hold": false,
+                    "start": "2026-07-03"
+                  },
+                  "priority": 0
+                }]
+                """
+        ))
+
+        let writes = try engine.computeWrites(
+            categories: [
+                "weekly": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202607,
+            availableBudget: 100_000
+        )
+
+        #expect(writes.map(\.amount) == [5_000])
+    }
+
+    @Test func weeklyLimitWalksForwardFromAPriorStartDate() throws {
+        let decoded = try #require(try engine.decodeSupportedEntries(
+            json: """
+                [{
+                  "directive": "template",
+                  "type": "simple",
+                  "monthly": 1000,
+                  "limit": {
+                    "amount": 10,
+                    "period": "weekly",
+                    "hold": false,
+                    "start": "2026-06-20"
+                  },
+                  "priority": 0
+                }]
+                """
+        ))
+
+        let writes = try engine.computeWrites(
+            categories: [
+                "weekly": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
+            ],
+            monthValue: 202607,
+            availableBudget: 100_000
+        )
+
+        // June 20 + 2 weeks = July 4, then 11, 18, 25. Four weeks in July.
+        #expect(writes.map(\.amount) == [4_000])
+    }
+
+    @Test func weeklyLimitWithoutAStartDateIsRejected() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: """
+                    [{
+                      "directive": "template",
+                      "type": "limit",
+                      "amount": 10,
+                      "period": "weekly",
+                      "hold": false
+                    }]
+                    """
+            )
+        }
+    }
+
+    @Test func applySingleSkipsTheAvailableClampForPriorityTemplates() throws {
+        let decoded = try #require(try engine.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"simple","monthly":50,"priority":1}]"#
+        ))
+        let categories = [
+            "later": BudgetTemplateEngine.Category(
+                entries: decoded,
+                fromLastMonth: 0,
+                copiedBudgetedByLookBack: [:]
+            )
+        ]
+
+        let clamped = try engine.computeWrites(
+            categories: categories,
+            monthValue: 202607,
+            availableBudget: 2_000
+        )
+        let unclamped = try engine.computeWrites(
+            categories: categories,
+            monthValue: 202607,
+            availableBudget: 2_000,
+            skipAvailableClamp: true
+        )
+
+        #expect(clamped.map(\.amount) == [2_000])
+        #expect(unclamped.map(\.amount) == [5_000])
     }
 
     @Test func targetValidationRejectsAnExpiredNonRepeatingMonth() throws {

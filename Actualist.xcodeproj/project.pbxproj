@@ -203,6 +203,8 @@
 		010000000000000000000053 /* DiagnosticReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000053 /* DiagnosticReport.swift */; };
 		010000000000000000000054 /* DiagnosticReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000054 /* DiagnosticReportTests.swift */; };
 		010000000000000000000055 /* BudgetTemplateEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000055 /* BudgetTemplateEngine.swift */; };
+		01000000000000000000000134 /* BudgetTemplateCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000134 /* BudgetTemplateCalendar.swift */; };
+		01000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift */; };
 		010000000000000000000056 /* BudgetTemplateEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000056 /* BudgetTemplateEngineTests.swift */; };
 		010000000000000000000057 /* BudgetSelectionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000057 /* BudgetSelectionViews.swift */; };
 		010000000000000000000058 /* BudgetViewInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000058 /* BudgetViewInfrastructure.swift */; };
@@ -485,6 +487,8 @@
 		020000000000000000000053 /* DiagnosticReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReport.swift; sourceTree = "<group>"; };
 		020000000000000000000054 /* DiagnosticReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticReportTests.swift; sourceTree = "<group>"; };
 		020000000000000000000055 /* BudgetTemplateEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngine.swift; sourceTree = "<group>"; };
+		02000000000000000000000134 /* BudgetTemplateCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateCalendar.swift; sourceTree = "<group>"; };
+		02000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetTemplateEngine+Remainder.swift"; sourceTree = "<group>"; };
 		020000000000000000000056 /* BudgetTemplateEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngineTests.swift; sourceTree = "<group>"; };
 		020000000000000000000057 /* BudgetSelectionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetSelectionViews.swift; sourceTree = "<group>"; };
 		020000000000000000000058 /* BudgetViewInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewInfrastructure.swift; sourceTree = "<group>"; };
@@ -1018,6 +1022,8 @@
 				020000000000000000000086 /* BudgetDatabase+EnvelopeHolds.swift */,
 				02000000000000000000004E /* BudgetDatabase+Reports.swift */,
 				020000000000000000000055 /* BudgetTemplateEngine.swift */,
+				02000000000000000000000134 /* BudgetTemplateCalendar.swift */,
+				02000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift */,
 			);
 			path = Database;
 			sourceTree = "<group>";
@@ -1366,6 +1372,8 @@
 				0100000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift in Sources */,
 				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
 				010000000000000000000055 /* BudgetTemplateEngine.swift in Sources */,
+				01000000000000000000000134 /* BudgetTemplateCalendar.swift in Sources */,
+				01000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift in Sources */,
 				010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */,
 				01000000000000000000000120 /* BudgetDatabase+AccountGroupCompatibility.swift in Sources */,
 				01000000000000000000000125 /* BudgetDatabase+AccountGroupWrites.swift in Sources */,
