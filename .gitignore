@@ -79,3 +79,6 @@ scripts/lib/destinations.sh
 
 # Local-only reference material
 reference/
+
+# Local pi overlay (device ids, plans, personal workflow)
+.pi/
