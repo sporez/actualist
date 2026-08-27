@@ -111,20 +111,32 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let monthly: Double?
     let amount: Double?
     let percentage: Double?
+    let percent: Double?
+    let previous: Bool?
+    let sourceCategory: String?
+    let numMonths: Int?
+    let adjustment: Double?
+    let adjustmentType: String?
     let period: BudgetTemplatePeriod?
     let starting: String?
     let lookBack: Int?
     let limit: BudgetTemplateLimit?
     let standaloneLimit: BudgetTemplateLimit?
     let month: String?
+    let fromMonth: String?
     let annual: Bool?
     let repeatInterval: Int?
     let weight: Double?
+    let name: String?
+    let full: Bool?
+
+    var percentageAmount: Double? { percent ?? percentage }
 
     // Actual requires `directive`. Only `template` entries change the budget.
-    // Goal-only categories are a no-op until setGoal lands. Mixed goal + budget
-    // templates are refused so we do not apply half of Actual's intended state.
+    // `#goal` entries write `goal` / `long_goal` and keep the current budget
+    // when they are the only actionable directive.
     var setsBudget: Bool { directive == "template" }
+    var isGoal: Bool { directive == "goal" && type == "goal" }
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -133,6 +145,12 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         case monthly
         case amount
         case percentage
+        case percent
+        case previous
+        case sourceCategory = "category"
+        case numMonths
+        case adjustment
+        case adjustmentType
         case period
         case starting
         case lookBack
@@ -140,9 +158,12 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         case hold
         case start
         case month
+        case fromMonth = "from"
         case annual
         case repeatInterval = "repeat"
         case weight
+        case name
+        case full
     }
 
     init(from decoder: Decoder) throws {
@@ -153,13 +174,22 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         monthly = try container.decodeIfPresent(Double.self, forKey: .monthly)
         amount = try container.decodeIfPresent(Double.self, forKey: .amount)
         percentage = try container.decodeIfPresent(Double.self, forKey: .percentage)
+        percent = try container.decodeIfPresent(Double.self, forKey: .percent)
+        previous = try container.decodeIfPresent(Bool.self, forKey: .previous)
+        sourceCategory = try container.decodeIfPresent(String.self, forKey: .sourceCategory)
+        numMonths = try container.decodeIfPresent(Int.self, forKey: .numMonths)
+        adjustment = try container.decodeIfPresent(Double.self, forKey: .adjustment)
+        adjustmentType = try container.decodeIfPresent(String.self, forKey: .adjustmentType)
         starting = try container.decodeIfPresent(String.self, forKey: .starting)
         lookBack = try container.decodeIfPresent(Int.self, forKey: .lookBack)
         limit = try container.decodeIfPresent(BudgetTemplateLimit.self, forKey: .limit)
         month = try container.decodeIfPresent(String.self, forKey: .month)
+        fromMonth = try container.decodeIfPresent(String.self, forKey: .fromMonth)
         annual = try container.decodeIfPresent(Bool.self, forKey: .annual)
         repeatInterval = try container.decodeIfPresent(Int.self, forKey: .repeatInterval)
         weight = try container.decodeIfPresent(Double.self, forKey: .weight)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        full = try container.decodeIfPresent(Bool.self, forKey: .full)
 
         if type == "limit" {
             period = nil

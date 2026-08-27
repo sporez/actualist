@@ -186,145 +186,6 @@ extension BudgetDatabase {
         }
     }
 
-    func budgetTemplateMessages(
-        command: BudgetTemplateCommand,
-        month: String,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
-        let monthValue = try Self.actualMonthValue(month)
-
-        return try queue.read { db in
-            let templateEngine = BudgetTemplateEngine(currency: try budgetCurrency(db: db))
-            let columns = try requiredColumns(
-                table: "zero_budgets",
-                required: ["month", "category", "amount"],
-                db: db
-            )
-            let goalDefsRaw = try readCategoryGoalDefsRaw(db: db)
-            let categoryNames = try templateCategoryNames(db: db)
-            let categoryIsIncome = try templateCategoryIsIncomeByID(db: db)
-            let targeted = Set(
-                command.categoryIDs
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-            )
-            let scope: [String]
-            if targeted.isEmpty {
-                scope = try templateScopeCategoryIDs(db: db).filter { goalDefsRaw[$0] != nil }
-            } else {
-                let targetedWithTemplates = targeted.filter { goalDefsRaw[$0] != nil }
-                // Actual applyMultipleCategoryTemplates queries `categories`
-                // directly (ORDER BY sort_order, id). Do not reuse whole-budget
-                // group-aware order for targeted applications.
-                scope = try templateCategoryIDsInCategoryOrder(db: db)
-                    .filter { targetedWithTemplates.contains($0) }
-            }
-            let force = command.mode == .overwrite || !targeted.isEmpty
-            let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
-
-            var unsupported: [String] = []
-            var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
-            var availableBudget = try monthToBudget(month: monthID(monthValue), db: db)
-            for categoryID in scope {
-                guard let json = goalDefsRaw[categoryID] else { continue }
-                let currentBudgeted = currentBudgets[categoryID]?.budgeted ?? 0
-                guard force || currentBudgeted == 0 else { continue }
-
-                do {
-                    if let entries = try templateEngine.decodeSupportedEntries(json: json) {
-                        try templateEngine.validate(entries, for: monthValue)
-                        categoryTemplates[categoryID] = entries
-                        availableBudget = try BudgetTemplateEngine.checkedAdd(
-                            availableBudget,
-                            currentBudgeted
-                        )
-                    }
-                } catch LocalFirstError.unsupportedTemplate(let reason) {
-                    unsupported.append(
-                        "\(categoryNames[categoryID] ?? categoryID) (\(reason))"
-                    )
-                    continue
-                } catch {
-                    unsupported.append(
-                        "\(categoryNames[categoryID] ?? categoryID) (unreadable template definition)"
-                    )
-                    continue
-                }
-            }
-
-            guard unsupported.isEmpty else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "categories use template types not supported yet: \(unsupported.sorted().joined(separator: ", "))"
-                )
-            }
-
-            let categories = try Dictionary(
-                uniqueKeysWithValues: categoryTemplates.map { categoryID, entries in
-                    let lookBacks = Set(
-                        entries.compactMap { entry in
-                            entry.type == "copy" ? entry.lookBack : nil
-                        }
-                    )
-                    var copiedBudgetedByLookBack: [Int: Int] = [:]
-                    for lookBack in lookBacks {
-                        let sourceMonthValue = try templateEngine.sourceMonthValue(
-                            for: monthValue,
-                            lookBack: lookBack
-                        )
-                        copiedBudgetedByLookBack[lookBack] = try categoryBudgets(
-                            month: monthID(sourceMonthValue),
-                            db: db
-                        )[categoryID]?.budgeted ?? 0
-                    }
-                    let needsPreviousBalance = entries.contains { entry in
-                        entry.type == "by"
-                            || entry.type == "refill"
-                            || BudgetTemplateEngine.hasEffectiveLimit(entry)
-                    }
-                    let fromLastMonth: Int
-                    if needsPreviousBalance {
-                        fromLastMonth = try templateFromLastMonth(
-                            categoryID: categoryID,
-                            monthValue: monthValue,
-                            isIncome: categoryIsIncome[categoryID] ?? false,
-                            db: db
-                        )
-                    } else {
-                        fromLastMonth = 0
-                    }
-                    return (
-                        categoryID,
-                        BudgetTemplateEngine.Category(
-                            entries: entries,
-                            fromLastMonth: fromLastMonth,
-                            copiedBudgetedByLookBack: copiedBudgetedByLookBack,
-                            isIncome: categoryIsIncome[categoryID] ?? false
-                        )
-                    )
-                }
-            )
-            let writes = try templateEngine.computeWrites(
-                categories: categories,
-                orderedCategoryIDs: scope.filter { categories[$0] != nil },
-                monthValue: monthValue,
-                availableBudget: availableBudget
-            )
-
-            var messages: [ActualSyncDecodedMessage] = []
-            for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
-                messages += try assignCategoryBudgetMessages(
-                    categoryID: write.categoryID,
-                    budgeted: write.amount,
-                    monthValue: monthValue,
-                    columns: columns,
-                    db: db,
-                    builder: &builder
-                )
-            }
-            return messages
-        }
-    }
-
     private func nextAccountSortOrder(offbudget: Bool, db: Database) throws -> Int {
         let columns = try columnSet(for: "accounts", db: db)
         guard columns.contains("sort_order") else {
@@ -396,10 +257,11 @@ extension BudgetDatabase {
         return messages
     }
 
-    private func templateFromLastMonth(
+    func templateFromLastMonth(
         categoryID: String,
         monthValue: Int,
         isIncome: Bool,
+        isTrackingBudget: Bool = false,
         db: Database
     ) throws -> Int {
         let previousMonthValue = try BudgetTemplateEngine().sourceMonthValue(
@@ -409,7 +271,11 @@ extension BudgetDatabase {
         let previousMonth = monthID(previousMonthValue)
         let previousValues = try envelopeCategoryValues(through: previousMonth, db: db)[categoryID]
             ?? EnvelopeCategoryValue()
+        // Actual: leftover < 0 && !carryover || is_income || tracking && !carryover
         if isIncome {
+            return 0
+        }
+        if isTrackingBudget, !previousValues.carryover {
             return 0
         }
         if previousValues.balance < 0, !previousValues.carryover {
@@ -418,7 +284,7 @@ extension BudgetDatabase {
         return previousValues.balance
     }
 
-    private func templateCategoryIsIncomeByID(db: Database) throws -> [String: Bool] {
+    func templateCategoryIsIncomeByID(db: Database) throws -> [String: Bool] {
         guard try tableExists("categories", db: db) else {
             return [:]
         }
@@ -501,14 +367,6 @@ extension BudgetDatabase {
                 let label = categoryName.flatMap { $0.isEmpty ? nil : $0 } ?? id
                 return (id, label)
             }
-        )
-    }
-
-    func templateScopeCategoryIDs(db: Database) throws -> [String] {
-        try templateCategoryIDsInBudgetOrder(
-            db: db,
-            includeIncome: false,
-            includeHidden: false
         )
     }
 

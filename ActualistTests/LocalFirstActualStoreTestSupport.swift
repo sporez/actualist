@@ -253,7 +253,7 @@ extension LocalFirstActualStoreTests {
             UPDATE categories SET goal_def = '[{"type":"simple","monthly":700,"limit":null,"priority":0,"directive":"template"}]' WHERE id = 'groceries';
             UPDATE categories SET goal_def = '[{"type":"simple","monthly":300,"limit":null,"priority":0,"directive":"template"}]' WHERE id = 'utilities';
             INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
-                VALUES ('dining', 'Dining', 'group', 0, 0, 0, 3, '[{"type":"average","numMonths":3,"priority":0,"directive":"template"}]');
+                VALUES ('dining', 'Dining', 'group', 0, 0, 0, 3, '[{"type":"future","priority":0,"directive":"template"}]');
             INSERT INTO category_mapping VALUES ('dining', 'dining');
             INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
                 VALUES ('subscriptions', 'Subscriptions', 'group', 0, 0, 0, 4, '[{"type":"periodic","amount":45,"period":{"amount":1,"period":"month"},"starting":"2026-07-01","limit":null,"priority":0,"directive":"template"}]');

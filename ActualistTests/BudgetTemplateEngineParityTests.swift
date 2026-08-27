@@ -296,11 +296,15 @@ struct BudgetTemplateEngineParityTests {
         #expect(amounts["food"] == 5_000)
     }
 
-    @Test func goalOnlyEntriesAreSkippedWithoutApplyingABudget() throws {
-        let decoded = try engine.decodeSupportedEntries(
-            json: #"[{"directive":"goal","type":"goal","amount":100}]"#
+    @Test func goalOnlyEntriesDecodeWithoutBudgetTemplates() throws {
+        let decoded = try #require(
+            try engine.decodeSupportedEntries(
+                json: #"[{"directive":"goal","type":"goal","amount":100}]"#
+            )
         )
-        #expect(decoded == nil)
+        #expect(decoded.count == 1)
+        #expect(decoded[0].isGoal)
+        #expect(decoded.contains { $0.setsBudget } == false)
     }
 
     @Test func validActualRemainderAndSimpleGoalDefsAreAccepted() throws {
@@ -754,9 +758,9 @@ struct BudgetTemplateEngineParityTests {
         #expect(negative["down"] == -100)
     }
 
-    @Test func mixedGoalAndSimpleIsRejectedAtomically() throws {
-        #expect(throws: LocalFirstError.self) {
-            _ = try engine.decodeSupportedEntries(
+    @Test func mixedGoalAndSimpleDecodesBothEntries() throws {
+        let decoded = try #require(
+            try engine.decodeSupportedEntries(
                 json: """
                     [
                       {"directive":"goal","type":"goal","amount":500,"priority":null},
@@ -764,12 +768,14 @@ struct BudgetTemplateEngineParityTests {
                     ]
                     """
             )
-        }
+        )
+        #expect(decoded.contains { $0.isGoal })
+        #expect(decoded.contains { $0.setsBudget })
     }
 
-    @Test func mixedGoalAndPeriodicIsRejectedAtomically() throws {
-        #expect(throws: LocalFirstError.self) {
-            _ = try engine.decodeSupportedEntries(
+    @Test func mixedGoalAndPeriodicDecodesBothEntries() throws {
+        let decoded = try #require(
+            try engine.decodeSupportedEntries(
                 json: """
                     [
                       {"directive":"goal","type":"goal","amount":500,"priority":null},
@@ -784,19 +790,24 @@ struct BudgetTemplateEngineParityTests {
                     ]
                     """
             )
-        }
+        )
+        #expect(decoded.contains { $0.isGoal })
+        #expect(decoded.contains { $0.type == "periodic" })
     }
 
-    @Test func goalPlusErrorOnlyDoesNotMutateBudget() throws {
-        let decoded = try engine.decodeSupportedEntries(
-            json: """
-                [
-                  {"directive":"goal","type":"goal","amount":500,"priority":null},
-                  {"directive":"error","type":"error","line":"#template bad","error":"parse failure"}
-                ]
-                """
+    @Test func goalPlusErrorOnlyDecodesTheGoal() throws {
+        let decoded = try #require(
+            try engine.decodeSupportedEntries(
+                json: """
+                    [
+                      {"directive":"goal","type":"goal","amount":500,"priority":null},
+                      {"directive":"error","type":"error","line":"#template bad","error":"parse failure"}
+                    ]
+                    """
+            )
         )
-        #expect(decoded == nil)
+        #expect(decoded.count == 1)
+        #expect(decoded[0].isGoal)
     }
 
     private func writeAmounts(

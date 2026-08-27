@@ -54,7 +54,10 @@ extension BudgetTemplateEngine {
         try validatePriority(entry)
         try validateSignedAmount(entry.monthly, field: "monthly amount")
         try validateSignedAmount(entry.amount, field: "amount")
+        try validateSignedAmount(entry.adjustment, field: "adjustment")
         try validatePercentage(entry.percentage)
+        try validatePercentage(entry.percent)
+        try validateNumMonths(entry.numMonths)
         try validateInterval(entry.period?.amount, field: "period interval")
         try validateLookBack(entry.lookBack)
         try validateRepeatInterval(entry.repeatInterval)
@@ -112,8 +115,113 @@ extension BudgetTemplateEngine {
                 throw LocalFirstError.unsupportedTemplate("remainder is missing weight")
             }
             try validateLimit(entry.limit)
+        case "average":
+            guard let numMonths = entry.numMonths,
+                  Bounds.numMonths.contains(numMonths) else {
+                throw LocalFirstError.unsupportedTemplate("average")
+            }
+        case "percentage":
+            guard let percent = entry.percentageAmount,
+                  Bounds.percentage.contains(percent),
+                  let source = entry.sourceCategory?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !source.isEmpty else {
+                throw LocalFirstError.unsupportedTemplate("percentage")
+            }
+        case "spend":
+            guard entry.amount != nil,
+                  BudgetTemplateCalendar.validMonth(entry.month),
+                  BudgetTemplateCalendar.validMonth(entry.fromMonth),
+                  entry.limit == nil,
+                  entry.repeatInterval.map(Bounds.repeatInterval.contains) ?? true else {
+                throw LocalFirstError.unsupportedTemplate("invalid spend template")
+            }
+        case "schedule":
+            guard let name = entry.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !name.isEmpty,
+                  entry.limit == nil else {
+                throw LocalFirstError.unsupportedTemplate("schedule")
+            }
+        case "goal":
+            guard entry.amount != nil else {
+                throw LocalFirstError.unsupportedTemplate("goal is missing amount")
+            }
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
+        }
+    }
+
+    func validateByScheduleAndSpend(
+        _ entries: [BudgetTemplateEntry],
+        monthValue: Int,
+        activeScheduleNames: Set<String>
+    ) throws {
+        let scheduleAndBy = entries.filter { $0.type == "schedule" || $0.type == "by" }
+        guard !scheduleAndBy.isEmpty else {
+            return
+        }
+
+        for entry in entries where entry.type == "schedule" {
+            let name = entry.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard activeScheduleNames.contains(name) else {
+                throw LocalFirstError.unsupportedTemplate(
+                    "Schedule \(name) does not exist"
+                )
+            }
+        }
+
+        let priorities = scheduleAndBy.compactMap { $0.priority }
+        if let lowest = priorities.min() {
+            for entry in scheduleAndBy where entry.priority != lowest {
+                throw LocalFirstError.unsupportedTemplate(
+                    "Schedule and By templates must be the same priority level. Fix by setting all Schedule and By templates to priority level \(lowest)"
+                )
+            }
+        }
+
+        for entry in entries where entry.type == "by" || entry.type == "spend" {
+            guard let month = entry.month,
+                  let target = try? BudgetTemplateCalendar.parseMonth(month) else {
+                continue
+            }
+            let distance = try BudgetTemplateCalendar.monthDistance(
+                from: monthValue,
+                to: target
+            )
+            if distance < 0, entry.repeatInterval == nil, entry.annual != true {
+                throw LocalFirstError.unsupportedTemplate(
+                    "Target month has passed, remove or update the target month"
+                )
+            }
+        }
+    }
+
+    func validatePercentageSources(
+        _ entries: [BudgetTemplateEntry],
+        monthSources: BudgetTemplateEngine.MonthSources
+    ) throws {
+        for entry in entries where entry.type == "percentage" {
+            _ = try resolvePercentageSource(entry, monthSources: monthSources)
+        }
+    }
+
+    func validateOneGoal(_ entries: [BudgetTemplateEntry]) throws {
+        let goalCount = entries.filter {
+            $0.directive == "goal" && $0.type == "goal"
+        }.count
+        guard goalCount <= 1 else {
+            throw LocalFirstError.unsupportedTemplate(
+                "Only one #goal is allowed per category"
+            )
+        }
+    }
+
+    func validateOneSpend(_ entries: [BudgetTemplateEntry]) throws {
+        let spendCount = entries.filter { $0.type == "spend" }.count
+        guard spendCount <= 1 else {
+            throw LocalFirstError.unsupportedTemplate(
+                "Only one spend template is allowed per category"
+            )
         }
     }
 
@@ -185,12 +293,20 @@ extension BudgetTemplateEngine {
                     "\(entry.type) templates must not have a priority"
                 )
             }
-        case "simple", "periodic", "copy", "by", "refill":
+        case "simple", "periodic", "copy", "by", "refill", "average", "percentage", "spend", "schedule":
             guard let priority = entry.priority,
                   Bounds.priority.contains(priority) else {
                 throw LocalFirstError.unsupportedTemplate(
                     "\(entry.type) templates require a numeric priority"
                 )
+            }
+        case "goal":
+            if let priority = entry.priority {
+                guard Bounds.priority.contains(priority) else {
+                    throw LocalFirstError.unsupportedTemplate(
+                        "priority is outside the supported range"
+                    )
+                }
             }
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
@@ -212,6 +328,17 @@ extension BudgetTemplateEngine {
         }
         guard percentage.isFinite, Bounds.percentage.contains(percentage) else {
             throw LocalFirstError.unsupportedTemplate("percentage is outside the supported range")
+        }
+    }
+
+    private func validateNumMonths(_ numMonths: Int?) throws {
+        guard let numMonths else {
+            return
+        }
+        guard Bounds.numMonths.contains(numMonths) else {
+            throw LocalFirstError.unsupportedTemplate(
+                "average window is outside the supported range"
+            )
         }
     }
 

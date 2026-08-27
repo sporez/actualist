@@ -8,11 +8,61 @@ struct BudgetTemplateEngine {
         let fromLastMonth: Int
         let copiedBudgetedByLookBack: [Int: Int]
         let isIncome: Bool
+        let activityByLookBack: [Int: Int]
+        let budgetedByMonth: [Int: Int]
+        let leftoverByMonth: [Int: Int]
+        let spentByMonth: [Int: Int]
+        let resolvedSchedules: [String: ResolvedSchedule]
+        let lastMonthGoal: Int
+        let previouslyBudgeted: Int
+
+        init(
+            entries: [BudgetTemplateEntry],
+            fromLastMonth: Int,
+            copiedBudgetedByLookBack: [Int: Int],
+            isIncome: Bool = false,
+            activityByLookBack: [Int: Int] = [:],
+            budgetedByMonth: [Int: Int] = [:],
+            leftoverByMonth: [Int: Int] = [:],
+            spentByMonth: [Int: Int] = [:],
+            resolvedSchedules: [String: ResolvedSchedule] = [:],
+            lastMonthGoal: Int = 0,
+            previouslyBudgeted: Int = 0
+        ) {
+            self.entries = entries
+            self.fromLastMonth = fromLastMonth
+            self.copiedBudgetedByLookBack = copiedBudgetedByLookBack
+            self.isIncome = isIncome
+            self.activityByLookBack = activityByLookBack
+            self.budgetedByMonth = budgetedByMonth
+            self.leftoverByMonth = leftoverByMonth
+            self.spentByMonth = spentByMonth
+            self.resolvedSchedules = resolvedSchedules
+            self.lastMonthGoal = lastMonthGoal
+            self.previouslyBudgeted = previouslyBudgeted
+        }
+    }
+
+    struct MonthSources: Sendable {
+        var totalIncomeByLookBack: [Int: Int] = [:]
+        var incomeActivityByCategoryID: [String: [Int: Int]] = [:]
+        var incomeCategoryIDs: Set<String> = []
+        var incomeCategoryIDByLocalizedName: [String: String] = [:]
+        var activeScheduleNames: Set<String> = []
     }
 
     struct Write: Equatable, Sendable {
         let categoryID: String
         let amount: Int
+        let goal: Int?
+        let longGoal: Int?
+
+        init(categoryID: String, amount: Int, goal: Int? = nil, longGoal: Int? = nil) {
+            self.categoryID = categoryID
+            self.amount = amount
+            self.goal = goal
+            self.longGoal = longGoal
+        }
     }
 
     enum Bounds {
@@ -23,6 +73,7 @@ struct BudgetTemplateEngine {
         static let periodInterval = BudgetTemplateCalendar.periodInterval
         static let repeatInterval = 1...1_200
         static let lookBack = 0...1_200
+        static let numMonths = 1...1_200
         static let year = BudgetTemplateCalendar.year
         static let weight = 0.0...1_000_000.0
         static let maximumEntriesPerCategory = 1_000
@@ -67,29 +118,20 @@ struct BudgetTemplateEngine {
         for entry in entries {
             try validateDirective(entry)
         }
-        let hasGoal = entries.contains {
-            $0.directive == "goal" && $0.type == "goal"
-        }
-        let budgetEntries = entries.filter(\.setsBudget)
-        // Goal-only categories stay a no-op until setGoal lands. Mixing a goal
-        // with an executable budget template would apply only half of Actual's
-        // intended state, so fail closed instead of writing a partial budget.
-        if hasGoal, !budgetEntries.isEmpty {
-            throw LocalFirstError.unsupportedTemplate(
-                "goal writes are not supported locally yet"
-            )
-        }
-        guard !budgetEntries.isEmpty else {
+        try validateOneGoal(entries)
+        try validateOneSpend(entries)
+        let actionable = entries.filter { $0.setsBudget || $0.isGoal }
+        guard !actionable.isEmpty else {
             return nil
         }
-        guard budgetEntries.count <= Bounds.maximumEntriesPerCategory else {
+        guard actionable.count <= Bounds.maximumEntriesPerCategory else {
             throw LocalFirstError.unsupportedTemplate("too many template entries")
         }
-        for entry in budgetEntries {
+        for entry in actionable {
             try validate(entry)
         }
-        try validateInteractions(budgetEntries)
-        return budgetEntries
+        try validateInteractions(actionable.filter(\.setsBudget))
+        return actionable
     }
 
     func validate(_ entries: [BudgetTemplateEntry], for monthValue: Int) throws {
@@ -103,12 +145,21 @@ struct BudgetTemplateEngine {
         categories: [String: Category],
         orderedCategoryIDs: [String],
         monthValue: Int,
-        availableBudget: Int
+        availableBudget: Int,
+        monthSources: MonthSources = MonthSources()
     ) throws -> [Write] {
         guard !categories.isEmpty else {
             return []
         }
         _ = try BudgetTemplateCalendar.validatedMonth(monthValue)
+        for category in categories.values {
+            try validatePercentageSources(category.entries, monthSources: monthSources)
+            try validateByScheduleAndSpend(
+                category.entries,
+                monthValue: monthValue,
+                activeScheduleNames: monthSources.activeScheduleNames
+            )
+        }
 
         let categoryIDs = orderedCategoryIDs.filter { categories[$0] != nil }
         let limitStates: [String: LimitState] = try Dictionary(
@@ -135,12 +186,15 @@ struct BudgetTemplateEngine {
         var budgetedByCategory = Dictionary(
             uniqueKeysWithValues: categories.keys.map { ($0, 0) }
         )
+        var fullAmountByCategory: [String: Int] = [:]
         var limitMetByCategory: [String: Bool] = [:]
         for categoryID in categoryIDs {
             guard let state = limitStates[categoryID], state.isInitiallyMet else {
                 continue
             }
-            budgetedByCategory[categoryID] = try state.initialBudgetedAmount()
+            let initial = try state.initialBudgetedAmount()
+            budgetedByCategory[categoryID] = initial
+            fullAmountByCategory[categoryID] = initial
             limitMetByCategory[categoryID] = true
         }
         let priorities = Set(categories.values.flatMap { category in
@@ -153,6 +207,7 @@ struct BudgetTemplateEngine {
         }).sorted()
 
         for priority in priorities {
+            let availableFunds = remainingAvailable
             for categoryID in categoryIDs {
                 guard let category = categories[categoryID] else {
                     continue
@@ -166,27 +221,46 @@ struct BudgetTemplateEngine {
                 }
 
                 var amount = 0
-                let byEntries = entries.filter { $0.type == "by" }
-                if !byEntries.isEmpty {
-                    amount = try Self.checkedAdd(
-                        amount,
-                        computeByAmount(
-                            byEntries,
-                            monthValue: monthValue,
-                            fromLastMonth: category.fromLastMonth
+                var ranBy = false
+                var ranSchedule = false
+                for entry in entries {
+                    switch entry.type {
+                    case "by":
+                        guard !ranBy else { continue }
+                        ranBy = true
+                        amount = try Self.checkedAdd(
+                            amount,
+                            computeByAmount(
+                                entries.filter { $0.type == "by" },
+                                monthValue: monthValue,
+                                fromLastMonth: category.fromLastMonth
+                            )
                         )
-                    )
-                }
-                for entry in entries where entry.type != "by" {
-                    amount = try Self.checkedAdd(
-                        amount,
-                        computeEntryAmount(
-                            entry,
-                            monthValue: monthValue,
-                            category: category,
-                            limitState: limitStates[categoryID]
+                    case "schedule":
+                        guard !ranSchedule else { continue }
+                        ranSchedule = true
+                        amount = try Self.checkedAdd(
+                            amount,
+                            computeScheduleAmount(
+                                entries.filter { $0.type == "schedule" },
+                                monthValue: monthValue,
+                                category: category,
+                                alreadyBudgeted: amount
+                            )
                         )
-                    )
+                    default:
+                        amount = try Self.checkedAdd(
+                            amount,
+                            computeEntryAmount(
+                                entry,
+                                monthValue: monthValue,
+                                category: category,
+                                limitState: limitStates[categoryID],
+                                availableFunds: availableFunds,
+                                monthSources: monthSources
+                            )
+                        )
+                    }
                 }
 
                 if let limitState = limitStates[categoryID] {
@@ -210,6 +284,11 @@ struct BudgetTemplateEngine {
                 if currency.hideFraction {
                     amount = try removeFractionLikeActual(amount)
                 }
+
+                fullAmountByCategory[categoryID] = try Self.checkedAdd(
+                    fullAmountByCategory[categoryID, default: 0],
+                    amount
+                )
 
                 if priority > 0,
                    !category.isIncome,
@@ -245,7 +324,12 @@ struct BudgetTemplateEngine {
             remainingAvailable: &remainingAvailable
         )
 
-        return budgetedByCategory.map(Write.init(categoryID:amount:))
+        return try finalizeWrites(
+            categories: categories,
+            orderedCategoryIDs: categoryIDs,
+            budgetedByCategory: budgetedByCategory,
+            fullAmountByCategory: fullAmountByCategory
+        )
     }
 
     func periodicAmount(_ entry: BudgetTemplateEntry, monthValue: Int) throws -> Int {
@@ -396,7 +480,9 @@ struct BudgetTemplateEngine {
         _ entry: BudgetTemplateEntry,
         monthValue: Int,
         category: Category,
-        limitState: LimitState?
+        limitState: LimitState?,
+        availableFunds: Int,
+        monthSources: MonthSources
     ) throws -> Int {
         switch entry.type {
         case "simple":
@@ -429,8 +515,116 @@ struct BudgetTemplateEngine {
                 limitState.limitAmount,
                 limitState.fromLastMonth
             )
+        case "average":
+            return try computeAverageAmount(entry, category: category)
+        case "percentage":
+            return try computePercentageAmount(
+                entry,
+                availableFunds: availableFunds,
+                monthSources: monthSources
+            )
+        case "spend":
+            return try computeSpendAmount(
+                entry,
+                monthValue: monthValue,
+                category: category
+            )
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
+        }
+    }
+
+    private func computeAverageAmount(
+        _ entry: BudgetTemplateEntry,
+        category: Category
+    ) throws -> Int {
+        guard let numMonths = entry.numMonths, Bounds.numMonths.contains(numMonths) else {
+            throw LocalFirstError.unsupportedTemplate("average")
+        }
+
+        var sum = 0
+        for lookBack in 1...numMonths {
+            sum = try Self.checkedAdd(
+                sum,
+                category.activityByLookBack[lookBack] ?? 0
+            )
+        }
+        var average = -Double(sum) / Double(numMonths)
+        if let adjustment = entry.adjustment, let adjustmentType = entry.adjustmentType {
+            switch adjustmentType {
+            case "percent":
+                average = (1 + adjustment / 100) * average
+            case "fixed":
+                average += Double(try amountToMinorUnits(adjustment))
+            default:
+                break
+            }
+        }
+        return try Self.actualRound(average)
+    }
+
+    private func computePercentageAmount(
+        _ entry: BudgetTemplateEntry,
+        availableFunds: Int,
+        monthSources: MonthSources
+    ) throws -> Int {
+        guard let percent = entry.percentageAmount,
+              Bounds.percentage.contains(percent) else {
+            throw LocalFirstError.unsupportedTemplate("percentage")
+        }
+        let monthlyIncome = try percentageIncome(
+            of: entry,
+            availableFunds: availableFunds,
+            monthSources: monthSources
+        )
+        return max(0, try Self.actualRound(Double(monthlyIncome) * (percent / 100)))
+    }
+
+    func resolvePercentageSource(
+        _ entry: BudgetTemplateEntry,
+        monthSources: MonthSources
+    ) throws -> PercentageSource {
+        let raw = entry.sourceCategory?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !raw.isEmpty else {
+            throw LocalFirstError.unsupportedTemplate("percentage")
+        }
+        let lowered = raw.localizedLowercase
+        if lowered == "all income" {
+            return .allIncome
+        }
+        if lowered == "available funds" {
+            return .availableFunds
+        }
+        if monthSources.incomeCategoryIDs.contains(raw) {
+            return .incomeCategory(raw)
+        }
+        if let categoryID = monthSources.incomeCategoryIDByLocalizedName[lowered] {
+            return .incomeCategory(categoryID)
+        }
+        throw LocalFirstError.unsupportedTemplate(
+            "Category \"\(raw)\" is not found in available income categories"
+        )
+    }
+
+    enum PercentageSource: Equatable {
+        case allIncome
+        case availableFunds
+        case incomeCategory(String)
+    }
+
+    private func percentageIncome(
+        of entry: BudgetTemplateEntry,
+        availableFunds: Int,
+        monthSources: MonthSources
+    ) throws -> Int {
+        let lookBack = entry.previous == true ? 1 : 0
+        switch try resolvePercentageSource(entry, monthSources: monthSources) {
+        case .allIncome:
+            return monthSources.totalIncomeByLookBack[lookBack] ?? 0
+        case .availableFunds:
+            return availableFunds
+        case .incomeCategory(let categoryID):
+            return monthSources.incomeActivityByCategoryID[categoryID]?[lookBack] ?? 0
         }
     }
 
@@ -559,8 +753,8 @@ struct BudgetTemplateEngine {
         }
     }
 
-    private static func participatesInPriority(_ entry: BudgetTemplateEntry) -> Bool {
-        entry.type != "remainder" && entry.type != "limit"
+    static func participatesInPriority(_ entry: BudgetTemplateEntry) -> Bool {
+        entry.directive == "template" && entry.type != "remainder" && entry.type != "limit"
     }
 
     static func actualRound(_ amount: Double) throws -> Int {
