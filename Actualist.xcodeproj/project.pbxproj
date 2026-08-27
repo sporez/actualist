@@ -206,6 +206,7 @@
 		01000000000000000000000134 /* BudgetTemplateCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000134 /* BudgetTemplateCalendar.swift */; };
 		01000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift */; };
 		010000000000000000000056 /* BudgetTemplateEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000056 /* BudgetTemplateEngineTests.swift */; };
+		01000000000000000000000136 /* BudgetTemplateEngineParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000136 /* BudgetTemplateEngineParityTests.swift */; };
 		010000000000000000000057 /* BudgetSelectionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000057 /* BudgetSelectionViews.swift */; };
 		010000000000000000000058 /* BudgetViewInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000058 /* BudgetViewInfrastructure.swift */; };
 		010000000000000000000059 /* BudgetRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000059 /* BudgetRows.swift */; };
@@ -490,6 +491,7 @@
 		02000000000000000000000134 /* BudgetTemplateCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateCalendar.swift; sourceTree = "<group>"; };
 		02000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetTemplateEngine+Remainder.swift"; sourceTree = "<group>"; };
 		020000000000000000000056 /* BudgetTemplateEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngineTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000136 /* BudgetTemplateEngineParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngineParityTests.swift; sourceTree = "<group>"; };
 		020000000000000000000057 /* BudgetSelectionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetSelectionViews.swift; sourceTree = "<group>"; };
 		020000000000000000000058 /* BudgetViewInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewInfrastructure.swift; sourceTree = "<group>"; };
 		020000000000000000000059 /* BudgetRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetRows.swift; sourceTree = "<group>"; };
@@ -781,6 +783,7 @@
 				020000000000000000000052 /* ReportsTests.swift */,
 				020000000000000000000054 /* DiagnosticReportTests.swift */,
 				020000000000000000000056 /* BudgetTemplateEngineTests.swift */,
+				02000000000000000000000136 /* BudgetTemplateEngineParityTests.swift */,
 				02000000000000000000009E /* DemoModeStoreTests.swift */,
 				02000000000000000000009F /* DemoModeSessionTests.swift */,
 				020000000000000000000000EB /* ShortcutsBudgetSessionTests.swift */,
@@ -1492,6 +1495,7 @@
 				010000000000000000000052 /* ReportsTests.swift in Sources */,
 				010000000000000000000054 /* DiagnosticReportTests.swift in Sources */,
 				010000000000000000000056 /* BudgetTemplateEngineTests.swift in Sources */,
+				01000000000000000000000136 /* BudgetTemplateEngineParityTests.swift in Sources */,
 				01000000000000000000009E /* DemoModeStoreTests.swift in Sources */,
 				01000000000000000000009F /* DemoModeSessionTests.swift in Sources */,
 				010000000000000000000000EB /* ShortcutsBudgetSessionTests.swift in Sources */,

@@ -283,7 +283,10 @@ extension LocalFirstActualStoreTests {
             ("look-back above maximum", #"{"directive":"template","type":"copy","lookBack":1201,"priority":0}"#),
             ("repeat interval above maximum", #"{"directive":"template","type":"by","amount":10,"month":"2026-08","repeat":1201,"priority":0}"#),
             ("priority above maximum", #"{"directive":"template","type":"simple","monthly":10,"priority":1001}"#),
-            ("negative remainder weight", #"{"directive":"template","type":"remainder","weight":-1}"#)
+            ("negative remainder weight", #"{"directive":"template","type":"remainder","weight":-1}"#),
+            ("missing directive", #"{"type":"simple","monthly":10,"priority":0}"#),
+            ("malformed directive", #"{"directive":"nope","type":"simple","monthly":10,"priority":0}"#),
+            ("missing remainder weight", #"{"directive":"template","type":"remainder"}"#)
         ]
 
         for (label, template) in invalidTemplates {
@@ -399,14 +402,50 @@ extension LocalFirstActualStoreTests {
         #expect(leftover.budgeted == 50_000)
     }
 
-    @Test func budgetTemplateApplySingleSkipsAvailableClamp() async throws {
+    @Test func budgetTemplateApplySingleClampsPriorityTemplatesToAvailableBudget() async throws {
         let later = try await appliedLaterPriorityTemplate(command: .category("later"))
-        #expect(later == 100_000)
+        #expect(later == 50_000)
     }
 
     @Test func budgetTemplateWholeMonthStillClampsPriorityTemplates() async throws {
         let later = try await appliedLaterPriorityTemplate(command: .overwrite)
         #expect(later == 50_000)
+    }
+
+    @Test func budgetTemplateSamePriorityFundsFollowBudgetOrderNotCategoryID() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-group', 1, 0, 0, 0, NULL);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO transactions VALUES ('salary-july', 'checking', 20260701, 100000, 'salary', 0, NULL, 0);
+            INSERT INTO categories VALUES (
+                'z-first', 'First', 'group', 0, 0, 0, 10,
+                '[{"directive":"template","type":"simple","monthly":1000,"priority":1}]'
+            );
+            INSERT INTO category_mapping VALUES ('z-first', 'z-first');
+            INSERT INTO categories VALUES (
+                'a-second', 'Second', 'group', 0, 0, 0, 20,
+                '[{"directive":"template","type":"simple","monthly":1000,"priority":1}]'
+            );
+            INSERT INTO category_mapping VALUES ('a-second', 'a-second');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .overwrite,
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let categories = Dictionary(
+            uniqueKeysWithValues: july.categoryGroups.flatMap(\.categories).map { ($0.id, $0.budgeted) }
+        )
+
+        #expect(categories["z-first"] == 50_000)
+        #expect(categories["a-second"] == 0)
+        #expect("a-second" < "z-first")
     }
 
     private func appliedLaterPriorityTemplate(command: BudgetTemplateCommand) async throws -> Int {

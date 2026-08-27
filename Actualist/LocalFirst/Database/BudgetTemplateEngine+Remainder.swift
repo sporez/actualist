@@ -3,14 +3,18 @@ import Foundation
 extension BudgetTemplateEngine {
     func distributeRemainder(
         categories: [String: Category],
+        orderedCategoryIDs: [String],
         limitStates: [String: LimitState],
         budgetedByCategory: inout [String: Int],
         limitMetByCategory: inout [String: Bool],
         remainingAvailable: inout Int
     ) throws {
         func remainderCategoryIDs() -> [String] {
-            categories.keys.sorted().filter { categoryID in
-                remainderWeight(of: categories[categoryID]!) > 0
+            orderedCategoryIDs.filter { categoryID in
+                guard let category = categories[categoryID] else {
+                    return false
+                }
+                return remainderWeight(of: category) > 0
                     && limitMetByCategory[categoryID] != true
             }
         }
@@ -18,7 +22,10 @@ extension BudgetTemplateEngine {
         var active = remainderCategoryIDs()
         while remainingAvailable > 0, !active.isEmpty {
             let totalWeight = active.reduce(0.0) { partial, categoryID in
-                partial + remainderWeight(of: categories[categoryID]!)
+                guard let category = categories[categoryID] else {
+                    return partial
+                }
+                return partial + remainderWeight(of: category)
             }
             guard totalWeight > 0 else {
                 break
@@ -41,7 +48,11 @@ extension BudgetTemplateEngine {
                         budgetedByCategory[categoryID, default: 0],
                         allocated
                     )
-                    if nextBudgeted + limitState.fromLastMonth >= limitState.limitAmount {
+                    let carried = try Self.checkedAdd(
+                        nextBudgeted,
+                        limitState.fromLastMonth
+                    )
+                    if carried >= limitState.limitAmount {
                         limitMetByCategory[categoryID] = true
                     }
                 }
@@ -100,10 +111,10 @@ extension BudgetTemplateEngine {
 
     private func remainderWeight(of category: Category) -> Double {
         category.entries.reduce(0) { partial, entry in
-            guard entry.type == "remainder" else {
+            guard entry.type == "remainder", let weight = entry.weight else {
                 return partial
             }
-            return partial + (entry.weight ?? 1)
+            return partial + weight
         }
     }
 

@@ -89,6 +89,7 @@ struct BudgetTemplateEngineTests {
                     copiedBudgetedByLookBack: [2: 12_345]
                 )
             ],
+            orderedCategoryIDs: ["capped", "copy"],
             monthValue: 202607,
             availableBudget: 100_000
         )
@@ -124,7 +125,8 @@ struct BudgetTemplateEngineTests {
                         copiedBudgetedByLookBack: [:]
                     )
                 ],
-                monthValue: 202607,
+                orderedCategoryIDs: ["rounded"],
+            monthValue: 202607,
                 availableBudget: 100_000
             ).map(\.amount) == [1_200]
         )
@@ -137,7 +139,8 @@ struct BudgetTemplateEngineTests {
                         copiedBudgetedByLookBack: [:]
                     )
                 ],
-                monthValue: 202607,
+                orderedCategoryIDs: ["exact"],
+            monthValue: 202607,
                 availableBudget: 100_000
             ).map(\.amount) == [1_234]
         )
@@ -167,6 +170,7 @@ struct BudgetTemplateEngineTests {
                     copiedBudgetedByLookBack: [:]
                 )
             ],
+            orderedCategoryIDs: ["half"],
             monthValue: 202607,
             availableBudget: 100_000
         )
@@ -180,6 +184,7 @@ struct BudgetTemplateEngineTests {
                     copiedBudgetedByLookBack: [:]
                 )
             ],
+            orderedCategoryIDs: ["half"],
             monthValue: 202607,
             availableBudget: 1_250
         )
@@ -209,6 +214,7 @@ struct BudgetTemplateEngineTests {
                     copiedBudgetedByLookBack: [:]
                 )
             ],
+            orderedCategoryIDs: ["yen"],
             monthValue: 202607,
             availableBudget: 100_000
         )
@@ -228,6 +234,7 @@ struct BudgetTemplateEngineTests {
                 "a": .init(entries: first, fromLastMonth: 0, copiedBudgetedByLookBack: [:]),
                 "b": .init(entries: second, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
             ],
+            orderedCategoryIDs: ["a", "b"],
             monthValue: 202607,
             availableBudget: 30_000
         )
@@ -237,20 +244,12 @@ struct BudgetTemplateEngineTests {
         #expect(amounts["b"] == 20_000)
     }
 
-    @Test func remainderDefaultsMissingWeightToOne() throws {
-        let decoded = try #require(try engine.decodeSupportedEntries(
-            json: #"[{"directive":"template","type":"remainder"}]"#
-        ))
-
-        let writes = try engine.computeWrites(
-            categories: [
-                "only": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
-            ],
-            monthValue: 202607,
-            availableBudget: 4_321
-        )
-
-        #expect(writes.map(\.amount) == [4_321])
+    @Test func remainderRejectsMissingWeight() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"remainder"}]"#
+            )
+        }
     }
 
     @Test func remainderHideFractionAbsorbsLeftoverWholeUnits() throws {
@@ -269,6 +268,7 @@ struct BudgetTemplateEngineTests {
                 "a": .init(entries: first, fromLastMonth: 0, copiedBudgetedByLookBack: [:]),
                 "b": .init(entries: second, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
             ],
+            orderedCategoryIDs: ["a", "b"],
             monthValue: 202607,
             availableBudget: 10_050
         )
@@ -298,6 +298,7 @@ struct BudgetTemplateEngineTests {
                 "capped": .init(entries: limited, fromLastMonth: 0, copiedBudgetedByLookBack: [:]),
                 "open": .init(entries: open, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
             ],
+            orderedCategoryIDs: ["capped", "open"],
             monthValue: 202607,
             availableBudget: 10_000
         )
@@ -324,6 +325,7 @@ struct BudgetTemplateEngineTests {
             categories: [
                 "daily": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
             ],
+            orderedCategoryIDs: ["daily"],
             monthValue: 202607,
             availableBudget: 100_000
         )
@@ -331,6 +333,7 @@ struct BudgetTemplateEngineTests {
             categories: [
                 "daily": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
             ],
+            orderedCategoryIDs: ["daily"],
             monthValue: 202602,
             availableBudget: 100_000
         )
@@ -361,6 +364,7 @@ struct BudgetTemplateEngineTests {
             categories: [
                 "weekly": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
             ],
+            orderedCategoryIDs: ["weekly"],
             monthValue: 202607,
             availableBudget: 100_000
         )
@@ -390,6 +394,7 @@ struct BudgetTemplateEngineTests {
             categories: [
                 "weekly": .init(entries: decoded, fromLastMonth: 0, copiedBudgetedByLookBack: [:])
             ],
+            orderedCategoryIDs: ["weekly"],
             monthValue: 202607,
             availableBudget: 100_000
         )
@@ -414,7 +419,7 @@ struct BudgetTemplateEngineTests {
         }
     }
 
-    @Test func applySingleSkipsTheAvailableClampForPriorityTemplates() throws {
+    @Test func priorityTemplatesClampToAvailableBudget() throws {
         let decoded = try #require(try engine.decodeSupportedEntries(
             json: #"[{"directive":"template","type":"simple","monthly":50,"priority":1}]"#
         ))
@@ -426,20 +431,14 @@ struct BudgetTemplateEngineTests {
             )
         ]
 
-        let clamped = try engine.computeWrites(
+        let writes = try engine.computeWrites(
             categories: categories,
+            orderedCategoryIDs: ["later"],
             monthValue: 202607,
             availableBudget: 2_000
         )
-        let unclamped = try engine.computeWrites(
-            categories: categories,
-            monthValue: 202607,
-            availableBudget: 2_000,
-            skipAvailableClamp: true
-        )
 
-        #expect(clamped.map(\.amount) == [2_000])
-        #expect(unclamped.map(\.amount) == [5_000])
+        #expect(writes.map(\.amount) == [2_000])
     }
 
     @Test func targetValidationRejectsAnExpiredNonRepeatingMonth() throws {

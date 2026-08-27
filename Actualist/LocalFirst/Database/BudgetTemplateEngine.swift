@@ -62,6 +62,9 @@ struct BudgetTemplateEngine {
             throw LocalFirstError.unsupportedTemplate(decodingFailureReason(error))
         }
 
+        for entry in entries {
+            try validateDirective(entry)
+        }
         let budgetEntries = entries.filter(\.setsBudget)
         guard !budgetEntries.isEmpty else {
             return nil
@@ -85,22 +88,31 @@ struct BudgetTemplateEngine {
 
     func computeWrites(
         categories: [String: Category],
+        orderedCategoryIDs: [String],
         monthValue: Int,
-        availableBudget: Int,
-        skipAvailableClamp: Bool = false
+        availableBudget: Int
     ) throws -> [Write] {
         guard !categories.isEmpty else {
             return []
         }
         _ = try BudgetTemplateCalendar.validatedMonth(monthValue)
 
-        let limitStates = try Dictionary(
-            uniqueKeysWithValues: categories.compactMap { item in
-                try limitState(for: item.value, monthValue: monthValue).map { (item.key, $0) }
+        let categoryIDs = orderedCategoryIDs.filter { categories[$0] != nil }
+        let limitStates: [String: LimitState] = try Dictionary(
+            uniqueKeysWithValues: categoryIDs.compactMap { categoryID -> (String, LimitState)? in
+                guard let category = categories[categoryID] else {
+                    return nil
+                }
+                return try limitState(for: category, monthValue: monthValue).map {
+                    (categoryID, $0)
+                }
             }
         )
         var remainingAvailable = availableBudget
-        for state in limitStates.values {
+        for categoryID in categoryIDs {
+            guard let state = limitStates[categoryID] else {
+                continue
+            }
             remainingAvailable = try Self.checkedAdd(
                 remainingAvailable,
                 state.releasedExcess()
@@ -111,7 +123,10 @@ struct BudgetTemplateEngine {
             uniqueKeysWithValues: categories.keys.map { ($0, 0) }
         )
         var limitMetByCategory: [String: Bool] = [:]
-        for (categoryID, state) in limitStates where state.isInitiallyMet {
+        for categoryID in categoryIDs {
+            guard let state = limitStates[categoryID], state.isInitiallyMet else {
+                continue
+            }
             budgetedByCategory[categoryID] = try state.initialBudgetedAmount()
             limitMetByCategory[categoryID] = true
         }
@@ -125,7 +140,7 @@ struct BudgetTemplateEngine {
         }).sorted()
 
         for priority in priorities {
-            for categoryID in categories.keys.sorted() {
+            for categoryID in categoryIDs {
                 guard let category = categories[categoryID] else {
                     continue
                 }
@@ -184,7 +199,6 @@ struct BudgetTemplateEngine {
                 }
 
                 if priority > 0,
-                   !skipAvailableClamp,
                    amount > 0,
                    remainingAvailable < amount {
                     amount = max(0, remainingAvailable)
@@ -200,6 +214,7 @@ struct BudgetTemplateEngine {
 
         try distributeRemainder(
             categories: categories,
+            orderedCategoryIDs: categoryIDs,
             limitStates: limitStates,
             budgetedByCategory: &budgetedByCategory,
             limitMetByCategory: &limitMetByCategory,
@@ -293,6 +308,26 @@ struct BudgetTemplateEngine {
         return value
     }
 
+    private func validateDirective(_ entry: BudgetTemplateEntry) throws {
+        guard let directive = entry.directive?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !directive.isEmpty else {
+            throw LocalFirstError.unsupportedTemplate("template is missing a directive")
+        }
+        switch directive {
+        case "template", "goal":
+            break
+        default:
+            throw LocalFirstError.unsupportedTemplate(
+                "unsupported template directive"
+            )
+        }
+        if directive == "goal", entry.type != "goal" {
+            throw LocalFirstError.unsupportedTemplate(
+                "goal directive requires type goal"
+            )
+        }
+    }
+
     private func validate(_ entry: BudgetTemplateEntry) throws {
         guard Bounds.priority.contains(entry.priority ?? 0) else {
             throw LocalFirstError.unsupportedTemplate(entry.type)
@@ -352,6 +387,9 @@ struct BudgetTemplateEngine {
                 throw LocalFirstError.unsupportedTemplate("invalid refill template")
             }
         case "remainder":
+            guard entry.weight != nil else {
+                throw LocalFirstError.unsupportedTemplate("remainder is missing weight")
+            }
             try validateLimit(entry.limit)
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
@@ -653,7 +691,10 @@ struct BudgetTemplateEngine {
         )
         if monthsRemaining < 0, let repeatPeriod {
             let overdueMonths = try Self.checkedSubtract(0, monthsRemaining)
-            let adjusted = try Self.checkedAdd(overdueMonths, repeatPeriod - 1)
+            let adjusted = try Self.checkedAdd(
+                overdueMonths,
+                try Self.checkedSubtract(repeatPeriod, 1)
+            )
             let cycles = adjusted / repeatPeriod
             let shift = repeatPeriod.multipliedReportingOverflow(by: cycles)
             guard !shift.overflow else {

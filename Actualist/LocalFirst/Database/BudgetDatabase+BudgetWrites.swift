@@ -211,7 +211,12 @@ extension BudgetDatabase {
             if targeted.isEmpty {
                 scope = try templateScopeCategoryIDs(db: db).filter { goalDefsRaw[$0] != nil }
             } else {
-                scope = targeted.filter { goalDefsRaw[$0] != nil }.sorted()
+                let targetedWithTemplates = targeted.filter { goalDefsRaw[$0] != nil }
+                scope = try templateCategoryIDsInBudgetOrder(
+                    db: db,
+                    includeIncome: true,
+                    includeHidden: true
+                ).filter { targetedWithTemplates.contains($0) }
             }
             let force = command.mode == .overwrite || !targeted.isEmpty
             let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
@@ -298,9 +303,9 @@ extension BudgetDatabase {
             )
             let writes = try templateEngine.computeWrites(
                 categories: categories,
+                orderedCategoryIDs: scope.filter { categories[$0] != nil },
                 monthValue: monthValue,
-                availableBudget: availableBudget,
-                skipAvailableClamp: targeted.count == 1
+                availableBudget: availableBudget
             )
 
             var messages: [ActualSyncDecodedMessage] = []
@@ -492,19 +497,75 @@ extension BudgetDatabase {
     }
 
     func templateScopeCategoryIDs(db: Database) throws -> [String] {
+        try templateCategoryIDsInBudgetOrder(
+            db: db,
+            includeIncome: false,
+            includeHidden: false
+        )
+    }
+
+    func templateCategoryIDsInBudgetOrder(
+        db: Database,
+        includeIncome: Bool,
+        includeHidden: Bool
+    ) throws -> [String] {
         guard try tableExists("categories", db: db) else {
             return []
         }
-        let columns = try columnSet(for: "categories", db: db)
-        let isIncome = column("is_income", fallback: "0", columns: columns)
-        let hidden = column("hidden", fallback: "0", columns: columns)
+        let categoryColumns = try columnSet(for: "categories", db: db)
+        let groupColumn: String?
+        if categoryColumns.contains("cat_group") {
+            groupColumn = "cat_group"
+        } else if categoryColumns.contains("group_id") {
+            groupColumn = "group_id"
+        } else {
+            groupColumn = nil
+        }
+
+        var predicates = [predicateForLiveRows(columns: categoryColumns, tableAlias: "c")]
+        if !includeIncome, categoryColumns.contains("is_income") {
+            predicates.append("(c.is_income = 0 OR c.is_income IS NULL)")
+        }
+        if !includeHidden, categoryColumns.contains("hidden") {
+            predicates.append("(c.hidden = 0 OR c.hidden IS NULL)")
+        }
+
+        let groupsExist = try tableExists("category_groups", db: db)
+        let groupColumns = groupsExist ? try columnSet(for: "category_groups", db: db) : []
+        var join = ""
+        var order: [String] = []
+        if groupsExist, let groupColumn {
+            join = "LEFT JOIN category_groups g ON g.id = c.\(groupColumn)"
+            if !includeHidden {
+                var groupVisible = ["g.id IS NULL"]
+                var visibleParts = [predicateForLiveRows(columns: groupColumns, tableAlias: "g")]
+                if groupColumns.contains("hidden") {
+                    visibleParts.append("(g.hidden = 0 OR g.hidden IS NULL)")
+                }
+                groupVisible.append("(\(visibleParts.joined(separator: " AND ")))")
+                predicates.append("(\(groupVisible.joined(separator: " OR ")))")
+            }
+            if groupColumns.contains("is_income") {
+                order.append("g.is_income")
+            }
+            if groupColumns.contains("sort_order") {
+                order.append("g.sort_order")
+            }
+            order.append("g.id")
+        }
+        if categoryColumns.contains("sort_order") {
+            order.append("c.sort_order")
+        }
+        order.append("c.id")
+
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT id FROM categories
-                WHERE \(predicateForLiveRows(columns: columns))
-                  AND (\(isIncome) = 0 OR \(isIncome) IS NULL)
-                  AND (\(hidden) = 0 OR \(hidden) IS NULL)
+                SELECT c.id AS id
+                FROM categories c
+                \(join)
+                WHERE \(predicates.joined(separator: " AND "))
+                ORDER BY \(order.joined(separator: ", "))
                 """
         )
         return rows.compactMap { $0["id"] as String? }

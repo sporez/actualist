@@ -121,8 +121,9 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let repeatInterval: Int?
     let weight: Double?
 
-    // `goal` entries are display-only; `template` entries change the budget.
-    var setsBudget: Bool { (directive ?? "template") == "template" }
+    // Actual requires `directive`. Only `template` entries change the budget;
+    // `goal` entries are display-only and skipped until the goal write path lands.
+    var setsBudget: Bool { directive == "template" }
 
     private enum CodingKeys: String, CodingKey {
         case type
