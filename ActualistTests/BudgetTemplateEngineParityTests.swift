@@ -526,6 +526,279 @@ struct BudgetTemplateEngineParityTests {
         }
     }
 
+    @Test func simpleNegativeMonthlyPriorityZeroApplies() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -103.23, priority: 0))
+            ],
+            order: ["refund"],
+            availableBudget: 0
+        )
+        #expect(amounts["refund"] == -10_323)
+    }
+
+    @Test func simpleNegativeMonthlyPriorityAboveZeroIsNotClampedToZero() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 1))
+            ],
+            order: ["refund"],
+            availableBudget: 0
+        )
+        #expect(amounts["refund"] == -5_000)
+    }
+
+    @Test func periodicNegativeAmountApplies() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "dues": category(
+                    json: """
+                        [{
+                          "directive": "template",
+                          "type": "periodic",
+                          "amount": -10,
+                          "period": {"period": "month", "amount": 1},
+                          "starting": "2026-07-01",
+                          "priority": 0
+                        }]
+                        """
+                )
+            ],
+            order: ["dues"],
+            availableBudget: 100_000
+        )
+        #expect(amounts["dues"] == -1_000)
+    }
+
+    @Test func byNegativeTargetAmountApplies() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "credit": category(
+                    json: """
+                        [{
+                          "directive": "template",
+                          "type": "by",
+                          "amount": -90,
+                          "month": "2026-09",
+                          "priority": 0
+                        }]
+                        """
+                )
+            ],
+            order: ["credit"],
+            availableBudget: 100_000
+        )
+        // July is 2 months from September, so spread over 3 months: -30.
+        #expect(amounts["credit"] == -3_000)
+    }
+
+    @Test func negativeExpenseTemplateIncreasesAvailabilityForALaterExpense() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -40, priority: 0)),
+                "later": category(json: simple(monthly: 50, priority: 1))
+            ],
+            order: ["refund", "later"],
+            availableBudget: 1_000
+        )
+        #expect(amounts["refund"] == -4_000)
+        #expect(amounts["later"] == 5_000)
+    }
+
+    @Test func negativeIncomeTemplateDecreasesAvailabilityForALaterExpense() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "salary": category(json: simple(monthly: -40, priority: 0), isIncome: true),
+                "later": category(json: simple(monthly: 50, priority: 1))
+            ],
+            order: ["salary", "later"],
+            availableBudget: 5_000
+        )
+        #expect(amounts["salary"] == -4_000)
+        #expect(amounts["later"] == 1_000)
+    }
+
+    @Test func copiedNegativeBudgetIsPreserved() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "copy": category(
+                    json: """
+                        [{
+                          "directive": "template",
+                          "type": "copy",
+                          "lookBack": 1,
+                          "priority": 0
+                        }]
+                        """,
+                    copiedBudgetedByLookBack: [1: -5_000]
+                )
+            ],
+            order: ["copy"],
+            availableBudget: 100_000
+        )
+        #expect(amounts["copy"] == -5_000)
+    }
+
+    @Test func negativeStandaloneAndAttachedLimitsAreRejected() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"limit","amount":-10,"period":"monthly","hold":false,"priority":null}]"#
+            )
+        }
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: simple(
+                    monthly: 10,
+                    priority: 0,
+                    limit: #"{"amount":-10,"period":"monthly","hold":false,"start":null}"#
+                )
+            )
+        }
+    }
+
+    @Test func copyAttachedLimitIsIgnored() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "copy": category(
+                    json: """
+                        [{
+                          "directive": "template",
+                          "type": "copy",
+                          "lookBack": 1,
+                          "priority": 0,
+                          "limit": {
+                            "amount": 100,
+                            "period": "monthly",
+                            "hold": false,
+                            "start": null
+                          }
+                        }]
+                        """,
+                    copiedBudgetedByLookBack: [1: 50_000]
+                )
+            ],
+            order: ["copy"],
+            availableBudget: 100_000
+        )
+        #expect(amounts["copy"] == 50_000)
+    }
+
+    @Test func ignoredCopyLimitDoesNotCountAsASecondEffectiveLimit() throws {
+        let decoded = try #require(
+            try engine.decodeSupportedEntries(
+                json: """
+                    [
+                      {
+                        "directive": "template",
+                        "type": "copy",
+                        "lookBack": 1,
+                        "priority": 0,
+                        "limit": {
+                          "amount": 100,
+                          "period": "monthly",
+                          "hold": false,
+                          "start": null
+                        }
+                      },
+                      {
+                        "directive": "template",
+                        "type": "simple",
+                        "monthly": 10,
+                        "priority": 0,
+                        "limit": {
+                          "amount": 20,
+                          "period": "monthly",
+                          "hold": false,
+                          "start": null
+                        }
+                      }
+                    ]
+                    """
+            )
+        )
+        let amounts = try writeAmounts(
+            categories: [
+                "mixed": .init(
+                    entries: decoded,
+                    fromLastMonth: 0,
+                    copiedBudgetedByLookBack: [1: 50_000]
+                )
+            ],
+            order: ["mixed"],
+            availableBudget: 100_000
+        )
+        #expect(amounts["mixed"] == 2_000)
+    }
+
+    @Test func hideFractionNegativeHalfRoundsTowardPositiveInfinity() throws {
+        let hidden = BudgetTemplateEngine(
+            currency: BudgetCurrency.catalog(code: "USD", hideFraction: true)
+        )
+        let positive = try writeAmounts(
+            using: hidden,
+            categories: [
+                "up": category(json: simple(monthly: 1.50, priority: 0))
+            ],
+            order: ["up"],
+            availableBudget: 100_000
+        )
+        let negative = try writeAmounts(
+            using: hidden,
+            categories: [
+                "down": category(json: simple(monthly: -1.50, priority: 0))
+            ],
+            order: ["down"],
+            availableBudget: 100_000
+        )
+        #expect(positive["up"] == 200)
+        #expect(negative["down"] == -100)
+    }
+
+    @Test func mixedGoalAndSimpleIsRejectedAtomically() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: """
+                    [
+                      {"directive":"goal","type":"goal","amount":500,"priority":null},
+                      {"directive":"template","type":"simple","monthly":50,"priority":0}
+                    ]
+                    """
+            )
+        }
+    }
+
+    @Test func mixedGoalAndPeriodicIsRejectedAtomically() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: """
+                    [
+                      {"directive":"goal","type":"goal","amount":500,"priority":null},
+                      {
+                        "directive": "template",
+                        "type": "periodic",
+                        "amount": 5,
+                        "period": {"period": "month", "amount": 1},
+                        "starting": "2026-07-01",
+                        "priority": 0
+                      }
+                    ]
+                    """
+            )
+        }
+    }
+
+    @Test func goalPlusErrorOnlyDoesNotMutateBudget() throws {
+        let decoded = try engine.decodeSupportedEntries(
+            json: """
+                [
+                  {"directive":"goal","type":"goal","amount":500,"priority":null},
+                  {"directive":"error","type":"error","line":"#template bad","error":"parse failure"}
+                ]
+                """
+        )
+        #expect(decoded == nil)
+    }
+
     private func writeAmounts(
         using engine: BudgetTemplateEngine? = nil,
         categories: [String: BudgetTemplateEngine.Category],

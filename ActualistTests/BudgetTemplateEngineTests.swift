@@ -8,7 +8,9 @@ struct BudgetTemplateEngineTests {
     @Test func rejectsEveryBoundedFieldBeforeCalculation() throws {
         let invalidEntries = [
             #"{"directive":"template","type":"simple","monthly":1000000001,"priority":0}"#,
-            #"{"directive":"template","type":"simple","monthly":-1,"priority":0}"#,
+            #"{"directive":"template","type":"simple","monthly":-1000000001,"priority":0}"#,
+            #"{"directive":"template","type":"simple","monthly":10,"limit":{"amount":-1,"period":"monthly","hold":false,"start":null},"priority":0}"#,
+            #"{"directive":"template","type":"limit","amount":-1,"period":"monthly","hold":false,"priority":null}"#,
             #"{"directive":"template","type":"simple","monthly":10,"percentage":101,"priority":0}"#,
             #"{"directive":"template","type":"periodic","amount":1,"period":{"period":"day","amount":1201},"starting":"2026-07-01","priority":0}"#,
             #"{"directive":"template","type":"copy","lookBack":1201,"priority":0}"#,
@@ -439,6 +441,21 @@ struct BudgetTemplateEngineTests {
         )
 
         #expect(writes.map(\.amount) == [2_000])
+    }
+
+    @Test func amountToMinorUnitsMatchesJavaScriptMathRoundOnExactHalves() throws {
+        // 1.125 and -1.125 are binary-exact. * 100 yields ±112.5.
+        // JS Math.round(112.5) == 113; Math.round(-112.5) == -112.
+        #expect(try engine.amountToMinorUnits(1.125) == 113)
+        #expect(try engine.amountToMinorUnits(-1.125) == -112)
+    }
+
+    @Test func hideFractionMatchesJavaScriptMathRoundOnNegativeHalves() throws {
+        let hidden = BudgetTemplateEngine(
+            currency: BudgetCurrency.catalog(code: "USD", hideFraction: true)
+        )
+        #expect(try hidden.removeFractionLikeActual(150) == 200)
+        #expect(try hidden.removeFractionLikeActual(-150) == -100)
     }
 
     @Test func targetValidationRejectsAnExpiredNonRepeatingMonth() throws {

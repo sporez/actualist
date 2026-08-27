@@ -84,7 +84,7 @@ extension BudgetTemplateEngine {
         var toBudget = try Self.actualRound(weight * perWeight)
         let smallest: Int
         if currency.hideFraction {
-            toBudget = currency.removingFraction(fromMinorUnits: toBudget)
+            toBudget = try removeFractionLikeActual(toBudget)
             smallest = remainderSmallestUnit
         } else {
             smallest = 1

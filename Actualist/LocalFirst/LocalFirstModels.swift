@@ -121,8 +121,9 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let repeatInterval: Int?
     let weight: Double?
 
-    // Actual requires `directive`. Only `template` entries change the budget;
-    // `goal` entries are display-only and skipped until the goal write path lands.
+    // Actual requires `directive`. Only `template` entries change the budget.
+    // Goal-only categories are a no-op until setGoal lands. Mixed goal + budget
+    // templates are refused so we do not apply half of Actual's intended state.
     var setsBudget: Bool { directive == "template" }
 
     private enum CodingKeys: String, CodingKey {

@@ -15,8 +15,9 @@ struct BudgetTemplateEngine {
         let amount: Int
     }
 
-    private enum Bounds {
-        static let amount = 0.0...1_000_000_000.0
+    enum Bounds {
+        static let signedTemplateAmount = -1_000_000_000.0...1_000_000_000.0
+        static let nonnegativeAmount = 0.0...1_000_000_000.0
         static let percentage = 0.0...100.0
         static let priority = 0...1_000
         static let periodInterval = BudgetTemplateCalendar.periodInterval
@@ -66,7 +67,18 @@ struct BudgetTemplateEngine {
         for entry in entries {
             try validateDirective(entry)
         }
+        let hasGoal = entries.contains {
+            $0.directive == "goal" && $0.type == "goal"
+        }
         let budgetEntries = entries.filter(\.setsBudget)
+        // Goal-only categories stay a no-op until setGoal lands. Mixing a goal
+        // with an executable budget template would apply only half of Actual's
+        // intended state, so fail closed instead of writing a partial budget.
+        if hasGoal, !budgetEntries.isEmpty {
+            throw LocalFirstError.unsupportedTemplate(
+                "goal writes are not supported locally yet"
+            )
+        }
         guard !budgetEntries.isEmpty else {
             return nil
         }
@@ -196,7 +208,7 @@ struct BudgetTemplateEngine {
                 }
 
                 if currency.hideFraction {
-                    amount = currency.removingFraction(fromMinorUnits: amount)
+                    amount = try removeFractionLikeActual(amount)
                 }
 
                 if priority > 0,
@@ -246,13 +258,7 @@ struct BudgetTemplateEngine {
 
         let amountInMinorUnits = try amountToMinorUnits(amount)
         let monthStartDate = try BudgetTemplateCalendar.monthStartDate(monthValue)
-        guard let nextMonthStartDate = Calendar(identifier: .gregorian).date(
-            byAdding: .month,
-            value: 1,
-            to: monthStartDate
-        ) else {
-            throw LocalFirstError.unsupportedTemplate("periodic month")
-        }
+        let nextMonthStartDate = try BudgetTemplateCalendar.nextMonthStartDate(monthValue)
         let starting = entry.starting?.trimmingCharacters(in: .whitespacesAndNewlines)
         let startingDate: Date
         if let starting, !starting.isEmpty {
@@ -310,257 +316,32 @@ struct BudgetTemplateEngine {
     }
 
     func amountToMinorUnits(_ amount: Double) throws -> Int {
-        // goal_def amounts are display decimals, not Actual's integer units.
-        guard amount.isFinite, Bounds.amount.contains(amount) else {
+        // Actual uses Math.round(amount * 10**decimalPlaces). JS Math.round
+        // ties toward +Infinity; do not use BudgetCurrency's Decimal .plain
+        // rounding, which disagrees on negative halves.
+        guard amount.isFinite, Bounds.signedTemplateAmount.contains(amount) else {
             throw LocalFirstError.numericValueOutOfRange
         }
-        guard let value = currency.minorUnits(fromDisplay: amount) else {
+        let scale = try Self.decimalScale(currency.decimalPlaces)
+        let scaled = amount * scale
+        guard scaled.isFinite else {
             throw LocalFirstError.numericValueOutOfRange
         }
-        return value
+        return try Self.actualRound(scaled)
     }
 
-    private func validateDirective(_ entry: BudgetTemplateEntry) throws {
-        guard let directive = entry.directive?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !directive.isEmpty else {
-            throw LocalFirstError.unsupportedTemplate("template is missing a directive")
+    func removeFractionLikeActual(_ minorUnits: Int) throws -> Int {
+        guard currency.hideFraction, currency.decimalPlaces > 0 else {
+            return minorUnits
         }
-        switch (directive, entry.type) {
-        case ("template", "error"):
-            throw LocalFirstError.unsupportedTemplate(
-                "error type requires directive error"
-            )
-        case ("template", _):
-            break
-        case ("goal", "goal"):
-            break
-        case ("error", "error"):
-            break
-        case ("goal", _):
-            throw LocalFirstError.unsupportedTemplate(
-                "goal directive requires type goal"
-            )
-        case ("error", _):
-            throw LocalFirstError.unsupportedTemplate(
-                "error directive requires type error"
-            )
-        default:
-            throw LocalFirstError.unsupportedTemplate(
-                "unsupported template directive"
-            )
-        }
-    }
-
-    private func validate(_ entry: BudgetTemplateEntry) throws {
-        try validatePriority(entry)
-        try validateAmount(entry.monthly, field: "monthly amount")
-        try validateAmount(entry.amount, field: "amount")
-        try validatePercentage(entry.percentage)
-        try validateInterval(entry.period?.amount, field: "period interval")
-        try validateLookBack(entry.lookBack)
-        try validateRepeatInterval(entry.repeatInterval)
-        try validateWeight(entry.weight)
-        try validateAmount(entry.limit?.amount, field: "limit amount")
-        try validateAmount(entry.standaloneLimit?.amount, field: "limit amount")
-
-        switch entry.type {
-        case "simple":
-            guard entry.monthly != nil || entry.limit != nil else {
-                throw LocalFirstError.unsupportedTemplate("simple without monthly amount")
-            }
-            try validateLimit(entry.limit)
-        case "periodic":
-            guard entry.amount != nil,
-                  let periodAmount = entry.period?.amount,
-                  Bounds.periodInterval.contains(periodAmount),
-                  let period = entry.period?.period,
-                  ["day", "week", "month", "year"].contains(period) else {
-                throw LocalFirstError.unsupportedTemplate("periodic")
-            }
-            if let starting = entry.starting,
-               !starting.isEmpty,
-               BudgetTemplateCalendar.validatedDate(starting) == nil {
-                throw LocalFirstError.unsupportedTemplate("periodic start date")
-            }
-            try validateLimit(entry.limit)
-        case "copy":
-            guard let lookBack = entry.lookBack,
-                  Bounds.lookBack.contains(lookBack),
-                  entry.limit == nil else {
-                throw LocalFirstError.unsupportedTemplate("copy")
-            }
-        case "by":
-            guard entry.amount != nil,
-                  BudgetTemplateCalendar.validMonth(entry.month),
-                  entry.limit == nil,
-                  entry.repeatInterval.map(Bounds.repeatInterval.contains) ?? true else {
-                throw LocalFirstError.unsupportedTemplate("invalid by template")
-            }
-        case "limit":
-            guard entry.standaloneLimit != nil else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "up-to limit is missing its amount or period"
-                )
-            }
-            try validateLimit(entry.standaloneLimit)
-        case "refill":
-            guard entry.limit == nil else {
-                throw LocalFirstError.unsupportedTemplate("invalid refill template")
-            }
-        case "remainder":
-            guard entry.weight != nil else {
-                throw LocalFirstError.unsupportedTemplate("remainder is missing weight")
-            }
-            try validateLimit(entry.limit)
-        default:
-            throw LocalFirstError.unsupportedTemplate(entry.type)
-        }
-    }
-
-    private func validatePriority(_ entry: BudgetTemplateEntry) throws {
-        switch entry.type {
-        case "remainder", "limit":
-            guard entry.priority == nil else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "\(entry.type) templates must not have a priority"
-                )
-            }
-        case "simple", "periodic", "copy", "by", "refill":
-            guard let priority = entry.priority,
-                  Bounds.priority.contains(priority) else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "\(entry.type) templates require a numeric priority"
-                )
-            }
-        default:
-            throw LocalFirstError.unsupportedTemplate(entry.type)
-        }
-    }
-
-    private func validateAmount(_ amount: Double?, field: String) throws {
-        guard let amount else {
-            return
-        }
-        guard amount.isFinite, Bounds.amount.contains(amount) else {
-            throw LocalFirstError.unsupportedTemplate("\(field) is outside the supported range")
-        }
-    }
-
-    private func validatePercentage(_ percentage: Double?) throws {
-        guard let percentage else {
-            return
-        }
-        guard percentage.isFinite, Bounds.percentage.contains(percentage) else {
-            throw LocalFirstError.unsupportedTemplate("percentage is outside the supported range")
-        }
-    }
-
-    private func validateInterval(_ interval: Int?, field: String) throws {
-        guard let interval else {
-            return
-        }
-        guard Bounds.periodInterval.contains(interval) else {
-            throw LocalFirstError.unsupportedTemplate("\(field) is outside the supported range")
-        }
-    }
-
-    private func validateLookBack(_ lookBack: Int?) throws {
-        guard let lookBack else {
-            return
-        }
-        guard Bounds.lookBack.contains(lookBack) else {
-            throw LocalFirstError.unsupportedTemplate(
-                "look-back window is outside the supported range"
-            )
-        }
-    }
-
-    private func validateRepeatInterval(_ interval: Int?) throws {
-        guard let interval else {
-            return
-        }
-        guard Bounds.repeatInterval.contains(interval) else {
-            throw LocalFirstError.unsupportedTemplate(
-                "repeat interval is outside the supported range"
-            )
-        }
-    }
-
-    private func validateWeight(_ weight: Double?) throws {
-        guard let weight else {
-            return
-        }
-        guard weight.isFinite, Bounds.weight.contains(weight) else {
-            throw LocalFirstError.unsupportedTemplate("weight is outside the supported range")
-        }
-    }
-
-    private func validateInteractions(_ entries: [BudgetTemplateEntry]) throws {
-        let byPriorities = Set(
-            entries.filter { $0.type == "by" }.compactMap(\.priority)
-        )
-        guard byPriorities.count <= 1 else {
-            throw LocalFirstError.unsupportedTemplate(
-                "all by templates in a category must use the same priority"
-            )
-        }
-
-        let limits = entries.filter {
-            $0.limit != nil || $0.standaloneLimit != nil
-        }
-        guard limits.count <= 1 else {
-            throw LocalFirstError.unsupportedTemplate(
-                "only one up-to limit is supported per category"
-            )
-        }
-
-        if entries.contains(where: { $0.type == "refill" }) {
-            guard limits.count == 1 else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "refill requires exactly one up-to limit"
-                )
-            }
-        }
-    }
-
-    private func validateLimit(_ limit: BudgetTemplateLimit?) throws {
-        guard let limit else {
-            return
-        }
-        guard let amount = limit.amount,
-              amount.isFinite,
-              Bounds.amount.contains(amount) else {
-            throw LocalFirstError.unsupportedTemplate(
-                "up-to limit is missing its amount or period"
-            )
-        }
-        switch limit.period {
-        case "monthly":
-            guard limit.start == nil else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "only basic monthly up-to limits are supported"
-                )
-            }
-        case "daily":
-            break
-        case "weekly":
-            guard let start = limit.start,
-                  BudgetTemplateCalendar.validatedDate(start) != nil else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "weekly limit requires a start date (YYYY-MM-DD)"
-                )
-            }
-        default:
-            throw LocalFirstError.unsupportedTemplate(
-                "only daily, weekly, and monthly up-to limits are supported"
-            )
-        }
+        let integerScale = try Self.integerScale(currency.decimalPlaces)
+        let display = Double(minorUnits) / Double(integerScale)
+        let roundedDisplay = try Self.actualRound(display)
+        return try Self.checkedMultiply(roundedDisplay, integerScale)
     }
 
     private func limitState(for category: Category, monthValue: Int) throws -> LimitState? {
-        let limits = category.entries.compactMap { entry in
-            entry.type == "limit" ? entry.standaloneLimit : entry.limit
-        }
+        let limits = category.entries.compactMap(Self.effectiveLimit)
         guard !limits.isEmpty else {
             return nil
         }
@@ -789,6 +570,28 @@ struct BudgetTemplateEngine {
             throw LocalFirstError.numericValueOutOfRange
         }
         return Int(floor(amount + 0.5))
+    }
+
+    static func decimalScale(_ decimalPlaces: Int) throws -> Double {
+        guard (0...15).contains(decimalPlaces) else {
+            throw LocalFirstError.numericValueOutOfRange
+        }
+        let scale = pow(10.0, Double(decimalPlaces))
+        guard scale.isFinite, scale > 0 else {
+            throw LocalFirstError.numericValueOutOfRange
+        }
+        return scale
+    }
+
+    static func integerScale(_ decimalPlaces: Int) throws -> Int {
+        guard decimalPlaces >= 0 else {
+            throw LocalFirstError.numericValueOutOfRange
+        }
+        var scale = 1
+        for _ in 0..<decimalPlaces {
+            scale = try checkedMultiply(scale, 10)
+        }
+        return scale
     }
 
     private static func codingPath(_ context: DecodingError.Context) -> String {

@@ -213,11 +213,11 @@ extension BudgetDatabase {
                 scope = try templateScopeCategoryIDs(db: db).filter { goalDefsRaw[$0] != nil }
             } else {
                 let targetedWithTemplates = targeted.filter { goalDefsRaw[$0] != nil }
-                scope = try templateCategoryIDsInBudgetOrder(
-                    db: db,
-                    includeIncome: true,
-                    includeHidden: true
-                ).filter { targetedWithTemplates.contains($0) }
+                // Actual applyMultipleCategoryTemplates queries `categories`
+                // directly (ORDER BY sort_order, id). Do not reuse whole-budget
+                // group-aware order for targeted applications.
+                scope = try templateCategoryIDsInCategoryOrder(db: db)
+                    .filter { targetedWithTemplates.contains($0) }
             }
             let force = command.mode == .overwrite || !targeted.isEmpty
             let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
@@ -279,8 +279,7 @@ extension BudgetDatabase {
                     let needsPreviousBalance = entries.contains { entry in
                         entry.type == "by"
                             || entry.type == "refill"
-                            || entry.type == "limit"
-                            || entry.limit != nil
+                            || BudgetTemplateEngine.hasEffectiveLimit(entry)
                     }
                     let fromLastMonth: Int
                     if needsPreviousBalance {
@@ -511,6 +510,28 @@ extension BudgetDatabase {
             includeIncome: false,
             includeHidden: false
         )
+    }
+
+    func templateCategoryIDsInCategoryOrder(db: Database) throws -> [String] {
+        guard try tableExists("categories", db: db) else {
+            return []
+        }
+        let categoryColumns = try columnSet(for: "categories", db: db)
+        var order = [String]()
+        if categoryColumns.contains("sort_order") {
+            order.append("c.sort_order")
+        }
+        order.append("c.id")
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT c.id AS id
+                FROM categories c
+                WHERE \(predicateForLiveRows(columns: categoryColumns, tableAlias: "c"))
+                ORDER BY \(order.joined(separator: ", "))
+                """
+        )
+        return rows.compactMap { $0["id"] as String? }
     }
 
     func templateCategoryIDsInBudgetOrder(

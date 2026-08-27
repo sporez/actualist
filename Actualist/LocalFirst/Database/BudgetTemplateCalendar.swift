@@ -4,6 +4,12 @@ enum BudgetTemplateCalendar {
     static let year = 1...9_999
     static let periodInterval = 1...1_200
 
+    // Actual's months.ts parses date-only values at local noon so DST shifts
+    // around midnight cannot format as the previous or next calendar day.
+    static var gregorian: Calendar {
+        Calendar(identifier: .gregorian)
+    }
+
     static func validMonth(_ month: String?) -> Bool {
         guard let month,
               let value = try? parseMonth(month),
@@ -63,7 +69,7 @@ enum BudgetTemplateCalendar {
 
     static func daysInMonth(_ monthValue: Int) throws -> Int {
         let monthStart = try monthStartDate(monthValue)
-        guard let range = Calendar(identifier: .gregorian).range(
+        guard let range = gregorian.range(
             of: .day,
             in: .month,
             for: monthStart
@@ -85,13 +91,7 @@ enum BudgetTemplateCalendar {
             )
         }
         let monthStart = try monthStartDate(monthValue)
-        guard let nextMonthStart = Calendar(identifier: .gregorian).date(
-            byAdding: .month,
-            value: 1,
-            to: monthStart
-        ) else {
-            throw LocalFirstError.unsupportedTemplate("weekly limit month")
-        }
+        let nextMonthStart = try nextMonthStartDate(monthValue)
 
         let first: Date
         if start >= monthStart {
@@ -107,7 +107,7 @@ enum BudgetTemplateCalendar {
             return 0
         }
 
-        guard let daysToEnd = Calendar(identifier: .gregorian).dateComponents(
+        guard let daysToEnd = gregorian.dateComponents(
             [.day],
             from: first,
             to: nextMonthStart
@@ -140,7 +140,7 @@ enum BudgetTemplateCalendar {
         default:
             throw LocalFirstError.unsupportedTemplate("periodic \(period)")
         }
-        guard let shifted = Calendar(identifier: .gregorian).date(
+        guard let shifted = gregorian.date(
             byAdding: components,
             to: date
         ) else {
@@ -179,7 +179,7 @@ enum BudgetTemplateCalendar {
             } else {
                 step = interval
             }
-            let calendar = Calendar(identifier: .gregorian)
+            let calendar = gregorian
             let firstIndex: Int
             if start < monthStart {
                 guard let daysToMonth = calendar.dateComponents(
@@ -237,8 +237,8 @@ enum BudgetTemplateCalendar {
               let month = Int(parts[1]),
               let day = Int(parts[2]),
               Self.year.contains(year),
-              let date = Calendar(identifier: .gregorian).date(
-                from: DateComponents(year: year, month: month, day: day)
+              let date = gregorian.date(
+                from: DateComponents(year: year, month: month, day: day, hour: 12)
               ),
               Self.dayID(from: date) == normalized else {
             return nil
@@ -247,7 +247,7 @@ enum BudgetTemplateCalendar {
     }
 
     static func dayID(from date: Date) -> String {
-        let components = Calendar(identifier: .gregorian).dateComponents(
+        let components = gregorian.dateComponents(
             [.year, .month, .day],
             from: date
         )
@@ -267,6 +267,14 @@ enum BudgetTemplateCalendar {
         return date
     }
 
+    static func nextMonthStartDate(_ monthValue: Int) throws -> Date {
+        let monthStart = try monthStartDate(monthValue)
+        guard let next = gregorian.date(byAdding: .month, value: 1, to: monthStart) else {
+            throw LocalFirstError.unsupportedTemplate("periodic month")
+        }
+        return next
+    }
+
     private static func monthOrdinal(_ month: Int) throws -> Int {
         let month = try validatedMonth(month)
         return (month / 100 - 1) * 12 + (month % 100 - 1)
@@ -279,7 +287,7 @@ enum BudgetTemplateCalendar {
         guard start < target else {
             return 0
         }
-        guard let daysToTarget = Calendar(identifier: .gregorian).dateComponents(
+        guard let daysToTarget = gregorian.dateComponents(
             [.day],
             from: start,
             to: target
@@ -291,7 +299,7 @@ enum BudgetTemplateCalendar {
     }
 
     private static func dateByAddingDays(_ days: Int, to date: Date) throws -> Date {
-        guard let shifted = Calendar(identifier: .gregorian).date(
+        guard let shifted = gregorian.date(
             byAdding: .day,
             value: days,
             to: date
@@ -310,7 +318,7 @@ enum BudgetTemplateCalendar {
         guard start < target else {
             return 0
         }
-        let calendar = Calendar(identifier: .gregorian)
+        let calendar = gregorian
         let startComponents = calendar.dateComponents([.year, .month], from: start)
         let targetComponents = calendar.dateComponents([.year, .month], from: target)
         guard let startYear = startComponents.year,
@@ -367,7 +375,7 @@ enum BudgetTemplateCalendar {
             throw LocalFirstError.unsupportedTemplate("periodic interval")
         }
         let component: Calendar.Component = period == "year" ? .year : .month
-        guard let occurrence = Calendar(identifier: .gregorian).date(
+        guard let occurrence = gregorian.date(
             byAdding: component,
             value: multiplied.partialValue,
             to: start

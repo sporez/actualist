@@ -277,7 +277,7 @@ extension LocalFirstActualStoreTests {
     @Test func budgetTemplateRejectsOutOfBoundsInputsBeforeTheyCanPersist() async throws {
         let invalidTemplates = [
             ("amount above maximum", #"{"directive":"template","type":"simple","monthly":1000000001,"priority":0}"#),
-            ("negative amount", #"{"directive":"template","type":"simple","monthly":-1,"priority":0}"#),
+            ("negative up-to limit", #"{"directive":"template","type":"simple","monthly":10,"limit":{"amount":-1,"period":"monthly","hold":false,"start":null},"priority":0}"#),
             ("percentage above maximum", #"{"directive":"template","type":"simple","monthly":10,"percentage":101,"priority":0}"#),
             ("period interval above maximum", #"{"directive":"template","type":"periodic","amount":1,"period":{"period":"day","amount":1201},"starting":"2026-07-01","priority":0}"#),
             ("look-back above maximum", #"{"directive":"template","type":"copy","lookBack":1201,"priority":0}"#),
