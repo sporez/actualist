@@ -7,6 +7,7 @@ struct BudgetTemplateEngine {
         let entries: [BudgetTemplateEntry]
         let fromLastMonth: Int
         let copiedBudgetedByLookBack: [Int: Int]
+        let isIncome: Bool
     }
 
     struct Write: Equatable, Sendable {
@@ -135,7 +136,7 @@ struct BudgetTemplateEngine {
                 guard Self.participatesInPriority(entry) else {
                     return nil
                 }
-                return entry.priority ?? 0
+                return entry.priority
             }
         }).sorted()
 
@@ -145,7 +146,7 @@ struct BudgetTemplateEngine {
                     continue
                 }
                 let entries = category.entries.filter {
-                    Self.participatesInPriority($0) && ($0.priority ?? 0) == priority
+                    Self.participatesInPriority($0) && $0.priority == priority
                 }
                 guard !entries.isEmpty,
                       limitMetByCategory[categoryID] != true else {
@@ -199,6 +200,7 @@ struct BudgetTemplateEngine {
                 }
 
                 if priority > 0,
+                   !category.isIncome,
                    amount > 0,
                    remainingAvailable < amount {
                     amount = max(0, remainingAvailable)
@@ -208,7 +210,17 @@ struct BudgetTemplateEngine {
                     budgetedByCategory[categoryID, default: 0],
                     amount
                 )
-                remainingAvailable = try Self.checkedSubtract(remainingAvailable, amount)
+                if category.isIncome {
+                    remainingAvailable = try Self.checkedAdd(
+                        remainingAvailable,
+                        amount
+                    )
+                } else {
+                    remainingAvailable = try Self.checkedSubtract(
+                        remainingAvailable,
+                        amount
+                    )
+                }
             }
         }
 
@@ -313,25 +325,34 @@ struct BudgetTemplateEngine {
               !directive.isEmpty else {
             throw LocalFirstError.unsupportedTemplate("template is missing a directive")
         }
-        switch directive {
-        case "template", "goal":
+        switch (directive, entry.type) {
+        case ("template", "error"):
+            throw LocalFirstError.unsupportedTemplate(
+                "error type requires directive error"
+            )
+        case ("template", _):
             break
+        case ("goal", "goal"):
+            break
+        case ("error", "error"):
+            break
+        case ("goal", _):
+            throw LocalFirstError.unsupportedTemplate(
+                "goal directive requires type goal"
+            )
+        case ("error", _):
+            throw LocalFirstError.unsupportedTemplate(
+                "error directive requires type error"
+            )
         default:
             throw LocalFirstError.unsupportedTemplate(
                 "unsupported template directive"
             )
         }
-        if directive == "goal", entry.type != "goal" {
-            throw LocalFirstError.unsupportedTemplate(
-                "goal directive requires type goal"
-            )
-        }
     }
 
     private func validate(_ entry: BudgetTemplateEntry) throws {
-        guard Bounds.priority.contains(entry.priority ?? 0) else {
-            throw LocalFirstError.unsupportedTemplate(entry.type)
-        }
+        try validatePriority(entry)
         try validateAmount(entry.monthly, field: "monthly amount")
         try validateAmount(entry.amount, field: "amount")
         try validatePercentage(entry.percentage)
@@ -391,6 +412,26 @@ struct BudgetTemplateEngine {
                 throw LocalFirstError.unsupportedTemplate("remainder is missing weight")
             }
             try validateLimit(entry.limit)
+        default:
+            throw LocalFirstError.unsupportedTemplate(entry.type)
+        }
+    }
+
+    private func validatePriority(_ entry: BudgetTemplateEntry) throws {
+        switch entry.type {
+        case "remainder", "limit":
+            guard entry.priority == nil else {
+                throw LocalFirstError.unsupportedTemplate(
+                    "\(entry.type) templates must not have a priority"
+                )
+            }
+        case "simple", "periodic", "copy", "by", "refill":
+            guard let priority = entry.priority,
+                  Bounds.priority.contains(priority) else {
+                throw LocalFirstError.unsupportedTemplate(
+                    "\(entry.type) templates require a numeric priority"
+                )
+            }
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
@@ -456,7 +497,7 @@ struct BudgetTemplateEngine {
 
     private func validateInteractions(_ entries: [BudgetTemplateEntry]) throws {
         let byPriorities = Set(
-            entries.filter { $0.type == "by" }.map { $0.priority ?? 0 }
+            entries.filter { $0.type == "by" }.compactMap(\.priority)
         )
         guard byPriorities.count <= 1 else {
             throw LocalFirstError.unsupportedTemplate(

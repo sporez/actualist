@@ -286,7 +286,13 @@ extension LocalFirstActualStoreTests {
             ("negative remainder weight", #"{"directive":"template","type":"remainder","weight":-1}"#),
             ("missing directive", #"{"type":"simple","monthly":10,"priority":0}"#),
             ("malformed directive", #"{"directive":"nope","type":"simple","monthly":10,"priority":0}"#),
-            ("missing remainder weight", #"{"directive":"template","type":"remainder"}"#)
+            ("missing remainder weight", #"{"directive":"template","type":"remainder"}"#),
+            ("simple null priority", #"{"directive":"template","type":"simple","monthly":10,"priority":null}"#),
+            ("periodic null priority", #"{"directive":"template","type":"periodic","amount":1,"period":{"period":"month","amount":1},"starting":"2026-07-01","priority":null}"#),
+            ("remainder numeric priority", #"{"directive":"template","type":"remainder","weight":1,"priority":1}"#),
+            ("limit numeric priority", #"{"directive":"template","type":"limit","amount":10,"period":"monthly","hold":false,"priority":1}"#),
+            ("error directive with simple type", #"{"directive":"error","type":"simple","monthly":10,"priority":0}"#),
+            ("template directive with error type", #"{"directive":"template","type":"error"}"#)
         ]
 
         for (label, template) in invalidTemplates {
@@ -481,7 +487,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO categories VALUES (
                 'buffer', 'Buffer', 'group', 0, 0, 0, 2,
                 '[
-                    {"directive":"template","type":"limit","amount":100,"period":"monthly","hold":false,"start":null,"priority":0},
+                    {"directive":"template","type":"limit","amount":100,"period":"monthly","hold":false,"start":null,"priority":null},
                     {"directive":"template","type":"refill","priority":0}
                 ]'
             );
@@ -601,6 +607,134 @@ extension LocalFirstActualStoreTests {
             july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
         #expect(groceries.budgeted == 50_000)
+    }
+
+    @Test func budgetTemplateIncomeCategoryIsNotClampedByAvailableBudget() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES (
+                'salary', 'Salary', 'income-group', 1, 0, 0, 0,
+                '[{"directive":"template","type":"simple","monthly":100,"priority":1}]'
+            );
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("salary"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let salary = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "salary" }
+        )
+
+        #expect(salary.budgeted == 10_000)
+        #expect(messages.contains { message in
+            message.dataset == "zero_budgets" && message.row.contains("salary")
+        })
+    }
+
+    @Test func budgetTemplateErrorOnlyGoalDefWritesNothing() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories
+            SET goal_def = '[{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+
+        #expect(messages.isEmpty)
+        #expect(try await database.pendingLocalSyncMessageCount() == 0)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let groceries = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceries.budgeted == 50_000)
+    }
+
+    @Test func budgetTemplateIgnoresErrorEntriesAndAppliesValidSiblings() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories
+            SET goal_def = '[
+                {"directive":"error","type":"error","line":"#template bad","error":"parse failure"},
+                {"directive":"template","type":"simple","monthly":50,"priority":0}
+            ]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let groceries = try #require(
+            july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+
+        #expect(groceries.budgeted == 5_000)
+    }
+
+    @Test func budgetTemplateWholeBudgetSkipsOrphanedAndHiddenGroupCategories() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"simple","monthly":10,"priority":0}]'
+            WHERE id = 'groceries';
+            INSERT INTO categories VALUES (
+                'orphan', 'Orphan', 'missing-group', 0, 0, 0, 50,
+                '[{"directive":"template","type":"simple","monthly":25,"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('orphan', 'orphan');
+            INSERT INTO category_groups VALUES ('hidden-group', 'Hidden', 0, 1, 0, 2);
+            INSERT INTO categories VALUES (
+                'hidden-cat', 'Hidden Cat', 'hidden-group', 0, 0, 0, 1,
+                '[{"directive":"template","type":"simple","monthly":40,"priority":0}]'
+            );
+            INSERT INTO category_mapping VALUES ('hidden-cat', 'hidden-cat');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+
+        let wholeBudget = try await database.budgetTemplateMessages(
+            command: .overwrite,
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(wholeBudget)
+
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 1_000)
+        #expect(try zeroBudgetAmount("orphan", at: fixtureURL) == nil)
+        #expect(try zeroBudgetAmount("hidden-cat", at: fixtureURL) == nil)
+
+        let orphanMessages = try await database.budgetTemplateMessages(
+            command: .category("orphan"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(orphanMessages)
+        #expect(try zeroBudgetAmount("orphan", at: fixtureURL) == 2_500)
+
+        let hiddenMessages = try await database.budgetTemplateMessages(
+            command: .category("hidden-cat"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(hiddenMessages)
+        #expect(try zeroBudgetAmount("hidden-cat", at: fixtureURL) == 4_000)
     }
 
     @Test func toBudgetIsCumulativeAcrossMonthsNotJustCurrentMonth() async throws {
@@ -769,6 +903,21 @@ extension LocalFirstActualStoreTests {
         #expect(july.totalBudgeted == julyExpenseAssigned)
         #expect(august.totalBudgeted == 32_000)
         #expect(august.totalBudgeted != july.totalBudgeted)
+    }
+
+    private func zeroBudgetAmount(_ categoryID: String, at databaseURL: URL) throws -> Int? {
+        let queue = try DatabaseQueue(path: databaseURL.path)
+        return try queue.read { db in
+            try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT amount
+                    FROM zero_budgets
+                    WHERE category = ? AND month = 202607
+                    """,
+                arguments: [categoryID]
+            )
+        }
     }
 
 }

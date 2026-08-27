@@ -202,6 +202,7 @@ extension BudgetDatabase {
             )
             let goalDefsRaw = try readCategoryGoalDefsRaw(db: db)
             let categoryNames = try templateCategoryNames(db: db)
+            let categoryIsIncome = try templateCategoryIsIncomeByID(db: db)
             let targeted = Set(
                 command.categoryIDs
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -286,6 +287,7 @@ extension BudgetDatabase {
                         fromLastMonth = try templateFromLastMonth(
                             categoryID: categoryID,
                             monthValue: monthValue,
+                            isIncome: categoryIsIncome[categoryID] ?? false,
                             db: db
                         )
                     } else {
@@ -296,7 +298,8 @@ extension BudgetDatabase {
                         BudgetTemplateEngine.Category(
                             entries: entries,
                             fromLastMonth: fromLastMonth,
-                            copiedBudgetedByLookBack: copiedBudgetedByLookBack
+                            copiedBudgetedByLookBack: copiedBudgetedByLookBack,
+                            isIncome: categoryIsIncome[categoryID] ?? false
                         )
                     )
                 }
@@ -397,6 +400,7 @@ extension BudgetDatabase {
     private func templateFromLastMonth(
         categoryID: String,
         monthValue: Int,
+        isIncome: Bool,
         db: Database
     ) throws -> Int {
         let previousMonthValue = try BudgetTemplateEngine().sourceMonthValue(
@@ -406,7 +410,7 @@ extension BudgetDatabase {
         let previousMonth = monthID(previousMonthValue)
         let previousValues = try envelopeCategoryValues(through: previousMonth, db: db)[categoryID]
             ?? EnvelopeCategoryValue()
-        if try templateCategoryIsIncome(categoryID, db: db) {
+        if isIncome {
             return 0
         }
         if previousValues.balance < 0, !previousValues.carryover {
@@ -415,23 +419,28 @@ extension BudgetDatabase {
         return previousValues.balance
     }
 
-    private func templateCategoryIsIncome(_ categoryID: String, db: Database) throws -> Bool {
+    private func templateCategoryIsIncomeByID(db: Database) throws -> [String: Bool] {
         guard try tableExists("categories", db: db) else {
-            return false
+            return [:]
         }
         let columns = try columnSet(for: "categories", db: db)
         let isIncome = column("is_income", fallback: "0", columns: columns)
-        let value = try Int.fetchOne(
+        let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(isIncome)
+                SELECT id, \(isIncome) AS is_income
                 FROM categories
-                WHERE id = ? AND \(predicateForLiveRows(columns: columns))
-                LIMIT 1
-                """,
-            arguments: [categoryID]
+                WHERE \(predicateForLiveRows(columns: columns))
+                """
         )
-        return value != 0
+        return Dictionary(
+            uniqueKeysWithValues: rows.compactMap { row in
+                guard let id = row["id"] as String? else {
+                    return nil
+                }
+                return (id, flexibleBool(row["is_income"]))
+            }
+        )
     }
 
     func monthToBudget(month: String, db: Database) throws -> Int {
@@ -535,15 +544,15 @@ extension BudgetDatabase {
         var join = ""
         var order: [String] = []
         if groupsExist, let groupColumn {
-            join = "LEFT JOIN category_groups g ON g.id = c.\(groupColumn)"
-            if !includeHidden {
-                var groupVisible = ["g.id IS NULL"]
+            if includeHidden {
+                join = "LEFT JOIN category_groups g ON g.id = c.\(groupColumn)"
+            } else {
+                join = "INNER JOIN category_groups g ON g.id = c.\(groupColumn)"
                 var visibleParts = [predicateForLiveRows(columns: groupColumns, tableAlias: "g")]
                 if groupColumns.contains("hidden") {
                     visibleParts.append("(g.hidden = 0 OR g.hidden IS NULL)")
                 }
-                groupVisible.append("(\(visibleParts.joined(separator: " AND ")))")
-                predicates.append("(\(groupVisible.joined(separator: " OR ")))")
+                predicates.append(visibleParts.joined(separator: " AND "))
             }
             if groupColumns.contains("is_income") {
                 order.append("g.is_income")
@@ -552,6 +561,8 @@ extension BudgetDatabase {
                 order.append("g.sort_order")
             }
             order.append("g.id")
+        } else if !includeHidden {
+            return []
         }
         if categoryColumns.contains("sort_order") {
             order.append("c.sort_order")

@@ -250,17 +250,17 @@ extension LocalFirstActualStoreTests {
             INSERT INTO payee_mapping VALUES ('xfer-savings', 'xfer-savings');
             INSERT INTO payee_mapping VALUES ('xfer-tracking', 'xfer-tracking');
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
-            UPDATE categories SET goal_def = '[{"type":"simple","monthly":700,"limit":null,"priority":null,"directive":"template"}]' WHERE id = 'groceries';
-            UPDATE categories SET goal_def = '[{"type":"simple","monthly":300,"limit":null,"priority":null,"directive":"template"}]' WHERE id = 'utilities';
+            UPDATE categories SET goal_def = '[{"type":"simple","monthly":700,"limit":null,"priority":0,"directive":"template"}]' WHERE id = 'groceries';
+            UPDATE categories SET goal_def = '[{"type":"simple","monthly":300,"limit":null,"priority":0,"directive":"template"}]' WHERE id = 'utilities';
             INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
-                VALUES ('dining', 'Dining', 'group', 0, 0, 0, 3, '[{"type":"average","numMonths":3,"priority":null,"directive":"template"}]');
+                VALUES ('dining', 'Dining', 'group', 0, 0, 0, 3, '[{"type":"average","numMonths":3,"priority":0,"directive":"template"}]');
             INSERT INTO category_mapping VALUES ('dining', 'dining');
             INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
-                VALUES ('subscriptions', 'Subscriptions', 'group', 0, 0, 0, 4, '[{"type":"periodic","amount":45,"period":{"amount":1,"period":"month"},"starting":"2026-07-01","limit":null,"priority":null,"directive":"template"}]');
+                VALUES ('subscriptions', 'Subscriptions', 'group', 0, 0, 0, 4, '[{"type":"periodic","amount":45,"period":{"amount":1,"period":"month"},"starting":"2026-07-01","limit":null,"priority":0,"directive":"template"}]');
             INSERT INTO category_mapping VALUES ('subscriptions', 'subscriptions');
             INSERT INTO zero_budgets VALUES (202607, 'subscriptions', 0, 0);
             INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
-                VALUES ('copycat', 'Copycat', 'group', 0, 0, 0, 5, '[{"type":"copy","lookBack":1,"limit":null,"priority":null,"directive":"template"}]');
+                VALUES ('copycat', 'Copycat', 'group', 0, 0, 0, 5, '[{"type":"copy","lookBack":1,"limit":null,"priority":0,"directive":"template"}]');
             INSERT INTO category_mapping VALUES ('copycat', 'copycat');
             INSERT INTO zero_budgets VALUES (202607, 'copycat', 0, 0);
             \(additionalFixtureSQL)
@@ -453,5 +453,20 @@ extension LocalFirstActualStoreTests {
                     .compactMap { $0["name"] as String? }
             )
         }
+    }
+}
+
+extension BudgetTemplateEngine.Category {
+    init(
+        entries: [BudgetTemplateEntry],
+        fromLastMonth: Int,
+        copiedBudgetedByLookBack: [Int: Int]
+    ) {
+        self.init(
+            entries: entries,
+            fromLastMonth: fromLastMonth,
+            copiedBudgetedByLookBack: copiedBudgetedByLookBack,
+            isIncome: false
+        )
     }
 }

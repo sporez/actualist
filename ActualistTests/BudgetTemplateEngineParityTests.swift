@@ -246,6 +246,56 @@ struct BudgetTemplateEngineParityTests {
         #expect(amounts["aa"] == 5_050)
     }
 
+    @Test func incomePriorityTemplateIsNotClampedByInsufficientAvailableBudget() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "salary": category(json: simple(monthly: 100, priority: 1), isIncome: true)
+            ],
+            order: ["salary"],
+            availableBudget: 0
+        )
+        #expect(amounts["salary"] == 10_000)
+    }
+
+    @Test func incomeTemplateIncreasesAvailabilityForALaterExpense() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "salary": category(json: simple(monthly: 100, priority: 1), isIncome: true),
+                "food": category(json: simple(monthly: 80, priority: 1))
+            ],
+            order: ["salary", "food"],
+            availableBudget: 0
+        )
+        #expect(amounts["salary"] == 10_000)
+        #expect(amounts["food"] == 8_000)
+    }
+
+    @Test func expenseEvaluatedBeforeIncomeDoesNotReceiveIncomeFunds() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "salary": category(json: simple(monthly: 100, priority: 1), isIncome: true),
+                "food": category(json: simple(monthly: 80, priority: 1))
+            ],
+            order: ["food", "salary"],
+            availableBudget: 0
+        )
+        #expect(amounts["food"] == 0)
+        #expect(amounts["salary"] == 10_000)
+    }
+
+    @Test func incomeRemainderConsumesAvailableBudgetInsteadOfAddingFunds() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "salary": category(json: remainder(weight: 1), isIncome: true),
+                "food": category(json: remainder(weight: 1))
+            ],
+            order: ["salary", "food"],
+            availableBudget: 10_000
+        )
+        #expect(amounts["salary"] == 5_000)
+        #expect(amounts["food"] == 5_000)
+    }
+
     @Test func goalOnlyEntriesAreSkippedWithoutApplyingABudget() throws {
         let decoded = try engine.decodeSupportedEntries(
             json: #"[{"directive":"goal","type":"goal","amount":100}]"#
@@ -259,13 +309,19 @@ struct BudgetTemplateEngineParityTests {
                 json: #"[{"directive":"template","type":"remainder","weight":1,"priority":null}]"#
             )
         )
-        let simpleEntries = try #require(
+        let simplePriorityZero = try #require(
             try engine.decodeSupportedEntries(
                 json: #"[{"directive":"template","type":"simple","monthly":10,"priority":0}]"#
             )
         )
+        let simplePriorityOne = try #require(
+            try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"simple","monthly":10,"priority":1}]"#
+            )
+        )
         #expect(remainderEntries.count == 1)
-        #expect(simpleEntries.count == 1)
+        #expect(simplePriorityZero.count == 1)
+        #expect(simplePriorityOne.count == 1)
     }
 
     @Test func missingDirectiveIsRejected() throws {
@@ -280,6 +336,122 @@ struct BudgetTemplateEngineParityTests {
         #expect(throws: LocalFirstError.self) {
             _ = try engine.decodeSupportedEntries(
                 json: #"[{"directive":"nope","type":"simple","monthly":10,"priority":0}]"#
+            )
+        }
+    }
+
+    @Test func ordinaryTemplatesRejectNullPriority() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"simple","monthly":10,"priority":null}]"#
+            )
+        }
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: """
+                    [{
+                      "directive": "template",
+                      "type": "periodic",
+                      "amount": 1,
+                      "period": {"period": "month", "amount": 1},
+                      "starting": "2026-07-01",
+                      "priority": null
+                    }]
+                    """
+            )
+        }
+    }
+
+    @Test func remainderAndLimitRejectNumericPriority() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"remainder","weight":1,"priority":1}]"#
+            )
+        }
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: """
+                    [{
+                      "directive": "template",
+                      "type": "limit",
+                      "amount": 10,
+                      "period": "monthly",
+                      "hold": false,
+                      "priority": 1
+                    }]
+                    """
+            )
+        }
+    }
+
+    @Test func remainderAndLimitAcceptNullPriority() throws {
+        let remainderEntries = try #require(
+            try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"remainder","weight":1,"priority":null}]"#
+            )
+        )
+        let limitEntries = try #require(
+            try engine.decodeSupportedEntries(
+                json: """
+                    [{
+                      "directive": "template",
+                      "type": "limit",
+                      "amount": 10,
+                      "period": "monthly",
+                      "hold": false,
+                      "priority": null
+                    }]
+                    """
+            )
+        )
+        #expect(remainderEntries.count == 1)
+        #expect(limitEntries.count == 1)
+    }
+
+    @Test func actualErrorEntriesAreIgnoredAndDoNotBlockSiblingTemplates() throws {
+        let errorOnly = try engine.decodeSupportedEntries(
+            json: ##"[{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]"##
+        )
+        #expect(errorOnly == nil)
+
+        let mixed = try #require(
+            try engine.decodeSupportedEntries(
+                json: """
+                    [
+                      {
+                        "directive": "error",
+                        "type": "error",
+                        "line": "#template bad",
+                        "error": "parse failure"
+                      },
+                      {
+                        "directive": "template",
+                        "type": "simple",
+                        "monthly": 50,
+                        "priority": 0
+                      }
+                    ]
+                    """
+            )
+        )
+        #expect(mixed.map(\.type) == ["simple"])
+        let amounts = try writeAmounts(
+            categories: ["food": .init(entries: mixed, fromLastMonth: 0, copiedBudgetedByLookBack: [:])],
+            order: ["food"],
+            availableBudget: 100_000
+        )
+        #expect(amounts["food"] == 5_000)
+    }
+
+    @Test func mixedErrorDirectiveAndTypeAreRejected() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: #"[{"directive":"error","type":"simple","monthly":10,"priority":0}]"#
+            )
+        }
+        #expect(throws: LocalFirstError.self) {
+            _ = try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"error"}]"#
             )
         }
     }
@@ -374,13 +546,15 @@ struct BudgetTemplateEngineParityTests {
     private func category(
         json: String,
         fromLastMonth: Int = 0,
-        copiedBudgetedByLookBack: [Int: Int] = [:]
+        copiedBudgetedByLookBack: [Int: Int] = [:],
+        isIncome: Bool = false
     ) throws -> BudgetTemplateEngine.Category {
         let entries = try #require(try engine.decodeSupportedEntries(json: json))
         return .init(
             entries: entries,
             fromLastMonth: fromLastMonth,
-            copiedBudgetedByLookBack: copiedBudgetedByLookBack
+            copiedBudgetedByLookBack: copiedBudgetedByLookBack,
+            isIncome: isIncome
         )
     }
 
