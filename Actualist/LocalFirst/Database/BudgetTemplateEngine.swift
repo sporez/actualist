@@ -300,9 +300,18 @@ struct BudgetTemplateEngine {
                     amount
                 )
 
+                // Actual's "do not overbudget when using a priority" clamp gates on
+                // `available < 0` where `available = budgetAvail - toBudget` (the
+                // resulting availability), NOT on whether the amount is positive.
+                // Actual supports signed templates, so a negative template that
+                // still leaves availability negative (avail -100, template -50 →
+                // available -50) is clamped to `max(0, budgetAvail)` like a positive
+                // over-request. `max(0, remainingAvailable)` equals Actual's
+                // `max(0, toBudget + available)` since `toBudget + available ==
+                // budgetAvail`. `fullAmount` was credited above with the unclamped
+                // amount, matching Actual's pre-clamp `fullAmount` add.
                 if priority > 0,
                    !category.isIncome,
-                   amount > 0,
                    remainingAvailable < amount {
                     amount = max(0, remainingAvailable)
                 }

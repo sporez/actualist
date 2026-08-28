@@ -615,6 +615,152 @@ struct BudgetTemplateEngineParityTests {
         #expect(amounts["credit"] == -3_000)
     }
 
+    @Test func priorityClampFollowsPostApplicationAvailabilityForNegativeTemplate() throws {
+        // Reproduction (minor units scaled to whole dollars): avail -10000,
+        // non-income, priority > 0, template -5000. Actual: available =
+        // -10000 - (-5000) = -5000 < 0, so it clamps toBudget to
+        // max(0, toBudget + available) = max(0, -10000) = 0. The category must
+        // NOT receive -5000 merely because the amount itself is negative.
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 1))
+            ],
+            order: ["refund"],
+            availableBudget: -10_000
+        )
+        #expect(amounts["refund"] == 0)
+    }
+
+    @Test func priorityClampHoldsNegativeTemplateAtZeroWhenAvailabilityIsMoreNegative() throws {
+        // avail -20000, template -5000: available = -20000 - (-5000) = -15000 <
+        // 0, clamped to max(0, -20000) = 0.
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 1))
+            ],
+            order: ["refund"],
+            availableBudget: -20_000
+        )
+        #expect(amounts["refund"] == 0)
+    }
+
+    @Test func negativeTemplateRestoresAvailabilityEscapesThePriorityClamp() throws {
+        // avail -3000, template -5000: available = -3000 - (-5000) = 2000 >= 0,
+        // so Actual does NOT clamp. The negative template is applied and
+        // availability becomes nonnegative.
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 1))
+            ],
+            order: ["refund"],
+            availableBudget: -3_000
+        )
+        #expect(amounts["refund"] == -5_000)
+    }
+
+    @Test func negativeTemplateExactlyZeroingAvailabilityEscapesThePriorityClamp() throws {
+        // avail -5000, template -5000: available = -5000 - (-5000) = 0, not < 0,
+        // no clamp.
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 1))
+            ],
+            order: ["refund"],
+            availableBudget: -5_000
+        )
+        #expect(amounts["refund"] == -5_000)
+    }
+
+    @Test func positiveAvailabilityWithNegativePriorityTemplateAppliesUnclamped() throws {
+        // avail 1000, template -5000: available = 1000 - (-5000) = 6000 >= 0,
+        // no clamp.
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 1))
+            ],
+            order: ["refund"],
+            availableBudget: 1_000
+        )
+        #expect(amounts["refund"] == -5_000)
+    }
+
+    @Test func negativeStartingAvailabilityClampsPositivePriorityTemplateToZero() throws {
+        // avail -10000, template 50000, priority 1: available =
+        // -10000 - 50000 < 0, clamped to max(0, -10000) = 0.
+        let amounts = try writeAmounts(
+            categories: [
+                "food": category(json: simple(monthly: 50, priority: 1))
+            ],
+            order: ["food"],
+            availableBudget: -10_000
+        )
+        #expect(amounts["food"] == 0)
+    }
+
+    @Test func negativePriorityTemplateClampLeavesRemainingAvailabilityUntouched() throws {
+        // avail -10000, clamped refund 0: remaining availability stays -10000
+        // (Actual: availBudget -= 0). A later priority-1 expense then sees
+        // -10000 and is clamped to 0 too.
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 1)),
+                "food": category(json: simple(monthly: 30, priority: 1))
+            ],
+            order: ["refund", "food"],
+            availableBudget: -10_000
+        )
+        #expect(amounts["refund"] == 0)
+        #expect(amounts["food"] == 0)
+    }
+
+    @Test func incomeCategoryEscapesThePriorityClampEvenWithNegativeAvailability() throws {
+        // Income is never clamped by the priority availability gate (Actual's
+        // `!this.category.is_income` condition). A negative-availability month
+        // still receives the full income template and adds it back to availability.
+        let amounts = try writeAmounts(
+            categories: [
+                "salary": category(json: simple(monthly: 100, priority: 1), isIncome: true)
+            ],
+            order: ["salary"],
+            availableBudget: -10_000
+        )
+        #expect(amounts["salary"] == 10_000)
+    }
+
+    @Test func priorityZeroNegativeTemplateAppliesRegardlessOfAvailability() throws {
+        // Priority 0 never enters the availability clamp (Actual gates on
+        // `priority > 0`). A negative template at priority 0 applies unclamped.
+        let amounts = try writeAmounts(
+            categories: [
+                "refund": category(json: simple(monthly: -50, priority: 0))
+            ],
+            order: ["refund"],
+            availableBudget: -10_000
+        )
+        #expect(amounts["refund"] == -5_000)
+    }
+
+    @Test func priorityClampInteractsWithMonthlyUpToLimitBeforeAvailabilityGate() throws {
+        // avail 1000, simple 50 (50000 minor) priority 1 with monthly limit 20
+        // (20000 minor): Actual applies the limit clamp before the availability
+        // gate. The limit clamps toBudget to 20000, then the availability gate
+        // sees remaining 1000 < 20000 and clamps to max(0, 1000) = 1000.
+        let amounts = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: simple(
+                        monthly: 50,
+                        priority: 1,
+                        limit: #"{"amount":20,"period":"monthly","hold":false,"start":null}"#
+                    )
+                )
+            ],
+            order: ["food"],
+            availableBudget: 1_000
+        )
+        #expect(amounts["food"] == 1_000)
+    }
+
     @Test func negativeExpenseTemplateIncreasesAvailabilityForALaterExpense() throws {
         let amounts = try writeAmounts(
             categories: [
