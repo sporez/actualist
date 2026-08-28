@@ -86,6 +86,7 @@ enum ActualistDiagnosticReportBuilder {
             "Green income amounts: \(yesNo(settings.greenIncomeTransactionAmountsEnabled))",
             "Rollover overspent alerts: \(yesNo(settings.includeCarryoverCategoriesInOverspentAlerts))",
             "Show total assigned: \(yesNo(settings.showTotalAssigned))",
+            "Show hidden categories: \(yesNo(settings.showHiddenCategories))",
             "Sample display values: \(yesNo(settings.randomizedDisplayValuesEnabled))",
             "Background transaction alerts: \(yesNo(settings.backgroundTransactionRefreshEnabled))",
             "Developer mode unlocked: \(yesNo(settings.developerModeUnlocked))",

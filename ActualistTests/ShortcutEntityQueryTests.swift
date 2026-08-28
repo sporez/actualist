@@ -78,6 +78,24 @@ struct ShortcutEntityQueryTests {
         #expect(includingIncome.contains { $0.id == "salary" && $0.isIncome })
     }
 
+    @Test func categoriesHideChildrenOfHiddenGroupsByDefault() async throws {
+        let (session, _) = try await makeSession(
+            extraSQL: """
+            INSERT INTO category_groups VALUES ('hidden-grp', 'Hidden Group', 0, 1, 0, 4);
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+                VALUES ('secret', 'Secret', 'hidden-grp', 0, 0, 0, 1, NULL);
+            INSERT INTO category_mapping VALUES ('secret', 'secret');
+            INSERT INTO zero_budgets VALUES (202607, 'secret', 0, 0);
+            """
+        )
+
+        let visible = try await session.categories(includeHidden: false)
+        #expect(!visible.contains { $0.id == "secret" })
+
+        let includingHidden = try await session.categories(includeHidden: true)
+        #expect(includingHidden.contains { $0.id == "secret" && $0.isHidden })
+    }
+
     @Test func categorySearchMatchesVisibleNames() async throws {
         let (session, _) = try await makeSession()
         let matches = try await session.categories(includeHidden: false, matching: "groc")

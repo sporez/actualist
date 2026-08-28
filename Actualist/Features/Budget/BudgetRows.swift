@@ -11,6 +11,18 @@ struct BudgetGroupSection: View {
     let isEditingAssignment: (BudgetMonthCategory) -> Bool
     let beginAssignmentEditing: (BudgetMonthCategory, CGRect) -> Void
     let toggle: () -> Void
+    var showHidden = false
+    var canChangeVisibility = true
+    var onToggleCategoryHidden: (BudgetMonthCategory) -> Void = { _ in }
+    var onToggleGroupHidden: () -> Void = {}
+
+    private var displayedCategories: [BudgetMonthCategory] {
+        BudgetCategoryVisibility.displayedCategories(in: group, showHidden: showHidden)
+    }
+
+    private var isGroupHidden: Bool {
+        BudgetCategoryVisibility.isHidden(group.hidden)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,18 +67,37 @@ struct BudgetGroupSection: View {
                 .padding(.horizontal, BudgetLayout.rowHorizontalPadding)
             }
             .buttonStyle(.plain)
+            .opacity(isGroupHidden ? BudgetLayout.hiddenCategoryOpacity : 1)
+            .contextMenu {
+                if !group.isIncome {
+                    Button {
+                        onToggleGroupHidden()
+                    } label: {
+                        Label(isGroupHidden ? "Show" : "Hide", systemImage: isGroupHidden ? "eye" : "eye.slash")
+                    }
+                    .disabled(!canChangeVisibility)
+                }
+            }
 
             if isExpanded {
                 VStack(spacing: 0) {
-                    ForEach(Array(group.visibleCategories.enumerated()), id: \.element.id) { index, category in
+                    ForEach(Array(displayedCategories.enumerated()), id: \.element.id) { index, category in
                         BudgetCategoryRow(
                             category: category,
                             assignedDisplay: assignedDisplay(category),
                             isEditing: isEditingAssignment(category),
                             isPrivacyModeEnabled: isPrivacyModeEnabled,
-                            showsBottomSeparator: index < group.visibleCategories.count - 1,
+                            showsBottomSeparator: index < displayedCategories.count - 1,
+                            isDimmed: BudgetCategoryVisibility.isEffectivelyHidden(
+                                category: category,
+                                group: group
+                            ),
+                            canChangeVisibility: canChangeVisibility && !isGroupHidden,
                             beginAssignmentEditing: { categoryFrame in
                                 beginAssignmentEditing(category, categoryFrame)
+                            },
+                            onToggleHidden: {
+                                onToggleCategoryHidden(category)
                             }
                         )
                         .id(BudgetScrollTarget.category(category.id))
@@ -108,7 +139,10 @@ struct BudgetCategoryRow: View {
     let isEditing: Bool
     let isPrivacyModeEnabled: Bool
     let showsBottomSeparator: Bool
+    var isDimmed = false
+    var canChangeVisibility = false
     let beginAssignmentEditing: (CGRect) -> Void
+    var onToggleHidden: () -> Void = {}
 
     @State private var globalFrame: CGRect = .zero
 
@@ -145,6 +179,19 @@ struct BudgetCategoryRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .opacity(isDimmed ? BudgetLayout.hiddenCategoryOpacity : 1)
+        .contextMenu {
+            if canChangeVisibility {
+                Button {
+                    onToggleHidden()
+                } label: {
+                    Label(
+                        BudgetCategoryVisibility.isHidden(category.hidden) ? "Show" : "Hide",
+                        systemImage: BudgetCategoryVisibility.isHidden(category.hidden) ? "eye" : "eye.slash"
+                    )
+                }
+            }
+        }
         .background {
             GeometryReader { geometry in
                 Color.clear

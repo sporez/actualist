@@ -122,6 +122,8 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private var carryoverUpdates: [RecordedBudgetCarryoverUpdate] = []
     private var moves: [RecordedBudgetMove] = []
     private var templates: [RecordedBudgetTemplate] = []
+    private var categoryHides: [RecordedCategoryHiddenUpdate] = []
+    private var groupHides: [RecordedCategoryGroupHiddenUpdate] = []
     private var didAssignCallbackFinished = false
     private var didMoveCallbackFinished = false
     private var didApplyCallbackFinished = false
@@ -288,6 +290,56 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
+    func setCategoryHiddenAndRefresh(
+        categoryID: String,
+        hidden: Bool,
+        budgetID: String,
+        month: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        categoryHides.append(
+            RecordedCategoryHiddenUpdate(
+                categoryID: categoryID,
+                hidden: hidden,
+                budgetID: budgetID,
+                month: month
+            )
+        )
+        await didUpdate()
+        return loadedMonth
+    }
+
+    func setCategoryGroupHiddenAndRefresh(
+        groupID: String,
+        hidden: Bool,
+        budgetID: String,
+        month: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        groupHides.append(
+            RecordedCategoryGroupHiddenUpdate(
+                groupID: groupID,
+                hidden: hidden,
+                budgetID: budgetID,
+                month: month
+            )
+        )
+        await didUpdate()
+        return loadedMonth
+    }
+
+    func recordedCategoryHides() -> [RecordedCategoryHiddenUpdate] {
+        categoryHides
+    }
+
+    func onlyCategoryHide() throws -> RecordedCategoryHiddenUpdate {
+        try #require(categoryHides.first)
+    }
+
+    func onlyGroupHide() throws -> RecordedCategoryGroupHiddenUpdate {
+        try #require(groupHides.first)
+    }
+
     func onlyAssignment() throws -> RecordedBudgetAssignment {
         try #require(assignments.first)
     }
@@ -343,6 +395,20 @@ struct RecordedBudgetMove: Sendable {
 
 struct RecordedBudgetTemplate: Sendable {
     let command: BudgetTemplateCommand
+    let budgetID: String
+    let month: String
+}
+
+struct RecordedCategoryHiddenUpdate: Sendable {
+    let categoryID: String
+    let hidden: Bool
+    let budgetID: String
+    let month: String
+}
+
+struct RecordedCategoryGroupHiddenUpdate: Sendable {
+    let groupID: String
+    let hidden: Bool
     let budgetID: String
     let month: String
 }

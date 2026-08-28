@@ -245,12 +245,27 @@ extension LocalFirstActualStore {
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
         let database = try requireDatabase(for: budgetID)
+        let monthGraph = try await database.fetchBudgetMonth(month: month)
         return TransactionEditorOptions(
             accounts: try await database.fetchAccounts().filter { !$0.closed },
-            categories: try await database.fetchCategories().filter { !($0.hidden ?? false) },
-            categoryGroups: try await editorCategoryGroups(database: database, month: month, budgetID: budgetID),
+            categories: editorVisibleCategories(from: monthGraph),
+            categoryGroups: monthGraph.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID)),
             payees: try await database.fetchPayees()
         )
+    }
+
+    func editorVisibleCategories(from month: BudgetMonth) -> [ActualCategory] {
+        month.categoryGroups.flatMap { group in
+            BudgetCategoryVisibility.visibleCategories(in: group).compactMap { category in
+                ActualCategory(
+                    id: category.id,
+                    name: category.name,
+                    isIncome: category.isIncome,
+                    hidden: category.hidden,
+                    groupID: category.groupID
+                )
+            }
+        }
     }
 
     func uncategorizedTransactions(
@@ -438,8 +453,8 @@ extension LocalFirstActualStore {
     static func overspendingAlert(month: BudgetMonth) -> BudgetMonthAlert? {
         let overspentCount = month.categoryGroups
             .filter { !$0.isIncome }
-            .flatMap(\.categories)
-            .filter { !($0.hidden ?? false) && $0.balance < 0 }
+            .flatMap { BudgetCategoryVisibility.visibleCategories(in: $0) }
+            .filter { $0.balance < 0 }
             .count
         guard overspentCount > 0 else {
             return nil
@@ -590,7 +605,9 @@ extension BudgetMonth {
 
         var result: [TransactionEditorCategoryGroup] = []
 
-        if let firstIncomeCategory = incomeGroups.flatMap(\.categories).first(where: { !($0.hidden ?? false) }) {
+        if let firstIncomeCategory = incomeGroups.flatMap({ group in
+            BudgetCategoryVisibility.visibleCategories(in: group)
+        }).first {
             result.append(TransactionEditorCategoryGroup(
                 id: "to-budget",
                 name: "To Budget",
@@ -606,8 +623,8 @@ extension BudgetMonth {
         }
 
         let expenseCategoryGroups = expenseGroups.compactMap { group -> TransactionEditorCategoryGroup? in
-            let options = group.categories
-                .filter { !($0.hidden ?? false) && !$0.isIncome }
+            let options = BudgetCategoryVisibility.visibleCategories(in: group)
+                .filter { !$0.isIncome }
                 .map { category in
                     TransactionEditorCategoryOption(
                         id: category.id,

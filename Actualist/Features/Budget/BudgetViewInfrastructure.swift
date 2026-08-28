@@ -22,6 +22,7 @@ enum BudgetLayout {
     static let summaryColumnSpacing: CGFloat = 12
     static let assignmentScrollBottomClearance: CGFloat = 160
     static let assignmentScrollVisibilityMargin: CGFloat = 20
+    static let hiddenCategoryOpacity: Double = 0.5
     static let assignmentKeypadAnimation = Animation.smooth(duration: 0.24)
     static let assignmentScrollAnimation = Animation.smooth(duration: 0.22)
     static let assignmentScrollDelays: [UInt64] = [

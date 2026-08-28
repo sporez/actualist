@@ -245,6 +245,52 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
     }
 
+    func setCategoryHiddenAndRefresh(
+        categoryID: String,
+        hidden: Bool,
+        budgetID: String,
+        month: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.setCategoryHiddenMessages(
+            categoryID: categoryID,
+            hidden: hidden,
+            builder: &builder
+        )
+        if !messages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        }
+        await didUpdate()
+        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+    }
+
+    func setCategoryGroupHiddenAndRefresh(
+        groupID: String,
+        hidden: Bool,
+        budgetID: String,
+        month: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.setCategoryGroupHiddenMessages(
+            groupID: groupID,
+            hidden: hidden,
+            builder: &builder
+        )
+        if !messages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        }
+        await didUpdate()
+        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+    }
+
     // Actual applies carryover through the created budget horizon.
     private static func categoryCarryoverHorizonMonth(
         startMonth: String,

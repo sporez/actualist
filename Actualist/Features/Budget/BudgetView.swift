@@ -16,6 +16,7 @@ struct BudgetView: View {
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
     @State private var assignmentKeypadTopY: CGFloat = 0
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
+    @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
 
     init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
         _viewModel = State(
@@ -153,8 +154,16 @@ struct BudgetView: View {
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {
-                        if appState.isExperimentalFeatureEnabled(.budgetTemplates) {
-                            Menu {
+                        Menu {
+                            Toggle(
+                                "Show Hidden Categories",
+                                systemImage: "eye",
+                                isOn: showHiddenCategoriesBinding
+                            )
+
+                            if appState.isExperimentalFeatureEnabled(.budgetTemplates) {
+                                Divider()
+
                                 Button {
                                     pendingTemplateConfirmation = .monthFillEmpty
                                 } label: {
@@ -168,28 +177,21 @@ struct BudgetView: View {
                                     Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
                                 }
                                 .disabled(viewModel.isApplyingMonthTemplate || !appState.canApplyBudgetTemplates)
-
-                                Divider()
-
-                                Button {
-                                    isSettingsPresented = true
-                                } label: {
-                                    Label("Settings", systemImage: "gearshape")
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis")
                             }
-                            .actualistToolbarGlassButton()
-                            .accessibilityLabel("Budget Actions")
-                        } else {
+
+                            Divider()
+
                             Button {
                                 isSettingsPresented = true
                             } label: {
-                                Image(systemName: "gearshape")
+                                Label("Settings", systemImage: "gearshape")
                             }
-                            .actualistToolbarGlassButton()
-                            .accessibilityLabel("Settings")
+                        } label: {
+                            Image(systemName: "ellipsis")
                         }
+                        .font(.body.weight(.semibold))
+                        .controlSize(.small)
+                        .accessibilityLabel("Budget Actions")
                     }
                 }
                 .task { await viewModel.load(using: appState) }
@@ -216,6 +218,7 @@ struct BudgetView: View {
                     }
                 }
                 .onChange(of: viewModel.selectedMonth) {
+                    visibilityWorkflow.cancel()
                     applyShortcutRoute()
                 }
                 .sheet(isPresented: $isTransactionEditorPresented) {
@@ -298,6 +301,40 @@ struct BudgetView: View {
         }
     }
 
+    private func toggleCategoryHidden(
+        _ category: BudgetMonthCategory,
+        in group: BudgetMonthCategoryGroup
+    ) {
+        Task {
+            guard await visibilityWorkflow.setCategoryHidden(
+                !BudgetCategoryVisibility.isHidden(category.hidden),
+                categoryID: category.id,
+                groupHidden: BudgetCategoryVisibility.isHidden(group.hidden),
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.budgetRepository
+            ) != nil else {
+                return
+            }
+            await viewModel.refreshSelectedMonth(using: appState)
+        }
+    }
+
+    private func toggleGroupHidden(_ group: BudgetMonthCategoryGroup) {
+        Task {
+            guard await visibilityWorkflow.setGroupHidden(
+                !BudgetCategoryVisibility.isHidden(group.hidden),
+                group: group,
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.budgetRepository
+            ) != nil else {
+                return
+            }
+            await viewModel.refreshSelectedMonth(using: appState)
+        }
+    }
+
     private var moveMoneyPresentationBinding: Binding<Bool> {
         Binding {
             viewModel.isMoveMoneyPresented
@@ -318,7 +355,7 @@ struct BudgetView: View {
 
     @ViewBuilder
     private var operationErrorBanner: some View {
-        if let message = viewModel.errorMessage {
+        if let message = viewModel.errorMessage ?? visibilityWorkflow.errorMessage {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.body.weight(.bold))
@@ -345,7 +382,17 @@ struct BudgetView: View {
     }
 
     private var displayedGroups: [BudgetMonthCategoryGroup] {
-        displayedBudgetMonth?.categoryGroups.filter { !$0.isIncome } ?? []
+        BudgetCategoryVisibility.displayedGroups(
+            from: displayedBudgetMonth?.categoryGroups ?? [],
+            showHidden: appState.settings.showHiddenCategories
+        )
+    }
+
+    private var showHiddenCategoriesBinding: Binding<Bool> {
+        Binding(
+            get: { appState.settings.showHiddenCategories },
+            set: { appState.updateShowHiddenCategories($0) }
+        )
     }
 
     private var displayedBudgetAlerts: [BudgetAlert] {
@@ -421,7 +468,7 @@ struct BudgetView: View {
     private func realExpenseCategory(id: String) -> BudgetMonthCategory? {
         viewModel.budgetMonth?.categoryGroups
             .filter { !$0.isIncome }
-            .flatMap(\.visibleCategories)
+            .flatMap(\.categories)
             .first { $0.id == id }
     }
 
@@ -477,6 +524,14 @@ struct BudgetView: View {
                         withAnimation(.smooth(duration: 0.2)) {
                             viewModel.toggle(group)
                         }
+                    },
+                    showHidden: appState.settings.showHiddenCategories,
+                    canChangeVisibility: !visibilityWorkflow.isSubmitting,
+                    onToggleCategoryHidden: { category in
+                        toggleCategoryHidden(category, in: group)
+                    },
+                    onToggleGroupHidden: {
+                        toggleGroupHidden(group)
                     }
                 )
             }

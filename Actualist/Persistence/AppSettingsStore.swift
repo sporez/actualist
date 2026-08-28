@@ -57,6 +57,7 @@ struct AppSettings: Codable, Equatable {
     var greenIncomeTransactionAmountsEnabled: Bool = false
     var includeCarryoverCategoriesInOverspentAlerts: Bool = false
     var showTotalAssigned: Bool = false
+    var showHiddenCategories: Bool = false
     var randomizedDisplayValuesEnabled: Bool = false
     var shortcutsEnabled: Bool = true
     var appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded
@@ -82,6 +83,7 @@ struct AppSettings: Codable, Equatable {
         greenIncomeTransactionAmountsEnabled: Bool = false,
         includeCarryoverCategoriesInOverspentAlerts: Bool = false,
         showTotalAssigned: Bool = false,
+        showHiddenCategories: Bool = false,
         randomizedDisplayValuesEnabled: Bool = false,
         shortcutsEnabled: Bool = true,
         appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded,
@@ -106,6 +108,7 @@ struct AppSettings: Codable, Equatable {
         self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
         self.includeCarryoverCategoriesInOverspentAlerts = includeCarryoverCategoriesInOverspentAlerts
         self.showTotalAssigned = showTotalAssigned
+        self.showHiddenCategories = showHiddenCategories
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
         self.shortcutsEnabled = shortcutsEnabled
         self.appSwitcherPrivacyMode = appSwitcherPrivacyMode
@@ -141,6 +144,10 @@ struct AppSettings: Codable, Equatable {
         showTotalAssigned = try container.decodeIfPresent(
             Bool.self,
             forKey: .showTotalAssigned
+        ) ?? false
+        showHiddenCategories = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .showHiddenCategories
         ) ?? false
         randomizedDisplayValuesEnabled = try container.decodeIfPresent(
             Bool.self,

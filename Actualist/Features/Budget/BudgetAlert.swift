@@ -78,7 +78,7 @@ private extension BudgetAlert.Severity {
 
 extension BudgetMonthCategoryGroup {
     var visibleCategories: [BudgetMonthCategory] {
-        categories.filter { !($0.hidden ?? false) }
+        BudgetCategoryVisibility.visibleCategories(in: self)
     }
 }
 

@@ -166,8 +166,10 @@ final class ShortcutsBudgetSession {
         let groupNames = Dictionary(
             uniqueKeysWithValues: month.month.categoryGroups.map { ($0.id, $0.name) }
         )
-        return month.month.categoryGroups.flatMap(\.categories).compactMap { category in
-            let isHidden = category.hidden ?? false
+        return month.month.categoryGroups.flatMap { group in
+            group.categories.map { (group, $0) }
+        }.compactMap { group, category in
+            let isHidden = BudgetCategoryVisibility.isEffectivelyHidden(category: category, group: group)
             if !includeHidden, isHidden {
                 return nil
             }
@@ -180,7 +182,8 @@ final class ShortcutsBudgetSession {
             return CategoryEntity.make(
                 from: category,
                 groupName: groupNames[category.groupID] ?? "",
-                currency: month.currency
+                currency: month.currency,
+                isHidden: isHidden
             )
         }
     }

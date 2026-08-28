@@ -543,6 +543,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateShowHiddenCategories(_ isEnabled: Bool) {
+        settings.showHiddenCategories = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateRandomizedDisplayValuesEnabled(_ isEnabled: Bool) {
         settings.randomizedDisplayValuesEnabled = isEnabled
         settingsStore.save(settings)

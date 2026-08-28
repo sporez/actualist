@@ -63,7 +63,8 @@ struct CategoryEntity: AppEntity {
     static func make(
         from category: BudgetMonthCategory,
         groupName: String,
-        currency: BudgetCurrency? = nil
+        currency: BudgetCurrency? = nil,
+        isHidden: Bool? = nil
     ) -> CategoryEntity {
         CategoryEntity(
             id: category.id,
@@ -74,7 +75,7 @@ struct CategoryEntity: AppEntity {
             spent: ShortcutMoney.intentAmount(minorUnits: category.spent, currency: currency),
             carryover: category.carryover,
             isIncome: category.isIncome,
-            isHidden: category.hidden ?? false
+            isHidden: isHidden ?? (category.hidden ?? false)
         )
     }
 }

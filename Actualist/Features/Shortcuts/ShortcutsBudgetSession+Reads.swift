@@ -46,9 +46,8 @@ extension ShortcutsBudgetSession {
     func overspentCategories(month: String? = nil) async throws -> [CategoryEntity] {
         let loaded = try await loadedMonth(preferred: month)
         return loaded.month.categoryGroups.flatMap { group in
-            group.categories.compactMap { category in
-                let isHidden = category.hidden ?? false
-                guard !isHidden, !category.isIncome, category.balance < 0 else {
+            BudgetCategoryVisibility.visibleCategories(in: group).compactMap { category in
+                guard !category.isIncome, category.balance < 0 else {
                     return nil
                 }
                 return CategoryEntity.make(

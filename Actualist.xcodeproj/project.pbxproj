@@ -80,6 +80,12 @@
 		01000000000000000000000110 /* BudgetMoveMoneySlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000110 /* BudgetMoveMoneySlider.swift */; };
 		01000000000000000000000111 /* BudgetMoveMoneySliderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000111 /* BudgetMoveMoneySliderTests.swift */; };
 		01000000000000000000006C /* BudgetTemplateWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000006C /* BudgetTemplateWorkflow.swift */; };
+		01000000000000000000000149 /* BudgetCategoryVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000149 /* BudgetCategoryVisibility.swift */; };
+		0100000000000000000000014A /* BudgetCategoryVisibilityWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000014A /* BudgetCategoryVisibilityWorkflow.swift */; };
+		0100000000000000000000014B /* BudgetDatabase+CategoryVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000014B /* BudgetDatabase+CategoryVisibility.swift */; };
+		0100000000000000000000014C /* BudgetCategoryVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000014C /* BudgetCategoryVisibilityTests.swift */; };
+		0100000000000000000000014D /* BudgetCategoryVisibilityWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000014D /* BudgetCategoryVisibilityWorkflowTests.swift */; };
+		0100000000000000000000014E /* BudgetCategoryVisibilityWriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000014E /* BudgetCategoryVisibilityWriteTests.swift */; };
 		010000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift */; };
 		010000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift */; };
 		010000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000000C2 /* OverspentCoverSelectionViewModelTests.swift */; };
@@ -381,6 +387,12 @@
 		02000000000000000000000110 /* BudgetMoveMoneySlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetMoveMoneySlider.swift; sourceTree = "<group>"; };
 		02000000000000000000000111 /* BudgetMoveMoneySliderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetMoveMoneySliderTests.swift; sourceTree = "<group>"; };
 		02000000000000000000006C /* BudgetTemplateWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateWorkflow.swift; sourceTree = "<group>"; };
+		02000000000000000000000149 /* BudgetCategoryVisibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCategoryVisibility.swift; sourceTree = "<group>"; };
+		0200000000000000000000014A /* BudgetCategoryVisibilityWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCategoryVisibilityWorkflow.swift; sourceTree = "<group>"; };
+		0200000000000000000000014B /* BudgetDatabase+CategoryVisibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+CategoryVisibility.swift"; sourceTree = "<group>"; };
+		0200000000000000000000014C /* BudgetCategoryVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCategoryVisibilityTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000014D /* BudgetCategoryVisibilityWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCategoryVisibilityWorkflowTests.swift; sourceTree = "<group>"; };
+		0200000000000000000000014E /* BudgetCategoryVisibilityWriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCategoryVisibilityWriteTests.swift; sourceTree = "<group>"; };
 		020000000000000000000000C0 /* OverspentCoverSelectionWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionWorkflow.swift; sourceTree = "<group>"; };
 		020000000000000000000000C1 /* OverspentCoverSelectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverspentCoverSelectionViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000006D /* BudgetAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetAlert.swift; sourceTree = "<group>"; };
@@ -758,6 +770,9 @@
 				0200000000000000000000012B /* BudgetCurrencyTests.swift */,
 				0200000000000000000000012D /* BudgetCurrencyPreferenceTests.swift */,
 				0200000000000000000000A3 /* BudgetViewModelDisplayTests.swift */,
+				0200000000000000000000014C /* BudgetCategoryVisibilityTests.swift */,
+				0200000000000000000000014D /* BudgetCategoryVisibilityWorkflowTests.swift */,
+				0200000000000000000000014E /* BudgetCategoryVisibilityWriteTests.swift */,
 				02000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift */,
 				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
 				0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */,
@@ -876,6 +891,8 @@
 				02000000000000000000006B /* BudgetMoveMoneyWorkflow.swift */,
 				02000000000000000000000110 /* BudgetMoveMoneySlider.swift */,
 				02000000000000000000006C /* BudgetTemplateWorkflow.swift */,
+				02000000000000000000000149 /* BudgetCategoryVisibility.swift */,
+				0200000000000000000000014A /* BudgetCategoryVisibilityWorkflow.swift */,
 				02000000000000000000006D /* BudgetAlert.swift */,
 				02000000000000000000000112 /* BudgetMonthPrivacyProjection.swift */,
 				02000000000000000000003E /* BudgetDraftModels.swift */,
@@ -1048,6 +1065,7 @@
 				0200000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift */,
 				0200000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift */,
 				020000000000000000000046 /* BudgetDatabase+BudgetWrites.swift */,
+				0200000000000000000000014B /* BudgetDatabase+CategoryVisibility.swift */,
 				020000000000000000000047 /* BudgetDatabase+Schema.swift */,
 				02000000000000000000000120 /* BudgetDatabase+AccountGroupCompatibility.swift */,
 				02000000000000000000000125 /* BudgetDatabase+AccountGroupWrites.swift */,
@@ -1410,6 +1428,7 @@
 				0100000000000000000000A1 /* BudgetDatabase+TransactionUpdates.swift in Sources */,
 				0100000000000000000000A2 /* BudgetDatabase+TransactionCategorization.swift in Sources */,
 				010000000000000000000046 /* BudgetDatabase+BudgetWrites.swift in Sources */,
+				0100000000000000000000014B /* BudgetDatabase+CategoryVisibility.swift in Sources */,
 				010000000000000000000055 /* BudgetTemplateEngine.swift in Sources */,
 				01000000000000000000000134 /* BudgetTemplateCalendar.swift in Sources */,
 				01000000000000000000000135 /* BudgetTemplateEngine+Remainder.swift in Sources */,
@@ -1451,6 +1470,8 @@
 				01000000000000000000006B /* BudgetMoveMoneyWorkflow.swift in Sources */,
 				01000000000000000000000110 /* BudgetMoveMoneySlider.swift in Sources */,
 				01000000000000000000006C /* BudgetTemplateWorkflow.swift in Sources */,
+				01000000000000000000000149 /* BudgetCategoryVisibility.swift in Sources */,
+				0100000000000000000000014A /* BudgetCategoryVisibilityWorkflow.swift in Sources */,
 				01000000000000000000006D /* BudgetAlert.swift in Sources */,
 				01000000000000000000003E /* BudgetDraftModels.swift in Sources */,
 				010000000000000000000026 /* UncategorizedTransactionsView.swift in Sources */,
@@ -1489,6 +1510,9 @@
 				0100000000000000000000012B /* BudgetCurrencyTests.swift in Sources */,
 				0100000000000000000000012D /* BudgetCurrencyPreferenceTests.swift in Sources */,
 				0100000000000000000000A3 /* BudgetViewModelDisplayTests.swift in Sources */,
+				0100000000000000000000014C /* BudgetCategoryVisibilityTests.swift in Sources */,
+				0100000000000000000000014D /* BudgetCategoryVisibilityWorkflowTests.swift in Sources */,
+				0100000000000000000000014E /* BudgetCategoryVisibilityWriteTests.swift in Sources */,
 				01000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift in Sources */,
 				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,
 				0100000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift in Sources */,

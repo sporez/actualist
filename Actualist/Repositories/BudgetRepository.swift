@@ -24,6 +24,20 @@ protocol BudgetRepositoryProtocol: Sendable {
         startMonth: String,
         didSetCarryover: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
+    func setCategoryHiddenAndRefresh(
+        categoryID: String,
+        hidden: Bool,
+        budgetID: String,
+        month: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth
+    func setCategoryGroupHiddenAndRefresh(
+        groupID: String,
+        hidden: Bool,
+        budgetID: String,
+        month: String,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth
     func applyBudgetTemplateAndRefresh(
         command: BudgetTemplateCommand,
         budgetID: String,
