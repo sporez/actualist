@@ -180,11 +180,16 @@ extension BudgetDatabase {
             fromLastMonth: fromLastMonth,
             copiedBudgetedByLookBack: copiedBudgetedByLookBack,
             isIncome: isIncome,
-            activityByLookBack: try averageActivityByLookBack(
+            activityByMonth: averageActivityByMonth(
                 categoryID: categoryID,
                 entries: entries,
-                monthValue: monthValue,
                 spentByMonth: spentByMonth
+            ),
+            firstRelevantMonth: try averageFirstRelevantMonth(
+                categoryID: categoryID,
+                entries: entries,
+                spentByMonth: spentByMonth,
+                db: db
             ),
             budgetedByMonth: spendMonths.budgetedByMonth,
             leftoverByMonth: spendMonths.leftoverByMonth,
@@ -229,31 +234,80 @@ extension BudgetDatabase {
         )
     }
 
-    private func averageActivityByLookBack(
+    private func averageActivityByMonth(
         categoryID: String,
         entries: [BudgetTemplateEntry],
-        monthValue: Int,
         spentByMonth: [String: [String: Int]]
-    ) throws -> [Int: Int] {
-        let windows = entries.compactMap { entry -> Int? in
-            guard entry.type == "average" else {
-                return nil
-            }
-            return entry.numMonths
-        }
-        guard let maxMonths = windows.max(), maxMonths > 0 else {
+    ) -> [Int: Int] {
+        guard entries.contains(where: { $0.type == "average" }) else {
             return [:]
         }
-        var activityByLookBack: [Int: Int] = [:]
-        for lookBack in 1...maxMonths {
-            let sourceMonthValue = try BudgetTemplateCalendar.shiftedMonth(
-                monthValue,
-                by: -lookBack
-            )
-            activityByLookBack[lookBack] =
-                spentByMonth[monthID(sourceMonthValue)]?[categoryID] ?? 0
+        var activityByMonth: [Int: Int] = [:]
+        for (monthID, byCategory) in spentByMonth {
+            guard let amount = byCategory[categoryID],
+                  let month = try? BudgetTemplateCalendar.parseMonth(monthID) else {
+                continue
+            }
+            activityByMonth[month] = amount
         }
-        return activityByLookBack
+        return activityByMonth
+    }
+
+    private func averageFirstRelevantMonth(
+        categoryID: String,
+        entries: [BudgetTemplateEntry],
+        spentByMonth: [String: [String: Int]],
+        db: Database
+    ) throws -> Int? {
+        guard entries.contains(where: { $0.type == "average" }) else {
+            return nil
+        }
+
+        var earliest: Int?
+        func consider(_ month: Int) {
+            if let current = earliest {
+                earliest = min(current, month)
+            } else {
+                earliest = month
+            }
+        }
+
+        if let budgetMonth = try templateFirstBudgetMonth(categoryID: categoryID, db: db) {
+            consider(budgetMonth)
+        }
+        for (monthID, byCategory) in spentByMonth {
+            guard byCategory[categoryID] != nil,
+                  let month = try? BudgetTemplateCalendar.parseMonth(monthID) else {
+                continue
+            }
+            consider(month)
+        }
+        return earliest
+    }
+
+    private func templateFirstBudgetMonth(
+        categoryID: String,
+        db: Database
+    ) throws -> Int? {
+        guard let source = try categoryBudgetSource(db: db) else {
+            return nil
+        }
+        let categoryColumn = column("category", fallback: "NULL", columns: source.columns)
+        let row = try Row.fetchOne(
+            db,
+            sql: """
+                SELECT MIN(\(normalizedMonthExpression("month"))) AS month
+                FROM \(quotedIdentifier(source.table.rawValue))
+                WHERE \(categoryColumn) = ?
+                  AND month IS NOT NULL
+                """,
+            arguments: [categoryID]
+        )
+        guard let raw = flexibleString(row?["month"]),
+              let month = try? BudgetTemplateCalendar.parseMonth(raw) else {
+            return nil
+        }
+        return month
     }
 
     private func needsSpendingHistory(

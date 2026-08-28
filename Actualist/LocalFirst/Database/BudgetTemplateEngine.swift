@@ -8,7 +8,8 @@ struct BudgetTemplateEngine {
         let fromLastMonth: Int
         let copiedBudgetedByLookBack: [Int: Int]
         let isIncome: Bool
-        let activityByLookBack: [Int: Int]
+        let activityByMonth: [Int: Int]
+        let firstRelevantMonth: Int?
         let budgetedByMonth: [Int: Int]
         let leftoverByMonth: [Int: Int]
         let spentByMonth: [Int: Int]
@@ -21,7 +22,8 @@ struct BudgetTemplateEngine {
             fromLastMonth: Int,
             copiedBudgetedByLookBack: [Int: Int],
             isIncome: Bool = false,
-            activityByLookBack: [Int: Int] = [:],
+            activityByMonth: [Int: Int] = [:],
+            firstRelevantMonth: Int? = nil,
             budgetedByMonth: [Int: Int] = [:],
             leftoverByMonth: [Int: Int] = [:],
             spentByMonth: [Int: Int] = [:],
@@ -33,7 +35,8 @@ struct BudgetTemplateEngine {
             self.fromLastMonth = fromLastMonth
             self.copiedBudgetedByLookBack = copiedBudgetedByLookBack
             self.isIncome = isIncome
-            self.activityByLookBack = activityByLookBack
+            self.activityByMonth = activityByMonth
+            self.firstRelevantMonth = firstRelevantMonth
             self.budgetedByMonth = budgetedByMonth
             self.leftoverByMonth = leftoverByMonth
             self.spentByMonth = spentByMonth
@@ -146,12 +149,16 @@ struct BudgetTemplateEngine {
         orderedCategoryIDs: [String],
         monthValue: Int,
         availableBudget: Int,
-        monthSources: MonthSources = MonthSources()
+        monthSources: MonthSources = MonthSources(),
+        currentMonthValue: Int? = nil
     ) throws -> [Write] {
         guard !categories.isEmpty else {
             return []
         }
         _ = try BudgetTemplateCalendar.validatedMonth(monthValue)
+        let currentMonth = try BudgetTemplateCalendar.validatedMonth(
+            currentMonthValue ?? monthValue
+        )
         for category in categories.values {
             try validatePercentageSources(category.entries, monthSources: monthSources)
             try validateByScheduleAndSpend(
@@ -254,6 +261,7 @@ struct BudgetTemplateEngine {
                             computeEntryAmount(
                                 entry,
                                 monthValue: monthValue,
+                                currentMonthValue: currentMonth,
                                 category: category,
                                 limitState: limitStates[categoryID],
                                 availableFunds: availableFunds,
@@ -479,6 +487,7 @@ struct BudgetTemplateEngine {
     private func computeEntryAmount(
         _ entry: BudgetTemplateEntry,
         monthValue: Int,
+        currentMonthValue: Int,
         category: Category,
         limitState: LimitState?,
         availableFunds: Int,
@@ -516,7 +525,12 @@ struct BudgetTemplateEngine {
                 limitState.fromLastMonth
             )
         case "average":
-            return try computeAverageAmount(entry, category: category)
+            return try computeAverageAmount(
+                entry,
+                monthValue: monthValue,
+                currentMonthValue: currentMonthValue,
+                category: category
+            )
         case "percentage":
             return try computePercentageAmount(
                 entry,
@@ -532,35 +546,6 @@ struct BudgetTemplateEngine {
         default:
             throw LocalFirstError.unsupportedTemplate(entry.type)
         }
-    }
-
-    private func computeAverageAmount(
-        _ entry: BudgetTemplateEntry,
-        category: Category
-    ) throws -> Int {
-        guard let numMonths = entry.numMonths, Bounds.numMonths.contains(numMonths) else {
-            throw LocalFirstError.unsupportedTemplate("average")
-        }
-
-        var sum = 0
-        for lookBack in 1...numMonths {
-            sum = try Self.checkedAdd(
-                sum,
-                category.activityByLookBack[lookBack] ?? 0
-            )
-        }
-        var average = -Double(sum) / Double(numMonths)
-        if let adjustment = entry.adjustment, let adjustmentType = entry.adjustmentType {
-            switch adjustmentType {
-            case "percent":
-                average = (1 + adjustment / 100) * average
-            case "fixed":
-                average += Double(try amountToMinorUnits(adjustment))
-            default:
-                break
-            }
-        }
-        return try Self.actualRound(average)
     }
 
     private func computePercentageAmount(

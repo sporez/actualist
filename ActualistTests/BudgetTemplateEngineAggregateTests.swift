@@ -5,30 +5,135 @@ import Testing
 struct BudgetTemplateEngineAggregateTests {
     private let engine = BudgetTemplateEngine()
 
-    @Test func averageUsesNegatedMeanOfPriorMonthActivity() throws {
+    @Test func averageUsesCompleteHistoryMeanAsPositiveBudgetNeed() throws {
+        // Actual getCategoryAverage([-100, -200, -300]) = -200, then runAverage flips sign.
         let amounts = try writeAmounts(
             categories: [
                 "food": category(
                     json: average(numMonths: 3),
-                    activityByLookBack: [1: -10_000, 2: -20_000, 3: -30_000]
+                    activityByMonth: [202606: -10_000, 202605: -20_000, 202604: -30_000],
+                    firstRelevantMonth: 202604
                 )
-            ],
-            availableBudget: 100_000
+            ]
         )
         #expect(amounts["food"] == 20_000)
     }
 
-    @Test func averageTreatsMissingMonthsAsZero() throws {
+    @Test func averageUsesCompleteSixMonthHistory() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 6),
+                    activityByMonth: [
+                        202606: -10_000,
+                        202605: -20_000,
+                        202604: -30_000,
+                        202603: -40_000,
+                        202602: -50_000,
+                        202601: -60_000
+                    ],
+                    firstRelevantMonth: 202601
+                )
+            ]
+        )
+        #expect(amounts["food"] == 35_000)
+    }
+
+    @Test func averageShortensWindowToFirstRelevantHistoryMonth() throws {
+        // Two real months of spending, template asks for six. Actual does not pad
+        // the four earlier months with zero.
+        let amounts = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 6),
+                    activityByMonth: [202606: -10_000, 202605: -20_000],
+                    firstRelevantMonth: 202605
+                )
+            ]
+        )
+        #expect(amounts["food"] == 15_000)
+    }
+
+    @Test func averageIncludesGapsAfterFirstRelevantMonth() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 3),
+                    activityByMonth: [202606: -10_000, 202604: -20_000],
+                    firstRelevantMonth: 202604
+                )
+            ]
+        )
+        #expect(amounts["food"] == 10_000)
+    }
+
+    @Test func averageAnchorsFutureMonthsToCompletedHistory() throws {
+        let activity = [202606: -10_000, 202605: -20_000]
+        let current = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 6),
+                    activityByMonth: activity,
+                    firstRelevantMonth: 202605
+                )
+            ],
+            monthValue: 202608,
+            currentMonthValue: 202608
+        )
+        let oneMonthAhead = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 6),
+                    activityByMonth: activity,
+                    firstRelevantMonth: 202605
+                )
+            ],
+            monthValue: 202609,
+            currentMonthValue: 202608
+        )
+        let severalMonthsAhead = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 6),
+                    activityByMonth: activity,
+                    firstRelevantMonth: 202605
+                )
+            ],
+            monthValue: 202611,
+            currentMonthValue: 202608
+        )
+        let pastMonth = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 6),
+                    activityByMonth: activity,
+                    firstRelevantMonth: 202605
+                )
+            ],
+            monthValue: 202607,
+            currentMonthValue: 202608
+        )
+
+        // Current / +1 / +several all start at July (last completed month):
+        // July 0 + June -100 + May -200.
+        #expect(current["food"] == 10_000)
+        #expect(oneMonthAhead["food"] == 10_000)
+        #expect(severalMonthsAhead["food"] == 10_000)
+        // Applying to a past month starts at that month's predecessor (June).
+        #expect(pastMonth["food"] == 15_000)
+    }
+
+    @Test func averageKeepsNetPositiveActivity() throws {
         let amounts = try writeAmounts(
             categories: [
                 "food": category(
                     json: average(numMonths: 2),
-                    activityByLookBack: [1: -10_000]
+                    activityByMonth: [202606: 10_000, 202605: 20_000],
+                    firstRelevantMonth: 202605
                 )
-            ],
-            availableBudget: 100_000
+            ]
         )
-        #expect(amounts["food"] == 5_000)
+        #expect(amounts["food"] == 15_000)
     }
 
     @Test func averageAppliesPercentAndFixedAdjustmentsBeforeRounding() throws {
@@ -36,28 +141,28 @@ struct BudgetTemplateEngineAggregateTests {
             categories: [
                 "food": category(
                     json: average(numMonths: 3, adjustment: 10, adjustmentType: "percent"),
-                    activityByLookBack: [1: -10_000, 2: -20_000, 3: -30_000]
+                    activityByMonth: [202606: -10_000, 202605: -20_000, 202604: -30_000],
+                    firstRelevantMonth: 202604
                 )
-            ],
-            availableBudget: 100_000
+            ]
         )
         let decreased = try writeAmounts(
             categories: [
                 "food": category(
                     json: average(numMonths: 3, adjustment: -10, adjustmentType: "percent"),
-                    activityByLookBack: [1: -10_000, 2: -20_000, 3: -30_000]
+                    activityByMonth: [202606: -10_000, 202605: -20_000, 202604: -30_000],
+                    firstRelevantMonth: 202604
                 )
-            ],
-            availableBudget: 100_000
+            ]
         )
         let fixed = try writeAmounts(
             categories: [
                 "food": category(
                     json: average(numMonths: 3, adjustment: 5, adjustmentType: "fixed"),
-                    activityByLookBack: [1: -10_000, 2: -20_000, 3: -30_000]
+                    activityByMonth: [202606: -10_000, 202605: -20_000, 202604: -30_000],
+                    firstRelevantMonth: 202604
                 )
-            ],
-            availableBudget: 100_000
+            ]
         )
 
         #expect(percent["food"] == 22_000)
@@ -65,18 +170,67 @@ struct BudgetTemplateEngineAggregateTests {
         #expect(fixed["food"] == 20_500)
     }
 
-    @Test func averageRoundsLikeJavaScriptMathRound() throws {
-        // sum = -10_000 over 3 months → 3333.333… → 3333
-        let amounts = try writeAmounts(
+    @Test func averageRoundsSignedMeanLikeJavaScriptMathRound() throws {
+        // Actual rounds the signed mean first: Math.round(-301 / 2) = -150, then flips.
+        let halfUnit = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 2),
+                    activityByMonth: [202606: -100, 202605: -201],
+                    firstRelevantMonth: 202605
+                )
+            ]
+        )
+        // Mixed history from Actual's runAverage tests: Math.round(-200 / 3) = -67.
+        let mixed = try writeAmounts(
             categories: [
                 "food": category(
                     json: average(numMonths: 3),
-                    activityByLookBack: [1: -10_000]
+                    activityByMonth: [202606: -100, 202605: 200, 202604: -300],
+                    firstRelevantMonth: 202604
                 )
-            ],
-            availableBudget: 100_000
+            ]
         )
-        #expect(amounts["food"] == 3_333)
+        // Percent adjustment after the integer mean: 67 * 1.1 = 73.7 → 74.
+        let percent = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 3, adjustment: 10, adjustmentType: "percent"),
+                    activityByMonth: [202606: -100, 202605: 200, 202604: -300],
+                    firstRelevantMonth: 202604
+                )
+            ]
+        )
+        #expect(halfUnit["food"] == 150)
+        #expect(mixed["food"] == 67)
+        #expect(percent["food"] == 74)
+    }
+
+    @Test func averageFixedAdjustmentUsesCurrencyMinorUnits() throws {
+        // Actual amountToInteger(11, 2) = 1100 added after the flipped mean.
+        let usd = try writeAmounts(
+            categories: [
+                "food": category(
+                    json: average(numMonths: 3, adjustment: 11, adjustmentType: "fixed"),
+                    activityByMonth: [202606: -10_000, 202605: -10_000, 202604: -10_000],
+                    firstRelevantMonth: 202604
+                )
+            ]
+        )
+        let jpyEngine = BudgetTemplateEngine(currency: .jpy)
+        let jpy = try writeAmounts(
+            using: jpyEngine,
+            categories: [
+                "food": try category(
+                    engine: jpyEngine,
+                    json: average(numMonths: 3, adjustment: 11, adjustmentType: "fixed"),
+                    activityByMonth: [202606: -10_000, 202605: -10_000, 202604: -10_000],
+                    firstRelevantMonth: 202604
+                )
+            ]
+        )
+        #expect(usd["food"] == 11_100)
+        #expect(jpy["food"] == 10_011)
     }
 
     @Test func percentageOfAllIncomeUsesCurrentOrPreviousMonthTotals() throws {
@@ -198,32 +352,39 @@ struct BudgetTemplateEngineAggregateTests {
     }
 
     private func writeAmounts(
+        using engine: BudgetTemplateEngine? = nil,
         categories: [String: BudgetTemplateEngine.Category],
         order: [String]? = nil,
-        availableBudget: Int,
+        monthValue: Int = 202607,
+        currentMonthValue: Int? = nil,
+        availableBudget: Int = 100_000,
         monthSources: BudgetTemplateEngine.MonthSources = BudgetTemplateEngine.MonthSources()
     ) throws -> [String: Int] {
         Dictionary(
-            uniqueKeysWithValues: try engine.computeWrites(
+            uniqueKeysWithValues: try (engine ?? self.engine).computeWrites(
                 categories: categories,
                 orderedCategoryIDs: order ?? Array(categories.keys),
-                monthValue: 202607,
+                monthValue: monthValue,
                 availableBudget: availableBudget,
-                monthSources: monthSources
+                monthSources: monthSources,
+                currentMonthValue: currentMonthValue ?? monthValue
             ).map { ($0.categoryID, $0.amount) }
         )
     }
 
     private func category(
+        engine: BudgetTemplateEngine? = nil,
         json: String,
-        activityByLookBack: [Int: Int] = [:]
+        activityByMonth: [Int: Int] = [:],
+        firstRelevantMonth: Int? = nil
     ) throws -> BudgetTemplateEngine.Category {
-        let entries = try #require(try engine.decodeSupportedEntries(json: json))
+        let entries = try #require(try (engine ?? self.engine).decodeSupportedEntries(json: json))
         return .init(
             entries: entries,
             fromLastMonth: 0,
             copiedBudgetedByLookBack: [:],
-            activityByLookBack: activityByLookBack
+            activityByMonth: activityByMonth,
+            firstRelevantMonth: firstRelevantMonth
         )
     }
 

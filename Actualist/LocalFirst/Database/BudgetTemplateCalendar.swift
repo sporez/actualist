@@ -67,6 +67,15 @@ enum BudgetTemplateCalendar {
         String(format: "%04d-%02d", month / 100, month % 100)
     }
 
+    static func currentMonthValue(now: Date = Date()) -> Int {
+        let components = gregorian.dateComponents([.year, .month], from: now)
+        return (components.year ?? 0) * 100 + (components.month ?? 0)
+    }
+
+    static func currentMonthID(now: Date = Date()) -> String {
+        monthID(currentMonthValue(now: now))
+    }
+
     static func daysInMonth(_ monthValue: Int) throws -> Int {
         let monthStart = try monthStartDate(monthValue)
         guard let range = gregorian.range(

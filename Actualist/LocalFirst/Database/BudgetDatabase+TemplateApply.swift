@@ -5,9 +5,13 @@ extension BudgetDatabase {
     func budgetTemplateMessages(
         command: BudgetTemplateCommand,
         month: String,
+        currentMonth: String? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let monthValue = try Self.actualMonthValue(month)
+        let currentMonthValue = try Self.actualMonthValue(
+            currentMonth ?? BudgetTemplateCalendar.currentMonthID()
+        )
 
         return try queue.read { db in
             let templateEngine = BudgetTemplateEngine(currency: try budgetCurrency(db: db))
@@ -121,7 +125,8 @@ extension BudgetDatabase {
                 orderedCategoryIDs: scope.filter { categories[$0] != nil },
                 monthValue: monthValue,
                 availableBudget: availableBudget,
-                monthSources: monthSources
+                monthSources: monthSources,
+                currentMonthValue: currentMonthValue
             )
 
             if writes.contains(where: { $0.longGoal == 1 }), !canWriteGoals {

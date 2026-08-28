@@ -97,10 +97,81 @@ extension LocalFirstActualStoreTests {
         let messages = try await database.budgetTemplateMessages(
             command: .category("groceries"),
             month: "2026-07",
+            currentMonth: "2026-07",
             builder: &builder
         )
         _ = try await database.applyLocalSyncMessages(messages)
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 15_000)
+    }
+
+    @Test func budgetTemplateAverageShortensSixMonthWindowToTwoMonthsOfHistory() async throws {
+        let fixtureURL = try makeAverageHistoryFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("dining"),
+            month: "2026-07",
+            currentMonth: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try zeroBudgetAmount("dining", at: fixtureURL) == 15_000)
+    }
+
+    @Test func budgetTemplateAverageIncludesGapsAfterFirstHistoryMonth() async throws {
+        let fixtureURL = try makeAverageHistoryFixture(
+            extraSQL: """
+                INSERT INTO transactions VALUES ('april-d', 'checking', 20260403, -30000, 'dining', 0, NULL, 0);
+                INSERT INTO transactions VALUES ('june-d', 'checking', 20260603, -20000, 'dining', 0, NULL, 0);
+                """
+        )
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("dining"),
+            month: "2026-07",
+            currentMonth: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        // June -200, May 0, April -300 over the 3-month first-history window.
+        #expect(try zeroBudgetAmount("dining", at: fixtureURL) == 16_667)
+    }
+
+    @Test func budgetTemplateAverageAnchorsFutureMonthsToCompletedHistory() async throws {
+        let fixtureURL = try makeAverageHistoryFixture()
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("dining"),
+            month: "2026-11",
+            currentMonth: "2026-08",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        // Start is July (last completed), then June and May. July has no dining activity.
+        #expect(try zeroBudgetAmount("dining", month: 202611, at: fixtureURL) == 10_000)
+    }
+
+    @Test func budgetTemplateAverageKeepsNetPositiveRefundHistory() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+            VALUES ('dining', 'Dining', 'group', 0, 0, 0, 2, '[{"directive":"template","type":"average","numMonths":6,"priority":0}]');
+            INSERT INTO category_mapping VALUES ('dining', 'dining');
+            INSERT INTO transactions VALUES ('may-d', 'checking', 20260503, 10000, 'dining', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('june-d', 'checking', 20260603, 20000, 'dining', 0, NULL, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("dining"),
+            month: "2026-07",
+            currentMonth: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try zeroBudgetAmount("dining", at: fixtureURL) == 15_000)
     }
 
     @Test func budgetTemplatePercentageOfAllIncomeUsesCurrentMonthIncome() async throws {
@@ -631,6 +702,21 @@ extension LocalFirstActualStoreTests {
         """
     }
 
+    private func makeAverageHistoryFixture(
+        extraSQL: String = """
+            INSERT INTO transactions VALUES ('may-d', 'checking', 20260503, -10000, 'dining', 0, NULL, 0);
+            INSERT INTO transactions VALUES ('june-d', 'checking', 20260603, -20000, 'dining', 0, NULL, 0);
+            """
+    ) throws -> URL {
+        try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+            VALUES ('dining', 'Dining', 'group', 0, 0, 0, 2, '[{\"directive\":\"template\",\"type\":\"average\",\"numMonths\":6,\"priority\":0}]');
+            INSERT INTO category_mapping VALUES ('dining', 'dining');
+            \(extraSQL)
+            """)
+    }
+
     private func applyEnvelopeTemplate(
         extraSQL: String,
         categoryID: String = "buffer"
@@ -653,8 +739,12 @@ extension LocalFirstActualStoreTests {
         )
     }
 
-    private func zeroBudgetAmount(_ categoryID: String, at databaseURL: URL) throws -> Int? {
-        try budgetAmount(categoryID, table: "zero_budgets", at: databaseURL)
+    private func zeroBudgetAmount(
+        _ categoryID: String,
+        month: Int = 202607,
+        at databaseURL: URL
+    ) throws -> Int? {
+        try budgetAmount(categoryID, table: "zero_budgets", month: month, at: databaseURL)
     }
 
     private func reflectBudgetAmount(_ categoryID: String, at databaseURL: URL) throws -> Int? {
