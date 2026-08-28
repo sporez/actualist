@@ -51,7 +51,12 @@ extension BudgetDatabase {
             var unsupported: [String] = []
             var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
             var orphanGoalCategoryIDs: [String] = []
-            var availableBudget = try monthToBudget(month: monthID(monthValue), db: db)
+            // Actual computeTemplates starts from envelope `to-budget` (includes
+            // Hold for Next Month) or tracking `total-saved`, then adds back the
+            // current assignment for each template-managed category.
+            var availableBudget = try isTracking
+                ? trackingTotalSaved(month: monthID(monthValue), db: db)
+                : envelopeToBudget(month: monthID(monthValue), db: db)
             var incomeCatalog = try templateIncomeCatalog(db: db)
             incomeCatalog.activeScheduleNames = try templateActiveScheduleNames(db: db)
             for categoryID in scope {

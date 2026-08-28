@@ -473,6 +473,116 @@ extension LocalFirstActualStoreTests {
         #expect(try cleanupGroupTombstone("orphan-group", at: fixtureURL) == 1)
     }
 
+    @Test func budgetTemplateRemainderWithoutHoldUsesEnvelopeToBudget() async throws {
+        let result = try await applyEnvelopeTemplate(
+            extraSQL: envelopeAvailableFundsSQL(hold: nil) + bufferTemplateSQL(
+                "[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":1,\"priority\":null}]"
+            )
+        )
+        #expect(result.toBudgetBefore == 50_000)
+        #expect(result.amount == result.toBudgetBefore)
+        #expect(result.toBudgetAfter == 0)
+    }
+
+    @Test func budgetTemplateRemainderRespectsHoldForNextMonth() async throws {
+        let result = try await applyEnvelopeTemplate(
+            extraSQL: envelopeAvailableFundsSQL(hold: 25_000) + bufferTemplateSQL(
+                "[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":1,\"priority\":null}]"
+            )
+        )
+        #expect(result.toBudgetBefore == 25_000)
+        #expect(result.amount == result.toBudgetBefore)
+        #expect(result.toBudgetAfter == 0)
+    }
+
+    @Test func budgetTemplatePriorityRespectsHoldForNextMonth() async throws {
+        let result = try await applyEnvelopeTemplate(
+            extraSQL: envelopeAvailableFundsSQL(hold: 25_000) + bufferTemplateSQL(
+                "[{\"directive\":\"template\",\"type\":\"simple\",\"monthly\":1000,\"priority\":1}]"
+            )
+        )
+        #expect(result.toBudgetBefore == 25_000)
+        #expect(result.amount == result.toBudgetBefore)
+    }
+
+    @Test func budgetTemplatePercentageOfAvailableFundsRespectsHoldForNextMonth() async throws {
+        let result = try await applyEnvelopeTemplate(
+            extraSQL: envelopeAvailableFundsSQL(hold: 25_000) + bufferTemplateSQL(
+                "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"available funds\",\"priority\":0}]"
+            )
+        )
+        #expect(result.toBudgetBefore == 25_000)
+        #expect(
+            result.amount == (try BudgetTemplateEngine.actualRound(Double(result.toBudgetBefore) * 0.1))
+        )
+    }
+
+    @Test func budgetTemplateOverwriteAddsBackHeldCategoryBudget() async throws {
+        let result = try await applyEnvelopeTemplate(
+            extraSQL: envelopeAvailableFundsSQL(hold: 25_000) + """
+                UPDATE categories
+                SET goal_def = '[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":1,\"priority\":null}]'
+                WHERE id = 'groceries';
+                """,
+            categoryID: "groceries"
+        )
+        #expect(result.toBudgetBefore == 25_000)
+        #expect(result.amount == result.toBudgetBefore + 50_000)
+    }
+
+    @Test func budgetTemplateTrackingStartsFromTotalSavedNotEnvelopeToBudget() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            \(trackingBudgetSQL())
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-group', 1, 0, 0, 0, NULL);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO transactions VALUES ('pay', 'checking', 20260701, 200000, 'salary', 0, NULL, 0);
+            INSERT INTO reflect_budgets VALUES ('202607-salary', 202607, 'salary', 10000, 0);
+            INSERT INTO reflect_budgets VALUES ('202607-groceries', 202607, 'groceries', 3000, 0);
+            \(bufferTemplateSQL(
+                "[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":1,\"priority\":null}]"
+            ))
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .overwrite,
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let amount = try reflectBudgetAmount("buffer", at: fixtureURL)
+        #expect(before.toBudget != 7_000)
+        #expect(amount == 7_000)
+    }
+
+    @Test func budgetTemplateTrackingOverwriteAddsBackCurrentBudget() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            \(trackingBudgetSQL())
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-group', 1, 0, 0, 0, NULL);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO transactions VALUES ('pay', 'checking', 20260701, 200000, 'salary', 0, NULL, 0);
+            INSERT INTO reflect_budgets VALUES ('202607-salary', 202607, 'salary', 10000, 0);
+            INSERT INTO reflect_budgets VALUES ('202607-groceries', 202607, 'groceries', 3000, 0);
+            UPDATE categories
+            SET goal_def = '[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":1,\"priority\":null}]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .overwrite,
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try reflectBudgetAmount("groceries", at: fixtureURL) == 10_000)
+    }
+
     private func trackingBudgetSQL(includeGoals: Bool = false) -> String {
         var sql = """
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
@@ -494,6 +604,53 @@ extension LocalFirstActualStoreTests {
                 """
         }
         return sql
+    }
+
+    private func envelopeAvailableFundsSQL(hold: Int?) -> String {
+        var sql = """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            INSERT INTO category_groups VALUES ('income-grp', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories VALUES ('salary', 'Salary', 'income-grp', 1, 0, 0, 2, NULL);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO transactions VALUES ('inc-jul', 'checking', 20260710, 100000, 'salary', 0, NULL, 0);
+            """
+        if let hold {
+            sql += """
+                CREATE TABLE zero_budget_months (id TEXT PRIMARY KEY, buffered INTEGER);
+                INSERT INTO zero_budget_months VALUES ('2026-07', \(hold));
+                """
+        }
+        return sql
+    }
+
+    private func bufferTemplateSQL(_ goalDef: String) -> String {
+        """
+        INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+        VALUES ('buffer', 'Buffer', 'group', 0, 0, 0, 2, '\(goalDef)');
+        INSERT INTO category_mapping VALUES ('buffer', 'buffer');
+        """
+    }
+
+    private func applyEnvelopeTemplate(
+        extraSQL: String,
+        categoryID: String = "buffer"
+    ) async throws -> (toBudgetBefore: Int, amount: Int?, toBudgetAfter: Int) {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: extraSQL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .overwrite,
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        let after = try await database.fetchBudgetMonth(month: "2026-07")
+        return (
+            before.toBudget,
+            try zeroBudgetAmount(categoryID, at: fixtureURL),
+            after.toBudget
+        )
     }
 
     private func zeroBudgetAmount(_ categoryID: String, at databaseURL: URL) throws -> Int? {

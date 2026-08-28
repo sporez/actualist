@@ -15,18 +15,19 @@ extension BudgetDatabase {
             let totalIncome = incomeGroups.reduce(0) { $0 + $1.spent }
             // Actual excludes uncategorized rows from To Budget until they are categorized.
             // A hold for next month (explicit or inferred) also comes out of this month.
-            let onBudgetBalance = try onBudgetAccountBalance(through: month, db: db)
-            let uncategorizedActivity = try uncategorizedOnBudgetActivity(through: month, db: db)
-            let holdForNextMonth = try envelopeHold(month: month, db: db)
-            let toBudget = (onBudgetBalance - uncategorizedActivity) - totalBalance - holdForNextMonth
+            let availability = try envelopeAvailability(
+                month: month,
+                totalBalance: totalBalance,
+                db: db
+            )
 
             return BudgetMonth(
                 month: month,
-                incomeAvailable: toBudget,
+                incomeAvailable: availability.toBudget,
                 lastMonthOverspent: 0,
-                forNextMonth: holdForNextMonth,
+                forNextMonth: availability.holdForNextMonth,
                 totalBudgeted: totalBudgeted,
-                toBudget: toBudget,
+                toBudget: availability.toBudget,
                 fromLastMonth: 0,
                 totalIncome: totalIncome,
                 totalSpent: totalSpent,
@@ -34,6 +35,51 @@ extension BudgetDatabase {
                 categoryGroups: groups
             )
         }
+    }
+
+    /// Envelope spreadsheet `to-budget`: on-budget funds minus leftover minus this month's hold.
+    func envelopeAvailability(
+        month: String,
+        totalBalance: Int,
+        db: Database
+    ) throws -> (toBudget: Int, holdForNextMonth: Int) {
+        let onBudgetBalance = try onBudgetAccountBalance(through: month, db: db)
+        let uncategorizedActivity = try uncategorizedOnBudgetActivity(through: month, db: db)
+        let holdForNextMonth = try envelopeHold(month: month, db: db)
+        let toBudget = (onBudgetBalance - uncategorizedActivity) - totalBalance - holdForNextMonth
+        return (toBudget, holdForNextMonth)
+    }
+
+    func envelopeToBudget(month: String, db: Database) throws -> Int {
+        let categoryValues = try envelopeCategoryValues(through: month, db: db)
+        let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
+        let totalBalance = groups.filter { !$0.isIncome }.reduce(0) { $0 + $1.balance }
+        return try envelopeAvailability(
+            month: month,
+            totalBalance: totalBalance,
+            db: db
+        ).toBudget
+    }
+
+    /// Tracking spreadsheet `total-saved`: budgeted income minus budgeted expenses.
+    /// Hidden expense groups and hidden categories are omitted, matching Actual's
+    /// tracking sheet (`createSummary` / `group-budget`).
+    func trackingTotalSaved(month: String, db: Database) throws -> Int {
+        let categoryValues = try envelopeCategoryValues(through: month, db: db)
+        let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
+        var incomeBudgeted = 0
+        if let incomeGroup = groups.first(where: { $0.isIncome }) {
+            for category in incomeGroup.categories where !(category.hidden ?? false) {
+                incomeBudgeted += category.budgeted
+            }
+        }
+        var expenseBudgeted = 0
+        for group in groups where !group.isIncome && !(group.hidden ?? false) {
+            for category in group.categories where !(category.hidden ?? false) {
+                expenseBudgeted += category.budgeted
+            }
+        }
+        return incomeBudgeted - expenseBudgeted
     }
 
     func accountBalances() throws -> [String: Int] {

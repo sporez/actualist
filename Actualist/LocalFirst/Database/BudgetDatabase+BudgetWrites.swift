@@ -311,16 +311,6 @@ extension BudgetDatabase {
         )
     }
 
-    func monthToBudget(month: String, db: Database) throws -> Int {
-        let categoryValues = try envelopeCategoryValues(through: month, db: db)
-        let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
-        let expenseGroups = groups.filter { !$0.isIncome }
-        let totalBalance = expenseGroups.reduce(0) { $0 + $1.balance }
-        let onBudgetBalance = try onBudgetAccountBalance(through: month, db: db)
-        let uncategorizedActivity = try uncategorizedOnBudgetActivity(through: month, db: db)
-        return (onBudgetBalance - uncategorizedActivity) - totalBalance
-    }
-
     func readCategoryGoalDefsRaw(db: Database) throws -> [String: String] {
         guard try tableExists("categories", db: db) else {
             return [:]
