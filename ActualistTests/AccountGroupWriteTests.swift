@@ -3,12 +3,22 @@ import Testing
 @testable import Actualist
 
 extension LocalFirstActualStoreTests {
-    @Test func accountGroupManagementIsOnAfterOldBudgetBackfill() async throws {
+    @Test func oldBudgetBackfillCreatesSchemaButLeavesManagementOff() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        #expect(try await database.accountGroupManagementEnabled())
+        // Phase 1 backfill creates `account_groups` on every budget so stored
+        // CRDT can replay, but management chrome must stay off until the
+        // `__migrations__` watermark is present. A non-nightly budget has no
+        // such row.
+        #expect(try await database.accountGroupManagementEnabled() == false)
         #expect(try sqliteTables(at: fixtureURL).contains("account_groups"))
+    }
+
+    @Test func accountGroupManagementIsOnOnlyWhenMigrationWatermarkIsPresent() async throws {
+        let database = try makeWritableAccountGroupDatabase()
+
+        #expect(try await database.accountGroupManagementEnabled())
     }
 
     @Test func createAccountGroupAppendsSortOrderAndRejectsDuplicates() async throws {

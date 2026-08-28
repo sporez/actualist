@@ -228,18 +228,35 @@ extension BudgetDatabase {
     }
 
     private static func accountGroupManagementEnabled(db: Database) throws -> Bool {
-        // The file the sync server stores is the last uploaded snapshot, not
-        // the nightly process's migrated copy. `__migrations__` therefore lags
-        // the server software. After Phase 1 backfill, local `account_groups`
-        // is the writable schema.
-        try Bool.fetchOne(
+        // Management chrome is gated on Actual's account-groups migration
+        // watermark (`accountGroupsMigrationID`), never on the local
+        // `account_groups` table. Phase 1 backfill creates that table on every
+        // opened budget so stored CRDT can replay, so its presence does not
+        // mean the peer supports groups; a budget synced from a non-nightly
+        // server has no such migration row and must stay chrome-free.
+        //
+        // The stored `__migrations__` table is the last uploaded snapshot, not
+        // the nightly process's migrated copy, so it lags the server software.
+        // A nightly peer whose snapshot still lacks the row hides management
+        // chrome until re-import; groups still display from CRDT. Hiding
+        // management is the safer failure mode — it never authors group rows a
+        // production server would drop.
+        let migrationsExists = try Bool.fetchOne(
             db,
             sql: """
                 SELECT EXISTS(
                     SELECT 1 FROM sqlite_master
-                    WHERE type = 'table' AND name = 'account_groups'
+                    WHERE type = 'table' AND name = '__migrations__'
                 )
                 """
+        ) ?? false
+        guard migrationsExists else {
+            return false
+        }
+        return try Bool.fetchOne(
+            db,
+            sql: "SELECT EXISTS(SELECT 1 FROM __migrations__ WHERE id = ?)",
+            arguments: [Self.accountGroupsMigrationID]
         ) ?? false
     }
 

@@ -367,12 +367,12 @@ struct AccountsView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        if canManageGroups {
+                        if canManageGroups, hasGroupActions(for: row) {
                             accountGroupMenu(row)
                         }
                     }
 
-                    if canManageGroups {
+                    if canManageGroups, hasGroupActions(for: row) {
                         Menu {
                             accountGroupMenu(row)
                         } label: {
@@ -389,6 +389,10 @@ struct AccountsView: View {
             }
         }
         .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func hasGroupActions(for row: AccountDisplay) -> Bool {
+        !destinationGroups(for: row).isEmpty || row.account.accountGroupId != nil
     }
 
     @ViewBuilder
