@@ -401,6 +401,7 @@ struct BudgetView: View {
             month: displayedBudgetMonth,
             showTotalAssigned: appState.settings.showTotalAssigned,
             includeCarryoverInOverspent: appState.settings.includeCarryoverCategoriesInOverspentAlerts,
+            isTrackingBudget: viewModel.isTrackingBudget,
             currency: viewModel.currency
         )
     }

@@ -64,6 +64,10 @@ struct LoadedBudgetMonth: Equatable {
     let month: BudgetMonth
     let alerts: [BudgetMonthAlert]
     var currency: BudgetCurrency = .usd
+    /// Envelope (false, the Actual default) vs tracking (true). Drives the
+    /// overspent hidden-category rule: envelope keeps hidden overspent in the
+    /// alert and Cover sheet; tracking drops them, matching Actual web.
+    var isTrackingBudget: Bool = false
 }
 
 struct BudgetMoveMoneyCommand: Hashable, Sendable {

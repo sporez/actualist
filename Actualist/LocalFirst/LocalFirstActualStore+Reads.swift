@@ -35,6 +35,7 @@ extension LocalFirstActualStore {
         let monthID = selectedMonth
         let month = try await database.fetchBudgetMonth(month: monthID)
         await reloadBudgetCurrency(database: database, budgetID: budgetID)
+        let isTracking = (try? await database.isTrackingBudget()) ?? false
         let loaded = LoadedBudgetMonth(
             availableMonths: months,
             selectedMonth: monthID,
@@ -43,9 +44,11 @@ extension LocalFirstActualStore {
                 database: database,
                 budgetID: budgetID,
                 month: month,
-                monthID: monthID
+                monthID: monthID,
+                isTrackingBudget: isTracking
             ),
-            currency: budgetCurrency(budgetID: budgetID)
+            currency: budgetCurrency(budgetID: budgetID),
+            isTrackingBudget: isTracking
         )
         loadedBudgetMonthsByBudget[budgetID] = loaded
         return loaded
@@ -380,7 +383,8 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         month: BudgetMonth,
-        monthID: String
+        monthID: String,
+        isTrackingBudget: Bool
     ) async throws -> [BudgetMonthAlert] {
         let maps = try await nameMaps(database)
         let transactions = try await database.fetchTransactions()
@@ -408,7 +412,8 @@ extension LocalFirstActualStore {
             monthID: monthID,
             transactions: transactions,
             transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: maps.offBudgetAccountIDs
+            offBudgetAccountIDs: maps.offBudgetAccountIDs,
+            isTrackingBudget: isTrackingBudget
         )
     }
 
@@ -417,13 +422,14 @@ extension LocalFirstActualStore {
         monthID: String,
         transactions: [ActualTransaction],
         transferAccountIDsByPayeeID: [String: String],
-        offBudgetAccountIDs: Set<String>
+        offBudgetAccountIDs: Set<String>,
+        isTrackingBudget: Bool
     ) -> [BudgetMonthAlert] {
         var alerts: [BudgetMonthAlert] = []
         if let toBudget = toBudgetAlert(month: month) {
             alerts.append(toBudget)
         }
-        if let overspending = overspendingAlert(month: month) {
+        if let overspending = overspendingAlert(month: month, isTrackingBudget: isTrackingBudget) {
             alerts.append(overspending)
         }
         alerts.append(contentsOf: uncategorizedAlerts(
@@ -450,10 +456,10 @@ extension LocalFirstActualStore {
         )
     }
 
-    static func overspendingAlert(month: BudgetMonth) -> BudgetMonthAlert? {
+    static func overspendingAlert(month: BudgetMonth, isTrackingBudget: Bool) -> BudgetMonthAlert? {
         let overspentCount = month.categoryGroups
             .filter { !$0.isIncome }
-            .flatMap { BudgetCategoryVisibility.visibleCategories(in: $0) }
+            .flatMap { BudgetCategoryVisibility.overspentCategories(in: $0, isTrackingBudget: isTrackingBudget) }
             .filter { $0.balance < 0 }
             .count
         guard overspentCount > 0 else {

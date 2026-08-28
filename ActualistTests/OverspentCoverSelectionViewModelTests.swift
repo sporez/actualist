@@ -282,6 +282,103 @@ struct OverspentCoverSelectionViewModelTests {
         #expect(model.coverSource(for: expenseOption) == .category(id: expenseOption.id, name: expenseOption.title))
     }
 
+    @Test func overspentCoverOptionsIncludeHiddenOverspentInEnvelopeAndDropInTracking() throws {
+        // Actual web keeps hidden overspent categories in envelope budgets and
+        // drops them in tracking budgets. The Cover sheet must follow that rule.
+        let json = """
+        {
+          "month": "2026-06",
+          "incomeAvailable": 0,
+          "lastMonthOverspent": 0,
+          "forNextMonth": 0,
+          "totalBudgeted": 0,
+          "toBudget": 0,
+          "fromLastMonth": 0,
+          "totalIncome": 0,
+          "totalSpent": 0,
+          "totalBalance": 0,
+          "categoryGroups": [
+            {
+              "id": "bills",
+              "name": "Monthly Bills",
+              "is_income": false,
+              "hidden": false,
+              "budgeted": 0,
+              "spent": 0,
+              "balance": 0,
+              "categories": [
+                {
+                  "id": "mortgage",
+                  "name": "Mortgage",
+                  "is_income": false,
+                  "hidden": false,
+                  "group_id": "bills",
+                  "budgeted": 0,
+                  "spent": 0,
+                  "balance": -2500,
+                  "carryover": false
+                },
+                {
+                  "id": "secret",
+                  "name": "Secret",
+                  "is_income": false,
+                  "hidden": true,
+                  "group_id": "bills",
+                  "budgeted": 0,
+                  "spent": 0,
+                  "balance": -1000,
+                  "carryover": false
+                }
+              ]
+            },
+            {
+              "id": "goals",
+              "name": "Goals",
+              "is_income": false,
+              "hidden": true,
+              "budgeted": 0,
+              "spent": 0,
+              "balance": 0,
+              "categories": [
+                {
+                  "id": "gifts",
+                  "name": "Gifts",
+                  "is_income": false,
+                  "hidden": false,
+                  "group_id": "goals",
+                  "budgeted": 0,
+                  "spent": 0,
+                  "balance": -750,
+                  "carryover": false
+                }
+              ]
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+        let month = try JSONDecoder().decode(BudgetMonth.self, from: json)
+
+        let envelope = BudgetViewModel(initialMonth: LoadedBudgetMonth(
+            availableMonths: ["2026-06"],
+            selectedMonth: "2026-06",
+            month: month,
+            alerts: [],
+            isTrackingBudget: false
+        ))
+        // Envelope: hidden category and hidden-group child both count.
+        #expect(envelope.overspentCategoryOptions.map(\.id).sorted() == ["gifts", "mortgage", "secret"])
+
+        let tracking = BudgetViewModel(initialMonth: LoadedBudgetMonth(
+            availableMonths: ["2026-06"],
+            selectedMonth: "2026-06",
+            month: month,
+            alerts: [],
+            isTrackingBudget: true
+        ))
+        // Tracking: only the visible overspent category counts.
+        #expect(tracking.overspentCategoryOptions.map(\.id) == ["mortgage"])
+    }
+
     private static func decodeBudgetMonth(
         firstOverspentBalance: Int,
         secondOverspentBalance: Int?,
@@ -355,7 +452,7 @@ struct OverspentCoverSelectionViewModelTests {
                   "group_id": "bills",
                   "budgeted": 0,
                   "spent": 0,
-                  "balance": -9999,
+                  "balance": 0,
                   "carryover": false
                 }
               ]

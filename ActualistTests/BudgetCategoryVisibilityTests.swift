@@ -77,6 +77,26 @@ struct BudgetCategoryVisibilityTests {
         )
     }
 
+    @Test func overspentCategoriesKeepHiddenInEnvelopeAndDropInTracking() {
+        // Actual web keeps hidden overspent in envelope budgets and drops them
+        // in tracking budgets. A hidden group hides its children in tracking.
+        let bills = group(id: "bills", hidden: false, categories: [
+            category(id: "mortgage", hidden: false),
+            category(id: "old", hidden: true)
+        ])
+        let secret = group(id: "secret", hidden: true, categories: [
+            category(id: "gifts", hidden: false, groupID: "secret")
+        ])
+
+        // Envelope: every live category is returned, hidden or not.
+        #expect(BudgetCategoryVisibility.overspentCategories(in: bills, isTrackingBudget: false).map(\.id) == ["mortgage", "old"])
+        #expect(BudgetCategoryVisibility.overspentCategories(in: secret, isTrackingBudget: false).map(\.id) == ["gifts"])
+
+        // Tracking: effectively-hidden categories are dropped.
+        #expect(BudgetCategoryVisibility.overspentCategories(in: bills, isTrackingBudget: true).map(\.id) == ["mortgage"])
+        #expect(BudgetCategoryVisibility.overspentCategories(in: secret, isTrackingBudget: true).map(\.id) == [])
+    }
+
     private func group(
         id: String,
         isIncome: Bool = false,

@@ -259,7 +259,7 @@ extension LocalFirstActualStoreTests {
         #expect(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: 0)) == nil)
     }
 
-    @Test func overspendingAlertCountsVisibleNegativeCategoriesInSpendingGroups() async {
+    @Test func overspendingAlertCountsEveryNegativeCategoryInEnvelopeBudgets() async {
         let month = makeBudgetMonth(
             toBudget: 0,
             groups: [
@@ -274,12 +274,54 @@ extension LocalFirstActualStoreTests {
             ]
         )
 
-        let alert = try! #require(LocalFirstActualStore.overspendingAlert(month: month))
+        // Actual web keeps hidden overspent categories in envelope budgets.
+        // Both groceries and the hidden hidden-over count; income is excluded.
+        let alert = try! #require(LocalFirstActualStore.overspendingAlert(month: month, isTrackingBudget: false))
         #expect(alert.kind == "overspending")
         #expect(alert.severity == "danger")
         #expect(alert.title == "Overspent categories")
         #expect(alert.actionTitle == "Cover")
+        #expect(alert.count == 2)
+    }
+
+    @Test func overspendingAlertDropsHiddenNegativeCategoriesInTrackingBudgets() async {
+        let month = makeBudgetMonth(
+            toBudget: 0,
+            groups: [
+                makeGroup(id: "everyday", isIncome: false, categories: [
+                    makeCategory(id: "groceries", balance: -2000),
+                    makeCategory(id: "hidden-over", balance: -100, hidden: true)
+                ])
+            ]
+        )
+
+        // Actual web drops hidden overspent categories in tracking budgets.
+        let alert = try! #require(LocalFirstActualStore.overspendingAlert(month: month, isTrackingBudget: true))
         #expect(alert.count == 1)
+    }
+
+    @Test func overspendingAlertDropsHiddenGroupChildrenInTrackingBudgets() async {
+        let month = makeBudgetMonth(
+            toBudget: 0,
+            groups: [
+                BudgetMonthCategoryGroup(
+                    id: "secret",
+                    name: "secret",
+                    isIncome: false,
+                    hidden: true,
+                    budgeted: 0,
+                    spent: 0,
+                    balance: 0,
+                    categories: [
+                        makeCategory(id: "gifts", balance: -250, hidden: false)
+                    ]
+                )
+            ]
+        )
+
+        // A hidden group hides its children in tracking; envelope keeps them.
+        #expect(LocalFirstActualStore.overspendingAlert(month: month, isTrackingBudget: true) == nil)
+        #expect(LocalFirstActualStore.overspendingAlert(month: month, isTrackingBudget: false)?.count == 1)
     }
 
     @Test func budgetAlertsAreOrderedToBudgetThenOverspendingThenUncategorized() async {
@@ -298,7 +340,8 @@ extension LocalFirstActualStoreTests {
             monthID: "2026-07",
             transactions: transactions,
             transferAccountIDsByPayeeID: [:],
-            offBudgetAccountIDs: []
+            offBudgetAccountIDs: [],
+            isTrackingBudget: false
         )
 
         #expect(alerts.map(\.kind) == ["toBudget", "overspending", "uncategorizedTransactions"])

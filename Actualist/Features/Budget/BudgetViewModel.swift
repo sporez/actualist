@@ -14,6 +14,8 @@ final class BudgetViewModel {
     var errorMessage: String?
     var currency: BudgetCurrency = .usd
     var includeCarryoverCategoriesInOverspentAlerts = false
+    /// Envelope (false) vs tracking (true). Drives the overspent hidden rule.
+    private(set) var isTrackingBudget = false
 
     let assignmentWorkflow = BudgetAssignmentWorkflow()
     let moveMoneyWorkflow = BudgetMoveMoneyWorkflow()
@@ -78,8 +80,12 @@ final class BudgetViewModel {
     }
 
     var overspentCategoryOptions: [BudgetOverspentCategoryOption] {
-        visibleGroups.flatMap { group in
-            group.visibleCategories.compactMap { category in
+        visibleGroups.flatMap { group -> [BudgetOverspentCategoryOption] in
+            let categories = BudgetCategoryVisibility.overspentCategories(
+                in: group,
+                isTrackingBudget: isTrackingBudget
+            )
+            return categories.compactMap { category -> BudgetOverspentCategoryOption? in
                 guard category.balance < 0,
                       includeCarryoverCategoriesInOverspentAlerts || !category.carryover else {
                     return nil
@@ -771,6 +777,7 @@ final class BudgetViewModel {
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
         currency = loadedMonth.currency
+        isTrackingBudget = loadedMonth.isTrackingBudget
         loadedBudgetAlerts = loadedMonth.alerts.compactMap {
             BudgetAlert(alert: $0, currency: loadedMonth.currency)
         }

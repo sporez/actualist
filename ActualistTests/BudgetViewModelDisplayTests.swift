@@ -34,14 +34,16 @@ struct BudgetViewModelDisplayTests {
 
         #expect(model.visibleGroups.count == 1)
         #expect(model.visibleGroups.first?.visibleCategories.count == 1)
-        #expect(model.overspendingAlertCount == 1)
+        // Envelope budgets keep hidden overspent categories in the alert, so
+        // both the visible and the hidden overspent category count here.
+        #expect(model.overspendingAlertCount == 2)
     }
 
     @Test func derivesPriorMonthOverspendingWhenNoVisibleCategoryIsOverspent() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: 1000,
-            hiddenCategoryBalance: -5000,
+            hiddenCategoryBalance: 0,
             toBudget: 0,
             lastMonthOverspent: -1000
         )

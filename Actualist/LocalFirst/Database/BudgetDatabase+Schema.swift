@@ -62,6 +62,14 @@ extension BudgetDatabase {
         try isTrackingBudget(db: db) ? .tracking : .envelope
     }
 
+    /// Envelope-vs-tracking switch for callers that do not already hold a
+    /// `Database` read connection (overspent alerts, view models). Mirrors
+    /// Actual web's `budgetType === 'tracking'` branch. Defaults to envelope
+    /// (false) when the `preferences` table or row is absent.
+    func isTrackingBudget() throws -> Bool {
+        try queue.read { db in try isTrackingBudget(db: db) }
+    }
+
     func isTrackingBudget(db: Database) throws -> Bool {
         guard try tableExists("preferences", db: db) else {
             return false

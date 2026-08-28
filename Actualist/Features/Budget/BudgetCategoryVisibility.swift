@@ -38,6 +38,22 @@ enum BudgetCategoryVisibility {
         return group.categories.filter { !isEffectivelyHidden(category: $0, group: group) }
     }
 
+    /// Categories that count toward overspent for a budget. Actual web
+    /// (`useOverspentCategories.ts`) keeps hidden overspent in envelope
+    /// budgets and drops them only in tracking budgets (`budgetType ===
+    /// 'tracking' ? !hidden : true`). Envelope is the Actual default, so a
+    /// missing `budgetType` preference is envelope. The money in a hidden
+    /// overspent envelope is still real and still needs covering.
+    static func overspentCategories(
+        in group: BudgetMonthCategoryGroup,
+        isTrackingBudget: Bool
+    ) -> [BudgetMonthCategory] {
+        guard isTrackingBudget else {
+            return group.categories
+        }
+        return visibleCategories(in: group)
+    }
+
     static func displayedGroups(
         from groups: [BudgetMonthCategoryGroup],
         showHidden: Bool
