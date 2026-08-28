@@ -130,6 +130,7 @@
 		0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */; };
 		0100000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */; };
 		0100000000000000000000A6 /* BudgetViewModelTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000A6 /* BudgetViewModelTestSupport.swift */; };
+		0100000000000000000000AF /* BudgetViewModelTemplateWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000AF /* BudgetViewModelTemplateWorkflowTests.swift */; };
 		01000000000000000000001A /* TransactionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001D /* TransactionEditorView.swift */; };
 		01000000000000000000001B /* TransactionEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001E /* TransactionEditorViewModel.swift */; };
 		01000000000000000000001C /* TransactionEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000001F /* TransactionEditorViewModelTests.swift */; };
@@ -408,6 +409,7 @@
 		0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelAssignmentWorkflowTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelMoveMoneyWorkflowTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000A6 /* BudgetViewModelTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelTestSupport.swift; sourceTree = "<group>"; };
+		0200000000000000000000AF /* BudgetViewModelTemplateWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetViewModelTemplateWorkflowTests.swift; sourceTree = "<group>"; };
 		02000000000000000000001D /* TransactionEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorView.swift; sourceTree = "<group>"; };
 		02000000000000000000001E /* TransactionEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModel.swift; sourceTree = "<group>"; };
 		02000000000000000000001F /* TransactionEditorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionEditorViewModelTests.swift; sourceTree = "<group>"; };
@@ -783,6 +785,7 @@
 				0200000000000000000000014E /* BudgetCategoryVisibilityWriteTests.swift */,
 				02000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift */,
 				0200000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift */,
+				0200000000000000000000AF /* BudgetViewModelTemplateWorkflowTests.swift */,
 				0200000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift */,
 				02000000000000000000000111 /* BudgetMoveMoneySliderTests.swift */,
 				0200000000000000000000A6 /* BudgetViewModelTestSupport.swift */,
@@ -1530,6 +1533,7 @@
 				0100000000000000000000014E /* BudgetCategoryVisibilityWriteTests.swift in Sources */,
 				01000000000000000000000113 /* BudgetMonthPrivacyProjectionTests.swift in Sources */,
 				0100000000000000000000A4 /* BudgetViewModelAssignmentWorkflowTests.swift in Sources */,
+				0100000000000000000000AF /* BudgetViewModelTemplateWorkflowTests.swift in Sources */,
 				0100000000000000000000A5 /* BudgetViewModelMoveMoneyWorkflowTests.swift in Sources */,
 				01000000000000000000000111 /* BudgetMoveMoneySliderTests.swift in Sources */,
 				0100000000000000000000A6 /* BudgetViewModelTestSupport.swift in Sources */,

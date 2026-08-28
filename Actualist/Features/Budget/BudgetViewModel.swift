@@ -626,6 +626,12 @@ final class BudgetViewModel {
         }
 
         errorMessage = nil
+        // Capture the request identity so a refresh returning after the user
+        // navigated to a different month/budget (or after a newer request) is
+        // detected as stale. The write still targets the captured month and
+        // syncs normally; only the returned refresh is dropped. See
+        // `BudgetTemplateWorkflow.beginRequest`/`isCurrent`.
+        let request = templateWorkflow.beginRequest(budgetID: budgetID, month: selectedMonth)
         switch await templateWorkflow.apply(
             command: command,
             selectedMonth: selectedMonth,
@@ -633,10 +639,28 @@ final class BudgetViewModel {
             repository: repository
         ) {
         case .success(let loadedMonth):
+            guard templateWorkflow.isCurrent(
+                request,
+                currentBudgetID: loadedBudgetID,
+                currentMonth: selectedMonth
+            ) else {
+                templateWorkflow.discardStaleResult()
+                return false
+            }
             apply(loadedMonth, budgetID: budgetID)
             errorMessage = nil
             return true
         case .failure(let error):
+            guard templateWorkflow.isCurrent(
+                request,
+                currentBudgetID: loadedBudgetID,
+                currentMonth: selectedMonth
+            ) else {
+                // A stale failure must not surface as an error for the current
+                // context.
+                templateWorkflow.discardStaleResult()
+                return false
+            }
             errorMessage = error.localizedDescription
             return false
         }
@@ -732,6 +756,10 @@ final class BudgetViewModel {
     }
 
     private func apply(_ loadedMonth: LoadedBudgetMonth, budgetID: String? = nil) {
+        // Any selection/state change supersedes an in-flight template request:
+        // tell the template workflow so a stale refresh returning later is
+        // detected by `isCurrent` and discarded instead of overwriting the UI.
+        templateWorkflow.noteSelectionChange()
         let currentMonth = budgetMonth?.month ?? selectedMonth
         let isSameMonth = currentMonth == loadedMonth.month.month
         let isSameBudget = loadedBudgetID == nil || budgetID == nil || loadedBudgetID == budgetID
