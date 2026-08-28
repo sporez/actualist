@@ -95,8 +95,9 @@ extension BudgetDatabase {
         let monthValue = try Self.actualMonthValue(month)
 
         return try queue.read { db in
+            let table = try budgetTable(db: db)
             let columns = try requiredColumns(
-                table: "zero_budgets",
+                table: table.rawValue,
                 required: ["month", "category", "amount"],
                 db: db
             )
@@ -109,6 +110,7 @@ extension BudgetDatabase {
                 categoryID: trimmedCategoryID,
                 budgeted: budgeted,
                 monthValue: monthValue,
+                table: table,
                 columns: columns,
                 db: db,
                 builder: &builder
@@ -145,14 +147,15 @@ extension BudgetDatabase {
             var messages: [ActualSyncDecodedMessage] = []
             var monthValue = startMonthValue
             while monthValue <= throughMonthValue {
-                let existingRowID = try zeroBudgetRowID(
+                let existingRowID = try budgetRowID(
+                    table: .envelope,
                     monthValue: monthValue,
                     categoryID: trimmedCategoryID,
                     columns: columns,
                     db: db
                 )
                 let rowID = existingRowID
-                    ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: trimmedCategoryID)
+                    ?? Self.budgetRowID(monthValue: monthValue, categoryID: trimmedCategoryID)
 
                 // A peer may need these columns to create the zero_budgets row.
                 messages.append(
@@ -472,8 +475,9 @@ extension BudgetDatabase {
         let monthValue = try Self.actualMonthValue(month)
 
         return try queue.read { db in
+            let table = try budgetTable(db: db)
             let columns = try requiredColumns(
-                table: "zero_budgets",
+                table: table.rawValue,
                 required: ["month", "category", "amount"],
                 db: db
             )
@@ -506,6 +510,7 @@ extension BudgetDatabase {
                     categoryID: categoryID,
                     budgeted: budgetedByCategory[categoryID] ?? 0,
                     monthValue: monthValue,
+                    table: table,
                     columns: columns,
                     db: db,
                     builder: &builder
@@ -530,22 +535,25 @@ extension BudgetDatabase {
         categoryID: String,
         budgeted: Int,
         monthValue: Int,
+        table: BudgetTable,
         columns: Set<String>,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        let existingRowID = try zeroBudgetRowID(
+        let existingRowID = try budgetRowID(
+            table: table,
             monthValue: monthValue,
             categoryID: categoryID,
             columns: columns,
             db: db
         )
-        let rowID = existingRowID ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: categoryID)
+        let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
+        let dataset = table.rawValue
         var messages: [ActualSyncDecodedMessage] = []
-        // The server may not know about zero_budgets rows created only in the imported file.
+        // The server may not know about budget rows created only in the imported file.
         messages.append(
             try builder.makeMessage(
-                dataset: "zero_budgets",
+                dataset: dataset,
                 row: rowID,
                 column: "month",
                 value: .int(Int64(monthValue))
@@ -553,7 +561,7 @@ extension BudgetDatabase {
         )
         messages.append(
             try builder.makeMessage(
-                dataset: "zero_budgets",
+                dataset: dataset,
                 row: rowID,
                 column: "category",
                 value: .string(categoryID)
@@ -562,7 +570,7 @@ extension BudgetDatabase {
         if existingRowID == nil, columns.contains("carryover") {
             messages.append(
                 try builder.makeMessage(
-                    dataset: "zero_budgets",
+                    dataset: dataset,
                     row: rowID,
                     column: "carryover",
                     value: .bool(false)
@@ -571,7 +579,7 @@ extension BudgetDatabase {
         }
         messages.append(
             try builder.makeMessage(
-                dataset: "zero_budgets",
+                dataset: dataset,
                 row: rowID,
                 column: "amount",
                 value: .int(Int64(budgeted))
@@ -580,7 +588,8 @@ extension BudgetDatabase {
         return messages
     }
 
-    func zeroBudgetRowID(
+    func budgetRowID(
+        table: BudgetTable,
         monthValue: Int,
         categoryID: String,
         columns: Set<String>,
@@ -592,7 +601,7 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT \(columns.contains("id") ? "id" : "NULL") AS id
-                FROM zero_budgets
+                FROM \(quotedIdentifier(table.rawValue))
                 WHERE \(normalizedMonthExpression(monthColumn)) = ? AND \(categoryColumn) = ?
                 LIMIT 1
                 """,
@@ -601,10 +610,10 @@ extension BudgetDatabase {
         if columns.contains("id") {
             return row?["id"] as String?
         }
-        return row == nil ? nil : Self.zeroBudgetRowID(monthValue: monthValue, categoryID: categoryID)
+        return row == nil ? nil : Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
     }
 
-    static func zeroBudgetRowID(monthValue: Int, categoryID: String) -> String {
+    static func budgetRowID(monthValue: Int, categoryID: String) -> String {
         "\(monthValue)-\(categoryID)"
     }
 

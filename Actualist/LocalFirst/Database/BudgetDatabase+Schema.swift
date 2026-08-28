@@ -58,6 +58,25 @@ extension BudgetDatabase {
         )
     }
 
+    func budgetTable(db: Database) throws -> BudgetTable {
+        try isTrackingBudget(db: db) ? .tracking : .envelope
+    }
+
+    func isTrackingBudget(db: Database) throws -> Bool {
+        guard try tableExists("preferences", db: db) else {
+            return false
+        }
+        let columns = try columnSet(for: "preferences", db: db)
+        guard columns.contains("id"), columns.contains("value") else {
+            return false
+        }
+        let budgetType = try String.fetchOne(
+            db,
+            sql: "SELECT value FROM preferences WHERE id = 'budgetType' LIMIT 1"
+        )
+        return budgetType == "tracking"
+    }
+
     func requiredColumns(
         table: String,
         required: [String],

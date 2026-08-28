@@ -11,8 +11,9 @@ extension BudgetDatabase {
 
         return try queue.read { db in
             let templateEngine = BudgetTemplateEngine(currency: try budgetCurrency(db: db))
+            let table = try budgetTable(db: db)
             let columns = try requiredColumns(
-                table: "zero_budgets",
+                table: table.rawValue,
                 required: ["month", "category", "amount"],
                 db: db
             )
@@ -20,7 +21,7 @@ extension BudgetDatabase {
             let goalDefsRaw = try readCategoryGoalDefsRaw(db: db)
             let categoryNames = try templateCategoryNames(db: db)
             let categoryIsIncome = try templateCategoryIsIncomeByID(db: db)
-            let isTracking = try isTrackingBudget(db: db)
+            let isTracking = table == .tracking
             let targeted = Set(
                 command.categoryIDs
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -120,7 +121,7 @@ extension BudgetDatabase {
 
             if writes.contains(where: { $0.longGoal == 1 }), !canWriteGoals {
                 throw LocalFirstError.unsupportedTemplate(
-                    "goal writes require zero_budgets.goal"
+                    "goal writes require \(table.rawValue).goal"
                 )
             }
 
@@ -130,6 +131,7 @@ extension BudgetDatabase {
                     categoryID: write.categoryID,
                     budgeted: write.amount,
                     monthValue: monthValue,
+                    table: table,
                     columns: columns,
                     db: db,
                     builder: &builder
@@ -140,6 +142,7 @@ extension BudgetDatabase {
                         goal: write.goal,
                         longGoal: write.longGoal,
                         monthValue: monthValue,
+                        table: table,
                         columns: columns,
                         db: db,
                         builder: &builder
@@ -153,6 +156,7 @@ extension BudgetDatabase {
                         goal: nil,
                         longGoal: nil,
                         monthValue: monthValue,
+                        table: table,
                         columns: columns,
                         db: db,
                         builder: &builder
@@ -164,36 +168,20 @@ extension BudgetDatabase {
         }
     }
 
-    func isTrackingBudget(db: Database) throws -> Bool {
-        guard try tableExists("preferences", db: db) else {
-            return false
-        }
-        let columns = try columnSet(for: "preferences", db: db)
-        guard columns.contains("id"), columns.contains("value") else {
-            return false
-        }
-        let budgetType = try String.fetchOne(
-            db,
-            sql: "SELECT value FROM preferences WHERE id = 'budgetType' LIMIT 1"
-        )
-        return budgetType == "tracking"
-    }
-
     func categoryGoals(month: String, db: Database) throws -> [String: Int] {
-        guard try tableExists("zero_budgets", db: db) else {
+        guard let source = try categoryBudgetSource(db: db) else {
             return [:]
         }
-        let columns = try columnSet(for: "zero_budgets", db: db)
-        guard columns.contains("goal") else {
+        guard source.columns.contains("goal") else {
             return [:]
         }
-        let category = column("category", fallback: "NULL", columns: columns)
+        let category = column("category", fallback: "NULL", columns: source.columns)
         let budgetMonth = normalizedMonthExpression("month")
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT \(category) AS category_id, goal
-                FROM zero_budgets
+                FROM \(quotedIdentifier(source.table.rawValue))
                 WHERE \(budgetMonth) = ? AND goal IS NOT NULL
                 """,
             arguments: [month]
@@ -211,6 +199,7 @@ extension BudgetDatabase {
         goal: Int?,
         longGoal: Int?,
         monthValue: Int,
+        table: BudgetTable,
         columns: Set<String>,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
@@ -218,17 +207,19 @@ extension BudgetDatabase {
         guard columns.contains("goal") else {
             return []
         }
-        let existingRowID = try zeroBudgetRowID(
+        let existingRowID = try budgetRowID(
+            table: table,
             monthValue: monthValue,
             categoryID: categoryID,
             columns: columns,
             db: db
         )
-        let rowID = existingRowID ?? Self.zeroBudgetRowID(monthValue: monthValue, categoryID: categoryID)
+        let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
+        let dataset = table.rawValue
         var messages: [ActualSyncDecodedMessage] = []
         messages.append(
             try builder.makeMessage(
-                dataset: "zero_budgets",
+                dataset: dataset,
                 row: rowID,
                 column: "month",
                 value: .int(Int64(monthValue))
@@ -236,7 +227,7 @@ extension BudgetDatabase {
         )
         messages.append(
             try builder.makeMessage(
-                dataset: "zero_budgets",
+                dataset: dataset,
                 row: rowID,
                 column: "category",
                 value: .string(categoryID)
@@ -245,7 +236,7 @@ extension BudgetDatabase {
         if existingRowID == nil, columns.contains("carryover") {
             messages.append(
                 try builder.makeMessage(
-                    dataset: "zero_budgets",
+                    dataset: dataset,
                     row: rowID,
                     column: "carryover",
                     value: .bool(false)
@@ -254,7 +245,7 @@ extension BudgetDatabase {
         }
         messages.append(
             try builder.makeMessage(
-                dataset: "zero_budgets",
+                dataset: dataset,
                 row: rowID,
                 column: "goal",
                 value: goal.map { .int(Int64($0)) } ?? .null
@@ -263,7 +254,7 @@ extension BudgetDatabase {
         if columns.contains("long_goal") {
             messages.append(
                 try builder.makeMessage(
-                    dataset: "zero_budgets",
+                    dataset: dataset,
                     row: rowID,
                     column: "long_goal",
                     value: longGoal.map { .int(Int64($0)) } ?? .null

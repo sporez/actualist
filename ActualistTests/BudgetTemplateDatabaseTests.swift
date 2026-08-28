@@ -297,8 +297,7 @@ extension LocalFirstActualStoreTests {
     @Test func budgetTemplateTrackingIncludesIncomeCategories() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
-            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
-            INSERT INTO preferences VALUES ('budgetType', 'tracking');
+            \(trackingBudgetSQL())
             INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
             INSERT INTO categories VALUES (
                 'salary', 'Salary', 'income-group', 1, 0, 0, 0,
@@ -313,16 +312,22 @@ extension LocalFirstActualStoreTests {
             month: "2026-07",
             builder: &builder
         )
+        #expect(messages.contains { message in
+            message.dataset == "reflect_budgets" && message.row.contains("salary")
+        })
+        #expect(!messages.contains { $0.dataset == "zero_budgets" })
         _ = try await database.applyLocalSyncMessages(messages)
-        #expect(try zeroBudgetAmount("salary", at: fixtureURL) == 10_000)
+        #expect(try reflectBudgetAmount("salary", at: fixtureURL) == 10_000)
+        #expect(try zeroBudgetAmount("salary", at: fixtureURL) == nil)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
     }
 
     @Test func budgetTemplateTrackingFromLastMonthRequiresCarryover() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
-            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
-            INSERT INTO preferences VALUES ('budgetType', 'tracking');
-            INSERT INTO zero_budgets VALUES (202606, 'groceries', 10000, 0);
+            \(trackingBudgetSQL())
+            INSERT INTO zero_budgets VALUES (202606, 'groceries', 10000, 1);
+            INSERT INTO reflect_budgets VALUES ('202606-groceries', 202606, 'groceries', 10000, 0);
             UPDATE categories
             SET goal_def = '[
                 {"directive":"template","type":"limit","amount":200,"period":"monthly","hold":false,"priority":null},
@@ -338,7 +343,88 @@ extension LocalFirstActualStoreTests {
             builder: &builder
         )
         _ = try await database.applyLocalSyncMessages(messages)
-        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 20_000)
+        #expect(try reflectBudgetAmount("groceries", at: fixtureURL) == 20_000)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
+        #expect(try budgetAmount("groceries", table: "zero_budgets", month: 202606, at: fixtureURL) == 10_000)
+    }
+
+    @Test func budgetTemplateTrackingFillEmptyReadsReflectNotZero() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            \(trackingBudgetSQL())
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"simple","monthly":50,"priority":0}]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .fillEmpty,
+            month: "2026-07",
+            builder: &builder
+        )
+        #expect(messages.contains { message in
+            message.dataset == "reflect_budgets" && message.column == "amount"
+        })
+        #expect(!messages.contains { $0.dataset == "zero_budgets" })
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try reflectBudgetAmount("groceries", at: fixtureURL) == 5_000)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
+    }
+
+    @Test func budgetTemplateTrackingCopyUsesReflectHistoryNotZero() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            \(trackingBudgetSQL())
+            INSERT INTO zero_budgets VALUES (202606, 'groceries', 99999, 0);
+            INSERT INTO reflect_budgets VALUES ('202606-groceries', 202606, 'groceries', 12345, 0);
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"copy","lookBack":1,"priority":0}]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try reflectBudgetAmount("groceries", at: fixtureURL) == 12_345)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
+        #expect(try budgetAmount("groceries", table: "zero_budgets", month: 202606, at: fixtureURL) == 99_999)
+    }
+
+    @Test func budgetTemplateTrackingGoalWritesReflectNotZero() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            \(trackingBudgetSQL(includeGoals: true))
+            UPDATE zero_budgets SET goal = 1, long_goal = 1 WHERE category = 'groceries';
+            UPDATE categories
+            SET goal_def = '[
+                {"directive":"goal","type":"goal","amount":500,"priority":null},
+                {"directive":"template","type":"simple","monthly":50,"priority":0}
+            ]'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+        #expect(messages.contains { message in
+            message.dataset == "reflect_budgets" && message.column == "goal"
+        })
+        #expect(!messages.contains { $0.dataset == "zero_budgets" })
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try reflectBudgetAmount("groceries", at: fixtureURL) == 5_000)
+        #expect(try budgetGoal("groceries", table: "reflect_budgets", at: fixtureURL) == 50_000)
+        #expect(try budgetLongGoal("groceries", table: "reflect_budgets", at: fixtureURL) == 1)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
+        #expect(try zeroBudgetGoal("groceries", at: fixtureURL) == 1)
+        #expect(try zeroBudgetLongGoal("groceries", at: fixtureURL) == 1)
     }
 
     @Test func budgetTemplateEnvelopeFromLastMonthUsesLeftoverWithoutTrackingZero() async throws {
@@ -387,32 +473,77 @@ extension LocalFirstActualStoreTests {
         #expect(try cleanupGroupTombstone("orphan-group", at: fixtureURL) == 1)
     }
 
+    private func trackingBudgetSQL(includeGoals: Bool = false) -> String {
+        var sql = """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('budgetType', 'tracking');
+            CREATE TABLE reflect_budgets (
+                id TEXT PRIMARY KEY,
+                month INTEGER,
+                category TEXT,
+                amount INTEGER,
+                carryover INTEGER
+            );
+            """
+        if includeGoals {
+            sql += """
+                ALTER TABLE reflect_budgets ADD COLUMN goal INTEGER;
+                ALTER TABLE reflect_budgets ADD COLUMN long_goal INTEGER;
+                ALTER TABLE zero_budgets ADD COLUMN goal INTEGER;
+                ALTER TABLE zero_budgets ADD COLUMN long_goal INTEGER;
+                """
+        }
+        return sql
+    }
+
     private func zeroBudgetAmount(_ categoryID: String, at databaseURL: URL) throws -> Int? {
+        try budgetAmount(categoryID, table: "zero_budgets", at: databaseURL)
+    }
+
+    private func reflectBudgetAmount(_ categoryID: String, at databaseURL: URL) throws -> Int? {
+        try budgetAmount(categoryID, table: "reflect_budgets", at: databaseURL)
+    }
+
+    private func budgetAmount(
+        _ categoryID: String,
+        table: String,
+        month: Int = 202607,
+        at databaseURL: URL
+    ) throws -> Int? {
         let queue = try DatabaseQueue(path: databaseURL.path)
         return try queue.read { db in
             try Int.fetchOne(
                 db,
                 sql: """
                     SELECT amount
-                    FROM zero_budgets
-                    WHERE category = ? AND month = 202607
+                    FROM \(table)
+                    WHERE category = ? AND month = ?
                     """,
-                arguments: [categoryID]
+                arguments: [categoryID, month]
             )
         }
     }
 
     private func zeroBudgetGoal(_ categoryID: String, at databaseURL: URL) throws -> Int? {
-        try zeroBudgetColumn("goal", categoryID: categoryID, at: databaseURL)
+        try budgetColumn("goal", categoryID: categoryID, table: "zero_budgets", at: databaseURL)
     }
 
     private func zeroBudgetLongGoal(_ categoryID: String, at databaseURL: URL) throws -> Int? {
-        try zeroBudgetColumn("long_goal", categoryID: categoryID, at: databaseURL)
+        try budgetColumn("long_goal", categoryID: categoryID, table: "zero_budgets", at: databaseURL)
     }
 
-    private func zeroBudgetColumn(
+    private func budgetGoal(_ categoryID: String, table: String, at databaseURL: URL) throws -> Int? {
+        try budgetColumn("goal", categoryID: categoryID, table: table, at: databaseURL)
+    }
+
+    private func budgetLongGoal(_ categoryID: String, table: String, at databaseURL: URL) throws -> Int? {
+        try budgetColumn("long_goal", categoryID: categoryID, table: table, at: databaseURL)
+    }
+
+    private func budgetColumn(
         _ column: String,
         categoryID: String,
+        table: String,
         at databaseURL: URL
     ) throws -> Int? {
         let queue = try DatabaseQueue(path: databaseURL.path)
@@ -421,7 +552,7 @@ extension LocalFirstActualStoreTests {
                 db,
                 sql: """
                     SELECT \(column)
-                    FROM zero_budgets
+                    FROM \(table)
                     WHERE category = ? AND month = 202607
                     """,
                 arguments: [categoryID]

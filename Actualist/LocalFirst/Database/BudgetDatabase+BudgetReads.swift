@@ -255,20 +255,27 @@ extension BudgetDatabase {
         return targetValues
     }
 
+    func categoryBudgetSource(db: Database) throws -> (table: BudgetTable, columns: Set<String>)? {
+        let table = try budgetTable(db: db)
+        guard try tableExists(table.rawValue, db: db) else {
+            return nil
+        }
+        return (table, try columnSet(for: table.rawValue, db: db))
+    }
+
     func categoryBudgets(month: String, db: Database) throws -> [String: (budgeted: Int, carryover: Bool)] {
-        guard try tableExists("zero_budgets", db: db) else {
+        guard let source = try categoryBudgetSource(db: db) else {
             return [:]
         }
-        let columns = try columnSet(for: "zero_budgets", db: db)
-        let category = column("category", fallback: "NULL", columns: columns)
-        let amount = column("amount", fallback: "0", columns: columns)
-        let carryover = column("carryover", fallback: "0", columns: columns)
+        let category = column("category", fallback: "NULL", columns: source.columns)
+        let amount = column("amount", fallback: "0", columns: source.columns)
+        let carryover = column("carryover", fallback: "0", columns: source.columns)
         let budgetMonth = normalizedMonthExpression("month")
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT \(category) AS category_id, \(amount) AS amount, \(carryover) AS carryover
-                FROM zero_budgets
+                FROM \(quotedIdentifier(source.table.rawValue))
                 WHERE \(budgetMonth) = ?
                 """,
             arguments: [month]
@@ -288,19 +295,18 @@ extension BudgetDatabase {
     }
 
     func categoryBudgetsByMonth(db: Database) throws -> [String: [String: (budgeted: Int, carryover: Bool)]] {
-        guard try tableExists("zero_budgets", db: db) else {
+        guard let source = try categoryBudgetSource(db: db) else {
             return [:]
         }
-        let columns = try columnSet(for: "zero_budgets", db: db)
-        let category = column("category", fallback: "NULL", columns: columns)
-        let amount = column("amount", fallback: "0", columns: columns)
-        let carryover = column("carryover", fallback: "0", columns: columns)
+        let category = column("category", fallback: "NULL", columns: source.columns)
+        let amount = column("amount", fallback: "0", columns: source.columns)
+        let carryover = column("carryover", fallback: "0", columns: source.columns)
         let budgetMonth = normalizedMonthExpression("month")
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT \(budgetMonth) AS month, \(category) AS category_id, \(amount) AS amount, \(carryover) AS carryover
-                FROM zero_budgets
+                FROM \(quotedIdentifier(source.table.rawValue))
                 WHERE month IS NOT NULL
                 """
         )

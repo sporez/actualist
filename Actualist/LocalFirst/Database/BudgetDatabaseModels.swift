@@ -1,5 +1,12 @@
 import Foundation
 
+/// Actual stores envelope amounts in `zero_budgets` and tracking amounts in
+/// `reflect_budgets`. Match `getBudgetTable()` rather than hard-coding either name.
+enum BudgetTable: String {
+    case envelope = "zero_budgets"
+    case tracking = "reflect_budgets"
+}
+
 struct EnvelopeCategoryValue {
     var budgeted: Int = 0
     var spent: Int = 0

@@ -349,22 +349,10 @@ extension BudgetDatabase {
     }
 
     private func reportBudgetedExpenses(month: String, db: Database) throws -> Int {
-        var budgetTable = "zero_budgets"
-        if try tableExists("preferences", db: db), try tableExists("reflect_budgets", db: db) {
-            let preferenceColumns = try columnSet(for: "preferences", db: db)
-            if preferenceColumns.contains("id"), preferenceColumns.contains("value") {
-                let budgetType = try String.fetchOne(
-                    db,
-                    sql: "SELECT value FROM preferences WHERE id = 'budgetType' LIMIT 1"
-                )
-                if budgetType == "tracking" {
-                    budgetTable = "reflect_budgets"
-                }
-            }
-        }
-        guard try tableExists(budgetTable, db: db) else { return 0 }
+        let table = try budgetTable(db: db)
+        guard try tableExists(table.rawValue, db: db) else { return 0 }
 
-        let budgetColumns = try columnSet(for: budgetTable, db: db)
+        let budgetColumns = try columnSet(for: table.rawValue, db: db)
         let budgetAmount = column("amount", fallback: "0", columns: budgetColumns)
         let budgetMonth = column("month", fallback: "NULL", columns: budgetColumns)
         let normalizedMonth = normalizedMonthExpression("z.\(budgetMonth)")
@@ -373,7 +361,7 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT SUM(z.\(budgetAmount)) AS amount
-                FROM \(budgetTable) z
+                FROM \(quotedIdentifier(table.rawValue)) z
                 WHERE \(normalizedMonth) = ?
                 """,
             arguments: [month]
