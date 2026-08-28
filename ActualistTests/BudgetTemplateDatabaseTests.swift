@@ -278,6 +278,101 @@ extension LocalFirstActualStoreTests {
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 125_000)
     }
 
+    @Test func budgetTemplateScheduleIdWritesThePayMonthAmount() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: scheduleTemplateSQL(
+            goalDef: #"[{"directive":"template","type":"schedule","name":"Rent","scheduleId":"rent-sched","priority":0}]"#,
+            schedules: [("rent-sched", "Rent", -125000)]
+        ))
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 125_000)
+    }
+
+    @Test func budgetTemplateRenamedScheduleStillResolvesByScheduleId() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: scheduleTemplateSQL(
+            goalDef: #"[{"directive":"template","type":"schedule","name":"Rent","scheduleId":"rent-sched","priority":0}]"#,
+            schedules: [("rent-sched", "Housing", -125000)]
+        ))
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 125_000)
+    }
+
+    @Test func budgetTemplateDuplicateScheduleNamesResolveTheIntendedId() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: scheduleTemplateSQL(
+            goalDef: #"[{"directive":"template","type":"schedule","name":"Rent","scheduleId":"rent-b","priority":0}]"#,
+            schedules: [
+                ("rent-a", "Rent", -125000),
+                ("rent-b", "Rent", -50000)
+            ]
+        ))
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetTemplateMessages(
+            command: .category("groceries"),
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.applyLocalSyncMessages(messages)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
+    }
+
+    @Test func budgetTemplateInvalidScheduleIdDoesNotFallBackToName() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: scheduleTemplateSQL(
+            goalDef: #"[{"directive":"template","type":"schedule","name":"Rent","scheduleId":"missing","priority":0}]"#,
+            schedules: [("rent-sched", "Rent", -125000)]
+        ))
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        do {
+            _ = try await database.budgetTemplateMessages(
+                command: .category("groceries"),
+                month: "2026-07",
+                builder: &builder
+            )
+            Issue.record("Expected an invalid scheduleId to be refused")
+        } catch LocalFirstError.unsupportedTemplate(let reason) {
+            #expect(reason.contains("Schedule Rent does not exist"))
+        }
+        #expect(try await database.pendingLocalSyncMessageCount() == 0)
+        #expect(try storedCRDTMessages(at: fixtureURL).isEmpty)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
+    }
+
+    @Test func budgetTemplateMissingScheduleIdWritesNothing() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: scheduleTemplateSQL(
+            goalDef: #"[{"directive":"template","type":"schedule","scheduleId":"missing","priority":0}]"#,
+            schedules: [("rent-sched", "Rent", -125000)]
+        ))
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        var builder = LocalFirstSyncMessageBuilder()
+        do {
+            _ = try await database.budgetTemplateMessages(
+                command: .category("groceries"),
+                month: "2026-07",
+                builder: &builder
+            )
+            Issue.record("Expected a missing scheduleId to be refused")
+        } catch LocalFirstError.unsupportedTemplate(let reason) {
+            #expect(reason.contains("Schedule missing does not exist"))
+        }
+        #expect(try await database.pendingLocalSyncMessageCount() == 0)
+        #expect(try storedCRDTMessages(at: fixtureURL).isEmpty)
+        #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
+    }
+
     @Test func budgetTemplateMissingScheduleNameWritesNothing() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
@@ -805,6 +900,44 @@ extension LocalFirstActualStoreTests {
                 arguments: [categoryID]
             )
         }
+    }
+
+    private func scheduleTemplateSQL(
+        goalDef: String,
+        schedules: [(id: String, name: String, amount: Int)]
+    ) -> String {
+        var sql = """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            UPDATE categories
+            SET goal_def = '\(goalDef)'
+            WHERE id = 'groceries';
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            CREATE TABLE schedules (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                rule TEXT,
+                completed INTEGER,
+                tombstone INTEGER
+            );
+            """
+        for schedule in schedules {
+            let ruleID = "\(schedule.id)-rule"
+            sql += """
+                INSERT INTO rules VALUES (
+                    '\(ruleID)',
+                    '[{"op":"is","field":"amount","value":\(schedule.amount)},{"op":"is","field":"date","value":{"start":"2026-01-01","frequency":"monthly","interval":1}}]',
+                    '[{"op":"link-schedule","value":"\(schedule.id)"}]',
+                    0
+                );
+                INSERT INTO schedules VALUES ('\(schedule.id)', '\(schedule.name)', '\(ruleID)', 0, 0);
+                """
+        }
+        return sql
     }
 
     private func cleanupGroupTombstone(_ groupID: String, at databaseURL: URL) throws -> Int? {

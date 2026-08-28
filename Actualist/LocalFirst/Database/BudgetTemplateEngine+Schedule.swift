@@ -65,9 +65,9 @@ extension BudgetTemplateEngine {
     ) throws -> [ResolvedSchedule] {
         var instances: [ResolvedSchedule] = []
         for entry in entries where entry.type == "schedule" {
-            let name = entry.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard let resolved = category.resolvedSchedules[name] else {
-                throw LocalFirstError.unsupportedTemplate("Schedule \(name) does not exist")
+            guard let key = entry.scheduleLookupKey,
+                  let resolved = category.resolvedSchedules[key] else {
+                throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
             }
             if resolved.completed || resolved.monthsUntil < 0 {
                 continue

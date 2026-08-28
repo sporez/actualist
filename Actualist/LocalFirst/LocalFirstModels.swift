@@ -128,6 +128,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     let repeatInterval: Int?
     let weight: Double?
     let name: String?
+    let scheduleId: String?
     let full: Bool?
 
     var percentageAmount: Double? { percent ?? percentage }
@@ -137,6 +138,33 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
     // when they are the only actionable directive.
     var setsBudget: Bool { directive == "template" }
     var isGoal: Bool { directive == "goal" && type == "goal" }
+
+    // Actual prefers immutable `scheduleId` and only uses `name` for older
+    // note/template definitions that never stored an ID.
+    var presentScheduleID: String? {
+        guard let scheduleId, !scheduleId.isEmpty else { return nil }
+        return scheduleId
+    }
+
+    var trimmedScheduleName: String? {
+        guard let name else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var scheduleLookupKey: String? {
+        presentScheduleID ?? trimmedScheduleName
+    }
+
+    var missingScheduleReason: String {
+        if let id = presentScheduleID {
+            return "Schedule \(name ?? id) does not exist"
+        }
+        if let trimmed = trimmedScheduleName {
+            return "Schedule \(trimmed) does not exist"
+        }
+        return "Schedule template has no scheduleId or name"
+    }
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -163,6 +191,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         case repeatInterval = "repeat"
         case weight
         case name
+        case scheduleId
         case full
     }
 
@@ -189,6 +218,7 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         repeatInterval = try container.decodeIfPresent(Int.self, forKey: .repeatInterval)
         weight = try container.decodeIfPresent(Double.self, forKey: .weight)
         name = try container.decodeIfPresent(String.self, forKey: .name)
+        scheduleId = try container.decodeIfPresent(String.self, forKey: .scheduleId)
         full = try container.decodeIfPresent(Bool.self, forKey: .full)
 
         if type == "limit" {

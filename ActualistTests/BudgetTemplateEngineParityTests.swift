@@ -307,6 +307,25 @@ struct BudgetTemplateEngineParityTests {
         #expect(decoded.contains { $0.setsBudget } == false)
     }
 
+    @Test func scheduleTemplatePreservesScheduleIdAndName() throws {
+        let withBoth = try #require(
+            try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"schedule","name":"Rent","scheduleId":"rent-1","priority":0}]"#
+            )
+        )
+        #expect(withBoth.count == 1)
+        #expect(withBoth[0].scheduleId == "rent-1")
+        #expect(withBoth[0].name == "Rent")
+
+        let nameOnly = try #require(
+            try engine.decodeSupportedEntries(
+                json: #"[{"directive":"template","type":"schedule","name":"Rent","priority":0}]"#
+            )
+        )
+        #expect(nameOnly[0].scheduleId == nil)
+        #expect(nameOnly[0].name == "Rent")
+    }
+
     @Test func validActualRemainderAndSimpleGoalDefsAreAccepted() throws {
         let remainderEntries = try #require(
             try engine.decodeSupportedEntries(

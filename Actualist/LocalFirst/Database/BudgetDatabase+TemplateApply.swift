@@ -62,7 +62,9 @@ extension BudgetDatabase {
                 ? trackingTotalSaved(month: monthID(monthValue), db: db)
                 : envelopeToBudget(month: monthID(monthValue), db: db)
             var incomeCatalog = try templateIncomeCatalog(db: db)
-            incomeCatalog.activeScheduleNames = try templateActiveScheduleNames(db: db)
+            let activeSchedules = try templateActiveSchedules(db: db)
+            incomeCatalog.activeScheduleIDs = activeSchedules.ids
+            incomeCatalog.activeScheduleNames = activeSchedules.names
             for categoryID in scope {
                 let currentBudgeted = currentBudgets[categoryID]?.budgeted ?? 0
                 guard let json = goalDefsRaw[categoryID] else {
@@ -83,7 +85,8 @@ extension BudgetDatabase {
                         try templateEngine.validateByScheduleAndSpend(
                             entries,
                             monthValue: monthValue,
-                            activeScheduleNames: incomeCatalog.activeScheduleNames
+                            activeScheduleNames: incomeCatalog.activeScheduleNames,
+                            activeScheduleIDs: incomeCatalog.activeScheduleIDs
                         )
                         categoryTemplates[categoryID] = entries
                         if !isGoalOnly(entries) {

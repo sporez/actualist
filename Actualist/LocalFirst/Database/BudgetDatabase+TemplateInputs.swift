@@ -21,7 +21,9 @@ extension BudgetDatabase {
         }
 
         var monthSources = try templateIncomeCatalog(db: db)
-        monthSources.activeScheduleNames = try templateActiveScheduleNames(db: db)
+        let activeSchedules = try templateActiveSchedules(db: db)
+        monthSources.activeScheduleIDs = activeSchedules.ids
+        monthSources.activeScheduleNames = activeSchedules.names
         if categoryTemplates.values.contains(where: { entries in
             entries.contains { $0.type == "percentage" }
         }) {
@@ -96,29 +98,37 @@ extension BudgetDatabase {
         )
     }
 
-    func templateActiveScheduleNames(db: Database) throws -> Set<String> {
+    func templateActiveSchedules(db: Database) throws -> (ids: Set<String>, names: Set<String>) {
         guard try tableExists("schedules", db: db) else {
-            return []
+            return ([], [])
         }
         let columns = try columnSet(for: "schedules", db: db)
         guard columns.contains("name") else {
-            return []
+            return ([], [])
         }
+        let idSelection = columns.contains("id") ? "id" : "NULL"
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT name
+                SELECT \(idSelection) AS id, name
                 FROM schedules
                 WHERE name IS NOT NULL
                   AND \(predicateForLiveRows(columns: columns))
                 """
         )
-        return Set(
-            rows.compactMap { row in
-                (row["name"] as String?)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }.filter { !$0.isEmpty }
-        )
+        var ids: Set<String> = []
+        var names: Set<String> = []
+        for row in rows {
+            if let id = row["id"] as String?, !id.isEmpty {
+                ids.insert(id)
+            }
+            if let name = (row["name"] as String?)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !name.isEmpty {
+                names.insert(name)
+            }
+        }
+        return (ids, names)
     }
 
     private func templateEngineCategory(
@@ -230,7 +240,8 @@ extension BudgetDatabase {
             incomeActivityByCategoryID: incomeActivityByCategoryID,
             incomeCategoryIDs: catalog.incomeCategoryIDs,
             incomeCategoryIDByLocalizedName: catalog.incomeCategoryIDByLocalizedName,
-            activeScheduleNames: catalog.activeScheduleNames
+            activeScheduleNames: catalog.activeScheduleNames,
+            activeScheduleIDs: catalog.activeScheduleIDs
         )
     }
 
@@ -368,27 +379,12 @@ extension BudgetDatabase {
         isIncome: Bool,
         db: Database
     ) throws -> [String: BudgetTemplateEngine.ResolvedSchedule] {
-        let names = Set(
-            entries.compactMap { entry -> String? in
-                guard entry.type == "schedule" else {
-                    return nil
-                }
-                let name = entry.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                return name.isEmpty ? nil : name
-            }
-        )
-        guard !names.isEmpty else {
-            return [:]
-        }
-
         var resolved: [String: BudgetTemplateEngine.ResolvedSchedule] = [:]
         for entry in entries where entry.type == "schedule" {
-            let name = entry.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !name.isEmpty, resolved[name] == nil else {
+            guard let key = entry.scheduleLookupKey, resolved[key] == nil else {
                 continue
             }
-            resolved[name] = try resolveSchedule(
-                named: name,
+            resolved[key] = try resolveSchedule(
                 entry: entry,
                 monthValue: monthValue,
                 isIncome: isIncome,
@@ -399,34 +395,49 @@ extension BudgetDatabase {
     }
 
     private func resolveSchedule(
-        named name: String,
         entry: BudgetTemplateEntry,
         monthValue: Int,
         isIncome: Bool,
         db: Database
     ) throws -> BudgetTemplateEngine.ResolvedSchedule {
+        let missing = entry.missingScheduleReason
         guard try tableExists("schedules", db: db), try tableExists("rules", db: db) else {
-            throw LocalFirstError.unsupportedTemplate("Schedule \(name) does not exist")
+            throw LocalFirstError.unsupportedTemplate(missing)
         }
         let scheduleColumns = try columnSet(for: "schedules", db: db)
         guard scheduleColumns.contains("name") else {
-            throw LocalFirstError.unsupportedTemplate("Schedule \(name) does not exist")
+            throw LocalFirstError.unsupportedTemplate(missing)
         }
         let completedColumn = scheduleColumns.contains("completed") ? "completed" : "0"
         let ruleColumn = scheduleColumns.contains("rule") ? "rule" : "NULL"
+        let nameSelection = scheduleColumns.contains("name") ? "name" : "NULL"
+        let identityPredicate: String
+        let identityArgument: String
+        if let scheduleID = entry.presentScheduleID {
+            guard scheduleColumns.contains("id") else {
+                throw LocalFirstError.unsupportedTemplate(missing)
+            }
+            identityPredicate = "id = ?"
+            identityArgument = scheduleID
+        } else {
+            identityPredicate = "TRIM(name) = ?"
+            identityArgument = entry.trimmedScheduleName ?? ""
+        }
         let row = try Row.fetchOne(
             db,
             sql: """
-                SELECT \(ruleColumn) AS rule, \(completedColumn) AS completed
+                SELECT \(nameSelection) AS name,
+                       \(ruleColumn) AS rule,
+                       \(completedColumn) AS completed
                 FROM schedules
-                WHERE TRIM(name) = ?
+                WHERE \(identityPredicate)
                   AND \(predicateForLiveRows(columns: scheduleColumns))
                 LIMIT 1
                 """,
-            arguments: [name]
+            arguments: [identityArgument]
         )
         guard let row else {
-            throw LocalFirstError.unsupportedTemplate("Schedule \(name) does not exist")
+            throw LocalFirstError.unsupportedTemplate(missing)
         }
         let completed = flexibleBool(row["completed"])
         guard let ruleID = row["rule"] as String?, !ruleID.isEmpty else {
@@ -522,8 +533,12 @@ extension BudgetDatabase {
             from: monthValue,
             to: nextMonthValue
         )
+        let resolvedName = (row["name"] as String?)
+            ?? entry.name
+            ?? entry.presentScheduleID
+            ?? ""
         return BudgetTemplateEngine.ResolvedSchedule(
-            name: name,
+            name: resolvedName,
             amount: roundedAmount,
             nextDate: nextDateString,
             monthsUntil: monthsUntil,

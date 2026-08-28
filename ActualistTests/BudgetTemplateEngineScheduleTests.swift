@@ -107,6 +107,127 @@ struct BudgetTemplateEngineScheduleTests {
         }
     }
 
+    @Test func scheduleIdTemplateBudgetsTheMatchingSchedule() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "rent": category(
+                    json: schedule(name: "Rent", scheduleId: "rent-1"),
+                    resolvedSchedules: [
+                        "rent-1": monthlySchedule(name: "Rent", target: 125_000)
+                    ]
+                )
+            ],
+            monthSources: .init(
+                activeScheduleNames: ["Rent"],
+                activeScheduleIDs: ["rent-1"]
+            )
+        )
+        #expect(amounts["rent"] == 125_000)
+    }
+
+    @Test func renamedScheduleStillResolvesByScheduleId() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "rent": category(
+                    json: schedule(name: "Rent", scheduleId: "rent-1"),
+                    resolvedSchedules: [
+                        "rent-1": monthlySchedule(name: "Housing", target: 125_000)
+                    ]
+                )
+            ],
+            monthSources: .init(
+                activeScheduleNames: ["Housing"],
+                activeScheduleIDs: ["rent-1"]
+            )
+        )
+        #expect(amounts["rent"] == 125_000)
+    }
+
+    @Test func duplicateScheduleNamesResolveTheIntendedScheduleId() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "rent": category(
+                    json: schedule(name: "Rent", scheduleId: "rent-b"),
+                    resolvedSchedules: [
+                        "rent-a": monthlySchedule(name: "Rent", target: 125_000),
+                        "rent-b": monthlySchedule(name: "Rent", target: 50_000),
+                        "Rent": monthlySchedule(name: "Rent", target: 125_000)
+                    ]
+                )
+            ],
+            monthSources: .init(
+                activeScheduleNames: ["Rent"],
+                activeScheduleIDs: ["rent-a", "rent-b"]
+            )
+        )
+        #expect(amounts["rent"] == 50_000)
+    }
+
+    @Test func invalidScheduleIdDoesNotFallBackToTheSameName() throws {
+        do {
+            _ = try writeAmounts(
+                categories: [
+                    "rent": category(
+                        json: schedule(name: "Rent", scheduleId: "missing"),
+                        resolvedSchedules: [
+                            "Rent": monthlySchedule(name: "Rent", target: 125_000)
+                        ]
+                    )
+                ],
+                monthSources: .init(
+                    activeScheduleNames: ["Rent"],
+                    activeScheduleIDs: ["rent-1"]
+                )
+            )
+            Issue.record("Expected an invalid scheduleId to be refused")
+        } catch LocalFirstError.unsupportedTemplate(let reason) {
+            #expect(reason == "Schedule Rent does not exist")
+        }
+    }
+
+    @Test func scheduleIdOnlyTemplateDoesNotNeedAName() throws {
+        let amounts = try writeAmounts(
+            categories: [
+                "rent": category(
+                    json: schedule(scheduleId: "rent-1"),
+                    resolvedSchedules: [
+                        "rent-1": monthlySchedule(name: "Rent", target: 125_000)
+                    ]
+                )
+            ],
+            monthSources: .init(
+                activeScheduleNames: ["Rent"],
+                activeScheduleIDs: ["rent-1"]
+            )
+        )
+        #expect(amounts["rent"] == 125_000)
+    }
+
+    @Test func scheduleTemplateWithoutIdOrNameIsRefused() throws {
+        do {
+            _ = try engine.decodeSupportedEntries(json: """
+                [{"directive":"template","type":"schedule","priority":0}]
+                """)
+            Issue.record("Expected a schedule template without identity to be refused")
+        } catch LocalFirstError.unsupportedTemplate(let reason) {
+            #expect(reason == "Schedule template has no scheduleId or name")
+        }
+    }
+
+    @Test func nonexistentScheduleIdUsesActualsMissingScheduleError() throws {
+        do {
+            _ = try writeAmounts(
+                categories: [
+                    "rent": category(json: schedule(scheduleId: "missing"))
+                ],
+                monthSources: .init(activeScheduleIDs: ["rent-1"])
+            )
+            Issue.record("Expected a missing scheduleId to be refused")
+        } catch LocalFirstError.unsupportedTemplate(let reason) {
+            #expect(reason == "Schedule missing does not exist")
+        }
+    }
+
     @Test func scheduleAndByMustShareTheLowestPriority() throws {
         do {
             _ = try engine.validateByScheduleAndSpend(
@@ -176,15 +297,16 @@ struct BudgetTemplateEngineScheduleTests {
         """
     }
 
-    private func schedule(name: String) -> String {
-        """
-        [{
-          "directive":"template",
-          "type":"schedule",
-          "name":"\(name)",
-          "priority":0
-        }]
-        """
+    private func schedule(name: String? = nil, scheduleId: String? = nil) -> String {
+        var json = #"[{"directive":"template","type":"schedule","priority":0"#
+        if let name {
+            json += #","name":"\#(name)""#
+        }
+        if let scheduleId {
+            json += #","scheduleId":"\#(scheduleId)""#
+        }
+        json += "}]"
+        return json
     }
 
     private func monthlySchedule(name: String, target: Int) -> BudgetTemplateEngine.ResolvedSchedule {

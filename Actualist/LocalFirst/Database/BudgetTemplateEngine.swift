@@ -52,6 +52,7 @@ struct BudgetTemplateEngine {
         var incomeCategoryIDs: Set<String> = []
         var incomeCategoryIDByLocalizedName: [String: String] = [:]
         var activeScheduleNames: Set<String> = []
+        var activeScheduleIDs: Set<String> = []
     }
 
     struct Write: Equatable, Sendable {
@@ -164,7 +165,8 @@ struct BudgetTemplateEngine {
             try validateByScheduleAndSpend(
                 category.entries,
                 monthValue: monthValue,
-                activeScheduleNames: monthSources.activeScheduleNames
+                activeScheduleNames: monthSources.activeScheduleNames,
+                activeScheduleIDs: monthSources.activeScheduleIDs
             )
         }
 

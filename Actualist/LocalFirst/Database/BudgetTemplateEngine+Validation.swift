@@ -137,10 +137,11 @@ extension BudgetTemplateEngine {
                 throw LocalFirstError.unsupportedTemplate("invalid spend template")
             }
         case "schedule":
-            guard let name = entry.name?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !name.isEmpty,
-                  entry.limit == nil else {
+            guard entry.limit == nil else {
                 throw LocalFirstError.unsupportedTemplate("schedule")
+            }
+            guard entry.scheduleLookupKey != nil else {
+                throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
             }
         case "goal":
             guard entry.amount != nil else {
@@ -154,7 +155,8 @@ extension BudgetTemplateEngine {
     func validateByScheduleAndSpend(
         _ entries: [BudgetTemplateEntry],
         monthValue: Int,
-        activeScheduleNames: Set<String>
+        activeScheduleNames: Set<String>,
+        activeScheduleIDs: Set<String> = []
     ) throws {
         let scheduleAndBy = entries.filter { $0.type == "schedule" || $0.type == "by" }
         guard !scheduleAndBy.isEmpty else {
@@ -162,11 +164,16 @@ extension BudgetTemplateEngine {
         }
 
         for entry in entries where entry.type == "schedule" {
-            let name = entry.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard activeScheduleNames.contains(name) else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "Schedule \(name) does not exist"
-                )
+            if let scheduleID = entry.presentScheduleID {
+                guard activeScheduleIDs.contains(scheduleID) else {
+                    throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
+                }
+            } else if let name = entry.trimmedScheduleName {
+                guard activeScheduleNames.contains(name) else {
+                    throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
+                }
+            } else {
+                throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
             }
         }
 
