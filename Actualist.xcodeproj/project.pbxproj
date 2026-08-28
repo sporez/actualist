@@ -215,12 +215,15 @@
 		01000000000000000000000140 /* BudgetDatabase+TemplateInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000140 /* BudgetDatabase+TemplateInputs.swift */; };
 		01000000000000000000000138 /* BudgetTemplateCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000138 /* BudgetTemplateCalendarTests.swift */; };
 		01000000000000000000000139 /* BudgetTemplateDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000139 /* BudgetTemplateDatabaseTests.swift */; };
+		01000000000000000000000151 /* BudgetTemplateNoteSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000151 /* BudgetTemplateNoteSyncTests.swift */; };
 		01000000000000000000000141 /* BudgetTemplateEngineAggregateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000141 /* BudgetTemplateEngineAggregateTests.swift */; };
 		01000000000000000000000142 /* BudgetTemplateScheduleRecurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000142 /* BudgetTemplateScheduleRecurrence.swift */; };
 		01000000000000000000000143 /* BudgetTemplateEngine+Spend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000143 /* BudgetTemplateEngine+Spend.swift */; };
 		01000000000000000000000144 /* BudgetTemplateEngine+Schedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000144 /* BudgetTemplateEngine+Schedule.swift */; };
 		01000000000000000000000145 /* BudgetTemplateEngineScheduleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000145 /* BudgetTemplateEngineScheduleTests.swift */; };
 		01000000000000000000000146 /* BudgetDatabase+TemplateApply.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000146 /* BudgetDatabase+TemplateApply.swift */; };
+		01000000000000000000000150 /* BudgetDatabase+TemplateNoteSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000150 /* BudgetDatabase+TemplateNoteSync.swift */; };
+		01000000000000000000000152 /* BudgetTemplateNoteParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000152 /* BudgetTemplateNoteParser.swift */; };
 		01000000000000000000000147 /* BudgetTemplateEngine+Goals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000147 /* BudgetTemplateEngine+Goals.swift */; };
 		0100000000000000000000014F /* BudgetTemplateEngine+Average.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000014F /* BudgetTemplateEngine+Average.swift */; };
 		01000000000000000000000148 /* BudgetTemplateEngineGoalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000148 /* BudgetTemplateEngineGoalTests.swift */; };
@@ -518,6 +521,7 @@
 		02000000000000000000000137 /* BudgetTemplateEngine+Validation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetTemplateEngine+Validation.swift"; sourceTree = "<group>"; };
 		02000000000000000000000138 /* BudgetTemplateCalendarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateCalendarTests.swift; sourceTree = "<group>"; };
 		02000000000000000000000139 /* BudgetTemplateDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateDatabaseTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000151 /* BudgetTemplateNoteSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateNoteSyncTests.swift; sourceTree = "<group>"; };
 		02000000000000000000000140 /* BudgetDatabase+TemplateInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TemplateInputs.swift"; sourceTree = "<group>"; };
 		02000000000000000000000141 /* BudgetTemplateEngineAggregateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngineAggregateTests.swift; sourceTree = "<group>"; };
 		02000000000000000000000142 /* BudgetTemplateScheduleRecurrence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateScheduleRecurrence.swift; sourceTree = "<group>"; };
@@ -525,6 +529,8 @@
 		02000000000000000000000144 /* BudgetTemplateEngine+Schedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetTemplateEngine+Schedule.swift"; sourceTree = "<group>"; };
 		02000000000000000000000145 /* BudgetTemplateEngineScheduleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngineScheduleTests.swift; sourceTree = "<group>"; };
 		02000000000000000000000146 /* BudgetDatabase+TemplateApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TemplateApply.swift"; sourceTree = "<group>"; };
+		02000000000000000000000150 /* BudgetDatabase+TemplateNoteSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+TemplateNoteSync.swift"; sourceTree = "<group>"; };
+		02000000000000000000000152 /* BudgetTemplateNoteParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateNoteParser.swift; sourceTree = "<group>"; };
 		02000000000000000000000147 /* BudgetTemplateEngine+Goals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetTemplateEngine+Goals.swift"; sourceTree = "<group>"; };
 		0200000000000000000000014F /* BudgetTemplateEngine+Average.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetTemplateEngine+Average.swift"; sourceTree = "<group>"; };
 		02000000000000000000000148 /* BudgetTemplateEngineGoalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetTemplateEngineGoalTests.swift; sourceTree = "<group>"; };
@@ -827,6 +833,7 @@
 				02000000000000000000000136 /* BudgetTemplateEngineParityTests.swift */,
 				02000000000000000000000138 /* BudgetTemplateCalendarTests.swift */,
 				02000000000000000000000139 /* BudgetTemplateDatabaseTests.swift */,
+				02000000000000000000000151 /* BudgetTemplateNoteSyncTests.swift */,
 				02000000000000000000000141 /* BudgetTemplateEngineAggregateTests.swift */,
 				02000000000000000000000145 /* BudgetTemplateEngineScheduleTests.swift */,
 				02000000000000000000000148 /* BudgetTemplateEngineGoalTests.swift */,
@@ -1082,6 +1089,8 @@
 				02000000000000000000000143 /* BudgetTemplateEngine+Spend.swift */,
 				02000000000000000000000144 /* BudgetTemplateEngine+Schedule.swift */,
 				02000000000000000000000146 /* BudgetDatabase+TemplateApply.swift */,
+				02000000000000000000000150 /* BudgetDatabase+TemplateNoteSync.swift */,
+				02000000000000000000000152 /* BudgetTemplateNoteParser.swift */,
 				02000000000000000000000147 /* BudgetTemplateEngine+Goals.swift */,
 				0200000000000000000000014F /* BudgetTemplateEngine+Average.swift */,
 			);
@@ -1441,6 +1450,8 @@
 				01000000000000000000000143 /* BudgetTemplateEngine+Spend.swift in Sources */,
 				01000000000000000000000144 /* BudgetTemplateEngine+Schedule.swift in Sources */,
 				01000000000000000000000146 /* BudgetDatabase+TemplateApply.swift in Sources */,
+				01000000000000000000000150 /* BudgetDatabase+TemplateNoteSync.swift in Sources */,
+				01000000000000000000000152 /* BudgetTemplateNoteParser.swift in Sources */,
 				01000000000000000000000147 /* BudgetTemplateEngine+Goals.swift in Sources */,
 				0100000000000000000000014F /* BudgetTemplateEngine+Average.swift in Sources */,
 				010000000000000000000047 /* BudgetDatabase+Schema.swift in Sources */,
@@ -1569,6 +1580,7 @@
 				01000000000000000000000136 /* BudgetTemplateEngineParityTests.swift in Sources */,
 				01000000000000000000000138 /* BudgetTemplateCalendarTests.swift in Sources */,
 				01000000000000000000000139 /* BudgetTemplateDatabaseTests.swift in Sources */,
+				01000000000000000000000151 /* BudgetTemplateNoteSyncTests.swift in Sources */,
 				01000000000000000000000141 /* BudgetTemplateEngineAggregateTests.swift in Sources */,
 				01000000000000000000000145 /* BudgetTemplateEngineScheduleTests.swift in Sources */,
 				01000000000000000000000148 /* BudgetTemplateEngineGoalTests.swift in Sources */,

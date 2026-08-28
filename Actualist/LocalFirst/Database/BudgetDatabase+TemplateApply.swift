@@ -46,6 +46,25 @@ extension BudgetDatabase {
                 scope = try templateCategoryIDsInCategoryOrder(db: db)
                     .filter { targeted.contains($0) }
             }
+
+            // Fail safe before applying: refuse any note-managed goal_def that
+            // is stale relative to its synced category note. Actual regenerates
+            // (or clears) goal_def from the note as a preprocessing step before
+            // applying; Actualist applies synced goal_def directly, so a stale
+            // definition must never be written. See
+            // `staleNoteManagedTemplateCategories` and the note-sync guard.
+            let stale = try staleNoteManagedTemplateCategories(
+                goalDefsRaw: goalDefsRaw.filter { scope.contains($0.key) },
+                db: db
+            )
+            if !stale.isEmpty {
+                let described = stale
+                    .map { (categoryNames[$0.categoryID] ?? $0.categoryID) + " — " + $0.reason }
+                    .sorted()
+                throw LocalFirstError.unsupportedTemplate(
+                    "note-managed template definition(s) are stale relative to their category notes and were not applied: \(described.joined(separator: "; ")). Open the budget in Actual and apply templates once to refresh the stored definitions."
+                )
+            }
             let force = command.mode == .overwrite || !targeted.isEmpty
             let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
             let existingGoals = canWriteGoals
