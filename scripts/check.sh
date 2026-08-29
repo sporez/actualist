@@ -46,19 +46,16 @@ else
   echo "skip: not a git work tree"
 fi
 
-section "Xcode file membership"
-missing=0
-while IFS= read -r path; do
-  [[ -n "$path" ]] || continue
-  base="$(basename "$path")"
-  if ! grep -Fq "$base" Actualist.xcodeproj/project.pbxproj; then
-    echo "error: $path is not in Actualist.xcodeproj/project.pbxproj"
-    missing=1
-  fi
-done < <(find Actualist ActualistTests -name '*.swift' -print | sort)
-if [[ "$missing" -eq 0 ]]; then
-  echo "All Swift files are listed in the project."
+section "Xcode synchronized groups"
+# Sources are auto-registered: Actualist/ and ActualistTests/ are file system
+# synchronized root groups, so any file on disk is compiled without a pbxproj
+# edit. The check only guards that the project still uses synchronized groups.
+if grep -q 'PBXFileSystemSynchronizedRootGroup' Actualist.xcodeproj/project.pbxproj \
+  && grep -q 'path = Actualist;' Actualist.xcodeproj/project.pbxproj \
+  && grep -q 'path = ActualistTests;' Actualist.xcodeproj/project.pbxproj; then
+  echo "Synchronized root groups present; Swift files auto-register."
 else
+  echo "error: project.pbxproj no longer uses synchronized root groups for Actualist/ActualistTests"
   status=1
 fi
 

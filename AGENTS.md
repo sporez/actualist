@@ -10,8 +10,8 @@ Actualist is a native iOS 26+ local-first client for Actual Budget. It talks to 
 
 - Development pipeline: `docs/DEVELOPMENT.md`
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change. It
-  covers whitespace, Liquid Glass, TestFlight notes, pbxproj membership, and
-  file-size signals. It does not replace tests.
+  covers whitespace, Liquid Glass, TestFlight notes, synchronized-group
+  integrity, and file-size signals. It does not replace tests.
 - Simulator and device ids for this machine: gitignored
   `scripts/lib/destinations.sh` (copy `scripts/lib/destinations.example.sh`).
   Pin destinations by UDID, never by display name.
@@ -312,9 +312,12 @@ diff smaller.
 - Let test boundaries mirror production responsibilities. Partition unwieldy
   suites by subsystem or workflow, keep shared fixtures in dedicated support,
   and preserve every test during mechanical moves.
-- This Xcode project uses explicit file membership. Add every new Swift file to
-  `Actualist.xcodeproj/project.pbxproj`, run an early simulator build immediately
-  after structural moves, then run relevant tests and the full suite.
+- This Xcode project uses file system synchronized groups: any Swift file under
+  `Actualist/` or `ActualistTests/` is compiled automatically with no pbxproj
+  edit. Run an early simulator build immediately after structural moves, then
+  run relevant tests and the full suite. Files that must be excluded from
+  target membership (e.g. `Info.plist`, entitlements) are listed in the
+  synchronized group's `membershipExceptions`.
 - File splitting must preserve or improve access control. Do not expose private
   state, add forwarding boilerplate, or create arbitrary extensions solely to
   manipulate line counts.
@@ -395,8 +398,8 @@ production-code change, rerun the architecture gate against the completed diff
 and report the result. At minimum:
 
 - Run `scripts/check.sh`. It is the mechanical part of this gate (`git diff
-  --check`, Liquid Glass, TestFlight notes, pbxproj membership, touched-file
-  sizes, largest-file list). Fix every failure before continuing.
+  --check`, Liquid Glass, TestFlight notes, synchronized-group integrity,
+  touched-file sizes, largest-file list). Fix every failure before continuing.
 - Inspect the entire diff. Compare touched-file size and responsibilities with
   the pre-implementation decision. A passing test suite does not excuse
   unplanned structural growth.
@@ -435,9 +438,9 @@ and report the result. At minimum:
 - If any new commit includes a `TestFlight-Note` trailer, run
   `scripts/lint-testflight-notes.sh --range <base>..HEAD` and fix violations
   before handoff.
-- Confirm every new Swift file is registered in
-  `Actualist.xcodeproj/project.pbxproj`; an early simulator build after the
-  structural edit is still required.
+- Confirm new Swift files were added under `Actualist/` or `ActualistTests/`;
+  synchronized groups compile them automatically, but an early simulator build
+  after a structural edit is still required.
 - Confirm `BudgetMonth`, `Account`, and `Transaction` reads/writes against SQLite
   fixtures or a throwaway synced budget when those paths change.
 - Verify money formatting and conversion against Actual amount units whenever

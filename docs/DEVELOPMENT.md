@@ -40,7 +40,7 @@ scripts/check.sh
 ```
 
 That covers `git diff --check`, Liquid Glass lint, TestFlight-note lint when
-trailers are present, `project.pbxproj` membership for every Swift file, and
+trailers are present, synchronized-group integrity (auto file registration), and
 file-size warnings for touched sources.
 
 ## Tests
