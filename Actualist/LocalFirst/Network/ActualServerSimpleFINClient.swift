@@ -48,6 +48,9 @@ struct SimpleFINRemoteAccount: Equatable, Sendable {
     let balance: String?
     let currency: String?
     let institution: String?
+    /// SimpleFIN organization display name; loot-core uses it as the
+    /// `banks.name` half of the `(bank_id, name)` find-or-create key.
+    var orgName: String?
     let orgDomain: String?
     let orgID: String?
 }
@@ -124,8 +127,9 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
                 balance: account.balance?.text,
                 currency: account.currency,
                 institution: account.institution,
-                orgDomain: account.orgDomain,
-                orgID: account.orgID
+                orgName: account.org?.name,
+                orgDomain: account.org?.domain ?? account.orgDomain,
+                orgID: account.org?.id ?? account.orgID
             )
         }
     }
@@ -176,8 +180,15 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let balance: FlexibleString?
         let currency: String?
         let institution: String?
+        let org: Org?
         let orgDomain: String?
         let orgID: String?
+
+        struct Org: Decodable {
+            let name: String?
+            let domain: String?
+            let id: String?
+        }
 
         enum CodingKeys: String, CodingKey {
             case accountID = "account_id"
@@ -185,6 +196,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             case balance
             case currency
             case institution
+            case org
             case orgDomain
             case orgID = "orgId"
         }

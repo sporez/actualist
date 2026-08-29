@@ -99,4 +99,42 @@ enum BankSyncAmounts {
         formatter.dateFormat = "yyyyMMdd"
         return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))
     }
+
+    /// Inverse of `dayID(fromUnixSeconds:)` for drafts: UTC noon on the given
+    /// calendar day, so a normalized day survives Date round-trips.
+    static func date(fromDayID dayID: String) -> Date? {
+        let characters = Array(dayID)
+        guard characters.count == 8, characters.allSatisfy(\.isNumber) else {
+            return nil
+        }
+        var components = DateComponents()
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = Int(dayID.prefix(4))
+        components.month = Int(dayID.dropFirst(4).prefix(2))
+        components.day = Int(dayID.suffix(2))
+        components.hour = 12
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        return calendar.date(from: components)
+    }
+
+    /// Sync lookback start in `YYYY-MM-DD`: `max(today − 89 days, oldest live
+    /// transaction date)` — the full 90-day window for an empty account
+    /// (loot-core `getAccountSyncStartDate`).
+    static func lookbackStartDate(oldestLiveTransactionDayID: String?, now: Date = Date()) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let earliestAllowed = calendar.date(byAdding: .day, value: -89, to: now) ?? now
+        var earliest = earliestAllowed
+        if let oldestLiveTransactionDayID,
+           let oldest = date(fromDayID: oldestLiveTransactionDayID),
+           oldest < earliestAllowed {
+            earliest = oldest
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: earliest)
+    }
 }

@@ -221,6 +221,9 @@ extension LocalFirstActualStoreTests {
         connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {
             ActualServerSyncClient(baseURL: $0)
         },
+        simpleFINTransportFactory: @escaping @Sendable (URL) -> any SimpleFINServerTransport = {
+            ActualServerSimpleFINClient(baseURL: $0)
+        },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
         additionalFixtureSQL: String = "",
         reimportFailureCheckpoint: BudgetReimportCheckpoint? = nil
@@ -297,6 +300,7 @@ extension LocalFirstActualStoreTests {
             fileManager: fileManager,
             syncTransportFactory: syncTransportFactory,
             connectionTransportFactory: connectionTransportFactory,
+            simpleFINTransportFactory: simpleFINTransportFactory,
             pendingLocalMessageFlushRetryDelays: pendingLocalMessageFlushRetryDelays
         )
         let budget = ActualBudget(

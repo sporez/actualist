@@ -9,6 +9,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     let fileManager: BudgetFileManager
     let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport
     let connectionTransportFactory: @Sendable (URL) -> any ActualServerConnectionTransport
+    /// SimpleFIN bank-sync transport seam; a stub in tests.
+    let simpleFINTransportFactory: @Sendable (URL) -> any SimpleFINServerTransport
     let openIDAuthenticationCoordinator = ActualOpenIDAuthenticationCoordinator()
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
@@ -38,6 +40,10 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     var currencyByBudget: [String: BudgetCurrency] = [:]
+    /// Bank-sync download generation per local account. Bumped on every
+    /// download; apply refuses a plan whose generation is no longer current,
+    /// so a stale review can never write.
+    var bankSyncGenerationByAccount: [String: Int] = [:]
     /// Optional fallback server URL used when the primary server is unreachable.
     /// Set by `AppState` from `AppSettings.fallbackServerURLString`. When non-nil
     /// and distinct from the primary URL, sync and connection operations retry
@@ -103,6 +109,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {
             ActualServerSyncClient(baseURL: $0)
         },
+        simpleFINTransportFactory: @escaping @Sendable (URL) -> any SimpleFINServerTransport = {
+            ActualServerSimpleFINClient(baseURL: $0)
+        },
         syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
         endpointHealth: ServerEndpointHealth? = nil
@@ -111,6 +120,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         self.fileManager = fileManager
         self.syncTransportFactory = syncTransportFactory
         self.connectionTransportFactory = connectionTransportFactory
+        self.simpleFINTransportFactory = simpleFINTransportFactory
         self.syncDebugRecorder = syncDebugRecorder
         self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
         // Constructed in the main-actor init body (not a default argument) so
@@ -169,6 +179,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         uncategorizedTransactionsByKey = [:]
         reportsByKey = [:]
         currencyByBudget = [:]
+        bankSyncGenerationByAccount = [:]
         syncStatus = nil
         isFlushingPendingLocalMessages = false
         isDemoBudgetActive = false
