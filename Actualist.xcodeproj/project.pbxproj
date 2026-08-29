@@ -67,6 +67,11 @@
 		010000000000000000000069 /* SpendingTransactionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000069 /* SpendingTransactionsView.swift */; };
 		010000000000000000000011 /* Money.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000011 /* Money.swift */; };
 		0100000000000000000000012A /* BudgetCurrency.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000012A /* BudgetCurrency.swift */; };
+		01000000000000000000000153 /* ActualServerSimpleFINClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000153 /* ActualServerSimpleFINClient.swift */; };
+		01000000000000000000000154 /* BankSyncSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000154 /* BankSyncSupport.swift */; };
+		01000000000000000000000155 /* BudgetDatabase+BankSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000155 /* BudgetDatabase+BankSync.swift */; };
+		01000000000000000000000156 /* SimpleFINClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000156 /* SimpleFINClientTests.swift */; };
+		01000000000000000000000157 /* BankSyncSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000000157 /* BankSyncSupportTests.swift */; };
 		0100000000000000000000012B /* BudgetCurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000012B /* BudgetCurrencyTests.swift */; };
 		0100000000000000000000012D /* BudgetCurrencyPreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000000012D /* BudgetCurrencyPreferenceTests.swift */; };
 		010000000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000012 /* Assets.xcassets */; };
@@ -376,6 +381,11 @@
 		020000000000000000000069 /* SpendingTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingTransactionsView.swift; sourceTree = "<group>"; };
 		020000000000000000000011 /* Money.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Money.swift; sourceTree = "<group>"; };
 		0200000000000000000000012A /* BudgetCurrency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCurrency.swift; sourceTree = "<group>"; };
+		02000000000000000000000153 /* ActualServerSimpleFINClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActualServerSimpleFINClient.swift; sourceTree = "<group>"; };
+		02000000000000000000000154 /* BankSyncSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankSyncSupport.swift; sourceTree = "<group>"; };
+		02000000000000000000000155 /* BudgetDatabase+BankSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BudgetDatabase+BankSync.swift"; sourceTree = "<group>"; };
+		02000000000000000000000156 /* SimpleFINClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleFINClientTests.swift; sourceTree = "<group>"; };
+		02000000000000000000000157 /* BankSyncSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankSyncSupportTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000012B /* BudgetCurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCurrencyTests.swift; sourceTree = "<group>"; };
 		0200000000000000000000012D /* BudgetCurrencyPreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCurrencyPreferenceTests.swift; sourceTree = "<group>"; };
 		020000000000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -756,6 +766,7 @@
 			children = (
 				020000000000000000000011 /* Money.swift */,
 				0200000000000000000000012A /* BudgetCurrency.swift */,
+				02000000000000000000000154 /* BankSyncSupport.swift */,
 				020000000000000000000017 /* CategoryNameParts.swift */,
 				020000000000000000000087 /* ActualDateParsing.swift */,
 				020000000000000000000026 /* TransactionGrouping.swift */,
@@ -855,6 +866,8 @@
 				02000000000000000000000104 /* ShortcutIntentTests.swift */,
 				02000000000000000000000105 /* ShortcutCatalogCoverageTests.swift */,
 				0200000000000000000000010A /* WalletTransactionMappingTests.swift */,
+				02000000000000000000000156 /* SimpleFINClientTests.swift */,
+				02000000000000000000000157 /* BankSyncSupportTests.swift */,
 				0200000000000000000000010B /* WalletTransactionImportTests.swift */,
 			);
 			path = ActualistTests;
@@ -1051,6 +1064,7 @@
 			isa = PBXGroup;
 			children = (
 				02000000000000000000002F /* ActualServerSyncClient.swift */,
+				02000000000000000000000153 /* ActualServerSimpleFINClient.swift */,
 			);
 			path = Network;
 			sourceTree = "<group>";
@@ -1063,6 +1077,7 @@
 				020000000000000000000041 /* BudgetDatabaseModels.swift */,
 				020000000000000000000000DF /* BudgetDatabase+BasicReads.swift */,
 				0200000000000000000000012C /* BudgetDatabase+Currency.swift */,
+				02000000000000000000000155 /* BudgetDatabase+BankSync.swift */,
 				020000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift */,
 				020000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift */,
 				020000000000000000000071 /* BudgetDatabase+Payees.swift */,
@@ -1429,6 +1444,9 @@
 				010000000000000000000041 /* BudgetDatabaseModels.swift in Sources */,
 				010000000000000000000000DF /* BudgetDatabase+BasicReads.swift in Sources */,
 				0100000000000000000000012C /* BudgetDatabase+Currency.swift in Sources */,
+				01000000000000000000000155 /* BudgetDatabase+BankSync.swift in Sources */,
+				01000000000000000000000153 /* ActualServerSimpleFINClient.swift in Sources */,
+				01000000000000000000000154 /* BankSyncSupport.swift in Sources */,
 				010000000000000000000000E0 /* BudgetDatabase+TransactionReads.swift in Sources */,
 				010000000000000000000000E1 /* BudgetDatabase+BudgetReads.swift in Sources */,
 				010000000000000000000071 /* BudgetDatabase+Payees.swift in Sources */,
@@ -1516,6 +1534,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				01000000000000000000007B /* ActualServerErrorTests.swift in Sources */,
+				01000000000000000000000156 /* SimpleFINClientTests.swift in Sources */,
+				01000000000000000000000157 /* BankSyncSupportTests.swift in Sources */,
 				01000000000000000000007A /* OpenIDAuthenticationTests.swift in Sources */,
 				010000000000000000000074 /* PayeeManagementTests.swift in Sources */,
 				010000000000000000000082 /* RuleConditionEvaluatorTests.swift in Sources */,

@@ -12,6 +12,7 @@ actor BudgetDatabase {
         self.databaseURL = databaseURL
         queue = try DatabaseQueue(path: databaseURL.path)
         try Self.prepareBankSyncStatusCompatibility(in: queue)
+        try Self.prepareBankSyncSchemaCompatibility(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in
