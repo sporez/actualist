@@ -15,7 +15,7 @@ body:
     id: actualist_version
     attributes:
       label: Actualist version and build
-      placeholder: "0.8 (6)"
+      placeholder: "0.8.1 (13)"
     validations:
       required: true
 

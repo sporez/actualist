@@ -200,6 +200,11 @@ Hard rules:
   Right: `[rules]`, `[shortcuts]`, `[settings]`.
 - The text is the complete current summary for that topic, not the delta since
   the last commit. Later commits with the same topic replace earlier ones.
+- Keep the note at or under 400 characters (`TESTFLIGHT_NOTE_MAX_CHARS` in
+  `scripts/lib/testflight-notes.sh`). Measure the draft before committing with
+  `scripts/lint-testflight-notes.sh --message-file <file>`: a trailer that
+  fails only after being pushed cannot be fixed without rewriting history.
+  Trim the summary instead of appending clauses to an existing topic note.
 - Start with `Added`, `Fixed`, `Improved`, `Moved`, `Renamed`, `Removed`, or
   `Combined`.
 - Describe what changed and where to find it. Do not tell the tester what to
@@ -350,7 +355,7 @@ diff smaller.
 - Support Dynamic Type without breaking row layout.
 - Build loading, empty, error, and partial-refresh states for each sync-backed screen.
 - First launch must route to Actual server URL/password onboarding and budget selection before the main app shell.
-- The main tab bar should include only implemented views: Budget, Accounts, and Settings initially.
+- The main tab bar is Budget, Spending, Accounts, and Reports, rendered with native `TabView`/`.tabItem`. Settings is reached from the Budget screen's gear/overflow menu, not as a tab.
 - Closed accounts and hidden categories should be collapsed by default when present.
 
 ## Simulator Builds And Visual Verification
