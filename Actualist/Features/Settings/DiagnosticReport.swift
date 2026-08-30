@@ -89,6 +89,7 @@ enum ActualistDiagnosticReportBuilder {
             "Show hidden categories: \(yesNo(settings.showHiddenCategories))",
             "Sample display values: \(yesNo(settings.randomizedDisplayValuesEnabled))",
             "Background transaction alerts: \(yesNo(settings.backgroundTransactionRefreshEnabled))",
+            "Background bank sync: \(yesNo(settings.simplefinBackgroundSyncEnabled))",
             "Developer mode unlocked: \(yesNo(settings.developerModeUnlocked))",
             "Experimental features enabled: \(list(settings.enabledExperimentalFeatures.map(\.rawValue).sorted()))",
             "Report card order: \(settings.reportCardOrder.map(\.rawValue).joined(separator: ", "))",

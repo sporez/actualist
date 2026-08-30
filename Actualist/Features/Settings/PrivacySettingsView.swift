@@ -7,6 +7,7 @@ import SwiftUI
 /// banner on the Budget screen, not notification delivery.
 struct PrivacySettingsView: View {
     @Environment(AppState.self) private var appState
+    @State private var simplefinSetting = SimpleFINBackgroundSyncSetting()
 
     var body: some View {
         List {
@@ -17,6 +18,18 @@ struct PrivacySettingsView: View {
                 Text("Notifications")
             } footer: {
                 Text(transactionAlertsFooterText)
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+            .settingsSectionChrome()
+
+            Section {
+                Toggle("Background Bank Sync", isOn: simplefinBackgroundSelection)
+                    .disabled(appState.isDemoMode || !simplefinSetting.canEnable)
+            } header: {
+                Text("Bank Sync")
+            } footer: {
+                Text(simplefinFooterText)
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -58,6 +71,13 @@ struct PrivacySettingsView: View {
         .tint(ActualistTheme.accent)
         .navigationTitle("Privacy & Notifications")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await simplefinSetting.load(
+                store: appState.localFirstStore,
+                budgetID: appState.settings.selectedBudgetID,
+                isDemoMode: appState.isDemoMode
+            )
+        }
     }
 
     private var backgroundRefreshSelection: Binding<Bool> {
@@ -68,6 +88,29 @@ struct PrivacySettingsView: View {
                 await appState.updateBackgroundTransactionRefreshEnabled(isEnabled)
             }
         }
+    }
+
+    private var simplefinBackgroundSelection: Binding<Bool> {
+        Binding {
+            appState.settings.simplefinBackgroundSyncEnabled
+        } set: { isEnabled in
+            Task {
+                await appState.updateSimpleFINBackgroundSyncEnabled(isEnabled)
+            }
+        }
+    }
+
+    private var simplefinFooterText: String {
+        if appState.isDemoMode {
+            return "Unavailable in demo mode."
+        }
+        if !simplefinSetting.didProbe {
+            return "Checking your server…"
+        }
+        if !simplefinSetting.canEnable {
+            return "Requires a connected server that provides SimpleFIN. Connect a bank account under Settings → Budget & Data → Bank Sync first."
+        }
+        return "After a background budget sync, linked bank accounts are downloaded and saved automatically. No notification is posted for this."
     }
 
     private var appSwitcherPrivacyModeSelection: Binding<AppSwitcherPrivacyMode> {

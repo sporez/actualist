@@ -1,5 +1,13 @@
 import Foundation
 
+/// Seam for the Phase 6 background bank-sync step so workflow tests can
+/// fake the SimpleFIN apply without a budget database. The production
+/// conformer is `LocalFirstActualStore`.
+@MainActor
+protocol BackgroundBankSyncApplying {
+    func backgroundBankSyncApply(budgetID: String) async throws -> BankSyncBackgroundApplyResult
+}
+
 /// Focused owner of the background-transaction refresh lifecycle, extracted
 /// from `AppState` so AppState stays centered on connection/session/routing.
 ///
@@ -31,16 +39,26 @@ final class BackgroundTransactionWorkflow {
     private let notificationAuthorizationRequester: @MainActor () async throws -> Bool
     private let applicationBadgeUpdater: @MainActor (Int) -> Void
     private let settingsStore: AppSettingsStore
+    /// Phase 6 background bank sync step. Defaults to the store passed to
+    /// `performRefresh` (which conforms); tests inject a fake.
+    private let bankSyncApplier: (any BackgroundBankSyncApplying)?
+    /// Wall-clock budget for the background SimpleFIN step, which runs
+    /// after the `/sync/sync` refresh within the same BGTask.
+    private let bankSyncTimeLimit: Duration
 
     init(
         settingsStore: AppSettingsStore,
         notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool,
         applicationBadgeUpdater: @escaping @MainActor (Int) -> Void,
-        runner: (any BackgroundTransactionRefreshing)? = nil
+        runner: (any BackgroundTransactionRefreshing)? = nil,
+        bankSyncApplier: (any BackgroundBankSyncApplying)? = nil,
+        bankSyncTimeLimit: Duration = .seconds(10)
     ) {
         self.settingsStore = settingsStore
         self.notificationAuthorizationRequester = notificationAuthorizationRequester
         self.applicationBadgeUpdater = applicationBadgeUpdater
+        self.bankSyncApplier = bankSyncApplier
+        self.bankSyncTimeLimit = bankSyncTimeLimit
         self.debugRecorder = BackgroundRefreshDebugRecorder(settingsStore: settingsStore)
         // Constructed in the main-actor init body (not a default argument) so
         // the @MainActor struct is built in an isolated context.
@@ -166,21 +184,52 @@ final class BackgroundTransactionWorkflow {
             )
 
             if case .synced(let result) = outcome {
-                for pending in result.pendingTransactions {
-                    record(
-                        pending.transactionIDs,
+                // Phase 6: after a successful pull, optionally run the
+                // time-boxed server SimpleFIN download + auto-apply. A
+                // failure or timeout appends to the run message and never
+                // fails the parent refresh. Inserted transactions join the
+                // sync's pending set so the existing notification pipeline
+                // sees one combined pass.
+                var pendingTransactions = result.pendingTransactions
+                var runMessage = outcome.message
+                if local.simplefinBackgroundSyncEnabled {
+                    let bankStep = await runBackgroundBankSync(
                         budgetID: result.budgetID,
-                        accountID: pending.accountID,
-                        in: &local
+                        store: store
                     )
+                    pendingTransactions.append(contentsOf: bankStep.pendingTransactions)
+                    runMessage += bankStep.messageSuffix
                 }
-                if result.newTransactionCount > 0 {
-                    let badgeCount = updateApplicationBadge(in: local)
-                    try await notifications.post(
-                        budgetID: result.budgetID,
-                        badgeCount: badgeCount
-                    )
+
+                // Notifications are consented only by the alerts toggle.
+                // Bank-sync-only mode applies silently: no pending-ID
+                // record, no badge, no notification.
+                if local.backgroundTransactionRefreshEnabled {
+                    for pending in pendingTransactions {
+                        record(
+                            pending.transactionIDs,
+                            budgetID: result.budgetID,
+                            accountID: pending.accountID,
+                            in: &local
+                        )
+                    }
+                    let newTransactionCount = pendingTransactions.reduce(0) { $0 + $1.transactionIDs.count }
+                    if newTransactionCount > 0 {
+                        let badgeCount = updateApplicationBadge(in: local)
+                        try await notifications.post(
+                            budgetID: result.budgetID,
+                            badgeCount: badgeCount
+                        )
+                    }
                 }
+
+                debugRecorder.completeRun(
+                    debugRunID,
+                    succeeded: true,
+                    message: runMessage,
+                    in: &local
+                )
+                return (.success, local)
             }
 
             debugRecorder.completeRun(
@@ -214,6 +263,35 @@ final class BackgroundTransactionWorkflow {
                 in: &local
             )
             return (.failed(error.localizedDescription), local)
+        }
+    }
+
+    // MARK: Background bank sync (Phase 6)
+
+    private func runBackgroundBankSync(
+        budgetID: String,
+        store: LocalFirstActualStore
+    ) async -> (pendingTransactions: [BackgroundPendingTransactions], messageSuffix: String) {
+        let applier = bankSyncApplier ?? store
+        do {
+            let result = try await withTimeLimit(
+                bankSyncTimeLimit,
+                timeoutError: BackgroundBankSyncStepError.timedOut
+            ) {
+                try await applier.backgroundBankSyncApply(budgetID: budgetID)
+            }
+            let insertedCount = result.insertedTransactionIDsByAccount
+                .values
+                .reduce(0) { $0 + $1.count }
+            let pending = result.insertedTransactionIDsByAccount
+                .map { BackgroundPendingTransactions(accountID: $0.key, transactionIDs: $0.value) }
+            let suffix = "; bank sync: \(result.accountCount) account\(result.accountCount == 1 ? "" : "s")"
+                + (insertedCount > 0 ? ", \(insertedCount) added" : "")
+            return (pending, suffix)
+        } catch BackgroundBankSyncStepError.timedOut {
+            return ([], "; bank sync timed out")
+        } catch {
+            return ([], "; bank sync failed: \(error.localizedDescription)")
         }
     }
 

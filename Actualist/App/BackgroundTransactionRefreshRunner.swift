@@ -26,6 +26,8 @@ enum BackgroundTransactionRefreshRunnerError: LocalizedError, Sendable {
     }
 }
 
+
+
 struct BackgroundPendingTransactions: Sendable {
     let accountID: String
     let transactionIDs: [String]
@@ -152,22 +154,7 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         _ timeLimit: Duration,
         operation: @escaping @MainActor @Sendable () async throws -> Result
     ) async throws -> Result {
-        try await withThrowingTaskGroup(of: Result.self) { group in
-            group.addTask {
-                try await operation()
-            }
-            group.addTask {
-                try await Task.sleep(for: timeLimit)
-                throw BackgroundTransactionRefreshRunnerError.timeLimitExceeded
-            }
-            defer {
-                group.cancelAll()
-            }
-            guard let firstResult = try await group.next() else {
-                throw CancellationError()
-            }
-            return firstResult
-        }
+        try await Actualist.withTimeLimit(timeLimit, timeoutError: BackgroundTransactionRefreshRunnerError.timeLimitExceeded, operation: operation)
     }
 
     private func skipReason(
@@ -175,8 +162,11 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         hasSyncCredentials: Bool
     ) -> String? {
         var reasons: [String] = []
-        if !settings.backgroundTransactionRefreshEnabled {
-            reasons.append("alerts disabled")
+        // The background task serves both toggles (plan Phase 6): alerts and
+        // background bank sync. With only bank sync on, the pull still runs.
+        if !settings.backgroundTransactionRefreshEnabled,
+           !settings.simplefinBackgroundSyncEnabled {
+            reasons.append("alerts and bank sync disabled")
         }
         if settings.selectedBudgetID == nil {
             reasons.append("no selected budget")
@@ -214,4 +204,8 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
             state: nil
         )
     }
+}
+
+enum BackgroundBankSyncStepError: Error {
+    case timedOut
 }

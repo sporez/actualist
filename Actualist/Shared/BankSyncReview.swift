@@ -38,5 +38,17 @@ enum BankSyncReview {
         let insertedCount: Int
         let updatedCount: Int
         let openingBalanceInserted: Bool
+        /// Local IDs of the inserted transaction parents (and opening
+        /// balance), so the background path can feed the existing
+        /// new-transaction notification pipeline.
+        let insertedTransactionIDs: [String]
     }
+}
+
+/// Outcome of the Phase 6 background bank-sync step: how many linked
+/// accounts were applied and which transactions were inserted, keyed by
+/// local account. Pure value passed to the background workflow.
+struct BankSyncBackgroundApplyResult: Equatable, Sendable {
+    let accountCount: Int
+    let insertedTransactionIDsByAccount: [String: [String]]
 }

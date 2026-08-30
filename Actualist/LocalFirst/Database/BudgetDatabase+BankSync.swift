@@ -441,6 +441,7 @@ extension BudgetDatabase {
     /// on-budget accounts, rules skipped (`applyRules: false`), and the
     /// `starting_balance_flag` marker when the schema carries it.
     func makeBankSyncOpeningBalanceMessages(
+        transactionID: String,
         accountID: String,
         openingBalance: BankSyncReconciliation.OpeningBalance,
         onBudget: Bool,
@@ -466,7 +467,6 @@ extension BudgetDatabase {
             cleared: true,
             isTransfer: false
         )
-        let transactionID = UUID().uuidString
         let transactionMessages = try createSimpleTransactionMessages(
             draft,
             transactionID: transactionID,

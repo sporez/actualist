@@ -67,6 +67,11 @@ struct AppSettings: Codable, Equatable {
     var defaultAccountIDByBudgetID: [String: String] = [:]
     var reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
     var backgroundTransactionRefreshEnabled: Bool = false
+    /// Optional SimpleFIN background bank sync (bank-sync plan Phase 6).
+    /// Default off; the toggle is consent to auto-apply server SimpleFIN
+    /// downloads after a background `/sync/sync`. Never reads the Phase 5
+    /// device key; demo mode never runs it.
+    var simplefinBackgroundSyncEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
     var localFirstSyncDebug = LocalFirstSyncDebugInfo()
     var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
@@ -93,6 +98,7 @@ struct AppSettings: Codable, Equatable {
         defaultAccountIDByBudgetID: [String: String] = [:],
         reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder,
         backgroundTransactionRefreshEnabled: Bool = false,
+        simplefinBackgroundSyncEnabled: Bool = false,
         backgroundRefreshDebug: BackgroundRefreshDebugInfo = BackgroundRefreshDebugInfo(),
         localFirstSyncDebug: LocalFirstSyncDebugInfo = LocalFirstSyncDebugInfo(),
         pendingNewTransactionIDsByAccount: [String: [String]] = [:]
@@ -118,6 +124,7 @@ struct AppSettings: Codable, Equatable {
         self.defaultAccountIDByBudgetID = defaultAccountIDByBudgetID
         self.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
+        self.simplefinBackgroundSyncEnabled = simplefinBackgroundSyncEnabled
         self.backgroundRefreshDebug = backgroundRefreshDebug
         self.localFirstSyncDebug = localFirstSyncDebug
         self.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
@@ -190,6 +197,10 @@ struct AppSettings: Codable, Equatable {
         backgroundTransactionRefreshEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .backgroundTransactionRefreshEnabled
+        ) ?? false
+        simplefinBackgroundSyncEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .simplefinBackgroundSyncEnabled
         ) ?? false
         backgroundRefreshDebug = try container.decodeIfPresent(
             BackgroundRefreshDebugInfo.self,

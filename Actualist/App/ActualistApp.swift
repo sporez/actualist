@@ -209,11 +209,25 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
     }
 
+    /// Cancels the scheduled task only when neither toggle wants background
+    /// work; otherwise (re)schedules, so disabling alerts while background
+    /// bank sync is on keeps the task alive.
+    @MainActor
+    func cancelOrReschedule(for appState: AppState) {
+        if scheduleSkipReason(for: appState) != nil {
+            cancel()
+        } else {
+            scheduleIfNeeded(for: appState)
+        }
+    }
+
     @MainActor
     private func scheduleSkipReason(for appState: AppState) -> String? {
         var reasons: [String] = []
-        if !appState.settings.backgroundTransactionRefreshEnabled {
-            reasons.append("alerts disabled")
+        // One background task serves both toggles (plan Phase 6).
+        if !appState.settings.backgroundTransactionRefreshEnabled,
+           !appState.settings.simplefinBackgroundSyncEnabled {
+            reasons.append("alerts and bank sync disabled")
         }
         if appState.settings.selectedBudgetID == nil {
             reasons.append("no selected budget")

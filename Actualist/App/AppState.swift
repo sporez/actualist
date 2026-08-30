@@ -110,6 +110,7 @@ final class AppState {
             settings.selectedLocalFirstFileID = DemoBudget.fileID
             settings.selectedLocalFirstGroupID = DemoBudget.groupID
             settings.backgroundTransactionRefreshEnabled = false
+            settings.simplefinBackgroundSyncEnabled = false
             settings.pendingNewTransactionIDsByAccount = [:]
             updateApplicationBadge()
             budgets = [budget]
@@ -215,6 +216,7 @@ final class AppState {
                 settings.pendingNewTransactionIDsByAccount = [:]
                 updateApplicationBadge()
                 settings.backgroundTransactionRefreshEnabled = false
+            settings.simplefinBackgroundSyncEnabled = false
                 settings.selectedBudgetID = nil
                 settings.selectedBudgetName = nil
                 settings.selectedLocalFirstFileID = nil
@@ -276,6 +278,7 @@ final class AppState {
             settings.pendingNewTransactionIDsByAccount = [:]
             updateApplicationBadge()
             settings.backgroundTransactionRefreshEnabled = false
+            settings.simplefinBackgroundSyncEnabled = false
             settingsStore.save(settings)
             selectedBudget = nil
             budgets = []
@@ -470,6 +473,7 @@ final class AppState {
             settings.selectedLocalFirstFileID = budget.localFirstFileID
             settings.selectedLocalFirstGroupID = budget.groupId
             settings.backgroundTransactionRefreshEnabled = false
+            settings.simplefinBackgroundSyncEnabled = false
             settingsStore.save(settings)
             setupPhase = .ready
             connectionStatus = .online
@@ -679,10 +683,34 @@ final class AppState {
         case .enabled:
             BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
         case .disabled, .authorizationDenied:
-            BackgroundTransactionRefreshCoordinator.shared.cancel()
+            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
         case .credentialPromotionFailed(let message):
             lastErrorMessage = message
-            BackgroundTransactionRefreshCoordinator.shared.cancel()
+            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
+        }
+    }
+
+    /// Phase 6: enabling background bank sync promotes Keychain items for
+    /// background access (like the alerts toggle) but never requests
+    /// notification authorization — it posts nothing.
+    func updateSimpleFINBackgroundSyncEnabled(_ isEnabled: Bool) async {
+        if isEnabled {
+            do {
+                try keychain.promoteAllItemsForBackgroundRefresh()
+            } catch {
+                lastErrorMessage = error.localizedDescription
+                settings.simplefinBackgroundSyncEnabled = false
+                settingsStore.save(settings)
+                BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
+                return
+            }
+        }
+        settings.simplefinBackgroundSyncEnabled = isEnabled
+        settingsStore.save(settings)
+        if isEnabled {
+            BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
+        } else {
+            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
         }
     }
 

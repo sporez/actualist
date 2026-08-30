@@ -10,6 +10,7 @@ extension LocalFirstActualStore {
         case staleGeneration
         case notLinked
         case notSimpleFINLinked
+        case serverCannotBankSync
 
         var errorDescription: String? {
             switch self {
@@ -19,6 +20,8 @@ extension LocalFirstActualStore {
                 return "This account is not linked to a bank."
             case .notSimpleFINLinked:
                 return "Only SimpleFIN-linked accounts can sync here."
+            case .serverCannotBankSync:
+                return "Your server does not provide SimpleFIN, so background bank sync cannot run."
             }
         }
     }
@@ -75,8 +78,13 @@ extension LocalFirstActualStore {
     /// device-claimed bridge key; otherwise the server transport so its
     /// status classification surfaces as before. An unreachable server (a
     /// connection-level transport failure on the status probe) falls back to
-    /// the device key when one exists and rethrows otherwise.
-    func bankSyncProvider(budgetID: String) async throws -> BankSyncProvider {
+    /// the device key when one exists and rethrows otherwise. The
+    /// background path passes `deviceFallback: false` — the Phase 5 device
+    /// key is never used there.
+    func bankSyncProvider(
+        budgetID: String,
+        deviceFallback: Bool = true
+    ) async throws -> BankSyncProvider {
         _ = try requireDatabase(for: budgetID)
         do {
             let context = try bankSyncContext(budgetID: budgetID)
@@ -84,12 +92,12 @@ extension LocalFirstActualStore {
             if support == .configured {
                 return .server(transport: context.transport, token: context.token)
             }
-            if let device = try? bankSyncDeviceClient() {
+            if deviceFallback, let device = try? bankSyncDeviceClient() {
                 return .device(device)
             }
             return .server(transport: context.transport, token: context.token)
         } catch let error as ActualAPIError {
-            if case .transport = error, let device = try? bankSyncDeviceClient() {
+            if deviceFallback, case .transport = error, let device = try? bankSyncDeviceClient() {
                 return .device(device)
             }
             throw error
@@ -181,9 +189,13 @@ extension LocalFirstActualStore {
     /// Downloads one linked account, projects rules, matches, and returns the
     /// review plan. Writes nothing. Bumps the account's generation so a later
     /// apply with an older plan is refused.
-    func downloadBankSyncPlan(accountID: String, budgetID: String) async throws -> BankSyncReview.AccountPlan {
+    func downloadBankSyncPlan(
+        accountID: String,
+        budgetID: String,
+        deviceFallback: Bool = true
+    ) async throws -> BankSyncReview.AccountPlan {
         let database = try requireDatabase(for: budgetID)
-        let provider = try await bankSyncProvider(budgetID: budgetID)
+        let provider = try await bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
 
         guard let linked = try await database.bankSyncLinkedAccounts()
             .first(where: { $0.id == accountID }) else {
@@ -308,12 +320,16 @@ extension LocalFirstActualStore {
         var categorizedIDs = Set<String>()
         var insertedCount = 0
         var updatedCount = 0
+        var collectedInsertedIDs: [String] = []
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
 
         if let openingBalance = plan.openingBalance {
             let onBudget = !(try await database.bankSyncLinkedAccounts()
                 .first { $0.id == plan.accountID }?.offbudget ?? false)
+            let openingBalanceID = UUID().uuidString
+            collectedInsertedIDs.append(openingBalanceID)
             messages.append(contentsOf: try await database.makeBankSyncOpeningBalanceMessages(
+                transactionID: openingBalanceID,
                 accountID: plan.accountID,
                 openingBalance: openingBalance,
                 onBudget: onBudget,
@@ -370,6 +386,7 @@ extension LocalFirstActualStore {
                 )
             messages.append(contentsOf: payeeResolution.messages)
             messages.append(contentsOf: transactionMessages)
+            collectedInsertedIDs.append(transactionID)
             monthIDs.insert(draft.month.rawValue)
             if draft.categoryID != nil {
                 categorizedIDs.insert(transactionID)
@@ -413,7 +430,8 @@ extension LocalFirstActualStore {
         return BankSyncReview.ApplyResult(
             insertedCount: insertedCount,
             updatedCount: updatedCount,
-            openingBalanceInserted: plan.openingBalance != nil
+            openingBalanceInserted: plan.openingBalance != nil,
+            insertedTransactionIDs: collectedInsertedIDs
         )
     }
 
@@ -595,6 +613,45 @@ extension LocalFirstActualStore {
 
     // MARK: - Screen reads (Phase 4)
 
+    /// Background bank-sync step (plan Phase 6): download + auto-apply for
+    /// every open SimpleFIN-linked account through the SERVER connection
+    /// only. Runs after a successful background `/sync/sync`; the toggle is
+    /// consent to apply without a review sheet. Returns the inserted
+    /// transaction IDs per local account so the workflow can feed the
+    /// existing new-transaction notification pipeline (when the alerts
+    /// toggle is also on).
+    func backgroundBankSyncApply(
+        budgetID: String
+    ) async throws -> BankSyncBackgroundApplyResult {
+        let database = try requireDatabase(for: budgetID)
+        // Server SimpleFIN only; the Phase 5 device key is never read here.
+        guard try await bankSyncSupport(budgetID: budgetID) == .configured else {
+            throw BankSyncStoreError.serverCannotBankSync
+        }
+        let openAccountIDs = try await database.fetchAccounts()
+            .filter { !$0.closed }
+            .map(\.id)
+        let linked = try await database.bankSyncLinkedAccounts()
+            .filter { $0.syncSource == "simpleFin" && openAccountIDs.contains($0.id) }
+
+        var insertedTransactionIDsByAccount: [String: [String]] = [:]
+        for account in linked {
+            let plan = try await downloadBankSyncPlan(
+                accountID: account.id,
+                budgetID: budgetID,
+                deviceFallback: false
+            )
+            let result = try await applyBankSyncPlan(plan, budgetID: budgetID)
+            if !result.insertedTransactionIDs.isEmpty {
+                insertedTransactionIDsByAccount[account.id] = result.insertedTransactionIDs
+            }
+        }
+        return BankSyncBackgroundApplyResult(
+            accountCount: linked.count,
+            insertedTransactionIDsByAccount: insertedTransactionIDsByAccount
+        )
+    }
+
     /// One row of the Settings Bank Sync list: every open budget account
     /// with its link state. Derived once here so the view model never
     /// re-derives fallback expressions over raw reads.
@@ -664,3 +721,7 @@ private func Unwrap<T>(_ value: T?) throws -> T {
     }
     return value
 }
+
+/// The store is the production conformer of the background workflow's
+/// bank-sync step seam.
+extension LocalFirstActualStore: BackgroundBankSyncApplying {}

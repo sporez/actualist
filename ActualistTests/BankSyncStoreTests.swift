@@ -164,7 +164,10 @@ extension LocalFirstActualStoreTests {
         let before = try storedCRDTMessages(at: databaseURL).count
 
         let result = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
-        #expect(result == BankSyncReview.ApplyResult(insertedCount: 2, updatedCount: 0, openingBalanceInserted: true))
+        #expect(result.insertedCount == 2)
+        #expect(result.updatedCount == 0)
+        #expect(result.openingBalanceInserted)
+        #expect(result.insertedTransactionIDs.count == 3)
 
         let messages = try storedCRDTMessages(at: databaseURL)
         // Link columns + bank row landed.
@@ -233,7 +236,10 @@ extension LocalFirstActualStoreTests {
         #expect(second.unchangedCount == 1)
         #expect(second.openingBalance == nil)
         let result = try await store.applyBankSyncPlan(second, budgetID: "group-1")
-        #expect(result == BankSyncReview.ApplyResult(insertedCount: 0, updatedCount: 0, openingBalanceInserted: false))
+        #expect(result.insertedCount == 0)
+        #expect(result.updatedCount == 0)
+        #expect(!result.openingBalanceInserted)
+        #expect(result.insertedTransactionIDs.isEmpty)
     }
 
     // MARK: - Hand-entered same amount is adopted, not duplicated
