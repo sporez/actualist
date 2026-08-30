@@ -255,4 +255,21 @@ extension LocalFirstActualStoreTests {
             try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
         }
     }
+
+    @Test func missingTransactionCurrencyAlsoBlocksReviewAndApply() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(currency: nil)
+        )
+
+        let plan = try await bundle.store.downloadBankSyncPlan(
+            accountID: "savings",
+            budgetID: "group-1"
+        )
+
+        #expect(plan.inserts.isEmpty)
+        #expect(plan.problems.first?.message == "Missing transaction currency")
+        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
+            try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        }
+    }
 }

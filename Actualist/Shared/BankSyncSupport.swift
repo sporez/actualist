@@ -50,9 +50,9 @@ enum ActualBankSyncDurableStatus: String, Sendable {
 /// Currency-safe conversions for bank-sync downloads. Amount scaling always
 /// goes through the budget's `BudgetCurrency` scale — never `* 100`.
 enum BankSyncAmounts {
-    /// Canonical ISO-style code when the provider supplied one. Missing
-    /// currency remains unknown for compatibility; an explicit mismatch is
-    /// handled as a blocking normalization problem by the planner.
+    /// Canonical ISO-style code when the provider supplied one. Missing or
+    /// mismatched currency is a blocking normalization problem because amount
+    /// units cannot otherwise be interpreted safely.
     static func normalizedCurrencyCode(_ raw: String?) -> String? {
         guard let raw else { return nil }
         let code = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()

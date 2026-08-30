@@ -187,8 +187,16 @@ extension LocalFirstActualStore {
                 ))
                 continue
             }
-            if let transactionCurrency = BankSyncAmounts.normalizedCurrencyCode(transaction.currency),
-               transactionCurrency != currency.code.uppercased() {
+            guard let transactionCurrency = BankSyncAmounts.normalizedCurrencyCode(
+                transaction.currency
+            ) else {
+                prepared.problems.append(.init(
+                    remoteTransactionID: problemID,
+                    message: "Missing transaction currency"
+                ))
+                continue
+            }
+            guard transactionCurrency == currency.code.uppercased() else {
                 prepared.problems.append(.init(
                     remoteTransactionID: problemID,
                     message: "Currency mismatch (\(transactionCurrency) bank transaction, \(currency.code.uppercased()) budget)"
