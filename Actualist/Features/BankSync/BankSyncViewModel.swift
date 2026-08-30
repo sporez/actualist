@@ -48,6 +48,13 @@ final class BankSyncViewModel {
 
     private(set) var phase: Phase = .idle
     private(set) var serverSupport: SimpleFINServerSupport?
+    /// A device-claimed SimpleFIN access key exists (Phase 5). Used as the
+    /// provider only when the server cannot serve SimpleFIN itself.
+    private(set) var hasDeviceKey = false
+    private(set) var isClaiming = false
+    /// Pasted setup token draft. Presentation-only; the store claims it and
+    /// stores only the derived access key in the Keychain.
+    var draftSetupToken = ""
     private(set) var accountLines: [AccountLine] = []
     private(set) var remoteAccounts: [SimpleFINRemoteAccount] = []
     private(set) var reviewLines: [ReviewLine] = []
@@ -64,13 +71,22 @@ final class BankSyncViewModel {
     }
 
     var canSyncAll: Bool {
-        serverSupport == .configured
+        providerAvailable
             && accountLines.contains { $0.isSyncable }
             && phase == .ready
     }
 
     var canLinkAccounts: Bool {
-        serverSupport == .configured
+        providerAvailable
+    }
+
+    var canClaimDeviceToken: Bool {
+        !isClaiming
+            && !draftSetupToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var providerAvailable: Bool {
+        serverSupport == .configured || hasDeviceKey
     }
 
     var syncButtonTitle: String {
@@ -106,9 +122,11 @@ final class BankSyncViewModel {
             accountLines = rows.map(\.toLine)
             if isDemoMode {
                 serverSupport = nil
+                hasDeviceKey = false
             } else {
                 serverSupport = try await store.bankSyncSupport(budgetID: budgetID)
-                if serverSupport == .configured, canLinkAccounts {
+                hasDeviceKey = store.hasBankSyncDeviceKey()
+                if canLinkAccounts {
                     remoteAccounts = (try? await store.bankSyncRemoteAccounts(budgetID: budgetID)) ?? []
                 }
             }
@@ -184,6 +202,36 @@ final class BankSyncViewModel {
                 updated: updated,
                 openings: openings
             )
+            await load()
+        } catch {
+            phase = .failed(BankSyncCopy.failureMessage(error))
+        }
+    }
+
+    // MARK: - Device token (Phase 5)
+
+    /// Claims the pasted setup token once and stores the derived access key
+    /// in the Keychain. The token draft is cleared either way on success.
+    func claimDeviceToken() async {
+        guard canClaimDeviceToken else {
+            return
+        }
+        isClaiming = true
+        defer { isClaiming = false }
+        do {
+            try await store.claimBankSyncDeviceToken(draftSetupToken)
+            draftSetupToken = ""
+            await load()
+        } catch {
+            phase = .failed(BankSyncCopy.failureMessage(error))
+        }
+    }
+
+    /// Disconnect forgets the device key only. Links and transactions stay.
+    func forgetDeviceKey() async {
+        do {
+            try store.forgetBankSyncDeviceKey()
+            hasDeviceKey = store.hasBankSyncDeviceKey()
             await load()
         } catch {
             phase = .failed(BankSyncCopy.failureMessage(error))
@@ -339,21 +387,19 @@ enum BankSyncCopy {
         }
     }
 
-    static func providerText(support: SimpleFINServerSupport?, isDemoMode: Bool) -> String {
+    static func providerText(support: SimpleFINServerSupport?, hasDeviceKey: Bool, isDemoMode: Bool) -> String {
         if isDemoMode {
             return "Unavailable in demo mode"
         }
         switch support {
         case .configured:
             return "SimpleFIN via your server"
-        case .notConfigured:
-            return "SimpleFIN not set up on the server"
-        case .unsupported, nil:
-            return "Server does not support bank sync"
+        case .notConfigured, .unsupported, nil:
+            return hasDeviceKey ? "SimpleFIN via a device token" : "Not connected"
         }
     }
 
-    static func connectionFooter(support: SimpleFINServerSupport?, isDemoMode: Bool) -> String? {
+    static func connectionFooter(support: SimpleFINServerSupport?, hasDeviceKey: Bool, isDemoMode: Bool) -> String? {
         if isDemoMode {
             return "Demo budgets never contact a server, so bank sync is unavailable."
         }
@@ -361,11 +407,19 @@ enum BankSyncCopy {
         case .configured:
             return "This app and the Actual web UI share the same server connection."
         case .notConfigured:
-            return "Your server has no SimpleFIN setup token yet. Add one on the server to link bank accounts here."
+            if hasDeviceKey {
+                return deviceTokenFooter
+            }
+            return "Your server has no SimpleFIN setup token yet. Add one on the server, or connect with a SimpleFIN setup token below."
         case .unsupported, nil:
-            return "Your Actual server does not host the SimpleFIN routes, so accounts cannot sync from a bank here."
+            if hasDeviceKey {
+                return deviceTokenFooter
+            }
+            return "Your Actual server does not host the SimpleFIN routes. Connect with a SimpleFIN setup token below instead."
         }
     }
+
+    static let deviceTokenFooter = "Connected with a SimpleFIN setup token on this device. The Actual web UI cannot refresh these links, because the access key is only stored here."
 
     static func applySummary(inserted: Int, updated: Int, openings: Int) -> String {
         var parts: [String] = []

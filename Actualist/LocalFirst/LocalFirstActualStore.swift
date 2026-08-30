@@ -193,6 +193,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         refreshEndpointHealthDisplay()
         try keychain.removeActualSyncToken()
         try keychain.removeAllLocalFirstEncryptionKeys()
+        try keychain.removeSimpleFINAccessURL()
         try fileManager.deleteAllImportedBudgets()
     }
 

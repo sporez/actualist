@@ -48,6 +48,9 @@ private struct BankSyncScreen: View {
     var body: some View {
         List {
             serverSection
+            if !isDemoMode, viewModel.serverSupport != .configured {
+                deviceTokenSection
+            }
             accountsSection
         }
         .sheet(isPresented: Binding(
@@ -79,6 +82,7 @@ private struct BankSyncScreen: View {
             LabeledContent("Provider") {
                 Text(BankSyncCopy.providerText(
                     support: viewModel.serverSupport,
+                    hasDeviceKey: viewModel.hasDeviceKey,
                     isDemoMode: isDemoMode
                 ))
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -113,12 +117,48 @@ private struct BankSyncScreen: View {
         } footer: {
             if let footer = BankSyncCopy.connectionFooter(
                 support: viewModel.serverSupport,
+                hasDeviceKey: viewModel.hasDeviceKey,
                 isDemoMode: isDemoMode
             ) {
                 Text(footer)
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
+        }
+        .settingsSectionChrome()
+    }
+
+    private var deviceTokenSection: some View {
+        Section {
+            if viewModel.hasDeviceKey {
+                Button(role: .destructive) {
+                    Task { await viewModel.forgetDeviceKey() }
+                } label: {
+                    SettingsActionLabel(
+                        title: "Disconnect",
+                        systemImage: "minus.circle"
+                    )
+                }
+            } else {
+                TextField("Paste setup token", text: $viewModel.draftSetupToken, axis: .vertical)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button {
+                    Task { await viewModel.claimDeviceToken() }
+                } label: {
+                    SettingsActionLabel(
+                        title: viewModel.isClaiming ? "Connecting…" : "Connect",
+                        systemImage: "link"
+                    )
+                }
+                .disabled(!viewModel.canClaimDeviceToken)
+            }
+        } header: {
+            Text("SimpleFIN Token")
+        } footer: {
+            Text("Paste a one-time setup token from SimpleFIN. It is claimed once and the access key is stored only on this device.")
+                .font(.caption)
+                .foregroundStyle(ActualistTheme.secondaryText)
         }
         .settingsSectionChrome()
     }

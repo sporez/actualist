@@ -208,24 +208,6 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let all: [FlexibleTransaction]?
     }
 
-    private struct FlexibleNumber: Decodable {
-        let intValue: Int?
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let value = try? container.decode(Int.self) {
-                intValue = value
-            } else if let value = try? container.decode(Double.self) {
-                intValue = Int(value)
-            } else if let text = try? container.decode(String.self),
-                      let value = Double(text) {
-                intValue = Int(value)
-            } else {
-                intValue = nil
-            }
-        }
-    }
-
     private struct FlexibleAccountEntry: Decodable {
         let transactions: TransactionEnvelope?
         let startingBalance: FlexibleNumber?
@@ -245,7 +227,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let amount: FlexibleString?
         let payeeName: String?
         let notes: String?
-        let booked: FlexibleBool?
+        let booked: SimpleFINFlexibleBool?
         let account: String?
         let date: FlexibleUnixSeconds?
 
@@ -257,8 +239,8 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
                 ?? container.decodeIfPresent(String.self, forKey: .payeeNameSnake)
             notes = try? container.decodeIfPresent(String.self, forKey: .notes)
                 ?? container.decodeIfPresent(String.self, forKey: .memo)
-            booked = try? container.decodeIfPresent(FlexibleBool.self, forKey: .booked)
-                ?? container.decodeIfPresent(FlexibleBool.self, forKey: .cleared)
+            booked = try? container.decodeIfPresent(SimpleFINFlexibleBool.self, forKey: .booked)
+                ?? container.decodeIfPresent(SimpleFINFlexibleBool.self, forKey: .cleared)
             account = try? container.decodeIfPresent(String.self, forKey: .account)
             date = try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .date)
                 ?? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .posted)
@@ -281,54 +263,20 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
     }
 
-    private struct FlexibleString: Decodable {
-        let text: String?
+    private struct FlexibleNumber: Decodable {
+        let intValue: Int?
 
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
-            if let value = try? container.decode(String.self) {
-                text = value
+            if let value = try? container.decode(Int.self) {
+                intValue = value
             } else if let value = try? container.decode(Double.self) {
-                text = String(value)
-            } else {
-                text = nil
-            }
-        }
-    }
-
-    private struct FlexibleBool: Decodable {
-        let value: Bool?
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let boolValue = try? container.decode(Bool.self) {
-                value = boolValue
-            } else if let number = try? container.decode(Int.self) {
-                value = number != 0
-            } else if let text = try? container.decode(String.self) {
-                value = ["1", "true", "yes"].contains(text.lowercased())
-            } else {
-                value = nil
-            }
-        }
-    }
-
-    /// UNIX seconds arrive as an integer, a decimal, or a numeric string
-    /// depending on the bridge/server version.
-    private struct FlexibleUnixSeconds: Decodable {
-        let seconds: Int64?
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let value = try? container.decode(Int64.self) {
-                seconds = value
-            } else if let value = try? container.decode(Double.self) {
-                seconds = Int64(value)
+                intValue = Int(value)
             } else if let text = try? container.decode(String.self),
                       let value = Double(text) {
-                seconds = Int64(value)
+                intValue = Int(value)
             } else {
-                seconds = nil
+                intValue = nil
             }
         }
     }

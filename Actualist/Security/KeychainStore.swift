@@ -28,6 +28,14 @@ struct SystemKeychainBackend: KeychainBackend, Sendable {
 
 struct KeychainStore: Sendable {
     static let actualist = KeychainStore(service: "com.sporez.actualist", account: "actual-sync-token")
+    /// Device-wide SimpleFIN bridge access URL account (device-claim
+    /// fallback, bank-sync plan Phase 5). Not budget-scoped: it survives
+    /// budget switches and is only wiped with local data (erase) or an
+    /// explicit disconnect on the Bank Sync screen. Never logged.
+    static let defaultSimpleFINAccessKeyAccount = "simplefin-access-url"
+    /// Instance-level so test backends can isolate the device key;
+    /// production uses the default constant.
+    var simplefinAccessKeyAccount = KeychainStore.defaultSimpleFINAccessKeyAccount
 
     let service: String
     let account: String
@@ -36,10 +44,12 @@ struct KeychainStore: Sendable {
     init(
         service: String,
         account: String,
+        simplefinAccessKeyAccount: String = KeychainStore.defaultSimpleFINAccessKeyAccount,
         backend: any KeychainBackend = SystemKeychainBackend()
     ) {
         self.service = service
         self.account = account
+        self.simplefinAccessKeyAccount = simplefinAccessKeyAccount
         self.backend = backend
     }
 
@@ -57,6 +67,23 @@ struct KeychainStore: Sendable {
 
     func removeActualSyncToken() throws {
         try deleteData(operation: "remove the sync token")
+    }
+
+    func readSimpleFINAccessURL() -> String {
+        guard let data = scoped(account: simplefinAccessKeyAccount).readData(),
+              let value = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return value
+    }
+
+    func saveSimpleFINAccessURL(_ value: String) throws {
+        try scoped(account: simplefinAccessKeyAccount).saveData(Data(value.utf8))
+    }
+
+    func removeSimpleFINAccessURL() throws {
+        try scoped(account: simplefinAccessKeyAccount)
+            .deleteData(operation: "remove the SimpleFIN access key")
     }
 
     func readLocalFirstEncryptionKey(fileID: String, keyID: String) -> Data? {

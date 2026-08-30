@@ -12,6 +12,8 @@ extension LocalFirstActualStoreTests {
         var support: SimpleFINServerSupport
         var remoteAccounts: [SimpleFINRemoteAccount]?
         var response: SimpleFINTransactionsResponse?
+        /// When set, every route throws instead of answering (server unreachable).
+        var failure: ActualAPIError?
         private(set) var transactionsRequests: [(accountIDs: [String], startDates: [String])] = []
         private(set) var statusRequests = 0
 
@@ -22,15 +24,20 @@ extension LocalFirstActualStoreTests {
                 downloads: [:],
                 errorType: nil,
                 errorCode: nil
-            )
+            ),
+            failure: ActualAPIError? = nil
         ) {
             self.support = support
             self.remoteAccounts = remoteAccounts
             self.response = response
+            self.failure = failure
         }
 
         func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
             statusRequests += 1
+            if let failure {
+                throw failure
+            }
             return support
         }
 

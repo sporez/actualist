@@ -293,7 +293,8 @@ extension LocalFirstActualStoreTests {
         try JSONEncoder.actual.encode(metadata).write(to: fileManager.metadataURL(fileID: fileID))
         let keychain = KeychainStore(
             service: "com.sporez.actualist.tests",
-            account: UUID().uuidString
+            account: UUID().uuidString,
+            simplefinAccessKeyAccount: UUID().uuidString
         )
         let store = LocalFirstActualStore(
             keychain: keychain,

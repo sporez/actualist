@@ -30,11 +30,114 @@ extension LocalFirstActualStore {
         return try await context.transport.simpleFINStatus(token: context.token)
     }
 
-    /// Remote SimpleFIN-side accounts. `nil` when the server does not host
-    /// the SimpleFIN routes.
-    func bankSyncRemoteAccounts(budgetID: String) async throws -> [SimpleFINRemoteAccount]? {
-        let context = try bankSyncContext(budgetID: budgetID)
-        return try await context.transport.simpleFINAccounts(token: context.token)
+    // MARK: - Device-claim provider (plan Phase 5)
+
+    /// Where downloads come from: the Actual server's SimpleFIN routes, or
+    /// (fallback) the SimpleFIN bridge directly with a device-claimed key.
+    enum BankSyncProvider {
+        case server(transport: any SimpleFINServerTransport, token: String)
+        case device(SimpleFINBridgeClient)
+
+        var isDevice: Bool {
+            if case .device = self { return true }
+            return false
+        }
+
+        func remoteAccounts() async throws -> [SimpleFINRemoteAccount] {
+            switch self {
+            case .server(let transport, let token):
+                return try await transport.simpleFINAccounts(token: token) ?? []
+            case .device(let client):
+                return try await client.remoteAccounts()
+            }
+        }
+
+        func transactions(
+            accountIDs: [String],
+            startDates: [String]
+        ) async throws -> SimpleFINTransactionsResponse {
+            switch self {
+            case .server(let transport, let token):
+                // nil = routes unsupported; an empty answer drives the
+                // existing account-missing handling downstream.
+                return try await transport.simpleFINTransactions(
+                    token: token,
+                    accountIDs: accountIDs,
+                    startDates: startDates
+                ) ?? SimpleFINTransactionsResponse(downloads: [:], errorType: nil, errorCode: nil)
+            case .device(let client):
+                return try await client.transactions(accountIDs: accountIDs, startDates: startDates)
+            }
+        }
+    }
+
+    /// `makeBankSyncProvider`: server `configured == true` wins; otherwise a
+    /// device-claimed bridge key; otherwise the server transport so its
+    /// status classification surfaces as before. An unreachable server (a
+    /// connection-level transport failure on the status probe) falls back to
+    /// the device key when one exists and rethrows otherwise.
+    func bankSyncProvider(budgetID: String) async throws -> BankSyncProvider {
+        _ = try requireDatabase(for: budgetID)
+        do {
+            let context = try bankSyncContext(budgetID: budgetID)
+            let support = try await context.transport.simpleFINStatus(token: context.token)
+            if support == .configured {
+                return .server(transport: context.transport, token: context.token)
+            }
+            if let device = try? bankSyncDeviceClient() {
+                return .device(device)
+            }
+            return .server(transport: context.transport, token: context.token)
+        } catch let error as ActualAPIError {
+            if case .transport = error, let device = try? bankSyncDeviceClient() {
+                return .device(device)
+            }
+            throw error
+        }
+    }
+
+    /// Whether a device-claimed SimpleFIN access key is stored. Device-wide:
+    /// not budget-scoped, survives budget switches, cleared only by erase
+    /// (sign-out) or an explicit disconnect on the Bank Sync screen.
+    func hasBankSyncDeviceKey() -> Bool {
+        !keychain.readSimpleFINAccessURL().isEmpty
+    }
+
+    /// Claims a pasted setup token once and stores the access key in the
+    /// Keychain. The key is never returned to callers or logged.
+    func claimBankSyncDeviceToken(_ setupToken: String) async throws {
+        let claimed = try await SimpleFINBridgeClient.claim(setupToken: setupToken)
+        let base = claimed.baseURL.absoluteString
+        let scheme = "https://"
+        let hostAndPath = base.lowercased().hasPrefix(scheme) ? base.dropFirst(scheme.count) : base[...]
+        let accessURL = "https://\(claimed.username):\(claimed.password)@\(hostAndPath)"
+        try keychain.saveSimpleFINAccessURL(accessURL)
+    }
+
+    /// Disconnect forgets the device key only. Links and transactions stay.
+    func forgetBankSyncDeviceKey() throws {
+        try keychain.removeSimpleFINAccessURL()
+    }
+
+    private func bankSyncDeviceClient() throws -> SimpleFINBridgeClient {
+        let stored = keychain.readSimpleFINAccessURL()
+        guard !stored.isEmpty else {
+            throw SimpleFINBridgeError.invalidAccessURL
+        }
+        let credentials = try SimpleFINBridgeCredentials.accessCredentials(fromClaimBody: stored)
+        let baseURL = try SimpleFINBridgeCredentials.baseURL(fromClaimBody: stored)
+        return SimpleFINBridgeClient(
+            baseURL: baseURL,
+            username: credentials.username,
+            password: credentials.password
+        )
+    }
+
+    /// Remote SimpleFIN-side accounts through the resolved provider
+    /// (server first, device-claimed bridge fallback).
+    func bankSyncRemoteAccounts(budgetID: String) async throws -> [SimpleFINRemoteAccount] {
+        let provider = try await bankSyncProvider(budgetID: budgetID)
+        return try await provider.remoteAccounts()
     }
 
     // MARK: - Link / unlink
@@ -80,7 +183,7 @@ extension LocalFirstActualStore {
     /// apply with an older plan is refused.
     func downloadBankSyncPlan(accountID: String, budgetID: String) async throws -> BankSyncReview.AccountPlan {
         let database = try requireDatabase(for: budgetID)
-        let context = try bankSyncContext(budgetID: budgetID)
+        let provider = try await bankSyncProvider(budgetID: budgetID)
 
         guard let linked = try await database.bankSyncLinkedAccounts()
             .first(where: { $0.id == accountID }) else {
@@ -98,14 +201,13 @@ extension LocalFirstActualStore {
         }
         let oldestDayID = try await database.bankSyncOldestLiveTransactionDayID(accountID: accountID)
         let startDate = BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: oldestDayID)
-        let response = try await context.transport.simpleFINTransactions(
-            token: context.token,
+        let response = try await provider.transactions(
             accountIDs: [linked.remoteAccountID],
             startDates: [startDate]
         )
 
-        var download = response?.downloads[linked.remoteAccountID]
-        if download == nil, response?.errorCode == nil {
+        var download = response.downloads[linked.remoteAccountID]
+        if download == nil, response.errorCode == nil {
             // Null / absent account entry: the bridge had nothing for this
             // account, which the durable vocabulary records as account-missing.
             download = SimpleFINAccountDownload(
@@ -115,7 +217,7 @@ extension LocalFirstActualStore {
                 errorCode: "ACCOUNT_MISSING"
             )
         }
-        if let response, response.hasWholeRequestError, download?.errorCode == nil {
+        if response.hasWholeRequestError, download?.errorCode == nil {
             download = SimpleFINAccountDownload(
                 transactions: download?.transactions ?? [],
                 startingBalance: download?.startingBalance,
@@ -137,8 +239,8 @@ extension LocalFirstActualStore {
         // fall back to the server-computed `startingBalance` only for a
         // confirmed 2-decimal currency; otherwise no opening balance is
         // proposed. Never `parseInt(balance.replace('.', ''))`.
-        let remoteAccounts = try await context.transport.simpleFINAccounts(token: context.token)
-        let rawBalance = remoteAccounts?.first { $0.accountID == linked.remoteAccountID }?.balance
+        let remoteAccounts = try await provider.remoteAccounts()
+        let rawBalance = remoteAccounts.first { $0.accountID == linked.remoteAccountID }?.balance
         var currentBalanceMinorUnits: Int?
         if let parsed = BankSyncAmounts.minorUnits(fromDecimal: rawBalance, currency: currency) {
             currentBalanceMinorUnits = parsed
