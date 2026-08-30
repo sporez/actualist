@@ -16,6 +16,7 @@ struct WalletTransactionMappingTests {
         )
 
         #expect(candidate.amountMinorUnits == -1_250)
+        #expect(candidate.importedPayee == "Cafe")
         #expect(candidate.payeeName == "Cafe")
         #expect(candidate.isCleared)
         #expect(candidate.financialID == Self.fixedID.uuidString.lowercased())
@@ -73,6 +74,50 @@ struct WalletTransactionMappingTests {
         #expect(WalletTransactionMapper.normalizePayee("TST*STARBUCKS") == "Starbucks")
         #expect(WalletTransactionMapper.normalizePayee("PAYPAL * VENDOR") == "Vendor")
         #expect(WalletTransactionMapper.normalizePayee("SP MERCHANT") == "Merchant")
+    }
+
+    @Test func keepsRawImportedPayeeSeparateFromNormalizedDisplayPayee() throws {
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                fields(
+                    amount: Decimal(string: "8.50")!,
+                    indicator: .debit,
+                    merchantName: "  SQ * SQUARE COFFEE #12345  ",
+                    status: .booked
+                )
+            )
+        )
+
+        #expect(candidate.importedPayee == "SQ * SQUARE COFFEE #12345")
+        #expect(candidate.payeeName == "Square Coffee")
+        let draft = WalletTransactionMapper.draft(
+            from: candidate,
+            accountID: "checking",
+            sortOrder: 1
+        )
+        #expect(draft.importedPayee == "SQ * SQUARE COFFEE #12345")
+        #expect(draft.payeeName == "Square Coffee")
+    }
+
+    @Test func rulePreviewNilNotesRemovesWalletDraftNotes() {
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: Date(timeIntervalSince1970: 1_783_497_600),
+            amountMinorUnits: -850,
+            payeeID: nil,
+            payeeName: "Square Coffee",
+            categoryID: nil,
+            notes: "Original FinanceKit memo",
+            cleared: true,
+            isTransfer: false,
+            importedPayee: "SQ * SQUARE COFFEE"
+        )
+        let projected = WalletTransactionMapper.applyingImportPreview(
+            draft,
+            TransactionRulePreview(categoryID: nil, notes: nil)
+        )
+
+        #expect(projected.notes == nil)
     }
 
     @Test func amountOverflowAndNonFiniteValuesReturnNil() {

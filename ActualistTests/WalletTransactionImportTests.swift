@@ -48,7 +48,9 @@ extension LocalFirstActualStoreTests {
 
         let existing = try await store.existingImportedIDs(budgetID: "group-1", accountID: "checking")
         let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
-        let importedCafe = try #require(loaded.transactions.first { $0.importedPayee == "Wallet Cafe" })
+        let importedCafe = try #require(loaded.transactions.first {
+            $0.importedPayee == "SQ * WALLET CAFE #99"
+        })
         let importedRefund = try #require(loaded.transactions.first { $0.importedPayee == "Refund" })
 
         #expect(firstResult == WalletTransactionImportResult(importedCount: 1, duplicateCount: 0))
@@ -59,7 +61,9 @@ extension LocalFirstActualStoreTests {
         #expect(importedCafe.payeeName == "Wallet Cafe")
         #expect(importedRefund.amount == 1_500)
         #expect(importedRefund.cleared == .bool(false))
-        #expect(loaded.transactions.filter { $0.importedPayee == "Wallet Cafe" }.count == 1)
+        #expect(loaded.transactions.filter {
+            $0.importedPayee == "SQ * WALLET CAFE #99"
+        }.count == 1)
     }
 
     @Test func importWalletTransactionsAppliesMatchingPayeeRule() async throws {
@@ -105,6 +109,55 @@ extension LocalFirstActualStoreTests {
         #expect(result.importedCount == 1)
         #expect(imported.category == "groceries")
         #expect(imported.amount == -625)
+    }
+
+    @Test func importWalletTransactionsKeepsRawImportedPayeeForRules() async throws {
+        let rawPayee = "SQ * RAW WALLET CAFE #123"
+        let store = try await makeOpenedWritableStore(
+            additionalFixtureSQL: """
+            \(Self.walletImportColumnsSQL)
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'wallet-raw-payee-rule',
+                '[{"field":"imported_payee","op":"is","value":"\(rawPayee)","type":"string"}]',
+                '[{"field":"category","op":"set","value":"groceries","type":"id"}]',
+                0
+            );
+            """
+        )
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: UUID(uuidString: "22222222-3333-4444-5555-666666666666")!,
+                    amount: Decimal(string: "7.25")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: rawPayee,
+                    transactionDescription: rawPayee,
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 20),
+                    status: .booked
+                )
+            )
+        )
+
+        _ = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+
+        let loaded = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")
+        )
+        let imported = try #require(loaded.transactions.first {
+            $0.importedPayee == rawPayee
+        })
+        #expect(imported.payeeName == "Raw Wallet Cafe")
+        #expect(imported.category == "groceries")
     }
 
     @Test func existingImportedIDsAreScopedToTheAccount() async throws {

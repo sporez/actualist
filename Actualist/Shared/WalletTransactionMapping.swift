@@ -27,6 +27,9 @@ struct WalletTransactionFields: Equatable, Sendable {
 struct WalletTransactionCandidate: Equatable, Sendable, Identifiable {
     var id: String { financialID }
     var financialID: String
+    /// Raw FinanceKit merchant/description text for `imported_payee` rules.
+    var importedPayee: String?
+    /// Presentation/payee-lookup value after the existing Wallet cleanup.
     var payeeName: String
     var date: Date
     var amountMinorUnits: Int
@@ -75,9 +78,11 @@ enum WalletTransactionMapper {
         }
 
         let rawPayee = rawPayeeName(from: fields)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let payeeName = normalizePayee(rawPayee)
         return WalletTransactionCandidate(
             financialID: fields.id.uuidString.lowercased(),
+            importedPayee: rawPayee.isEmpty ? nil : rawPayee,
             payeeName: payeeName.isEmpty ? "Unknown" : payeeName,
             date: fields.transactionDate,
             amountMinorUnits: amountMinorUnits,
@@ -119,7 +124,7 @@ enum WalletTransactionMapper {
             notes: nil,
             cleared: candidate.isCleared,
             isTransfer: false,
-            importedPayee: candidate.payeeName,
+            importedPayee: candidate.importedPayee,
             importedID: candidate.financialID,
             sortOrder: sortOrder
         )
@@ -136,7 +141,9 @@ enum WalletTransactionMapper {
             payeeID: preview.payeeID ?? draft.payeeID,
             payeeName: draft.payeeName,
             categoryID: preview.splits.count >= 2 ? nil : (preview.categoryID ?? draft.categoryID),
-            notes: preview.notes ?? draft.notes,
+            // Rule preview carries the final nullable notes value. Nil means
+            // remove notes, not "leave the imported draft unchanged."
+            notes: preview.notes,
             cleared: preview.cleared ?? draft.cleared,
             isTransfer: draft.isTransfer,
             importedPayee: draft.importedPayee,
