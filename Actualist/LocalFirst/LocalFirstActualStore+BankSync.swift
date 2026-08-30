@@ -31,9 +31,25 @@ extension LocalFirstActualStore {
 
     // MARK: - Server capability
 
+    func cachedBankSyncSupport() -> SimpleFINServerSupport? {
+        guard let serverURL = openedServerURLString else {
+            return nil
+        }
+        return bankSyncSessionCache.simpleFINSupport(for: serverURL)
+    }
+
+    func cachedBankSyncRemoteAccounts() -> [SimpleFINRemoteAccount]? {
+        guard let serverURL = openedServerURLString else {
+            return nil
+        }
+        return bankSyncSessionCache.simpleFINRemoteAccounts(for: serverURL)
+    }
+
     func bankSyncSupport(budgetID: String) async throws -> SimpleFINServerSupport {
         let context = try bankSyncContext(budgetID: budgetID)
-        return try await context.transport.simpleFINStatus(token: context.token)
+        let support = try await context.transport.simpleFINStatus(token: context.token)
+        rememberBankSyncSupport(support)
+        return support
     }
 
     // MARK: - Device-claim provider (plan Phase 5)
@@ -92,22 +108,37 @@ extension LocalFirstActualStore {
         do {
             let context = try bankSyncContext(budgetID: budgetID)
             let support = try await context.transport.simpleFINStatus(token: context.token)
-            if support == .configured {
-                return .server(transport: context.transport, token: context.token)
-            }
-            if !deviceFallback {
-                throw BankSyncStoreError.serverCannotBankSync
-            }
-            if let device = try? bankSyncDeviceClient() {
-                return .device(device)
-            }
-            return .server(transport: context.transport, token: context.token)
+            rememberBankSyncSupport(support)
+            return try resolvedBankSyncProvider(
+                support: support,
+                context: context,
+                deviceFallback: deviceFallback
+            )
         } catch let error as ActualAPIError {
             if deviceFallback, case .transport = error, let device = try? bankSyncDeviceClient() {
                 return .device(device)
             }
             throw error
         }
+    }
+
+    /// Uses a just-probed or cached status so `/simplefin/accounts` does not
+    /// repeat the capability probe from the same open.
+    private func resolvedBankSyncProvider(
+        support: SimpleFINServerSupport,
+        context: (transport: any SimpleFINServerTransport, token: String),
+        deviceFallback: Bool
+    ) throws -> BankSyncProvider {
+        if support == .configured {
+            return .server(transport: context.transport, token: context.token)
+        }
+        if !deviceFallback {
+            throw BankSyncStoreError.serverCannotBankSync
+        }
+        if let device = try? bankSyncDeviceClient() {
+            return .device(device)
+        }
+        return .server(transport: context.transport, token: context.token)
     }
 
     /// Whether a device-claimed SimpleFIN access key is stored. Device-wide:
@@ -126,11 +157,13 @@ extension LocalFirstActualStore {
         let hostAndPath = base.lowercased().hasPrefix(scheme) ? base.dropFirst(scheme.count) : base[...]
         let accessURL = "https://\(claimed.username):\(claimed.password)@\(hostAndPath)"
         try keychain.saveSimpleFINAccessURL(accessURL)
+        bankSyncSessionCache.clearSimpleFINRemoteAccounts()
     }
 
     /// Disconnect forgets the device key only. Links and transactions stay.
     func forgetBankSyncDeviceKey() throws {
         try keychain.removeSimpleFINAccessURL()
+        bankSyncSessionCache.clearSimpleFINRemoteAccounts()
     }
 
     private func bankSyncDeviceClient() throws -> SimpleFINBridgeClient {
@@ -150,8 +183,20 @@ extension LocalFirstActualStore {
     /// Remote SimpleFIN-side accounts through the resolved provider
     /// (server first, device-claimed bridge fallback).
     func bankSyncRemoteAccounts(budgetID: String) async throws -> [SimpleFINRemoteAccount] {
-        let provider = try await bankSyncProvider(budgetID: budgetID)
-        return try await provider.remoteAccounts()
+        let context = try bankSyncContext(budgetID: budgetID)
+        let provider: BankSyncProvider
+        if let cached = cachedBankSyncSupport() {
+            provider = try resolvedBankSyncProvider(
+                support: cached,
+                context: context,
+                deviceFallback: true
+            )
+        } else {
+            provider = try await bankSyncProvider(budgetID: budgetID)
+        }
+        let accounts = try await provider.remoteAccounts()
+        rememberBankSyncRemoteAccounts(accounts)
+        return accounts
     }
 
     // MARK: - Link / unlink
@@ -505,7 +550,21 @@ extension LocalFirstActualStore {
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
         }
-        return (simpleFINTransportFactory(url), token)
+        return (simpleFINTransport(for: url), token)
+    }
+
+    private func rememberBankSyncSupport(_ support: SimpleFINServerSupport) {
+        guard let serverURL = openedServerURLString else {
+            return
+        }
+        bankSyncSessionCache.rememberSimpleFINSupport(support, for: serverURL)
+    }
+
+    private func rememberBankSyncRemoteAccounts(_ accounts: [SimpleFINRemoteAccount]) {
+        guard let serverURL = openedServerURLString else {
+            return
+        }
+        bankSyncSessionCache.rememberSimpleFINRemoteAccounts(accounts, for: serverURL)
     }
 
 }

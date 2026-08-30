@@ -39,6 +39,10 @@ extension LocalFirstActualStoreTests {
             self.accountsFailure = accountsFailure
         }
 
+        func setFailure(_ error: ActualAPIError?) {
+            failure = error
+        }
+
         func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
             statusRequests += 1
             if let failure {
@@ -727,5 +731,32 @@ extension LocalFirstActualStoreTests {
         let stamps = linkedMessages(messages, row: "savings").filter { $0.column == "last_sync" || $0.column == "bank_sync_status" }
         #expect(stamps.map(\.column) == ["bank_sync_status"])
         #expect(stamps.first?.serializedValue == "S:timed-out")
+    }
+
+    // MARK: - Open-path provider cache
+
+    @Test func bankSyncSupportIsCachedAndRemoteAccountsReuseIt() async throws {
+        let transport = StubSimpleFINTransport(
+            support: .configured,
+            remoteAccounts: [remoteAccount()]
+        )
+        let bundle = try await makeBankSyncStore(transport: transport)
+
+        #expect(bundle.store.cachedBankSyncSupport() == nil)
+        #expect(try await bundle.store.bankSyncSupport(budgetID: "group-1") == .configured)
+        #expect(bundle.store.cachedBankSyncSupport() == .configured)
+        #expect(await transport.statusRequests == 1)
+
+        let accounts = try await bundle.store.bankSyncRemoteAccounts(budgetID: "group-1")
+        #expect(accounts.map(\.accountID) == ["sfin-1"])
+        #expect(await transport.statusRequests == 1)
+        #expect(await transport.accountsRequests == 1)
+        #expect(bundle.store.cachedBankSyncRemoteAccounts()?.map(\.accountID) == ["sfin-1"])
+
+        let serverURL = bundle.store.openedServerURLString
+        bundle.store.reset()
+        bundle.store.openedServerURLString = serverURL
+        #expect(bundle.store.cachedBankSyncSupport() == nil)
+        #expect(bundle.store.cachedBankSyncRemoteAccounts() == nil)
     }
 }

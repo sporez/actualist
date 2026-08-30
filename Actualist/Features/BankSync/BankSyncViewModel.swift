@@ -18,6 +18,15 @@ final class BankSyncViewModel {
         case failed(String)
     }
 
+    /// Remote SimpleFIN accounts are for the link sheet only. Sync All must
+    /// not wait on this list.
+    enum RemoteAccountsStatus: Equatable {
+        case idle
+        case loading
+        case ready
+        case failed(String)
+    }
+
     /// One account line on the screen, pre-formatted for display.
     struct AccountLine: Identifiable, Equatable {
         let id: String
@@ -68,6 +77,7 @@ final class BankSyncViewModel {
     var draftSetupToken = ""
     private(set) var accountLines: [AccountLine] = []
     private(set) var remoteAccounts: [SimpleFINRemoteAccount] = []
+    private(set) var remoteAccountsStatus: RemoteAccountsStatus = .idle
     private(set) var reviewLines: [ReviewLine] = []
     /// Downloaded plans behind `reviewLines`; held privately so the sheet
     /// only ever sees display values, and confirm applies exactly what was
@@ -107,6 +117,10 @@ final class BankSyncViewModel {
     }
 
     private var providerAvailable: Bool {
+        // SimpleFIN is the only initiate path. Other linked providers stay
+        // visible but not syncable (`BankSyncLinkEligibility`). A later
+        // provider ORs its own capability here and caches under its own
+        // `BankSyncProviderKind`.
         serverSupport == .configured || hasDeviceKey
     }
 
@@ -133,14 +147,16 @@ final class BankSyncViewModel {
 
     func load() async {
         // Deliberately keeps resultSummary so the last apply result survives
-        // the post-apply reload.
-        phase = .loading
+        // the post-apply reload. Do not start in `.loading` when a cached
+        // provider can enable Sync All immediately.
         do {
             let rows = try await store.bankSyncAccountRows(budgetID: budgetID)
             accountLines = rows.map(\.toLine)
             if isDemoMode {
                 serverSupport = nil
                 hasDeviceKey = false
+                remoteAccounts = []
+                remoteAccountsStatus = .idle
                 phase = .ready
                 return
             }
@@ -149,30 +165,78 @@ final class BankSyncViewModel {
             // answer is unreadable (the provider resolution falls back to
             // the device key in exactly that case).
             hasDeviceKey = store.hasBankSyncDeviceKey()
+            applyCachedSession()
+            if phase != .ready {
+                phase = .loading
+            }
             do {
                 serverSupport = try await store.bankSyncSupport(budgetID: budgetID)
+                applyCachedRemoteAccounts()
+                phase = .ready
             } catch {
                 if hasDeviceKey {
                     serverSupport = nil
+                    applyCachedRemoteAccounts()
+                    phase = .ready
+                } else if store.cachedBankSyncSupport() != nil {
                     phase = .ready
                 } else {
                     phase = .failed(BankSyncCopy.failureMessage(error))
                 }
-                return
-            }
-            guard canLinkAccounts else {
-                phase = .ready
-                return
-            }
-            do {
-                remoteAccounts = try await store.bankSyncRemoteAccounts(budgetID: budgetID)
-                phase = .ready
-            } catch {
-                phase = .failed(BankSyncCopy.failureMessage(error))
             }
         } catch {
             phase = .failed(BankSyncCopy.failureMessage(error))
         }
+    }
+
+    /// Loads SimpleFIN-side accounts for the link sheet. Safe to call while
+    /// Sync All is already enabled; cancellation leaves a loading state idle.
+    func ensureRemoteAccounts() async {
+        guard canLinkAccounts, !isDemoMode else {
+            return
+        }
+        switch remoteAccountsStatus {
+        case .ready, .loading:
+            return
+        case .idle, .failed:
+            break
+        }
+        if applyCachedRemoteAccounts() {
+            return
+        }
+        remoteAccountsStatus = .loading
+        do {
+            let accounts = try await store.bankSyncRemoteAccounts(budgetID: budgetID)
+            try Task.checkCancellation()
+            remoteAccounts = accounts
+            remoteAccountsStatus = .ready
+        } catch is CancellationError {
+            if case .loading = remoteAccountsStatus {
+                remoteAccountsStatus = .idle
+            }
+        } catch {
+            remoteAccountsStatus = .failed(BankSyncCopy.failureMessage(error))
+        }
+    }
+
+    private func applyCachedSession() {
+        if let cached = store.cachedBankSyncSupport() {
+            serverSupport = cached
+            phase = .ready
+        }
+        _ = applyCachedRemoteAccounts()
+    }
+
+    @discardableResult
+    private func applyCachedRemoteAccounts() -> Bool {
+        if let remotes = store.cachedBankSyncRemoteAccounts() {
+            remoteAccounts = remotes
+            remoteAccountsStatus = .ready
+            return true
+        }
+        remoteAccounts = []
+        remoteAccountsStatus = .idle
+        return false
     }
 
     /// Download every syncable linked account, then present one review sheet.

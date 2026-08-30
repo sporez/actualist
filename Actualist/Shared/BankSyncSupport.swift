@@ -159,3 +159,63 @@ enum BankSyncAmounts {
         return formatter.string(from: earliest)
     }
 }
+
+/// Bank-sync initiate path. SimpleFIN is the only writable provider today;
+/// a later provider gets a new case so its open-path cache cannot overwrite
+/// SimpleFIN capability or remote accounts.
+enum BankSyncProviderKind: Hashable, Sendable {
+    case simpleFIN
+}
+
+/// In-memory Bank Sync open-path cache, keyed by opened server URL and
+/// provider kind. Optimistic UI only; downloads still resolve the live
+/// provider. Cleared on store `reset()`. Changing SimpleFIN support for a
+/// URL drops that provider's remotes because server and device-claim feeds
+/// are not interchangeable.
+struct BankSyncSessionCache: Equatable {
+    private struct Key: Hashable {
+        var serverURL: String
+        var kind: BankSyncProviderKind
+    }
+
+    private var simpleFINSupportByKey: [Key: SimpleFINServerSupport] = [:]
+    private var simpleFINRemoteAccountsByKey: [Key: [SimpleFINRemoteAccount]] = [:]
+
+    func simpleFINSupport(for serverURL: String) -> SimpleFINServerSupport? {
+        simpleFINSupportByKey[Key(serverURL: serverURL, kind: .simpleFIN)]
+    }
+
+    func simpleFINRemoteAccounts(for serverURL: String) -> [SimpleFINRemoteAccount]? {
+        simpleFINRemoteAccountsByKey[Key(serverURL: serverURL, kind: .simpleFIN)]
+    }
+
+    mutating func rememberSimpleFINSupport(
+        _ support: SimpleFINServerSupport,
+        for serverURL: String
+    ) {
+        let key = Key(serverURL: serverURL, kind: .simpleFIN)
+        if simpleFINSupportByKey[key] != support {
+            simpleFINRemoteAccountsByKey[key] = nil
+        }
+        simpleFINSupportByKey[key] = support
+    }
+
+    mutating func rememberSimpleFINRemoteAccounts(
+        _ accounts: [SimpleFINRemoteAccount],
+        for serverURL: String
+    ) {
+        simpleFINRemoteAccountsByKey[Key(serverURL: serverURL, kind: .simpleFIN)] = accounts
+    }
+
+    mutating func clearSimpleFINRemoteAccounts() {
+        let keys = simpleFINRemoteAccountsByKey.keys.filter { $0.kind == .simpleFIN }
+        for key in keys {
+            simpleFINRemoteAccountsByKey[key] = nil
+        }
+    }
+
+    mutating func clear() {
+        simpleFINSupportByKey = [:]
+        simpleFINRemoteAccountsByKey = [:]
+    }
+}

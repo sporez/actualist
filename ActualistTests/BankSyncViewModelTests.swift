@@ -77,15 +77,19 @@ extension LocalFirstActualStoreTests {
 
         #expect(model.phase == .ready)
         #expect(model.serverSupport == .configured)
+        #expect(model.remoteAccountsStatus == .idle)
         let savings = try #require(model.accountLines.first { $0.id == "savings" })
         #expect(savings.isLinked)
         #expect(savings.isSyncable)
         #expect(savings.remoteAccountID == "sfin-1")
-        #expect(model.linkedAccountDisplayName(for: savings) == "Checking")
         #expect(savings.lastSyncText == "Never synced") // link never sets last_sync
         let credit = try #require(model.accountLines.first { $0.id == "credit" })
         #expect(!credit.isLinked)
         #expect(!credit.isSyncable)
+
+        await model.ensureRemoteAccounts()
+        #expect(model.remoteAccountsStatus == .ready)
+        #expect(model.linkedAccountDisplayName(for: savings) == "Checking")
         #expect(model.linkableRemoteAccounts.isEmpty) // the only remote is linked
     }
 
@@ -253,6 +257,50 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
+    @Test func loadEnablesSyncAllWithoutFetchingRemoteAccounts() async throws {
+        let transport = stubbedTransport(
+            transactions: [],
+            remoteAccounts: [SimpleFINRemoteAccount(
+                accountID: "sfin-1",
+                name: "Checking",
+                balance: "1.00",
+                currency: "USD",
+                institution: nil,
+                orgName: "Friendly Bank",
+                orgDomain: "chase.example",
+                orgID: nil
+            )]
+        )
+        let (model, _) = try await makeViewModel(transport: transport, linkSavings: true)
+
+        #expect(model.phase == .ready)
+        #expect(model.canSyncAll)
+        #expect(model.remoteAccountsStatus == .idle)
+        #expect(await transport.statusRequests == 1)
+        #expect(await transport.accountsRequests == 0)
+
+        await model.ensureRemoteAccounts()
+        #expect(model.remoteAccountsStatus == .ready)
+        #expect(await transport.statusRequests == 1)
+        #expect(await transport.accountsRequests == 1)
+    }
+
+    @MainActor
+    @Test func cachedSupportKeepsSyncEnabledWhenRefreshFails() async throws {
+        let transport = stubbedTransport(transactions: [])
+        let (model, _) = try await makeViewModel(transport: transport, linkSavings: true)
+        #expect(model.canSyncAll)
+        #expect(model.serverSupport == .configured)
+
+        await transport.setFailure(.transport(URLError.Code.timedOut))
+        await model.load()
+
+        #expect(model.phase == .ready)
+        #expect(model.canSyncAll)
+        #expect(model.serverSupport == .configured)
+    }
+
+    @MainActor
     @Test func remoteAccountFailureIsNotPresentedAsAnEmptyList() async throws {
         let transport = StubSimpleFINTransport(
             accountsFailure: ActualAPIError.decoding
@@ -261,12 +309,17 @@ extension LocalFirstActualStoreTests {
         let model = BankSyncViewModel(store: bundle.store, budgetID: "group-1", currency: .usd)
 
         await model.load()
+        #expect(model.phase == .ready)
+        #expect(model.remoteAccountsStatus == .idle)
 
-        guard case .failed(let message) = model.phase else {
-            Issue.record("expected account metadata failure, got \(model.phase)")
+        await model.ensureRemoteAccounts()
+        guard case .failed(let message) = model.remoteAccountsStatus else {
+            Issue.record("expected account metadata failure, got \(model.remoteAccountsStatus)")
             return
         }
         #expect(message == "Actualist could not read the server response.")
+        #expect(model.phase == .ready)
+        #expect(model.linkableRemoteAccounts.isEmpty)
     }
 
     @MainActor

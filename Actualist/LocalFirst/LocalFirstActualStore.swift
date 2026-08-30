@@ -77,6 +77,11 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     /// not delayed by ~10s on every sync. Cleared by `reset()`.
     private var cachedSyncTransportsByURL: [String: any ActualSyncTransport] = [:]
     private var cachedConnectionTransportsByURL: [String: any ActualServerConnectionTransport] = [:]
+    private var cachedSimpleFINTransportsByURL: [String: any SimpleFINServerTransport] = [:]
+    /// Last-known SimpleFIN status and remote accounts for the Bank Sync screen.
+    /// Mutations are ignored so the optimistic UI copies values onto the view
+    /// model instead of observing this cache directly.
+    @ObservationIgnored var bankSyncSessionCache = BankSyncSessionCache()
 
     /// Raw TTL cache. Ignored so mutations do not publish; the Developer sheet
     /// observes `endpointHealthDisplay` instead.
@@ -99,6 +104,15 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         }
         let transport = connectionTransportFactory(url)
         cachedConnectionTransportsByURL[url.absoluteString] = transport
+        return transport
+    }
+
+    func simpleFINTransport(for url: URL) -> any SimpleFINServerTransport {
+        if let cached = cachedSimpleFINTransportsByURL[url.absoluteString] {
+            return cached
+        }
+        let transport = simpleFINTransportFactory(url)
+        cachedSimpleFINTransportsByURL[url.absoluteString] = transport
         return transport
     }
 
@@ -153,6 +167,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         remoteFilesByFileID = [:]
         cachedSyncTransportsByURL = [:]
         cachedConnectionTransportsByURL = [:]
+        cachedSimpleFINTransportsByURL = [:]
+        bankSyncSessionCache.clear()
     }
 
     // Keep the authenticated budget list while switching databases.

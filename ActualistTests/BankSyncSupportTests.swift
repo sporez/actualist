@@ -169,3 +169,44 @@ struct BankSyncSupportTests {
         return (database, url, { try? FileManager.default.removeItem(at: directory) })
     }
 }
+
+struct BankSyncSessionCacheTests {
+    private let checking = SimpleFINRemoteAccount(
+        accountID: "sfin-1",
+        name: "Checking",
+        balance: "1.00",
+        currency: "USD",
+        institution: nil,
+        orgName: "Bank",
+        orgDomain: nil,
+        orgID: nil
+    )
+
+    @Test func remembersSimpleFINSupportPerServerURL() {
+        var cache = BankSyncSessionCache()
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
+        cache.rememberSimpleFINSupport(.notConfigured, for: "https://b.example")
+        #expect(cache.simpleFINSupport(for: "https://a.example") == .configured)
+        #expect(cache.simpleFINSupport(for: "https://b.example") == .notConfigured)
+        #expect(cache.simpleFINSupport(for: "https://c.example") == nil)
+    }
+
+    @Test func changingSimpleFINSupportClearsThatProvidersRemotes() {
+        var cache = BankSyncSessionCache()
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
+        cache.rememberSimpleFINRemoteAccounts([checking], for: "https://a.example")
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example")?.map(\.accountID) == ["sfin-1"])
+        cache.rememberSimpleFINSupport(.notConfigured, for: "https://a.example")
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example") == nil)
+    }
+
+    @Test func clearDropsEveryProvider() {
+        var cache = BankSyncSessionCache()
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
+        cache.rememberSimpleFINRemoteAccounts([checking], for: "https://a.example")
+        cache.clear()
+        #expect(cache.simpleFINSupport(for: "https://a.example") == nil)
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example") == nil)
+    }
+}

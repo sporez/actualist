@@ -36,6 +36,9 @@ struct BankSyncAccountSheet: View {
                 }
             }
         }
+        .task(id: viewModel.canLinkAccounts) {
+            await viewModel.ensureRemoteAccounts()
+        }
         .onDisappear {
             viewModel.dismissAccountSheet()
         }
@@ -82,9 +85,20 @@ struct BankSyncAccountSheet: View {
             if !viewModel.canLinkAccounts {
                 Text("Bank accounts cannot be linked because the server has no SimpleFIN setup.")
                     .foregroundStyle(ActualistTheme.secondaryText)
-            } else if viewModel.linkableRemoteAccounts.isEmpty {
-                Text("No bank accounts are available from the server.")
-                    .foregroundStyle(ActualistTheme.secondaryText)
+            } else {
+                switch viewModel.remoteAccountsStatus {
+                case .idle, .loading:
+                    Text("Loading bank accounts…")
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                case .failed(let message):
+                    Text(message)
+                        .foregroundStyle(ActualistTheme.danger)
+                case .ready:
+                    if viewModel.linkableRemoteAccounts.isEmpty {
+                        Text("No bank accounts are available from the server.")
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
+                }
             }
             ForEach(viewModel.linkableRemoteAccounts, id: \.accountID) { remote in
                 Button {
