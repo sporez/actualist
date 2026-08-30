@@ -196,6 +196,7 @@ struct SimpleFINClientTests {
         let transaction = try #require(response.downloads["acct_1"]?.transactions.first)
         #expect(transaction.id == "t1")
         #expect(transaction.amount == "-12.34")
+        #expect(transaction.currency == "USD")
         #expect(transaction.payeeName == "Coffee Shop")
         #expect(transaction.notes == "latte")
         #expect(transaction.dateUnixSeconds.map(BankSyncAmounts.dayID(fromUnixSeconds:)) == "20240301")

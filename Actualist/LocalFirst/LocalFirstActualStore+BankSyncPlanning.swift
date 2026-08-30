@@ -187,6 +187,14 @@ extension LocalFirstActualStore {
                 ))
                 continue
             }
+            if let transactionCurrency = BankSyncAmounts.normalizedCurrencyCode(transaction.currency),
+               transactionCurrency != currency.code.uppercased() {
+                prepared.problems.append(.init(
+                    remoteTransactionID: problemID,
+                    message: "Currency mismatch (\(transactionCurrency) bank transaction, \(currency.code.uppercased()) budget)"
+                ))
+                continue
+            }
             guard let amount = BankSyncAmounts.minorUnits(
                 fromDecimal: transaction.amount,
                 currency: currency
@@ -222,7 +230,10 @@ extension LocalFirstActualStore {
                 payeeName: payeeName,
                 notes: escapedNotes?.isEmpty == false ? escapedNotes : nil,
                 categoryID: nil,
-                cleared: transaction.booked ?? true,
+                // Actual core uses `Boolean(trans.booked)`: an absent or
+                // unreadable posted state must remain pending, not be asserted
+                // as cleared.
+                cleared: transaction.booked == true,
                 importedPayee: payeeName
             )
             prepared.candidates.append(candidate)
@@ -370,21 +381,31 @@ extension LocalFirstActualStore {
             categoryID: nil,
             notes: candidate.notes,
             cleared: candidate.cleared,
-            isTransfer: false
+            isTransfer: false,
+            importedPayee: candidate.importedPayee
         )
     }
 
-    /// Over-inclusive read window around downloaded days. The reconciler owns
-    /// the exact ±7-day check.
+    /// Calendar-based read window around downloaded days. The reconciler owns
+    /// the exact ±7-day check; this query bound ensures it receives eligible
+    /// rows across month/year boundaries and leap days.
     static func monthWidenedWindow(
         candidateDayIDs: [String]
     ) -> ClosedRange<Int> {
-        guard let first = candidateDayIDs.min(),
-              let last = candidateDayIDs.max(),
-              let lower = Int(first.prefix(6)),
-              let upper = Int(last.prefix(6)) else {
+        guard let firstID = candidateDayIDs.min(),
+              let lastID = candidateDayIDs.max(),
+              let first = BankSyncAmounts.date(fromDayID: firstID),
+              let last = BankSyncAmounts.date(fromDayID: lastID) else {
             return 0...99_999_999
         }
-        return (lower * 100 + 1)...(upper * 100 + 31)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        guard let lowerDate = calendar.date(byAdding: .day, value: -7, to: first),
+              let upperDate = calendar.date(byAdding: .day, value: 7, to: last),
+              let lower = Int(BankSyncAmounts.dayID(fromUnixSeconds: Int64(lowerDate.timeIntervalSince1970))),
+              let upper = Int(BankSyncAmounts.dayID(fromUnixSeconds: Int64(upperDate.timeIntervalSince1970))) else {
+            return 0...99_999_999
+        }
+        return lower...upper
     }
 }

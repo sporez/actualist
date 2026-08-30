@@ -189,6 +189,7 @@ struct SimpleFINBridgeClientTests {
             "id": "acct_1",
             "name": "Checking",
             "balance": "50.00",
+            "currency": "USD",
             "transactions": [
                 {"id": "tx_1", "posted": 1709253000, "amount": "-12.50", "description": "Coffee",
                  "extra": {"notes": "morning"}}
@@ -208,6 +209,7 @@ struct SimpleFINBridgeClientTests {
         #expect(download?.transactions.first?.id == "tx_1")
         #expect(download?.transactions.first?.notes == "morning")
         #expect(download?.transactions.first?.payeeName == "Coffee")
+        #expect(download?.transactions.first?.currency == "USD")
         #expect(download?.transactions.last?.booked == false)
         #expect(download?.transactions.last?.dateUnixSeconds == 1_709_339_400)
     }

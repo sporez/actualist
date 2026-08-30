@@ -126,7 +126,7 @@ actor SimpleFINBridgeClient {
                     }
                     return seenTransactionIDs.insert(id).inserted
                 }
-                .map(\.remoteTransaction)
+                .map { $0.remoteTransaction(currency: account.currency) }
                 .filter { transaction in
                     guard let seconds = transaction.dateUnixSeconds else {
                         return true
@@ -283,7 +283,7 @@ private struct BridgeTransaction: Decodable {
     let pending: SimpleFINFlexibleBool?
     let extra: Extra?
 
-    var remoteTransaction: SimpleFINRemoteTransaction {
+    func remoteTransaction(currency: String?) -> SimpleFINRemoteTransaction {
         let payeeName = (extra?.payee ?? payee ?? description)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let dateUnixSeconds: Int64?
@@ -296,6 +296,7 @@ private struct BridgeTransaction: Decodable {
             id: id,
             dateUnixSeconds: dateUnixSeconds,
             amount: amount?.text,
+            currency: currency,
             payeeName: payeeName?.isEmpty == true ? nil : payeeName,
             notes: extra?.notes,
             booked: pending?.value.map { !$0 },

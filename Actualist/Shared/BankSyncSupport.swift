@@ -40,6 +40,15 @@ enum ActualBankSyncDurableStatus: String, Sendable {
 /// Currency-safe conversions for bank-sync downloads. Amount scaling always
 /// goes through the budget's `BudgetCurrency` scale — never `* 100`.
 enum BankSyncAmounts {
+    /// Canonical ISO-style code when the provider supplied one. Missing
+    /// currency remains unknown for compatibility; an explicit mismatch is
+    /// handled as a blocking normalization problem by the planner.
+    static func normalizedCurrencyCode(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let code = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return code.isEmpty ? nil : code
+    }
+
     /// Parses a raw decimal string from the SimpleFIN bridge into integer
     /// minor units using the budget currency's scale. Returns `nil` for junk
     /// rather than guessing: only an optional sign, digits, and at most one

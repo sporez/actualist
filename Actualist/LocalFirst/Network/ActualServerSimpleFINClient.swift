@@ -64,12 +64,35 @@ struct SimpleFINRemoteTransaction: Equatable, Sendable {
     let dateUnixSeconds: Int64?
     /// Raw decimal string; converted with `BankSyncAmounts`, never `* 100`.
     let amount: String?
+    /// Currency attached to the normalized transaction, when supplied.
+    /// Explicit mismatches fail closed before amount conversion.
+    let currency: String?
     let payeeName: String?
     let notes: String?
     /// Booked (posted) vs pending. `nil` when the bridge did not say.
     let booked: Bool?
     /// SimpleFIN-side account id, when present on the row.
     let accountID: String?
+
+    init(
+        id: String?,
+        dateUnixSeconds: Int64?,
+        amount: String?,
+        currency: String? = nil,
+        payeeName: String?,
+        notes: String?,
+        booked: Bool?,
+        accountID: String?
+    ) {
+        self.id = id
+        self.dateUnixSeconds = dateUnixSeconds
+        self.amount = amount
+        self.currency = currency
+        self.payeeName = payeeName
+        self.notes = notes
+        self.booked = booked
+        self.accountID = accountID
+    }
 }
 
 /// Per-account download from `/simplefin/transactions`.
@@ -276,6 +299,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     private struct FlexibleTransaction: Decodable {
         let id: String?
         let amount: FlexibleString?
+        let currency: String?
         let payeeName: String?
         let notes: String?
         let booked: SimpleFINFlexibleBool?
@@ -294,6 +318,8 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
                 forKey: .transactionAmount
             )
             amount = rawAmount ?? normalizedAmount?.amount
+            currency = normalizedAmount?.currency
+                ?? (try? container.decodeIfPresent(String.self, forKey: .currency))
 
             payeeName = (try? container.decodeIfPresent(String.self, forKey: .payeeName))
                 ?? (try? container.decodeIfPresent(String.self, forKey: .payeeNameSnake))
@@ -309,6 +335,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
 
         private struct TransactionAmount: Decodable {
             let amount: FlexibleString?
+            let currency: String?
         }
 
         enum CodingKeys: String, CodingKey {
@@ -316,6 +343,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             case transactionID = "transactionId"
             case amount
             case transactionAmount
+            case currency
             case payeeName
             case payeeNameSnake = "payee_name"
             case notes
@@ -428,6 +456,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
                     id: transaction.id,
                     dateUnixSeconds: transaction.date?.seconds,
                     amount: transaction.amount?.text,
+                    currency: transaction.currency,
                     payeeName: transaction.payeeName,
                     notes: transaction.notes,
                     booked: transaction.booked?.value,
