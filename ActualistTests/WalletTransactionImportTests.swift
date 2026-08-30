@@ -160,6 +160,68 @@ extension LocalFirstActualStoreTests {
         #expect(imported.category == "groceries")
     }
 
+    @Test func walletRemoveNotesRuleProducesFinalNilNotes() async throws {
+        let rawPayee = "WALLET MEMO MERCHANT"
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'wallet-remove-notes',
+                '[{"field":"imported_payee","op":"is","value":"\(rawPayee)","type":"string"}]',
+                '[{"field":"notes","op":"set","value":""}]',
+                0
+            );
+            """)
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: UUID(uuidString: "33333333-4444-5555-6666-777777777777")!,
+                    amount: Decimal(string: "5.00")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: rawPayee,
+                    transactionDescription: rawPayee,
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 20),
+                    status: .booked
+                )
+            )
+        )
+        let base = WalletTransactionMapper.draft(
+            from: candidate,
+            accountID: "checking",
+            sortOrder: 1
+        )
+        let noteBearingDraft = TransactionDraft(
+            accountID: base.accountID,
+            date: base.date,
+            amountMinorUnits: base.amountMinorUnits,
+            payeeID: base.payeeID,
+            payeeName: base.payeeName,
+            categoryID: base.categoryID,
+            notes: "Original FinanceKit memo",
+            cleared: base.cleared,
+            isTransfer: base.isTransfer,
+            importedPayee: base.importedPayee,
+            importedID: base.importedID,
+            sortOrder: base.sortOrder
+        )
+
+        let preview = try await store.previewRules(
+            for: noteBearingDraft,
+            budgetID: "group-1"
+        )
+        let projected = WalletTransactionMapper.applyingImportPreview(
+            noteBearingDraft,
+            preview
+        )
+
+        #expect(preview.notes == nil)
+        #expect(projected.notes == nil)
+    }
+
     @Test func existingImportedIDsAreScopedToTheAccount() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.walletImportColumnsSQL)
         let candidate = try #require(

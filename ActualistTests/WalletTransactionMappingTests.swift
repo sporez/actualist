@@ -99,27 +99,6 @@ struct WalletTransactionMappingTests {
         #expect(draft.payeeName == "Square Coffee")
     }
 
-    @Test func rulePreviewNilNotesRemovesWalletDraftNotes() {
-        let draft = TransactionDraft(
-            accountID: "checking",
-            date: Date(timeIntervalSince1970: 1_783_497_600),
-            amountMinorUnits: -850,
-            payeeID: nil,
-            payeeName: "Square Coffee",
-            categoryID: nil,
-            notes: "Original FinanceKit memo",
-            cleared: true,
-            isTransfer: false,
-            importedPayee: "SQ * SQUARE COFFEE"
-        )
-        let projected = WalletTransactionMapper.applyingImportPreview(
-            draft,
-            TransactionRulePreview(categoryID: nil, notes: nil)
-        )
-
-        #expect(projected.notes == nil)
-    }
-
     @Test func amountOverflowAndNonFiniteValuesReturnNil() {
         #expect(
             WalletTransactionMapper.map(
