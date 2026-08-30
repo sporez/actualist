@@ -159,3 +159,25 @@ extension LocalFirstActualStoreTests {
         #expect(!model.isReviewPresented)
     }
 }
+
+// MARK: - Phase 5/6 follow-up: device key survives a failed server probe
+
+extension LocalFirstActualStoreTests {
+    @MainActor
+    @Test func failedServerProbeStillSurfacesStoredDeviceKey() async throws {
+        let transport = StubSimpleFINTransport(failure: ActualAPIError.transport(URLError.Code.timedOut))
+        let bundle = try await makeBankSyncStore(transport: transport)
+        // A claimed device token exists, but the server probe throws.
+        try bundle.keychain.saveSimpleFINAccessURL("https://user:secret@bridge.example/user")
+
+        let model = BankSyncViewModel(store: bundle.store, budgetID: "group-1", currency: .usd)
+        await model.load()
+
+        #expect(model.phase == .ready)
+        #expect(model.hasDeviceKey)
+        #expect(model.canLinkAccounts)
+        // The device-token provider text is shown, not "Not connected".
+        #expect(BankSyncCopy.providerText(support: model.serverSupport, hasDeviceKey: model.hasDeviceKey, isDemoMode: false)
+            == "SimpleFIN via a device token")
+    }
+}

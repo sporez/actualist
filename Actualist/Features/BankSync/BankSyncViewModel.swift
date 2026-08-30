@@ -123,14 +123,28 @@ final class BankSyncViewModel {
             if isDemoMode {
                 serverSupport = nil
                 hasDeviceKey = false
-            } else {
+                phase = .ready
+                return
+            }
+            // Read the device key before probing the server: a claimed token
+            // must surface even when the server is unreachable or its
+            // answer is unreadable (the provider resolution falls back to
+            // the device key in exactly that case).
+            hasDeviceKey = store.hasBankSyncDeviceKey()
+            do {
                 serverSupport = try await store.bankSyncSupport(budgetID: budgetID)
-                hasDeviceKey = store.hasBankSyncDeviceKey()
                 if canLinkAccounts {
                     remoteAccounts = (try? await store.bankSyncRemoteAccounts(budgetID: budgetID)) ?? []
                 }
+                phase = .ready
+            } catch {
+                if hasDeviceKey {
+                    serverSupport = nil
+                    phase = .ready
+                } else {
+                    phase = .failed(BankSyncCopy.failureMessage(error))
+                }
             }
-            phase = .ready
         } catch {
             phase = .failed(BankSyncCopy.failureMessage(error))
         }

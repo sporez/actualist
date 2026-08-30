@@ -30,13 +30,20 @@ struct SimpleFINClientTests {
     // MARK: - Status
 
     @Test func configuredStatusReturnsConfigured() async throws {
+        // Actual's server wraps the answer in {status, data}.
+        let client = makeClient(statusCode: 200, body: #"{"status": "ok", "data": {"configured": true}}"#)
+        let support = try await client.simpleFINStatus(token: "token")
+        #expect(support == .configured)
+    }
+
+    @Test func flatStatusShapeRemainsSupported() async throws {
         let client = makeClient(statusCode: 200, body: #"{"configured": true}"#)
         let support = try await client.simpleFINStatus(token: "token")
         #expect(support == .configured)
     }
 
     @Test func unconfiguredStatusReturnsNotConfigured() async throws {
-        let client = makeClient(statusCode: 200, body: #"{"configured": false}"#)
+        let client = makeClient(statusCode: 200, body: #"{"status": "ok", "data": {"configured": false}}"#)
         let support = try await client.simpleFINStatus(token: "token")
         #expect(support == .notConfigured)
     }
@@ -127,6 +134,32 @@ struct SimpleFINClientTests {
         let json = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])
         #expect(json["accountId"] as? [String] == ["acct_1"])
         #expect(json["startDate"] as? [String] == ["2026-06-01"])
+    }
+
+    @Test func transactionsDecodesServerEnvelopePayload() async throws {
+        // Actual's server nests the account-keyed map under {status, data}.
+        let body = """
+        {
+          "status": "ok",
+          "data": {
+            "acct_1": {
+              "transactions": {"all": [
+                  {"id": "t1", "date": 1709253000, "amount": "-12.34",
+                   "payee_name": "Coffee Shop", "booked": true}
+              ]},
+              "startingBalance": 500
+            },
+            "errors": {"acct_2": [{"error_type": "SimplefinError",
+                                    "error_code": "TIMED_OUT"}]}
+          }
+        }
+        """
+        let response = try ActualServerSimpleFINClient.decodeTransactionsResponse(
+            from: Data(body.utf8)
+        )
+        #expect(response.downloads["acct_1"]?.transactions.count == 1)
+        #expect(response.downloads["acct_1"]?.startingBalance == 500)
+        #expect(response.downloads["acct_2"]?.errorCode == "TIMED_OUT")
     }
 
     @Test func transactionsDecodesAccountKeyedPayload() async throws {

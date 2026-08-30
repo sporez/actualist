@@ -160,8 +160,25 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let startDate: [String]
     }
 
+    /// Actual's server wraps responses in `{status: "ok", data: {...}}`;
+    /// decode both that envelope and a bare `{configured}` defensively.
     private struct SimpleFINStatusResponse: Decodable {
         let configured: Bool
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let value = try? container.decode(Bool.self, forKey: .configured) {
+                configured = value
+                return
+            }
+            let data = try container.nestedContainer(keyedBy: CodingKeys.self, forKey: .data)
+            configured = try data.decode(Bool.self, forKey: .configured)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case configured
+            case data
+        }
     }
 
     private struct SimpleFINAccountsResponse: Decodable {
@@ -336,6 +353,9 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     /// Transaction responses are account-keyed maps, not a wrapper object, so
     /// decode dynamically: every key except `errors` is a remote account id.
     /// Top-level `errors` maps account ids to per-account failure entries.
+    /// Actual's server nests the whole map under `{status, data}`; the keys
+    /// are decoded from `data` when present, and from the top level
+    /// otherwise.
     static func decodeTransactionsResponse(from data: Data) throws -> SimpleFINTransactionsResponse {
         guard let payload = try? JSONDecoder().decode(RawTransactionsPayload.self, from: data) else {
             throw ActualAPIError.decoding
@@ -404,22 +424,26 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: DynamicKey.self)
+            let dataKey = DynamicKey(stringValue: "data")!
+            let payloadContainer = container.contains(dataKey)
+                ? try container.nestedContainer(keyedBy: DynamicKey.self, forKey: dataKey)
+                : container
             var accountEntries: [String: FlexibleAccountEntry?] = [:]
             var batchErrors: [String: [FlexibleErrorEntry]]?
             var decodedErrorType: String?
             var decodedErrorCode: String?
-            for key in container.allKeys {
+            for key in payloadContainer.allKeys {
                 if key.stringValue == "errors" {
-                    batchErrors = try? container.decodeIfPresent(
+                    batchErrors = try? payloadContainer.decodeIfPresent(
                         [String: [FlexibleErrorEntry]].self,
                         forKey: key
                     )
                 } else if key.stringValue == "error_type" {
-                    decodedErrorType = try? container.decodeIfPresent(String.self, forKey: key)
+                    decodedErrorType = try? payloadContainer.decodeIfPresent(String.self, forKey: key)
                 } else if key.stringValue == "error_code" {
-                    decodedErrorCode = try? container.decodeIfPresent(String.self, forKey: key)
+                    decodedErrorCode = try? payloadContainer.decodeIfPresent(String.self, forKey: key)
                 } else {
-                    accountEntries[key.stringValue] = try? container.decodeIfPresent(
+                    accountEntries[key.stringValue] = try? payloadContainer.decodeIfPresent(
                         FlexibleAccountEntry.self,
                         forKey: key
                     )
