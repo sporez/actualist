@@ -64,6 +64,20 @@ struct BackgroundBankSyncWorkflowTests {
         }
     }
 
+    private func makeSettings(
+        alerts: Bool = false,
+        backgroundBankSync: Bool = false,
+        experimentalBankSync: Bool? = nil
+    ) -> AppSettings {
+        var settings = AppSettings()
+        settings.backgroundTransactionRefreshEnabled = alerts
+        settings.simplefinBackgroundSyncEnabled = backgroundBankSync
+        if experimentalBankSync ?? backgroundBankSync {
+            settings.enabledExperimentalFeatures = [.bankSync]
+        }
+        return settings
+    }
+
     private func syncedResult(
         pending: [BackgroundPendingTransactions] = []
     ) -> BackgroundTransactionRefreshResult {
@@ -115,8 +129,7 @@ struct BackgroundBankSyncWorkflowTests {
             insertedTransactionIDsByAccount: [:]
         )))
         let workflow = makeWorkflow(runner: runner, applier: applier)
-        var settings = AppSettings()
-        settings.simplefinBackgroundSyncEnabled = true
+        let settings = makeSettings(backgroundBankSync: true)
 
         _ = await workflow.performRefresh(
             timeLimit: .seconds(25),
@@ -141,9 +154,7 @@ struct BackgroundBankSyncWorkflowTests {
             insertedTransactionIDsByAccount: ["savings": ["tx-1"]]
         )))
         let workflow = makeWorkflow(applier: applier)
-        var settings = AppSettings()
-        settings.backgroundTransactionRefreshEnabled = true
-        settings.simplefinBackgroundSyncEnabled = false
+        let settings = makeSettings(alerts: true, backgroundBankSync: false)
 
         let output = await workflow.performRefresh(
             timeLimit: .seconds(25),
@@ -159,6 +170,72 @@ struct BackgroundBankSyncWorkflowTests {
         #expect(applier.callCount == 0)
     }
 
+    @Test func experimentalBankSyncOffNeverTouchesSimpleFINWhenAlertsAreOn() async throws {
+        var badgeCalls: [Int] = []
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(syncedResult(
+            pending: [BackgroundPendingTransactions(accountID: "checking", transactionIDs: ["sync-1"])]
+        ))))
+        let applier = FakeApplier(result: .success(BankSyncBackgroundApplyResult(
+            accountCount: 1,
+            insertedTransactionIDsByAccount: ["savings": ["bank-1"]]
+        )))
+        let workflow = makeWorkflow(
+            runner: runner,
+            applier: applier,
+            badgeUpdates: { badgeCalls.append($0) }
+        )
+        let settings = makeSettings(
+            alerts: true,
+            backgroundBankSync: true,
+            experimentalBankSync: false
+        )
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeStore()
+        )
+
+        #expect(output.outcome == .success)
+        #expect(applier.callCount == 0)
+        #expect(output.settings.pendingNewTransactionIDsByAccount["group-1|checking"] == ["sync-1"])
+        #expect(badgeCalls == [1])
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(!run.message.contains("bank sync"))
+    }
+
+    @Test func experimentalBankSyncOffDoesNotReserveBankWindowFromAlertsWake() async {
+        let runner = CapturingRunner()
+        let applier = FakeApplier(result: .success(BankSyncBackgroundApplyResult(
+            accountCount: 0,
+            insertedTransactionIDsByAccount: [:]
+        )))
+        let workflow = makeWorkflow(runner: runner, applier: applier)
+        let settings = makeSettings(
+            alerts: true,
+            backgroundBankSync: true,
+            experimentalBankSync: false
+        )
+
+        _ = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeStore()
+        )
+
+        // Alerts keep the full non-bank window (25 - 2 completion = 23).
+        #expect(runner.receivedTimeLimit == .seconds(23))
+        #expect(applier.callCount == 0)
+    }
+
     @Test func simplefinOnlyAppliesSilentlyWithoutNotificationsOrPendingIDs() async throws {
         var badgeCalls: [Int] = []
         let applier = FakeApplier(result: .success(BankSyncBackgroundApplyResult(
@@ -169,9 +246,7 @@ struct BackgroundBankSyncWorkflowTests {
             applier: applier,
             badgeUpdates: { badgeCalls.append($0) }
         )
-        var settings = AppSettings()
-        settings.backgroundTransactionRefreshEnabled = false
-        settings.simplefinBackgroundSyncEnabled = true
+        let settings = makeSettings(alerts: false, backgroundBankSync: true)
 
         let output = await workflow.performRefresh(
             timeLimit: .seconds(25),
@@ -208,9 +283,7 @@ struct BackgroundBankSyncWorkflowTests {
             applier: applier,
             badgeUpdates: { badgeCalls.append($0) }
         )
-        var settings = AppSettings()
-        settings.backgroundTransactionRefreshEnabled = true
-        settings.simplefinBackgroundSyncEnabled = true
+        let settings = makeSettings(alerts: true, backgroundBankSync: true)
 
         let output = await workflow.performRefresh(
             timeLimit: .seconds(25),
@@ -232,9 +305,7 @@ struct BackgroundBankSyncWorkflowTests {
     @Test func simplefinFailureNeverFailsTheParentRefresh() async throws {
         let applier = FakeApplier(result: .failure(ActualAPIError.transport(URLError.Code.timedOut)))
         let workflow = makeWorkflow(applier: applier)
-        var settings = AppSettings()
-        settings.backgroundTransactionRefreshEnabled = true
-        settings.simplefinBackgroundSyncEnabled = true
+        let settings = makeSettings(alerts: true, backgroundBankSync: true)
 
         let output = await workflow.performRefresh(
             timeLimit: .seconds(25),
@@ -255,9 +326,7 @@ struct BackgroundBankSyncWorkflowTests {
     @Test func taskExpirationCancellationIsNotSwallowedByBankSync() async {
         let applier = FakeApplier(result: .failure(CancellationError()))
         let workflow = makeWorkflow(applier: applier)
-        var settings = AppSettings()
-        settings.backgroundTransactionRefreshEnabled = true
-        settings.simplefinBackgroundSyncEnabled = true
+        let settings = makeSettings(alerts: true, backgroundBankSync: true)
 
         let output = await workflow.performRefresh(
             timeLimit: .seconds(25),
@@ -278,9 +347,7 @@ struct BackgroundBankSyncWorkflowTests {
             applier: applier,
             bankSyncTimeLimit: .milliseconds(50)
         )
-        var settings = AppSettings()
-        settings.backgroundTransactionRefreshEnabled = true
-        settings.simplefinBackgroundSyncEnabled = true
+        let settings = makeSettings(alerts: true, backgroundBankSync: true)
 
         let output = await workflow.performRefresh(
             timeLimit: .seconds(25),
@@ -307,9 +374,7 @@ struct BackgroundBankSyncWorkflowTests {
             insertedTransactionIDsByAccount: [:]
         )))
         let workflow = makeWorkflow(runner: runner, applier: applier)
-        var settings = AppSettings()
-        settings.backgroundTransactionRefreshEnabled = false
-        settings.simplefinBackgroundSyncEnabled = true
+        let settings = makeSettings(alerts: false, backgroundBankSync: true)
 
         let output = await workflow.performRefresh(
             timeLimit: .seconds(25),

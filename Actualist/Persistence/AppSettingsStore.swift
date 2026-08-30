@@ -29,18 +29,21 @@ enum AppSwitcherPrivacyMode: String, Codable, CaseIterable, Identifiable {
 
 enum ExperimentalFeature: String, Codable, CaseIterable, Identifiable {
     case budgetTemplates
+    case bankSync
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .budgetTemplates: "Budget Templates"
+        case .bankSync: "Bank Sync"
         }
     }
 
     var detail: String {
         switch self {
         case .budgetTemplates: "Shows template actions on the Budget screen."
+        case .bankSync: "Shows Bank Sync under Settings → Budget & Data."
         }
     }
 }
@@ -69,8 +72,9 @@ struct AppSettings: Codable, Equatable {
     var backgroundTransactionRefreshEnabled: Bool = false
     /// Optional SimpleFIN background bank sync (bank-sync plan Phase 6).
     /// Default off; the toggle is consent to auto-apply server SimpleFIN
-    /// downloads after a background `/sync/sync`. Never reads the Phase 5
-    /// device key; demo mode never runs it.
+    /// downloads after a background `/sync/sync`. Inert unless experimental
+    /// Bank Sync is also on. Never reads the Phase 5 device key; demo mode
+    /// never runs it. New Transaction Alerts do not depend on this flag.
     var simplefinBackgroundSyncEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
     var localFirstSyncDebug = LocalFirstSyncDebugInfo()
@@ -214,6 +218,28 @@ struct AppSettings: Codable, Equatable {
             [String: [String]].self,
             forKey: .pendingNewTransactionIDsByAccount
         ) ?? [:]
+    }
+
+    func isExperimentalFeatureEnabled(_ feature: ExperimentalFeature) -> Bool {
+        enabledExperimentalFeatures.contains(feature)
+    }
+
+    /// Foreground Bank Sync UI and writes. Off until Settings → Advanced.
+    var isBankSyncEnabled: Bool {
+        isExperimentalFeatureEnabled(.bankSync)
+    }
+
+    /// Phase 6 auto-apply. Requires the experimental Bank Sync feature and
+    /// the explicit Background Bank Sync toggle. New Transaction Alerts never
+    /// consult this; leftover toggle state is inert while experimental is off.
+    var isBackgroundBankSyncEnabled: Bool {
+        isBankSyncEnabled && simplefinBackgroundSyncEnabled
+    }
+
+    /// BGAppRefresh stays registered for alerts, or for experimental background
+    /// bank auto-apply. Alerts do not depend on Bank Sync.
+    var wantsBackgroundAppRefresh: Bool {
+        backgroundTransactionRefreshEnabled || isBackgroundBankSyncEnabled
     }
 }
 

@@ -64,7 +64,11 @@ final class AppState {
             applicationBadgeUpdater: applicationBadgeUpdater
         )
         self.providedLocalFirstStore = localFirstStore
-        let loaded = settingsStore.load()
+        var loaded = settingsStore.load()
+        if !loaded.isBankSyncEnabled, loaded.simplefinBackgroundSyncEnabled {
+            loaded.simplefinBackgroundSyncEnabled = false
+            settingsStore.save(loaded)
+        }
         self.settings = loaded
         ActualistTheme.activate(loaded.theme)
         if loaded.selectedBudgetID != nil,
@@ -582,7 +586,7 @@ final class AppState {
     }
 
     func isExperimentalFeatureEnabled(_ feature: ExperimentalFeature) -> Bool {
-        settings.enabledExperimentalFeatures.contains(feature)
+        settings.isExperimentalFeatureEnabled(feature)
     }
 
     func updateExperimentalFeature(_ feature: ExperimentalFeature, isEnabled: Bool) {
@@ -590,12 +594,22 @@ final class AppState {
             settings.enabledExperimentalFeatures.insert(feature)
         } else {
             settings.enabledExperimentalFeatures.remove(feature)
+            if feature == .bankSync {
+                settings.simplefinBackgroundSyncEnabled = false
+            }
         }
         settingsStore.save(settings)
+        if feature == .bankSync {
+            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
+        }
     }
 
     var canApplyBudgetTemplates: Bool {
         isExperimentalFeatureEnabled(.budgetTemplates)
+    }
+
+    var canUseBankSync: Bool {
+        settings.isBankSyncEnabled
     }
 
     func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
@@ -694,7 +708,8 @@ final class AppState {
     /// background access (like the alerts toggle) but never requests
     /// notification authorization — it posts nothing.
     func updateSimpleFINBackgroundSyncEnabled(_ isEnabled: Bool) async {
-        if isEnabled {
+        let enable = isEnabled && canUseBankSync
+        if enable {
             do {
                 try keychain.promoteAllItemsForBackgroundRefresh()
             } catch {
@@ -705,9 +720,9 @@ final class AppState {
                 return
             }
         }
-        settings.simplefinBackgroundSyncEnabled = isEnabled
+        settings.simplefinBackgroundSyncEnabled = enable
         settingsStore.save(settings)
-        if isEnabled {
+        if enable {
             BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
         } else {
             BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)

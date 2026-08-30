@@ -21,6 +21,10 @@ enum SettingsPage: String, CaseIterable, Hashable, Sendable {
         }
         return path.compactMap(SettingsPage.init(rawValue:))
     }
+
+    static func stack(fromScreenPath path: [String], isBankSyncEnabled: Bool) -> [SettingsPage] {
+        stack(fromScreenPath: path).filter { $0 != .bankSync || isBankSyncEnabled }
+    }
 }
 
 struct SettingsView: View {
@@ -301,7 +305,8 @@ struct SettingsView: View {
         didApplyLaunchDestination = true
 
         path = SettingsPage.stack(
-            fromScreenPath: SimulatorLaunchCommand.fromProcessInfo()?.screenPath ?? []
+            fromScreenPath: SimulatorLaunchCommand.fromProcessInfo()?.screenPath ?? [],
+            isBankSyncEnabled: appState.canUseBankSync
         )
     }
 

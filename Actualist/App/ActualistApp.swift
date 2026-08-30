@@ -224,9 +224,10 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
     @MainActor
     private func scheduleSkipReason(for appState: AppState) -> String? {
         var reasons: [String] = []
-        // One background task serves both toggles (plan Phase 6).
-        if !appState.settings.backgroundTransactionRefreshEnabled,
-           !appState.settings.simplefinBackgroundSyncEnabled {
+        // One background task serves alerts and experimental background bank
+        // sync independently. Alerts never require the Bank Sync experimental
+        // flag.
+        if !appState.settings.wantsBackgroundAppRefresh {
             reasons.append("alerts and bank sync disabled")
         }
         if appState.settings.selectedBudgetID == nil {

@@ -45,12 +45,14 @@ struct BudgetDataSettingsView: View {
                 }
                 .disabled(appState.settings.selectedBudgetID == nil)
 
-                NavigationLink {
-                    BankSyncView()
-                } label: {
-                    SettingsActionLabel(title: "Bank Sync", systemImage: "building.columns")
+                if appState.canUseBankSync {
+                    NavigationLink {
+                        BankSyncView()
+                    } label: {
+                        SettingsActionLabel(title: "Bank Sync", systemImage: "building.columns")
+                    }
+                    .disabled(appState.settings.selectedBudgetID == nil)
                 }
-                .disabled(appState.settings.selectedBudgetID == nil)
             }
             .settingsSectionChrome()
 

@@ -37,7 +37,7 @@ struct AdvancedSettingsView: View {
             } header: {
                 Text("Experimental Features")
             } footer: {
-                Text("Budget Templates is experimental while in development.")
+                Text("These features stay off until you enable them here.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }

@@ -162,10 +162,10 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         hasSyncCredentials: Bool
     ) -> String? {
         var reasons: [String] = []
-        // The background task serves both toggles (plan Phase 6): alerts and
-        // background bank sync. With only bank sync on, the pull still runs.
-        if !settings.backgroundTransactionRefreshEnabled,
-           !settings.simplefinBackgroundSyncEnabled {
+        // The background task serves alerts and experimental background bank
+        // sync independently. Alerts never require the Bank Sync experimental
+        // flag. With only effective bank sync on, the pull still runs.
+        if !settings.wantsBackgroundAppRefresh {
             reasons.append("alerts and bank sync disabled")
         }
         if settings.selectedBudgetID == nil {

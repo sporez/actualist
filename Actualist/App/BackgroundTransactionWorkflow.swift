@@ -183,7 +183,7 @@ final class BackgroundTransactionWorkflow {
             // One deadline for the entire wake. Reserve the bank window only
             // when enabled, plus finalization time, rather than allowing the
             // main sync and bank step to consume independent additive limits.
-            let bankReserve = local.simplefinBackgroundSyncEnabled
+            let bankReserve = local.isBackgroundBankSyncEnabled
                 ? bankSyncTimeLimit
                 : .zero
             let runnerTimeLimit = max(
@@ -208,7 +208,7 @@ final class BackgroundTransactionWorkflow {
                 // sees one combined pass.
                 var pendingTransactions = result.pendingTransactions
                 var runMessage = outcome.message
-                if local.simplefinBackgroundSyncEnabled {
+                if local.isBackgroundBankSyncEnabled {
                     let bankStep = try await runBackgroundBankSync(
                         budgetID: result.budgetID,
                         store: store

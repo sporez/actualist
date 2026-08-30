@@ -218,11 +218,36 @@ extension LocalFirstActualStoreTests {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let store = AppSettingsStore(defaults: defaults)
         var settings = AppSettings()
-        settings.enabledExperimentalFeatures = [.budgetTemplates]
+        settings.enabledExperimentalFeatures = [.budgetTemplates, .bankSync]
 
         store.save(settings)
 
-        #expect(store.load().enabledExperimentalFeatures == [.budgetTemplates])
+        #expect(store.load().enabledExperimentalFeatures == [.budgetTemplates, .bankSync])
+    }
+
+    @Test func backgroundBankSyncAndRefreshSchedulingHonorExperimentalGate() {
+        var settings = AppSettings()
+        settings.simplefinBackgroundSyncEnabled = true
+
+        #expect(!settings.isBankSyncEnabled)
+        #expect(!settings.isBackgroundBankSyncEnabled)
+        #expect(!settings.wantsBackgroundAppRefresh)
+
+        settings.backgroundTransactionRefreshEnabled = true
+        #expect(settings.wantsBackgroundAppRefresh)
+        #expect(!settings.isBackgroundBankSyncEnabled)
+
+        settings.enabledExperimentalFeatures = [.bankSync]
+        #expect(settings.isBankSyncEnabled)
+        #expect(settings.isBackgroundBankSyncEnabled)
+        #expect(settings.wantsBackgroundAppRefresh)
+
+        settings.backgroundTransactionRefreshEnabled = false
+        #expect(settings.wantsBackgroundAppRefresh)
+
+        settings.simplefinBackgroundSyncEnabled = false
+        #expect(!settings.isBackgroundBankSyncEnabled)
+        #expect(!settings.wantsBackgroundAppRefresh)
     }
 
     @Test func reportCardOrderPersistsAndRepairsMissingCards() throws {
