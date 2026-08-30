@@ -8,6 +8,7 @@ import Foundation
 extension LocalFirstActualStore {
     enum BankSyncStoreError: LocalizedError, Equatable {
         case staleGeneration
+        case unresolvedProblems
         case notLinked
         case notSimpleFINLinked
         case serverCannotBankSync
@@ -16,6 +17,8 @@ extension LocalFirstActualStore {
             switch self {
             case .staleGeneration:
                 return "This bank sync review is stale. Download again."
+            case .unresolvedProblems:
+                return "Bank sync found transactions it could not safely read. Nothing was saved."
             case .notLinked:
                 return "This account is not linked to a bank."
             case .notSimpleFINLinked:
@@ -92,7 +95,10 @@ extension LocalFirstActualStore {
             if support == .configured {
                 return .server(transport: context.transport, token: context.token)
             }
-            if deviceFallback, let device = try? bankSyncDeviceClient() {
+            if !deviceFallback {
+                throw BankSyncStoreError.serverCannotBankSync
+            }
+            if let device = try? bankSyncDeviceClient() {
                 return .device(device)
             }
             return .server(transport: context.transport, token: context.token)
@@ -184,121 +190,6 @@ extension LocalFirstActualStore {
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 
-    // MARK: - Download → review plan
-
-    /// Downloads one linked account, projects rules, matches, and returns the
-    /// review plan. Writes nothing. Bumps the account's generation so a later
-    /// apply with an older plan is refused.
-    func downloadBankSyncPlan(
-        accountID: String,
-        budgetID: String,
-        deviceFallback: Bool = true
-    ) async throws -> BankSyncReview.AccountPlan {
-        let database = try requireDatabase(for: budgetID)
-        let provider = try await bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
-
-        guard let linked = try await database.bankSyncLinkedAccounts()
-            .first(where: { $0.id == accountID }) else {
-            throw BankSyncStoreError.notLinked
-        }
-        guard linked.syncSource == "simpleFin" else {
-            throw BankSyncStoreError.notSimpleFINLinked
-        }
-
-        let currency: BudgetCurrency
-        if let cached = currencyByBudget[budgetID] {
-            currency = cached
-        } else {
-            currency = try await database.fetchBudgetCurrency()
-        }
-        let oldestDayID = try await database.bankSyncOldestLiveTransactionDayID(accountID: accountID)
-        let startDate = BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: oldestDayID)
-        let response = try await provider.transactions(
-            accountIDs: [linked.remoteAccountID],
-            startDates: [startDate]
-        )
-
-        var download = response.downloads[linked.remoteAccountID]
-        if download == nil, response.errorCode == nil {
-            // Null / absent account entry: the bridge had nothing for this
-            // account, which the durable vocabulary records as account-missing.
-            download = SimpleFINAccountDownload(
-                transactions: [],
-                startingBalance: nil,
-                errorType: nil,
-                errorCode: "ACCOUNT_MISSING"
-            )
-        }
-        if response.hasWholeRequestError, download?.errorCode == nil {
-            download = SimpleFINAccountDownload(
-                transactions: download?.transactions ?? [],
-                startingBalance: download?.startingBalance,
-                errorType: response.errorType,
-                errorCode: response.errorCode
-            )
-        }
-        let resolvedDownload = try Unwrap(download)
-
-        let normalized = try await normalizeDownload(
-            resolvedDownload,
-            accountID: accountID,
-            currency: currency,
-            database: database
-        )
-
-        // Opening-balance current balance: prefer the raw decimal `balance`
-        // from /simplefin/accounts (parsed with the budget currency scale);
-        // fall back to the server-computed `startingBalance` only for a
-        // confirmed 2-decimal currency; otherwise no opening balance is
-        // proposed. Never `parseInt(balance.replace('.', ''))`.
-        let remoteAccounts = try await provider.remoteAccounts()
-        let rawBalance = remoteAccounts.first { $0.accountID == linked.remoteAccountID }?.balance
-        var currentBalanceMinorUnits: Int?
-        if let parsed = BankSyncAmounts.minorUnits(fromDecimal: rawBalance, currency: currency) {
-            currentBalanceMinorUnits = parsed
-        } else if currency.decimalPlaces == 2 {
-            currentBalanceMinorUnits = resolvedDownload.startingBalance
-        }
-        let openingBalance: BankSyncReconciliation.OpeningBalance?
-        if let currentBalanceMinorUnits {
-            openingBalance = BankSyncReconciliation.openingBalance(
-                currentBalanceMinorUnits: currentBalanceMinorUnits,
-                candidateAmounts: normalized.candidateAmounts,
-                earliestDayID: normalized.earliestDayID,
-                accountHadLiveTransactions: try await database.bankSyncAccountHasLiveTransactions(accountID: accountID)
-            )
-        } else {
-            openingBalance = nil
-        }
-
-        let existing = try await database.bankSyncExistingRows(
-            accountID: accountID,
-            window: Self.monthWidenedWindow(candidateDayIDs: normalized.dayIDs)
-        )
-        let plan = BankSyncReconciliation.plan(candidates: normalized.projectedCandidates, existing: existing)
-
-        let generation = (bankSyncGenerationByAccount[accountID] ?? 0) + 1
-        bankSyncGenerationByAccount[accountID] = generation
-
-        return BankSyncReview.AccountPlan(
-            accountID: accountID,
-            remoteAccountID: linked.remoteAccountID,
-            durableStatus: ActualBankSyncDurableStatus.from(errorCode: resolvedDownload.errorCode),
-            inserts: plan.inserts,
-            updates: plan.entries.compactMap { entry in
-                if case .update(let update) = entry { return update }
-                return nil
-            },
-            unchangedCount: plan.entries.reduce(0) { count, entry in
-                if case .unchanged = entry { return count + 1 }
-                return count
-            },
-            problems: normalized.problems,
-            openingBalance: openingBalance,
-            generation: generation
-        )
-    }
-
     // MARK: - Apply
 
     /// Writes a confirmed plan: opening balance, match updates (with the
@@ -313,6 +204,10 @@ extension LocalFirstActualStore {
         guard bankSyncGenerationByAccount[plan.accountID] == plan.generation else {
             throw BankSyncStoreError.staleGeneration
         }
+        guard plan.problems.isEmpty else {
+            throw BankSyncStoreError.unresolvedProblems
+        }
+        try Task.checkCancellation()
 
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
@@ -345,6 +240,7 @@ extension LocalFirstActualStore {
             ).map { ($0.id, $0) }
         )
         for update in plan.updates {
+            try Task.checkCancellation()
             guard let existing = existingByID[update.existingID] else {
                 throw LocalFirstError.invalidLocalWrite("missing matched transaction")
             }
@@ -358,6 +254,7 @@ extension LocalFirstActualStore {
 
         var monthIDs = Set<String>()
         for (index, candidate) in plan.inserts.enumerated() {
+            try Task.checkCancellation()
             let transactionID = UUID().uuidString
             let payeeResolution = try await resolveBankSyncInsertPayee(
                 candidate: candidate,
@@ -406,6 +303,7 @@ extension LocalFirstActualStore {
             builder: &builder
         ))
 
+        try Task.checkCancellation()
         if !messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         }
@@ -432,124 +330,6 @@ extension LocalFirstActualStore {
             updatedCount: updatedCount,
             openingBalanceInserted: plan.openingBalance != nil,
             insertedTransactionIDs: collectedInsertedIDs
-        )
-    }
-
-    // MARK: - Normalization
-
-    private struct NormalizedDownload {
-        var projectedCandidates: [BankSyncReconciliation.Candidate] = []
-        var problems: [BankSyncReview.Problem] = []
-        var candidateAmounts: [Int] = []
-        var dayIDs: [String] = []
-        var earliestDayID: String?
-    }
-
-    /// Per-account normalization + rule projection. `candidateAmounts`
-    /// deliberately sums every normalized provider candidate before
-    /// rule-driven suppression — the bank balance reflects all of them
-    /// (opening-balance contract).
-    private func normalizeDownload(
-        _ download: SimpleFINAccountDownload,
-        accountID: String,
-        currency: BudgetCurrency,
-        database: BudgetDatabase
-    ) async throws -> NormalizedDownload {
-        var normalized = NormalizedDownload()
-        for transaction in download.transactions {
-            let problemID = transaction.id
-            guard let amountMinorUnits = BankSyncAmounts.minorUnits(
-                fromDecimal: transaction.amount,
-                currency: currency
-            ) else {
-                normalized.problems.append(BankSyncReview.Problem(
-                    remoteTransactionID: problemID,
-                    message: "Unreadable amount"
-                ))
-                continue
-            }
-            guard let dayID = transaction.dateUnixSeconds.map(BankSyncAmounts.dayID(fromUnixSeconds:)) else {
-                normalized.problems.append(BankSyncReview.Problem(
-                    remoteTransactionID: problemID,
-                    message: "Unreadable date"
-                ))
-                continue
-            }
-            // The bank balance for opening-balance math comes from the raw
-            // decimal balance on /simplefin/accounts, not the transactions
-            // payload; see the download plan assembly above.
-            guard let candidate = try await bankSyncCandidate(
-                from: transaction,
-                amountMinorUnits: amountMinorUnits,
-                dayID: dayID,
-                accountID: accountID,
-                database: database
-            ) else {
-                continue
-            }
-            normalized.candidateAmounts.append(amountMinorUnits)
-            normalized.dayIDs.append(dayID)
-            if normalized.earliestDayID == nil || dayID < normalized.earliestDayID! {
-                normalized.earliestDayID = dayID
-            }
-            if let projected = BankSyncReconciliation.applyingRulePreview(
-                try await database.previewRules(for: bankSyncPreviewDraft(
-                    candidate: candidate,
-                    accountID: accountID,
-                    dayID: dayID
-                )),
-                to: candidate
-            ) {
-                normalized.projectedCandidates.append(projected)
-            }
-        }
-        return normalized
-    }
-
-    private func bankSyncCandidate(
-        from transaction: SimpleFINRemoteTransaction,
-        amountMinorUnits: Int,
-        dayID: String,
-        accountID: String,
-        database: BudgetDatabase
-    ) async throws -> BankSyncReconciliation.Candidate? {
-        let payeeName = transaction.payeeName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedPayeeID: String?
-        if let payeeName {
-            resolvedPayeeID = try await database.bankSyncResolvedPayeeID(name: payeeName)
-        } else {
-            resolvedPayeeID = nil
-        }
-        return BankSyncReconciliation.Candidate(
-            financialID: transaction.id,
-            dayID: dayID,
-            amountMinorUnits: amountMinorUnits,
-            payeeID: resolvedPayeeID,
-            payeeName: payeeName,
-            notes: transaction.notes.map(BankSyncReconciliation.escapedNotes),
-            categoryID: nil,
-            cleared: transaction.booked ?? true,
-            importedPayee: payeeName
-        )
-    }
-
-    /// Rule-preview draft: raw values so payee-name and amount conditions
-    /// evaluate against what the bank sent, before the matcher sees it.
-    private func bankSyncPreviewDraft(
-        candidate: BankSyncReconciliation.Candidate,
-        accountID: String,
-        dayID: String
-    ) -> TransactionDraft {
-        TransactionDraft(
-            accountID: accountID,
-            date: BankSyncAmounts.date(fromDayID: dayID) ?? Date(timeIntervalSince1970: 0),
-            amountMinorUnits: candidate.amountMinorUnits,
-            payeeID: nil,
-            payeeName: candidate.payeeName ?? "",
-            categoryID: nil,
-            notes: candidate.notes,
-            cleared: candidate.cleared,
-            isTransfer: false
         )
     }
 
@@ -625,25 +405,40 @@ extension LocalFirstActualStore {
     ) async throws -> BankSyncBackgroundApplyResult {
         let database = try requireDatabase(for: budgetID)
         // Server SimpleFIN only; the Phase 5 device key is never read here.
-        guard try await bankSyncSupport(budgetID: budgetID) == .configured else {
-            throw BankSyncStoreError.serverCannotBankSync
-        }
+        // The batched planner's provider resolution enforces configured server
+        // support once for the entire run.
         let openAccountIDs = try await database.fetchAccounts()
             .filter { !$0.closed }
             .map(\.id)
         let linked = try await database.bankSyncLinkedAccounts()
             .filter { $0.syncSource == "simpleFin" && openAccountIDs.contains($0.id) }
+        if linked.isEmpty {
+            guard try await bankSyncSupport(budgetID: budgetID) == .configured else {
+                throw BankSyncStoreError.serverCannotBankSync
+            }
+            return BankSyncBackgroundApplyResult(
+                accountCount: 0,
+                insertedTransactionIDsByAccount: [:]
+            )
+        }
+
+        let plans = try await downloadBankSyncPlans(
+            accountIDs: linked.map(\.id),
+            budgetID: budgetID,
+            deviceFallback: false
+        )
+        // Preflight every account before the first write. A malformed row in a
+        // later account cannot leave earlier accounts applied from this wake.
+        guard plans.allSatisfy(\.problems.isEmpty) else {
+            throw BankSyncStoreError.unresolvedProblems
+        }
 
         var insertedTransactionIDsByAccount: [String: [String]] = [:]
-        for account in linked {
-            let plan = try await downloadBankSyncPlan(
-                accountID: account.id,
-                budgetID: budgetID,
-                deviceFallback: false
-            )
+        for plan in plans {
+            try Task.checkCancellation()
             let result = try await applyBankSyncPlan(plan, budgetID: budgetID)
             if !result.insertedTransactionIDs.isEmpty {
-                insertedTransactionIDsByAccount[account.id] = result.insertedTransactionIDs
+                insertedTransactionIDsByAccount[plan.accountID] = result.insertedTransactionIDs
             }
         }
         return BankSyncBackgroundApplyResult(
@@ -702,16 +497,6 @@ extension LocalFirstActualStore {
         return (simpleFINTransportFactory(url), token)
     }
 
-    /// Over-inclusive read window around the download's day range so the
-    /// exact ±7-day filter lives only in the reconciler. Month-widened bounds
-    /// are numerically safe on `YYYYMMDD` ints across month boundaries.
-    static func monthWidenedWindow(candidateDayIDs: [String]) -> ClosedRange<Int> {
-        guard let first = candidateDayIDs.min(), let last = candidateDayIDs.max(),
-              let lower = Int(first.prefix(6)), let upper = Int(last.prefix(6)) else {
-            return 0...99_999_999
-        }
-        return (lower * 100 + 1)...(upper * 100 + 31)
-    }
 }
 
 /// Small helper to keep `try Unwrap(optional)` readable in apply paths.

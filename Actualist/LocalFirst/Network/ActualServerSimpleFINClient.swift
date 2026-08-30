@@ -120,6 +120,13 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             return nil
         }
         let response = try Self.decode(SimpleFINAccountsResponse.self, from: data)
+        if let errorCode = response.data?.errorCode {
+            throw ActualAPIError.serverRejected(
+                status: nil,
+                reason: errorCode,
+                details: response.data?.errorType
+            )
+        }
         return (response.data?.accounts ?? []).map { account in
             SimpleFINRemoteAccount(
                 accountID: account.accountID,
@@ -186,11 +193,21 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
 
         struct AccountsData: Decodable {
             let accounts: [FlexibleAccount]?
+            let errorType: String?
+            let errorCode: String?
+
+            enum CodingKeys: String, CodingKey {
+                case accounts
+                case errorType = "error_type"
+                case errorCode = "error_code"
+            }
         }
     }
 
-    /// Server-side `SyncServerSimpleFinAccount` shape; `balance` may be a
-    /// JSON number or a decimal string depending on the server version.
+    /// Current sync-server forwards the raw SimpleFIN account (`id`, `org`),
+    /// while normalized link DTOs use `account_id` and flattened organization
+    /// fields. Accept both observed wire shapes. `balance` may be a JSON
+    /// number or decimal string depending on the bridge/server version.
     private struct FlexibleAccount: Decodable {
         let accountID: String
         let name: String
@@ -201,6 +218,19 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let orgDomain: String?
         let orgID: String?
 
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            accountID = try container.decodeIfPresent(String.self, forKey: .accountID)
+                ?? container.decode(String.self, forKey: .id)
+            name = try container.decode(String.self, forKey: .name)
+            balance = try container.decodeIfPresent(FlexibleString.self, forKey: .balance)
+            currency = try container.decodeIfPresent(String.self, forKey: .currency)
+            institution = try container.decodeIfPresent(String.self, forKey: .institution)
+            org = try container.decodeIfPresent(Org.self, forKey: .org)
+            orgDomain = try container.decodeIfPresent(String.self, forKey: .orgDomain)
+            orgID = try container.decodeIfPresent(String.self, forKey: .orgID)
+        }
+
         struct Org: Decodable {
             let name: String?
             let domain: String?
@@ -208,6 +238,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
 
         enum CodingKeys: String, CodingKey {
+            case id
             case accountID = "account_id"
             case name
             case balance
@@ -239,6 +270,9 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
     }
 
+    /// Current sync-server normalizes bridge rows to `transactionId`, nested
+    /// `transactionAmount.amount`, and a `YYYY-MM-DD` `date`. Retain raw
+    /// bridge-style aliases for older/custom servers.
     private struct FlexibleTransaction: Decodable {
         let id: String?
         let amount: FlexibleString?
@@ -250,23 +284,38 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = try? container.decodeIfPresent(String.self, forKey: .id)
-            amount = try? container.decodeIfPresent(FlexibleString.self, forKey: .amount)
-            payeeName = try? container.decodeIfPresent(String.self, forKey: .payeeName)
-                ?? container.decodeIfPresent(String.self, forKey: .payeeNameSnake)
-            notes = try? container.decodeIfPresent(String.self, forKey: .notes)
-                ?? container.decodeIfPresent(String.self, forKey: .memo)
-            booked = try? container.decodeIfPresent(SimpleFINFlexibleBool.self, forKey: .booked)
-                ?? container.decodeIfPresent(SimpleFINFlexibleBool.self, forKey: .cleared)
+            let rawID = try? container.decodeIfPresent(String.self, forKey: .id)
+            let normalizedID = try? container.decodeIfPresent(String.self, forKey: .transactionID)
+            id = rawID ?? normalizedID
+
+            let rawAmount = try? container.decodeIfPresent(FlexibleString.self, forKey: .amount)
+            let normalizedAmount = try? container.decodeIfPresent(
+                TransactionAmount.self,
+                forKey: .transactionAmount
+            )
+            amount = rawAmount ?? normalizedAmount?.amount
+
+            payeeName = (try? container.decodeIfPresent(String.self, forKey: .payeeName))
+                ?? (try? container.decodeIfPresent(String.self, forKey: .payeeNameSnake))
+            notes = (try? container.decodeIfPresent(String.self, forKey: .notes))
+                ?? (try? container.decodeIfPresent(String.self, forKey: .memo))
+            booked = (try? container.decodeIfPresent(SimpleFINFlexibleBool.self, forKey: .booked))
+                ?? (try? container.decodeIfPresent(SimpleFINFlexibleBool.self, forKey: .cleared))
             account = try? container.decodeIfPresent(String.self, forKey: .account)
-            date = try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .date)
-                ?? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .posted)
-                ?? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .transactedAt)
+            date = (try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .date))
+                ?? (try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .posted))
+                ?? (try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .transactedAt))
+        }
+
+        private struct TransactionAmount: Decodable {
+            let amount: FlexibleString?
         }
 
         enum CodingKeys: String, CodingKey {
             case id
+            case transactionID = "transactionId"
             case amount
+            case transactionAmount
             case payeeName
             case payeeNameSnake = "payee_name"
             case notes

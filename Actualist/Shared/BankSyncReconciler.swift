@@ -170,13 +170,14 @@ enum BankSyncReconciliation {
                 continue
             }
 
+            let existingNotes = row.notes?.isEmpty == false ? row.notes : nil
             let update = MatchedUpdate(
                 existingID: row.id,
                 financialID: candidate.financialID,
                 payeeID: row.payeeID ?? candidate.payeeID,
                 categoryID: row.categoryID ?? candidate.categoryID,
                 importedPayee: candidate.importedPayee,
-                notes: row.notes ?? candidate.notes,
+                notes: existingNotes ?? candidate.notes,
                 cleared: row.cleared || candidate.cleared,
                 childIDs: childIDsForClearCascade(of: row, in: existing, cleared: row.cleared || candidate.cleared)
             )
@@ -186,7 +187,7 @@ enum BankSyncReconciliation {
                update.payeeID == row.payeeID,
                update.categoryID == row.categoryID,
                update.importedPayee == row.importedPayee,
-               update.notes == row.notes,
+               update.notes == existingNotes,
                update.cleared == row.cleared {
                 entries.append(.unchanged(existingID: row.id))
             } else {
@@ -246,7 +247,9 @@ enum BankSyncReconciliation {
         var projected = candidate
         projected.payeeID = preview.payeeID ?? projected.payeeID
         projected.amountMinorUnits = preview.amountMinorUnits ?? projected.amountMinorUnits
-        projected.notes = preview.notes ?? projected.notes
+        // Rule preview carries the final notes value, including `nil` when a
+        // matching rule removes downloaded notes. Nil is not "no change".
+        projected.notes = preview.notes
         projected.categoryID = preview.splits.count >= 2 ? nil : (preview.categoryID ?? projected.categoryID)
         projected.cleared = preview.cleared ?? projected.cleared
         projected.splits = preview.splits.count >= 2
@@ -259,7 +262,7 @@ enum BankSyncReconciliation {
     /// and every `#` is doubled so note-authored markers (`#template`,
     /// `#goal`, `#cleanup`) stay inert.
     static func escapedNotes(_ notes: String) -> String {
-        notes.trimmingCharacters(in: .whitespaces)
+        notes.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "#", with: "##")
     }
 

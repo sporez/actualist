@@ -273,6 +273,38 @@ struct BankSyncReconcilerTests {
         #expect(BankSyncReconciliation.escapedNotes("  coffee #grab  ") == "coffee ##grab")
         #expect(BankSyncReconciliation.escapedNotes("#template") == "##template")
         #expect(BankSyncReconciliation.escapedNotes("plain") == "plain")
+        #expect(BankSyncReconciliation.escapedNotes("\n coffee \t") == "coffee")
+    }
+
+    @Test func blankExistingNotesAreFilledFromDownload() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", notes: "bank notes")],
+            existing: [existing(id: "row", notes: "")]
+        )
+        #expect(update(for: "row", plan)?.notes == "bank notes")
+    }
+
+    @Test func blankAndMissingNotesDoNotCreateAFalseUpdate() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [
+                candidate(
+                    id: "fin-1",
+                    notes: nil,
+                    cleared: false,
+                    importedPayee: "Steam"
+                )
+            ],
+            existing: [
+                existing(
+                    id: "row",
+                    financialID: "fin-1",
+                    notes: "",
+                    cleared: false,
+                    importedPayee: "Steam"
+                )
+            ]
+        )
+        #expect(isUnchanged("row", plan))
     }
 
     // MARK: - Rules before match
@@ -302,6 +334,25 @@ struct BankSyncReconcilerTests {
         #expect(projected?.payeeID == "payee-b")
         let plan = BankSyncReconciliation.plan(candidates: [projected!], existing: rows)
         #expect(update(for: "rule-payee", plan) != nil)
+    }
+
+    @Test func ruleCanRemoveDownloadedNotesBeforeMatching() {
+        let projected = BankSyncReconciliation.applyingRulePreview(
+            TransactionRulePreview(
+                categoryID: nil,
+                notes: nil,
+                payeeID: nil,
+                amountMinorUnits: nil,
+                date: nil,
+                cleared: nil,
+                scheduleID: nil,
+                deletesTransaction: false,
+                splits: []
+            ),
+            to: candidate(notes: "downloaded bank description")
+        )
+
+        #expect(projected?.notes == nil)
     }
 
     @Test func ruleChangesAmountAndMissesSameAmountNeighbor() {

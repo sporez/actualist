@@ -94,9 +94,15 @@ actor SimpleFINBridgeClient {
         accountIDs: [String],
         startDates: [String]
     ) async throws -> SimpleFINTransactionsResponse {
-        let start = startDates.first.map(Self.unixSeconds(fromDay:)) ?? 0
+        var startsByAccount: [String: Int] = [:]
+        for (index, accountID) in accountIDs.enumerated() where startsByAccount[accountID] == nil {
+            startsByAccount[accountID] = startDates.indices.contains(index)
+                ? Self.unixSeconds(fromDay: startDates[index])
+                : 0
+        }
+        let requestStart = startsByAccount.values.min() ?? 0
         let request = try self.accountsRequest(
-            startDate: start,
+            startDate: requestStart,
             endDate: Int(now().timeIntervalSince1970)
         )
         let set = try await self.run(request)
@@ -111,7 +117,22 @@ actor SimpleFINBridgeClient {
                 )
                 continue
             }
-                        let transactions = ((account.transactions ?? []) + (account.pending ?? [])).map(\.remoteTransaction)
+            var seenTransactionIDs = Set<String>()
+            let accountStart = startsByAccount[accountID] ?? requestStart
+            let transactions = ((account.transactions ?? []) + (account.pending ?? []))
+                .filter { transaction in
+                    guard let id = transaction.id else {
+                        return true
+                    }
+                    return seenTransactionIDs.insert(id).inserted
+                }
+                .map(\.remoteTransaction)
+                .filter { transaction in
+                    guard let seconds = transaction.dateUnixSeconds else {
+                        return true
+                    }
+                    return seconds >= Int64(accountStart)
+                }
             downloads[accountID] = SimpleFINAccountDownload(
                 transactions: transactions,
                 startingBalance: nil,
@@ -132,10 +153,13 @@ actor SimpleFINBridgeClient {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
         components?.path = "/" + [basePath, "accounts"].joined(separator: "/")
-        var query: [URLQueryItem] = [URLQueryItem(name: "pending", value: "1")]
+        var query: [URLQueryItem] = []
         if let startDate {
+            query.append(URLQueryItem(name: "pending", value: "1"))
             query.append(URLQueryItem(name: "start-date", value: String(startDate)))
             query.append(URLQueryItem(name: "end-date", value: String(max(endDate ?? 0, startDate))))
+        } else {
+            query.append(URLQueryItem(name: "balances-only", value: "1"))
         }
         components?.queryItems = query
         guard let url = components?.url else {
@@ -210,6 +234,13 @@ private struct BridgeAccountSet: Decodable {
 private struct BridgeErrorEntry: Decodable {
     let code: String?
     let message: String?
+    let accountID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case message = "msg"
+        case accountID = "account_id"
+    }
 }
 
 private struct BridgeAccount: Decodable {
@@ -255,9 +286,15 @@ private struct BridgeTransaction: Decodable {
     var remoteTransaction: SimpleFINRemoteTransaction {
         let payeeName = (extra?.payee ?? payee ?? description)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let dateUnixSeconds: Int64?
+        if pending?.value == true || posted?.seconds == 0 {
+            dateUnixSeconds = transactedAt?.seconds ?? posted?.seconds
+        } else {
+            dateUnixSeconds = posted?.seconds ?? transactedAt?.seconds
+        }
         return SimpleFINRemoteTransaction(
             id: id,
-            dateUnixSeconds: posted?.seconds ?? transactedAt?.seconds,
+            dateUnixSeconds: dateUnixSeconds,
             amount: amount?.text,
             payeeName: payeeName?.isEmpty == true ? nil : payeeName,
             notes: extra?.notes,

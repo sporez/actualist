@@ -45,6 +45,10 @@ final class BackgroundTransactionWorkflow {
     /// Wall-clock budget for the background SimpleFIN step, which runs
     /// after the `/sync/sync` refresh within the same BGTask.
     private let bankSyncTimeLimit: Duration
+    /// Leaves time after network/database work to persist diagnostics, update
+    /// badges, post notifications, and report BGTask completion before iOS
+    /// reaches its expiration deadline.
+    private let completionTimeReserve: Duration
 
     init(
         settingsStore: AppSettingsStore,
@@ -52,13 +56,15 @@ final class BackgroundTransactionWorkflow {
         applicationBadgeUpdater: @escaping @MainActor (Int) -> Void,
         runner: (any BackgroundTransactionRefreshing)? = nil,
         bankSyncApplier: (any BackgroundBankSyncApplying)? = nil,
-        bankSyncTimeLimit: Duration = .seconds(10)
+        bankSyncTimeLimit: Duration = .seconds(8),
+        completionTimeReserve: Duration = .seconds(2)
     ) {
         self.settingsStore = settingsStore
         self.notificationAuthorizationRequester = notificationAuthorizationRequester
         self.applicationBadgeUpdater = applicationBadgeUpdater
         self.bankSyncApplier = bankSyncApplier
         self.bankSyncTimeLimit = bankSyncTimeLimit
+        self.completionTimeReserve = completionTimeReserve
         self.debugRecorder = BackgroundRefreshDebugRecorder(settingsStore: settingsStore)
         // Constructed in the main-actor init body (not a default argument) so
         // the @MainActor struct is built in an isolated context.
@@ -174,13 +180,23 @@ final class BackgroundTransactionWorkflow {
         }
 
         do {
+            // One deadline for the entire wake. Reserve the bank window only
+            // when enabled, plus finalization time, rather than allowing the
+            // main sync and bank step to consume independent additive limits.
+            let bankReserve = local.simplefinBackgroundSyncEnabled
+                ? bankSyncTimeLimit
+                : .zero
+            let runnerTimeLimit = max(
+                .seconds(1),
+                timeLimit - bankReserve - completionTimeReserve
+            )
             let outcome = try await runner.run(
                 settings: local,
                 selectedBudget: selectedBudget,
                 budgets: budgets,
                 hasSyncCredentials: hasSyncCredentials,
                 store: store,
-                timeLimit: timeLimit
+                timeLimit: runnerTimeLimit
             )
 
             if case .synced(let result) = outcome {
@@ -193,7 +209,7 @@ final class BackgroundTransactionWorkflow {
                 var pendingTransactions = result.pendingTransactions
                 var runMessage = outcome.message
                 if local.simplefinBackgroundSyncEnabled {
-                    let bankStep = await runBackgroundBankSync(
+                    let bankStep = try await runBackgroundBankSync(
                         budgetID: result.budgetID,
                         store: store
                     )
@@ -271,8 +287,9 @@ final class BackgroundTransactionWorkflow {
     private func runBackgroundBankSync(
         budgetID: String,
         store: LocalFirstActualStore
-    ) async -> (pendingTransactions: [BackgroundPendingTransactions], messageSuffix: String) {
+    ) async throws -> (pendingTransactions: [BackgroundPendingTransactions], messageSuffix: String) {
         let applier = bankSyncApplier ?? store
+        let startedAt = Date()
         do {
             let result = try await withTimeLimit(
                 bankSyncTimeLimit,
@@ -287,12 +304,21 @@ final class BackgroundTransactionWorkflow {
                 .map { BackgroundPendingTransactions(accountID: $0.key, transactionIDs: $0.value) }
             let suffix = "; bank sync: \(result.accountCount) account\(result.accountCount == 1 ? "" : "s")"
                 + (insertedCount > 0 ? ", \(insertedCount) added" : "")
+                + " in \(Self.elapsedText(since: startedAt))"
             return (pending, suffix)
+        } catch is CancellationError {
+            // BGTask expiration must cancel the parent workflow rather than be
+            // downgraded to an optional bank-step failure.
+            throw CancellationError()
         } catch BackgroundBankSyncStepError.timedOut {
-            return ([], "; bank sync timed out")
+            return ([], "; bank sync timed out after \(Self.elapsedText(since: startedAt))")
         } catch {
-            return ([], "; bank sync failed: \(error.localizedDescription)")
+            return ([], "; bank sync failed after \(Self.elapsedText(since: startedAt)): \(error.localizedDescription)")
         }
+    }
+
+    private static func elapsedText(since start: Date) -> String {
+        String(format: "%.1fs", max(0, Date().timeIntervalSince(start)))
     }
 
     // MARK: Scheduling diagnostics

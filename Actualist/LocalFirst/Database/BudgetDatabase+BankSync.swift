@@ -299,7 +299,10 @@ extension BudgetDatabase {
         guard let bankID, !bankID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing SimpleFIN bank id")
         }
-        let bank = try findOrCreateBank(bankID: bankID, name: remote.orgName) {
+        let bank = try findOrCreateBank(
+            bankID: bankID,
+            name: remote.orgName ?? remote.institution
+        ) {
             UUID().uuidString
         }
         return try queue.read { db in

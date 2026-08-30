@@ -48,7 +48,7 @@ struct BudgetDataSettingsView: View {
                 NavigationLink {
                     BankSyncView()
                 } label: {
-                    SettingsActionLabel(title: "Bank Sync", systemImage: "bank.building")
+                    SettingsActionLabel(title: "Bank Sync", systemImage: "building.columns")
                 }
                 .disabled(appState.settings.selectedBudgetID == nil)
             }

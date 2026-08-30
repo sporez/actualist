@@ -44,10 +44,9 @@ struct BankSyncAccountSheet: View {
     private var linkedSection: some View {
         Section {
             LabeledContent("Bank account") {
-                Text(line.remoteAccountID ?? "—")
+                Text(viewModel.linkedAccountDisplayName(for: line))
                     .foregroundStyle(ActualistTheme.secondaryText)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .lineLimit(2)
             }
             LabeledContent("Last synced") {
                 Text(line.lastSyncText)

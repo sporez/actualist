@@ -35,14 +35,25 @@ final class BankSyncViewModel {
         }
     }
 
+    struct ReviewMatchLine: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let dateText: String
+        let amountText: String
+        let changes: [String]
+    }
+
     /// Per-account review section, pre-formatted for the review sheet.
     struct ReviewLine: Identifiable, Equatable {
         let id: String
         let accountName: String
         let addedCount: Int
         let updatedCount: Int
+        let matchLines: [ReviewMatchLine]
         let unchangedCount: Int
         let problemCount: Int
+        let problemSummary: String?
+        let statusText: String?
         let openingBalanceText: String?
     }
 
@@ -68,6 +79,16 @@ final class BankSyncViewModel {
 
     var isReviewPresented: Bool {
         phase == .reviewing
+    }
+
+    var reviewHasProblems: Bool {
+        reviewPlans.contains { !$0.problems.isEmpty }
+    }
+
+    var canConfirmReview: Bool {
+        phase == .reviewing
+            && !reviewPlans.isEmpty
+            && !reviewHasProblems
     }
 
     var canSyncAll: Bool {
@@ -97,20 +118,17 @@ final class BankSyncViewModel {
     private let budgetID: String
     private let currency: BudgetCurrency
     private let isDemoMode: Bool
-    private let now: @Sendable () -> Date
 
     init(
         store: LocalFirstActualStore,
         budgetID: String,
         currency: BudgetCurrency,
-        isDemoMode: Bool = false,
-        now: @escaping @Sendable () -> Date = { Date() }
+        isDemoMode: Bool = false
     ) {
         self.store = store
         self.budgetID = budgetID
         self.currency = currency
         self.isDemoMode = isDemoMode
-        self.now = now
     }
 
     func load() async {
@@ -133,10 +151,6 @@ final class BankSyncViewModel {
             hasDeviceKey = store.hasBankSyncDeviceKey()
             do {
                 serverSupport = try await store.bankSyncSupport(budgetID: budgetID)
-                if canLinkAccounts {
-                    remoteAccounts = (try? await store.bankSyncRemoteAccounts(budgetID: budgetID)) ?? []
-                }
-                phase = .ready
             } catch {
                 if hasDeviceKey {
                     serverSupport = nil
@@ -144,6 +158,17 @@ final class BankSyncViewModel {
                 } else {
                     phase = .failed(BankSyncCopy.failureMessage(error))
                 }
+                return
+            }
+            guard canLinkAccounts else {
+                phase = .ready
+                return
+            }
+            do {
+                remoteAccounts = try await store.bankSyncRemoteAccounts(budgetID: budgetID)
+                phase = .ready
+            } catch {
+                phase = .failed(BankSyncCopy.failureMessage(error))
             }
         } catch {
             phase = .failed(BankSyncCopy.failureMessage(error))
@@ -158,21 +183,19 @@ final class BankSyncViewModel {
         }
         phase = .downloading
         resultSummary = nil
-        var collected: [BankSyncReview.AccountPlan] = []
-        var failure: String?
-        for line in accountLines where line.isSyncable {
-            do {
-                collected.append(try await store.downloadBankSyncPlan(
-                    accountID: line.id,
-                    budgetID: budgetID
-                ))
-            } catch {
-                failure = BankSyncCopy.failureMessage(error)
-                break
-            }
+        let syncableAccountIDs = accountLines.filter(\.isSyncable).map(\.id)
+        let collected: [BankSyncReview.AccountPlan]
+        do {
+            collected = try await store.downloadBankSyncPlans(
+                accountIDs: syncableAccountIDs,
+                budgetID: budgetID
+            )
+        } catch {
+            phase = .failed(BankSyncCopy.failureMessage(error))
+            return
         }
-        guard failure == nil, !collected.isEmpty else {
-            phase = .failed(failure ?? "Nothing to sync.")
+        guard !collected.isEmpty else {
+            phase = .failed("Nothing to sync.")
             return
         }
         reviewPlans = collected
@@ -193,7 +216,7 @@ final class BankSyncViewModel {
     /// Applies every reviewed plan in order. The plans were validated
     /// generation-wise at download time; the store refuses a stale one.
     func confirmReview() async {
-        guard phase == .reviewing else {
+        guard canConfirmReview else {
             return
         }
         phase = .applying
@@ -266,6 +289,26 @@ final class BankSyncViewModel {
         accountLines.first { $0.id == selectedAccountID }
     }
 
+    /// SimpleFIN's user-facing account name for a linked remote identity.
+    /// If fresh remote metadata is unavailable, retain friendly local copy;
+    /// the opaque account id is deliberately never a display fallback.
+    func linkedAccountDisplayName(for line: AccountLine) -> String {
+        guard let remoteAccountID = line.remoteAccountID,
+              let remote = remoteAccounts.first(where: { $0.accountID == remoteAccountID }) else {
+            return line.name
+        }
+        let name = remote.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty {
+            return name
+        }
+        if let institution = (remote.institution ?? remote.orgName)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !institution.isEmpty {
+            return institution
+        }
+        return line.name
+    }
+
     /// Remote accounts not already linked to a local account.
     var linkableRemoteAccounts: [SimpleFINRemoteAccount] {
         let linkedRemoteIDs = Set(accountLines.map(\.remoteAccountID).compactMap { $0 })
@@ -331,8 +374,21 @@ private extension BankSyncReview.AccountPlan {
             accountName: accountNames[accountID] ?? "Account",
             addedCount: inserts.count + (openingBalance != nil ? 1 : 0),
             updatedCount: updates.count,
+            matchLines: matchDetails.map { detail in
+                BankSyncViewModel.ReviewMatchLine(
+                    id: detail.transactionID,
+                    title: detail.currentPayeeName ?? "Transaction",
+                    dateText: BankSyncCopy.dayText(detail.dayID),
+                    amountText: currency.formatted(detail.amountMinorUnits),
+                    changes: detail.changes.map(BankSyncCopy.matchChangeText)
+                )
+            },
             unchangedCount: unchangedCount,
             problemCount: problems.count,
+            problemSummary: BankSyncCopy.problemSummary(problems),
+            statusText: durableStatus == .ok
+                ? nil
+                : "Skipped · \(BankSyncCopy.statusText(durableStatus: durableStatus.rawValue) ?? "Failed")",
             openingBalanceText: openingBalance.map {
                 currency.formatted($0.amountMinorUnits)
             }
@@ -434,6 +490,83 @@ enum BankSyncCopy {
     }
 
     static let deviceTokenFooter = "Connected with a SimpleFIN setup token on this device. The Actual web UI cannot refresh these links, because the access key is only stored here."
+
+    static func dayText(_ dayID: String) -> String {
+        guard dayID.count == 8 else {
+            return dayID
+        }
+        return "\(dayID.prefix(4))-\(dayID.dropFirst(4).prefix(2))-\(dayID.suffix(2))"
+    }
+
+    static func matchChangeText(_ change: BankSyncReview.MatchChange) -> String {
+        switch change.field {
+        case .bankIDAttached:
+            return "Attach bank transaction ID"
+        case .bankIDReplaced:
+            return "Replace existing bank transaction ID"
+        case .payee:
+            return "Payee: \(value(change.oldValue, empty: "None")) → \(value(change.newValue, empty: "None"))"
+        case .category:
+            return "Category: \(value(change.oldValue, empty: "Uncategorized")) → \(value(change.newValue, empty: "Uncategorized"))"
+        case .bankPayee:
+            return "Bank payee: \(quoted(change.oldValue)) → \(quoted(change.newValue))"
+        case .notes:
+            return "Notes: \(quoted(change.oldValue)) → \(quoted(change.newValue))"
+        case .cleared:
+            return "Cleared: \(boolText(change.oldValue)) → \(boolText(change.newValue))"
+        case .splitChildrenCleared:
+            let count = Int(change.newValue ?? "") ?? 0
+            return count == 1
+                ? "Mark 1 split transaction cleared"
+                : "Mark \(count) split transactions cleared"
+        }
+    }
+
+    private static func value(_ raw: String?, empty fallback: String) -> String {
+        guard let raw, !raw.isEmpty else {
+            return fallback
+        }
+        return raw
+    }
+
+    private static func quoted(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else {
+            return "None"
+        }
+        return "“\(raw)”"
+    }
+
+    private static func boolText(_ raw: String?) -> String {
+        raw == "true" ? "Yes" : "No"
+    }
+
+    static func problemSummary(_ problems: [BankSyncReview.Problem]) -> String? {
+        guard !problems.isEmpty else {
+            return nil
+        }
+        let counts = Dictionary(grouping: problems, by: \.message)
+            .mapValues(\.count)
+        return counts.keys.sorted().map { message in
+            "\(counts[message] ?? 0)× \(message)"
+        }.joined(separator: " · ")
+    }
+
+    static func backgroundSyncFooter(
+        support: SimpleFINServerSupport?,
+        phase: BankSyncViewModel.Phase,
+        isDemoMode: Bool
+    ) -> String {
+        if isDemoMode {
+            return "Unavailable in demo mode."
+        }
+        if phase == .idle || phase == .loading {
+            return "Checking your server…"
+        }
+        guard support == .configured else {
+            return "Requires SimpleFIN through your Actual server. Device-only tokens are not used for background sync."
+        }
+        return "After a background budget sync, linked bank accounts are downloaded and saved automatically. No notification is posted for this."
+    }
 
     static func applySummary(inserted: Int, updated: Int, openings: Int) -> String {
         var parts: [String] = []

@@ -30,6 +30,27 @@ struct BackgroundBankSyncWorkflowTests {
     }
 
     @MainActor
+    private final class CapturingRunner: BackgroundTransactionRefreshing {
+        private(set) var receivedTimeLimit: Duration?
+
+        func run(
+            settings: AppSettings,
+            selectedBudget: ActualBudget?,
+            budgets: [ActualBudget],
+            hasSyncCredentials: Bool,
+            store: LocalFirstActualStore,
+            timeLimit: Duration
+        ) async throws -> BackgroundTransactionRefreshOutcome {
+            receivedTimeLimit = timeLimit
+            return .synced(BackgroundTransactionRefreshResult(
+                budgetID: "group-1",
+                accountCount: 1,
+                pendingTransactions: []
+            ))
+        }
+    }
+
+    @MainActor
     private final class SleepingApplier: BackgroundBankSyncApplying {
         let sleep: Duration
 
@@ -83,6 +104,33 @@ struct BackgroundBankSyncWorkflowTests {
                 simplefinAccessKeyAccount: UUID().uuidString
             )
         )
+    }
+
+    // MARK: Shared deadline
+
+    @Test func bankSyncReserveIsSubtractedFromTheSingleWakeBudget() async {
+        let runner = CapturingRunner()
+        let applier = FakeApplier(result: .success(BankSyncBackgroundApplyResult(
+            accountCount: 0,
+            insertedTransactionIDsByAccount: [:]
+        )))
+        let workflow = makeWorkflow(runner: runner, applier: applier)
+        var settings = AppSettings()
+        settings.simplefinBackgroundSyncEnabled = true
+
+        _ = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeStore()
+        )
+
+        // Test workflow reserves its injected 5-second bank window and the
+        // production 2-second finalization window from the 25-second wake.
+        #expect(runner.receivedTimeLimit == .seconds(18))
     }
 
     // MARK: Toggle semantics
@@ -143,7 +191,7 @@ struct BackgroundBankSyncWorkflowTests {
         #expect(badgeCalls.isEmpty)
         // Step recorded in the debug run.
         let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
-        #expect(run.message.contains("bank sync: 1 account, 2 added"))
+        #expect(run.message.contains("bank sync: 1 account, 2 added in "))
     }
 
     @Test func bothTogglesCombineSyncAndBankInsertsIntoOneNotificationPass() async throws {
@@ -202,6 +250,26 @@ struct BackgroundBankSyncWorkflowTests {
         let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
         #expect(run.succeeded == true)
         #expect(run.message.contains("bank sync failed"))
+    }
+
+    @Test func taskExpirationCancellationIsNotSwallowedByBankSync() async {
+        let applier = FakeApplier(result: .failure(CancellationError()))
+        let workflow = makeWorkflow(applier: applier)
+        var settings = AppSettings()
+        settings.backgroundTransactionRefreshEnabled = true
+        settings.simplefinBackgroundSyncEnabled = true
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25),
+            isDemoMode: false,
+            settings: settings,
+            selectedBudget: nil,
+            budgets: [],
+            hasSyncCredentials: true,
+            store: makeStore()
+        )
+
+        #expect(output.outcome == .cancelled)
     }
 
     @Test func simplefinTimeoutNeverFailsTheParentRefresh() async throws {

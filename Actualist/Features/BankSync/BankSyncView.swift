@@ -42,6 +42,7 @@ struct BankSyncView: View {
 }
 
 private struct BankSyncScreen: View {
+    @Environment(AppState.self) private var appState
     @State var viewModel: BankSyncViewModel
     let isDemoMode: Bool
 
@@ -51,6 +52,7 @@ private struct BankSyncScreen: View {
             if !isDemoMode, viewModel.serverSupport != .configured {
                 deviceTokenSection
             }
+            backgroundSyncSection
             accountsSection
         }
         .sheet(isPresented: Binding(
@@ -126,6 +128,34 @@ private struct BankSyncScreen: View {
             }
         }
         .settingsSectionChrome()
+    }
+
+    private var backgroundSyncSection: some View {
+        Section {
+            Toggle("Background Bank Sync", isOn: backgroundSyncSelection)
+                .disabled(isDemoMode || viewModel.serverSupport != .configured)
+        } header: {
+            Text("Background Sync")
+        } footer: {
+            Text(BankSyncCopy.backgroundSyncFooter(
+                support: viewModel.serverSupport,
+                phase: viewModel.phase,
+                isDemoMode: isDemoMode
+            ))
+            .font(.caption)
+            .foregroundStyle(ActualistTheme.secondaryText)
+        }
+        .settingsSectionChrome()
+    }
+
+    private var backgroundSyncSelection: Binding<Bool> {
+        Binding {
+            appState.settings.simplefinBackgroundSyncEnabled
+        } set: { isEnabled in
+            Task {
+                await appState.updateSimpleFINBackgroundSyncEnabled(isEnabled)
+            }
+        }
     }
 
     private var deviceTokenSection: some View {

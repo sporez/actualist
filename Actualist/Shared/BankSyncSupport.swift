@@ -25,6 +25,8 @@ enum ActualBankSyncDurableStatus: String, Sendable {
             return .timedOut
         case "ACCOUNT_MISSING":
             return .accountMissing
+        case "ACCOUNT_NEEDS_ATTENTION":
+            return .attentionRequired
         case "RATE_LIMIT_EXCEEDED":
             return .rateLimitExceeded
         case "INVALID_ACCESS_TOKEN", "UNAUTHORIZED", "INVALID_CREDENTIALS":
@@ -128,7 +130,7 @@ enum BankSyncAmounts {
         var earliest = earliestAllowed
         if let oldestLiveTransactionDayID,
            let oldest = date(fromDayID: oldestLiveTransactionDayID),
-           oldest < earliestAllowed {
+           oldest > earliestAllowed {
             earliest = oldest
         }
         let formatter = DateFormatter()

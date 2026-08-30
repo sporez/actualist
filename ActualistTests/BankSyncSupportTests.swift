@@ -51,6 +51,24 @@ struct BankSyncSupportTests {
         #expect(BankSyncAmounts.dayID(fromUnixSeconds: 0) == "19700101")
     }
 
+    // MARK: - 90-day lookback
+
+    @Test func lookbackNeverStartsEarlierThan89DaysAgo() {
+        let now = BankSyncAmounts.date(fromDayID: "20260830")!
+        #expect(BankSyncAmounts.lookbackStartDate(
+            oldestLiveTransactionDayID: "20200101",
+            now: now
+        ) == "2026-06-02")
+    }
+
+    @Test func lookbackUsesNewerOldestTransaction() {
+        let now = BankSyncAmounts.date(fromDayID: "20260830")!
+        #expect(BankSyncAmounts.lookbackStartDate(
+            oldestLiveTransactionDayID: "20260801",
+            now: now
+        ) == "2026-08-01")
+    }
+
     // MARK: - Schema backfill + find-or-create banks
 
     @Test func backfillCreatesBanksTableAndLinkColumns() async throws {

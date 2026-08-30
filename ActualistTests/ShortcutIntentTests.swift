@@ -4,6 +4,9 @@ import Testing
 @testable import Actualist
 
 @MainActor
+// AppIntent's @Dependency wrapper uses the shared AppDependencyManager. Keep
+// every direct `perform()` test in this serialized suite so test sessions
+// cannot cross between independently opened fixture budgets.
 @Suite(.serialized)
 struct ShortcutIntentTests {
     private let fixtures = LocalFirstActualStoreTests()
@@ -489,6 +492,56 @@ struct ShortcutIntentTests {
         openNew.category = category()
         openNew.notes = "from shortcut"
         openNew.direction = .inflow
+        _ = try await openNew.perform()
+    }
+
+    @Test func intentResponseEdgeCasesUseTheOwningTestSession() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        let session = ShortcutsBudgetSession(appState: appState)
+
+        bundle.store.accountsByBudget["group-1"] = [
+            AccountDisplay(
+                account: ActualAccount(id: "closed-only", name: "Closed", offbudget: false, closed: true),
+                balance: 0
+            )
+        ]
+        var noneIntent = GetAccountsIntent()
+        noneIntent.session = session
+        noneIntent.includeClosed = false
+        _ = try await noneIntent.perform()
+
+        bundle.store.accountsByBudget["group-1"] = [
+            AccountDisplay(
+                account: ActualAccount(id: "solo", name: "Solo", offbudget: false, closed: false),
+                balance: 100
+            )
+        ]
+        var oneIntent = GetAccountsIntent()
+        oneIntent.session = session
+        oneIntent.includeClosed = false
+        _ = try await oneIntent.perform()
+
+        bundle.store.accountsByBudget["group-1"] = [
+            AccountDisplay(
+                account: ActualAccount(id: "ghost", name: "Ghost", offbudget: false, closed: false),
+                balance: nil
+            )
+        ]
+        var balance = GetAccountBalanceIntent()
+        balance.session = session
+        balance.account = AccountEntity(
+            id: "ghost",
+            name: "Ghost",
+            balance: nil,
+            offBudget: false,
+            closed: false
+        )
+        _ = try await balance.perform()
+
+        var openNew = OpenNewTransactionIntent()
+        openNew.session = session
+        openNew.direction = .spend
         _ = try await openNew.perform()
     }
 

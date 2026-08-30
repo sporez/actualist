@@ -461,50 +461,6 @@ struct ShortcutCatalogCoverageTests {
         #expect(!(try await session.payees(includeTransfers: false)).isEmpty)
         bundle.store.uncategorizedTransactionsByKey.removeAll()
         _ = try await session.uncategorizedCount(month: "2026-07")
-
-        bundle.store.accountsByBudget["group-1"] = [
-            AccountDisplay(
-                account: ActualAccount(id: "closed-only", name: "Closed", offbudget: false, closed: true),
-                balance: 0
-            )
-        ]
-        var noneIntent = GetAccountsIntent()
-        noneIntent.session = session
-        noneIntent.includeClosed = false
-        _ = try await noneIntent.perform()
-
-        bundle.store.accountsByBudget["group-1"] = [
-            AccountDisplay(
-                account: ActualAccount(id: "solo", name: "Solo", offbudget: false, closed: false),
-                balance: 100
-            )
-        ]
-        var oneIntent = GetAccountsIntent()
-        oneIntent.session = session
-        oneIntent.includeClosed = false
-        _ = try await oneIntent.perform()
-
-        bundle.store.accountsByBudget["group-1"] = [
-            AccountDisplay(
-                account: ActualAccount(id: "ghost", name: "Ghost", offbudget: false, closed: false),
-                balance: nil
-            )
-        ]
-        var balance = GetAccountBalanceIntent()
-        balance.session = session
-        balance.account = AccountEntity(
-            id: "ghost",
-            name: "Ghost",
-            balance: nil,
-            offBudget: false,
-            closed: false
-        )
-        _ = try await balance.perform()
-
-        var openNew = OpenNewTransactionIntent()
-        openNew.session = session
-        openNew.direction = .spend
-        _ = try await openNew.perform()
     }
 
     @Test func applyShortcutPrefillAcceptsCategoryNameOnly() {

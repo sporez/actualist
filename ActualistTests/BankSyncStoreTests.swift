@@ -14,8 +14,12 @@ extension LocalFirstActualStoreTests {
         var response: SimpleFINTransactionsResponse?
         /// When set, every route throws instead of answering (server unreachable).
         var failure: ActualAPIError?
+        /// Route-specific failure used to verify account-list errors are not
+        /// silently turned into an empty list.
+        var accountsFailure: ActualAPIError?
         private(set) var transactionsRequests: [(accountIDs: [String], startDates: [String])] = []
         private(set) var statusRequests = 0
+        private(set) var accountsRequests = 0
 
         init(
             support: SimpleFINServerSupport = .configured,
@@ -25,12 +29,14 @@ extension LocalFirstActualStoreTests {
                 errorType: nil,
                 errorCode: nil
             ),
-            failure: ActualAPIError? = nil
+            failure: ActualAPIError? = nil,
+            accountsFailure: ActualAPIError? = nil
         ) {
             self.support = support
             self.remoteAccounts = remoteAccounts
             self.response = response
             self.failure = failure
+            self.accountsFailure = accountsFailure
         }
 
         func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
@@ -42,7 +48,11 @@ extension LocalFirstActualStoreTests {
         }
 
         func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]? {
-            remoteAccounts
+            accountsRequests += 1
+            if let failure = accountsFailure ?? failure {
+                throw failure
+            }
+            return remoteAccounts
         }
 
         func simpleFINTransactions(
@@ -203,6 +213,85 @@ extension LocalFirstActualStoreTests {
         _ = before
     }
 
+    @Test func batchPlanningUsesOneProviderProbeDownloadAndMetadataRequest() async throws {
+        let firstRemote = remoteAccount(id: "sfin-1", balance: "0.00")
+        let secondRemote = remoteAccount(id: "sfin-2", balance: "0.00")
+        let transport = StubSimpleFINTransport(
+            remoteAccounts: [firstRemote, secondRemote],
+            response: SimpleFINTransactionsResponse(
+                downloads: [
+                    "sfin-1": SimpleFINAccountDownload(
+                        transactions: [],
+                        startingBalance: nil,
+                        errorType: nil,
+                        errorCode: nil
+                    ),
+                    "sfin-2": SimpleFINAccountDownload(
+                        transactions: [],
+                        startingBalance: nil,
+                        errorType: nil,
+                        errorCode: nil
+                    )
+                ],
+                errorType: nil,
+                errorCode: nil
+            )
+        )
+        let bundle = try await makeBankSyncStore(transport: transport)
+        try await bundle.store.linkBankAccount("savings", to: firstRemote, budgetID: "group-1")
+        try await bundle.store.linkBankAccount("credit", to: secondRemote, budgetID: "group-1")
+
+        let plans = try await bundle.store.downloadBankSyncPlans(
+            accountIDs: ["savings", "credit"],
+            budgetID: "group-1"
+        )
+
+        #expect(plans.map(\.accountID) == ["savings", "credit"])
+        #expect(await transport.statusRequests == 1)
+        #expect(await transport.accountsRequests == 1)
+        let requests = await transport.transactionsRequests
+        #expect(requests.count == 1)
+        #expect(requests.first?.accountIDs == ["sfin-1", "sfin-2"])
+        #expect(requests.first?.startDates.count == 2)
+    }
+
+    @Test func optionalBalanceMetadataFailureDoesNotDiscardTransactionBatch() async throws {
+        let remote = remoteAccount(balance: "0.00")
+        let transport = StubSimpleFINTransport(
+            response: SimpleFINTransactionsResponse(
+                downloads: [
+                    "sfin-1": SimpleFINAccountDownload(
+                        transactions: [
+                            remoteTransaction(
+                                id: "still-valid",
+                                amount: "-10.00",
+                                dayID: "20260701",
+                                payeeName: "Coffee Shop"
+                            )
+                        ],
+                        startingBalance: nil,
+                        errorType: nil,
+                        errorCode: nil
+                    )
+                ],
+                errorType: nil,
+                errorCode: nil
+            ),
+            accountsFailure: .decoding
+        )
+        let bundle = try await makeBankSyncStore(transport: transport)
+        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+
+        let plan = try await bundle.store.downloadBankSyncPlan(
+            accountID: "savings",
+            budgetID: "group-1"
+        )
+
+        #expect(plan.inserts.count == 1)
+        #expect(plan.openingBalance == nil)
+        #expect(await transport.accountsRequests == 1)
+    }
+
     // MARK: - Second apply is a no-op
 
     @Test func secondApplyHasZeroInsertsAndZeroUpdates() async throws {
@@ -289,6 +378,63 @@ extension LocalFirstActualStoreTests {
         })
     }
 
+    @Test func matchingRemoveNotesRulePreventsBankNoteWrite() async throws {
+        let transport = StubSimpleFINTransport(
+            remoteAccounts: [remoteAccount(balance: "0.00")],
+            response: SimpleFINTransactionsResponse(
+                downloads: [
+                    "sfin-1": SimpleFINAccountDownload(
+                        transactions: [
+                            remoteTransaction(
+                                id: "rule-note",
+                                amount: "-10.00",
+                                dayID: "20260701",
+                                payeeName: "Coffee Shop"
+                            )
+                        ],
+                        startingBalance: nil,
+                        errorType: nil,
+                        errorCode: nil
+                    )
+                ],
+                errorType: nil,
+                errorCode: nil
+            )
+        )
+        let bundle = try await makeBankSyncStore(
+            transport: transport,
+            additionalFixtureSQL: """
+                INSERT INTO transactions
+                    (id, acct, date, amount, category, tombstone, description, notes, cleared, is_parent)
+                VALUES ('rule-match', 'savings', 20260701, -1000, NULL, 0, 'coffee', NULL, 0, 0);
+                CREATE TABLE rules (
+                    id TEXT PRIMARY KEY,
+                    conditions TEXT,
+                    actions TEXT,
+                    tombstone INTEGER
+                );
+                INSERT INTO rules VALUES (
+                    'remove-bank-notes',
+                    '[{"field":"payee_name","op":"is","value":"Coffee Shop"}]',
+                    '[{"field":"notes","op":"set","value":""}]',
+                    0
+                );
+                """
+        )
+        let store = bundle.store
+        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+
+        let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
+        let detail = try #require(plan.matchDetails.first)
+        #expect(!detail.changes.contains { $0.field == .notes })
+
+        _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains {
+            $0.dataset == "transactions" && $0.row == "rule-match" && $0.column == "notes"
+        })
+    }
+
     // MARK: - Split-parent cleared cascade in one commit
 
     @Test func splitParentMatchWritesClearedCascadeOntoLiveChildren() async throws {
@@ -343,7 +489,29 @@ extension LocalFirstActualStoreTests {
         })
     }
 
-    // MARK: - Unlink clears link columns, leaves transactions
+    // MARK: - Link metadata / unlink
+
+    @Test func linkUsesNormalizedInstitutionWhenOrgNameIsAbsent() async throws {
+        let bundle = try await makeBankSyncStore(transport: StubSimpleFINTransport())
+        let remote = SimpleFINRemoteAccount(
+            accountID: "normalized-1",
+            name: "Checking",
+            balance: "0.00",
+            currency: "USD",
+            institution: "Friendly Bank",
+            orgName: nil,
+            orgDomain: "friendly.example",
+            orgID: nil
+        )
+
+        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+
+        let queue = try DatabaseQueue(path: try bundle.fileManager.databaseURL(fileID: "file-1").path)
+        let bankName = try await queue.read { db in
+            try String.fetchOne(db, sql: "SELECT name FROM banks WHERE bank_id = 'friendly.example'")
+        }
+        #expect(bankName == "Friendly Bank")
+    }
 
     @Test func unlinkClearsLinkColumnsAndLeavesTransactions() async throws {
         let transport = StubSimpleFINTransport()
@@ -406,6 +574,79 @@ extension LocalFirstActualStoreTests {
         } == 1) // only the link's bank row
     }
 
+    @Test func unresolvedNormalizationProblemsCannotApplyOrStampSuccess() async throws {
+        let transaction = SimpleFINRemoteTransaction(
+            id: "bad-amount",
+            dateUnixSeconds: 1_782_974_400,
+            amount: nil,
+            payeeName: "Unreadable",
+            notes: nil,
+            booked: true,
+            accountID: "sfin-1"
+        )
+        let missingID = SimpleFINRemoteTransaction(
+            id: nil,
+            dateUnixSeconds: 1_782_974_400,
+            amount: "-1.00",
+            payeeName: "No Identity",
+            notes: nil,
+            booked: true,
+            accountID: "sfin-1"
+        )
+        let missingPayee = SimpleFINRemoteTransaction(
+            id: "missing-payee",
+            dateUnixSeconds: 1_782_974_400,
+            amount: "-2.00",
+            payeeName: nil,
+            notes: "Description only",
+            booked: true,
+            accountID: "sfin-1"
+        )
+        let transport = StubSimpleFINTransport(
+            remoteAccounts: [remoteAccount(balance: "0.00")],
+            response: SimpleFINTransactionsResponse(
+                downloads: [
+                    "sfin-1": SimpleFINAccountDownload(
+                        transactions: [transaction, missingID, missingPayee],
+                        startingBalance: nil,
+                        errorType: nil,
+                        errorCode: nil
+                    )
+                ],
+                errorType: nil,
+                errorCode: nil
+            )
+        )
+        let bundle = try await makeBankSyncStore(transport: transport)
+        let store = bundle.store
+        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+
+        let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
+        #expect(plan.problems == [
+            BankSyncReview.Problem(
+                remoteTransactionID: "bad-amount",
+                message: "Unreadable amount"
+            ),
+            BankSyncReview.Problem(
+                remoteTransactionID: nil,
+                message: "Missing transaction ID"
+            ),
+            BankSyncReview.Problem(
+                remoteTransactionID: "missing-payee",
+                message: "Missing payee"
+            )
+        ])
+        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
+            try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        }
+
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains { $0.dataset == "transactions" && $0.column == "financial_id" })
+        #expect(!messages.contains {
+            $0.dataset == "accounts" && $0.row == "savings" && $0.column == "last_sync"
+        })
+    }
+
     @Test func staleGenerationDoesNotApply() async throws {
         let transport = StubSimpleFINTransport(
             remoteAccounts: [remoteAccount(balance: "0.00")],
@@ -449,7 +690,14 @@ extension LocalFirstActualStoreTests {
             response: SimpleFINTransactionsResponse(
                 downloads: [
                     "sfin-1": SimpleFINAccountDownload(
-                        transactions: [],
+                        transactions: [
+                            remoteTransaction(
+                                id: "partial-row",
+                                amount: "-10.00",
+                                dayID: "20260701",
+                                payeeName: "Must Not Import"
+                            )
+                        ],
                         startingBalance: nil,
                         errorType: "provider_error",
                         errorCode: "TIMED_OUT"
@@ -469,6 +717,9 @@ extension LocalFirstActualStoreTests {
 
         _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains {
+            $0.dataset == "transactions" && $0.column == "financial_id"
+        })
         let stamps = linkedMessages(messages, row: "savings").filter { $0.column == "last_sync" || $0.column == "bank_sync_status" }
         #expect(stamps.map(\.column) == ["bank_sync_status"])
         #expect(stamps.first?.serializedValue == "S:timed-out")

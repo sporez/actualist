@@ -13,6 +13,34 @@ enum BankSyncReview {
         let message: String
     }
 
+    /// Exact user-visible effects of one matched transaction. This snapshot
+    /// is assembled from the same `MatchedUpdate` that Confirm will apply, so
+    /// review copy never guesses from aggregate counts.
+    struct MatchDetail: Equatable, Sendable {
+        let transactionID: String
+        let dayID: String
+        let amountMinorUnits: Int
+        let currentPayeeName: String?
+        let changes: [MatchChange]
+    }
+
+    struct MatchChange: Equatable, Sendable {
+        enum Field: Equatable, Sendable {
+            case bankIDAttached
+            case bankIDReplaced
+            case payee
+            case category
+            case bankPayee
+            case notes
+            case cleared
+            case splitChildrenCleared
+        }
+
+        let field: Field
+        let oldValue: String?
+        let newValue: String?
+    }
+
     /// One linked account's planned writes. `openingBalance` counts as an
     /// added row on the review sheet.
     struct AccountPlan: Equatable, Sendable {
@@ -21,6 +49,7 @@ enum BankSyncReview {
         let durableStatus: ActualBankSyncDurableStatus
         let inserts: [BankSyncReconciliation.Candidate]
         let updates: [BankSyncReconciliation.MatchedUpdate]
+        let matchDetails: [MatchDetail]
         let unchangedCount: Int
         let problems: [Problem]
         let openingBalance: BankSyncReconciliation.OpeningBalance?

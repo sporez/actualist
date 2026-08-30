@@ -162,7 +162,7 @@ struct SimpleFINBridgeClientTests {
 
     @Test func remoteAccountsDecodeBalanceAndOrg() async throws {
         let client = makeBridgeClient(body: """
-        {"errors": [], "accounts": [{
+        {"errors": [], "errlist": [{"code": "notice", "msg": "Provider notice", "account_id": "acct_1"}], "accounts": [{
             "id": "acct_1",
             "name": "Checking",
             "balance": "1234.56",
@@ -178,6 +178,9 @@ struct SimpleFINBridgeClientTests {
         #expect(accounts.first?.orgName == "First Bank")
         #expect(accounts.first?.orgDomain == "firstbank.example")
         #expect(accounts.first?.orgID == "org_9")
+        let query = try #require(BridgeStubURLProtocol.lastRequest?.url?.query)
+        #expect(query.contains("balances-only=1"))
+        #expect(!query.contains("pending=1"))
     }
 
     @Test func transactionsMergePostedAndPendingAndKeyByAccount() async throws {
@@ -191,7 +194,10 @@ struct SimpleFINBridgeClientTests {
                  "extra": {"notes": "morning"}}
             ],
             "pending": [
-                {"id": "tx_2", "posted": 1709339400, "amount": "-3.25", "description": "Gas", "pending": true}
+                {"id": "tx_2", "posted": 0, "transacted_at": 1709339400,
+                 "amount": "-3.25", "description": "Gas", "pending": true},
+                {"id": "tx_1", "posted": 1709253000, "amount": "-12.50",
+                 "description": "Duplicate Coffee", "pending": true}
             ]
         }]}
         """)
@@ -203,6 +209,39 @@ struct SimpleFINBridgeClientTests {
         #expect(download?.transactions.first?.notes == "morning")
         #expect(download?.transactions.first?.payeeName == "Coffee")
         #expect(download?.transactions.last?.booked == false)
+        #expect(download?.transactions.last?.dateUnixSeconds == 1_709_339_400)
+    }
+
+    @Test func batchedTransactionsUseEarliestRequestDateAndFilterEachAccountWindow() async throws {
+        let client = makeBridgeClient(body: """
+        {"accounts": [
+            {
+                "id": "older-window",
+                "name": "Older",
+                "transactions": [
+                    {"id": "old-jan", "posted": 1705320000, "amount": "-1.00", "description": "January"}
+                ]
+            },
+            {
+                "id": "newer-window",
+                "name": "Newer",
+                "transactions": [
+                    {"id": "new-jan", "posted": 1705320000, "amount": "-2.00", "description": "Too old"},
+                    {"id": "new-mar", "posted": 1709294400, "amount": "-3.00", "description": "March"}
+                ]
+            }
+        ]}
+        """)
+
+        let response = try await client.transactions(
+            accountIDs: ["older-window", "newer-window"],
+            startDates: ["2024-01-01", "2024-02-01"]
+        )
+
+        #expect(response.downloads["older-window"]?.transactions.map(\.id) == ["old-jan"])
+        #expect(response.downloads["newer-window"]?.transactions.map(\.id) == ["new-mar"])
+        let query = try #require(BridgeStubURLProtocol.lastRequest?.url?.query)
+        #expect(query.contains("start-date=\(SimpleFINBridgeClient.unixSeconds(fromDay: "2024-01-01"))"))
     }
 
     @Test func transactionsRequestSendsBasicAuthAndDateQuery() async throws {

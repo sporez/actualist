@@ -82,28 +82,61 @@ struct SimpleFINClientTests {
 
     // MARK: - Accounts
 
-    @Test func accountsDecodesWrappedAccountList() async throws {
+    @Test func accountsDecodeCurrentSyncServerRawSimpleFINShape() async throws {
+        // Current sync-server forwards accounts from the SimpleFIN bridge;
+        // identity is `id` and institution metadata is nested under `org`.
         let body = """
         {"status": "ok", "data": {"accounts": [{
-            "account_id": "acct_1",
-            "name": "Checking",
-            "balance": 1234.56,
+            "id": "ACT-friendly",
+            "name": "Business Blue Cash",
+            "balance": "1234.56",
             "currency": "USD",
-            "institution": "First Bank",
-            "orgDomain": "firstbank.example",
-            "orgId": "org_9"
+            "org": {
+                "id": "org_9",
+                "name": "American Express",
+                "domain": "americanexpress.com"
+            }
         }]}}
         """
         let client = makeClient(statusCode: 200, body: body)
         let accounts = try await client.simpleFINAccounts(token: "token")
         #expect(accounts?.count == 1)
-        #expect(accounts?.first?.accountID == "acct_1")
-        #expect(accounts?.first?.name == "Checking")
+        #expect(accounts?.first?.accountID == "ACT-friendly")
+        #expect(accounts?.first?.name == "Business Blue Cash")
         #expect(accounts?.first?.balance == "1234.56")
         #expect(accounts?.first?.currency == "USD")
+        #expect(accounts?.first?.orgName == "American Express")
+        #expect(accounts?.first?.orgDomain == "americanexpress.com")
+        #expect(accounts?.first?.orgID == "org_9")
+    }
+
+    @Test func accountsKeepNormalizedLinkDTOCompatibility() async throws {
+        let body = """
+        {"data": {"accounts": [{
+            "account_id": "acct_1",
+            "name": "Checking",
+            "balance": 1234.56,
+            "institution": "First Bank",
+            "orgDomain": "firstbank.example",
+            "orgId": "org_9"
+        }]}}
+        """
+        let accounts = try await makeClient(statusCode: 200, body: body)
+            .simpleFINAccounts(token: "token")
+        #expect(accounts?.first?.accountID == "acct_1")
         #expect(accounts?.first?.institution == "First Bank")
         #expect(accounts?.first?.orgDomain == "firstbank.example")
         #expect(accounts?.first?.orgID == "org_9")
+    }
+
+    @Test func accountsErrorEnvelopeThrowsInsteadOfLookingEmpty() async throws {
+        let client = makeClient(
+            statusCode: 200,
+            body: #"{"status":"ok","data":{"error_type":"INVALID_ACCESS_TOKEN","error_code":"INVALID_ACCESS_TOKEN"}}"#
+        )
+        await #expect(throws: ActualAPIError.self) {
+            _ = try await client.simpleFINAccounts(token: "token")
+        }
     }
 
     @Test func accountsRoute404ReturnsNil() async throws {
@@ -144,8 +177,9 @@ struct SimpleFINClientTests {
           "data": {
             "acct_1": {
               "transactions": {"all": [
-                  {"id": "t1", "date": 1709253000, "amount": "-12.34",
-                   "payee_name": "Coffee Shop", "booked": true}
+                  {"transactionId": "t1", "date": "2024-03-01",
+                   "transactionAmount": {"amount": "-12.34", "currency": "USD"},
+                   "payeeName": "Coffee Shop", "notes": "latte", "booked": true}
               ]},
               "startingBalance": 500
             },
@@ -159,6 +193,12 @@ struct SimpleFINClientTests {
         )
         #expect(response.downloads["acct_1"]?.transactions.count == 1)
         #expect(response.downloads["acct_1"]?.startingBalance == 500)
+        let transaction = try #require(response.downloads["acct_1"]?.transactions.first)
+        #expect(transaction.id == "t1")
+        #expect(transaction.amount == "-12.34")
+        #expect(transaction.payeeName == "Coffee Shop")
+        #expect(transaction.notes == "latte")
+        #expect(transaction.dateUnixSeconds.map(BankSyncAmounts.dayID(fromUnixSeconds:)) == "20240301")
         #expect(response.downloads["acct_2"]?.errorCode == "TIMED_OUT")
     }
 
@@ -267,6 +307,7 @@ struct SimpleFINClientTests {
         #expect(ActualBankSyncDurableStatus.from(errorCode: nil) == .ok)
         #expect(ActualBankSyncDurableStatus.from(errorCode: "TIMED_OUT") == .timedOut)
         #expect(ActualBankSyncDurableStatus.from(errorCode: "ACCOUNT_MISSING") == .accountMissing)
+        #expect(ActualBankSyncDurableStatus.from(errorCode: "ACCOUNT_NEEDS_ATTENTION") == .attentionRequired)
         #expect(ActualBankSyncDurableStatus.from(errorCode: "RATE_LIMIT_EXCEEDED") == .rateLimitExceeded)
         #expect(ActualBankSyncDurableStatus.from(errorCode: "INVALID_ACCESS_TOKEN") == .reauthRequired)
         #expect(ActualBankSyncDurableStatus.from(errorCode: "SOMETHING_ELSE") == .failed)

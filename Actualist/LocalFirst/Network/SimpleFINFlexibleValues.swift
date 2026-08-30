@@ -39,7 +39,8 @@ struct SimpleFINFlexibleBool: Decodable, Sendable {
     }
 }
 
-/// UNIX seconds arriving as an integer, decimal, or numeric string.
+/// A transaction date arriving as UNIX seconds (number/numeric string) or as
+/// the sync-server's normalized `YYYY-MM-DD` day string.
 struct FlexibleUnixSeconds: Decodable, Sendable {
     let seconds: Int64?
 
@@ -49,11 +50,46 @@ struct FlexibleUnixSeconds: Decodable, Sendable {
             seconds = value
         } else if let value = try? container.decode(Double.self) {
             seconds = Int64(value)
-        } else if let text = try? container.decode(String.self),
-                  let value = Double(text) {
-            seconds = Int64(value)
+        } else if let text = try? container.decode(String.self) {
+            if let value = Double(text) {
+                seconds = Int64(value)
+            } else {
+                seconds = Self.unixSeconds(fromDay: text)
+            }
         } else {
             seconds = nil
         }
+    }
+
+    private static func unixSeconds(fromDay day: String) -> Int64? {
+        let parts = day.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let dayOfMonth = Int(parts[2]) else {
+            return nil
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let components = DateComponents(
+            timeZone: calendar.timeZone,
+            year: year,
+            month: month,
+            day: dayOfMonth,
+            hour: 12
+        )
+        guard let date = calendar.date(from: components) else {
+            return nil
+        }
+        let resolved = calendar.dateComponents([.year, .month, .day], from: date)
+        guard resolved.year == year,
+              resolved.month == month,
+              resolved.day == dayOfMonth else {
+            return nil
+        }
+        return Int64(date.timeIntervalSince1970)
     }
 }

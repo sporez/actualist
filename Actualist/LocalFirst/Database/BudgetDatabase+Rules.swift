@@ -48,29 +48,43 @@ extension BudgetDatabase {
     }
 
     func previewRules(for draft: TransactionDraft) throws -> TransactionRulePreview {
+        guard let preview = try previewRules(for: [draft]).first else {
+            throw LocalFirstError.invalidLocalWrite("missing rule preview")
+        }
+        return preview
+    }
+
+    /// Evaluates a batch against one immutable rules/schedules/metadata
+    /// snapshot. Bank Sync uses this for every downloaded row in a wake so it
+    /// does not re-query rule and entity metadata hundreds of times.
+    func previewRules(for drafts: [TransactionDraft]) throws -> [TransactionRulePreview] {
+        guard !drafts.isEmpty else { return [] }
         let rules = try fetchRules()
         let schedules = try fetchRuleScheduleIndex()
-        let context = try ruleEvaluationContext(for: draft)
-        let result = RuleConditionEvaluator.applying(rules, to: context, schedules: schedules)
-        return TransactionRulePreview(
-            categoryID: result.categoryID,
-            notes: result.notes,
-            accountID: result.accountID == draft.accountID ? nil : result.accountID,
-            payeeID: result.payeeID == draft.payeeID ? nil : result.payeeID,
-            amountMinorUnits: result.amount == draft.amountMinorUnits ? nil : result.amount,
-            date: Calendar.current.isDate(result.date, inSameDayAs: draft.date) ? nil : result.date,
-            cleared: result.cleared == draft.cleared ? nil : result.cleared,
-            scheduleID: result.scheduleID,
-            deletesTransaction: result.deletesTransaction,
-            splits: result.splits.map { split in
-                TransactionSplitDraft(
-                    id: nil,
-                    categoryID: split.categoryID,
-                    categoryName: split.categoryID.flatMap { result.categoryNames[$0] },
-                    amountMinorUnits: split.amount
-                )
-            }
-        )
+        let metadata = try ruleEvaluationMetadata()
+        return drafts.map { draft in
+            let context = ruleEvaluationContext(for: draft, metadata: metadata)
+            let result = RuleConditionEvaluator.applying(rules, to: context, schedules: schedules)
+            return TransactionRulePreview(
+                categoryID: result.categoryID,
+                notes: result.notes,
+                accountID: result.accountID == draft.accountID ? nil : result.accountID,
+                payeeID: result.payeeID == draft.payeeID ? nil : result.payeeID,
+                amountMinorUnits: result.amount == draft.amountMinorUnits ? nil : result.amount,
+                date: Calendar.current.isDate(result.date, inSameDayAs: draft.date) ? nil : result.date,
+                cleared: result.cleared == draft.cleared ? nil : result.cleared,
+                scheduleID: result.scheduleID,
+                deletesTransaction: result.deletesTransaction,
+                splits: result.splits.map { split in
+                    TransactionSplitDraft(
+                        id: nil,
+                        categoryID: split.categoryID,
+                        categoryName: split.categoryID.flatMap { result.categoryNames[$0] },
+                        amountMinorUnits: split.amount
+                    )
+                }
+            )
+        }
     }
 
     func fetchMatchingTransactions(
@@ -510,7 +524,13 @@ extension BudgetDatabase {
     }
 
     private func ruleEvaluationContext(for draft: TransactionDraft) throws -> RuleEvaluationContext {
-        let metadata = try ruleEvaluationMetadata()
+        ruleEvaluationContext(for: draft, metadata: try ruleEvaluationMetadata())
+    }
+
+    private func ruleEvaluationContext(
+        for draft: TransactionDraft,
+        metadata: RuleEvaluationMetadata
+    ) -> RuleEvaluationContext {
         let categoryGroupID = draft.categoryID.flatMap { metadata.categoryGroupsByCategoryID[$0] }
         return RuleEvaluationContext(
             accountID: draft.accountID,
