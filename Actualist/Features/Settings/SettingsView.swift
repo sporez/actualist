@@ -5,6 +5,7 @@ import SwiftUI
 enum SettingsPage: String, CaseIterable, Hashable, Sendable {
     case connection
     case budgetData = "budget-data"
+    case bankSync = "bank-sync"
     case appearance
     case privacy
     case reports
@@ -121,6 +122,8 @@ struct SettingsView: View {
                     ConnectionSyncSettingsView()
                 case .budgetData:
                     BudgetDataSettingsView()
+                case .bankSync:
+                    BankSyncView()
                 case .appearance:
                     AppearanceSettingsView()
                 case .privacy:

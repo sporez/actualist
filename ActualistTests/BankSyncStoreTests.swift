@@ -48,7 +48,7 @@ extension LocalFirstActualStoreTests {
         }
     }
 
-    private static let bankSyncColumnsSQL = """
+    static let bankSyncColumnsSQL = """
         ALTER TABLE transactions ADD COLUMN financial_id TEXT;
         ALTER TABLE transactions ADD COLUMN imported_description TEXT;
         ALTER TABLE transactions ADD COLUMN sort_order REAL;
@@ -59,7 +59,7 @@ extension LocalFirstActualStoreTests {
         """
 
     @discardableResult
-    private func makeBankSyncStore(
+    func makeBankSyncStore(
         transport: StubSimpleFINTransport,
         additionalFixtureSQL: String = ""
     ) async throws -> OpenedWritableStoreBundle {

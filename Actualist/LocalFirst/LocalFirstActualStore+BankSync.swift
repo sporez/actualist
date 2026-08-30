@@ -491,6 +491,40 @@ extension LocalFirstActualStore {
         return resolution
     }
 
+    // MARK: - Screen reads (Phase 4)
+
+    /// One row of the Settings Bank Sync list: every open budget account
+    /// with its link state. Derived once here so the view model never
+    /// re-derives fallback expressions over raw reads.
+    struct BankSyncAccountStatusRow: Identifiable, Equatable, Sendable {
+        let id: String
+        let name: String
+        let isLinked: Bool
+        let syncSource: String?
+        let remoteAccountID: String?
+        let lastSyncEpochMilliseconds: Int64?
+        let durableStatus: String?
+    }
+
+    func bankSyncAccountRows(budgetID: String) async throws -> [BankSyncAccountStatusRow] {
+        let database = try requireDatabase(for: budgetID)
+        let accounts = try await database.fetchAccounts().filter { !$0.closed }
+        let linked = try await database.bankSyncLinkedAccounts()
+        let linkedByID = Dictionary(uniqueKeysWithValues: linked.map { ($0.id, $0) })
+        return accounts.map { account in
+            let link = linkedByID[account.id]
+            return BankSyncAccountStatusRow(
+                id: account.id,
+                name: account.name,
+                isLinked: link != nil,
+                syncSource: link?.syncSource,
+                remoteAccountID: link?.remoteAccountID,
+                lastSyncEpochMilliseconds: link?.lastSync.flatMap { Int64($0) },
+                durableStatus: link?.bankSyncStatus
+            )
+        }
+    }
+
     // MARK: - Context
 
     private func bankSyncContext(budgetID: String) throws -> (
