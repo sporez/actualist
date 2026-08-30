@@ -40,7 +40,7 @@ extension LocalFirstActualStore {
             guard let account = linkedByID[accountID] else {
                 throw BankSyncStoreError.notLinked
             }
-            guard account.syncSource == "simpleFin" else {
+            guard BankSyncLinkEligibility.isSimpleFIN(syncSource: account.syncSource) else {
                 throw BankSyncStoreError.notSimpleFINLinked
             }
             return account

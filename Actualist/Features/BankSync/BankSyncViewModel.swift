@@ -293,7 +293,8 @@ final class BankSyncViewModel {
     /// If fresh remote metadata is unavailable, retain friendly local copy;
     /// the opaque account id is deliberately never a display fallback.
     func linkedAccountDisplayName(for line: AccountLine) -> String {
-        guard let remoteAccountID = line.remoteAccountID,
+        guard line.isSyncable,
+              let remoteAccountID = line.remoteAccountID,
               let remote = remoteAccounts.first(where: { $0.accountID == remoteAccountID }) else {
             return line.name
         }
@@ -329,9 +330,16 @@ final class BankSyncViewModel {
     }
 
     func unlinkSelected() async {
-        guard let accountID = selectedAccountID else {
+        guard let line = selectedLine else {
             return
         }
+        guard line.isSyncable else {
+            phase = .failed(
+                LocalFirstActualStore.BankSyncStoreError.notSimpleFINLinked.localizedDescription
+            )
+            return
+        }
+        let accountID = line.id
         do {
             try await store.unlinkBankAccount(accountID, budgetID: budgetID)
             selectedAccountID = nil
@@ -352,7 +360,7 @@ private extension LocalFirstActualStore.BankSyncAccountStatusRow {
             id: id,
             name: name,
             isLinked: isLinked,
-            isSyncable: isLinked && syncSource == "simpleFin",
+            isSyncable: isLinked && BankSyncLinkEligibility.isSimpleFIN(syncSource: syncSource),
             remoteAccountID: remoteAccountID,
             lastSyncText: BankSyncCopy.lastSyncText(epochMilliseconds: lastSyncEpochMilliseconds),
             statusText: BankSyncCopy.statusText(durableStatus: durableStatus),

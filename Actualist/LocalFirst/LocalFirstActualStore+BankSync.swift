@@ -176,9 +176,17 @@ extension LocalFirstActualStore {
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 
-    /// loot-core `unlinkAccount`: clear the link columns, leave transactions.
+    /// loot-core `unlinkAccount`: clear a SimpleFIN link's columns and leave
+    /// transactions. Other provider metadata is outside this mutation path.
     func unlinkBankAccount(_ localAccountID: String, budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
+        guard let linked = try await database.bankSyncLinkedAccounts()
+            .first(where: { $0.id == localAccountID }) else {
+            throw BankSyncStoreError.notLinked
+        }
+        guard BankSyncLinkEligibility.isSimpleFIN(syncSource: linked.syncSource) else {
+            throw BankSyncStoreError.notSimpleFINLinked
+        }
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.makeBankSyncUnlinkMessages(
             accountID: localAccountID,
@@ -411,7 +419,10 @@ extension LocalFirstActualStore {
             .filter { !$0.closed }
             .map(\.id)
         let linked = try await database.bankSyncLinkedAccounts()
-            .filter { $0.syncSource == "simpleFin" && openAccountIDs.contains($0.id) }
+            .filter {
+                BankSyncLinkEligibility.isSimpleFIN(syncSource: $0.syncSource)
+                    && openAccountIDs.contains($0.id)
+            }
         if linked.isEmpty {
             guard try await bankSyncSupport(budgetID: budgetID) == .configured else {
                 throw BankSyncStoreError.serverCannotBankSync

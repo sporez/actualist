@@ -1,5 +1,15 @@
 import Foundation
 
+/// One authoritative gate for mutations owned by the SimpleFIN Bank Sync
+/// surface. Other Actual-supported provider links remain visible but read-only.
+enum BankSyncLinkEligibility {
+    static let simpleFINSource = "simpleFin"
+
+    static func isSimpleFIN(syncSource: String?) -> Bool {
+        syncSource == simpleFINSource
+    }
+}
+
 /// Durable `accounts.bank_sync_status` vocabulary that the local database and
 /// the Accounts status dot already understand. Unknown codes render as
 /// failures, matching `ActualAccount.bankSyncState`.

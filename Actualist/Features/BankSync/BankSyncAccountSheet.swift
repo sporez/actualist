@@ -52,20 +52,29 @@ struct BankSyncAccountSheet: View {
                 Text(line.lastSyncText)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
-            Button(role: .destructive) {
-                Task {
-                    await viewModel.unlinkSelected()
-                    dismiss()
+            if line.isSyncable {
+                Button(role: .destructive) {
+                    Task {
+                        await viewModel.unlinkSelected()
+                        dismiss()
+                    }
+                } label: {
+                    SettingsActionLabel(title: "Unlink Bank Account", systemImage: "link.badge.plus")
                 }
-            } label: {
-                SettingsActionLabel(title: "Unlink Bank Account", systemImage: "link.badge.plus")
             }
         } footer: {
-            Text("Unlinking leaves this account's transactions in place and only clears the bank connection.")
+            Text(linkedFooterText)
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .settingsSectionChrome()
+    }
+
+    private var linkedFooterText: String {
+        if line.isSyncable {
+            return "Unlinking leaves this account's transactions in place and only clears the bank connection."
+        }
+        return "This account is linked through another provider. SimpleFIN Bank Sync cannot change that connection."
     }
 
     private var linkSection: some View {

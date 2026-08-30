@@ -312,7 +312,12 @@ extension BudgetDatabase {
             }
             return [
                 try builder.makeMessage(dataset: "accounts", row: accountID, column: "account_id", value: .string(remote.accountID)),
-                try builder.makeMessage(dataset: "accounts", row: accountID, column: "account_sync_source", value: .string("simpleFin")),
+                try builder.makeMessage(
+                    dataset: "accounts",
+                    row: accountID,
+                    column: "account_sync_source",
+                    value: .string(BankSyncLinkEligibility.simpleFINSource)
+                ),
                 try builder.makeMessage(dataset: "accounts", row: accountID, column: "bank", value: .string(bank.id))
             ]
         }
@@ -326,6 +331,22 @@ extension BudgetDatabase {
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
             let columns = try columnSet(for: "accounts", db: db)
+            guard columns.contains("account_id"),
+                  columns.contains("account_sync_source"),
+                  let link = try Row.fetchOne(
+                    db,
+                    sql: "SELECT account_id, account_sync_source FROM accounts WHERE id = ? LIMIT 1",
+                    arguments: [accountID]
+                  ),
+                  let remoteAccountID = link["account_id"] as String?,
+                  !remoteAccountID.isEmpty,
+                  BankSyncLinkEligibility.isSimpleFIN(
+                    syncSource: link["account_sync_source"] as String?
+                  ) else {
+                throw LocalFirstError.invalidLocalWrite(
+                    "only SimpleFIN-linked accounts can be unlinked here"
+                )
+            }
             let clearedColumns = [
                 "account_id",
                 "account_sync_source",
