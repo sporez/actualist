@@ -31,7 +31,7 @@ final class CategoryMonthDetailsViewModel {
     var isCarryoverEnabled: Bool
     var isUpdatingCarryover = false
     var carryoverErrorMessage: String?
-    private(set) var categoryNoteText: String?
+    private(set) var categoryNotePresentation: ActualNotePresentation?
 
     private var noteLoadGeneration = 0
 
@@ -53,7 +53,7 @@ final class CategoryMonthDetailsViewModel {
 
     func refreshNote(using appState: AppState) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
-            categoryNoteText = nil
+            categoryNotePresentation = nil
             return
         }
         await loadCategoryNote(
@@ -78,7 +78,7 @@ final class CategoryMonthDetailsViewModel {
                 id: categoryID,
                 title: details.category.name
               ) else {
-            categoryNoteText = nil
+            categoryNotePresentation = nil
             return
         }
 
@@ -88,12 +88,12 @@ final class CategoryMonthDetailsViewModel {
                   details.category.id == categoryID else {
                 return
             }
-            categoryNoteText = note.displayText
+            categoryNotePresentation = ActualNotePresentation(userBody: note.displayText)
         } catch {
             guard requestGeneration == noteLoadGeneration else {
                 return
             }
-            categoryNoteText = nil
+            categoryNotePresentation = nil
         }
     }
 
@@ -179,9 +179,9 @@ struct CategoryMonthDetailsView: View {
                     Task { await viewModel.refresh(using: appState) }
                 },
                 categoryCarryoverIsEnabled: viewModel.isCarryoverEnabled,
-                categoryNoteText: appState.settings.randomizedDisplayValuesEnabled
+                categoryNotePresentation: appState.settings.randomizedDisplayValuesEnabled
                     ? nil
-                    : viewModel.categoryNoteText,
+                    : viewModel.categoryNotePresentation,
                 categoryCarryoverIsUpdating: viewModel.isUpdatingCarryover,
                 canEditCategoryCarryover: true,
                 categoryCarryoverErrorMessage: viewModel.carryoverErrorMessage,

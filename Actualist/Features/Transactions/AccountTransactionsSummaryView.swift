@@ -6,7 +6,7 @@ struct AccountTransactionsSummaryView: View {
     let scope: TransactionFeedScope
     let displayState: AccountTransactionsDisplayState
     let categoryCarryoverIsEnabled: Bool?
-    let categoryNoteText: String?
+    let categoryNotePresentation: ActualNotePresentation?
     let categoryCarryoverIsUpdating: Bool
     let canEditCategoryCarryover: Bool
     let categoryCarryoverErrorMessage: String?
@@ -59,9 +59,9 @@ struct AccountTransactionsSummaryView: View {
                 categoryCarryoverRow(isEnabled: categoryCarryoverIsEnabled)
             }
 
-            if let categoryNoteText {
+            if let categoryNotePresentation {
                 Divider().overlay(ActualistTheme.separator)
-                categoryNoteCallout(categoryNoteText)
+                categoryNoteCallout(categoryNotePresentation)
             }
 
             if let categoryCarryoverErrorMessage {
@@ -113,16 +113,16 @@ struct AccountTransactionsSummaryView: View {
         .padding(.vertical, 10)
     }
 
-    private func categoryNoteCallout(_ note: String) -> some View {
+    private func categoryNoteCallout(_ note: ActualNotePresentation) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Category Note", systemImage: "note.text")
                 .font(ActualistTypography.rowLabel(for: density))
                 .foregroundStyle(ActualistTheme.accent)
 
             ScrollView(.vertical) {
-                Text(note)
+                Text(note.attributedText)
                     .font(ActualistTypography.body(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
+                    .tint(ActualistTheme.accent)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }

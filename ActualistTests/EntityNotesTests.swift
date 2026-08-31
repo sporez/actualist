@@ -26,6 +26,30 @@ struct ActualNoteValueTests {
         )
     }
 
+    @Test func markdownPresentationRendersOnlyTheUserFacingBody() throws {
+        let body = ActualNoteBody(
+            storedNote: "Remember **coupons** and [store policy](https://example.com).\n#template 250"
+        )
+        let presentation = try #require(ActualNotePresentation(userBody: body.displayText))
+
+        #expect(
+            String(presentation.attributedText.characters)
+                == "Remember coupons and store policy."
+        )
+        #expect(!String(presentation.attributedText.characters).contains("template"))
+        #expect(
+            presentation.attributedText.runs.contains {
+                $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+            }
+        )
+        #expect(
+            presentation.attributedText.runs.contains {
+                $0.link == URL(string: "https://example.com")
+            }
+        )
+        #expect(ActualNotePresentation(userBody: " \n\t ") == nil)
+    }
+
     @Test func proseMentionsRemainVisibleAndWhitespaceOnlyClearsUserBody() {
         let prose = ActualNoteBody(storedNote: "Use the template from last year")
         #expect(prose.userBody == "Use the template from last year")
@@ -72,7 +96,10 @@ struct EntityNotesViewModelTests {
             repository: repository
         )
 
-        #expect(viewModel.categoryNoteText == "Remember coupons")
+        #expect(
+            viewModel.categoryNotePresentation.map { String($0.attributedText.characters) }
+                == "Remember coupons"
+        )
         #expect(repository.loadCount == 1)
     }
 
@@ -99,7 +126,7 @@ struct EntityNotesViewModelTests {
         repository.finishLoad()
         await load.value
 
-        #expect(viewModel.categoryNoteText == nil)
+        #expect(viewModel.categoryNotePresentation == nil)
         #expect(repository.loadCount == 1)
     }
 

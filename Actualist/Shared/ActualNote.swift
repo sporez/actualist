@@ -55,6 +55,28 @@ struct ActualNoteTarget: Hashable, Identifiable, Sendable {
     }
 }
 
+struct ActualNotePresentation: Equatable, Sendable {
+    let attributedText: AttributedString
+
+    init?(userBody: String?) {
+        guard let userBody else {
+            return nil
+        }
+        let source = userBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty else {
+            return nil
+        }
+
+        attributedText = (try? AttributedString(
+            markdown: source,
+            options: .init(
+                interpretedSyntax: .full,
+                failurePolicy: .returnPartiallyParsedIfPossible
+            )
+        )) ?? AttributedString(source)
+    }
+}
+
 struct ActualNoteBody: Equatable, Sendable {
     let userBody: String
     let reservedLines: [String]
