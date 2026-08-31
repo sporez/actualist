@@ -192,10 +192,11 @@ extension BudgetDatabase {
                 """
         )
 
-        return try groupRows.map { groupRow in
+        var result: [BudgetMonthCategoryGroup] = []
+        for groupRow in groupRows {
             let groupID: String = groupRow["id"] ?? ""
             let categories = try fetchBudgetCategories(groupID: groupID, categoryValues: categoryValues, db: db)
-            return BudgetMonthCategoryGroup(
+            result.append(BudgetMonthCategoryGroup(
                 id: groupID,
                 name: groupRow["name"] ?? "",
                 isIncome: flexibleBool(groupRow["is_income"]),
@@ -204,8 +205,9 @@ extension BudgetDatabase {
                 spent: categories.reduce(0) { $0 + $1.spent },
                 balance: categories.reduce(0) { $0 + $1.balance },
                 categories: categories
-            )
+            ))
         }
+        return result
     }
 
     func fetchBudgetCategories(
@@ -221,11 +223,13 @@ extension BudgetDatabase {
         let groupColumn = column("cat_group", fallback: column("group_id", fallback: "NULL", columns: categoryColumns), columns: categoryColumns)
         let categoryHidden = column("hidden", fallback: "0", columns: categoryColumns)
         let categoryIncome = column("is_income", fallback: "0", columns: categoryColumns)
+        let goalDefinition = column("goal_def", fallback: "NULL", columns: categoryColumns)
         let categoryOrder = categoryColumns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT id, name, \(categoryIncome) AS is_income, \(categoryHidden) AS hidden, \(groupColumn) AS group_id
+                SELECT id, name, \(categoryIncome) AS is_income, \(categoryHidden) AS hidden,
+                       \(groupColumn) AS group_id, \(goalDefinition) AS goal_def
                 FROM categories
                 WHERE \(predicateForLiveRows(columns: categoryColumns)) AND \(groupColumn) = ?
                 ORDER BY \(categoryOrder)
@@ -245,9 +249,28 @@ extension BudgetDatabase {
                 budgeted: values.budgeted,
                 spent: values.spent,
                 balance: values.balance,
-                carryover: values.carryover
+                carryover: values.carryover,
+                hasTemplateDefinition: hasStoredTemplateDefinition(row["goal_def"])
             )
         }
+    }
+
+    private func hasStoredTemplateDefinition(_ rawValue: String?) -> Bool {
+        guard let rawValue else {
+            return false
+        }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return false
+        }
+        guard let data = trimmed.data(using: .utf8),
+              let value = try? JSONSerialization.jsonObject(with: data),
+              let definitions = value as? [Any] else {
+            // Keep malformed stored definitions visible so Apply Template can
+            // surface the existing fail-closed validation error.
+            return true
+        }
+        return !definitions.isEmpty
     }
 
     func envelopeCategoryValues(through month: String, db: Database) throws -> [String: EnvelopeCategoryValue] {

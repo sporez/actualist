@@ -107,7 +107,8 @@ enum BudgetMonthPrivacyProjection {
             budgeted: budgeted,
             spent: spent,
             balance: budgeted + spent + leftover,
-            carryover: category.carryover
+            carryover: category.carryover,
+            hasTemplateDefinition: category.hasTemplateDefinition
         )
     }
 

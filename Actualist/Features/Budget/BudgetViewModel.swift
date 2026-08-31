@@ -68,15 +68,18 @@ final class BudgetViewModel {
     }
 
     var navigationTitle: String {
-        guard let selectedMonth else {
-            return Self.title(for: Date())
-        }
-
-        return Self.title(forMonthIdentifier: selectedMonth)
+        BudgetMonthNavigationPresentation.title(for: selectedMonth)
     }
 
     var visibleGroups: [BudgetMonthCategoryGroup] {
         budgetMonth?.categoryGroups.filter { !$0.isIncome } ?? []
+    }
+
+    var hasMonthTemplateActions: Bool {
+        BudgetTemplateActionAvailability.hasMonthActions(
+            in: budgetMonth,
+            isTrackingBudget: isTrackingBudget
+        )
     }
 
     var overspentCategoryOptions: [BudgetOverspentCategoryOption] {
@@ -128,9 +131,7 @@ final class BudgetViewModel {
         return budgetMonth.lastMonthOverspent < 0 ? 1 : nil
     }
 
-    var preferredMonth: String {
-        YearMonth(date: Date()).rawValue
-    }
+    var preferredMonth: String { YearMonth(date: Date()).rawValue }
 
     var isAssignmentKeypadPresented: Bool {
         assignmentWorkflow.isPresented
@@ -138,6 +139,13 @@ final class BudgetViewModel {
 
     var activeAssignmentCategoryID: String? {
         assignmentWorkflow.activeCategoryID
+    }
+
+    var activeCategoryHasTemplate: Bool {
+        BudgetTemplateActionAvailability.hasCategoryAction(
+            for: activeAssignmentCategoryID,
+            in: visibleGroups
+        )
     }
 
     var activeCategoryMonthDetails: CategoryMonthDetails? {
@@ -162,7 +170,7 @@ final class BudgetViewModel {
     }
 
     var canApplyCategoryTemplate: Bool {
-        assignmentWorkflow.canApplyCategoryTemplate
+        activeCategoryHasTemplate && assignmentWorkflow.canApplyCategoryTemplate
     }
 
     var isApplyingMonthTemplate: Bool {
@@ -743,22 +751,6 @@ final class BudgetViewModel {
         )
     }
 
-    private static func title(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM yyyy"
-        return formatter.string(from: date)
-    }
-
-    private static func title(forMonthIdentifier month: String) -> String {
-        let input = DateFormatter()
-        input.dateFormat = "yyyy-MM"
-        guard let date = input.date(from: month) else {
-            return month
-        }
-
-        return title(for: date)
-    }
-
     private func apply(_ loadedMonth: LoadedBudgetMonth, budgetID: String? = nil) {
         // Any selection/state change supersedes an in-flight template request:
         // tell the template workflow so a stale refresh returning later is
@@ -771,7 +763,7 @@ final class BudgetViewModel {
         if let budgetID {
             loadedBudgetID = budgetID
         }
-        availableMonths = Self.monthPickerMonths(for: loadedMonth)
+        availableMonths = BudgetMonthNavigationPresentation.pickerMonths(for: loadedMonth)
         budgetMonth = loadedMonth.month
         selectedMonth = loadedMonth.month.month
         currency = loadedMonth.currency
@@ -795,51 +787,6 @@ final class BudgetViewModel {
                 includeCarryover: includeCarryoverCategoriesInOverspentAlerts
             ).map(\.id)
         ))
-    }
-
-    private static func monthPickerMonths(for loadedMonth: LoadedBudgetMonth) -> [String] {
-        let loadedIDs = loadedMonth.availableMonths.compactMap(canonicalMonthID)
-        let selectedIDs = [loadedMonth.selectedMonth, loadedMonth.month.month].compactMap(canonicalMonthID)
-        return Array(Set(loadedIDs + selectedIDs)).sorted()
-    }
-
-    private static func canonicalMonthID(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        let parts = trimmed.split { character in
-            character == "-" || character == "/" || character == "."
-        }
-        if parts.count >= 2,
-           let year = Int(parts[0]),
-           let month = Int(parts[1]),
-           let monthID = canonicalMonthID(year: year, month: month) {
-            return monthID
-        }
-
-        let digits = String(trimmed.prefix { $0.isNumber })
-        guard digits.count >= 6 else {
-            return nil
-        }
-
-        let yearEnd = digits.index(digits.startIndex, offsetBy: 4)
-        let monthEnd = digits.index(yearEnd, offsetBy: 2)
-        guard let year = Int(digits[..<yearEnd]),
-              let month = Int(digits[yearEnd..<monthEnd]) else {
-            return nil
-        }
-
-        return canonicalMonthID(year: year, month: month)
-    }
-
-    private static func canonicalMonthID(year: Int, month: Int) -> String? {
-        guard (1900...9999).contains(year), (1...12).contains(month) else {
-            return nil
-        }
-
-        return String(format: "%04d-%02d", year, month)
     }
 
     private func category(for categoryID: String) -> BudgetMonthCategory? {

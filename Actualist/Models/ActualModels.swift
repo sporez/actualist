@@ -190,9 +190,10 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
     let spent: Int
     let balance: Int
     let carryover: Bool
+    let hasTemplateDefinition: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, hidden, budgeted, spent, balance, carryover
+        case id, name, hidden, budgeted, spent, balance, carryover, hasTemplateDefinition
         case isIncome = "is_income"
         case groupID = "group_id"
     }
@@ -206,7 +207,8 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
         budgeted: Int,
         spent: Int,
         balance: Int,
-        carryover: Bool
+        carryover: Bool,
+        hasTemplateDefinition: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -217,6 +219,7 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
         self.spent = spent
         self.balance = balance
         self.carryover = carryover
+        self.hasTemplateDefinition = hasTemplateDefinition
     }
 
     init(from decoder: Decoder) throws {
@@ -230,6 +233,7 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
         spent = try container.decodeIfPresent(Int.self, forKey: .spent) ?? 0
         balance = try container.decodeIfPresent(Int.self, forKey: .balance) ?? 0
         carryover = try container.decodeIfPresent(Bool.self, forKey: .carryover) ?? false
+        hasTemplateDefinition = try container.decodeIfPresent(Bool.self, forKey: .hasTemplateDefinition) ?? false
     }
 }
 

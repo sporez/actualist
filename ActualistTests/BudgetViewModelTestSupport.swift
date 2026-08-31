@@ -9,6 +9,7 @@ enum BudgetViewModelFixtures {
         categoryBudgeted: Int = 0,
         categorySpent: Int = 0,
         visibleCategoryCarryover: Bool = false,
+        visibleCategoryHasTemplate: Bool = false,
         toBudget: Int = 0,
         counterpartyCategoryBalance: Int? = nil,
         lastMonthOverspent: Int
@@ -70,7 +71,8 @@ enum BudgetViewModelFixtures {
                   "budgeted": \(categoryBudgeted),
                   "spent": \(categorySpent),
                   "balance": \(visibleCategoryBalance),
-                  "carryover": \(visibleCategoryCarryover)
+                  "carryover": \(visibleCategoryCarryover),
+                  "hasTemplateDefinition": \(visibleCategoryHasTemplate)
                 },
                 \(counterpartyCategoryJSON)
                 {

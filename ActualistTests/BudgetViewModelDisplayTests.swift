@@ -24,6 +24,39 @@ struct BudgetViewModelDisplayTests {
         #expect(model.availableMonths == ["2026-06"])
     }
 
+    @Test func templateActionVisibilityFollowsLoadedCategoryDefinitions() throws {
+        let withoutTemplate = BudgetViewModel()
+        withoutTemplate.budgetMonth = try BudgetViewModelFixtures.decodeBudgetMonth(
+            visibleCategoryBalance: 1_000,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+        let plainCategory = try #require(
+            withoutTemplate.budgetMonth?.categoryGroups.flatMap(\.categories).first { $0.id == "mortgage" }
+        )
+        withoutTemplate.beginAssignmentEditing(for: plainCategory)
+
+        #expect(!withoutTemplate.hasMonthTemplateActions)
+        #expect(!withoutTemplate.activeCategoryHasTemplate)
+        #expect(!withoutTemplate.canApplyCategoryTemplate)
+
+        let withTemplate = BudgetViewModel()
+        withTemplate.budgetMonth = try BudgetViewModelFixtures.decodeBudgetMonth(
+            visibleCategoryBalance: 1_000,
+            hiddenCategoryBalance: 0,
+            visibleCategoryHasTemplate: true,
+            lastMonthOverspent: 0
+        )
+        let templatedCategory = try #require(
+            withTemplate.budgetMonth?.categoryGroups.flatMap(\.categories).first { $0.id == "mortgage" }
+        )
+        withTemplate.beginAssignmentEditing(for: templatedCategory)
+
+        #expect(withTemplate.hasMonthTemplateActions)
+        #expect(withTemplate.activeCategoryHasTemplate)
+        #expect(withTemplate.canApplyCategoryTemplate)
+    }
+
     @Test func derivesVisibleGroupsAndOverspendingCount() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try BudgetViewModelFixtures.decodeBudgetMonth(
