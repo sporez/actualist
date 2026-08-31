@@ -4,7 +4,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, PayeeRepositoryProtocol, RuleRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol, ReportsRepositoryProtocol {
+final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, EntityNotesRepositoryProtocol, PayeeRepositoryProtocol, RuleRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol, ReportsRepositoryProtocol {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport

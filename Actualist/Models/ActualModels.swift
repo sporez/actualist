@@ -105,6 +105,13 @@ struct ActualAccountGroup: Identifiable, Hashable, Sendable {
 struct AccountDisplay: Identifiable, Hashable, Sendable {
     let account: ActualAccount
     let balance: Int?
+    let hasUserNote: Bool
+
+    init(account: ActualAccount, balance: Int?, hasUserNote: Bool = false) {
+        self.account = account
+        self.balance = balance
+        self.hasUserNote = hasUserNote
+    }
 
     var id: String { account.id }
 }
@@ -121,6 +128,57 @@ struct BudgetMonth: Codable, Hashable, Sendable {
     let totalSpent: Int
     let totalBalance: Int
     let categoryGroups: [BudgetMonthCategoryGroup]
+    let hasUserNote: Bool
+
+    init(
+        month: String,
+        incomeAvailable: Int,
+        lastMonthOverspent: Int,
+        forNextMonth: Int,
+        totalBudgeted: Int,
+        toBudget: Int,
+        fromLastMonth: Int,
+        totalIncome: Int,
+        totalSpent: Int,
+        totalBalance: Int,
+        categoryGroups: [BudgetMonthCategoryGroup],
+        hasUserNote: Bool = false
+    ) {
+        self.month = month
+        self.incomeAvailable = incomeAvailable
+        self.lastMonthOverspent = lastMonthOverspent
+        self.forNextMonth = forNextMonth
+        self.totalBudgeted = totalBudgeted
+        self.toBudget = toBudget
+        self.fromLastMonth = fromLastMonth
+        self.totalIncome = totalIncome
+        self.totalSpent = totalSpent
+        self.totalBalance = totalBalance
+        self.categoryGroups = categoryGroups
+        self.hasUserNote = hasUserNote
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case month, incomeAvailable, lastMonthOverspent, forNextMonth
+        case totalBudgeted, toBudget, fromLastMonth, totalIncome, totalSpent
+        case totalBalance, categoryGroups, hasUserNote
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        month = try container.decode(String.self, forKey: .month)
+        incomeAvailable = try container.decode(Int.self, forKey: .incomeAvailable)
+        lastMonthOverspent = try container.decode(Int.self, forKey: .lastMonthOverspent)
+        forNextMonth = try container.decode(Int.self, forKey: .forNextMonth)
+        totalBudgeted = try container.decode(Int.self, forKey: .totalBudgeted)
+        toBudget = try container.decode(Int.self, forKey: .toBudget)
+        fromLastMonth = try container.decode(Int.self, forKey: .fromLastMonth)
+        totalIncome = try container.decode(Int.self, forKey: .totalIncome)
+        totalSpent = try container.decode(Int.self, forKey: .totalSpent)
+        totalBalance = try container.decode(Int.self, forKey: .totalBalance)
+        categoryGroups = try container.decode([BudgetMonthCategoryGroup].self, forKey: .categoryGroups)
+        hasUserNote = try container.decodeIfPresent(Bool.self, forKey: .hasUserNote) ?? false
+    }
 }
 
 struct BudgetMonthAlert: Codable, Hashable, Sendable {
@@ -141,9 +199,10 @@ struct BudgetMonthCategoryGroup: Codable, Identifiable, Hashable, Sendable {
     let spent: Int
     let balance: Int
     let categories: [BudgetMonthCategory]
+    let hasUserNote: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, hidden, budgeted, spent, balance, categories
+        case id, name, hidden, budgeted, spent, balance, categories, hasUserNote
         case isIncome = "is_income"
     }
 
@@ -155,7 +214,8 @@ struct BudgetMonthCategoryGroup: Codable, Identifiable, Hashable, Sendable {
         budgeted: Int,
         spent: Int,
         balance: Int,
-        categories: [BudgetMonthCategory]
+        categories: [BudgetMonthCategory],
+        hasUserNote: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -165,6 +225,7 @@ struct BudgetMonthCategoryGroup: Codable, Identifiable, Hashable, Sendable {
         self.spent = spent
         self.balance = balance
         self.categories = categories
+        self.hasUserNote = hasUserNote
     }
 
     init(from decoder: Decoder) throws {
@@ -177,6 +238,7 @@ struct BudgetMonthCategoryGroup: Codable, Identifiable, Hashable, Sendable {
         spent = try container.decodeIfPresent(Int.self, forKey: .spent) ?? 0
         balance = try container.decodeIfPresent(Int.self, forKey: .balance) ?? 0
         categories = try container.decodeIfPresent([BudgetMonthCategory].self, forKey: .categories) ?? []
+        hasUserNote = try container.decodeIfPresent(Bool.self, forKey: .hasUserNote) ?? false
     }
 }
 
@@ -191,9 +253,10 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
     let balance: Int
     let carryover: Bool
     let hasTemplateDefinition: Bool
+    let hasUserNote: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, hidden, budgeted, spent, balance, carryover, hasTemplateDefinition
+        case id, name, hidden, budgeted, spent, balance, carryover, hasTemplateDefinition, hasUserNote
         case isIncome = "is_income"
         case groupID = "group_id"
     }
@@ -208,7 +271,8 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
         spent: Int,
         balance: Int,
         carryover: Bool,
-        hasTemplateDefinition: Bool = false
+        hasTemplateDefinition: Bool = false,
+        hasUserNote: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -220,6 +284,7 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
         self.balance = balance
         self.carryover = carryover
         self.hasTemplateDefinition = hasTemplateDefinition
+        self.hasUserNote = hasUserNote
     }
 
     init(from decoder: Decoder) throws {
@@ -234,6 +299,7 @@ struct BudgetMonthCategory: Codable, Identifiable, Hashable, Sendable {
         balance = try container.decodeIfPresent(Int.self, forKey: .balance) ?? 0
         carryover = try container.decodeIfPresent(Bool.self, forKey: .carryover) ?? false
         hasTemplateDefinition = try container.decodeIfPresent(Bool.self, forKey: .hasTemplateDefinition) ?? false
+        hasUserNote = try container.decodeIfPresent(Bool.self, forKey: .hasUserNote) ?? false
     }
 }
 

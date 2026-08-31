@@ -13,6 +13,8 @@ struct BudgetGroupSection: View {
     let toggle: () -> Void
     var showHidden = false
     var canChangeVisibility = true
+    var onOpenCategoryNote: (BudgetMonthCategory) -> Void = { _ in }
+    var onOpenGroupNote: () -> Void = {}
     var onToggleCategoryHidden: (BudgetMonthCategory) -> Void = { _ in }
     var onToggleGroupHidden: () -> Void = {}
 
@@ -33,10 +35,19 @@ struct BudgetGroupSection: View {
                         .font(.body.weight(.bold))
                         .frame(width: BudgetLayout.chevronWidth)
 
-                    Text(groupName)
-                        .font(ActualistTypography.sectionTitle(for: density))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
+                    HStack(spacing: 6) {
+                        Text(groupName)
+                            .font(ActualistTypography.sectionTitle(for: density))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+
+                        if group.hasUserNote {
+                            Image(systemName: "note.text")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                                .accessibilityHidden(true)
+                        }
+                    }
 
                     Spacer()
 
@@ -69,6 +80,12 @@ struct BudgetGroupSection: View {
             .buttonStyle(.plain)
             .opacity(isGroupHidden ? BudgetLayout.hiddenCategoryOpacity : 1)
             .contextMenu {
+                Button {
+                    onOpenGroupNote()
+                } label: {
+                    Label("Notes", systemImage: "note.text")
+                }
+
                 if !group.isIncome {
                     Button {
                         onToggleGroupHidden()
@@ -95,6 +112,9 @@ struct BudgetGroupSection: View {
                             canChangeVisibility: canChangeVisibility && !isGroupHidden,
                             beginAssignmentEditing: { categoryFrame in
                                 beginAssignmentEditing(category, categoryFrame)
+                            },
+                            onOpenNote: {
+                                onOpenCategoryNote(category)
                             },
                             onToggleHidden: {
                                 onToggleCategoryHidden(category)
@@ -142,6 +162,7 @@ struct BudgetCategoryRow: View {
     var isDimmed = false
     var canChangeVisibility = false
     let beginAssignmentEditing: (CGRect) -> Void
+    var onOpenNote: () -> Void = {}
     var onToggleHidden: () -> Void = {}
 
     @State private var globalFrame: CGRect = .zero
@@ -181,6 +202,12 @@ struct BudgetCategoryRow: View {
         .buttonStyle(.plain)
         .opacity(isDimmed ? BudgetLayout.hiddenCategoryOpacity : 1)
         .contextMenu {
+            Button {
+                onOpenNote()
+            } label: {
+                Label("Notes", systemImage: "note.text")
+            }
+
             if canChangeVisibility {
                 Button {
                     onToggleHidden()
@@ -228,6 +255,13 @@ struct BudgetCategoryRow: View {
                 .foregroundStyle(ActualistTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.86)
+
+            if category.hasUserNote {
+                Image(systemName: "note.text")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

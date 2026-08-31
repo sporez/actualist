@@ -16,6 +16,7 @@ struct BudgetView: View {
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
     @State private var assignmentKeypadTopY: CGFloat = 0
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
+    @State private var noteTarget: ActualNoteTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
 
     init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
@@ -133,6 +134,12 @@ struct BudgetView: View {
                                 ConnectionStatusDot(status: appState.connectionStatus, isDemo: appState.isDemoMode)
                                 Text(viewModel.navigationTitle)
                                     .font(.headline.weight(.bold))
+                                if viewModel.budgetMonth?.hasUserNote == true {
+                                    Image(systemName: "note.text")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(ActualistTheme.secondaryText)
+                                        .accessibilityHidden(true)
+                                }
                                 Image(systemName: "chevron.down")
                                     .font(.subheadline.weight(.bold))
                                     .rotationEffect(.degrees(isMonthPickerPresented ? 180 : 0))
@@ -155,6 +162,15 @@ struct BudgetView: View {
 
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
+                            Button {
+                                presentMonthNote()
+                            } label: {
+                                Label("Notes", systemImage: "note.text")
+                            }
+                            .disabled(viewModel.selectedMonth == nil)
+
+                            Divider()
+
                             Toggle(
                                 "Show Hidden Categories",
                                 systemImage: "eye",
@@ -219,7 +235,11 @@ struct BudgetView: View {
                 }
                 .onChange(of: viewModel.selectedMonth) {
                     visibilityWorkflow.cancel()
+                    noteTarget = nil
                     applyShortcutRoute()
+                }
+                .onChange(of: appState.settings.selectedBudgetID) {
+                    noteTarget = nil
                 }
                 .sheet(isPresented: $isTransactionEditorPresented) {
                     TransactionEditorView(prefilledAccount: nil) {
@@ -253,6 +273,20 @@ struct BudgetView: View {
                     CategoryMonthDetailsView(details: details)
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
+                }
+                .sheet(item: $noteTarget) { target in
+                    if let budgetID = appState.settings.selectedBudgetID {
+                        EntityNotesView(
+                            target: target,
+                            budgetID: budgetID,
+                            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                            repository: appState.localFirstStore,
+                            onSaved: {
+                                Task { await viewModel.refreshSelectedMonth(using: appState) }
+                            }
+                        )
+                        .appSwitcherPrivacyProtected()
+                    }
                 }
                 .sheet(isPresented: $isOverspentCategoriesPresented) {
                     BudgetOverspentCategoriesView(
@@ -528,6 +562,18 @@ struct BudgetView: View {
                     },
                     showHidden: appState.settings.showHiddenCategories,
                     canChangeVisibility: !visibilityWorkflow.isSubmitting,
+                    onOpenCategoryNote: { category in
+                        noteTarget = ActualNoteTarget.category(
+                            id: category.id,
+                            title: category.name.actualistCategoryNameParts.name
+                        )
+                    },
+                    onOpenGroupNote: {
+                        noteTarget = ActualNoteTarget.categoryGroup(
+                            id: group.id,
+                            title: group.name
+                        )
+                    },
                     onToggleCategoryHidden: { category in
                         toggleCategoryHidden(category, in: group)
                     },
@@ -537,6 +583,16 @@ struct BudgetView: View {
                 )
             }
         }
+    }
+
+    private func presentMonthNote() {
+        guard let month = viewModel.selectedMonth else {
+            return
+        }
+        noteTarget = ActualNoteTarget.budgetMonth(
+            month: month,
+            title: viewModel.navigationTitle
+        )
     }
 
     private func scheduleAssignmentCategoryScroll(

@@ -6,6 +6,7 @@ struct AccountsView: View {
     @Environment(\.budgetCurrency) private var currency
     @State private var viewModel = AccountsViewModel()
     @State private var expandedSections: Set<AccountListLayout.Kind> = [.budget, .offBudget]
+    @State private var noteTarget: ActualNoteTarget?
 
     private var sections: [AccountListLayout.Section] {
         _ = viewModel.contentRevision
@@ -105,6 +106,23 @@ struct AccountsView: View {
             .onChange(of: appState.localDataRevision) {
                 Task { await loadLocal() }
                 applyShortcutRoute()
+            }
+            .onChange(of: appState.settings.selectedBudgetID) {
+                noteTarget = nil
+            }
+            .sheet(item: $noteTarget) { target in
+                if let budgetID = appState.settings.selectedBudgetID {
+                    EntityNotesView(
+                        target: target,
+                        budgetID: budgetID,
+                        isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                        repository: appState.localFirstStore,
+                        onSaved: {
+                            Task { await loadLocal() }
+                        }
+                    )
+                    .appSwitcherPrivacyProtected()
+                }
             }
             .sheet(isPresented: $viewModel.isAddAccountPresented) {
                 AddAccountSheet(viewModel: viewModel.addAccountViewModel)
@@ -367,14 +385,12 @@ struct AccountsView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        if canManageGroups, hasGroupActions(for: row) {
-                            accountGroupMenu(row)
-                        }
+                        accountActionsMenu(row)
                     }
 
                     if canManageGroups, hasGroupActions(for: row) {
                         Menu {
-                            accountGroupMenu(row)
+                            accountActionsMenu(row)
                         } label: {
                             Image(systemName: "ellipsis")
                                 .font(.body.weight(.semibold))
@@ -393,6 +409,22 @@ struct AccountsView: View {
 
     private func hasGroupActions(for row: AccountDisplay) -> Bool {
         !destinationGroups(for: row).isEmpty || row.account.accountGroupId != nil
+    }
+
+    @ViewBuilder
+    private func accountActionsMenu(_ row: AccountDisplay) -> some View {
+        Button {
+            noteTarget = ActualNoteTarget.account(
+                id: row.account.id,
+                title: row.account.name
+            )
+        } label: {
+            Label("Notes", systemImage: "note.text")
+        }
+
+        if canManageGroups, hasGroupActions(for: row) {
+            accountGroupMenu(row)
+        }
     }
 
     @ViewBuilder
@@ -636,6 +668,13 @@ struct AccountRow: View {
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
+
+                if row.hasUserNote {
+                    Image(systemName: "note.text")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .accessibilityHidden(true)
+                }
             }
 
             Spacer()
@@ -709,7 +748,7 @@ struct AccountRow: View {
     }
 
     private var accessibilityLabel: String {
-        [accountName, balanceText, bankSyncAccessibilityText]
+        [accountName, balanceText, row.hasUserNote ? "Has note" : nil, bankSyncAccessibilityText]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

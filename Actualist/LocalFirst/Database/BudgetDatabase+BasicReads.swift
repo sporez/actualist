@@ -230,8 +230,15 @@ extension BudgetDatabase {
     func fetchAccountDisplays() throws -> [AccountDisplay] {
         let accounts = try fetchAccounts()
         let balances = try accountBalances()
+        let userNoteIDs = try fetchUserNoteIDs(
+            for: Set(accounts.map { "account-\($0.id)" })
+        )
         return accounts.map { account in
-            AccountDisplay(account: account, balance: balances[account.id] ?? 0)
+            AccountDisplay(
+                account: account,
+                balance: balances[account.id] ?? 0,
+                hasUserNote: userNoteIDs.contains("account-\(account.id)")
+            )
         }
     }
 }

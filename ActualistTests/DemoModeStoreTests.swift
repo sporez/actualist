@@ -51,6 +51,19 @@ struct DemoModeStoreTests {
 
         let accounts = store.accountDisplays(budgetID: DemoBudget.groupID)
         #expect(accounts.count == 4)
+        #expect(accounts.first { $0.id == "checking" }?.hasUserNote == true)
+        let currentMonth = YearMonth(date: Date()).rawValue
+        let budgetMonth = try await store.budgetMonth(
+            budgetID: DemoBudget.groupID,
+            selectedMonth: currentMonth
+        ).month
+        #expect(budgetMonth.hasUserNote)
+        #expect(budgetMonth.categoryGroups.first { $0.id == "essentials" }?.hasUserNote == true)
+        #expect(
+            budgetMonth.categoryGroups
+                .flatMap(\.categories)
+                .first { $0.id == "groceries" }?.hasUserNote == true
+        )
         // The bundled artifact's digest matches the committed constants.
         #expect(DemoBudget.bundledArchiveMatchesCommittedDigest())
         // Opening the demo budget never touches a sync transport.

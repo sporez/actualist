@@ -6,7 +6,12 @@ extension BudgetDatabase {
     func fetchBudgetMonth(month: String) throws -> BudgetMonth {
         try queue.read { db in
             let categoryValues = try envelopeCategoryValues(through: month, db: db)
-            let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
+            let userNoteIDs = try allUserNoteIDs(db: db)
+            let groups = try fetchCategoryGroups(
+                categoryValues: categoryValues,
+                userNoteIDs: userNoteIDs,
+                db: db
+            )
             let expenseGroups = groups.filter { !$0.isIncome }
             let incomeGroups = groups.filter { $0.isIncome }
             let totalBudgeted = expenseGroups.reduce(0) { $0 + $1.budgeted }
@@ -32,7 +37,8 @@ extension BudgetDatabase {
                 totalIncome: totalIncome,
                 totalSpent: totalSpent,
                 totalBalance: totalBalance,
-                categoryGroups: groups
+                categoryGroups: groups,
+                hasUserNote: userNoteIDs.contains("budget-\(month)")
             )
         }
     }
@@ -172,6 +178,7 @@ extension BudgetDatabase {
 
     func fetchCategoryGroups(
         categoryValues: [String: EnvelopeCategoryValue],
+        userNoteIDs: Set<String> = [],
         db: Database
     ) throws -> [BudgetMonthCategoryGroup] {
         guard try tableExists("category_groups", db: db) else {
@@ -195,7 +202,12 @@ extension BudgetDatabase {
         var result: [BudgetMonthCategoryGroup] = []
         for groupRow in groupRows {
             let groupID: String = groupRow["id"] ?? ""
-            let categories = try fetchBudgetCategories(groupID: groupID, categoryValues: categoryValues, db: db)
+            let categories = try fetchBudgetCategories(
+                groupID: groupID,
+                categoryValues: categoryValues,
+                userNoteIDs: userNoteIDs,
+                db: db
+            )
             result.append(BudgetMonthCategoryGroup(
                 id: groupID,
                 name: groupRow["name"] ?? "",
@@ -204,7 +216,8 @@ extension BudgetDatabase {
                 budgeted: categories.reduce(0) { $0 + $1.budgeted },
                 spent: categories.reduce(0) { $0 + $1.spent },
                 balance: categories.reduce(0) { $0 + $1.balance },
-                categories: categories
+                categories: categories,
+                hasUserNote: userNoteIDs.contains(groupID)
             ))
         }
         return result
@@ -213,6 +226,7 @@ extension BudgetDatabase {
     func fetchBudgetCategories(
         groupID: String,
         categoryValues: [String: EnvelopeCategoryValue],
+        userNoteIDs: Set<String> = [],
         db: Database
     ) throws -> [BudgetMonthCategory] {
         guard try tableExists("categories", db: db) else {
@@ -250,7 +264,8 @@ extension BudgetDatabase {
                 spent: values.spent,
                 balance: values.balance,
                 carryover: values.carryover,
-                hasTemplateDefinition: hasStoredTemplateDefinition(row["goal_def"])
+                hasTemplateDefinition: hasStoredTemplateDefinition(row["goal_def"]),
+                hasUserNote: userNoteIDs.contains(id)
             )
         }
     }

@@ -56,6 +56,17 @@ struct BudgetMonthPrivacyProjectionTests {
         #expect(projected.incomeAvailable == projected.toBudget)
     }
 
+    @Test func nonMoneyMetadataPassesThroughTheProjection() throws {
+        let projected = BudgetMonthPrivacyProjection.project(makeMonth())
+        let group = try #require(projected.categoryGroups.first { $0.id == "everyday" })
+        let category = try #require(group.categories.first { $0.id == "dining" })
+
+        #expect(projected.hasUserNote)
+        #expect(group.hasUserNote)
+        #expect(category.hasUserNote)
+        #expect(category.hasTemplateDefinition)
+    }
+
     @Test func incomeIsUnassignedAndSignsFollowEnvelopeRoles() {
         let projected = BudgetMonthPrivacyProjection.project(makeMonth())
 
@@ -100,7 +111,9 @@ struct BudgetMonthPrivacyProjectionTests {
             budgeted: 10_000,
             spent: -4_000,
             balance: 6_000,
-            carryover: false
+            carryover: false,
+            hasTemplateDefinition: true,
+            hasUserNote: true
         )
         let hidden = BudgetMonthCategory(
             id: "hidden-cat",
@@ -156,7 +169,8 @@ struct BudgetMonthPrivacyProjectionTests {
                     budgeted: 15_000,
                     spent: -5_000,
                     balance: 10_000,
-                    categories: [dining, hidden]
+                    categories: [dining, hidden],
+                    hasUserNote: true
                 ),
                 BudgetMonthCategoryGroup(
                     id: "goals",
@@ -178,7 +192,8 @@ struct BudgetMonthPrivacyProjectionTests {
                     balance: 80_000,
                     categories: [salary]
                 )
-            ]
+            ],
+            hasUserNote: true
         )
     }
 }

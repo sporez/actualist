@@ -63,6 +63,8 @@ scripts/*
 !scripts/lint-liquid-glass.sh
 !scripts/lint-testflight-notes.sh
 !scripts/run-ios-simulator.sh
+!scripts/generate-demo-budget/
+!scripts/generate-demo-budget/generate_demo_budget.py
 !scripts/lib/
 !scripts/lib/destinations.example.sh
 !scripts/lib/load-destinations.sh

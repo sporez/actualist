@@ -48,7 +48,8 @@ enum BudgetMonthPrivacyProjection {
             totalIncome: totalIncome,
             totalSpent: totalSpent,
             totalBalance: totalBalance,
-            categoryGroups: groups
+            categoryGroups: groups,
+            hasUserNote: month.hasUserNote
         )
     }
 
@@ -68,7 +69,8 @@ enum BudgetMonthPrivacyProjection {
             budgeted: categories.reduce(0) { $0 + $1.budgeted },
             spent: categories.reduce(0) { $0 + $1.spent },
             balance: categories.reduce(0) { $0 + $1.balance },
-            categories: categories
+            categories: categories,
+            hasUserNote: group.hasUserNote
         )
     }
 
@@ -108,7 +110,8 @@ enum BudgetMonthPrivacyProjection {
             spent: spent,
             balance: budgeted + spent + leftover,
             carryover: category.carryover,
-            hasTemplateDefinition: category.hasTemplateDefinition
+            hasTemplateDefinition: category.hasTemplateDefinition,
+            hasUserNote: category.hasUserNote
         )
     }
 
