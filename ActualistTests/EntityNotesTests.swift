@@ -17,6 +17,7 @@ struct ActualNoteValueTests {
         let body = ActualNoteBody(storedNote: "Visible one\n  #Template 100\nVisible two\n#goal 500\n#CLEANUP")
 
         #expect(body.userBody == "Visible one\nVisible two")
+        #expect(body.displayText == "Visible one\nVisible two")
         #expect(body.hasUserNote)
         #expect(body.reservedLines == ["  #Template 100", "#goal 500", "#CLEANUP"])
         #expect(
@@ -59,6 +60,49 @@ struct EntityNotesViewModelTests {
         #expect(repository.savedBodies.isEmpty)
     }
 
+    @Test func categoryDetailsLoadsTheTrimmedUserFacingBody() async {
+        let repository = FakeEntityNotesRepository(
+            note: ActualNoteBody(storedNote: "  Remember coupons  \n#template 250")
+        )
+        let viewModel = CategoryMonthDetailsViewModel(details: Self.categoryDetails)
+
+        await viewModel.loadCategoryNote(
+            budgetID: "budget-1",
+            isPrivacyModeEnabled: false,
+            repository: repository
+        )
+
+        #expect(viewModel.categoryNoteText == "Remember coupons")
+        #expect(repository.loadCount == 1)
+    }
+
+    @Test func categoryDetailsPrivacyModeInvalidatesAStaleNoteLoad() async {
+        let repository = FakeEntityNotesRepository(note: ActualNoteBody(storedNote: "Secret"))
+        repository.suspendLoad = true
+        let viewModel = CategoryMonthDetailsViewModel(details: Self.categoryDetails)
+
+        let load = Task {
+            await viewModel.loadCategoryNote(
+                budgetID: "budget-1",
+                isPrivacyModeEnabled: false,
+                repository: repository
+            )
+        }
+        while repository.resumeLoad == nil {
+            await Task.yield()
+        }
+        await viewModel.loadCategoryNote(
+            budgetID: "budget-1",
+            isPrivacyModeEnabled: true,
+            repository: repository
+        )
+        repository.finishLoad()
+        await load.value
+
+        #expect(viewModel.categoryNoteText == nil)
+        #expect(repository.loadCount == 1)
+    }
+
     @Test func cancelInvalidatesAStaleLoadResult() async throws {
         let target = try #require(ActualNoteTarget.category(id: "cat-1", title: "Groceries"))
         let repository = FakeEntityNotesRepository(note: ActualNoteBody(storedNote: "Remote"))
@@ -80,6 +124,22 @@ struct EntityNotesViewModelTests {
         #expect(viewModel.phase == .idle)
         #expect(viewModel.text.isEmpty)
     }
+
+    private static let categoryDetails = CategoryMonthDetails(
+        category: BudgetMonthCategory(
+            id: "groceries",
+            name: "Groceries",
+            isIncome: false,
+            hidden: false,
+            groupID: "essentials",
+            budgeted: 50_000,
+            spent: -12_000,
+            balance: 38_000,
+            carryover: false,
+            hasUserNote: true
+        ),
+        month: "2026-08"
+    )
 }
 
 @MainActor

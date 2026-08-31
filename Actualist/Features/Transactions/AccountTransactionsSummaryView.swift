@@ -6,6 +6,7 @@ struct AccountTransactionsSummaryView: View {
     let scope: TransactionFeedScope
     let displayState: AccountTransactionsDisplayState
     let categoryCarryoverIsEnabled: Bool?
+    let categoryNoteText: String?
     let categoryCarryoverIsUpdating: Bool
     let canEditCategoryCarryover: Bool
     let categoryCarryoverErrorMessage: String?
@@ -58,6 +59,11 @@ struct AccountTransactionsSummaryView: View {
                 categoryCarryoverRow(isEnabled: categoryCarryoverIsEnabled)
             }
 
+            if let categoryNoteText {
+                Divider().overlay(ActualistTheme.separator)
+                categoryNoteCallout(categoryNoteText)
+            }
+
             if let categoryCarryoverErrorMessage {
                 Text(categoryCarryoverErrorMessage)
                     .font(ActualistTypography.rowLabel(for: density))
@@ -105,6 +111,35 @@ struct AccountTransactionsSummaryView: View {
             .accessibilityValue(isEnabled ? "On" : "Off")
         }
         .padding(.vertical, 10)
+    }
+
+    private func categoryNoteCallout(_ note: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Category Note", systemImage: "note.text")
+                .font(ActualistTypography.rowLabel(for: density))
+                .foregroundStyle(ActualistTheme.accent)
+
+            ScrollView(.vertical) {
+                Text(note)
+                    .font(ActualistTypography.body(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxHeight: 112)
+        }
+        .padding(12)
+        .background(
+            ActualistTheme.accent.opacity(0.14),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(ActualistTheme.accent.opacity(0.28), lineWidth: 1)
+        }
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
     }
 
     private func summaryRow(

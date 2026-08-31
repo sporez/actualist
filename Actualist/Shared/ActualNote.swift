@@ -68,8 +68,13 @@ struct ActualNoteBody: Equatable, Sendable {
         userBody = lines.filter { !Self.isReservedDirective($0) }.joined(separator: "\n")
     }
 
+    var displayText: String? {
+        let trimmed = userBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     var hasUserNote: Bool {
-        !userBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        displayText != nil
     }
 
     func persistedNote(userBody: String) -> String? {

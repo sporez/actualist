@@ -31,6 +31,9 @@ final class CategoryMonthDetailsViewModel {
     var isCarryoverEnabled: Bool
     var isUpdatingCarryover = false
     var carryoverErrorMessage: String?
+    private(set) var categoryNoteText: String?
+
+    private var noteLoadGeneration = 0
 
     init(details: CategoryMonthDetails) {
         self.details = details
@@ -45,6 +48,53 @@ final class CategoryMonthDetailsViewModel {
         let repository = appState.budgetRepository
 
         await refresh(budgetID: budgetID, repository: repository)
+        await refreshNote(using: appState)
+    }
+
+    func refreshNote(using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            categoryNoteText = nil
+            return
+        }
+        await loadCategoryNote(
+            budgetID: budgetID,
+            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            repository: appState.localFirstStore
+        )
+    }
+
+    func loadCategoryNote(
+        budgetID: String,
+        isPrivacyModeEnabled: Bool,
+        repository: any EntityNotesRepositoryProtocol
+    ) async {
+        noteLoadGeneration += 1
+        let requestGeneration = noteLoadGeneration
+        let categoryID = details.category.id
+
+        guard !isPrivacyModeEnabled,
+              details.category.hasUserNote,
+              let target = ActualNoteTarget.category(
+                id: categoryID,
+                title: details.category.name
+              ) else {
+            categoryNoteText = nil
+            return
+        }
+
+        do {
+            let note = try await repository.entityNote(target: target, budgetID: budgetID)
+            guard requestGeneration == noteLoadGeneration,
+                  details.category.id == categoryID else {
+                return
+            }
+            categoryNoteText = note.displayText
+        } catch {
+            guard requestGeneration == noteLoadGeneration else {
+                return
+            }
+            categoryNoteText = nil
+        }
     }
 
     func refresh(
@@ -129,6 +179,9 @@ struct CategoryMonthDetailsView: View {
                     Task { await viewModel.refresh(using: appState) }
                 },
                 categoryCarryoverIsEnabled: viewModel.isCarryoverEnabled,
+                categoryNoteText: appState.settings.randomizedDisplayValuesEnabled
+                    ? nil
+                    : viewModel.categoryNoteText,
                 categoryCarryoverIsUpdating: viewModel.isUpdatingCarryover,
                 canEditCategoryCarryover: true,
                 categoryCarryoverErrorMessage: viewModel.carryoverErrorMessage,
@@ -140,6 +193,9 @@ struct CategoryMonthDetailsView: View {
         .task { await viewModel.refresh(using: appState) }
         .onChange(of: appState.localDataRevision) {
             Task { await viewModel.refresh(using: appState) }
+        }
+        .onChange(of: appState.settings.randomizedDisplayValuesEnabled) {
+            Task { await viewModel.refreshNote(using: appState) }
         }
         .presentationDetents([.large])
         .appSwitcherPrivacyAwareDragIndicator()

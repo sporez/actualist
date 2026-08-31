@@ -7,6 +7,7 @@ struct AccountTransactionsView: View {
     let scope: TransactionFeedScope
     let onChanged: () -> Void
     let categoryCarryoverIsEnabled: Bool?
+    let categoryNoteText: String?
     let categoryCarryoverIsUpdating: Bool
     let canEditCategoryCarryover: Bool
     let categoryCarryoverErrorMessage: String?
@@ -20,6 +21,7 @@ struct AccountTransactionsView: View {
         self.scope = .account(account)
         self.onChanged = {}
         self.categoryCarryoverIsEnabled = nil
+        self.categoryNoteText = nil
         self.categoryCarryoverIsUpdating = false
         self.canEditCategoryCarryover = false
         self.categoryCarryoverErrorMessage = nil
@@ -31,6 +33,7 @@ struct AccountTransactionsView: View {
         scope: TransactionFeedScope,
         onChanged: @escaping () -> Void = {},
         categoryCarryoverIsEnabled: Bool? = nil,
+        categoryNoteText: String? = nil,
         categoryCarryoverIsUpdating: Bool = false,
         canEditCategoryCarryover: Bool = false,
         categoryCarryoverErrorMessage: String? = nil,
@@ -39,6 +42,7 @@ struct AccountTransactionsView: View {
         self.scope = scope
         self.onChanged = onChanged
         self.categoryCarryoverIsEnabled = categoryCarryoverIsEnabled
+        self.categoryNoteText = categoryNoteText
         self.categoryCarryoverIsUpdating = categoryCarryoverIsUpdating
         self.canEditCategoryCarryover = canEditCategoryCarryover
         self.categoryCarryoverErrorMessage = categoryCarryoverErrorMessage
@@ -231,6 +235,7 @@ struct AccountTransactionsView: View {
             scope: scope,
             displayState: displayState,
             categoryCarryoverIsEnabled: categoryCarryoverIsEnabled,
+            categoryNoteText: categoryNoteText,
             categoryCarryoverIsUpdating: categoryCarryoverIsUpdating,
             canEditCategoryCarryover: canEditCategoryCarryover,
             categoryCarryoverErrorMessage: categoryCarryoverErrorMessage,
