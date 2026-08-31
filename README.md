@@ -130,11 +130,16 @@ plaintext copy of the budget in the device-backup path. Before replacing or
 erasing a device, open Actualist while online and confirm Settings shows
 **Pending Sync: None**.
 
+### Budget Templates
+
+Budget Templates are available from the Budget screen for templates already
+authored in Actual. Applying or overwriting a template can change many
+assignments at once, so keep a current backup and review the result.
+
 ### Experimental Features
 
-Experimental features are opt-in and disabled by default. **Budget Templates are
-experimental** and can change many assignments at once. Back up before applying
-them and verify the result in Actual.
+Experimental features are opt-in and disabled by default. **Bank Sync** remains
+experimental and is enabled under Settings → Advanced.
 
 ## Current Limitations
 
@@ -146,8 +151,8 @@ them and verify the result in Actual.
   actions, delete-transaction, and fixed/percent/remainder splits. Formula
   actions, some date and recurrence shapes, and schedule-owned rules stay
   visible but read-only so their JSON is never rewritten or lost.
-- Budget Templates support only a subset of Actual's template behavior and remain
-  experimental.
+- Actualist can apply Budget Templates authored in Actual, but does not yet
+  include a template editor or preview.
 
 ## Reporting Bugs
 

@@ -611,8 +611,7 @@ final class BudgetViewModel {
         _ mode: BudgetTemplateApplicationMode,
         using appState: AppState
     ) async -> Bool {
-        guard appState.canApplyBudgetTemplates,
-              let budgetID = appState.settings.selectedBudgetID else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
         let repository = appState.budgetRepository
@@ -673,8 +672,7 @@ final class BudgetViewModel {
     }
 
     func applyCategoryTemplate(using appState: AppState) async -> Bool {
-        guard appState.canApplyBudgetTemplates,
-              let budgetID = appState.settings.selectedBudgetID else {
+        guard let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
         let repository = appState.budgetRepository

@@ -89,22 +89,32 @@ extension BudgetTemplateEngine {
             return schedule
         }
         let monthStart = try BudgetTemplateCalendar.monthStartDate(monthValue)
-        let nextMonthStart = try BudgetTemplateCalendar.nextMonthStartDate(monthValue)
         guard var cursor = try recurrence.nextDate(onOrAfter: monthStart) else {
             return schedule
         }
+
+        func displayDate(for date: Date) throws -> Date {
+            recurrence.skipWeekend ? try recurrence.skippedWeekend(date) : date
+        }
+
+        // Actual totals repeating occurrences through the month containing the
+        // schedule's next occurrence, not merely through the budget month. A
+        // future yearly bill therefore keeps one target for sinking-fund math.
+        let firstDisplayDate = try displayDate(for: cursor)
+        guard let occurrenceMonth = BudgetTemplateCalendar.gregorian.dateInterval(
+            of: .month,
+            for: firstDisplayDate
+        ) else {
+            throw LocalFirstError.unsupportedTemplate("schedule recurrence")
+        }
+        let occurrenceMonthEnd = occurrenceMonth.end
         let sign = schedule.monthlyRepeatingTarget >= 0 ? 1 : -1
         let magnitude = abs(schedule.amount)
         var total = 0
         var guardCount = 0
         while true {
-            let display = schedule.recurrence.flatMap { recurrence -> Date? in
-                guard recurrence.skipWeekend else {
-                    return cursor
-                }
-                return try? recurrence.skippedWeekend(cursor)
-            } ?? cursor
-            guard display < nextMonthStart else {
+            let display = try displayDate(for: cursor)
+            guard display < occurrenceMonthEnd else {
                 break
             }
             total = try Self.checkedAdd(total, magnitude)

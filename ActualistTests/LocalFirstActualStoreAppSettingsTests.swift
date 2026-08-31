@@ -218,11 +218,19 @@ extension LocalFirstActualStoreTests {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let store = AppSettingsStore(defaults: defaults)
         var settings = AppSettings()
-        settings.enabledExperimentalFeatures = [.budgetTemplates, .bankSync]
+        settings.enabledExperimentalFeatures = [.bankSync]
 
         store.save(settings)
 
-        #expect(store.load().enabledExperimentalFeatures == [.budgetTemplates, .bankSync])
+        #expect(store.load().enabledExperimentalFeatures == [.bankSync])
+    }
+
+    @Test func retiredBudgetTemplateExperimentIsIgnoredWithoutDisablingBankSync() throws {
+        let data = Data(#"{"enabledExperimentalFeatures":["budgetTemplates","bankSync"]}"#.utf8)
+
+        let settings = try JSONDecoder.actual.decode(AppSettings.self, from: data)
+
+        #expect(settings.enabledExperimentalFeatures == [.bankSync])
     }
 
     @Test func backgroundBankSyncAndRefreshSchedulingHonorExperimentalGate() {

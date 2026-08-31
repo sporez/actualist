@@ -28,21 +28,18 @@ enum AppSwitcherPrivacyMode: String, Codable, CaseIterable, Identifiable {
 }
 
 enum ExperimentalFeature: String, Codable, CaseIterable, Identifiable {
-    case budgetTemplates
     case bankSync
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .budgetTemplates: "Budget Templates"
         case .bankSync: "Bank Sync"
         }
     }
 
     var detail: String {
         switch self {
-        case .budgetTemplates: "Shows template actions on the Budget screen."
         case .bankSync: "Shows Bank Sync under Settings → Budget & Data."
         }
     }

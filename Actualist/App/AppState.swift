@@ -604,10 +604,6 @@ final class AppState {
         }
     }
 
-    var canApplyBudgetTemplates: Bool {
-        isExperimentalFeatureEnabled(.budgetTemplates)
-    }
-
     var canUseBankSync: Bool {
         settings.isBankSyncEnabled
     }

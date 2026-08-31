@@ -4,7 +4,6 @@ struct BudgetAssignmentKeypad: View {
     @Environment(\.actualistDensity) private var density
 
     let canSubmit: Bool
-    let showsTemplateAction: Bool
     let canApplyTemplate: Bool
     let isSubmitting: Bool
     let errorMessage: String?
@@ -23,10 +22,8 @@ struct BudgetAssignmentKeypad: View {
     var body: some View {
         VStack(spacing: BudgetKeypadLayout.stackSpacing) {
             HStack(spacing: 12) {
-                if showsTemplateAction {
-                    keypadToolbarButton(title: "Apply Category Template", systemImage: "sparkles", isEnabled: canApplyTemplate) {
-                        applyTemplate()
-                    }
+                keypadToolbarButton(title: "Apply Category Template", systemImage: "sparkles", isEnabled: canApplyTemplate) {
+                    applyTemplate()
                 }
                 keypadToolbarButton(title: "Move Money", systemImage: "arrow.right", isEnabled: true) {
                     moveMoney()

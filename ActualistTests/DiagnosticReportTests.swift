@@ -36,7 +36,7 @@ struct DiagnosticReportTests {
         state.settings.selectedLocalFirstFileID = "private-file-id"
         state.settings.selectedLocalFirstGroupID = "private-group-id"
         state.settings.backgroundTransactionRefreshEnabled = true
-        state.settings.enabledExperimentalFeatures = [.budgetTemplates]
+        state.settings.enabledExperimentalFeatures = [.bankSync]
         state.settings.pendingNewTransactionIDsByAccount = [
             "private-budget-id|private-account-id": ["transaction-one", "transaction-two"]
         ]
@@ -122,7 +122,7 @@ struct DiagnosticReportTests {
         #expect(report.text.contains("Actualist Diagnostic Report"))
         #expect(report.text.contains("Setup phase: ready"))
         #expect(report.text.contains("Connection status: offline"))
-        #expect(report.text.contains("Experimental features enabled: budgetTemplates"))
+        #expect(report.text.contains("Experimental features enabled: bankSync"))
         #expect(report.text.contains("Pending local messages: 3"))
         #expect(report.text.contains("Total recorded events: 12"))
         #expect(report.text.contains("Total schedule attempts: 5"))

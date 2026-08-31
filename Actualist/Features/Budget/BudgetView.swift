@@ -52,8 +52,7 @@ struct BudgetView: View {
                     if viewModel.isAssignmentKeypadPresented {
                         BudgetAssignmentKeypad(
                             canSubmit: viewModel.canSubmitAssignment,
-                            showsTemplateAction: appState.isExperimentalFeatureEnabled(.budgetTemplates),
-                            canApplyTemplate: viewModel.canApplyCategoryTemplate && appState.canApplyBudgetTemplates,
+                            canApplyTemplate: viewModel.canApplyCategoryTemplate,
                             isSubmitting: viewModel.isSubmittingAssignment,
                             errorMessage: viewModel.activeAssignmentErrorMessage,
                             appendDigit: { viewModel.appendAssignmentDigit($0) },
@@ -161,23 +160,21 @@ struct BudgetView: View {
                                 isOn: showHiddenCategoriesBinding
                             )
 
-                            if appState.isExperimentalFeatureEnabled(.budgetTemplates) {
-                                Divider()
+                            Divider()
 
-                                Button {
-                                    pendingTemplateConfirmation = .monthFillEmpty
-                                } label: {
-                                    Label("Apply Template", systemImage: "sparkles")
-                                }
-                                .disabled(viewModel.isApplyingMonthTemplate || !appState.canApplyBudgetTemplates)
-
-                                Button {
-                                    pendingTemplateConfirmation = .monthOverwrite
-                                } label: {
-                                    Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
-                                }
-                                .disabled(viewModel.isApplyingMonthTemplate || !appState.canApplyBudgetTemplates)
+                            Button {
+                                pendingTemplateConfirmation = .monthFillEmpty
+                            } label: {
+                                Label("Apply Template", systemImage: "sparkles")
                             }
+                            .disabled(viewModel.isApplyingMonthTemplate)
+
+                            Button {
+                                pendingTemplateConfirmation = .monthOverwrite
+                            } label: {
+                                Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
+                            }
+                            .disabled(viewModel.isApplyingMonthTemplate)
 
                             Divider()
 

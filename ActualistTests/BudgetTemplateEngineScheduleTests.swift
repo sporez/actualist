@@ -93,6 +93,39 @@ struct BudgetTemplateEngineScheduleTests {
         #expect(amounts["insurance"] == 20_000)
     }
 
+    @Test func futureYearlyRepeatingScheduleKeepsNextOccurrenceForSinking() throws {
+        let recurrence = BudgetTemplateScheduleRecurrence(
+            start: try #require(BudgetTemplateCalendar.validatedDate("2027-01-15")),
+            frequency: "yearly",
+            interval: 1,
+            skipWeekend: false,
+            weekendSolveMode: "after"
+        )
+        let amounts = try writeAmounts(
+            categories: [
+                "insurance": category(
+                    json: schedule(name: "Insurance"),
+                    resolvedSchedules: [
+                        "Insurance": BudgetTemplateEngine.ResolvedSchedule(
+                            name: "Insurance",
+                            amount: -120_000,
+                            nextDate: "2027-01-15",
+                            monthsUntil: 6,
+                            interval: 1,
+                            frequency: "yearly",
+                            completed: false,
+                            full: false,
+                            isRepeating: true,
+                            recurrence: recurrence,
+                            monthlyRepeatingTarget: 120_000
+                        )
+                    ]
+                )
+            ]
+        )
+        #expect(amounts["insurance"] == 17_143)
+    }
+
     @Test func missingScheduleNameIsRefused() throws {
         do {
             _ = try writeAmounts(

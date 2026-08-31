@@ -28,18 +28,6 @@ struct AppFeatureTests {
         #expect(count == 3)
     }
 
-    @Test func budgetTemplatesRequireExperimentalFeature() {
-        let state = makeAppState()
-
-        #expect(!state.canApplyBudgetTemplates)
-
-        state.updateExperimentalFeature(.budgetTemplates, isEnabled: true)
-        #expect(state.canApplyBudgetTemplates)
-
-        state.updateExperimentalFeature(.budgetTemplates, isEnabled: false)
-        #expect(!state.canApplyBudgetTemplates)
-    }
-
     @Test func bankSyncRequiresExperimentalFeatureAndDoesNotClearAlerts() {
         let state = makeAppState()
         state.settings.backgroundTransactionRefreshEnabled = true
