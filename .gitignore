@@ -63,6 +63,8 @@ scripts/*
 !scripts/lint-liquid-glass.sh
 !scripts/lint-testflight-notes.sh
 !scripts/run-ios-simulator.sh
+!scripts/split-parity/
+!scripts/split-parity/*.mjs
 !scripts/generate-demo-budget/
 !scripts/generate-demo-budget/generate_demo_budget.py
 !scripts/lib/

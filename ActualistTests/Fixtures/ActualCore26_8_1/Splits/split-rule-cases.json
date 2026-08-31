@@ -1,0 +1,466 @@
+{
+  "schemaVersion": 1,
+  "oracle": {
+    "tag": "v26.8.1",
+    "commit": "063df03763ca772b51f6264752b88ddec22cfb8a",
+    "packageVersion": "26.8.1"
+  },
+  "amountUnits": "integer minor units",
+  "rounding": "JavaScript Math.round: ties toward positive infinity",
+  "cases": [
+    {
+      "id": "index-zero-whole-transaction-and-one-based-children",
+      "actions": [
+        {
+          "op": "append-notes",
+          "value": " whole",
+          "options": {
+            "splitIndex": 0
+          }
+        },
+        {
+          "op": "set-split-amount",
+          "value": -4000,
+          "options": {
+            "splitIndex": 1,
+            "method": "fixed-amount"
+          }
+        },
+        {
+          "op": "set",
+          "field": "category",
+          "value": "groceries",
+          "options": {
+            "splitIndex": 1
+          }
+        },
+        {
+          "op": "set-split-amount",
+          "value": 0,
+          "options": {
+            "splitIndex": 2,
+            "method": "remainder"
+          }
+        },
+        {
+          "op": "set",
+          "field": "category",
+          "value": null,
+          "options": {
+            "splitIndex": 2
+          }
+        }
+      ],
+      "expected": {
+        "parent": {
+          "id": "parent-1",
+          "amount": -10000,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": null,
+          "notes": "parent note whole",
+          "cleared": true,
+          "reconciled": false,
+          "startingBalance": false,
+          "sortOrder": 100,
+          "isParent": true,
+          "isChild": false,
+          "parentID": null,
+          "error": null,
+          "deleted": false
+        },
+        "children": [
+          {
+            "id": "id2",
+            "amount": -4000,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 99,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          },
+          {
+            "id": "id3",
+            "amount": -6000,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": null,
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 98,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "negative-half-percent-rounding",
+      "parentAmount": -5,
+      "expected": {
+        "parent": {
+          "id": "parent-1",
+          "amount": -5,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": null,
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "startingBalance": false,
+          "sortOrder": 100,
+          "isParent": true,
+          "isChild": false,
+          "parentID": null,
+          "error": null,
+          "deleted": false
+        },
+        "children": [
+          {
+            "id": "id5",
+            "amount": -2,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 99,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          },
+          {
+            "id": "id6",
+            "amount": -3,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 98,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "positive-half-percent-rounding",
+      "parentAmount": 5,
+      "expected": {
+        "parent": {
+          "id": "parent-1",
+          "amount": 5,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": null,
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "startingBalance": false,
+          "sortOrder": 100,
+          "isParent": true,
+          "isChild": false,
+          "parentID": null,
+          "error": null,
+          "deleted": false
+        },
+        "children": [
+          {
+            "id": "id8",
+            "amount": 3,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 99,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          },
+          {
+            "id": "id9",
+            "amount": 2,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 98,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "multiple-negative-remainders-adjust-highest-index",
+      "parentAmount": -5,
+      "expected": {
+        "parent": {
+          "id": "parent-1",
+          "amount": -5,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": null,
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "startingBalance": false,
+          "sortOrder": 100,
+          "isParent": true,
+          "isChild": false,
+          "parentID": null,
+          "error": null,
+          "deleted": false
+        },
+        "children": [
+          {
+            "id": "id11",
+            "amount": -2,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 99,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          },
+          {
+            "id": "id12",
+            "amount": -3,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 98,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "fixed-before-percent-before-remainder",
+      "parentAmount": 50,
+      "expected": {
+        "parent": {
+          "id": "parent-1",
+          "amount": 50,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": null,
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "startingBalance": false,
+          "sortOrder": 100,
+          "isParent": true,
+          "isChild": false,
+          "parentID": null,
+          "error": null,
+          "deleted": false
+        },
+        "children": [
+          {
+            "id": "id14",
+            "amount": 100,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 99,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          },
+          {
+            "id": "id15",
+            "amount": -25,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 98,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          },
+          {
+            "id": "id16",
+            "amount": -25,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 97,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "formula-and-remainder",
+      "parentAmount": 100000,
+      "expected": {
+        "parent": {
+          "id": "parent-1",
+          "amount": 100000,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": null,
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "startingBalance": false,
+          "sortOrder": 100,
+          "isParent": true,
+          "isChild": false,
+          "parentID": null,
+          "error": null,
+          "deleted": false
+        },
+        "children": [
+          {
+            "id": "id18",
+            "amount": 30000,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 99,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          },
+          {
+            "id": "id19",
+            "amount": 70000,
+            "account": "checking",
+            "date": "2026-08-15",
+            "category": "groceries",
+            "payee": "coffee",
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "startingBalance": false,
+            "sortOrder": 98,
+            "isParent": false,
+            "isChild": true,
+            "parentID": "parent-1",
+            "error": null,
+            "deleted": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "effective-child-input-is-not-split",
+      "expected": {
+        "parent": {
+          "id": "existing-child",
+          "amount": -10000,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": "coffee",
+          "notes": null,
+          "cleared": true,
+          "reconciled": false,
+          "startingBalance": false,
+          "sortOrder": 100,
+          "isParent": false,
+          "isChild": true,
+          "parentID": "parent-1",
+          "error": null,
+          "deleted": false
+        },
+        "children": []
+      }
+    }
+  ]
+}

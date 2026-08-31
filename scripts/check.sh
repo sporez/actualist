@@ -46,6 +46,9 @@ else
   echo "skip: not a git work tree"
 fi
 
+section "Actual 26.8.1 split oracle"
+"$ROOT/scripts/split-parity/verify.mjs" || status=1
+
 section "Xcode synchronized groups"
 # Sources are auto-registered: Actualist/ and ActualistTests/ are file system
 # synchronized root groups, so any file on disk is compiled without a pbxproj

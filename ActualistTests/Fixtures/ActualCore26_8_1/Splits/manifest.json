@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.8.1",
+    "commit": "063df03763ca772b51f6264752b88ddec22cfb8a",
+    "packageVersion": "26.8.1"
+  },
+  "generator": {
+    "command": "scripts/split-parity/generate.mjs --actual-checkout <actual-v26.8.1>",
+    "sha256": "7b01373e37819bca4135a992068c37cac0cec4b5fe90613315a91c3a8d28ca9a"
+  },
+  "amountUnits": "integer minor units",
+  "rounding": "JavaScript Math.round: ties toward positive infinity",
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/shared/transactions.ts",
+      "sha256": "99563d32b2fcefa4a33e512fbdb4c3d9c5ba804e9fc9acd50054f2b58addd5c9"
+    },
+    {
+      "path": "packages/loot-core/src/shared/transactions.test.ts",
+      "sha256": "efc2d6f38ad2e69c175d2b46b50d5b57d4120ce41d3c8e03cc6a6770c22f5ea2"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/index.ts",
+      "sha256": "967df424f9f0907f4a772f329f6f92433c063be2f64cd01a1f22e6137da3e05e"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/executors.ts",
+      "sha256": "9c37d1dc346a7f328e6c1004e6f38afbb201a24ca459cfaa4d050339cc32a394"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/index.ts",
+      "sha256": "8ad3ce105e7c772ded42d420c1cc0c765407e6b9b2da2c854972ccfdcdc12551"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transfer.ts",
+      "sha256": "309ebae609b20dee6053bc0a84e80e310a0d53fd4aed7c284d7e4379c9305701"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transaction-rules.ts",
+      "sha256": "692506c50b5e7498f1f0bba72b3d2279277aecfc6858ac9ed8aa4f4eb5590529"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transaction-rules.test.ts",
+      "sha256": "c06d7a6368c3462e0643b6455219edc139deb1e609536ce5c95ffa9ce88a2f1d"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/__snapshots__/transaction-rules.test.ts.snap",
+      "sha256": "49fc69c9840bcb42ccb99a29b2466e441e22e864050a9c34bf8585d3747b27a7"
+    },
+    {
+      "path": "packages/loot-core/src/server/tools/app.ts",
+      "sha256": "d1854d36482a78d4d1dc84563e585cc8bf8e924cec5ef41a66993dcade4cdc23"
+    },
+    {
+      "path": "packages/loot-core/src/server/rules/rule.ts",
+      "sha256": "fcc0a7741dcf5305b00a4485d49464f0559464794c710d7d02f315a626918853"
+    },
+    {
+      "path": "packages/loot-core/src/server/rules/action.ts",
+      "sha256": "84b0a89c4e2b12801d2caee49d09739cca7837eea8a82f57a088922a59feafce"
+    },
+    {
+      "path": "packages/loot-core/src/server/rules/index.test.ts",
+      "sha256": "ca1a92fbaa3574f4b2226ae2892c62aa16426e3ce74f43e3d5a31c4c34311274"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_8_1/Splits/family-transformations.json",
+      "sha256": "0eb57cffcaae1de6a02434096d24efa7de6b57fedaff4017e5453a2588a437e3",
+      "caseCount": 8
+    },
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_8_1/Splits/split-rule-cases.json",
+      "sha256": "5f3b96f673ca908fbb3de61a82032e2c7da711c5c0fa75667da6cc7f890a3080",
+      "caseCount": 7
+    }
+  ]
+}
