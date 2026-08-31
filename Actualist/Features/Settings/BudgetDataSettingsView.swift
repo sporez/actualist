@@ -6,15 +6,17 @@ struct BudgetDataSettingsView: View {
     @Environment(AppState.self) private var appState
 
     @State private var viewModel = SettingsViewModel()
+    @State private var carryoverViewModel = BulkCategoryCarryoverViewModel()
     @State private var isBudgetPickerPresented = false
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
     @State private var isReimportConfirmationPresented = false
     @State private var isWalletPickerPresented = false
+    @State private var isCarryoverConfirmationPresented = false
 
     var body: some View {
         List {
-            Section("Budget") {
+            Section {
                 LabeledContent("Selected") {
                     Text(selectedBudgetDisplayName)
                         .foregroundStyle(ActualistTheme.secondaryText)
@@ -53,6 +55,48 @@ struct BudgetDataSettingsView: View {
                     }
                     .disabled(appState.settings.selectedBudgetID == nil)
                 }
+
+                Toggle(isOn: allCategoriesCarryoverSelection) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Rollover All Overspending")
+                        Text(carryoverControlDetail)
+                            .font(.caption)
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                    }
+                }
+                .disabled(isCarryoverControlDisabled)
+                .confirmationDialog(
+                    "Set Rollover for All Categories?",
+                    isPresented: $isCarryoverConfirmationPresented,
+                    titleVisibility: .visible
+                ) {
+                    Button("Turn On for All") {
+                        applyCarryoverToAllCategories(true)
+                    }
+                    .tint(ActualistTheme.primaryText)
+                    .disabled(carryoverViewModel.status?.canEnableAll != true)
+
+                    Button("Turn Off for All", role: .destructive) {
+                        applyCarryoverToAllCategories(false)
+                    }
+                    .disabled(carryoverViewModel.status?.canDisableAll != true)
+
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(carryoverConfirmationMessage)
+                }
+
+                if let errorMessage = carryoverViewModel.errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.danger)
+                }
+            } header: {
+                Text("Budget")
+            } footer: {
+                Text("Applies from the current month forward to every expense category, including hidden categories.")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
             }
             .settingsSectionChrome()
 
@@ -164,6 +208,18 @@ struct BudgetDataSettingsView: View {
         .onAppear {
             viewModel.hydrate(from: appState)
         }
+        .task(id: appState.settings.selectedBudgetID) {
+            isCarryoverConfirmationPresented = false
+            guard let budgetID = appState.settings.selectedBudgetID else {
+                carryoverViewModel.reset()
+                return
+            }
+            await carryoverViewModel.load(
+                budgetID: budgetID,
+                preferredMonth: YearMonth(date: Date()).rawValue,
+                repository: appState.budgetRepository
+            )
+        }
         .sheet(isPresented: $isBudgetPickerPresented) {
             SettingsBudgetPickerSheet(
                 viewModel: viewModel,
@@ -178,6 +234,49 @@ struct BudgetDataSettingsView: View {
                 .appSwitcherPrivacyAwareDragIndicator()
         }
         .walletImportPresentation(isPickerPresented: $isWalletPickerPresented)
+    }
+
+    private var allCategoriesCarryoverSelection: Binding<Bool> {
+        Binding {
+            carryoverViewModel.status?.allEnabled == true
+        } set: { _ in
+            isCarryoverConfirmationPresented = true
+        }
+    }
+
+    private var carryoverControlDetail: String {
+        if carryoverViewModel.isApplying {
+            return "Updating all categories…"
+        }
+        if carryoverViewModel.isLoading, carryoverViewModel.status == nil {
+            return "Loading categories…"
+        }
+        return carryoverViewModel.status?.detail ?? "Unavailable"
+    }
+
+    private var isCarryoverControlDisabled: Bool {
+        carryoverViewModel.isLoading
+            || carryoverViewModel.isApplying
+            || carryoverViewModel.status?.categoryCount == 0
+            || appState.settings.selectedBudgetID == nil
+    }
+
+    private var carryoverConfirmationMessage: String {
+        guard let status = carryoverViewModel.status else {
+            return "Choose whether every expense category should roll overspending into the next month."
+        }
+        return "Changes \(status.categoryCount) expense categories from \(status.monthTitle) forward, including hidden categories. Existing transactions and assignments are not deleted."
+    }
+
+    private func applyCarryoverToAllCategories(_ enabled: Bool) {
+        guard let budgetID = appState.settings.selectedBudgetID else { return }
+        Task {
+            await carryoverViewModel.setAll(
+                carryover: enabled,
+                budgetID: budgetID,
+                repository: appState.budgetRepository
+            )
+        }
     }
 
     private var selectedBudgetDisplayName: String {

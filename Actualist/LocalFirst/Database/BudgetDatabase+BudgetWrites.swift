@@ -137,30 +137,91 @@ extension BudgetDatabase {
         }
 
         return try queue.read { db in
+            let table = try budgetTable(db: db)
             let columns = try requiredColumns(
-                table: "zero_budgets",
+                table: table.rawValue,
                 required: ["month", "category", "carryover"],
                 db: db
             )
             try validateBudgetCategoryID(trimmedCategoryID, db: db)
+            return try categoryCarryoverMessages(
+                categoryIDs: [trimmedCategoryID],
+                carryover: carryover,
+                startMonthValue: startMonthValue,
+                throughMonthValue: throughMonthValue,
+                table: table,
+                columns: columns,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
 
-            var messages: [ActualSyncDecodedMessage] = []
+    func allExpenseCategoryCarryoverMessages(
+        carryover: Bool,
+        startMonth: String,
+        throughMonth: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        let startMonthValue = try Self.actualMonthValue(startMonth)
+        let throughMonthValue = try Self.actualMonthValue(throughMonth)
+        guard throughMonthValue >= startMonthValue else {
+            throw LocalFirstError.invalidLocalWrite("invalid carryover month range")
+        }
+
+        return try queue.read { db in
+            let table = try budgetTable(db: db)
+            let columns = try requiredColumns(
+                table: table.rawValue,
+                required: ["month", "category", "carryover"],
+                db: db
+            )
+            let categoryIDs = try templateCategoryIDsInBudgetOrder(
+                db: db,
+                includeIncome: false,
+                includeHidden: true
+            )
+            return try categoryCarryoverMessages(
+                categoryIDs: categoryIDs,
+                carryover: carryover,
+                startMonthValue: startMonthValue,
+                throughMonthValue: throughMonthValue,
+                table: table,
+                columns: columns,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
+
+    private func categoryCarryoverMessages(
+        categoryIDs: [String],
+        carryover: Bool,
+        startMonthValue: Int,
+        throughMonthValue: Int,
+        table: BudgetTable,
+        columns: Set<String>,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        var messages: [ActualSyncDecodedMessage] = []
+        for categoryID in categoryIDs {
             var monthValue = startMonthValue
             while monthValue <= throughMonthValue {
                 let existingRowID = try budgetRowID(
-                    table: .envelope,
+                    table: table,
                     monthValue: monthValue,
-                    categoryID: trimmedCategoryID,
+                    categoryID: categoryID,
                     columns: columns,
                     db: db
                 )
                 let rowID = existingRowID
-                    ?? Self.budgetRowID(monthValue: monthValue, categoryID: trimmedCategoryID)
+                    ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
 
-                // A peer may need these columns to create the zero_budgets row.
+                // A peer may need these columns to create the budget row.
                 messages.append(
                     try builder.makeMessage(
-                        dataset: "zero_budgets",
+                        dataset: table.rawValue,
                         row: rowID,
                         column: "month",
                         value: .int(Int64(monthValue))
@@ -168,15 +229,15 @@ extension BudgetDatabase {
                 )
                 messages.append(
                     try builder.makeMessage(
-                        dataset: "zero_budgets",
+                        dataset: table.rawValue,
                         row: rowID,
                         column: "category",
-                        value: .string(trimmedCategoryID)
+                        value: .string(categoryID)
                     )
                 )
                 messages.append(
                     try builder.makeMessage(
-                        dataset: "zero_budgets",
+                        dataset: table.rawValue,
                         row: rowID,
                         column: "carryover",
                         value: .bool(carryover)
@@ -185,8 +246,8 @@ extension BudgetDatabase {
 
                 monthValue = nextMonth(after: monthValue)
             }
-            return messages
         }
+        return messages
     }
 
     private func nextAccountSortOrder(offbudget: Bool, db: Database) throws -> Int {

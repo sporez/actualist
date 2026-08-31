@@ -140,6 +140,14 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         emptyLoadedMonth
     }
 
+    func setAllExpenseCategoryCarryoverAndRefresh(
+        carryover: Bool,
+        budgetID: String,
+        startMonth: String
+    ) async throws -> LoadedBudgetMonth {
+        emptyLoadedMonth
+    }
+
     func applyBudgetTemplateAndRefresh(
         command: BudgetTemplateCommand,
         budgetID: String,

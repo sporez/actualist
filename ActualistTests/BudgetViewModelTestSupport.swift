@@ -230,6 +230,17 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
+    func setAllExpenseCategoryCarryoverAndRefresh(
+        carryover: Bool,
+        budgetID: String,
+        startMonth: String
+    ) async throws -> LoadedBudgetMonth {
+        if let carryoverError {
+            throw carryoverError
+        }
+        return loadedMonth
+    }
+
     func moveMoneyAndRefresh(
         command: BudgetMoveMoneyCommand,
         budgetID: String,

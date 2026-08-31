@@ -245,6 +245,28 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
     }
 
+    func setAllExpenseCategoryCarryoverAndRefresh(
+        carryover: Bool,
+        budgetID: String,
+        startMonth: String
+    ) async throws -> LoadedBudgetMonth {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.allExpenseCategoryCarryoverMessages(
+            carryover: carryover,
+            startMonth: startMonth,
+            throughMonth: Self.categoryCarryoverHorizonMonth(startMonth: startMonth),
+            builder: &builder
+        )
+
+        if !messages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        }
+        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
+    }
+
     func setCategoryHiddenAndRefresh(
         categoryID: String,
         hidden: Bool,

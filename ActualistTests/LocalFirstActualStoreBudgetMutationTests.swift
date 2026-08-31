@@ -89,6 +89,94 @@ extension LocalFirstActualStoreTests {
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
     }
 
+    @Test func allExpenseCategoryCarryoverIncludesHiddenAndLeavesIncomeUnchanged() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            UPDATE categories SET hidden = 1 WHERE id = 'utilities';
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 2);
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def)
+                VALUES ('salary', 'Salary', 'income-group', 1, 0, 0, 1, NULL);
+            INSERT INTO category_mapping VALUES ('salary', 'salary');
+            INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 0);
+            """)
+        let july = try await store.setAllExpenseCategoryCarryoverAndRefresh(
+            carryover: true,
+            budgetID: "group-1",
+            startMonth: "2026-07"
+        )
+        let julyCategories = Dictionary(
+            uniqueKeysWithValues: july.month.categoryGroups
+                .flatMap(\.categories)
+                .map { ($0.id, $0) }
+        )
+
+        #expect(julyCategories["groceries"]?.carryover == true)
+        #expect(julyCategories["utilities"]?.carryover == true)
+        #expect(julyCategories["salary"]?.carryover == false)
+
+        _ = try await store.setAllExpenseCategoryCarryoverAndRefresh(
+            carryover: false,
+            budgetID: "group-1",
+            startMonth: "2026-08"
+        )
+        let reloadedJuly = try await store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-07"
+        )
+        let august = try await store.budgetMonth(
+            budgetID: "group-1",
+            selectedMonth: "2026-08"
+        )
+        let julyByID = Dictionary(
+            uniqueKeysWithValues: reloadedJuly.month.categoryGroups
+                .flatMap(\.categories)
+                .map { ($0.id, $0) }
+        )
+        let augustByID = Dictionary(
+            uniqueKeysWithValues: august.month.categoryGroups
+                .flatMap(\.categories)
+                .map { ($0.id, $0) }
+        )
+
+        #expect(julyByID["utilities"]?.carryover == true)
+        #expect(augustByID["groceries"]?.carryover == false)
+        #expect(augustByID["utilities"]?.carryover == false)
+        #expect(augustByID["salary"]?.carryover == false)
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
+    }
+
+    @Test func allExpenseCategoryCarryoverUsesTrackingBudgetStorage() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('budgetType', 'tracking');
+            CREATE TABLE reflect_budgets (
+                id TEXT PRIMARY KEY,
+                month INTEGER,
+                category TEXT,
+                amount INTEGER,
+                carryover INTEGER,
+                goal INTEGER,
+                long_goal INTEGER
+            );
+            INSERT INTO reflect_budgets VALUES ('202607-groceries', 202607, 'groceries', 50000, 0, NULL, NULL);
+            """)
+
+        let loaded = try await store.setAllExpenseCategoryCarryoverAndRefresh(
+            carryover: true,
+            budgetID: "group-1",
+            startMonth: "2026-07"
+        )
+        let categories = loaded.month.categoryGroups.flatMap(\.categories)
+        let database = try #require(store.database)
+        let carryoverMessages = try await database.pendingLocalSyncMessages()
+            .map(\.message)
+            .filter { $0.column == "carryover" }
+
+        #expect(loaded.isTrackingBudget)
+        #expect(categories.filter { !$0.isIncome }.allSatisfy { $0.carryover })
+        #expect(!carryoverMessages.isEmpty)
+        #expect(carryoverMessages.allSatisfy { $0.dataset == "reflect_budgets" })
+    }
+
     @Test func moveMoneyLocallyMovesBudgetBetweenCategories() async throws {
         let store = try await makeOpenedWritableStore()
         var didMove = false

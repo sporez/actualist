@@ -283,6 +283,14 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         throw TestError("not used")
     }
 
+    func setAllExpenseCategoryCarryoverAndRefresh(
+        carryover: Bool,
+        budgetID: String,
+        startMonth: String
+    ) async throws -> LoadedBudgetMonth {
+        throw TestError("not used")
+    }
+
     func setCategoryHiddenAndRefresh(
         categoryID: String,
         hidden: Bool,
