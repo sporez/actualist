@@ -120,14 +120,6 @@ enum RuleEditorDraftState {
                 updated.type = RuleCondition.ValueKind.id.rawValue
                 updated.value = .null
             }
-        } else if operation == "set-split-amount" {
-            updated.field = nil
-            updated.type = RuleCondition.ValueKind.number.rawValue
-            updated.value = updated.value.isNumberLike ? updated.value : .number(0)
-            updated.options = [
-                "method": .string(updated.splitMethod ?? "fixed-amount"),
-                "splitIndex": .number(Double(updated.splitIndex ?? 0))
-            ]
         } else {
             let needsStringValue: Bool
             if case .string = updated.value {
@@ -150,46 +142,6 @@ enum RuleEditorDraftState {
     /// the editor field is unchanged (the original binding guarded against this
     /// to avoid wiping an existing value when the display field is re-selected,
     /// e.g. `"payee"` over an underlying `"description"` field).
-    static func action(
-        _ action: RuleAction,
-        settingSplitMethod method: String
-    ) -> RuleAction {
-        var updated = action
-        var options = updated.options ?? [:]
-        options["method"] = .string(method)
-        if options["splitIndex"] == nil {
-            options["splitIndex"] = .number(0)
-        }
-        updated.options = options
-        if method == "remainder" {
-            updated.value = .number(0)
-        }
-        return updated
-    }
-
-    static func action(
-        _ action: RuleAction,
-        settingSplitIndex index: Int?
-    ) -> RuleAction {
-        var updated = action
-        var options = updated.options ?? [:]
-        if let index {
-            options["splitIndex"] = .number(Double(max(0, index)))
-        } else {
-            options.removeValue(forKey: "splitIndex")
-        }
-        if action.operation == "set-split-amount" {
-            if options["method"] == nil {
-                options["method"] = .string("fixed-amount")
-            }
-            if options["splitIndex"] == nil {
-                options["splitIndex"] = .number(0)
-            }
-        }
-        updated.options = options.isEmpty ? nil : options
-        return updated
-    }
-
     static func action(
         afterFieldChange newField: String,
         from action: RuleAction

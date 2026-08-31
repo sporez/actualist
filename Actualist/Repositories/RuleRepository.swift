@@ -383,8 +383,17 @@ extension RuleAction {
         field == "description" ? "payee" : field
     }
 
+    /// Split-targeted actions stay visible through raw read-only presentation,
+    /// but are not editable or writable until the pinned Actual-core contract
+    /// replaces Actualist's retired zero-based implementation.
+    var targetsSplitTransaction: Bool {
+        operation == "set-split-amount"
+            || options?["splitIndex"] != nil
+            || options?["method"] != nil
+    }
+
     var canRoundTripAndEvaluate: Bool {
-        guard hasSupportedActionOptions else { return false }
+        guard !targetsSplitTransaction, hasSupportedActionOptions else { return false }
         switch operation {
         case "set":
             switch editorField {
@@ -397,8 +406,6 @@ extension RuleAction {
             return field == nil && value.isStringLike && splitIndex == nil
         case "delete-transaction":
             return field == nil && value.isStringLike && splitIndex == nil
-        case "set-split-amount":
-            return field == nil && value.isNumberLike && splitMethod != nil && splitIndex != nil
         default:
             return false
         }

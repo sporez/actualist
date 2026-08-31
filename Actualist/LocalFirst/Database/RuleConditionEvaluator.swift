@@ -1,5 +1,10 @@
 import Foundation
 
+struct RuleEvaluationSplit: Equatable, Sendable {
+    var categoryID: String?
+    var amount: Int
+}
+
 struct RuleEvaluationContext {
     var accountID: String
     var accountName: String
@@ -56,11 +61,6 @@ enum RuleConditionEvaluator {
             if execution.actions.contains(where: { $0.operation == "delete-transaction" && $0.splitIndex == nil }) {
                 result.deletesTransaction = true
                 break
-            }
-            if RuleSplitActionExecutor.applies(to: execution.actions) {
-                RuleSplitActionExecutor.apply(execution.actions, to: &result)
-                if result.deletesTransaction { break }
-                continue
             }
             for action in execution.actions {
                 apply(action: action, context: &result)

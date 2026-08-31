@@ -64,6 +64,7 @@ extension RuleAction {
     /// This must not be folded into `canRoundTripAndEvaluate` or schedule-owned
     /// rules become editable from the payee flow.
     var canExecuteAtRuntime: Bool {
+        guard !targetsSplitTransaction else { return false }
         if operation == "link-schedule" {
             if case .string(let scheduleID) = value { return !scheduleID.isEmpty }
             return false
