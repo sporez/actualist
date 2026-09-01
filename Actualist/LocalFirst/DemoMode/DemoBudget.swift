@@ -33,6 +33,9 @@ enum DemoBudget {
         "d7e8830d7fcd5b4f062061cd21e40f3de8a62686125211b8f6fc32ef0734a108"
     /// Byte size of the committed `DemoBudget.zip`.
     public static let artifactByteCount = 8547
+    /// Budget month the committed zip was generated against. Month notes and
+    /// the latest assignments live here. Tests must not use `Date()`.
+    static let fixtureMonth = "2026-08"
 
     /// The demo budget as a domain value, for populating `AppState.budgets`.
     static var budget: ActualBudget {

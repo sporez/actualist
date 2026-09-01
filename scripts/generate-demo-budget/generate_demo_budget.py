@@ -505,6 +505,9 @@ def main() -> int:
     print("Copy these into DemoBudget.swift:")
     print(f'  public static let artifactSHA256 = "{sha}"')
     print(f"  public static let artifactByteCount = {size}")
+    print(
+        f'  static let fixtureMonth = "{today.year:04d}-{today.month:02d}"'
+    )
     return 0
 
 

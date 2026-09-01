@@ -52,11 +52,11 @@ struct DemoModeStoreTests {
         let accounts = store.accountDisplays(budgetID: DemoBudget.groupID)
         #expect(accounts.count == 4)
         #expect(accounts.first { $0.id == "checking" }?.hasUserNote == true)
-        let currentMonth = YearMonth(date: Date()).rawValue
         let budgetMonth = try await store.budgetMonth(
             budgetID: DemoBudget.groupID,
-            selectedMonth: currentMonth
+            selectedMonth: DemoBudget.fixtureMonth
         ).month
+        #expect(budgetMonth.month == DemoBudget.fixtureMonth)
         #expect(budgetMonth.hasUserNote)
         #expect(budgetMonth.categoryGroups.first { $0.id == "essentials" }?.hasUserNote == true)
         #expect(
