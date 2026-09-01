@@ -65,7 +65,7 @@ final class AppState {
         )
         self.providedLocalFirstStore = localFirstStore
         var loaded = settingsStore.load()
-        if !loaded.isBankSyncEnabled, loaded.simplefinBackgroundSyncEnabled {
+        if !loaded.isExperimentalFeatureEnabled(.bankSync), loaded.simplefinBackgroundSyncEnabled {
             loaded.simplefinBackgroundSyncEnabled = false
             settingsStore.save(loaded)
         }
@@ -604,10 +604,6 @@ final class AppState {
         }
     }
 
-    var canUseBankSync: Bool {
-        settings.isBankSyncEnabled
-    }
-
     func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
         settings.developerModeUnlocked = isUnlocked
         resetDeveloperUnlockProgress()
@@ -704,7 +700,7 @@ final class AppState {
     /// background access (like the alerts toggle) but never requests
     /// notification authorization — it posts nothing.
     func updateSimpleFINBackgroundSyncEnabled(_ isEnabled: Bool) async {
-        let enable = isEnabled && canUseBankSync
+        let enable = isEnabled && isExperimentalFeatureEnabled(.bankSync)
         if enable {
             do {
                 try keychain.promoteAllItemsForBackgroundRefresh()

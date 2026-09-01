@@ -2,7 +2,7 @@ import FinanceKit
 import FinanceKitUI
 import SwiftUI
 
-/// Wallet import row hosted on Budget & Data. The system picker and review
+/// Wallet import row hosted on Bank Sync. The system picker and review
 /// sheet must attach to the screen root via `walletImportPresentation` —
 /// hanging them off this `Section` dismisses Settings' fullScreenCover.
 struct WalletImportSettingsSection: View {

@@ -44,6 +44,7 @@ struct BankSyncView: View {
 private struct BankSyncScreen: View {
     @Environment(AppState.self) private var appState
     @State var viewModel: BankSyncViewModel
+    @State private var isWalletPickerPresented = false
     let isDemoMode: Bool
 
     var body: some View {
@@ -52,7 +53,12 @@ private struct BankSyncScreen: View {
             if !isDemoMode, viewModel.serverSupport != .configured {
                 deviceTokenSection
             }
-            backgroundSyncSection
+            if appState.isExperimentalFeatureEnabled(.bankSync) {
+                backgroundSyncSection
+            }
+            if WalletImportAvailability.isFinancialDataAvailable {
+                WalletImportSettingsSection(isWalletPickerPresented: $isWalletPickerPresented)
+            }
             accountsSection
         }
         .sheet(isPresented: Binding(
@@ -77,6 +83,7 @@ private struct BankSyncScreen: View {
                 .presentationDetents([.medium, .large])
                 .appSwitcherPrivacyAwareDragIndicator()
         }
+        .walletImportPresentation(isPickerPresented: $isWalletPickerPresented)
     }
 
     private var serverSection: some View {

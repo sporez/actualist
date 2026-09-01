@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Budget & Data settings: selected budget, change budget, payees, encryption
-/// status, reimport, Wallet import, default account, and account order.
+/// status, reimport, Bank Sync, default account, and account order.
 struct BudgetDataSettingsView: View {
     @Environment(AppState.self) private var appState
 
@@ -11,7 +11,6 @@ struct BudgetDataSettingsView: View {
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
     @State private var isReimportConfirmationPresented = false
-    @State private var isWalletPickerPresented = false
     @State private var isCarryoverConfirmationPresented = false
 
     var body: some View {
@@ -47,14 +46,12 @@ struct BudgetDataSettingsView: View {
                 }
                 .disabled(appState.settings.selectedBudgetID == nil)
 
-                if appState.canUseBankSync {
-                    NavigationLink {
-                        BankSyncView()
-                    } label: {
-                        SettingsActionLabel(title: "Bank Sync", systemImage: "building.columns")
-                    }
-                    .disabled(appState.settings.selectedBudgetID == nil)
+                NavigationLink {
+                    BankSyncView()
+                } label: {
+                    SettingsActionLabel(title: "Bank Sync", systemImage: "building.columns")
                 }
+                .disabled(appState.settings.selectedBudgetID == nil)
 
                 Toggle(isOn: allCategoriesCarryoverSelection) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -131,10 +128,6 @@ struct BudgetDataSettingsView: View {
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }
                 .settingsSectionChrome()
-            }
-
-            if WalletImportAvailability.isFinancialDataAvailable {
-                WalletImportSettingsSection(isWalletPickerPresented: $isWalletPickerPresented)
             }
 
             Section("Accounts") {
@@ -233,7 +226,6 @@ struct BudgetDataSettingsView: View {
                 .presentationDetents([.medium, .large])
                 .appSwitcherPrivacyAwareDragIndicator()
         }
-        .walletImportPresentation(isPickerPresented: $isWalletPickerPresented)
     }
 
     private var allCategoriesCarryoverSelection: Binding<Bool> {

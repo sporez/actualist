@@ -237,7 +237,7 @@ extension LocalFirstActualStoreTests {
         var settings = AppSettings()
         settings.simplefinBackgroundSyncEnabled = true
 
-        #expect(!settings.isBankSyncEnabled)
+        #expect(!settings.isExperimentalFeatureEnabled(.bankSync))
         #expect(!settings.isBackgroundBankSyncEnabled)
         #expect(!settings.wantsBackgroundAppRefresh)
 
@@ -246,7 +246,7 @@ extension LocalFirstActualStoreTests {
         #expect(!settings.isBackgroundBankSyncEnabled)
 
         settings.enabledExperimentalFeatures = [.bankSync]
-        #expect(settings.isBankSyncEnabled)
+        #expect(settings.isExperimentalFeatureEnabled(.bankSync))
         #expect(settings.isBackgroundBankSyncEnabled)
         #expect(settings.wantsBackgroundAppRefresh)
 

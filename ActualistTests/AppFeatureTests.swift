@@ -33,17 +33,17 @@ struct AppFeatureTests {
         state.settings.backgroundTransactionRefreshEnabled = true
         state.settings.simplefinBackgroundSyncEnabled = true
 
-        #expect(!state.canUseBankSync)
+        #expect(!state.isExperimentalFeatureEnabled(.bankSync))
         #expect(!state.settings.isBackgroundBankSyncEnabled)
         #expect(state.settings.wantsBackgroundAppRefresh)
 
         state.updateExperimentalFeature(.bankSync, isEnabled: true)
-        #expect(state.canUseBankSync)
+        #expect(state.isExperimentalFeatureEnabled(.bankSync))
         #expect(state.settings.isBackgroundBankSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
 
         state.updateExperimentalFeature(.bankSync, isEnabled: false)
-        #expect(!state.canUseBankSync)
+        #expect(!state.isExperimentalFeatureEnabled(.bankSync))
         #expect(!state.settings.simplefinBackgroundSyncEnabled)
         #expect(!state.settings.isBackgroundBankSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
@@ -67,7 +67,7 @@ struct AppFeatureTests {
             )
         )
 
-        #expect(!state.canUseBankSync)
+        #expect(!state.isExperimentalFeatureEnabled(.bankSync))
         #expect(!state.settings.simplefinBackgroundSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
         #expect(state.settings.wantsBackgroundAppRefresh)

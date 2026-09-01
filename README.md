@@ -138,13 +138,15 @@ assignments at once, so keep a current backup and review the result.
 
 ### Experimental Features
 
-Experimental features are opt-in and disabled by default. **Bank Sync** remains
-experimental and is enabled under Settings → Advanced.
+Experimental features are opt-in and disabled by default. **Background Bank
+Sync** remains experimental under Settings → Advanced. The Bank Sync page is
+always available under Settings → Budget & Data.
 
 ## Current Limitations
 
-- Actualist does not trigger bank-provider imports. Transactions imported by the
-  Actual server or another Actual client will arrive through normal sync.
+- Bank Sync can download SimpleFIN transactions from your Actual server or a
+  device token. Other bank providers still arrive only after another Actual
+  client or the server imports them.
 - Account reconciliation is not yet available.
 - Account lifecycle actions beyond adding an account are incomplete.
 - Payee rules support Actual's common conditions, field-setting and note

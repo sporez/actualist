@@ -62,19 +62,10 @@ struct SimulatorLaunchCommandTests {
         #expect(SettingsPage.stack(fromScreenPath: reportsSettings?.screenPath ?? []) == [.reports])
     }
 
-    @Test func bankSyncLaunchPathIsDroppedWhenExperimentalIsOff() {
+    @Test func bankSyncLaunchPathIsKeptWithoutExperimentalFeature() {
         let path = ["settings", "budget-data", "bank-sync"]
-        #expect(
-            SettingsPage.stack(fromScreenPath: path, isBankSyncEnabled: true)
-                == [.budgetData, .bankSync]
-        )
-        #expect(
-            SettingsPage.stack(fromScreenPath: path, isBankSyncEnabled: false)
-                == [.budgetData]
-        )
-        #expect(
-            SettingsPage.stack(fromScreenPath: ["bank-sync"], isBankSyncEnabled: false).isEmpty
-        )
+        #expect(SettingsPage.stack(fromScreenPath: path) == [.budgetData, .bankSync])
+        #expect(SettingsPage.stack(fromScreenPath: ["bank-sync"]) == [.bankSync])
     }
 
     @Test func unknownScreenKeepsDemoRoute() {
