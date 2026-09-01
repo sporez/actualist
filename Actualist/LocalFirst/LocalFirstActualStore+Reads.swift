@@ -277,7 +277,7 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedUncategorizedTransactions {
         let database = try requireDatabase(for: budgetID)
         let maps = try await nameMaps(database)
-        let transactions = try await database.fetchTransactionPage(splits: .inline).transactions.filter { transaction in
+        let transactions = try await database.fetchTransactionPage(splits: .inline, month: month).transactions.filter { transaction in
             Self.isUncategorized(
                 transaction,
                 month: month,
@@ -387,7 +387,7 @@ extension LocalFirstActualStore {
         isTrackingBudget: Bool
     ) async throws -> [BudgetMonthAlert] {
         let maps = try await nameMaps(database)
-        let transactions = try await database.fetchTransactionPage(splits: .inline).transactions
+        let transactions = try await database.fetchTransactionPage(splits: .inline, month: monthID).transactions
         let uncategorized = transactions.filter { transaction in
             Self.isUncategorized(
                 transaction,

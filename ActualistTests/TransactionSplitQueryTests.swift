@@ -223,6 +223,153 @@ struct TransactionSplitQueryTests {
         #expect(balances["checking"] == -2_000)
     }
 
+    @Test func groupedOrderingIndexesByTransactionID() {
+        let childA = queryTransaction(id: "a-1", isChild: true, parentID: "a")
+        let childB = queryTransaction(id: "a-2", isChild: true, parentID: "a")
+        let parent = queryTransaction(id: "a", isParent: true, children: [childA, childB])
+        let assembled = [
+            queryTransaction(id: "c"),
+            queryTransaction(id: nil),
+            parent,
+            queryTransaction(id: "b"),
+        ]
+
+        let ordered = TransactionGroupedOrdering.transactions(
+            assembled,
+            orderedByGroupIDs: ["a", "missing", "b", "c"]
+        )
+
+        #expect(ordered.map(\.id) == ["a", "b", "c"])
+        #expect(ordered[0].subtransactions.map(\.id) == ["a-1", "a-2"])
+    }
+
+    @Test func unlimitedGroupedReadsUseAssembledLiveRowsPlan() {
+        #expect(GroupedTransactionPagePlan.make(limit: nil, hasQueryFilter: false) == .assembledLiveRows)
+        #expect(GroupedTransactionPagePlan.make(limit: 1, hasQueryFilter: false) == .familyLookup)
+        #expect(GroupedTransactionPagePlan.make(limit: nil, hasQueryFilter: true) == .familyLookup)
+        #expect(GroupedTransactionPagePlan.make(limit: 50, hasQueryFilter: true) == .familyLookup)
+    }
+
+    @Test func unlimitedGroupedReadReturnsCompleteFamiliesWithoutLeakingChildren() async throws {
+        let database = try exactSchemaDatabase(extraSQL: """
+            INSERT INTO transactions (
+                id, isParent, isChild, acct, category, amount, description, notes, date,
+                sort_order, tombstone, parent_id, starting_balance_flag
+            ) VALUES
+            ('simple-new', 0, 0, 'checking', 'groceries', -100, 'coffee', NULL, 20260830, 40, 0, NULL, 0),
+            ('parent-new', 1, 0, 'checking', NULL, -5000, NULL, 'parent new', 20260820, 30, 0, NULL, 0),
+            ('parent-new-b', 0, 1, 'checking', 'utilities', -3000, 'coffee', 'newer-b', 20260820, 20, 0, 'parent-new', 0),
+            ('parent-new-a', 0, 1, 'checking', 'groceries', -2000, 'coffee', 'newer-a', 20260820, 10, 0, 'parent-new', 0),
+            ('simple-old', 0, 0, 'checking', 'groceries', -200, 'coffee', NULL, 20260810, 9, 0, NULL, 0),
+            ('parent-old', 1, 0, 'checking', NULL, -4000, NULL, 'parent old', 20260801, 8, 0, NULL, 0),
+            ('parent-old-a', 0, 1, 'checking', 'groceries', -1500, 'coffee', 'older-a', 20260801, 7, 0, 'parent-old', 0),
+            ('parent-old-b', 0, 1, 'checking', 'utilities', -2500, 'coffee', 'older-b', 20260801, 6, 0, 'parent-old', 0);
+            """)
+
+        let grouped = try await database.fetchTransactions(accountID: "checking")
+        let none = try await database.fetchTransactionPage(accountID: "checking", splits: TransactionSplitQueryMode.none)
+
+        #expect(grouped.map(\.id) == ["simple-new", "parent-new", "simple-old", "parent-old"])
+        #expect(grouped.map(\.id) == none.transactions.map(\.id))
+        #expect(grouped.flatMap(\.subtransactions).map(\.id) == [
+            "parent-new-b", "parent-new-a", "parent-old-a", "parent-old-b",
+        ])
+        let parentNew = try #require(grouped.first { $0.id == "parent-new" })
+        #expect(parentNew.subtransactions.map(\.id) == ["parent-new-b", "parent-new-a"])
+        #expect(Set(parentNew.subtransactions.map(\.id)).count == parentNew.subtransactions.count)
+        let parentOld = try #require(grouped.first { $0.id == "parent-old" })
+        #expect(parentOld.subtransactions.map(\.id) == ["parent-old-a", "parent-old-b"])
+        #expect(grouped.allSatisfy { $0.isChild == false })
+        #expect(!grouped.contains { $0.id == "parent-new-a" || $0.id == "parent-old-b" })
+    }
+
+    @Test func paginatedGroupedReadKeepsWholeFamiliesAndStableOrder() async throws {
+        let database = try exactSchemaDatabase(extraSQL: """
+            INSERT INTO transactions (
+                id, isParent, isChild, acct, category, amount, description, notes, date,
+                sort_order, tombstone, parent_id, starting_balance_flag
+            ) VALUES
+            ('simple-new', 0, 0, 'checking', 'groceries', -100, 'coffee', NULL, 20260830, 40, 0, NULL, 0),
+            ('parent-new', 1, 0, 'checking', NULL, -5000, NULL, 'parent new', 20260820, 30, 0, NULL, 0),
+            ('parent-new-b', 0, 1, 'checking', 'utilities', -3000, 'coffee', 'newer-b', 20260820, 20, 0, 'parent-new', 0),
+            ('parent-new-a', 0, 1, 'checking', 'groceries', -2000, 'coffee', 'newer-a', 20260820, 10, 0, 'parent-new', 0),
+            ('simple-old', 0, 0, 'checking', 'groceries', -200, 'coffee', NULL, 20260810, 9, 0, NULL, 0),
+            ('parent-old', 1, 0, 'checking', NULL, -4000, NULL, 'parent old', 20260801, 8, 0, NULL, 0),
+            ('parent-old-a', 0, 1, 'checking', 'groceries', -1500, 'coffee', 'older-a', 20260801, 7, 0, 'parent-old', 0),
+            ('parent-old-b', 0, 1, 'checking', 'utilities', -2500, 'coffee', 'older-b', 20260801, 6, 0, 'parent-old', 0);
+            """)
+
+        let first = try await database.fetchTransactionPage(accountID: "checking", limit: 2, splits: .grouped)
+        let second = try await database.fetchTransactionPage(
+            accountID: "checking",
+            limit: 2,
+            offset: 2,
+            splits: .grouped
+        )
+        let unlimited = try await database.fetchTransactions(accountID: "checking")
+
+        #expect(first.transactions.map(\.id) == ["simple-new", "parent-new"])
+        #expect(first.transactions.count == 2)
+        #expect(!first.reachedEnd)
+        let pagedFamily = try #require(first.transactions.first { $0.id == "parent-new" })
+        #expect(pagedFamily.subtransactions.map(\.id) == ["parent-new-b", "parent-new-a"])
+        #expect(!first.transactions.contains { $0.id?.hasPrefix("parent-new-") == true })
+        #expect(second.transactions.map(\.id) == ["simple-old", "parent-old"])
+        #expect(second.reachedEnd)
+        #expect(second.transactions.first { $0.id == "parent-old" }?.subtransactions.map(\.id) == [
+            "parent-old-a", "parent-old-b",
+        ])
+        #expect((first.transactions + second.transactions).map(\.id) == unlimited.map(\.id))
+    }
+
+    @Test func groupedChildPayeeAndCategorySearchReturnsTheFamily() async throws {
+        let database = try exactSchemaDatabase(extraSQL: """
+            INSERT INTO transactions (
+                id, isParent, isChild, acct, category, amount, description, notes, date,
+                sort_order, tombstone, parent_id
+            ) VALUES
+            ('parent', 1, 0, 'checking', NULL, -5000, NULL, 'S03 parent', 20260815, 2, 0, NULL),
+            ('child-a', 0, 1, 'checking', 'groceries', -2000, 'child-a-payee', 'child a', 20260815, 1, 0, 'parent'),
+            ('child-b', 0, 1, 'checking', NULL, -3000, NULL, 'Q01-CHILD-NOTE', 20260815, 0, 0, 'parent');
+            INSERT INTO payees VALUES ('child-a-payee', 'SPLIT · Child A', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('child-a-payee', 'child-a-payee');
+            """)
+
+        let note = try await database.fetchTransactionPage(matching: "Q01-CHILD-NOTE", splits: .grouped)
+        let payee = try await database.fetchTransactionPage(matching: "SPLIT · Child A", splits: .grouped)
+        let category = try await database.fetchTransactionPage(matching: "Groceries", splits: .grouped)
+
+        #expect(note.transactions.map(\.id) == ["parent"])
+        #expect(payee.transactions.map(\.id) == ["parent"])
+        #expect(category.transactions.map(\.id) == ["parent"])
+        #expect(note.transactions.first?.subtransactions.map(\.id) == ["child-a", "child-b"])
+        #expect(payee.transactions.first?.subtransactions.map(\.id) == ["child-a", "child-b"])
+        #expect(category.transactions.first?.subtransactions.map(\.id) == ["child-a", "child-b"])
+    }
+
+    @Test func monthBoundedInlineReadDoesNotMaterializeOtherMonths() async throws {
+        let database = try exactSchemaDatabase(extraSQL: """
+            INSERT INTO transactions (
+                id, isParent, isChild, acct, category, amount, description, notes, date,
+                sort_order, tombstone, parent_id
+            ) VALUES
+            ('july-simple', 0, 0, 'checking', NULL, -1000, 'coffee', NULL, 20260720, 5, 0, NULL),
+            ('july-parent', 1, 0, 'checking', NULL, -5000, NULL, NULL, 20260715, 4, 0, NULL),
+            ('july-child', 0, 1, 'checking', NULL, -2000, 'coffee', NULL, 20260715, 3, 0, 'july-parent'),
+            ('june-simple', 0, 0, 'checking', NULL, -900, 'coffee', NULL, 20260610, 2, 0, NULL),
+            ('june-child', 0, 1, 'checking', NULL, -800, 'coffee', NULL, 20260601, 1, 0, 'missing-parent');
+            """)
+
+        let july = try await database.fetchTransactionPage(splits: .inline, month: "2026-07")
+        let june = try await database.fetchTransactionPage(splits: .inline, month: "2026-06")
+        let invalid = try await database.fetchTransactionPage(splits: .inline, month: "not-a-month")
+
+        #expect(july.transactions.map(\.id) == ["july-simple", "july-child"])
+        #expect(!july.transactions.contains { $0.id == "june-simple" || $0.id == "july-parent" })
+        #expect(june.transactions.map(\.id) == ["june-simple"])
+        #expect(invalid.transactions.isEmpty)
+    }
+
     @Test func twoChildFamilyIsIdentifiedAsParentOnPermissiveFixture() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "ActualistSplitQueryPermissive-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -259,6 +406,31 @@ struct TransactionSplitQueryTests {
         #expect(split.subtransactions.count == 2)
         #expect(Set(split.subtransactions.compactMap(\.id)) == ["split-a", "split-b"])
         #expect(split.subtransactions.allSatisfy { $0.isChild })
+    }
+
+    private func queryTransaction(
+        id: String?,
+        isParent: Bool = false,
+        isChild: Bool = false,
+        parentID: String? = nil,
+        children: [ActualTransaction] = []
+    ) -> ActualTransaction {
+        ActualTransaction(
+            id: id,
+            account: "checking",
+            date: "2026-08-15",
+            amount: -1000,
+            payee: nil,
+            payeeName: nil,
+            importedPayee: nil,
+            category: isParent ? nil : "groceries",
+            notes: nil,
+            cleared: nil,
+            subtransactions: children,
+            isParent: isParent,
+            isChild: isChild,
+            parentID: parentID
+        )
     }
 
     private func exactSchemaDatabase(extraSQL: String) throws -> BudgetDatabase {

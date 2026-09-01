@@ -1,6 +1,33 @@
 import Foundation
 import GRDB
 
+enum GroupedTransactionPagePlan: Equatable, Sendable {
+    case assembledLiveRows
+    case familyLookup
+
+    static func make(limit: Int?, hasQueryFilter: Bool) -> Self {
+        if limit == nil && !hasQueryFilter {
+            return .assembledLiveRows
+        }
+        return .familyLookup
+    }
+}
+
+enum TransactionGroupedOrdering {
+    static func transactions(
+        _ assembled: [ActualTransaction],
+        orderedByGroupIDs groupIDs: [String]
+    ) -> [ActualTransaction] {
+        var byID: [String: ActualTransaction] = [:]
+        byID.reserveCapacity(assembled.count)
+        for transaction in assembled {
+            guard let id = transaction.id else { continue }
+            byID[id] = transaction
+        }
+        return groupIDs.compactMap { byID[$0] }
+    }
+}
+
 extension BudgetDatabase {
 
     func fetchTransactions(accountID: String? = nil, matching query: String? = nil) throws -> [ActualTransaction] {
@@ -67,7 +94,8 @@ extension BudgetDatabase {
         matching query: String? = nil,
         limit: Int? = nil,
         offset: Int = 0,
-        splits: TransactionSplitQueryMode? = nil
+        splits: TransactionSplitQueryMode? = nil,
+        month: String? = nil
     ) throws -> TransactionFetchResult {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
@@ -85,6 +113,13 @@ extension BudgetDatabase {
             if let accountID {
                 conditions.append("\(split.qualifiedAccount) = ?")
                 arguments.append(accountID)
+            }
+            if let month {
+                guard isYearMonthID(month) else {
+                    return TransactionFetchResult(transactions: [], reachedEnd: true)
+                }
+                conditions.append("\(normalizedMonthExpression(split.qualifiedDate)) = ?")
+                arguments.append(month)
             }
             if let query, !query.isEmpty {
                 conditions.append(transactionSearchPredicate(split: split, joins: joins))
@@ -116,7 +151,7 @@ extension BudgetDatabase {
                     normalizedDate: normalizedDate,
                     conditions: conditions,
                     arguments: arguments,
-                    hasUnhappyFilter: query?.isEmpty == false,
+                    hasQueryFilter: query?.isEmpty == false,
                     rowLimit: rowLimit,
                     rowOffset: rowOffset
                 )
@@ -351,13 +386,24 @@ private extension BudgetDatabase {
         normalizedDate: String,
         conditions: [String],
         arguments: [DatabaseValueConvertible],
-        hasUnhappyFilter: Bool,
+        hasQueryFilter: Bool,
         rowLimit: Int?,
         rowOffset: Int
     ) throws -> TransactionFetchResult {
+        if GroupedTransactionPagePlan.make(limit: rowLimit, hasQueryFilter: hasQueryFilter) == .assembledLiveRows {
+            return try fetchAssembledGroupedTransactions(
+                db: db,
+                split: split,
+                joins: joins,
+                normalizedDate: normalizedDate,
+                conditions: conditions,
+                arguments: arguments
+            )
+        }
+
         let groupIDs: [String]
         let reachedEnd: Bool
-        if hasUnhappyFilter {
+        if hasQueryFilter {
             var groupArguments = arguments
             var limitClause = ""
             if let rowLimit {
@@ -432,7 +478,44 @@ private extension BudgetDatabase {
             arguments: StatementArguments(groupIDs.map { $0 as DatabaseValueConvertible })
         )
         let assembled = assembleTransactions(from: rows)
-        let ordered = groupIDs.compactMap { id in assembled.first { $0.id == id } }
+        let ordered = TransactionGroupedOrdering.transactions(assembled, orderedByGroupIDs: groupIDs)
         return TransactionFetchResult(transactions: ordered, reachedEnd: reachedEnd)
+    }
+
+    func fetchAssembledGroupedTransactions(
+        db: Database,
+        split: TransactionSplitQueryExpressions,
+        joins: TransactionReadJoins,
+        normalizedDate: String,
+        conditions: [String],
+        arguments: [DatabaseValueConvertible]
+    ) throws -> TransactionFetchResult {
+        let sql = """
+            SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
+            FROM transactions t
+            \(joins.sql)
+            \(split.parentJoin())
+            WHERE \(conditions.joined(separator: " AND "))
+            ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
+            """
+        let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
+        return TransactionFetchResult(
+            transactions: assembleTransactions(from: rows),
+            reachedEnd: true
+        )
+    }
+
+    func isYearMonthID(_ value: String) -> Bool {
+        let parts = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[0].allSatisfy(\.isNumber),
+              parts[1].allSatisfy(\.isNumber),
+              let month = Int(parts[1]),
+              (1...12).contains(month) else {
+            return false
+        }
+        return true
     }
 }

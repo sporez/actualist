@@ -401,6 +401,46 @@ extension LocalFirstActualStoreTests {
         #expect(loaded.availableMonths.contains("2026-07"))
     }
 
+    @Test func budgetMonthUncategorizedAlertIsMonthBoundedAndPreservesSplitTransferSemantics() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: """
+                UPDATE transactions
+                SET category = NULL, description = 'coffee'
+                WHERE id = 'txn';
+                INSERT INTO transactions (
+                    id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild, description
+                ) VALUES
+                ('june-uncat', 'checking', 20260615, -2500, NULL, 0, NULL, 0, 0, 'coffee'),
+                ('july-cat', 'checking', 20260710, -800, 'groceries', 0, NULL, 0, 0, 'coffee'),
+                ('july-split', 'checking', 20260712, -3000, NULL, 0, NULL, 1, 0, NULL),
+                ('july-split-a', 'checking', 20260712, -1000, NULL, 0, 'july-split', 0, 1, 'coffee'),
+                ('july-split-b', 'checking', 20260712, -2000, 'groceries', 0, 'july-split', 0, 1, 'coffee'),
+                ('july-on-budget-xfer', 'checking', 20260720, -4000, NULL, 0, NULL, 0, 0, 'xfer-savings'),
+                ('july-off-budget-xfer', 'checking', 20260721, -1500, NULL, 0, NULL, 0, 0, 'xfer-tracking'),
+                ('july-tracking', 'tracking', 20260722, -900, NULL, 0, NULL, 0, 0, NULL);
+                """
+        )
+
+        let july = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let julyCached = try #require(
+            bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        )
+        let june = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-06")
+        let juneCached = try #require(
+            bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-06")
+        )
+
+        #expect(july.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 3)
+        #expect(Set(julyCached.transactions.compactMap(\.id)) == [
+            "txn", "july-split-a", "july-off-budget-xfer",
+        ])
+        #expect(!julyCached.transactions.contains { $0.id == "june-uncat" })
+        #expect(!julyCached.transactions.contains { $0.id == "july-split" || $0.id == "july-split-b" })
+        #expect(!julyCached.transactions.contains { $0.id == "july-on-budget-xfer" || $0.id == "july-tracking" })
+        #expect(june.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 1)
+        #expect(juneCached.transactions.compactMap(\.id) == ["june-uncat"])
+    }
+
     @Test func budgetMonthRetainsUncategorizedAlertDrillDownSnapshot() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: """
