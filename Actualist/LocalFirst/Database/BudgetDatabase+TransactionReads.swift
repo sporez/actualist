@@ -19,64 +19,35 @@ extension BudgetDatabase {
             }
 
             let columns = try columnSet(for: "transactions", db: db)
-            func expr(_ names: [String], fallback: String) -> String {
-                for name in names where columns.contains(name) {
-                    return "t.\(name)"
-                }
-                return fallback
-            }
-
-            let account = expr(["acct", "account"], fallback: "NULL")
-            let date = expr(["date"], fallback: "NULL")
-            let amount = expr(["amount"], fallback: "0")
-            let payee = expr(["payee", "description"], fallback: "NULL")
-            let category = expr(["category"], fallback: "NULL")
-            let notes = expr(["notes"], fallback: "NULL")
-            let cleared = expr(["cleared"], fallback: "0")
-            let reconciled = expr(["reconciled"], fallback: "0")
-            let importedPayee = expr(["imported_description", "imported_payee"], fallback: "NULL")
-            let parentID = expr(["parent_id"], fallback: "NULL")
-            let isParent = expr(["isParent", "is_parent"], fallback: "0")
-            let schedule = expr(["schedule"], fallback: "NULL")
-            let normalizedDate = normalizedDateExpression(date)
-            let live = predicateForLiveRows(columns: columns, tableAlias: "t")
+            let split = transactionSplitQueryExpressions(columns: columns)
+            let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+            let joins = try transactionReadJoins(db: db, split: split, includeNames: false)
             let familyPredicate: String
-            if columns.contains("parent_id") {
-                let subqueryLive = predicateForLiveRows(columns: columns)
+            let arguments: [DatabaseValueConvertible]
+            if split.hasParentIDColumn {
                 familyPredicate = """
                     t.id = ?
-                    OR t.parent_id = ?
+                    OR \(split.effectiveParentID) = ?
                     OR t.id = (
                         SELECT parent_id FROM transactions
-                        WHERE id = ? AND \(subqueryLive)
+                        WHERE id = ? AND \(predicateForLiveRows(columns: columns))
                     )
                     """
+                arguments = [trimmed, trimmed, trimmed]
             } else {
                 familyPredicate = "t.id = ?"
+                arguments = [trimmed]
             }
 
             let sql = """
-                SELECT t.id AS id,
-                       \(account) AS account_id,
-                       \(normalizedDate) AS date,
-                       \(amount) AS amount,
-                       \(payee) AS payee_id,
-                       NULL AS payee_name,
-                       \(importedPayee) AS imported_payee,
-                       \(category) AS category_id,
-                       \(notes) AS notes,
-                       \(cleared) AS cleared,
-                       \(reconciled) AS reconciled,
-                       \(parentID) AS parent_id,
-                       \(isParent) AS is_parent,
-                       \(schedule) AS schedule
+                SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
                 FROM transactions t
-                WHERE \(live)
+                \(joins.sql)
+                \(split.parentJoin())
+                WHERE \(split.liveEffectivePredicate())
                   AND (\(familyPredicate))
+                ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
                 """
-            let arguments: [DatabaseValueConvertible] = columns.contains("parent_id")
-                ? [trimmed, trimmed, trimmed]
-                : [trimmed]
             let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
             let assembled = assembleTransactions(from: rows)
             if let match = assembled.first(where: { $0.id == trimmed }) {
@@ -87,15 +58,16 @@ extension BudgetDatabase {
                     return child
                 }
             }
-            return nil
+            return assembled.first
         }
     }
 
     func fetchTransactionPage(
         accountID: String? = nil,
         matching query: String? = nil,
-        limit: Int?,
-        offset: Int = 0
+        limit: Int? = nil,
+        offset: Int = 0,
+        splits: TransactionSplitQueryMode? = nil
     ) throws -> TransactionFetchResult {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
@@ -103,143 +75,52 @@ extension BudgetDatabase {
             }
 
             let columns = try columnSet(for: "transactions", db: db)
-            // Missing columns need a bare SQL literal, not an invalid qualified literal.
-            func expr(_ names: [String], fallback: String) -> String {
-                for name in names where columns.contains(name) {
-                    return "t.\(name)"
-                }
-                return fallback
-            }
-            let account = expr(["acct", "account"], fallback: "NULL")
-            let date = expr(["date"], fallback: "NULL")
-            let amount = expr(["amount"], fallback: "0")
-            // `payee` is a view alias; the physical column is `description`.
-            let payee = expr(["payee", "description"], fallback: "NULL")
-            let category = expr(["category"], fallback: "NULL")
-            let notes = expr(["notes"], fallback: "NULL")
-            let cleared = expr(["cleared"], fallback: "0")
-            let reconciled = expr(["reconciled"], fallback: "0")
-            let importedPayee = expr(["imported_description", "imported_payee"], fallback: "NULL")
-            let parentID = expr(["parent_id"], fallback: "NULL")
-            let isParent = expr(["isParent", "is_parent"], fallback: "0")
-            let schedule = expr(["schedule"], fallback: "NULL")
-            let normalizedDate = normalizedDateExpression(date)
-            let hasCategoryMapping = try tableExists("category_mapping", db: db)
-            let mappedCategory = hasCategoryMapping ? "COALESCE(cm.transferId, \(category))" : category
-            let categoryMappingJoin = hasCategoryMapping ? "LEFT JOIN category_mapping cm ON cm.id = \(category)" : ""
-            // Merged payees resolve through payee_mapping.
-            let hasPayeeMapping = try tableExists("payee_mapping", db: db)
-            let mappedPayee = hasPayeeMapping ? "COALESCE(pm.targetId, \(payee))" : payee
-            let payeeMappingJoin = hasPayeeMapping ? "LEFT JOIN payee_mapping pm ON pm.id = \(payee)" : ""
-            let hasPayees = try tableExists("payees", db: db)
-            let hasAccounts = try tableExists("accounts", db: db)
-            let payeeColumns = hasPayees ? try columnSet(for: "payees", db: db) : []
-            // Transfer payees display the linked account name.
-            let resolvesTransferNames = hasPayees && hasAccounts && payeeColumns.contains("transfer_acct")
-            let payeeNameJoin: String
-            let payeeNameSelect: String
-            if hasPayees {
-                if resolvesTransferNames {
-                    payeeNameJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee) LEFT JOIN accounts pax ON pax.id = py.transfer_acct"
-                    payeeNameSelect = "COALESCE(NULLIF(py.name, ''), pax.name)"
-                } else {
-                    payeeNameJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee)"
-                    payeeNameSelect = "py.name"
-                }
-            } else {
-                payeeNameJoin = ""
-                payeeNameSelect = "NULL"
-            }
+            let split = transactionSplitQueryExpressions(columns: columns)
+            let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+            let joins = try transactionReadJoins(db: db, split: split, includeNames: true)
+            let mode = splits ?? ((query?.isEmpty ?? true) ? .grouped : .all)
 
-            var conditions: [String] = [
-                predicateForLiveRows(columns: columns, tableAlias: "t"),
-                "(\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)"
-            ]
+            var conditions: [String] = [split.liveEffectivePredicate()]
             var arguments: [DatabaseValueConvertible] = []
             if let accountID {
-                conditions.append("\(account) = ?")
+                conditions.append("\(split.qualifiedAccount) = ?")
                 arguments.append(accountID)
             }
             if let query, !query.isEmpty {
-                conditions.append("(\(payeeNameSelect) LIKE ? ESCAPE '\\' OR \(notes) LIKE ? ESCAPE '\\' OR CAST(\(amount) AS TEXT) LIKE ? ESCAPE '\\')")
+                conditions.append(transactionSearchPredicate(split: split, joins: joins))
                 let like = "%\(escapeLikePattern(query))%"
-                arguments.append(contentsOf: [like, like, like])
+                arguments.append(contentsOf: Array(repeating: like, count: 4))
             }
 
             let rowLimit = limit.map { max(1, $0) }
             let rowOffset = max(0, offset)
-            let topLevelIDs: [String]?
-            let reachedEnd: Bool
-            if let rowLimit {
-                var topLevelConditions = conditions
-                topLevelConditions.append("\(parentID) IS NULL")
-                var topLevelArguments = arguments
-                topLevelArguments.append(rowLimit + 1)
-                topLevelArguments.append(rowOffset)
-                let topLevelSQL = """
-                    SELECT t.id AS id
-                    FROM transactions t
-                    \(categoryMappingJoin)
-                    \(payeeMappingJoin)
-                    \(payeeNameJoin)
-                    LEFT JOIN transactions p ON p.id = \(parentID)
-                    WHERE \(topLevelConditions.joined(separator: " AND "))
-                    ORDER BY \(normalizedDate) DESC, t.id DESC
-                    LIMIT ? OFFSET ?
-                    """
-                let fetchedIDs = try Row.fetchAll(
-                    db,
-                    sql: topLevelSQL,
-                    arguments: StatementArguments(topLevelArguments)
-                ).compactMap { $0["id"] as String? }
-                reachedEnd = fetchedIDs.count <= rowLimit
-                topLevelIDs = Array(fetchedIDs.prefix(rowLimit))
-                if topLevelIDs?.isEmpty != false {
-                    return TransactionFetchResult(transactions: [], reachedEnd: true)
-                }
-            } else {
-                topLevelIDs = nil
-                reachedEnd = true
+
+            switch mode {
+            case .all, .inline, .none:
+                return try fetchFlatTransactionPage(
+                    db: db,
+                    split: split,
+                    joins: joins,
+                    normalizedDate: normalizedDate,
+                    mode: mode,
+                    conditions: conditions,
+                    arguments: arguments,
+                    rowLimit: rowLimit,
+                    rowOffset: rowOffset
+                )
+            case .grouped:
+                return try fetchGroupedTransactionPage(
+                    db: db,
+                    split: split,
+                    joins: joins,
+                    normalizedDate: normalizedDate,
+                    conditions: conditions,
+                    arguments: arguments,
+                    hasUnhappyFilter: query?.isEmpty == false,
+                    rowLimit: rowLimit,
+                    rowOffset: rowOffset
+                )
             }
-
-            var rowConditions = conditions
-            var rowArguments = arguments
-            if let topLevelIDs {
-                let placeholders = Array(repeating: "?", count: topLevelIDs.count).joined(separator: ", ")
-                rowConditions = [
-                    predicateForLiveRows(columns: columns, tableAlias: "t"),
-                    "(\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)",
-                    "(t.id IN (\(placeholders)) OR \(parentID) IN (\(placeholders)))"
-                ]
-                rowArguments = (topLevelIDs + topLevelIDs).map { $0 as DatabaseValueConvertible }
-            }
-
-            let sql = """
-                SELECT t.id AS id,
-                       \(account) AS account_id,
-                       \(normalizedDate) AS date,
-                       \(amount) AS amount,
-                       \(mappedPayee) AS payee_id,
-                       \(payeeNameSelect) AS payee_name,
-                       \(importedPayee) AS imported_payee,
-                       \(mappedCategory) AS category_id,
-                       \(notes) AS notes,
-                       \(cleared) AS cleared,
-                       \(reconciled) AS reconciled,
-                       \(parentID) AS parent_id,
-                       \(isParent) AS is_parent,
-                       \(schedule) AS schedule
-                FROM transactions t
-                \(categoryMappingJoin)
-                \(payeeMappingJoin)
-                \(payeeNameJoin)
-                LEFT JOIN transactions p ON p.id = \(parentID)
-                WHERE \(rowConditions.joined(separator: " AND "))
-                ORDER BY \(normalizedDate) DESC, t.id DESC
-                """
-
-            let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(rowArguments))
-            return TransactionFetchResult(transactions: assembleTransactions(from: rows), reachedEnd: reachedEnd)
         }
     }
 
@@ -256,7 +137,7 @@ extension BudgetDatabase {
 
         for row in rows {
             let transaction = mapTransactionRow(row)
-            if let parentID = transaction.parentID, !parentID.isEmpty {
+            if transaction.isChild, let parentID = transaction.parentID, !parentID.isEmpty {
                 childrenByParent[parentID, default: []].append(transaction)
             } else {
                 parents.append(transaction)
@@ -300,9 +181,11 @@ extension BudgetDatabase {
     }
 
     func mapTransactionRow(_ row: Row) -> ActualTransaction {
-        let parentID = row["parent_id"] as String?
+        let parentID = (row["parent_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
         let payeeName = (row["payee_name"] as String?).flatMap { $0.isEmpty ? nil : $0 }
         let amount: Int? = row["amount"]
+        let isParent = flexibleBool(row["is_parent"])
+        let isChild = flexibleBool(row["is_child"])
         return ActualTransaction(
             id: row["id"],
             account: row["account_id"] ?? "",
@@ -311,14 +194,245 @@ extension BudgetDatabase {
             payee: row["payee_id"],
             payeeName: payeeName,
             importedPayee: row["imported_payee"],
-            category: row["category_id"],
+            category: isParent ? nil : row["category_id"],
             notes: row["notes"],
             cleared: flexibleBool(row["cleared"]) ? .bool(true) : .bool(false),
             reconciled: flexibleBool(row["reconciled"]),
-            isParent: flexibleBool(row["is_parent"]),
-            isChild: (parentID?.isEmpty == false),
-            parentID: parentID,
-            schedule: row["schedule"]
+            isParent: isParent,
+            isChild: isChild,
+            parentID: isChild ? parentID : nil,
+            schedule: row["schedule"],
+            error: parseSplitTransactionError(row["error"])
         )
+    }
+}
+
+private struct TransactionReadJoins {
+    let sql: String
+    let mappedPayee: String
+    let mappedCategory: String
+    let payeeNameSelect: String
+    let categoryNameSelect: String
+}
+
+private extension BudgetDatabase {
+    func transactionReadJoins(
+        db: Database,
+        split: TransactionSplitQueryExpressions,
+        includeNames: Bool
+    ) throws -> TransactionReadJoins {
+        let hasCategoryMapping = try tableExists("category_mapping", db: db)
+        let mappedCategory = hasCategoryMapping
+            ? "COALESCE(cm.transferId, \(split.qualifiedCategory))"
+            : split.qualifiedCategory
+        let categoryMappingJoin = hasCategoryMapping
+            ? "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
+            : ""
+
+        let hasPayeeMapping = try tableExists("payee_mapping", db: db)
+        let mappedPayee = hasPayeeMapping
+            ? "COALESCE(pm.targetId, \(split.qualifiedPayee))"
+            : split.qualifiedPayee
+        let payeeMappingJoin = hasPayeeMapping
+            ? "LEFT JOIN payee_mapping pm ON pm.id = \(split.qualifiedPayee)"
+            : ""
+
+        var payeeNameJoin = ""
+        var payeeNameSelect = "NULL"
+        if includeNames, try tableExists("payees", db: db) {
+            let payeeColumns = try columnSet(for: "payees", db: db)
+            let hasAccounts = try tableExists("accounts", db: db)
+            if hasAccounts, payeeColumns.contains("transfer_acct") {
+                payeeNameJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee) LEFT JOIN accounts pax ON pax.id = py.transfer_acct"
+                payeeNameSelect = "COALESCE(NULLIF(py.name, ''), pax.name)"
+            } else {
+                payeeNameJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee)"
+                payeeNameSelect = "py.name"
+            }
+        }
+
+        var categoryNameJoin = ""
+        var categoryNameSelect = "NULL"
+        if includeNames, try tableExists("categories", db: db) {
+            categoryNameJoin = "LEFT JOIN categories cat ON cat.id = \(mappedCategory)"
+            categoryNameSelect = "cat.name"
+        }
+
+        return TransactionReadJoins(
+            sql: [categoryMappingJoin, payeeMappingJoin, payeeNameJoin, categoryNameJoin]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n"),
+            mappedPayee: mappedPayee,
+            mappedCategory: mappedCategory,
+            payeeNameSelect: payeeNameSelect,
+            categoryNameSelect: categoryNameSelect
+        )
+    }
+
+    func transactionReadSelectList(
+        split: TransactionSplitQueryExpressions,
+        joins: TransactionReadJoins,
+        normalizedDate: String
+    ) -> String {
+        return """
+            t.id AS id,
+            \(split.qualifiedAccount) AS account_id,
+            \(normalizedDate) AS date,
+            \(split.qualifiedAmount) AS amount,
+            \(joins.mappedPayee) AS payee_id,
+            \(joins.payeeNameSelect) AS payee_name,
+            \(split.qualifiedImportedPayee) AS imported_payee,
+            \(split.effectiveCategory(mappedCategory: joins.mappedCategory)) AS category_id,
+            \(split.qualifiedNotes) AS notes,
+            \(split.qualifiedCleared) AS cleared,
+            \(split.qualifiedReconciled) AS reconciled,
+            \(split.effectiveParentID) AS parent_id,
+            \(split.qualifiedIsParent) AS is_parent,
+            \(split.qualifiedIsChild) AS is_child,
+            \(split.qualifiedSchedule) AS schedule,
+            \(split.qualifiedError) AS error
+            """
+    }
+
+    func transactionSearchPredicate(split: TransactionSplitQueryExpressions, joins: TransactionReadJoins) -> String {
+        """
+        (\(joins.payeeNameSelect) LIKE ? ESCAPE '\\'
+         OR \(split.qualifiedNotes) LIKE ? ESCAPE '\\'
+         OR \(joins.categoryNameSelect) LIKE ? ESCAPE '\\'
+         OR CAST(\(split.qualifiedAmount) AS TEXT) LIKE ? ESCAPE '\\')
+        """
+    }
+
+    func fetchFlatTransactionPage(
+        db: Database,
+        split: TransactionSplitQueryExpressions,
+        joins: TransactionReadJoins,
+        normalizedDate: String,
+        mode: TransactionSplitQueryMode,
+        conditions: [String],
+        arguments: [DatabaseValueConvertible],
+        rowLimit: Int?,
+        rowOffset: Int
+    ) throws -> TransactionFetchResult {
+        var pageConditions = conditions
+        pageConditions.append(split.splitModePredicate(mode))
+        var pageArguments = arguments
+        var limitClause = ""
+        if let rowLimit {
+            limitClause = "LIMIT ? OFFSET ?"
+            pageArguments.append(rowLimit + 1)
+            pageArguments.append(rowOffset)
+        }
+        let sql = """
+            SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
+            FROM transactions t
+            \(joins.sql)
+            \(split.parentJoin())
+            WHERE \(pageConditions.joined(separator: " AND "))
+            ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
+            \(limitClause)
+            """
+        let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(pageArguments))
+        if let rowLimit {
+            let reachedEnd = rows.count <= rowLimit
+            let page = Array(rows.prefix(rowLimit))
+            return TransactionFetchResult(
+                transactions: page.map(mapTransactionRow),
+                reachedEnd: reachedEnd
+            )
+        }
+        return TransactionFetchResult(transactions: rows.map(mapTransactionRow), reachedEnd: true)
+    }
+
+    func fetchGroupedTransactionPage(
+        db: Database,
+        split: TransactionSplitQueryExpressions,
+        joins: TransactionReadJoins,
+        normalizedDate: String,
+        conditions: [String],
+        arguments: [DatabaseValueConvertible],
+        hasUnhappyFilter: Bool,
+        rowLimit: Int?,
+        rowOffset: Int
+    ) throws -> TransactionFetchResult {
+        let groupIDs: [String]
+        let reachedEnd: Bool
+        if hasUnhappyFilter {
+            var groupArguments = arguments
+            var limitClause = ""
+            if let rowLimit {
+                limitClause = "LIMIT ? OFFSET ?"
+                groupArguments.append(rowLimit + 1)
+                groupArguments.append(rowOffset)
+            }
+            let groupSQL = """
+                SELECT g.group_id AS group_id FROM (
+                    SELECT DISTINCT IFNULL(\(split.effectiveParentID), t.id) AS group_id
+                    FROM transactions t
+                    \(joins.sql)
+                    \(split.parentJoin())
+                    WHERE \(conditions.joined(separator: " AND "))
+                ) g
+                JOIN transactions t ON t.id = g.group_id
+                ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
+                \(limitClause)
+                """
+            let fetched = try Row.fetchAll(
+                db,
+                sql: groupSQL,
+                arguments: StatementArguments(groupArguments)
+            ).compactMap { $0["group_id"] as String? }
+            reachedEnd = rowLimit.map { fetched.count <= $0 } ?? true
+            groupIDs = rowLimit.map { Array(fetched.prefix($0)) } ?? fetched
+        } else {
+            var parentConditions = conditions
+            parentConditions.append(split.splitModePredicate(.none))
+            var parentArguments = arguments
+            var limitClause = ""
+            if let rowLimit {
+                limitClause = "LIMIT ? OFFSET ?"
+                parentArguments.append(rowLimit + 1)
+                parentArguments.append(rowOffset)
+            }
+            let parentSQL = """
+                SELECT t.id AS id
+                FROM transactions t
+                \(joins.sql)
+                \(split.parentJoin())
+                WHERE \(parentConditions.joined(separator: " AND "))
+                ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
+                \(limitClause)
+                """
+            let fetched = try Row.fetchAll(
+                db,
+                sql: parentSQL,
+                arguments: StatementArguments(parentArguments)
+            ).compactMap { $0["id"] as String? }
+            reachedEnd = rowLimit.map { fetched.count <= $0 } ?? true
+            groupIDs = rowLimit.map { Array(fetched.prefix($0)) } ?? fetched
+        }
+
+        guard !groupIDs.isEmpty else {
+            return TransactionFetchResult(transactions: [], reachedEnd: true)
+        }
+
+        let placeholders = Array(repeating: "?", count: groupIDs.count).joined(separator: ", ")
+        let familySQL = """
+            SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
+            FROM transactions t
+            \(joins.sql)
+            \(split.parentJoin())
+            WHERE \(split.liveEffectivePredicate())
+              AND IFNULL(\(split.effectiveParentID), t.id) IN (\(placeholders))
+            ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
+            """
+        let rows = try Row.fetchAll(
+            db,
+            sql: familySQL,
+            arguments: StatementArguments(groupIDs.map { $0 as DatabaseValueConvertible })
+        )
+        let assembled = assembleTransactions(from: rows)
+        let ordered = groupIDs.compactMap { id in assembled.first { $0.id == id } }
+        return TransactionFetchResult(transactions: ordered, reachedEnd: reachedEnd)
     }
 }

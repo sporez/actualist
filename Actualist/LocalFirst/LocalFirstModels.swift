@@ -716,7 +716,8 @@ extension ActualTransaction {
             isParent: isParent,
             isChild: isChild,
             parentID: parentID,
-            schedule: schedule
+            schedule: schedule,
+            error: error
         )
     }
 }

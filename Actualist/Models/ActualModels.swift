@@ -346,6 +346,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
     let isChild: Bool
     let parentID: String?
     let schedule: String?
+    let error: SplitTransactionError?
 
     init(
         id: String?,
@@ -363,7 +364,8 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         isParent: Bool = false,
         isChild: Bool = false,
         parentID: String? = nil,
-        schedule: String? = nil
+        schedule: String? = nil,
+        error: SplitTransactionError? = nil
     ) {
         self.id = id
         self.account = account
@@ -381,6 +383,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         self.isChild = isChild
         self.parentID = parentID
         self.schedule = schedule
+        self.error = error
     }
 
     enum CodingKeys: String, CodingKey {
@@ -391,6 +394,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         case isParent = "is_parent"
         case isChild = "is_child"
         case parentID = "parent_id"
+        case error
     }
 
     init(from decoder: Decoder) throws {
@@ -411,6 +415,7 @@ struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
         isChild = try container.decodeIfPresent(Bool.self, forKey: .isChild) ?? false
         parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
         schedule = try container.decodeIfPresent(String.self, forKey: .schedule)
+        error = try container.decodeIfPresent(SplitTransactionError.self, forKey: .error)
     }
 }
 

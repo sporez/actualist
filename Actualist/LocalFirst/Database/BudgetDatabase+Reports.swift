@@ -65,29 +65,18 @@ extension BudgetDatabase {
 
         let transactionColumns = try columnSet(for: "transactions", db: db)
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: transactionColumns), columns: transactionColumns)
-        let amount = column("amount", fallback: "0", columns: transactionColumns)
-        let date = column("date", fallback: "NULL", columns: transactionColumns)
-        let parentID = column("parent_id", fallback: "NULL", columns: transactionColumns)
-        let isParent = column(
-            "isParent",
-            fallback: column("is_parent", fallback: "0", columns: transactionColumns),
-            columns: transactionColumns
-        )
-        let normalizedDate = normalizedDateExpression("t.\(date)")
+        let split = transactionSplitQueryExpressions(columns: transactionColumns)
+        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
 
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(normalizedDate) AS day, SUM(t.\(amount)) AS amount
+                SELECT \(normalizedDate) AS day, SUM(\(split.qualifiedAmount)) AS amount
                 FROM transactions t
-                JOIN accounts a ON a.id = t.\(account)
-                LEFT JOIN transactions parent ON parent.id = t.\(parentID)
-                WHERE \(predicateForLiveRows(columns: transactionColumns, tableAlias: "t"))
+                JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
                   AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
-                  AND (t.\(parentID) IS NULL OR \(predicateForLiveRows(columns: transactionColumns, tableAlias: "parent")))
-                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
-                  AND t.\(date) IS NOT NULL
                   AND \(normalizedDate) <= ?
                 GROUP BY \(normalizedDate)
                 ORDER BY \(normalizedDate)
@@ -115,18 +104,9 @@ extension BudgetDatabase {
 
         let transactionColumns = try columnSet(for: "transactions", db: db)
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: transactionColumns), columns: transactionColumns)
-        let amount = column("amount", fallback: "0", columns: transactionColumns)
-        let category = column("category", fallback: "NULL", columns: transactionColumns)
-        let date = column("date", fallback: "NULL", columns: transactionColumns)
-        let parentID = column("parent_id", fallback: "NULL", columns: transactionColumns)
-        let isParent = column(
-            "isParent",
-            fallback: column("is_parent", fallback: "0", columns: transactionColumns),
-            columns: transactionColumns
-        )
+        let split = transactionSplitQueryExpressions(columns: transactionColumns)
         let offBudget = column("offbudget", fallback: "0", columns: accountColumns)
-        let normalizedDate = normalizedDateExpression("t.\(date)")
+        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
 
         let hasCategoryMapping = try tableExists("category_mapping", db: db)
         let mappedCategory: String
@@ -134,14 +114,14 @@ extension BudgetDatabase {
         if hasCategoryMapping {
             let mappingColumns = try columnSet(for: "category_mapping", db: db)
             if let transferCategory = ["transferId", "transfer_id"].first(where: mappingColumns.contains) {
-                mappedCategory = "COALESCE(cm.\(transferCategory), t.\(category))"
-                categoryMappingJoin = "LEFT JOIN category_mapping cm ON cm.id = t.\(category)"
+                mappedCategory = "COALESCE(cm.\(transferCategory), \(split.qualifiedCategory))"
+                categoryMappingJoin = "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
             } else {
-                mappedCategory = "t.\(category)"
+                mappedCategory = split.qualifiedCategory
                 categoryMappingJoin = ""
             }
         } else {
-            mappedCategory = "t.\(category)"
+            mappedCategory = split.qualifiedCategory
             categoryMappingJoin = ""
         }
 
@@ -199,7 +179,7 @@ extension BudgetDatabase {
         let isTransferExpression = transferPredicates.isEmpty
             ? "0"
             : "CASE WHEN \(transferPredicates.joined(separator: " OR ")) THEN 1 ELSE 0 END"
-        let isInflowExpression = "CASE WHEN t.\(amount) > 0 THEN 1 ELSE 0 END"
+        let isInflowExpression = "CASE WHEN \(split.qualifiedAmount) > 0 THEN 1 ELSE 0 END"
 
         let rows = try Row.fetchAll(
             db,
@@ -209,20 +189,17 @@ extension BudgetDatabase {
                        \(isIncomeExpression) AS is_income,
                        \(isTransferExpression) AS is_transfer,
                        \(isInflowExpression) AS is_inflow,
-                       SUM(t.\(amount)) AS amount
+                       SUM(\(split.qualifiedAmount)) AS amount
                 FROM transactions t
-                JOIN accounts a ON a.id = t.\(account)
-                LEFT JOIN transactions parent ON parent.id = t.\(parentID)
+                JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
                 \(categoryMappingJoin)
                 \(categoryJoin)
                 \(groupJoin)
                 \(payeeJoin)
-                WHERE \(predicateForLiveRows(columns: transactionColumns, tableAlias: "t"))
+                WHERE \(split.liveInlinePredicate())
                   AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
-                  AND (t.\(parentID) IS NULL OR \(predicateForLiveRows(columns: transactionColumns, tableAlias: "parent")))
-                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
                   AND COALESCE(a.\(offBudget), 0) = 0
-                  AND t.\(date) IS NOT NULL
                   AND \(normalizedDate) BETWEEN ? AND ?
                 GROUP BY \(normalizedDate), \(mappedCategory), \(isIncomeExpression), \(isTransferExpression), \(isInflowExpression)
                 ORDER BY \(normalizedDate)
@@ -256,17 +233,9 @@ extension BudgetDatabase {
 
         let transactionColumns = try columnSet(for: "transactions", db: db)
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: transactionColumns), columns: transactionColumns)
-        let amount = column("amount", fallback: "0", columns: transactionColumns)
-        let date = column("date", fallback: "NULL", columns: transactionColumns)
-        let parentID = column("parent_id", fallback: "NULL", columns: transactionColumns)
-        let isParent = column(
-            "isParent",
-            fallback: column("is_parent", fallback: "0", columns: transactionColumns),
-            columns: transactionColumns
-        )
-        let normalizedDate = normalizedDateExpression("t.\(date)")
-        let isInflowExpression = "CASE WHEN t.\(amount) > 0 THEN 1 ELSE 0 END"
+        let split = transactionSplitQueryExpressions(columns: transactionColumns)
+        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let isInflowExpression = "CASE WHEN \(split.qualifiedAmount) > 0 THEN 1 ELSE 0 END"
         let transferPredicate: String
         if let transferredID = ["transferred_id", "transfer_id"].first(where: transactionColumns.contains) {
             switch transferFilter {
@@ -286,15 +255,12 @@ extension BudgetDatabase {
             sql: """
                 SELECT \(normalizedDate) AS day,
                        \(isInflowExpression) AS is_inflow,
-                       SUM(t.\(amount)) AS amount
+                       SUM(\(split.qualifiedAmount)) AS amount
                 FROM transactions t
-                JOIN accounts a ON a.id = t.\(account)
-                LEFT JOIN transactions parent ON parent.id = t.\(parentID)
-                WHERE \(predicateForLiveRows(columns: transactionColumns, tableAlias: "t"))
+                JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
                   AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
-                  AND (t.\(parentID) IS NULL OR \(predicateForLiveRows(columns: transactionColumns, tableAlias: "parent")))
-                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
-                  AND t.\(date) IS NOT NULL
                   AND \(normalizedDate) BETWEEN ? AND ?
                   AND (\(transferPredicate))
                 GROUP BY \(normalizedDate), \(isInflowExpression)

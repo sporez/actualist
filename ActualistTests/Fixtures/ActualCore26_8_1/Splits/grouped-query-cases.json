@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "oracle": {
+    "tag": "v26.8.1",
+    "commit": "063df03763ca772b51f6264752b88ddec22cfb8a",
+    "packageVersion": "26.8.1"
+  },
+  "amountUnits": "integer minor units",
+  "notes": "Expected ids encode Actual AQL v_transactions_internal / v_transactions_internal_alive and executors.ts split modes. Not generator-owned; identity matches the pinned oracle.",
+  "cases": [
+    {
+      "id": "split-modes-two-child-family",
+      "all": ["simple", "parent", "child-a", "child-b"],
+      "inline": ["simple", "child-a", "child-b"],
+      "none": ["simple", "parent"],
+      "grouped": ["simple", "parent"]
+    },
+    {
+      "id": "child-note-search",
+      "query": "Q01-CHILD-NOTE",
+      "all": ["child-b"],
+      "grouped": ["parent"]
+    },
+    {
+      "id": "dead-parent-excludes-orphan",
+      "all": ["simple"],
+      "inline": ["simple"],
+      "balances": {
+        "checking": -1000
+      }
+    },
+    {
+      "id": "flag-disagreement-parent-id-without-is-child",
+      "all": ["flagged"],
+      "inline": ["flagged"]
+    },
+    {
+      "id": "default-order",
+      "all": ["newer", "regular", "starting", "older"]
+    }
+  ]
+}

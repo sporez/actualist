@@ -181,34 +181,6 @@ extension BudgetDatabase {
         return "1 = 1"
     }
 
-    func parentTransactionPredicate(columns: Set<String>) -> String {
-        var predicates: [String] = []
-        if columns.contains("parent_id") {
-            predicates.append("parent_id IS NULL")
-        }
-        if columns.contains("is_child") {
-            predicates.append("(is_child IS NULL OR is_child = 0)")
-        }
-        if columns.contains("is_parent") {
-            predicates.append("(is_parent IS NULL OR is_parent = 0)")
-        }
-        return predicates.isEmpty ? "1 = 1" : predicates.joined(separator: " AND ")
-    }
-
-    func parentTransactionPredicate(columns: Set<String>, tableAlias: String) -> String {
-        var predicates: [String] = []
-        if columns.contains("parent_id") {
-            predicates.append("\(tableAlias).parent_id IS NULL")
-        }
-        if columns.contains("is_child") {
-            predicates.append("(\(tableAlias).is_child IS NULL OR \(tableAlias).is_child = 0)")
-        }
-        if columns.contains("is_parent") {
-            predicates.append("(\(tableAlias).is_parent IS NULL OR \(tableAlias).is_parent = 0)")
-        }
-        return predicates.isEmpty ? "1 = 1" : predicates.joined(separator: " AND ")
-    }
-
     func normalizedDateExpression(_ column: String) -> String {
         let text = "CAST(\(column) AS TEXT)"
         return """

@@ -95,14 +95,13 @@ extension BudgetDatabase {
             }
 
             let columns = try columnSet(for: "transactions", db: db)
-            let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
-            let amount = column("amount", fallback: "0", columns: columns)
-            let parentPredicate = parentTransactionPredicate(columns: columns)
+            let split = transactionSplitQueryExpressions(columns: columns)
             let sql = """
-                SELECT \(account) AS account_id, SUM(\(amount)) AS balance
-                FROM transactions
-                WHERE \(predicateForLiveRows(columns: columns)) AND \(parentPredicate)
-                GROUP BY \(account)
+                SELECT \(split.qualifiedAccount) AS account_id, SUM(\(split.qualifiedAmount)) AS balance
+                FROM transactions t
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
+                GROUP BY \(split.qualifiedAccount)
                 """
             let rows = try Row.fetchAll(db, sql: sql)
             return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
@@ -120,22 +119,16 @@ extension BudgetDatabase {
         }
 
         let columns = try columnSet(for: "transactions", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
-        let amount = column("amount", fallback: "0", columns: columns)
-        let date = column("date", fallback: "NULL", columns: columns)
-        let parentID = column("parent_id", fallback: "NULL", columns: columns)
-        let isParent = column("isParent", fallback: column("is_parent", fallback: "0", columns: columns), columns: columns)
-        let budgetMonth = normalizedMonthExpression("t.\(date)")
+        let split = transactionSplitQueryExpressions(columns: columns)
+        let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let row = try Row.fetchOne(
             db,
             sql: """
-                SELECT SUM(t.\(amount)) AS balance
+                SELECT SUM(\(split.qualifiedAmount)) AS balance
                 FROM transactions t
-                LEFT JOIN accounts a ON a.id = t.\(account)
-                LEFT JOIN transactions p ON p.id = t.\(parentID)
-                WHERE \(predicateForLiveRows(columns: columns, tableAlias: "t"))
-                  AND (t.\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)
-                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
+                LEFT JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
                   AND a.offbudget = 0
                   AND \(budgetMonth) <= ?
                 """,
@@ -150,24 +143,17 @@ extension BudgetDatabase {
         }
 
         let columns = try columnSet(for: "transactions", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
-        let category = column("category", fallback: "NULL", columns: columns)
-        let amount = column("amount", fallback: "0", columns: columns)
-        let date = column("date", fallback: "NULL", columns: columns)
-        let parentID = column("parent_id", fallback: "NULL", columns: columns)
-        let isParent = column("isParent", fallback: column("is_parent", fallback: "0", columns: columns), columns: columns)
-        let budgetMonth = normalizedMonthExpression("t.\(date)")
+        let split = transactionSplitQueryExpressions(columns: columns)
+        let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let row = try Row.fetchOne(
             db,
             sql: """
-                SELECT SUM(t.\(amount)) AS amount
+                SELECT SUM(\(split.qualifiedAmount)) AS amount
                 FROM transactions t
-                LEFT JOIN accounts a ON a.id = t.\(account)
-                LEFT JOIN transactions p ON p.id = t.\(parentID)
-                WHERE \(predicateForLiveRows(columns: columns, tableAlias: "t"))
-                  AND (t.\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)
-                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
-                  AND (t.\(category) IS NULL OR t.\(category) = '')
+                LEFT JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
+                  AND (\(split.qualifiedCategory) IS NULL OR \(split.qualifiedCategory) = '')
                   AND a.offbudget = 0
                   AND \(budgetMonth) <= ?
                 """,
@@ -413,31 +399,24 @@ extension BudgetDatabase {
             return [:]
         }
         let columns = try columnSet(for: "transactions", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
-        let category = column("category", fallback: "NULL", columns: columns)
-        let amount = column("amount", fallback: "0", columns: columns)
-        let date = column("date", fallback: "NULL", columns: columns)
-        let parentID = column("parent_id", fallback: "NULL", columns: columns)
-        let isParent = column("isParent", fallback: column("is_parent", fallback: "0", columns: columns), columns: columns)
+        let split = transactionSplitQueryExpressions(columns: columns)
         let categoryMappingJoin = try tableExists("category_mapping", db: db)
-            ? "LEFT JOIN category_mapping cm ON cm.id = t.\(category)"
+            ? "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
             : ""
         let mappedCategory = try tableExists("category_mapping", db: db)
-            ? "COALESCE(cm.transferId, t.\(category))"
-            : "t.\(category)"
-        let budgetMonth = normalizedMonthExpression("t.\(date)")
+            ? "COALESCE(cm.transferId, \(split.qualifiedCategory))"
+            : split.qualifiedCategory
+        let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(mappedCategory) AS category_id, SUM(t.\(amount)) AS amount
+                SELECT \(mappedCategory) AS category_id, SUM(\(split.qualifiedAmount)) AS amount
                 FROM transactions t
                 \(categoryMappingJoin)
-                LEFT JOIN accounts a ON a.id = t.\(account)
-                LEFT JOIN transactions p ON p.id = t.\(parentID)
-                WHERE \(predicateForLiveRows(columns: columns, tableAlias: "t"))
-                  AND (t.\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)
-                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
-                  AND t.\(category) IS NOT NULL
+                LEFT JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
+                  AND \(split.qualifiedCategory) IS NOT NULL
                   AND a.offbudget = 0
                   AND \(budgetMonth) = ?
                 GROUP BY \(mappedCategory)
@@ -457,31 +436,24 @@ extension BudgetDatabase {
             return [:]
         }
         let columns = try columnSet(for: "transactions", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
-        let category = column("category", fallback: "NULL", columns: columns)
-        let amount = column("amount", fallback: "0", columns: columns)
-        let date = column("date", fallback: "NULL", columns: columns)
-        let parentID = column("parent_id", fallback: "NULL", columns: columns)
-        let isParent = column("isParent", fallback: column("is_parent", fallback: "0", columns: columns), columns: columns)
+        let split = transactionSplitQueryExpressions(columns: columns)
         let categoryMappingJoin = try tableExists("category_mapping", db: db)
-            ? "LEFT JOIN category_mapping cm ON cm.id = t.\(category)"
+            ? "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
             : ""
         let mappedCategory = try tableExists("category_mapping", db: db)
-            ? "COALESCE(cm.transferId, t.\(category))"
-            : "t.\(category)"
-        let budgetMonth = normalizedMonthExpression("t.\(date)")
+            ? "COALESCE(cm.transferId, \(split.qualifiedCategory))"
+            : split.qualifiedCategory
+        let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(budgetMonth) AS month, \(mappedCategory) AS category_id, SUM(t.\(amount)) AS amount
+                SELECT \(budgetMonth) AS month, \(mappedCategory) AS category_id, SUM(\(split.qualifiedAmount)) AS amount
                 FROM transactions t
                 \(categoryMappingJoin)
-                LEFT JOIN accounts a ON a.id = t.\(account)
-                LEFT JOIN transactions p ON p.id = t.\(parentID)
-                WHERE \(predicateForLiveRows(columns: columns, tableAlias: "t"))
-                  AND (t.\(parentID) IS NULL OR p.tombstone = 0 OR p.tombstone IS NULL)
-                  AND (t.\(isParent) = 0 OR t.\(isParent) IS NULL)
-                  AND t.\(category) IS NOT NULL
+                LEFT JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
+                  AND \(split.qualifiedCategory) IS NOT NULL
                   AND a.offbudget = 0
                 GROUP BY \(budgetMonth), \(mappedCategory)
                 """
@@ -523,17 +495,15 @@ extension BudgetDatabase {
         }
 
         let columns = try columnSet(for: "transactions", db: db)
-        let account = column("acct", fallback: column("account", fallback: "NULL", columns: columns), columns: columns)
-        let category = column("category", fallback: "NULL", columns: columns)
-        let amount = column("amount", fallback: "0", columns: columns)
+        let split = transactionSplitQueryExpressions(columns: columns)
         return TransactionBudgetSource(
             tableExists: true,
             table: "transactions",
-            account: account,
-            category: "t.\(category)",
-            amount: "t.\(amount)",
-            month: normalizedMonthExpression("t.date"),
-            livePredicate: "\(predicateForLiveRows(columns: columns, tableAlias: "t")) AND \(parentTransactionPredicate(columns: columns, tableAlias: "t"))"
+            account: split.account,
+            category: split.qualifiedCategory,
+            amount: split.qualifiedAmount,
+            month: normalizedMonthExpression(split.qualifiedDate),
+            livePredicate: split.liveInlinePredicate()
         )
     }
 }
