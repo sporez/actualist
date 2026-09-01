@@ -471,6 +471,48 @@ struct BankSyncReconcilerTests {
         #expect(update(for: "child-1", plan) == nil)
     }
 
+    @Test func splitParentMatchDoesNotFillParentCategory() {
+        let rows = [
+            existing(id: "parent", day: "20240301", amount: -3_000, category: nil, isParent: true),
+            existing(id: "child", day: "20240301", amount: -1_000, category: "groceries", isChild: true, parentID: "parent"),
+        ]
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", day: "20240301", amount: -3_000, category: "dining", cleared: true)],
+            existing: rows
+        )
+        let matched = update(for: "parent", plan)
+        #expect(matched != nil)
+        #expect(matched?.categoryID == nil)
+        #expect(matched?.financialID == "fin-1")
+        #expect(Set(matched?.childIDs ?? []) == ["child"])
+    }
+
+    @Test func applyingRulePreviewKeepsOneChildSplitMetadata() {
+        let projected = BankSyncReconciliation.applyingRulePreview(
+            TransactionRulePreview(
+                categoryID: "dining",
+                notes: nil,
+                splits: [
+                    TransactionSplitDraft(
+                        id: nil,
+                        categoryID: "groceries",
+                        categoryName: nil,
+                        amountMinorUnits: -1_000,
+                        payeeID: .value("coffee"),
+                        notes: .value("child-a"),
+                        sortOrder: .value(-1)
+                    )
+                ]
+            ),
+            to: candidate(category: "dining")
+        )
+        #expect(projected?.categoryID == nil)
+        #expect(projected?.splits.count == 1)
+        #expect(projected?.splits.first?.categoryID == "groceries")
+        #expect(projected?.splits.first?.payeeID == .value("coffee"))
+        #expect(projected?.splits.first?.notes == .value("child-a"))
+    }
+
     @Test func childMatchUpdatesOnlyThatChild() {
         let rows = [
             existing(id: "parent", day: "20240301", amount: -3_000, cleared: false, isParent: true),

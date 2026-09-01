@@ -56,14 +56,72 @@ extension BudgetDatabase {
                 existingChildren: [],
                 nullParentPayee: true
             )
-            return try persistFamilyChange(
+            let persisted = try persistFamilyChange(
                 oldRows: [],
                 newRows: SplitTransactionFamilyOps.ungroupTransaction(family),
                 columns: columns,
                 db: db,
                 builder: &builder
             )
+            return try appendingSplitParentImportMetadata(
+                to: persisted,
+                parentTransactionID: parentTransactionID,
+                draft: draft,
+                columns: columns,
+                builder: &builder
+            )
         }
+    }
+
+    /// Import/schedule identity lives on the parent only. Family records do
+    /// not carry `financial_id` / `imported_payee` / `schedule`; simple-create
+    /// writes those columns, and split-create must too or Wallet/Bank Sync
+    /// duplicates and imported-payee rules silently break.
+    func appendingSplitParentImportMetadata(
+        to result: TransactionWriteResult,
+        parentTransactionID: String,
+        draft: TransactionDraft,
+        columns: TransactionRowColumns,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> TransactionWriteResult {
+        var messages = result.messages
+        if let importedPayee = draft.importedPayee, !importedPayee.isEmpty,
+           let column = ["imported_description", "imported_payee"].first(where: columns.all.contains) {
+            messages.append(
+                try builder.makeMessage(
+                    dataset: "transactions",
+                    row: parentTransactionID,
+                    column: column,
+                    value: .string(importedPayee)
+                )
+            )
+        }
+        if let importedID = draft.importedID, !importedID.isEmpty,
+           let column = ["financial_id", "imported_id"].first(where: columns.all.contains) {
+            messages.append(
+                try builder.makeMessage(
+                    dataset: "transactions",
+                    row: parentTransactionID,
+                    column: column,
+                    value: .string(importedID)
+                )
+            )
+        }
+        if let scheduleID = draft.scheduleID, !scheduleID.isEmpty, columns.hasSchedule {
+            messages.append(
+                try builder.makeMessage(
+                    dataset: "transactions",
+                    row: parentTransactionID,
+                    column: "schedule",
+                    value: .string(scheduleID)
+                )
+            )
+        }
+        return TransactionWriteResult(
+            messages: messages,
+            affectedAccountIDs: result.affectedAccountIDs,
+            affectedTransactionIDs: result.affectedTransactionIDs
+        )
     }
 
     func splitFamilyUpdateMessages(

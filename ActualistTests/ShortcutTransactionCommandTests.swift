@@ -311,6 +311,82 @@ struct ShortcutTransactionCommandTests {
         #expect(try await session.actualTransaction(id: "split-b").amount == -3_000)
     }
 
+    @Test func splitParentWithOneChildPreservesThatChild() async throws {
+        let (session, _) = try await makeSession(
+            extraSQL: """
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild, notes, description)
+                VALUES ('one-parent', 'checking', 20260711, -3000, NULL, 0, NULL, 1, 0, NULL, NULL);
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild, notes, description)
+                VALUES ('one-child', 'checking', 20260711, -3000, 'groceries', 0, 'one-parent', 0, 1, 'keep-me', 'coffee');
+            """
+        )
+        let updated = try await ShortcutTransactionCommand.update(
+            .init(transactionID: "one-parent", notes: "parent note"),
+            session: session
+        )
+        let child = try await session.actualTransaction(id: "one-child")
+        #expect(updated.notes == "parent note")
+        #expect(child.parentID == "one-parent")
+        #expect(child.category == "groceries")
+        #expect(child.notes == "keep-me")
+        #expect(child.payee == "coffee")
+        #expect(child.amount == -3_000)
+    }
+
+    @Test func categorizingSplitChildDoesNotFlattenTheFamily() async throws {
+        let session = try await makeSplitSession()
+        let updated = try await ShortcutTransactionCommand.categorize(
+            transactionID: "split-a",
+            categoryID: "utilities",
+            session: session
+        )
+        let child = try await session.actualTransaction(id: "split-a")
+        let sibling = try await session.actualTransaction(id: "split-b")
+        let parent = try await session.actualTransaction(id: "split-parent")
+        #expect(updated.id == "split-a")
+        #expect(child.category == "utilities")
+        #expect(child.isChild)
+        #expect(child.parentID == "split-parent")
+        #expect(sibling.category == "utilities")
+        #expect(sibling.isChild)
+        #expect(sibling.amount == -3_000)
+        #expect(parent.isParent)
+        #expect(parent.subtransactions.count == 2)
+    }
+
+    @Test func logAppliesImportedSplitRuleFamily() async throws {
+        let (session, _) = try await makeSession(
+            extraSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'shortcut-split-rule',
+                '[{"op":"is","field":"description","value":"coffee"}]',
+                '[{"op":"set-split-amount","value":4000,"options":{"method":"fixed-amount","splitIndex":1}},{"op":"set","field":"category","value":"groceries","options":{"splitIndex":1}},{"op":"set-split-amount","value":0,"options":{"method":"remainder","splitIndex":2}},{"op":"set","field":"category","value":"utilities","options":{"splitIndex":2}}]',
+                0
+            );
+            """
+        )
+        let transaction = try await ShortcutTransactionCommand.log(
+            .init(
+                amountMinorUnits: 10_000,
+                direction: .spend,
+                accountID: "checking",
+                payeeID: "coffee",
+                payeeName: "Coffee Shop"
+            ),
+            session: session
+        )
+        let parent = try await session.actualTransaction(id: transaction.id)
+        #expect(parent.isParent)
+        #expect(parent.subtransactions.map { $0.amount ?? 0 } == [4_000, -14_000])
+        #expect(parent.subtransactions.map(\.category) == ["groceries", "utilities"])
+    }
+
     @Test func deletingSplitParentRemovesTheWholeSplit() async throws {
         let session = try await makeSplitSession()
         _ = try await ShortcutTransactionCommand.delete(transactionID: "split-parent", session: session)

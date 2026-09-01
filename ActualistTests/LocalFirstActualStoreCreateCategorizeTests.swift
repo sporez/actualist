@@ -306,4 +306,40 @@ extension LocalFirstActualStoreTests {
         )
         #expect(uncategorizedAfter.transactions.contains { $0.rowID == regularID })
     }
+
+    @Test func uncategorizedListIncludesSplitChildrenAndCategorizesOnlyTheChild() async throws {
+        let store = try await makeOpenedWritableStore(
+            additionalFixtureSQL: """
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild, notes)
+                VALUES ('s03-parent', 'checking', 20260712, -6000, NULL, 0, NULL, 1, 0, 'S03');
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild, notes)
+                VALUES ('s03-a', 'checking', 20260712, -3000, 'groceries', 0, 's03-parent', 0, 1, 'Child A');
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild, notes)
+                VALUES ('s03-uncat', 'checking', 20260712, -3000, NULL, 0, 's03-parent', 0, 1, 'Q01-CHILD-NOTE');
+            """
+        )
+
+        let before = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        #expect(before.transactions.contains { $0.id == "s03-uncat" })
+        #expect(!before.transactions.contains { $0.id == "s03-parent" })
+        #expect(!before.transactions.contains { $0.id == "s03-a" })
+        let child = try #require(before.transactions.first { $0.id == "s03-uncat" })
+        #expect(child.isChild)
+        #expect(child.parentID == "s03-parent")
+
+        _ = try await store.categorizeTransactionAndRefresh(
+            child,
+            categoryID: "utilities",
+            budgetID: "group-1"
+        ) {}
+
+        let after = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let parent = try #require(loaded.transactions.first { $0.id == "s03-parent" })
+        #expect(!after.transactions.contains { $0.id == "s03-uncat" })
+        #expect(parent.isParent)
+        #expect(parent.subtransactions.first { $0.id == "s03-uncat" }?.category == "utilities")
+        #expect(parent.subtransactions.first { $0.id == "s03-a" }?.category == "groceries")
+        #expect(parent.subtransactions.first { $0.id == "s03-uncat" }?.notes == "Q01-CHILD-NOTE")
+    }
 }

@@ -494,6 +494,51 @@ extension LocalFirstActualStoreTests {
         })
     }
 
+    @Test func unmigratedSplitChildrenStillReceiveClearedCascade() async throws {
+        let transport = StubSimpleFINTransport(
+            remoteAccounts: [remoteAccount(balance: "0.00")],
+            response: SimpleFINTransactionsResponse(
+                downloads: [
+                    "sfin-1": SimpleFINAccountDownload(
+                        transactions: [
+                            remoteTransaction(id: "d2", amount: "-50.00", dayID: "20260705", payeeName: "Coffee Shop")
+                        ],
+                        startingBalance: nil,
+                        errorType: nil,
+                        errorCode: nil
+                    )
+                ],
+                errorType: nil,
+                errorCode: nil
+            )
+        )
+        let bundle = try await makeBankSyncStore(
+            transport: transport,
+            additionalFixtureSQL: """
+                INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, is_parent)
+                VALUES ('p1', 'savings', 20260705, -5000, NULL, 0, 'coffee', 0, 1);
+                INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, parent_id)
+                VALUES ('c1', 'savings', 20260705, -3000, 'groceries', 0, 'coffee', 0, 'p1');
+                INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, parent_id)
+                VALUES ('c2', 'savings', 20260705, -2000, 'dining', 0, 'coffee', 0, 'p1');
+                """
+        )
+        let store = bundle.store
+        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+
+        let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
+        #expect(plan.updates.first?.existingID == "p1")
+        #expect(Set(plan.updates.first?.childIDs ?? []) == ["c1", "c2"])
+
+        _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        for row in ["p1", "c1", "c2"] {
+            #expect(messages.contains {
+                $0.dataset == "transactions" && $0.row == row && $0.column == "cleared" && $0.serializedValue == "N:1"
+            })
+        }
+    }
+
     // MARK: - Link metadata / unlink
 
     @Test func linkUsesNormalizedInstitutionWhenOrgNameIsAbsent() async throws {

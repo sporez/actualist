@@ -54,8 +54,7 @@ final class UncategorizedTransactionsViewModel {
               !transactionID.isEmpty,
               transaction.date.actualYearMonth != nil,
               transaction.subtransactions.isEmpty,
-              !transaction.isParent,
-              !transaction.isChild else {
+              !transaction.isParent else {
             return false
         }
 

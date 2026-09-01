@@ -169,6 +169,7 @@ extension LocalFirstActualStoreTests {
             makeTransaction(id: "categorized", category: "groceries"),
             makeTransaction(id: "transfer", category: nil, payee: "on-budget-xfer"),
             makeTransaction(id: "split-parent", category: nil, isParent: true),
+            makeTransaction(id: "split-child", category: nil, isChild: true, parentID: "split-parent"),
             makeTransaction(id: "other-month", category: nil, date: "2026-06-30"),
             makeTransaction(
                 id: "split-with-children",
@@ -190,7 +191,7 @@ extension LocalFirstActualStoreTests {
         #expect(alert.severity == "warning")
         #expect(alert.title == "Uncategorized transactions")
         #expect(alert.actionTitle == "Review")
-        #expect(alert.count == 2)
+        #expect(alert.count == 3)
     }
 
     @Test func uncategorizedAlertEmptyWhenEverythingCategorized() async {

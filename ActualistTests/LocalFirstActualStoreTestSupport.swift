@@ -162,6 +162,8 @@ extension LocalFirstActualStoreTests {
         payee: String? = nil,
         date: String = "2026-07-03",
         isParent: Bool = false,
+        isChild: Bool = false,
+        parentID: String? = nil,
         subtransactions: [ActualTransaction] = []
     ) -> ActualTransaction {
         ActualTransaction(
@@ -176,7 +178,9 @@ extension LocalFirstActualStoreTests {
             notes: nil,
             cleared: nil,
             subtransactions: subtransactions,
-            isParent: isParent
+            isParent: isParent,
+            isChild: isChild,
+            parentID: parentID
         )
     }
 

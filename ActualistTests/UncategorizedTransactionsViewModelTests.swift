@@ -251,6 +251,8 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.canCategorize(regular))
         #expect(model.canCategorize(crossBudgetTransfer))
         #expect(!model.canCategorize(sameBudgetTransfer))
+        #expect(model.canCategorize(Self.transaction(id: "child", isChild: true, parentID: "parent")))
+        #expect(!model.canCategorize(Self.transaction(id: "parent", isParent: true)))
 
         model.beginSelection()
         model.toggleSelection(regular)
@@ -380,7 +382,10 @@ struct UncategorizedTransactionsViewModelTests {
     private static func transaction(
         id: String,
         account: String = "checking",
-        payee: String = "store"
+        payee: String = "store",
+        isParent: Bool = false,
+        isChild: Bool = false,
+        parentID: String? = nil
     ) -> ActualTransaction {
         ActualTransaction(
             id: id,
@@ -392,7 +397,10 @@ struct UncategorizedTransactionsViewModelTests {
             importedPayee: nil,
             category: nil,
             notes: nil,
-            cleared: .bool(false)
+            cleared: .bool(false),
+            isParent: isParent,
+            isChild: isChild,
+            parentID: parentID
         )
     }
 }

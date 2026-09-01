@@ -222,6 +222,67 @@ extension LocalFirstActualStoreTests {
         #expect(projected.notes == nil)
     }
 
+    @Test func importWalletTransactionsPersistsRuleSplitChildrenAndParentIdentity() async throws {
+        let financialID = UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!
+        let store = try await makeOpenedWritableStore(
+            additionalFixtureSQL: """
+            \(Self.walletImportColumnsSQL)
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'wallet-split-rule',
+                '[{"field":"payee_name","op":"is","value":"Split Cafe"}]',
+                '[{"op":"set-split-amount","value":0,"options":{"method":"remainder","splitIndex":1}},{"op":"set","field":"category","value":"groceries","options":{"splitIndex":1}},{"op":"set","field":"notes","value":"child-a","options":{"splitIndex":1}}]',
+                0
+            );
+            """
+        )
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: financialID,
+                    amount: Decimal(string: "10.00")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: "Split Cafe",
+                    transactionDescription: "Split Cafe",
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 21),
+                    status: .booked
+                )
+            )
+        )
+
+        let first = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+        let second = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let parent = try #require(loaded.transactions.first { $0.importedPayee == "Split Cafe" })
+        let child = try #require(parent.subtransactions.first)
+
+        #expect(first == WalletTransactionImportResult(importedCount: 1, duplicateCount: 0))
+        #expect(second == WalletTransactionImportResult(importedCount: 0, duplicateCount: 1))
+        #expect(parent.isParent)
+        #expect(parent.category == nil)
+        #expect(parent.importedPayee == "Split Cafe")
+        #expect(try await store.existingImportedIDs(budgetID: "group-1", accountID: "checking") == [financialID.uuidString.lowercased()])
+        #expect(parent.subtransactions.count == 1)
+        #expect(child.amount == -1_000)
+        #expect(child.category == "groceries")
+        #expect(child.notes == "child-a")
+        #expect(child.importedPayee == nil)
+        #expect(loaded.transactions.filter { $0.importedPayee == "Split Cafe" }.count == 1)
+    }
+
     @Test func existingImportedIDsAreScopedToTheAccount() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.walletImportColumnsSQL)
         let candidate = try #require(

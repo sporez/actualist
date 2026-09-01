@@ -210,28 +210,37 @@ extension BudgetDatabase {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return [] }
             let columns = try columnSet(for: "transactions", db: db)
-            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
+            let split = transactionSplitQueryExpressions(columns: columns)
             let financialIDColumn = ["financial_id", "imported_id"].first { columns.contains($0) }
             let importedPayeeColumn = ["imported_description", "imported_payee"].first { columns.contains($0) }
-            let reconciledColumn = ["reconciled"].first { columns.contains($0) }
-            let isParentColumn = columns.contains("is_parent") ? "is_parent" : (columns.contains("isParent") ? "isParent" : nil)
-            let isChildColumn = columns.contains("is_child") ? "is_child" : (columns.contains("isChild") ? "isChild" : nil)
-            let parentColumn = columns.contains("parent_id") ? "parent_id" : nil
+            let financialIDSelect = financialIDColumn.map { "t.\($0)" } ?? "NULL"
+            let importedPayeeSelect = importedPayeeColumn.map { "t.\($0)" } ?? "NULL"
 
             let sql = """
-                SELECT id, \(financialIDColumn ?? "NULL") AS financial_id, date, amount,
-                       \(payeeColumn) AS payee, category, \(columns.contains("notes") ? "notes" : "NULL") AS notes,
-                       \(columns.contains("cleared") ? "cleared" : "NULL") AS cleared,
-                       \(reconciledColumn ?? "NULL") AS reconciled,
-                       \(importedPayeeColumn ?? "NULL") AS imported_payee,
-                       \(isParentColumn ?? "NULL") AS is_parent,
-                       \(isChildColumn ?? "NULL") AS is_child,
-                       \(parentColumn ?? "NULL") AS parent_id
-                FROM transactions
-                WHERE acct = ? AND date BETWEEN \(window.lowerBound) AND \(window.upperBound)
-                  AND \(predicateForLiveRows(columns: columns))
+                SELECT t.id AS id,
+                       \(financialIDSelect) AS financial_id,
+                       \(split.qualifiedDate) AS date,
+                       \(split.qualifiedAmount) AS amount,
+                       \(split.qualifiedPayee) AS payee,
+                       \(split.qualifiedCategory) AS category,
+                       \(split.qualifiedNotes) AS notes,
+                       \(split.qualifiedCleared) AS cleared,
+                       \(split.qualifiedReconciled) AS reconciled,
+                       \(importedPayeeSelect) AS imported_payee,
+                       \(split.qualifiedIsParent) AS is_parent,
+                       \(split.qualifiedIsChild) AS is_child,
+                       \(split.effectiveParentID) AS parent_id
+                FROM transactions t
+                \(split.parentJoin())
+                WHERE \(split.qualifiedAccount) = ?
+                  AND \(split.qualifiedDate) BETWEEN ? AND ?
+                  AND \(split.liveEffectivePredicate())
                 """
-            return try Row.fetchAll(db, sql: sql, arguments: [accountID]).compactMap { row in
+            return try Row.fetchAll(
+                db,
+                sql: sql,
+                arguments: [accountID, window.lowerBound, window.upperBound]
+            ).compactMap { row in
                 guard let id: String = row["id"],
                       let day: Int = row["date"] else {
                     return nil
@@ -244,14 +253,14 @@ extension BudgetDatabase {
                     dayID: String(day),
                     amountMinorUnits: row["amount"] as Int? ?? 0,
                     payeeID: row["payee"],
-                    categoryID: row["category"],
+                    categoryID: isParent ? nil : row["category"],
                     notes: row["notes"],
                     cleared: (row["cleared"] as Int? ?? 0) != 0,
                     reconciled: (row["reconciled"] as Int? ?? 0) != 0,
                     importedPayee: row["imported_payee"],
                     isParent: isParent,
                     isChild: isChild,
-                    parentID: row["parent_id"]
+                    parentID: isChild ? row["parent_id"] : nil
                 )
             }
         }

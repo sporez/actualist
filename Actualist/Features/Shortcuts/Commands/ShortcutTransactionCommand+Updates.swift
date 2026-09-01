@@ -16,7 +16,9 @@ extension ShortcutTransactionCommand {
     ) async throws -> TransactionEntity {
         return try await session.withExclusiveWrite { prepared in
             let original = try await session.actualTransaction(id: transactionID)
-            try rejectSplitMutation(original)
+            if isSplitParent(original) {
+                throw ShortcutsError.unsupportedSplit
+            }
             _ = try await prepared.store.categorizeTransactionAndRefresh(
                 original,
                 categoryID: categoryID,
@@ -143,7 +145,7 @@ extension ShortcutTransactionCommand {
         _ input: UpdateInput,
         original: ActualTransaction
     ) throws -> TransactionDraft {
-        guard original.subtransactions.count >= 2 else {
+        guard !original.subtransactions.isEmpty else {
             throw ShortcutsError.unsupportedSplit
         }
         if input.amountMinorUnits != nil
@@ -171,7 +173,9 @@ extension ShortcutTransactionCommand {
                     id: child.id,
                     categoryID: child.category,
                     categoryName: nil,
-                    amountMinorUnits: child.amount ?? 0
+                    amountMinorUnits: child.amount ?? 0,
+                    payeeID: .value(child.payee),
+                    notes: .value(child.notes)
                 )
             }
         )
@@ -203,14 +207,7 @@ extension ShortcutTransactionCommand {
         }
     }
 
-    private static func rejectSplitMutation(_ transaction: ActualTransaction) throws {
-        try rejectSplitChild(transaction)
-        if isSplitParent(transaction) {
-            throw ShortcutsError.unsupportedSplit
-        }
-    }
-
     private static func isSplitParent(_ transaction: ActualTransaction) -> Bool {
-        transaction.isParent || transaction.subtransactions.count >= 2
+        transaction.isParent || !transaction.subtransactions.isEmpty
     }
 }

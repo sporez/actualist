@@ -174,11 +174,15 @@ enum BankSyncReconciliation {
             }
 
             let existingNotes = row.notes?.isEmpty == false ? row.notes : nil
+            // Split parents have a null category in the effective view. Filling
+            // a blank parent category from the download would persist a category
+            // on the parent, which Actual never does.
+            let categoryID = row.isParent ? nil : (row.categoryID ?? candidate.categoryID)
             let update = MatchedUpdate(
                 existingID: row.id,
                 financialID: candidate.financialID,
                 payeeID: row.payeeID ?? candidate.payeeID,
-                categoryID: row.categoryID ?? candidate.categoryID,
+                categoryID: categoryID,
                 importedPayee: candidate.importedPayee,
                 notes: existingNotes ?? candidate.notes,
                 cleared: row.cleared || candidate.cleared,

@@ -140,6 +140,47 @@ struct WalletTransactionMappingTests {
         )
     }
 
+    @Test func applyingImportPreviewKeepsExactRuleSplitsIncludingOneChild() {
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: Date(timeIntervalSince1970: 1_783_497_600),
+            amountMinorUnits: -1_000,
+            payeeID: nil,
+            payeeName: "Split Cafe",
+            categoryID: "dining",
+            notes: "imported",
+            cleared: true,
+            isTransfer: false,
+            importedPayee: "SPLIT CAFE",
+            importedID: "fin-1"
+        )
+        let splits = [
+            TransactionSplitDraft(
+                id: nil,
+                categoryID: "groceries",
+                categoryName: "Groceries",
+                amountMinorUnits: -1_000,
+                payeeID: .value(nil),
+                notes: .value("child note"),
+                sortOrder: .value(-1)
+            )
+        ]
+        let projected = WalletTransactionMapper.applyingImportPreview(
+            draft,
+            TransactionRulePreview(
+                categoryID: "groceries",
+                notes: "imported",
+                splits: splits
+            )
+        )
+
+        #expect(projected.categoryID == nil)
+        #expect(projected.isParent)
+        #expect(projected.splits == splits)
+        #expect(projected.importedID == "fin-1")
+        #expect(projected.importedPayee == "SPLIT CAFE")
+    }
+
     @Test func importSummaryUsesPluralization() {
         #expect(
             WalletTransactionImportResult(importedCount: 1, duplicateCount: 0).summaryText
