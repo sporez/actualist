@@ -4,11 +4,11 @@ import Testing
 
 @MainActor
 struct BudgetCurrencyPreferenceTests {
-    @Test func missingPreferencesTableDefaultsToUSD() async throws {
+    @Test func missingPreferencesTableUsesCurrencyNeutralDisplay() async throws {
         let fixtureURL = try LocalFirstActualStoreTests().makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let currency = try await database.fetchBudgetCurrency()
-        #expect(currency == .usd)
+        #expect(currency == .none)
     }
 
     @Test func readsYenAndHideFractionFromPreferences() async throws {
@@ -24,13 +24,13 @@ struct BudgetCurrencyPreferenceTests {
         #expect(currency.hideFraction)
     }
 
-    @Test func emptyCurrencyCodeDefaultsToUSD() async throws {
+    @Test func emptyCurrencyCodeUsesCurrencyNeutralDisplay() async throws {
         let fixtureURL = try LocalFirstActualStoreTests().makeSQLiteFixture(extraSQL: """
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
             INSERT INTO preferences VALUES ('defaultCurrencyCode', '');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        #expect(try await database.fetchBudgetCurrency() == .usd)
+        #expect(try await database.fetchBudgetCurrency() == .none)
     }
 
     @Test func templateEngineScalesYenGoalAmountsWithoutTimesOneHundred() throws {

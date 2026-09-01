@@ -11,15 +11,18 @@ struct BudgetCurrency: Hashable, Sendable {
     var decimalPlaces: Int
     var hideFraction: Bool
 
+    static let none = BudgetCurrency(code: "", decimalPlaces: 2, hideFraction: false)
     static let usd = BudgetCurrency(code: "USD", decimalPlaces: 2, hideFraction: false)
     static let jpy = BudgetCurrency(code: "JPY", decimalPlaces: 0, hideFraction: false)
     static let krw = BudgetCurrency(code: "KRW", decimalPlaces: 0, hideFraction: false)
 
-    /// Actual's bundled catalog only uses 0 or 2 decimal places (JPY / KRW
-    /// are 0). Unknown codes keep the ISO identifier and default to 2.
+    /// Actual's bundled catalog uses the empty code for currency-neutral display.
+    /// Known zero-decimal currencies use a scale of 1; unknown non-empty codes
+    /// keep their ISO identifier and default to 2 decimal places.
     static func catalog(code: String, hideFraction: Bool = false) -> BudgetCurrency {
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolved = trimmed.isEmpty ? usd.code : trimmed.uppercased()
+        let resolved = code
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
         let places = zeroDecimalCodes.contains(resolved) ? 0 : 2
         return BudgetCurrency(code: resolved, decimalPlaces: places, hideFraction: hideFraction)
     }
@@ -92,14 +95,22 @@ extension Money {
     }
 
     func formatted(using currency: BudgetCurrency) -> String {
-        decimalValue(using: currency).formatted(currency.displayFormat)
+        let amount = decimalValue(using: currency)
+        if currency.code.isEmpty {
+            return amount.formatted(currency.numberDisplayFormat)
+        }
+        return amount.formatted(currency.currencyDisplayFormat)
     }
 }
 
 private extension BudgetCurrency {
     static let zeroDecimalCodes: Set<String> = ["JPY", "KRW"]
 
-    var displayFormat: Decimal.FormatStyle.Currency {
+    var numberDisplayFormat: Decimal.FormatStyle {
+        .number.precision(.fractionLength(displayedFractionDigits...displayedFractionDigits))
+    }
+
+    var currencyDisplayFormat: Decimal.FormatStyle.Currency {
         .init(code: code).precision(.fractionLength(displayedFractionDigits...displayedFractionDigits))
     }
 }
