@@ -67,9 +67,16 @@ struct EntityNotesView: View {
 
     private var editorContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Note")
-                .font(ActualistTypography.rowLabel(for: density))
-                .foregroundStyle(ActualistTheme.secondaryText)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Note")
+                    .font(ActualistTypography.rowLabel(for: density))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+
+                Text(ActualNotePresentation.editorSyntaxHint)
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             TextEditor(text: Binding(
                 get: { viewModel.text },

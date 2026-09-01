@@ -122,9 +122,10 @@ struct AccountTransactionsSummaryView: View {
             ScrollView(.vertical) {
                 Text(note.attributedText)
                     .font(ActualistTypography.body(for: density))
-                    .tint(ActualistTheme.accent)
+                    .foregroundStyle(ActualistTheme.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
+                    .environment(\.openURL, OpenURLAction { _ in .discarded })
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(maxHeight: 112)

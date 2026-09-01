@@ -56,6 +56,9 @@ struct ActualNoteTarget: Hashable, Identifiable, Sendable {
 }
 
 struct ActualNotePresentation: Equatable, Sendable {
+    /// Shown above the notes editor. Keep in sync with the parser subset.
+    static let editorSyntaxHint = "Supports **bold**, *italic*, and `code`. Line breaks are kept."
+
     let attributedText: AttributedString
 
     init?(userBody: String?) {
@@ -67,13 +70,68 @@ struct ActualNotePresentation: Equatable, Sendable {
             return nil
         }
 
-        attributedText = (try? AttributedString(
-            markdown: source,
+        let displaySource = Self.displayMarkdownSource(from: source)
+        let parsed = try? AttributedString(
+            markdown: displaySource,
             options: .init(
-                interpretedSyntax: .full,
+                interpretedSyntax: .inlineOnlyPreservingWhitespace,
                 failurePolicy: .returnPartiallyParsedIfPossible
             )
-        )) ?? AttributedString(source)
+        )
+        attributedText = parsed.map(Self.removingLinks) ?? AttributedString(source)
+    }
+
+    private static func removingLinks(from markdown: AttributedString) -> AttributedString {
+        var output = AttributedString()
+        for run in markdown.runs {
+            var piece = AttributedString(String(markdown[run.range].characters))
+            if let intent = run.inlinePresentationIntent {
+                piece.inlinePresentationIntent = intent
+            }
+            output += piece
+        }
+        return output
+    }
+
+    /// Notes stay local-first display text: unwrap images, links, and autolinks
+    /// before Foundation parses Markdown so the result has no tappable URL.
+    static func displayMarkdownSource(from source: String) -> String {
+        var result = source
+        result = replacing(
+            pattern: #"!\[([^\]]*)\]\([^)]*\)"#,
+            in: result,
+            with: "$1"
+        )
+        result = replacing(
+            pattern: #"\[([^\]]*)\]\([^)]*\)"#,
+            in: result,
+            with: "$1"
+        )
+        result = replacing(
+            pattern: #"<((?:https?|mailto):[^>\s]+)>"#,
+            in: result,
+            with: "$1",
+            options: .caseInsensitive
+        )
+        return result
+    }
+
+    private static func replacing(
+        pattern: String,
+        in source: String,
+        with template: String,
+        options: NSRegularExpression.Options = []
+    ) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
+            return source
+        }
+        let range = NSRange(source.startIndex..., in: source)
+        return regex.stringByReplacingMatches(
+            in: source,
+            options: [],
+            range: range,
+            withTemplate: template
+        )
     }
 }
 

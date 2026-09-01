@@ -42,12 +42,49 @@ struct ActualNoteValueTests {
                 $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
             }
         )
+        #expect(presentation.attributedText.runs.allSatisfy { $0.link == nil })
+        #expect(ActualNotePresentation(userBody: " \n\t ") == nil)
+    }
+
+    @Test func markdownPresentationKeepsLineBreaksAndInlineEmphasis() throws {
+        let presentation = try #require(
+            ActualNotePresentation(userBody: "Keep **left**\nover *right*")
+        )
+
+        #expect(String(presentation.attributedText.characters) == "Keep left\nover right")
         #expect(
             presentation.attributedText.runs.contains {
-                $0.link == URL(string: "https://example.com")
+                $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
             }
         )
-        #expect(ActualNotePresentation(userBody: " \n\t ") == nil)
+        #expect(
+            presentation.attributedText.runs.contains {
+                $0.inlinePresentationIntent?.contains(.emphasized) == true
+            }
+        )
+    }
+
+    @Test func markdownPresentationDoesNotAttachTappableLinksOrImages() throws {
+        let presentation = try #require(
+            ActualNotePresentation(
+                userBody: "See [policy](https://example.com), ![photo](https://example.com/a.png), <https://example.com/docs>, and https://example.com/plain."
+            )
+        )
+
+        #expect(
+            String(presentation.attributedText.characters)
+                == "See policy, photo, https://example.com/docs, and https://example.com/plain."
+        )
+        #expect(presentation.attributedText.runs.allSatisfy { $0.link == nil })
+        #expect(
+            ActualNotePresentation.displayMarkdownSource(
+                from: "Read [the guide](https://example.com)"
+            ) == "Read the guide"
+        )
+        #expect(
+            ActualNotePresentation.editorSyntaxHint
+                == "Supports **bold**, *italic*, and `code`. Line breaks are kept."
+        )
     }
 
     @Test func proseMentionsRemainVisibleAndWhitespaceOnlyClearsUserBody() {
