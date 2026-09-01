@@ -28,6 +28,21 @@ struct BudgetCurrencyTests {
         #expect(!BudgetCurrency.catalog(code: "JPY", hideFraction: false).hideFraction)
     }
 
+    @Test func neutralCurrencyAcceptsSameScaleCodesOnly() {
+        #expect(BudgetCurrency.none.accepts("USD"))
+        #expect(BudgetCurrency.none.accepts("cad"))
+        #expect(BudgetCurrency.none.accepts("GBP"))
+        #expect(!BudgetCurrency.none.accepts("JPY"))
+        #expect(!BudgetCurrency.none.accepts("KRW"))
+        #expect(!BudgetCurrency.none.accepts(""))
+        #expect(!BudgetCurrency.none.accepts("  "))
+        #expect(BudgetCurrency.usd.accepts("usd"))
+        #expect(!BudgetCurrency.usd.accepts("CAD"))
+        #expect(!BudgetCurrency.usd.accepts("JPY"))
+        #expect(!BudgetCurrency.jpy.accepts("USD"))
+        #expect(BudgetCurrency.jpy.accepts("jpy"))
+    }
+
     @Test func convertsTwoDecimalDisplayAmounts() {
         #expect(BudgetCurrency.usd.minorUnits(fromDisplay: Decimal(string: "12.34")!) == 1_234)
         #expect(BudgetCurrency.usd.minorUnits(fromDisplay: Decimal(string: "-12.34")!) == -1_234)
