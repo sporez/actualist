@@ -6,7 +6,7 @@ extension BudgetDatabase {
     func updateTransactionMessages(
         transactionID: String,
         draft: TransactionDraft,
-        payeeID: String,
+        payeeID: String?,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -42,6 +42,9 @@ extension BudgetDatabase {
                     db: db,
                     builder: &builder
                 )
+            }
+            guard let payeeID else {
+                throw LocalFirstError.invalidLocalWrite("missing payee")
             }
             let dateValue = try Self.actualDateValue(draft.date)
             let isTransferDraft = draft.isTransfer

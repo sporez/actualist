@@ -203,12 +203,10 @@ extension TransactionEditorViewModelTests {
 
     @Test func selectingTransferPayeeClearsCategoryAndMakesCategoryReadOnly() {
         let model = TransactionEditorViewModel()
-        model.selectCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
-        model.beginSplitSelection()
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
-        model.setSplitAmount(rowID: "groceries", value: "500")
-        model.setSplitAmount(rowID: "household", value: "734")
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "groceries", categoryID: "groceries", amount: -500),
+            Self.splitRow(id: "household", categoryID: "household", amount: -734)
+        ])
         let transferPayee = ActualPayee(
             id: "transfer-checking",
             name: "Ally Checking",
@@ -372,12 +370,10 @@ extension TransactionEditorViewModelTests {
             closed: false
         )
         model.accounts = [tracking]
-        model.selectCategory(TransactionEditorCategoryOption(id: "investments", title: "Investments", amount: nil, valueText: nil))
-        model.beginSplitSelection()
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "fees", title: "Fees", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
-        model.setSplitAmount(rowID: "investments", value: "617")
-        model.setSplitAmount(rowID: "fees", value: "617")
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "investments", categoryID: "investments", amount: -617),
+            Self.splitRow(id: "fees", categoryID: "fees", amount: -617)
+        ])
 
         model.selectAccount(tracking)
 
@@ -401,10 +397,7 @@ extension TransactionEditorViewModelTests {
         ]
         model.selectedPayeeID = "transfer-checking"
 
-        model.selectCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
-        model.beginSplitSelection()
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
+        model.beginSplit()
 
         #expect(model.selectedCategoryID == nil)
         #expect(model.splitRows.isEmpty)
@@ -440,12 +433,10 @@ extension TransactionEditorViewModelTests {
         ]
         model.selectedPayeeID = "transfer-checking"
         model.payeeName = "Ally Checking"
-        model.selectCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
-        model.beginSplitSelection()
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
-        model.setSplitAmount(rowID: "groceries", value: "500")
-        model.setSplitAmount(rowID: "household", value: "734")
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "groceries", categoryID: "groceries", amount: -500),
+            Self.splitRow(id: "household", categoryID: "household", amount: -734)
+        ])
         let repository = RecordingTransactionRepository()
 
         #expect(await model.submit(budgetID: "budget", repository: repository))
@@ -499,45 +490,35 @@ extension TransactionEditorViewModelTests {
         #expect(model.selectedCategoryName == "Groceries")
     }
 
-    @Test func beginningSplitSelectionSeedsExistingSingleCategory() {
+    @Test func beginningSplitSeedsExistingSingleCategoryOnBothChildren() {
         let model = TransactionEditorViewModel()
-        let services = TransactionEditorCategoryOption(
+        model.selectCategory(TransactionEditorCategoryOption(
             id: "services",
             title: "Services/Software",
             amount: nil,
             valueText: nil
-        )
-        let phone = TransactionEditorCategoryOption(
-            id: "phone",
-            title: "iPhone",
-            amount: nil,
-            valueText: nil
-        )
-
-        model.selectCategory(services)
-        model.beginSplitSelection()
-        model.toggleSplitCategory(phone)
-        model.finalizeSplitSelection()
+        ))
+        model.beginSplit()
 
         #expect(model.selectedCategoryID == nil)
-        #expect(model.splitRows.map(\.categoryID) == ["services", "phone"])
-        #expect(model.selectedCategoryName == "Services/Software, iPhone")
+        #expect(model.splitRows.map(\.categoryID) == ["services", "services"])
+        #expect(model.selectedCategoryName == "Split")
     }
 
     @Test func formatsSplitAmountsAndLabelsOverage() {
         let model = TransactionEditorViewModel()
         model.setAmountInput("1000")
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "services", title: "Services/Software", amount: nil, valueText: nil))
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "phone", title: "iPhone", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "services", categoryID: "services", amount: 0),
+            Self.splitRow(id: "phone", categoryID: "phone", amount: 0)
+        ])
 
         model.setSplitAmount(rowID: "services", value: "560")
         model.setSplitAmount(rowID: "phone", value: "500")
 
         #expect(model.formattedSplitAmount(rowID: "services") == "5.60")
         #expect(model.formattedSplitAmount(rowID: "phone") == "5.00")
-        #expect(model.splitRemainingCents == -60)
-        #expect(model.splitRemainingStatusText.contains("Over"))
+        #expect(model.splitRemainingStatusText.contains("over"))
         #expect(model.splitRemainingStatusText.contains("0.60"))
     }
 }

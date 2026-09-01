@@ -13,7 +13,7 @@ extension BudgetDatabase {
     func createSplitTransactionMessages(
         draft: TransactionDraft,
         parentTransactionID: String,
-        payeeID: String,
+        payeeID: String?,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try createSplitFamilyWrite(
@@ -27,7 +27,7 @@ extension BudgetDatabase {
     func createSplitFamilyWrite(
         draft: TransactionDraft,
         parentTransactionID: String,
-        payeeID: String,
+        payeeID: String?,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         guard !draft.accountID.isEmpty else {
@@ -69,7 +69,7 @@ extension BudgetDatabase {
     func splitFamilyUpdateMessages(
         transactionID: String,
         draft: TransactionDraft,
-        payeeID: String,
+        payeeID: String?,
         columns: TransactionRowColumns,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
@@ -84,7 +84,7 @@ extension BudgetDatabase {
             var child = current
             child.amount = draft.amountMinorUnits
             child.category = draft.categoryID
-            child.payee = payeeID
+            child.payee = payeeID ?? child.payee
             child.notes = draft.notes
             child.cleared = draft.cleared
             child.reconciled = draft.reconciled
@@ -121,7 +121,11 @@ extension BudgetDatabase {
             payeeID: payeeID,
             inheritFrom: oldRows.first(where: \.isParent) ?? current
         )
-        parent.payee = payeeID
+        if let payeeID {
+            parent.payee = payeeID
+        } else if converting {
+            parent.payee = nil
+        }
         parent.category = converting ? draft.categoryID : nil
         let family = materializeSplitFamily(
             parent: parent,
@@ -229,7 +233,7 @@ extension BudgetDatabase {
     func splitParentRecord(
         id: String,
         draft: TransactionDraft,
-        payeeID: String,
+        payeeID: String?,
         inheritFrom: SplitTransactionRecord?
     ) throws -> SplitTransactionRecord {
         let dateValue = try Self.actualDateValue(draft.date)

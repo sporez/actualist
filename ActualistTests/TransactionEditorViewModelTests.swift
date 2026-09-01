@@ -208,49 +208,39 @@ struct TransactionEditorViewModelTests {
         #expect(update.draft.categoryID == nil)
     }
 
-    @Test func splitSubmitBlocksMismatchThenAutoDistributesAndBuildsSplitDraft() async throws {
+    @Test func splitSubmitAllowsMismatchThenAutoDistributesAndBuildsSplitDraft() async throws {
         let model = configuredModel()
         let repository = RecordingTransactionRepository()
-        let groceries = TransactionEditorCategoryOption(
-            id: "groceries",
-            title: "Groceries",
-            amount: nil,
-            valueText: nil
-        )
-        let household = TransactionEditorCategoryOption(
-            id: "household",
-            title: "Household",
-            amount: nil,
-            valueText: nil
-        )
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "groceries", categoryID: "groceries", amount: -500),
+            Self.splitRow(id: "household", categoryID: "household", amount: -600)
+        ])
 
-        model.toggleSplitCategory(groceries)
-        model.toggleSplitCategory(household)
-        model.finalizeSplitSelection()
-        model.setSplitAmount(rowID: "groceries", value: "500")
-        model.setSplitAmount(rowID: "household", value: "600")
-
-        #expect(await model.submit(budgetID: "budget", repository: repository) == false)
-        #expect(model.pendingSplitMismatch == TransactionSplitMismatch(transactionTotal: 1234, splitTotal: 1100))
+        #expect(await model.submit(budgetID: "budget", repository: repository))
+        #expect(model.pendingSplitMismatch == TransactionSplitMismatch(transactionTotal: -1234, splitTotal: -1100))
+        let mismatched = try await repository.onlyDraft()
+        #expect(mismatched.splits.map(\.amountMinorUnits) == [-500, -600])
 
         model.autoDistributeSplitMismatch()
 
-        #expect(model.splitTotalCents == 1234)
-        #expect(await model.submit(budgetID: "budget", repository: repository))
+        #expect(model.splitState.splitTotalCents == -1234)
+        let balancedRepository = RecordingTransactionRepository()
+        #expect(await model.submit(budgetID: "budget", repository: balancedRepository))
 
-        let draft = try await repository.onlyDraft()
+        let draft = try await balancedRepository.onlyDraft()
         #expect(draft.categoryID == nil)
+        #expect(draft.isParent)
         #expect(draft.splits.map(\.categoryID) == ["groceries", "household"])
         #expect(draft.splits.map(\.amountMinorUnits) == [-500, -734])
+        #expect(draft.splits.map(\.payeeID) == [.value(nil), .value(nil)])
     }
 
     @Test func splitUpdateTotalUsesSplitSumAsTransactionAmount() {
         let model = configuredModel()
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
-        model.setSplitAmount(rowID: "groceries", value: "2500")
-        model.setSplitAmount(rowID: "household", value: "1250")
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "groceries", categoryID: "groceries", amount: -2500),
+            Self.splitRow(id: "household", categoryID: "household", amount: -1250)
+        ])
 
         model.updateTotalFromSplits()
 
@@ -260,11 +250,12 @@ struct TransactionEditorViewModelTests {
 
     @Test func splitRowRemovalCollapsesTwoCategoriesToRemainingCategory() {
         let model = configuredModel()
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "groceries", categoryID: "groceries", categoryName: "Groceries", amount: -500),
+            Self.splitRow(id: "household", categoryID: "household", categoryName: "Household", amount: -734)
+        ])
 
-        #expect(model.canRemoveSplitRow)
+        #expect(model.splitState.canRemoveSplitRow)
 
         model.removeSplit(rowID: "groceries")
 
@@ -276,17 +267,73 @@ struct TransactionEditorViewModelTests {
 
     @Test func splitRowRemovalKeepsRemainingSplitWhenMoreThanTwoCategories() {
         let model = configuredModel()
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "groceries", title: "Groceries", amount: nil, valueText: nil))
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "household", title: "Household", amount: nil, valueText: nil))
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "groceries", categoryID: "groceries", amount: -400),
+            Self.splitRow(id: "household", categoryID: "household", amount: -400),
+            Self.splitRow(id: "utilities", categoryID: "utilities", amount: -434)
+        ])
 
-        model.toggleSplitCategory(TransactionEditorCategoryOption(id: "utilities", title: "Utilities", amount: nil, valueText: nil))
-        model.finalizeSplitSelection()
-
-        #expect(model.canRemoveSplitRow)
+        #expect(model.splitState.canRemoveSplitRow)
 
         model.removeSplit(rowID: "utilities")
 
         #expect(model.splitRows.map(\.categoryID) == ["groceries", "household"])
+    }
+
+    @Test func loadingSplitDoesNotFillParentPayeeFromImportedSource() {
+        let model = TransactionEditorViewModel(
+            editing: ActualTransaction(
+                id: "parent",
+                account: "checking",
+                date: "2026-06-14",
+                amount: -5000,
+                payee: nil,
+                payeeName: nil,
+                importedPayee: "imported-source",
+                category: nil,
+                notes: nil,
+                cleared: .bool(false),
+                subtransactions: [
+                    ActualTransaction(
+                        id: "child-1",
+                        account: "checking",
+                        date: "2026-06-14",
+                        amount: -2500,
+                        payee: nil,
+                        payeeName: nil,
+                        importedPayee: nil,
+                        category: nil,
+                        notes: "no payee child",
+                        cleared: .bool(false),
+                        isChild: true,
+                        parentID: "parent"
+                    ),
+                    ActualTransaction(
+                        id: "child-2",
+                        account: "checking",
+                        date: "2026-06-14",
+                        amount: 0,
+                        payee: "store",
+                        payeeName: "Corner Store",
+                        importedPayee: nil,
+                        category: "groceries",
+                        notes: nil,
+                        cleared: .bool(false),
+                        isChild: true,
+                        parentID: "parent"
+                    )
+                ],
+                isParent: true,
+                error: SplitTransactionError(difference: -2500)
+            )
+        )
+
+        #expect(model.isSplit)
+        #expect(model.payeeName.isEmpty)
+        #expect(model.splitRows.map(\.transactionID) == ["child-1", "child-2"])
+        #expect(model.splitRows.map(\.amountMinorUnits) == [-2500, 0])
+        #expect(model.splitRows.map(\.notes) == ["no payee child", nil])
+        #expect(model.canSave)
     }
 
     @Test func editingExistingSplitPrefillsChildRows() {
@@ -520,12 +567,12 @@ struct TransactionEditorViewModelTests {
         while await !repository.isRulePreviewPaused(payeeName: "Target") {
             await Task.yield()
         }
-        model.beginSplitSelection()
+        model.beginSplit()
         await repository.resumeRulePreview(payeeName: "Target")
         await preview.value
 
-        #expect(model.isSelectingSplit)
-        #expect(model.selectedCategoryID == "groceries")
+        #expect(model.isSplit)
+        #expect(model.selectedCategoryID == nil)
         #expect(model.notes == "  weekly groceries  ")
     }
 

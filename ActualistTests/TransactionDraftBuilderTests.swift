@@ -155,6 +155,23 @@ struct TransactionDraftBuilderTests {
         #expect(draft.splits.map(\.amountMinorUnits) == [-500, -734])
     }
 
+    @Test func splitDraftAllowsEmptyParentPayee() throws {
+        let splits = [
+            TransactionSplitDraft(id: "a", categoryID: nil, categoryName: nil, amountMinorUnits: -40),
+            TransactionSplitDraft(id: "b", categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -60)
+        ]
+        let draft = try #require(TransactionDraftBuilder.makeSubmissionDraft(from: baseSubmissionInput(
+            payeeID: nil,
+            payeeName: "   ",
+            isSplit: true,
+            splitDrafts: splits
+        )))
+        #expect(draft.payeeID == nil)
+        #expect(draft.payeeName.isEmpty)
+        #expect(draft.isParent)
+        #expect(draft.splits.map(\.categoryID) == [nil, "groceries"])
+    }
+
     @Test func splitDraftIsParentSetWhenOriginalWasParentEvenWhenNotSplit() throws {
         let draft = try #require(TransactionDraftBuilder.makeSubmissionDraft(from: baseSubmissionInput(
             originalIsParent: true

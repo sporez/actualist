@@ -394,8 +394,7 @@ struct AccountTransactionsView: View {
         } label: {
             TransactionRow(
                 transaction: row.transaction,
-                payeeName: row.payeeName,
-                categoryNames: row.categoryNames,
+                semantics: row.semantics,
                 accountName: row.accountName,
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                 highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,

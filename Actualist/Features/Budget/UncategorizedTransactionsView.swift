@@ -241,8 +241,7 @@ struct UncategorizedTransactionsView: View {
             ZStack {
                 TransactionRow(
                     transaction: transaction,
-                    payeeName: displayPayeeName(for: transaction),
-                    categoryNames: displayCategoryNames(for: transaction),
+                    semantics: displaySemantics(for: transaction),
                     isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                     highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
                     showsBottomSeparator: showsBottomSeparator
@@ -285,20 +284,11 @@ struct UncategorizedTransactionsView: View {
         .animation(.snappy, value: viewModel.isSelecting)
     }
 
-    private func displayPayeeName(for transaction: ActualTransaction) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.payeeName(for: transaction)
-        }
-
-        return PrivacyDisplay.name(for: .payee, seed: "uncategorized-payee-\(transaction.rowID)")
-    }
-
-    private func displayCategoryNames(for transaction: ActualTransaction) -> [String] {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.categoryNames(for: transaction)
-        }
-
-        return [PrivacyDisplay.name(for: .category, seed: "uncategorized-category-\(transaction.rowID)")]
+    private func displaySemantics(for transaction: ActualTransaction) -> TransactionRowSemantics {
+        viewModel.rowSemantics(
+            for: transaction,
+            privacyEnabled: appState.settings.randomizedDisplayValuesEnabled
+        )
     }
 }
 

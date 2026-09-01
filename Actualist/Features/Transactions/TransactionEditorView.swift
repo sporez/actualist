@@ -7,6 +7,8 @@ struct TransactionEditorView: View {
     @State private var viewModel: TransactionEditorViewModel
     @State private var isPayeePickerPresented = false
     @State private var isCategoryPickerPresented = false
+    @State private var childPayeePickerRowID: String?
+    @State private var childCategoryPickerRowID: String?
     @FocusState private var isAmountFocused: Bool
 
     let prefilledAccount: ActualAccount?
@@ -90,6 +92,14 @@ struct TransactionEditorView: View {
             TransactionCategorySelectionView(viewModel: viewModel)
                 .appSwitcherPrivacyProtected()
         }
+        .sheet(item: childPayeePickerItem) { row in
+            childPayeePicker(for: row)
+                .appSwitcherPrivacyProtected()
+        }
+        .sheet(item: childCategoryPickerItem) { row in
+            childCategoryPicker(for: row)
+                .appSwitcherPrivacyProtected()
+        }
     }
 
     private var amountHeader: some View {
@@ -141,15 +151,24 @@ struct TransactionEditorView: View {
 
             Divider().overlay(ActualistTheme.separator).padding(.leading, density.iconSize + density.rowHorizontalPadding)
 
-            editorButtonRow(
-                title: "Category",
-                systemImage: "tray.full.fill",
-                value: viewModel.selectedCategoryName,
-                isEnabled: !viewModel.isCategoryReadOnly
-            ) {
-                Task {
-                    await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
-                    isCategoryPickerPresented = true
+            if viewModel.isSplit {
+                editorButtonRow(
+                    title: "Category",
+                    systemImage: "tray.full.fill",
+                    value: "Split",
+                    isEnabled: false
+                ) {}
+            } else {
+                editorButtonRow(
+                    title: "Category",
+                    systemImage: "tray.full.fill",
+                    value: viewModel.selectedCategoryName,
+                    isEnabled: !viewModel.isCategoryReadOnly
+                ) {
+                    Task {
+                        await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
+                        isCategoryPickerPresented = true
+                    }
                 }
             }
 
@@ -236,72 +255,28 @@ struct TransactionEditorView: View {
     @ViewBuilder
     private var splitDetails: some View {
         if viewModel.isSplit {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Categories")
-                        .font(ActualistTypography.body(for: density))
-                        .foregroundStyle(ActualistTheme.secondaryText)
-
-                    Spacer()
-
-                    Text(viewModel.splitRemainingStatusText)
-                        .font(ActualistTypography.rowBadge(for: density))
-                        .foregroundStyle(viewModel.splitRemainingCents == 0 ? ActualistTheme.secondaryText : ActualistTheme.danger)
-                }
-
-                ForEach(viewModel.splitRows) { row in
-                    HStack(spacing: 12) {
-                        Text(row.categoryName)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-
-                        Spacer()
-
-                        TextField("0.00", text: splitAmountBinding(for: row.id))
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                            .font(ActualistTypography.rowValue(for: density))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                            .frame(width: 92)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(ActualistTheme.control, in: Capsule())
-
-                        if viewModel.canRemoveSplitRow {
-                            Button {
-                                viewModel.removeSplit(rowID: row.id)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundStyle(ActualistTheme.danger)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Remove split category")
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 13)
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
-
-                Button {
+            TransactionSplitEditorView(
+                viewModel: viewModel,
+                onPickPayee: { childPayeePickerRowID = $0 },
+                onPickCategory: { rowID in
                     Task {
                         await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
-                        isCategoryPickerPresented = true
+                        childCategoryPickerRowID = rowID
                     }
-                } label: {
-                    Label("Add a Category", systemImage: "plus.circle.fill")
-                        .font(ActualistTypography.control(for: density))
-                        .foregroundStyle(ActualistTheme.accent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
                 }
-                .buttonStyle(.plain)
-                .background(ActualistTheme.control, in: Capsule())
+            )
+        } else if !viewModel.isCategoryReadOnly {
+            Button {
+                viewModel.beginSplit()
+            } label: {
+                Label("Split", systemImage: "square.split.1x2.fill")
+                    .font(ActualistTypography.control(for: density))
+                    .foregroundStyle(ActualistTheme.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
             }
-            .padding(18)
-            .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .buttonStyle(.plain)
+            .background(ActualistTheme.control, in: Capsule())
         }
     }
 
@@ -341,27 +316,6 @@ struct TransactionEditorView: View {
                     ? "A matching rule wants to delete this transaction. Delete it, or keep the existing row and leave it unsaved."
                     : "A matching rule would delete this transaction, so it will not be saved."
             )
-        }
-        .confirmationDialog(
-            "Something Doesn't Add Up",
-            isPresented: splitMismatchBinding,
-            titleVisibility: .visible
-        ) {
-            Button("Auto-Distribute") {
-                viewModel.autoDistributeSplitMismatch()
-                Task { await submitAndDismissIfSaved() }
-            }
-            Button("Update Total") {
-                viewModel.updateTotalFromSplits()
-                Task { await submitAndDismissIfSaved() }
-            }
-            Button("Adjust Manually", role: .cancel) {
-                viewModel.adjustSplitsManually()
-            }
-        } message: {
-            if let mismatch = viewModel.pendingSplitMismatch {
-                Text("The total is \(viewModel.currency.formatted(mismatch.transactionTotal)), but the splits add up to \(viewModel.currency.formatted(mismatch.splitTotal)). How would you like to handle the unassigned \(viewModel.currency.formatted(Int(clamping: mismatch.difference.magnitude)))?")
-            }
         }
         .padding(.top, 4)
     }
@@ -404,22 +358,83 @@ struct TransactionEditorView: View {
         }
     }
 
-    private var splitMismatchBinding: Binding<Bool> {
-        Binding {
-            viewModel.pendingSplitMismatch != nil
-        } set: { isPresented in
-            if !isPresented {
-                viewModel.adjustSplitsManually()
-            }
-        }
+    private var childPayeePickerItem: Binding<TransactionSplitEditorRow?> {
+        Binding(
+            get: { viewModel.splitRows.first { $0.id == childPayeePickerRowID } },
+            set: { childPayeePickerRowID = $0?.id }
+        )
     }
 
-    private func splitAmountBinding(for rowID: String) -> Binding<String> {
-        Binding {
-            viewModel.formattedSplitAmount(rowID: rowID)
-        } set: { value in
-            viewModel.setSplitAmount(rowID: rowID, value: value)
-        }
+    private var childCategoryPickerItem: Binding<TransactionSplitEditorRow?> {
+        Binding(
+            get: { viewModel.splitRows.first { $0.id == childCategoryPickerRowID } },
+            set: { childCategoryPickerRowID = $0?.id }
+        )
+    }
+
+    private func childPayeePicker(for row: TransactionSplitEditorRow) -> some View {
+        PayeePickerView(
+            title: "Payee",
+            items: viewModel.payeeSections.flatMap { section in
+                section.options.map { option in
+                    PayeePickerItem(
+                        id: option.id,
+                        title: option.title,
+                        isTransfer: option.isTransfer,
+                        searchAliases: [option.payee.name, option.transferAccountName].compactMap { $0 }
+                    )
+                }
+            },
+            selectedIDs: Set(row.payeeID.map { [$0] } ?? []),
+            allowsMultipleSelection: false,
+            isLoading: viewModel.isLoading,
+            searchPrompt: "Search or enter custom payee",
+            onSelect: { id in
+                guard let payee = viewModel.payees.first(where: { $0.id == id }) else { return }
+                viewModel.splitState.setPayee(
+                    id: row.id,
+                    payeeID: payee.id,
+                    name: viewModel.payeeSections.flatMap(\.options).first(where: { $0.id == payee.id })?.title
+                        ?? payee.name,
+                    isTransfer: payee.transferAccount != nil
+                )
+                childPayeePickerRowID = nil
+            },
+            onCustomSelect: { name in
+                viewModel.splitState.setPayee(
+                    id: row.id,
+                    payeeID: nil,
+                    name: name,
+                    isTransfer: false
+                )
+                childPayeePickerRowID = nil
+            }
+        )
+    }
+
+    private func childCategoryPicker(for row: TransactionSplitEditorRow) -> some View {
+        TransactionCategorySelectionView(
+            categoryGroups: viewModel.categoryGroups,
+            selectedCategoryID: row.categoryID,
+            isLoading: viewModel.isLoadingCategoryBalances,
+            showsUncategorizedOption: true,
+            onSelectCategory: { option in
+                viewModel.splitState.setCategory(
+                    id: row.id,
+                    categoryID: option.id,
+                    name: option.title
+                )
+                childCategoryPickerRowID = nil
+            },
+            onClearCategory: {
+                viewModel.splitState.setCategory(
+                    id: row.id,
+                    categoryID: nil,
+                    name: nil
+                )
+                childCategoryPickerRowID = nil
+            }
+        )
     }
 
     private func editorButtonRow(

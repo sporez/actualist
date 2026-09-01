@@ -2,12 +2,13 @@ import Foundation
 
 struct AccountTransactionRowPresentation: Identifiable, Hashable {
     let transaction: ActualTransaction
-    let payeeName: String
-    let categoryNames: [String]
+    let semantics: TransactionRowSemantics
     let accountName: String?
     let isNew: Bool
 
     var id: String { transaction.rowID }
+    var payeeName: String { semantics.payeeText }
+    var categoryNames: [String] { [semantics.categoryText] }
 }
 
 struct AccountTransactionDateGroupPresentation: Identifiable, Hashable {
@@ -72,9 +73,15 @@ struct AccountTransactionFeedProjection {
     }
 
     func editorPresentation(for transaction: ActualTransaction) -> TransactionEditorPresentation {
-        .edit(
+        let rawPayeeName: String
+        if transaction.isParent {
+            rawPayeeName = transaction.payeeName ?? ""
+        } else {
+            rawPayeeName = payeeName(for: transaction)
+        }
+        return .edit(
             transaction,
-            payeeName: payeeName(for: transaction),
+            payeeName: rawPayeeName,
             categoryName: categoryNames(for: transaction).first ?? "Uncategorized"
         )
     }
@@ -107,12 +114,11 @@ struct AccountTransactionFeedProjection {
     private func rowPresentation(_ transaction: ActualTransaction) -> AccountTransactionRowPresentation {
         AccountTransactionRowPresentation(
             transaction: transaction,
-            payeeName: privacyModeEnabled
-                ? PrivacyDisplay.name(for: .payee, seed: "payee-\(transaction.rowID)")
-                : payeeName(for: transaction),
-            categoryNames: privacyModeEnabled
-                ? privateCategoryNames(for: transaction)
-                : categoryNames(for: transaction),
+            semantics: TransactionRowSemantics.project(
+                transaction,
+                lookup: lookup,
+                privacyEnabled: privacyModeEnabled
+            ),
             accountName: privacyModeEnabled && scope.showsAccountNames
                 ? PrivacyDisplay.name(for: .account, seed: transaction.account)
                 : accountName(for: transaction),
@@ -120,21 +126,22 @@ struct AccountTransactionFeedProjection {
         )
     }
 
-    private func payeeName(for transaction: ActualTransaction) -> String {
-        TransactionPayeePresentation.name(
-            for: transaction,
-            payeeNames: activeLoaded?.payeeNames ?? [:]
-        )
-    }
-
-    private func categoryNames(for transaction: ActualTransaction) -> [String] {
-        TransactionCategoryPresentation.names(
-            for: transaction,
+    private var lookup: TransactionRowLookup {
+        TransactionRowLookup(
+            payeeNames: activeLoaded?.payeeNames ?? [:],
             categoryNames: activeLoaded?.categoryNames ?? [:],
             transferPayeeIDs: activeLoaded?.transferPayeeIDs ?? [],
             transferAccountIDsByPayeeID: activeLoaded?.transferAccountIDsByPayeeID ?? [:],
             offBudgetAccountIDs: activeLoaded?.offBudgetAccountIDs ?? []
         )
+    }
+
+    private func payeeName(for transaction: ActualTransaction) -> String {
+        TransactionRowSemantics.project(transaction, lookup: lookup).payeeText
+    }
+
+    private func categoryNames(for transaction: ActualTransaction) -> [String] {
+        [TransactionRowSemantics.project(transaction, lookup: lookup).categoryText]
     }
 
     private func accountName(for transaction: ActualTransaction) -> String? {
@@ -193,12 +200,4 @@ struct AccountTransactionFeedProjection {
         return .positive
     }
 
-    private func privateCategoryNames(for transaction: ActualTransaction) -> [String] {
-        if !transaction.subtransactions.isEmpty {
-            return transaction.subtransactions.map { child in
-                PrivacyDisplay.name(for: .category, seed: "category-\(child.rowID)")
-            }
-        }
-        return [PrivacyDisplay.name(for: .category, seed: "category-\(transaction.rowID)")]
-    }
 }

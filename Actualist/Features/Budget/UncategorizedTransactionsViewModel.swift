@@ -345,16 +345,27 @@ final class UncategorizedTransactionsViewModel {
     }
 
     func payeeName(for transaction: ActualTransaction) -> String {
-        TransactionPayeePresentation.name(for: transaction, payeeNames: payeeNames)
+        rowSemantics(for: transaction).payeeText
     }
 
     func categoryNames(for transaction: ActualTransaction) -> [String] {
-        TransactionCategoryPresentation.names(
-            for: transaction,
-            categoryNames: categoryNames,
-            transferPayeeIDs: transferPayeeIDs,
-            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: offBudgetAccountIDs
+        [rowSemantics(for: transaction).categoryText]
+    }
+
+    func rowSemantics(
+        for transaction: ActualTransaction,
+        privacyEnabled: Bool = false
+    ) -> TransactionRowSemantics {
+        TransactionRowSemantics.project(
+            transaction,
+            lookup: TransactionRowLookup(
+                payeeNames: payeeNames,
+                categoryNames: categoryNames,
+                transferPayeeIDs: transferPayeeIDs,
+                transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+                offBudgetAccountIDs: offBudgetAccountIDs
+            ),
+            privacyEnabled: privacyEnabled
         )
     }
 

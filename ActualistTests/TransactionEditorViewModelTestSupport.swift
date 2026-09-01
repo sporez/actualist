@@ -16,6 +16,27 @@ extension TransactionEditorViewModelTests {
         return model
     }
 
+    nonisolated static func splitRow(
+        id: String,
+        categoryID: String? = nil,
+        categoryName: String? = nil,
+        amount: Int,
+        payeeID: String? = nil,
+        notes: String? = nil
+    ) -> TransactionSplitEditorRow {
+        TransactionSplitEditorRow(
+            id: id,
+            transactionID: nil,
+            amountMinorUnits: amount,
+            categoryID: categoryID,
+            categoryName: categoryName ?? categoryID,
+            payeeID: payeeID,
+            payeeName: nil,
+            notes: notes,
+            isTransfer: false
+        )
+    }
+
     nonisolated static func date(_ value: String) -> Date {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)

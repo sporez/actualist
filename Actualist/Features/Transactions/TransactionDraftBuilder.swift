@@ -62,7 +62,11 @@ enum TransactionDraftBuilder {
         }
 
         let trimmedPayee = input.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard input.amountCents > 0, !trimmedPayee.isEmpty else {
+        let payeeRequired = !input.isSplit && !input.originalIsParent
+        guard input.amountCents > 0 else {
+            return nil
+        }
+        if payeeRequired && trimmedPayee.isEmpty {
             return nil
         }
 

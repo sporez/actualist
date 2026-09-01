@@ -8,7 +8,6 @@ struct TransactionCategorySelectionView: View {
     let providedSelectedCategoryID: String?
     let isLoadingProvidedCategories: Bool
     let showsUncategorizedOption: Bool
-    let allowsSplitSelection: Bool
     let onSelectCategory: ((TransactionEditorCategoryOption) -> Void)?
     let onClearCategory: (() -> Void)?
     @State private var searchText = ""
@@ -20,7 +19,6 @@ struct TransactionCategorySelectionView: View {
         providedSelectedCategoryID = nil
         isLoadingProvidedCategories = false
         showsUncategorizedOption = true
-        allowsSplitSelection = true
         onSelectCategory = nil
         onClearCategory = nil
     }
@@ -30,16 +28,16 @@ struct TransactionCategorySelectionView: View {
         selectedCategoryID: String? = nil,
         isLoading: Bool = false,
         showsUncategorizedOption: Bool = false,
-        onSelectCategory: @escaping (TransactionEditorCategoryOption) -> Void
+        onSelectCategory: @escaping (TransactionEditorCategoryOption) -> Void,
+        onClearCategory: (() -> Void)? = nil
     ) {
         viewModel = nil
         providedCategoryGroups = categoryGroups
         providedSelectedCategoryID = selectedCategoryID
         isLoadingProvidedCategories = isLoading
         self.showsUncategorizedOption = showsUncategorizedOption
-        allowsSplitSelection = false
         self.onSelectCategory = onSelectCategory
-        onClearCategory = nil
+        self.onClearCategory = onClearCategory
     }
 
     private var trimmedSearchText: String {
@@ -82,10 +80,6 @@ struct TransactionCategorySelectionView: View {
         viewModel?.isLoadingCategoryBalances ?? isLoadingProvidedCategories
     }
 
-    private var isSplitMode: Bool {
-        viewModel?.isSelectingSplit ?? false
-    }
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -95,7 +89,7 @@ struct TransactionCategorySelectionView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         searchField
 
-                        if trimmedSearchText.isEmpty && !isSplitMode && showsUncategorizedOption {
+                        if trimmedSearchText.isEmpty && showsUncategorizedOption {
                             uncategorizedButton
                         }
 
@@ -131,28 +125,11 @@ struct TransactionCategorySelectionView: View {
                     .actualistToolbarGlassButton()
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    if allowsSplitSelection, let viewModel {
-                        Button {
-                            if isSplitMode {
-                                viewModel.finalizeSplitSelection()
-                                dismiss()
-                            } else {
-                                viewModel.beginSplitSelection()
-                            }
-                        } label: {
-                            Text(isSplitMode ? "Done" : "Split")
-                        }
-                    }
-                }
             }
         }
         .presentationDetents([.medium, .large])
         .appSwitcherPrivacyAwareDragIndicator()
         .onAppear {
-            if viewModel?.isSplit == true {
-                viewModel?.beginSplitSelection()
-            }
             Task {
                 await Task.yield()
                 isSearchFocused = true
@@ -240,13 +217,9 @@ struct TransactionCategorySelectionView: View {
 
     private func categoryButton(_ option: TransactionEditorCategoryOption) -> some View {
         Button {
-            if isSplitMode, let viewModel {
-                viewModel.toggleSplitCategory(option)
-            } else {
-                viewModel?.selectCategory(option)
-                onSelectCategory?(option)
-                dismiss()
-            }
+            viewModel?.selectCategory(option)
+            onSelectCategory?(option)
+            dismiss()
         } label: {
             HStack(spacing: 12) {
                 Text(option.title)
@@ -268,8 +241,7 @@ struct TransactionCategorySelectionView: View {
                         .background(categoryValueBackground(option), in: Capsule())
                 }
 
-                if (isSplitMode && viewModel?.isSplitCategorySelected(option) == true)
-                    || (!isSplitMode && option.id == selectedCategoryID) {
+                if option.id == selectedCategoryID {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(ActualistTheme.positive)
                 }

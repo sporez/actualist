@@ -393,19 +393,22 @@ extension LocalFirstActualStore {
         let draft = try await database.draftByResolvingSchedule(draft)
         let transactionID = UUID().uuidString
         var builder = LocalFirstSyncMessageBuilder()
-        let payeeResolution = try await database.resolveOrCreatePayeeMessages(
-            selectedPayeeID: draft.payeeID,
-            payeeName: draft.payeeName,
+        let payeeResolution = try await resolvePayeeIfNeeded(
+            draft: draft,
+            database: database,
             builder: &builder
         )
 
         let transactionMessages: [ActualSyncDecodedMessage]
         var changedAccounts = [draft.accountID]
         if draft.isTransfer {
+            guard let payeeID = payeeResolution.payeeID else {
+                throw LocalFirstError.invalidLocalWrite("missing payee")
+            }
             let transfer = try await database.createTransferTransactionMessages(
                 draft: draft,
                 sourceTransactionID: transactionID,
-                payeeID: payeeResolution.payeeID,
+                payeeID: payeeID,
                 builder: &builder
             )
             transactionMessages = transfer.messages
@@ -420,10 +423,13 @@ extension LocalFirstActualStore {
             transactionMessages = split.messages
             changedAccounts.append(contentsOf: split.affectedAccountIDs)
         } else {
+            guard let payeeID = payeeResolution.payeeID else {
+                throw LocalFirstError.invalidLocalWrite("missing payee")
+            }
             transactionMessages = try await database.createSimpleTransactionMessages(
                 draft,
                 transactionID: transactionID,
-                payeeID: payeeResolution.payeeID,
+                payeeID: payeeID,
                 builder: &builder
             )
         }
@@ -477,9 +483,9 @@ extension LocalFirstActualStore {
             existingTransactionID: transactionID
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let payeeResolution = try await database.resolveOrCreatePayeeMessages(
-            selectedPayeeID: draft.payeeID,
-            payeeName: draft.payeeName,
+        let payeeResolution = try await resolvePayeeIfNeeded(
+            draft: draft,
+            database: database,
             builder: &builder
         )
         let update = try await database.updateTransactionMessages(
@@ -724,6 +730,23 @@ extension LocalFirstActualStore {
     ) async throws {
         invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
+    }
+
+    private func resolvePayeeIfNeeded(
+        draft: TransactionDraft,
+        database: BudgetDatabase,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) async throws -> (payeeID: String?, messages: [ActualSyncDecodedMessage]) {
+        let trimmedName = draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if draft.payeeID == nil && trimmedName.isEmpty && (draft.isSplit || draft.isParent) {
+            return (nil, [])
+        }
+        let resolved = try await database.resolveOrCreatePayeeMessages(
+            selectedPayeeID: draft.payeeID,
+            payeeName: draft.payeeName,
+            builder: &builder
+        )
+        return (resolved.payeeID, resolved.messages)
     }
 
 }
