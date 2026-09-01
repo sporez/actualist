@@ -3,9 +3,9 @@ import Testing
 @testable import Actualist
 
 struct BudgetCurrencyTests {
-    @Test func catalogDefaultsMissingAndEmptyCodesToUSD() {
-        #expect(BudgetCurrency.catalog(code: "") == .usd)
-        #expect(BudgetCurrency.catalog(code: "  ") == .usd)
+    @Test func catalogPreservesEmptyCodesAsCurrencyNeutral() {
+        #expect(BudgetCurrency.catalog(code: "") == .none)
+        #expect(BudgetCurrency.catalog(code: "  ") == .none)
         #expect(BudgetCurrency.catalog(code: "usd").code == "USD")
         #expect(BudgetCurrency.catalog(code: "usd").decimalPlaces == 2)
     }
@@ -72,6 +72,10 @@ struct BudgetCurrencyTests {
     @Test func moneyOverloadsUseBudgetScaleAndCode() {
         #expect(Money(minorUnits: 1_234).decimalValue(using: .usd) == Decimal(string: "12.34"))
         #expect(Money(minorUnits: 1_234).decimalValue(using: .jpy) == Decimal(1_234))
+
+        let neutral = Money(minorUnits: 1_234).formatted(using: .none)
+        #expect(!neutral.contains("$"))
+        #expect(!neutral.localizedCaseInsensitiveContains("USD"))
 
         let yen = Money(minorUnits: 1_234).formatted(using: .jpy)
         #expect(!yen.contains("."))
