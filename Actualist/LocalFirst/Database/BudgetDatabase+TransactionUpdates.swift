@@ -16,15 +16,6 @@ extension BudgetDatabase {
         guard !draft.accountID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
-        guard draft.amountMinorUnits != 0 else {
-            throw LocalFirstError.invalidLocalWrite("missing amount")
-        }
-        if draft.isSplit {
-            let splitTotal = draft.splits.reduce(0) { $0 + $1.amountMinorUnits }
-            guard splitTotal == draft.amountMinorUnits else {
-                throw LocalFirstError.invalidLocalWrite("split amounts do not sum to the transaction total")
-            }
-        }
 
         return try queue.read { db in
             let columns = try resolveTransactionRowColumns(db: db)
@@ -37,14 +28,26 @@ extension BudgetDatabase {
             }
 
             let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
+            let isFamilyWrite = existing.isParent || existing.isChild || draft.isSplit
+            if !isFamilyWrite {
+                guard draft.amountMinorUnits != 0 else {
+                    throw LocalFirstError.invalidLocalWrite("missing amount")
+                }
+            } else {
+                return try splitFamilyUpdateMessages(
+                    transactionID: trimmedTransactionID,
+                    draft: draft,
+                    payeeID: payeeID,
+                    columns: columns,
+                    db: db,
+                    builder: &builder
+                )
+            }
             let dateValue = try Self.actualDateValue(draft.date)
-            let isTransferDraft = draft.isTransfer && !draft.isSplit
+            let isTransferDraft = draft.isTransfer
             let mainCategory: String?
             let pairedCategory: String?
-            if draft.isSplit {
-                mainCategory = nil
-                pairedCategory = nil
-            } else if isTransferDraft {
+            if isTransferDraft {
                 // Put the category on the budget side of a cross-budget transfer.
                 let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
                 let categories = try transferCategories(
@@ -78,7 +81,8 @@ extension BudgetDatabase {
                 categoryID: mainCategory,
                 notes: draft.notes,
                 cleared: draft.cleared,
-                isParent: draft.isSplit,
+                reconciled: draft.reconciled,
+                isParent: false,
                 parentID: nil,
                 isChild: false,
                 transferID: nil,
@@ -87,54 +91,6 @@ extension BudgetDatabase {
                 builder: &builder,
                 scheduleID: draft.scheduleID
             )
-
-            if draft.isSplit {
-                var keptChildIDs = Set<String>()
-                for (index, split) in draft.splits.enumerated() {
-                    if let categoryID = split.categoryID,
-                       try tableExists("categories", db: db),
-                       try !rowExists(table: "categories", rowID: categoryID, db: db) {
-                        throw LocalFirstError.invalidLocalWrite("missing category")
-                    }
-                    let childID: String
-                    let sortOrder: Double?
-                    if let existingID = split.id, existing.childIDs.contains(existingID) {
-                        childID = existingID
-                        sortOrder = nil
-                        keptChildIDs.insert(existingID)
-                    } else {
-                        childID = UUID().uuidString
-                        sortOrder = Double(-(index + 1))
-                    }
-                    affectedTransactions.insert(childID)
-                    messages += try transactionRowMessages(
-                        rowID: childID,
-                        accountID: draft.accountID,
-                        dateValue: dateValue,
-                        amountMinorUnits: split.amountMinorUnits,
-                        payeeID: payeeID,
-                        categoryID: split.categoryID,
-                        notes: nil,
-                        cleared: draft.cleared,
-                        isParent: false,
-                        parentID: trimmedTransactionID,
-                        isChild: true,
-                        transferID: nil,
-                        sortOrder: sortOrder,
-                        columns: columns,
-                        builder: &builder
-                    )
-                }
-                for childID in existing.childIDs where !keptChildIDs.contains(childID) {
-                    affectedTransactions.insert(childID)
-                    messages.append(try tombstoneMessage(rowID: childID, builder: &builder))
-                }
-            } else {
-                for childID in existing.childIDs {
-                    affectedTransactions.insert(childID)
-                    messages.append(try tombstoneMessage(rowID: childID, builder: &builder))
-                }
-            }
 
             // Keep transfer transitions aligned with loot-core's onUpdate.
             messages += try transferTransitionMessages(
@@ -178,6 +134,23 @@ extension BudgetDatabase {
            ) {
             isParent = value != 0
         }
+        var isChild = false
+        if let isChildColumn = columns.isChild,
+           let value = try Int.fetchOne(
+            db,
+            sql: "SELECT \(isChildColumn) FROM transactions WHERE id = ?",
+            arguments: [id]
+           ) {
+            isChild = value != 0
+        }
+        var parentID: String?
+        if columns.hasParentID {
+            parentID = try String.fetchOne(
+                db,
+                sql: "SELECT parent_id FROM transactions WHERE id = ?",
+                arguments: [id]
+            ).flatMap { $0.isEmpty ? nil : $0 }
+        }
         var transferID: String?
         if let transferColumn = columns.transferID {
             transferID = try String.fetchOne(
@@ -215,6 +188,8 @@ extension BudgetDatabase {
         return ExistingTransactionState(
             account: account,
             isParent: isParent,
+            isChild: isChild,
+            parentID: parentID,
             transferID: transferID,
             childIDs: childIDs,
             pairedAccount: pairedAccount,

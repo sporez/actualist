@@ -19,7 +19,7 @@ struct SplitTransactionError: Equatable, Sendable, Codable, Hashable {
 
 /// Distinguishes omitted JSON keys from explicit null, matching JavaScript
 /// `'field' in data` in Actual `makeChild`.
-enum SplitOptionalField<Value: Equatable>: Equatable, Sendable where Value: Sendable {
+enum SplitOptionalField<Value: Hashable>: Equatable, Hashable, Sendable where Value: Sendable {
     case omitted
     case value(Value?)
 }
@@ -63,6 +63,7 @@ struct SplitTransactionRecord: Equatable, Sendable, Codable {
     var isParent: Bool
     var isChild: Bool
     var parentID: String?
+    var transferID: String?
     var error: SplitTransactionError?
     var deleted: Bool
     var subtransactions: [SplitTransactionRecord]
@@ -82,6 +83,7 @@ struct SplitTransactionRecord: Equatable, Sendable, Codable {
         isParent: Bool = false,
         isChild: Bool = false,
         parentID: String? = nil,
+        transferID: String? = nil,
         error: SplitTransactionError? = nil,
         deleted: Bool = false,
         subtransactions: [SplitTransactionRecord] = []
@@ -100,6 +102,7 @@ struct SplitTransactionRecord: Equatable, Sendable, Codable {
         self.isParent = isParent
         self.isChild = isChild
         self.parentID = parentID
+        self.transferID = transferID
         self.error = error
         self.deleted = deleted
         self.subtransactions = subtransactions
@@ -107,7 +110,7 @@ struct SplitTransactionRecord: Equatable, Sendable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case id, amount, account, date, category, payee, notes, cleared, reconciled
-        case startingBalance, sortOrder, isParent, isChild, parentID, error, deleted
+        case startingBalance, sortOrder, isParent, isChild, parentID, transferID, error, deleted
         case subtransactions
     }
 
@@ -133,6 +136,7 @@ struct SplitTransactionRecord: Equatable, Sendable, Codable {
         isParent = try container.decodeIfPresent(Bool.self, forKey: .isParent) ?? false
         isChild = try container.decodeIfPresent(Bool.self, forKey: .isChild) ?? false
         parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
+        transferID = try container.decodeIfPresent(String.self, forKey: .transferID)
         error = try container.decodeIfPresent(SplitTransactionError.self, forKey: .error)
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
         subtransactions = try container.decodeIfPresent([SplitTransactionRecord].self, forKey: .subtransactions) ?? []
@@ -154,6 +158,7 @@ struct SplitTransactionRecord: Equatable, Sendable, Codable {
         try container.encode(isParent, forKey: .isParent)
         try container.encode(isChild, forKey: .isChild)
         try container.encodeIfPresent(parentID, forKey: .parentID)
+        try container.encodeIfPresent(transferID, forKey: .transferID)
         try container.encodeIfPresent(error, forKey: .error)
         try container.encode(deleted, forKey: .deleted)
         if !subtransactions.isEmpty {
@@ -245,6 +250,7 @@ enum SplitTransactionFamilyOps {
             isParent: false,
             isChild: true,
             parentID: parent.id,
+            transferID: nil,
             error: nil,
             deleted: false
         )
@@ -293,6 +299,30 @@ enum SplitTransactionFamilyOps {
             trans.subtransactions = []
             list.append(trans)
             list.append(contentsOf: children)
+        }
+    }
+
+    static func addSplitTransaction(
+        _ transactions: [SplitTransactionRecord],
+        id: String,
+        idGenerator: () -> String = { UUID().uuidString }
+    ) -> SplitTransactionChangeSet {
+        replaceTransactions(transactions, id: id) { trans in
+            guard trans.isParent else { return trans }
+            var parent = trans
+            let previous = parent.subtransactions.last
+            parent.subtransactions.append(
+                makeChild(
+                    parent: parent,
+                    data: SplitTransactionPatch(
+                        amount: 0,
+                        payee: .value(previous?.payee ?? parent.payee),
+                        sortOrder: .value((previous?.sortOrder ?? 0) - 1)
+                    ),
+                    idGenerator: idGenerator
+                )
+            )
+            return parent
         }
     }
 
@@ -614,6 +644,7 @@ private extension SplitTransactionFamilyOps {
         assign(\.isParent, new.isParent, old.isParent)
         assign(\.isChild, new.isChild, old.isChild)
         assign(\.parentID, new.parentID, old.parentID)
+        assign(\.transferID, new.transferID, old.transferID)
         assign(\.error, new.error, old.error)
         assign(\.deleted, new.deleted, old.deleted)
         return changed ? diff : nil

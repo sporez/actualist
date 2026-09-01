@@ -255,6 +255,147 @@ struct SplitTransactionFamilyTests {
         #expect(observed.family?.children.isEmpty == true)
     }
 
+    @Test func addSplitTransactionAppendsZeroChildWithoutRecalculating() throws {
+        let exactParent = SplitTransactionFamilyOps.recalculateSplit(
+            parent(isParent: true, payee: nil, children: [
+                child("child-1", amount: -6_000, sortOrder: -1),
+                child("child-2", amount: -4_000, sortOrder: -2),
+            ])
+        )
+        let source = [
+            exactParent.selected(),
+            SplitTransactionFamilyOps.makeChild(
+                parent: exactParent,
+                data: SplitTransactionPatch(
+                    id: "child-1",
+                    amount: -6_000,
+                    payee: .value("coffee"),
+                    sortOrder: .value(-1)
+                )
+            ),
+            SplitTransactionFamilyOps.makeChild(
+                parent: exactParent,
+                data: SplitTransactionPatch(
+                    id: "child-2",
+                    amount: -4_000,
+                    payee: .value("market"),
+                    sortOrder: .value(-2)
+                )
+            ),
+        ]
+        let result = SplitTransactionFamilyOps.addSplitTransaction(
+            source,
+            id: "parent-1",
+            idGenerator: { "child-3" }
+        )
+        let family = SplitTransactionFamilyOps.family(from: result.data)
+        #expect(family.family?.children.count == 3)
+        #expect(family.family?.children.last?.amount == 0)
+        #expect(family.family?.children.last?.payee == "market")
+        #expect(family.family?.children.last?.sortOrder == -3)
+        #expect(family.family?.parent.error == nil)
+        #expect(result.diff.added.count == 1)
+        let expected = try decodeObject(
+            RowsFamilyExpected.self,
+            mutationFixture().caseData("add-child-appends-zero-remainder")
+        )
+        #expect(family.family?.children.map(\.amount) == expected.familyValue.children.map(\.amount))
+        #expect(family.family?.children.map(\.payee) == expected.familyValue.children.map(\.payee))
+        #expect(family.family?.children.map(\.sortOrder) == expected.familyValue.children.map(\.sortOrder))
+    }
+
+    @Test func childAmountUpdateRecalculatesErrorFromOracle() throws {
+        let expected = try decodeObject(
+            ResultExpected.self,
+            mutationFixture().caseData("child-amount-update-recalculates-error")
+        )
+        let exactParent = SplitTransactionFamilyOps.recalculateSplit(
+            parent(isParent: true, payee: nil, children: [
+                child("child-1", amount: -6_000, sortOrder: -1),
+                child("child-2", amount: -4_000, sortOrder: -2),
+            ])
+        )
+        let source = [
+            exactParent.selected(),
+            SplitTransactionFamilyOps.makeChild(
+                parent: exactParent,
+                data: SplitTransactionPatch(
+                    id: "child-1",
+                    amount: -6_000,
+                    payee: .value("coffee"),
+                    notes: .value("inherited payee"),
+                    sortOrder: .value(-1)
+                )
+            ),
+            SplitTransactionFamilyOps.makeChild(
+                parent: exactParent,
+                data: SplitTransactionPatch(
+                    id: "child-2",
+                    amount: -4_000,
+                    payee: .value("market"),
+                    notes: .value("override payee"),
+                    sortOrder: .value(-2)
+                )
+            ),
+        ]
+        var overlay = source[1]
+        overlay.amount = -7_000
+        let result = SplitTransactionFamilyOps.updateTransaction(source, transaction: overlay)
+        let observed = SplitTransactionFamilyOps.family(from: result.data)
+        #expect(observed.family?.parent.error?.difference == expected.result.familyValue.parent.error?.difference)
+        #expect(observed.family?.children.first { $0.id == "child-1" }?.amount == -7_000)
+        #expect(observed.family?.children.first { $0.id == "child-2" }?.payee == "market")
+    }
+
+    @Test func parentDateAccountClearedPropagateFromOracle() throws {
+        let expected = try decodeObject(
+            ResultExpected.self,
+            mutationFixture().caseData("parent-date-account-cleared-propagate")
+        )
+        let exactParent = SplitTransactionFamilyOps.recalculateSplit(
+            parent(isParent: true, payee: nil, children: [
+                child("child-1", amount: -6_000, sortOrder: -1),
+                child("child-2", amount: -4_000, sortOrder: -2),
+            ])
+        )
+        let source = [
+            exactParent.selected(),
+            SplitTransactionFamilyOps.makeChild(
+                parent: exactParent,
+                data: SplitTransactionPatch(
+                    id: "child-1",
+                    amount: -6_000,
+                    payee: .value("coffee"),
+                    notes: .value("inherited payee"),
+                    sortOrder: .value(-1)
+                )
+            ),
+            SplitTransactionFamilyOps.makeChild(
+                parent: exactParent,
+                data: SplitTransactionPatch(
+                    id: "child-2",
+                    amount: -4_000,
+                    payee: .value("market"),
+                    notes: .value("override payee"),
+                    sortOrder: .value(-2)
+                )
+            ),
+        ]
+        var overlay = exactParent.selected()
+        overlay.date = "2026-08-20"
+        overlay.account = "savings"
+        overlay.cleared = false
+        let result = SplitTransactionFamilyOps.updateTransaction(source, transaction: overlay)
+        let observed = SplitTransactionFamilyOps.family(from: result.data)
+        #expect(observed.family?.parent.date == expected.result.familyValue.parent.date)
+        #expect(observed.family?.parent.account == expected.result.familyValue.parent.account)
+        #expect(observed.family?.parent.cleared == expected.result.familyValue.parent.cleared)
+        #expect(Set(observed.family?.children.map(\.date) ?? []) == ["2026-08-20"])
+        #expect(Set(observed.family?.children.map(\.account) ?? []) == ["savings"])
+        #expect(observed.family?.children.allSatisfy { $0.cleared == false } == true)
+        #expect(observed.family?.children.first { $0.id == "child-2" }?.payee == "market")
+    }
+
     @Test func detachChildPreservesNonChildFields() throws {
         let fixture = try familyFixture()
         let expected = try JSONSerialization.jsonObject(with: fixture.caseData("detach-child-preserves-nonchild-fields")) as? [String: Any]
@@ -364,10 +505,18 @@ struct SplitTransactionFamilyTests {
     }
 
     private func familyFixture() throws -> FamilyFixture {
+        try splitFixture("family-transformations.json")
+    }
+
+    private func mutationFixture() throws -> FamilyFixture {
+        try splitFixture("mutation-cases.json")
+    }
+
+    private func splitFixture(_ name: String) throws -> FamilyFixture {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appending(path: "ActualistTests/Fixtures/ActualCore26_8_1/Splits/family-transformations.json")
+            .appending(path: "ActualistTests/Fixtures/ActualCore26_8_1/Splits/\(name)")
         let data = try Data(contentsOf: url)
         return try FamilyFixture(data: data)
     }

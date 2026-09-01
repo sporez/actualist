@@ -69,14 +69,17 @@ extension BudgetDatabase {
             }
 
             let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
+            if existing.isParent || existing.isChild {
+                return try deleteSplitFamilyMessages(
+                    transactionID: trimmedTransactionID,
+                    columns: columns,
+                    db: db,
+                    builder: &builder
+                )
+            }
             var affectedAccounts: Set<String> = [existing.account]
             var affectedTransactions: Set<String> = [trimmedTransactionID]
             var messages = [try tombstoneMessage(rowID: trimmedTransactionID, builder: &builder)]
-
-            for childID in existing.childIDs {
-                affectedTransactions.insert(childID)
-                messages.append(try tombstoneMessage(rowID: childID, builder: &builder))
-            }
 
             if let pairedID = existing.transferID, let transferColumn = columns.transferID {
                 affectedTransactions.insert(pairedID)
@@ -115,15 +118,6 @@ extension BudgetDatabase {
             sql: "SELECT \(isParentColumn) FROM transactions WHERE id = ?",
             arguments: [transactionID]
         ), isParent != 0 {
-            throw LocalFirstError.unsupportedSplitWrite
-        }
-        if columns.contains("parent_id"),
-           let parentID = try String.fetchOne(
-            db,
-            sql: "SELECT parent_id FROM transactions WHERE id = ?",
-            arguments: [transactionID]
-           ),
-           !parentID.isEmpty {
             throw LocalFirstError.unsupportedSplitWrite
         }
         guard try tableExists("payees", db: db),

@@ -84,8 +84,8 @@ for (const required of [
   if (!sourcePaths.has(required)) fail(`missing required source hash: ${required}`);
 }
 
-if (!Array.isArray(manifest.fixtures) || manifest.fixtures.length !== 2) {
-  fail('expected exactly the reviewed family and split-rule fixtures');
+if (!Array.isArray(manifest.fixtures) || manifest.fixtures.length !== 3) {
+  fail('expected the reviewed family, split-rule, and mutation fixtures');
 }
 for (const fixture of manifest.fixtures) {
   const path = resolve(root, fixture.path ?? '');

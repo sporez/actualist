@@ -104,6 +104,7 @@ import { describe, expect, test } from 'vitest';
 
 import { Rule } from './server/rules/rule';
 import {
+  addSplitTransaction,
   deleteTransaction,
   makeAsNonChildTransactions,
   makeChild,
@@ -446,13 +447,83 @@ const splitRuleCases = {
   ],
 };
 
+const childAmountUpdate = updateTransaction(updateSource, {
+  ...updateSource[1],
+  amount: -7000,
+});
+const parentDateAccountCleared = updateTransaction(updateSource, {
+  ...exactParent,
+  date: '2026-08-20',
+  account: 'savings',
+  cleared: false,
+});
+const addedChild = addSplitTransaction(updateSource, 'parent-1');
+
+const mutationCases = {
+  schemaVersion: ${FIXTURE_SCHEMA_VERSION},
+  oracle,
+  amountUnits: 'integer minor units',
+  cases: [
+    {
+      id: 'add-child-appends-zero-remainder',
+      expected: familyFromRows(addedChild.data),
+    },
+    {
+      id: 'child-amount-update-recalculates-error',
+      expected: {
+        result: familyFromRows(childAmountUpdate.data),
+        diff: childAmountUpdate.diff,
+      },
+    },
+    {
+      id: 'parent-date-account-cleared-propagate',
+      expected: {
+        result: familyFromRows(parentDateAccountCleared.data),
+        diff: parentDateAccountCleared.diff,
+      },
+    },
+    {
+      id: 'update-conversion-materializes-exact-family',
+      expected: {
+        result: familyFromRows(updateConversion.data),
+        diff: updateConversion.diff,
+      },
+    },
+    {
+      id: 'parent-payee-update-preserves-child-override',
+      expected: {
+        result: familyFromRows(parentPayeeUpdate.data),
+        diff: parentPayeeUpdate.diff,
+      },
+    },
+    {
+      id: 'child-delete-recalculates-parent-error',
+      expected: {
+        result: familyFromRows(childDelete.data),
+        diff: childDelete.diff,
+      },
+    },
+    {
+      id: 'final-child-delete-collapses-parent',
+      expected: {
+        result: familyFromRows(finalChildDelete.data),
+        diff: finalChildDelete.diff,
+      },
+    },
+    {
+      id: 'detach-child-preserves-nonchild-fields',
+      expected: detachChildren,
+    },
+  ],
+};
+
 describe('Actualist split oracle export', () => {
   test('writes deterministic vectors', () => {
     const outputPath = process.env.ACTUALIST_SPLIT_ORACLE_OUTPUT;
     expect(outputPath).toBeTruthy();
     writeFileSync(
       outputPath!,
-      JSON.stringify({ familyTransformations, splitRuleCases }, null, 2) + '\n',
+      JSON.stringify({ familyTransformations, splitRuleCases, mutationCases }, null, 2) + '\n',
     );
   });
 });
@@ -486,6 +557,7 @@ try {
   const fixtures = [
     ['family-transformations.json', generated.familyTransformations],
     ['split-rule-cases.json', generated.splitRuleCases],
+    ['mutation-cases.json', generated.mutationCases],
   ];
   for (const [name, value] of fixtures) {
     writeFileSync(join(outputDirectory, name), JSON.stringify(value, null, 2) + '\n');

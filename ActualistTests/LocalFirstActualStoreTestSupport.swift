@@ -414,8 +414,19 @@ extension LocalFirstActualStoreTests {
             if !extraSQL.isEmpty {
                 try db.execute(sql: extraSQL)
             }
+            try addTransactionColumnIfNeeded("error", type: "TEXT", db: db)
+            try addTransactionColumnIfNeeded("reconciled", type: "INTEGER", db: db)
+            try addTransactionColumnIfNeeded("sort_order", type: "REAL", db: db)
         }
         return url
+    }
+
+    func addTransactionColumnIfNeeded(_ name: String, type: String, db: Database) throws {
+        let columns = try Set(Row.fetchAll(db, sql: "PRAGMA table_info(transactions)").compactMap { row in
+            row["name"] as String?
+        })
+        guard !columns.contains(name) else { return }
+        try db.execute(sql: "ALTER TABLE transactions ADD COLUMN \(name) \(type)")
     }
 
     func storedCRDTMessages(at databaseURL: URL) throws -> [ActualSyncDecodedMessage] {

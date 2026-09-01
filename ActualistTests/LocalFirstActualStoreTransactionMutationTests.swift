@@ -356,7 +356,7 @@ extension LocalFirstActualStoreTests {
         #expect(groceries.spent == -15_345)
     }
 
-    @Test func createSplitLocallyRejectsAmountMismatch() async throws {
+    @Test func createSplitLocallyPersistsAmountMismatchError() async throws {
         let store = try await makeOpenedWritableStore()
         let draft = TransactionDraft(
             accountID: "checking",
@@ -374,9 +374,15 @@ extension LocalFirstActualStoreTests {
             ]
         )
 
-        await #expect(throws: LocalFirstError.self) {
-            _ = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
-        }
+        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let parent = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == result.changed.transactions.first }
+        )
+        #expect(parent.error?.type == "SplitTransactionError")
+        #expect(parent.error?.version == 1)
+        #expect(parent.error?.difference == -500)
+        #expect(parent.subtransactions.count == 2)
     }
 
     @Test func editSplitLocallyUpdatesAddsAndRemovesChildren() async throws {
@@ -615,14 +621,6 @@ extension LocalFirstActualStoreTests {
             latestValue(in: splitMessages, rowID: transactionID, column: "is_parent")
                 == LocalFirstSyncValue.bool(true).serialized
         )
-        #expect(
-            latestValue(in: splitMessages, rowID: transactionID, column: "isChild")
-                == LocalFirstSyncValue.bool(false).serialized
-        )
-        #expect(
-            latestValue(in: splitMessages, rowID: transactionID, column: "parent_id")
-                == LocalFirstSyncValue.null.serialized
-        )
         for child in asSplit.subtransactions {
             let childID = try #require(child.id)
             #expect(
@@ -663,14 +661,6 @@ extension LocalFirstActualStoreTests {
         #expect(
             latestValue(in: simpleMessages, rowID: transactionID, column: "is_parent")
                 == LocalFirstSyncValue.bool(false).serialized
-        )
-        #expect(
-            latestValue(in: simpleMessages, rowID: transactionID, column: "isChild")
-                == LocalFirstSyncValue.bool(false).serialized
-        )
-        #expect(
-            latestValue(in: simpleMessages, rowID: transactionID, column: "parent_id")
-                == LocalFirstSyncValue.null.serialized
         )
     }
 

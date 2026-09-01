@@ -168,9 +168,12 @@ actor BudgetDatabase {
 
         var hasNotes: Bool { all.contains("notes") }
         var hasCleared: Bool { all.contains("cleared") }
+        var hasReconciled: Bool { all.contains("reconciled") }
         var hasTombstone: Bool { all.contains("tombstone") }
         var hasParentID: Bool { all.contains("parent_id") }
         var hasSchedule: Bool { all.contains("schedule") }
+        var hasError: Bool { all.contains("error") }
+        var hasStartingBalance: Bool { all.contains("starting_balance_flag") }
     }
 
     struct TransactionWriteResult {
@@ -197,9 +200,21 @@ actor BudgetDatabase {
     struct ExistingTransactionState {
         let account: String
         let isParent: Bool
+        let isChild: Bool
+        let parentID: String?
         let transferID: String?
         let childIDs: [String]
         let pairedAccount: String?
         let pairedIsChild: Bool
     }
+}
+
+struct SplitTransactionRepairResult: Equatable, Sendable {
+    var blankPayeeCount = 0
+    var clearedCount = 0
+    var deletedCount = 0
+    var transfersFixedCount = 0
+    var nonParentErrorsFixedCount = 0
+    var parentCategoriesFixedCount = 0
+    var mismatchedParentIDs: [String] = []
 }

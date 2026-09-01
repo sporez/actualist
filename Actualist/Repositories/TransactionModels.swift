@@ -36,7 +36,7 @@ struct TransactionDraft: Hashable, Sendable {
     }
 
     var isSplit: Bool {
-        splits.count >= 2
+        !splits.isEmpty
     }
 }
 
@@ -45,6 +45,9 @@ struct TransactionSplitDraft: Hashable, Sendable, Identifiable {
     let categoryID: String?
     let categoryName: String?
     let amountMinorUnits: Int
+    var payeeID: SplitOptionalField<String> = .omitted
+    var notes: SplitOptionalField<String> = .omitted
+    var sortOrder: SplitOptionalField<Double> = .omitted
 
     var stableID: String {
         id ?? categoryID ?? categoryName ?? "\(amountMinorUnits)"

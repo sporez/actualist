@@ -253,11 +253,14 @@ extension BudgetDatabase {
         categoryID: String?,
         notes: String?,
         cleared: Bool,
+        reconciled: Bool? = nil,
         isParent: Bool,
         parentID: String?,
         isChild: Bool,
         transferID: String?,
         sortOrder: Double?,
+        error: SplitTransactionError? = nil,
+        startingBalance: Bool? = nil,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder,
         scheduleID: String? = nil
@@ -274,6 +277,9 @@ extension BudgetDatabase {
         }
         if columns.hasCleared {
             fields.append(("cleared", .bool(cleared)))
+        }
+        if let reconciled, columns.hasReconciled {
+            fields.append(("reconciled", .bool(reconciled)))
         }
         if let isParentColumn = columns.isParent {
             fields.append((isParentColumn, .bool(isParent)))
@@ -295,6 +301,12 @@ extension BudgetDatabase {
         }
         if let scheduleID, columns.hasSchedule {
             fields.append(("schedule", .string(scheduleID)))
+        }
+        if columns.hasError {
+            fields.append(("error", splitErrorValue(error)))
+        }
+        if let startingBalance, columns.hasStartingBalance {
+            fields.append(("starting_balance_flag", .bool(startingBalance)))
         }
 
         var messages: [ActualSyncDecodedMessage] = []
@@ -376,77 +388,6 @@ extension BudgetDatabase {
                 builder: &builder
             )
             return (sourceMessages + pairedMessages, destinationAccountID)
-        }
-    }
-
-    func createSplitTransactionMessages(
-        draft: TransactionDraft,
-        parentTransactionID: String,
-        payeeID: String,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
-        guard !draft.accountID.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("missing account")
-        }
-        guard draft.splits.count >= 2 else {
-            throw LocalFirstError.invalidLocalWrite("split requires at least two categories")
-        }
-        let splitTotal = draft.splits.reduce(0) { $0 + $1.amountMinorUnits }
-        guard splitTotal == draft.amountMinorUnits else {
-            throw LocalFirstError.invalidLocalWrite("split amounts do not sum to the transaction total")
-        }
-
-        return try queue.read { db in
-            let columns = try resolveTransactionRowColumns(db: db)
-            if try tableExists("accounts", db: db),
-               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
-                throw LocalFirstError.invalidLocalWrite("missing account")
-            }
-            let dateValue = try Self.actualDateValue(draft.date)
-
-            var messages = try transactionRowMessages(
-                rowID: parentTransactionID,
-                accountID: draft.accountID,
-                dateValue: dateValue,
-                amountMinorUnits: draft.amountMinorUnits,
-                payeeID: payeeID,
-                categoryID: nil,
-                notes: draft.notes,
-                cleared: draft.cleared,
-                isParent: true,
-                parentID: nil,
-                isChild: false,
-                transferID: nil,
-                sortOrder: nil,
-                columns: columns,
-                builder: &builder,
-                scheduleID: draft.scheduleID
-            )
-            for (index, split) in draft.splits.enumerated() {
-                if let categoryID = split.categoryID,
-                   try tableExists("categories", db: db),
-                   try !rowExists(table: "categories", rowID: categoryID, db: db) {
-                    throw LocalFirstError.invalidLocalWrite("missing category")
-                }
-                messages.append(contentsOf: try transactionRowMessages(
-                    rowID: UUID().uuidString,
-                    accountID: draft.accountID,
-                    dateValue: dateValue,
-                    amountMinorUnits: split.amountMinorUnits,
-                    payeeID: payeeID,
-                    categoryID: split.categoryID,
-                    notes: nil,
-                    cleared: draft.cleared,
-                    isParent: false,
-                    parentID: parentTransactionID,
-                    isChild: true,
-                    transferID: nil,
-                    sortOrder: Double(-(index + 1)),
-                    columns: columns,
-                    builder: &builder
-                ))
-            }
-            return messages
         }
     }
 

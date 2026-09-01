@@ -411,12 +411,14 @@ extension LocalFirstActualStore {
             transactionMessages = transfer.messages
             changedAccounts.append(transfer.destinationAccountID)
         } else if draft.isSplit {
-            transactionMessages = try await database.createSplitTransactionMessages(
+            let split = try await database.createSplitFamilyWrite(
                 draft: draft,
                 parentTransactionID: transactionID,
                 payeeID: payeeResolution.payeeID,
                 builder: &builder
             )
+            transactionMessages = split.messages
+            changedAccounts.append(contentsOf: split.affectedAccountIDs)
         } else {
             transactionMessages = try await database.createSimpleTransactionMessages(
                 draft,
@@ -639,6 +641,23 @@ extension LocalFirstActualStore {
                 transactions: delete.affectedTransactionIDs
             )
         )
+    }
+
+    func repairSplitTransactionsAndRefresh(budgetID: String) async throws -> SplitTransactionRepairResult {
+        let database = try requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let repair = try await database.repairSplitTransactionsMessages(builder: &builder)
+        if !repair.write.messages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(repair.write.messages)
+        }
+        try await reloadAfterTransactionMutation(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: repair.write.affectedAccountIDs,
+            monthIDs: []
+        )
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        return repair.result
     }
 
     func reloadAfterTransactionMutation(

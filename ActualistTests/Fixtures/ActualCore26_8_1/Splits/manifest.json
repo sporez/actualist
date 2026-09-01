@@ -7,7 +7,7 @@
   },
   "generator": {
     "command": "scripts/split-parity/generate.mjs --actual-checkout <actual-v26.8.1>",
-    "sha256": "7b01373e37819bca4135a992068c37cac0cec4b5fe90613315a91c3a8d28ca9a"
+    "sha256": "4f6d0e9988a8fc31d2e1216b951956c3d76d3216e5f1804a75a5eb48a025c856"
   },
   "amountUnits": "integer minor units",
   "rounding": "JavaScript Math.round: ties toward positive infinity",
@@ -75,6 +75,11 @@
       "path": "ActualistTests/Fixtures/ActualCore26_8_1/Splits/split-rule-cases.json",
       "sha256": "5f3b96f673ca908fbb3de61a82032e2c7da711c5c0fa75667da6cc7f890a3080",
       "caseCount": 7
+    },
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_8_1/Splits/mutation-cases.json",
+      "sha256": "84819843d31986678d24fb9d76082c377ef6cba7015022e7452c9c4f5c009c8f",
+      "caseCount": 8
     }
   ]
 }
