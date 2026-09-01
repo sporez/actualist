@@ -3,8 +3,8 @@ import Testing
 @testable import Actualist
 
 struct RuleSplitActionSafetyTests {
-    @Test func splitTargetedActionsAreReadOnlyAndRuntimeDisabled() {
-        let actions = [
+    @Test func oneBasedSplitActionsExecuteAndStayNonEditable() {
+        let executable = [
             RuleAction(
                 operation: "set-split-amount",
                 value: .number(4_000),
@@ -18,16 +18,24 @@ struct RuleSplitActionSafetyTests {
             ),
             RuleAction(
                 operation: "append-notes",
-                value: .string("unsafe"),
-                options: ["method": .string("remainder")]
+                value: .string(" whole"),
+                options: ["splitIndex": .number(0)]
             )
         ]
-
-        for action in actions {
+        for action in executable {
             #expect(action.targetsSplitTransaction)
             #expect(!action.canRoundTripAndEvaluate)
-            #expect(!action.canExecuteAtRuntime)
+            #expect(action.canExecuteAtRuntime)
         }
+
+        let malformed = RuleAction(
+            operation: "append-notes",
+            value: .string("unsafe"),
+            options: ["method": .string("remainder")]
+        )
+        #expect(malformed.targetsSplitTransaction)
+        #expect(!malformed.canRoundTripAndEvaluate)
+        #expect(!malformed.canExecuteAtRuntime)
     }
 
     @Test func ordinaryAndScheduleActionsKeepTheirExistingCapabilities() {
@@ -47,7 +55,7 @@ struct RuleSplitActionSafetyTests {
 }
 
 extension LocalFirstActualStoreTests {
-    @Test func importedSplitRuleStaysReadOnlyAndDoesNotExecute() async throws {
+    @Test func importedSplitRuleStaysReadOnlyAndExecutesOneBasedFamily() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             CREATE TABLE rules (
                 id TEXT PRIMARY KEY,
@@ -84,14 +92,15 @@ extension LocalFirstActualStoreTests {
             isTransfer: false
         )
         let preview = try await store.previewRules(for: draft, budgetID: "group-1")
-        #expect(preview.splits.isEmpty)
-        #expect(preview.categoryID == nil)
+        #expect(preview.splits.map(\.amountMinorUnits) == [4_000, -14_000])
+        #expect(preview.splits.map(\.categoryID) == ["groceries", "utilities"])
 
         let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
-        #expect(!created.isParent)
-        #expect(created.subtransactions.isEmpty)
+        #expect(created.isParent)
+        #expect(created.subtransactions.map { $0.amount ?? 0 } == [4_000, -14_000])
+        #expect(created.subtransactions.map(\.category) == ["groceries", "utilities"])
     }
 
     @Test func programmaticSplitRuleWritesFailClosed() async throws {

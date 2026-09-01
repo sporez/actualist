@@ -62,8 +62,18 @@ extension BudgetDatabase {
         let rules = try fetchRules()
         let schedules = try fetchRuleScheduleIndex()
         let metadata = try ruleEvaluationMetadata()
+        let formulas = rules.compactMap { $0.executionDraft() }.flatMap(\.actions).compactMap { action -> String? in
+            if case .string(let formula) = action.options?["formula"] { return formula }
+            return nil
+        }
         return drafts.map { draft in
-            let context = ruleEvaluationContext(for: draft, metadata: metadata)
+            var context = ruleEvaluationContext(for: draft, metadata: metadata)
+            context.balanceOfPrefetch = (try? prefetchBalanceOf(
+                formulas: formulas,
+                date: draft.date,
+                sortOrder: draft.sortOrder,
+                excludingTransactionID: nil
+            )) ?? [:]
             let result = RuleConditionEvaluator.applying(rules, to: context, schedules: schedules)
             return TransactionRulePreview(
                 categoryID: result.categoryID,
@@ -77,10 +87,13 @@ extension BudgetDatabase {
                 deletesTransaction: result.deletesTransaction,
                 splits: result.splits.map { split in
                     TransactionSplitDraft(
-                        id: nil,
+                        id: split.id,
                         categoryID: split.categoryID,
                         categoryName: split.categoryID.flatMap { result.categoryNames[$0] },
-                        amountMinorUnits: split.amount
+                        amountMinorUnits: split.amount,
+                        payeeID: .value(split.payeeID),
+                        notes: .value(split.notes),
+                        sortOrder: .value(split.sortOrder)
                     )
                 }
             )
@@ -531,14 +544,15 @@ extension BudgetDatabase {
         for draft: TransactionDraft,
         metadata: RuleEvaluationMetadata
     ) -> RuleEvaluationContext {
-        let categoryGroupID = draft.categoryID.flatMap { metadata.categoryGroupsByCategoryID[$0] }
+        let effectiveCategoryID = draft.isParent ? nil : draft.categoryID
+        let categoryGroupID = effectiveCategoryID.flatMap { metadata.categoryGroupsByCategoryID[$0] }
         return RuleEvaluationContext(
             accountID: draft.accountID,
             accountName: metadata.accountNames[draft.accountID] ?? "",
             accountIsOffBudget: metadata.offBudgetAccountIDs.contains(draft.accountID),
             amount: draft.amountMinorUnits,
-            categoryID: draft.categoryID,
-            categoryName: draft.categoryID.flatMap { metadata.categoryNames[$0] },
+            categoryID: effectiveCategoryID,
+            categoryName: effectiveCategoryID.flatMap { metadata.categoryNames[$0] },
             categoryGroupID: categoryGroupID,
             categoryGroupName: categoryGroupID.flatMap { metadata.categoryGroupNames[$0] },
             date: draft.date,
@@ -550,6 +564,8 @@ extension BudgetDatabase {
             reconciled: draft.reconciled,
             isTransfer: draft.isTransfer,
             isParent: draft.isParent,
+            sortOrder: draft.sortOrder,
+            startingBalance: false,
             scheduleID: draft.scheduleID,
             accountNames: metadata.accountNames,
             offBudgetAccountIDs: metadata.offBudgetAccountIDs,
@@ -565,14 +581,16 @@ extension BudgetDatabase {
         metadata: RuleEvaluationMetadata
     ) -> RuleEvaluationContext? {
         guard let date = Self.rulePreviewDateFormatter.date(from: transaction.date) else { return nil }
-        let categoryGroupID = transaction.category.flatMap { metadata.categoryGroupsByCategoryID[$0] }
+        let effectiveCategoryID = transaction.isParent ? nil : transaction.category
+        let categoryGroupID = effectiveCategoryID.flatMap { metadata.categoryGroupsByCategoryID[$0] }
         return RuleEvaluationContext(
+            evaluationID: transaction.id ?? "parent-1",
             accountID: transaction.account,
             accountName: metadata.accountNames[transaction.account] ?? "",
             accountIsOffBudget: metadata.offBudgetAccountIDs.contains(transaction.account),
             amount: transaction.amount ?? 0,
-            categoryID: transaction.category,
-            categoryName: transaction.category.flatMap { metadata.categoryNames[$0] },
+            categoryID: effectiveCategoryID,
+            categoryName: effectiveCategoryID.flatMap { metadata.categoryNames[$0] },
             categoryGroupID: categoryGroupID,
             categoryGroupName: categoryGroupID.flatMap { metadata.categoryGroupNames[$0] },
             date: date,
@@ -586,6 +604,8 @@ extension BudgetDatabase {
             reconciled: transaction.reconciled,
             isTransfer: transaction.payee.map { metadata.transferPayeeIDs.contains($0) } ?? false,
             isParent: transaction.isParent,
+            isChild: transaction.isChild,
+            parentID: transaction.parentID,
             scheduleID: transaction.schedule,
             accountNames: metadata.accountNames,
             offBudgetAccountIDs: metadata.offBudgetAccountIDs,

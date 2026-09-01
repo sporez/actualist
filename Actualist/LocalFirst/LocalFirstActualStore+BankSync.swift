@@ -407,12 +407,16 @@ extension LocalFirstActualStore {
         draft.importedID = candidate.financialID
         draft.sortOrder = sortOrder
         if candidate.isSplit {
-            let splitTotal = candidate.splits.reduce(0) { $0 + $1.amountMinorUnits }
-            guard splitTotal == candidate.amountMinorUnits else {
-                throw LocalFirstError.invalidLocalWrite("split amounts do not sum to the transaction total")
-            }
             draft.splits = candidate.splits.map {
-                TransactionSplitDraft(id: nil, categoryID: $0.categoryID, categoryName: nil, amountMinorUnits: $0.amountMinorUnits)
+                TransactionSplitDraft(
+                    id: nil,
+                    categoryID: $0.categoryID,
+                    categoryName: nil,
+                    amountMinorUnits: $0.amountMinorUnits,
+                    payeeID: $0.payeeID,
+                    notes: $0.notes,
+                    sortOrder: $0.sortOrder
+                )
             }
         }
         return draft

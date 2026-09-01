@@ -39,9 +39,12 @@ enum BankSyncReconciliation {
         struct Split: Equatable, Sendable {
             var categoryID: String?
             var amountMinorUnits: Int
+            var payeeID: SplitOptionalField<String> = .omitted
+            var notes: SplitOptionalField<String> = .omitted
+            var sortOrder: SplitOptionalField<Double> = .omitted
         }
 
-        var isSplit: Bool { splits.count >= 2 }
+        var isSplit: Bool { !splits.isEmpty }
     }
 
     /// One live local transaction row eligible for matching.
@@ -238,8 +241,8 @@ enum BankSyncReconciliation {
     /// Projects one candidate through a rule preview *before* matching
     /// (loot-core runs rules on `transactionsStep1`). A delete-transaction
     /// rule drops the candidate (returns nil). Mirrors wallet import's
-    /// preview application: rule-driven splits (two or more) turn the
-    /// candidate into a split parent.
+    /// preview application: rule-driven splits turn the candidate into a
+    /// split parent.
     static func applyingRulePreview(_ preview: TransactionRulePreview, to candidate: Candidate) -> Candidate? {
         if preview.deletesTransaction {
             return nil
@@ -250,11 +253,19 @@ enum BankSyncReconciliation {
         // Rule preview carries the final notes value, including `nil` when a
         // matching rule removes downloaded notes. Nil is not "no change".
         projected.notes = preview.notes
-        projected.categoryID = preview.splits.count >= 2 ? nil : (preview.categoryID ?? projected.categoryID)
+        projected.categoryID = preview.splits.isEmpty ? (preview.categoryID ?? projected.categoryID) : nil
         projected.cleared = preview.cleared ?? projected.cleared
-        projected.splits = preview.splits.count >= 2
-            ? preview.splits.map { .init(categoryID: $0.categoryID, amountMinorUnits: $0.amountMinorUnits) }
-            : projected.splits
+        projected.splits = preview.splits.isEmpty
+            ? projected.splits
+            : preview.splits.map {
+                .init(
+                    categoryID: $0.categoryID,
+                    amountMinorUnits: $0.amountMinorUnits,
+                    payeeID: $0.payeeID,
+                    notes: $0.notes,
+                    sortOrder: $0.sortOrder
+                )
+            }
         return projected
     }
 

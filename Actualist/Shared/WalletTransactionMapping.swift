@@ -140,7 +140,7 @@ enum WalletTransactionMapper {
             amountMinorUnits: draft.amountMinorUnits,
             payeeID: preview.payeeID ?? draft.payeeID,
             payeeName: draft.payeeName,
-            categoryID: preview.splits.count >= 2 ? nil : (preview.categoryID ?? draft.categoryID),
+            categoryID: preview.splits.isEmpty ? (preview.categoryID ?? draft.categoryID) : nil,
             // Rule preview carries the final nullable notes value. Nil means
             // remove notes, not "leave the imported draft unchanged."
             notes: preview.notes,
@@ -150,8 +150,8 @@ enum WalletTransactionMapper {
             importedID: draft.importedID,
             sortOrder: draft.sortOrder,
             reconciled: draft.reconciled,
-            isParent: preview.splits.count >= 2 || draft.isParent,
-            splits: preview.splits.count >= 2 ? preview.splits : draft.splits
+            isParent: !preview.splits.isEmpty || draft.isParent,
+            splits: preview.splits.isEmpty ? draft.splits : preview.splits
         )
     }
 

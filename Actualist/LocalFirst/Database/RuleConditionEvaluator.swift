@@ -1,11 +1,16 @@
 import Foundation
 
 struct RuleEvaluationSplit: Equatable, Sendable {
+    var id: String? = nil
     var categoryID: String?
     var amount: Int
+    var payeeID: String? = nil
+    var notes: String? = nil
+    var sortOrder: Double? = nil
 }
 
 struct RuleEvaluationContext {
+    var evaluationID = "parent-1"
     var accountID: String
     var accountName: String
     var accountIsOffBudget: Bool
@@ -23,6 +28,12 @@ struct RuleEvaluationContext {
     var reconciled: Bool
     var isTransfer: Bool
     var isParent: Bool
+    var isChild = false
+    var parentID: String? = nil
+    var sortOrder: Double? = nil
+    var startingBalance = false
+    var balance = 0
+    var balanceOfPrefetch: [String: Int] = [:]
     var scheduleID: String? = nil
     var deletesTransaction = false
     var splits: [RuleEvaluationSplit] = []
@@ -58,12 +69,18 @@ enum RuleConditionEvaluator {
             if !forceExecute {
                 guard conditionsMatch(execution, context: result) else { continue }
             }
-            if execution.actions.contains(where: { $0.operation == "delete-transaction" && $0.splitIndex == nil }) {
+            if execution.actions.contains(where: { $0.operation == "delete-transaction" && ($0.splitIndex ?? 0) == 0 }) {
                 result.deletesTransaction = true
                 break
             }
-            for action in execution.actions {
-                apply(action: action, context: &result)
+            if execution.actions.contains(where: { ($0.splitIndex ?? 0) != 0 || $0.operation == "set-split-amount" }) {
+                guard RuleSplitActionExecutor.apply(actions: execution.actions, context: &result) else {
+                    continue
+                }
+            } else {
+                for action in execution.actions {
+                    apply(action: action, context: &result)
+                }
             }
         }
         return result

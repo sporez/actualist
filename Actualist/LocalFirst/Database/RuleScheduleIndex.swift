@@ -60,15 +60,79 @@ extension ManagedRule {
 }
 
 extension RuleAction {
-    /// Runtime-safe actions include the editable set plus `link-schedule`.
-    /// This must not be folded into `canRoundTripAndEvaluate` or schedule-owned
-    /// rules become editable from the payee flow.
+    /// Runtime-safe actions include the editable set plus `link-schedule` and
+    /// one-based split actions. This must not be folded into
+    /// `canRoundTripAndEvaluate` or schedule-owned / imported split rules become
+    /// editable from the payee flow.
     var canExecuteAtRuntime: Bool {
-        guard !targetsSplitTransaction else { return false }
         if operation == "link-schedule" {
             if case .string(let scheduleID) = value { return !scheduleID.isEmpty }
             return false
         }
+        if targetsSplitTransaction {
+            return canExecuteSplitAction
+        }
         return canRoundTripAndEvaluate
+    }
+
+    /// One-based Actual 26.8.1 split contract. Index 0 is apply-to-all.
+    /// Formula `set` / Handlebars / QUERY stay fail-closed.
+    var canExecuteSplitAction: Bool {
+        guard hasSupportedSplitRuntimeOptions else { return false }
+        switch operation {
+        case "set-split-amount":
+            guard let method = splitMethod,
+                  ["fixed-amount", "fixed-percent", "remainder", "formula"].contains(method) else {
+                return false
+            }
+            if method == "formula" {
+                guard case .string(let formula) = options?["formula"], formula.hasPrefix("=") else {
+                    return false
+                }
+            } else if options?["formula"] != nil {
+                return false
+            }
+            return true
+        case "set":
+            guard options?["formula"] == nil, options?["template"] == nil else { return false }
+            switch editorField {
+            case "account", "category", "date", "notes", "payee": return value.isStringLike
+            case "amount": return value.isNumberLike
+            case "cleared": if case .bool = value { return true } else { return false }
+            default: return false
+            }
+        case "prepend-notes", "append-notes":
+            return field == nil && value.isStringLike && splitMethod == nil
+        default:
+            return false
+        }
+    }
+
+    private var hasSupportedSplitRuntimeOptions: Bool {
+        let options = options ?? [:]
+        let allowed: Set<String> = ["splitIndex", "method", "formula"]
+        guard Set(options.keys).isSubset(of: allowed) else { return false }
+        if let index = options["splitIndex"] {
+            switch index {
+            case .number(let number):
+                guard number.isFinite, number >= 0, number == number.rounded(), number < 100 else {
+                    return false
+                }
+            case .string(let text):
+                guard let value = Int(text), value >= 0, value < 100 else { return false }
+            default:
+                return false
+            }
+        }
+        if let method = options["method"] {
+            guard case .string(let name) = method,
+                  ["fixed-amount", "fixed-percent", "remainder", "formula"].contains(name) else {
+                return false
+            }
+        }
+        if let formula = options["formula"] {
+            guard case .string = formula else { return false }
+        }
+        return true
     }
 }
