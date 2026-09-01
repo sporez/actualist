@@ -38,6 +38,9 @@ struct TransactionRowSemantics: Equatable, Hashable, Sendable {
     let status: Status
     let notes: String?
     let errorDifference: Int?
+    /// Remainder after the expense-parent display flip. Positive is left,
+    /// negative is over. Nil when there is no visible mismatch.
+    let errorDisplayedCents: Int?
     let transferDirection: TransferDirection?
 
     var isSplitFamily: Bool { isParent || isChild }
@@ -58,6 +61,16 @@ struct TransactionRowSemantics: Equatable, Hashable, Sendable {
         let payee = payeeProjection(for: transaction, lookup: lookup)
         let category = categoryText(for: transaction, lookup: lookup)
         let notes = trimmed(transaction.notes)
+        let errorDifference = transaction.isParent ? transaction.error?.difference : nil
+        let errorDisplayedCents: Int?
+        if let errorDifference, errorDifference != 0 {
+            errorDisplayedCents = SplitRemainingPresentation.displayedCents(
+                remaining: errorDifference,
+                parentSignedAmount: transaction.amount ?? 0
+            )
+        } else {
+            errorDisplayedCents = nil
+        }
         let semantics = TransactionRowSemantics(
             payeeKind: payee.kind,
             payeeText: payee.text,
@@ -66,7 +79,8 @@ struct TransactionRowSemantics: Equatable, Hashable, Sendable {
             isChild: transaction.isChild,
             status: status(for: transaction),
             notes: notes,
-            errorDifference: transaction.isParent ? transaction.error?.difference : nil,
+            errorDifference: errorDifference,
+            errorDisplayedCents: errorDisplayedCents,
             transferDirection: transferDirection(for: transaction, lookup: lookup)
         )
         guard privacyEnabled else {
@@ -91,6 +105,7 @@ struct TransactionRowSemantics: Equatable, Hashable, Sendable {
                 PrivacyDisplay.name(for: .payee, seed: "notes-\(transactionID)")
             },
             errorDifference: errorDifference,
+            errorDisplayedCents: errorDisplayedCents,
             transferDirection: transferDirection
         )
     }

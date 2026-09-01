@@ -120,15 +120,11 @@ struct TransactionSplitEditorState: Equatable, Sendable {
     }
 
     func remainingStatusText(parentSignedAmount: Int, currency: BudgetCurrency) -> String {
-        let remaining = remainingCents(parentSignedAmount: parentSignedAmount)
-        let displayed = parentSignedAmount > 0 ? remaining : -remaining
-        if displayed == 0 {
-            return "\(currency.formatted(0)) Remaining"
-        }
-        if displayed > 0 {
-            return "\(currency.formatted(displayed)) left"
-        }
-        return "\(currency.formatted(abs(displayed))) over"
+        SplitRemainingPresentation.statusText(
+            remaining: remainingCents(parentSignedAmount: parentSignedAmount),
+            parentSignedAmount: parentSignedAmount,
+            currency: currency
+        )
     }
 
     mutating func load(from transaction: ActualTransaction) {

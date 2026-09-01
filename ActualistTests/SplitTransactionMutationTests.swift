@@ -176,6 +176,72 @@ extension LocalFirstActualStoreTests {
         #expect(parent.amount == -10_000)
     }
 
+    @Test func updatingSiblingNotesDoesNotDuplicateTransferPair() async throws {
+        let store = try await makeOpenedWritableStore()
+        let created = try await store.createTransactionAndRefresh(
+            splitDraft(
+                amount: -10_000,
+                splits: [
+                    TransactionSplitDraft(
+                        id: "ordinary",
+                        categoryID: "groceries",
+                        categoryName: "Groceries",
+                        amountMinorUnits: -4_000,
+                        notes: .value("ordinary child")
+                    ),
+                    TransactionSplitDraft(
+                        id: "xfer",
+                        categoryID: nil,
+                        categoryName: nil,
+                        amountMinorUnits: -6_000,
+                        payeeID: .value("xfer-savings"),
+                        notes: .value("transfer child")
+                    ),
+                ]
+            ),
+            budgetID: "group-1"
+        ) {}
+        let parentID = try #require(created.changed.transactions.first)
+        func pairedCount() -> Int {
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "savings")?
+                .transactions.filter { $0.amount == 6_000 }.count ?? 0
+        }
+        #expect(pairedCount() == 1)
+
+        _ = try await store.updateTransactionAndRefresh(
+            parentID,
+            with: splitDraft(
+                amount: -10_000,
+                splits: [
+                    TransactionSplitDraft(
+                        id: "ordinary",
+                        categoryID: "groceries",
+                        categoryName: "Groceries",
+                        amountMinorUnits: -4_000,
+                        notes: .value("ordinary child plop")
+                    ),
+                    TransactionSplitDraft(
+                        id: "xfer",
+                        categoryID: nil,
+                        categoryName: nil,
+                        amountMinorUnits: -6_000,
+                        payeeID: .value("xfer-savings"),
+                        notes: .value("transfer child")
+                    ),
+                ]
+            ),
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+
+        #expect(pairedCount() == 1)
+        let parent = try #require(parentTransaction(in: store, id: parentID))
+        #expect(parent.subtransactions.first { $0.id == "ordinary" }?.notes == "ordinary child plop")
+        #expect(parent.subtransactions.first { $0.id == "xfer" }?.notes == "transfer child")
+        #expect(parent.subtransactions.first { $0.id == "xfer" }?.payee == "xfer-savings")
+    }
+
     @Test func categorizeChildIsAllowedAndParentStaysUncategorized() async throws {
         let store = try await makeOpenedWritableStore()
         let created = try await store.createTransactionAndRefresh(

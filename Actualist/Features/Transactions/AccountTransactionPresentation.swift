@@ -119,8 +119,8 @@ struct TransactionRow: View {
                         .minimumScaleFactor(0.86)
                 }
 
-                if let difference = semantics.errorDifference, difference != 0 {
-                    Text(errorText(difference))
+                if let displayedCents = semantics.errorDisplayedCents {
+                    Text(SplitRemainingPresentation.statusText(displayedCents: displayedCents, currency: currency))
                         .font(ActualistTypography.rowBadge(for: density))
                         .foregroundStyle(ActualistTheme.warning)
                         .lineLimit(1)
@@ -262,8 +262,4 @@ struct TransactionRow: View {
         ) ? ActualistTheme.incomeTransactionAmount : ActualistTheme.primaryText
     }
 
-    private func errorText(_ difference: Int) -> String {
-        let amount = currency.formatted(abs(difference))
-        return difference > 0 ? "\(amount) left" : "\(amount) over"
-    }
 }

@@ -235,10 +235,16 @@ extension BudgetDatabase {
         nullParentPayee: Bool
     ) -> SplitTransactionRecord {
         let children = drafts.enumerated().map { index, draft in
-            SplitTransactionFamilyOps.makeChild(
+            var child = SplitTransactionFamilyOps.makeChild(
                 parent: parent,
                 data: childPatch(draft, existing: existingChildren, index: index)
             )
+            // `makeChild` matches Actual's family oracle and always clears
+            // transferID. Persistence must keep the existing pair.
+            if let existing = existingChildren.first(where: { $0.id == child.id }) {
+                child.transferID = existing.transferID
+            }
+            return child
         }
         var family = parent
         family.isParent = true
@@ -552,7 +558,7 @@ extension BudgetDatabase {
             return try transferMessagesOnDelete(old, columns: columns, db: db, builder: &builder)
         }
         let destination = try transferAccountID(ifPayee: new.payee, db: db)
-        if let destination, new.transferID == nil {
+        if destination != nil, new.transferID == nil, old.transferID == nil {
             var accounts: Set<String> = []
             var transactions: Set<String> = []
             let prepared = try prepareTransferOnInsert(
@@ -581,8 +587,14 @@ extension BudgetDatabase {
             }
             return (messages, accounts, transactions)
         }
-        if destination == nil, let pairedID = old.transferID {
+        if destination == nil, old.transferID != nil {
             return try transferMessagesOnDelete(old, columns: columns, db: db, builder: &builder)
+        }
+        if old.account == new.account,
+           old.payee == new.payee,
+           old.amount == new.amount,
+           old.notes == new.notes {
+            return ([], [], [])
         }
         guard let destination, let pairedID = new.transferID ?? old.transferID, let account = new.account else {
             return ([], [], [])

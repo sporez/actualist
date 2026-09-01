@@ -190,6 +190,128 @@ enum RulePresentation {
         }
         return BudgetCurrency.usd.formatted(Int(number.rounded()))
     }
+
+    static func splitIndexTitle(_ index: Int) -> String {
+        index == 0 ? "Apply to all" : "Split \(index)"
+    }
+
+    static func groupedActionSummary(_ actions: [RuleAction], options: RuleEditorOptions?) -> String {
+        guard actions.contains(where: \.targetsSplitTransaction) else {
+            return actions.map { summaryActionText($0, options: options) }.joined(separator: ", ")
+        }
+        return actionsBySplitIndex(actions).map { index, grouped in
+            let body = grouped.map { summaryActionText($0, options: options) }.joined(separator: ", ")
+            return "\(splitIndexTitle(index)): \(body)"
+        }
+        .joined(separator: "; ")
+    }
+
+    static func groupedActionDetails(_ actions: [RuleAction], options: RuleEditorOptions?) -> [String] {
+        guard actions.contains(where: \.targetsSplitTransaction) else {
+            return actions.map { detailActionText($0, options: options) }
+        }
+        var lines: [String] = []
+        for (index, grouped) in actionsBySplitIndex(actions) {
+            lines.append(splitIndexTitle(index))
+            lines += grouped.map { detailActionText($0, options: options) }
+        }
+        return lines
+    }
+
+    private static func actionsBySplitIndex(_ actions: [RuleAction]) -> [(Int, [RuleAction])] {
+        var buckets: [Int: [RuleAction]] = [:]
+        for action in actions {
+            buckets[action.splitIndex ?? 0, default: []].append(action)
+        }
+        return buckets.keys.sorted().compactMap { index in
+            guard let grouped = buckets[index], !grouped.isEmpty else { return nil }
+            return (index, grouped)
+        }
+    }
+
+    static func summaryActionText(_ action: RuleAction, options: RuleEditorOptions?) -> String {
+        if action.operation == "link-schedule" { return "link to schedule" }
+        if action.operation == "delete-transaction" { return "delete transaction" }
+        if action.operation == "set-split-amount" {
+            return splitAmountSummary(action, options: options)
+        }
+        guard ["set", "prepend-notes", "append-notes"].contains(action.operation) else {
+            return "Unsupported action"
+        }
+        let field = action.editorField.map(presentationField)
+        return [
+            actionName(action.operation).lowercased(),
+            field.map { fieldName($0).lowercased() },
+            valueText(action.value, field: field, options: options)
+        ]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
+
+    static func detailActionText(_ action: RuleAction, options: RuleEditorOptions?) -> String {
+        if action.operation == "link-schedule" { return "Action: Link to schedule" }
+        if action.operation == "delete-transaction" { return "Action: Delete transaction" }
+        if action.operation == "set-split-amount" {
+            return "Action: " + capitalizingFirst(splitAmountSummary(action, options: options))
+        }
+        guard ["set", "prepend-notes", "append-notes"].contains(action.operation) else {
+            return "Unsupported action"
+        }
+        let field = action.editorField.map(presentationField)
+        return [
+            "Action: \(actionName(action.operation))",
+            field.map(fieldName),
+            valueText(action.value, field: field, options: options)
+        ]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
+
+    private static func splitAmountSummary(_ action: RuleAction, options: RuleEditorOptions?) -> String {
+        switch action.splitMethod {
+        case "fixed-amount":
+            return "allocate a fixed amount: \(valueText(action.value, field: "amount", options: options))"
+        case "fixed-percent":
+            return "allocate a fixed percent of the remainder: \(percentText(action.value))"
+        case "remainder":
+            return "allocate an equal portion of the remainder"
+        case "formula":
+            if let formula = formulaText(action) {
+                return "allocate based on a formula: \(formula)"
+            }
+            return "allocate based on a formula"
+        default:
+            return "set split amount"
+        }
+    }
+
+    private static func percentText(_ value: RuleJSONValue) -> String {
+        switch value {
+        case .number(let number) where number.isFinite:
+            if number.rounded() == number,
+               number >= Double(Int.min),
+               number <= Double(Int.max) {
+                return "\(Int(number))%"
+            }
+            return "\(number)%"
+        case .string(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return "Unsupported value" }
+            return trimmed.hasSuffix("%") ? trimmed : "\(trimmed)%"
+        default:
+            return "Unsupported value"
+        }
+    }
+
+    private static func formulaText(_ action: RuleAction) -> String? {
+        guard case .string(let formula) = action.options?["formula"] else { return nil }
+        let trimmed = formula.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func capitalizingFirst(_ text: String) -> String {
+        text.prefix(1).uppercased() + String(text.dropFirst())
+    }
 }
 
 extension ManagedRule {
@@ -214,16 +336,7 @@ extension ManagedRule {
             return parts.filter { !$0.isEmpty }.joined(separator: " ")
         }
             .joined(separator: draft.conditionsJoin == .and ? " and " : " or ")
-        let actions = draft.actions.map { action in
-            [
-                RulePresentation.actionName(action.operation).lowercased(),
-                action.editorField.map { RulePresentation.fieldName($0).lowercased() },
-                RulePresentation.valueText(action.value, field: action.editorField, options: options)
-            ]
-                .compactMap { $0 }
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
-        }.joined(separator: ", ")
+        let actions = RulePresentation.groupedActionSummary(draft.actions, options: options)
         return "If \(conditions), then \(actions)"
     }
 
@@ -237,8 +350,7 @@ extension ManagedRule {
         }
         let conditionText = conditions.map { readOnlyConditionText($0, options: options) }
             .joined(separator: " and ")
-        let actionText = actions.map { readOnlyActionText($0, options: options) }
-            .joined(separator: ", ")
+        let actionText = RulePresentation.groupedActionSummary(actions, options: options)
         guard !conditionText.isEmpty, !actionText.isEmpty else { return "Unsupported rule" }
         return "If \(conditionText), then \(actionText)"
     }
@@ -258,22 +370,7 @@ extension ManagedRule {
 
         if let data = rawActionsJSON.data(using: .utf8),
            let actions = try? decoder.decode([RuleAction].self, from: data) {
-            details += actions.map { action in
-                if action.operation == "link-schedule" { return "Action: Link to schedule" }
-                if action.operation == "delete-transaction" { return "Action: Delete transaction" }
-                if action.operation == "set-split-amount" { return "Action: Set split amount" }
-                guard ["set", "prepend-notes", "append-notes"].contains(action.operation) else {
-                    return "Unsupported action"
-                }
-                let field = action.editorField.map(RulePresentation.presentationField)
-                return [
-                    "Action: \(RulePresentation.actionName(action.operation))",
-                    field.map(RulePresentation.fieldName),
-                    RulePresentation.valueText(action.value, field: field, options: options)
-                ]
-                    .compactMap { $0 }
-                    .joined(separator: " ")
-            }
+            details += RulePresentation.groupedActionDetails(actions, options: options)
         } else {
             details.append("Unsupported actions")
         }
@@ -294,24 +391,7 @@ extension ManagedRule {
         return parts.joined(separator: " ")
     }
 
-    private func readOnlyActionText(_ action: RuleAction, options: RuleEditorOptions?) -> String {
-        if action.operation == "link-schedule" { return "link to schedule" }
-        if action.operation == "delete-transaction" { return "delete transaction" }
-        if action.operation == "set-split-amount" { return "set split amount" }
-        guard ["set", "prepend-notes", "append-notes"].contains(action.operation) else {
-            return "Unsupported action"
-        }
-        let field = action.editorField.map(RulePresentation.presentationField)
-        return [
-            RulePresentation.actionName(action.operation).lowercased(),
-            field.map { RulePresentation.fieldName($0).lowercased() },
-            RulePresentation.valueText(action.value, field: field, options: options)
-        ]
-            .compactMap { $0 }
-            .joined(separator: " ")
-    }
-
     private func capitalizingFirst(_ text: String) -> String {
-        text.prefix(1).uppercased() + String(text.dropFirst())
+        RulePresentation.capitalizingFirst(text)
     }
 }

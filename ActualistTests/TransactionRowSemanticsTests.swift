@@ -128,6 +128,7 @@ struct TransactionRowSemanticsTests {
         #expect(transfer.transferDirection == .outflow)
         #expect(transfer.notes == "moving money")
         #expect(mismatched.errorDifference == -10)
+        #expect(mismatched.errorDisplayedCents == 10)
         #expect(mismatched.categoryText == "Split")
     }
 
@@ -151,6 +152,7 @@ struct TransactionRowSemanticsTests {
         #expect(semantics.categoryText == "Split")
         #expect(semantics.status == .reconciled)
         #expect(semantics.errorDifference == 10)
+        #expect(semantics.errorDisplayedCents == -10)
         #expect(semantics.notes != "secret")
         #expect(semantics.notes != nil)
         #expect(semantics.isParent)
