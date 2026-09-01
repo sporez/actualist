@@ -196,10 +196,11 @@ extension LocalFirstActualStore {
                 ))
                 continue
             }
-            guard transactionCurrency == currency.code.uppercased() else {
+            guard currency.accepts(transactionCurrency) else {
+                let budgetLabel = currency.code.isEmpty ? "none" : currency.code.uppercased()
                 prepared.problems.append(.init(
                     remoteTransactionID: problemID,
-                    message: "Currency mismatch (\(transactionCurrency) bank transaction, \(currency.code.uppercased()) budget)"
+                    message: "Currency mismatch (\(transactionCurrency) bank transaction, \(budgetLabel) budget)"
                 ))
                 continue
             }

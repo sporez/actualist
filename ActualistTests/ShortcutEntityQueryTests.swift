@@ -35,7 +35,7 @@ struct ShortcutEntityQueryTests {
         )
 
         #expect(checking.balance?.amount == Decimal(string: "-123.45"))
-        #expect(checking.balance?.currencyCode == ShortcutMoney.currencyCode)
+        #expect(checking.balance?.currencyCode == BudgetCurrency.none.code)
         #expect(!checking.offBudget)
     }
 

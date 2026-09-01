@@ -38,7 +38,7 @@ enum ShortcutMoney {
     ) throws -> Int {
         let resolved = currency ?? fallback
         let code = amount.currencyCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !code.isEmpty, code.caseInsensitiveCompare(resolved.code) != .orderedSame {
+        if !code.isEmpty, !resolved.accepts(code) {
             throw ShortcutsError.currencyMismatch
         }
         return try minorUnits(from: amount.amount, currency: resolved)

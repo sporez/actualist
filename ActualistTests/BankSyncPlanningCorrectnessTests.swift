@@ -240,7 +240,11 @@ extension LocalFirstActualStoreTests {
 
     @Test func mismatchedTransactionCurrencyBlocksReviewAndApply() async throws {
         let (bundle, _) = try await makeLinkedCorrectnessStore(
-            transaction: correctnessTransaction(currency: "CAD")
+            transaction: correctnessTransaction(currency: "CAD"),
+            additionalFixtureSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('defaultCurrencyCode', 'USD');
+            """
         )
 
         let plan = try await bundle.store.downloadBankSyncPlan(
@@ -254,6 +258,34 @@ extension LocalFirstActualStoreTests {
         await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
             try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
         }
+    }
+
+    @Test func currencyNeutralBudgetAcceptsSameScaleBankCurrency() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(currency: "CAD")
+        )
+
+        let plan = try await bundle.store.downloadBankSyncPlan(
+            accountID: "savings",
+            budgetID: "group-1"
+        )
+
+        #expect(plan.problems.isEmpty)
+        #expect(plan.inserts.count == 1)
+    }
+
+    @Test func currencyNeutralBudgetRejectsZeroDecimalBankCurrency() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(currency: "JPY")
+        )
+
+        let plan = try await bundle.store.downloadBankSyncPlan(
+            accountID: "savings",
+            budgetID: "group-1"
+        )
+
+        #expect(plan.inserts.isEmpty)
+        #expect(plan.problems.first?.message == "Currency mismatch (JPY bank transaction, none budget)")
     }
 
     @Test func missingTransactionCurrencyAlsoBlocksReviewAndApply() async throws {

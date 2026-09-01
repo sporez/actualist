@@ -27,6 +27,23 @@ struct BudgetCurrency: Hashable, Sendable {
         return BudgetCurrency(code: resolved, decimalPlaces: places, hideFraction: hideFraction)
     }
 
+    /// Bank and Shortcut amounts may carry an ISO code even when the open
+    /// budget is currency-neutral. Neutral budgets keep Actual's two-decimal
+    /// scale and accept only same-scale codes; explicit codes still require
+    /// an exact match.
+    func accepts(_ otherCode: String) -> Bool {
+        let incoming = otherCode
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        guard !incoming.isEmpty else {
+            return false
+        }
+        if code.isEmpty {
+            return Self.catalog(code: incoming).decimalPlaces == decimalPlaces
+        }
+        return incoming == code.uppercased()
+    }
+
     var scale: Decimal {
         pow(Decimal(10), decimalPlaces)
     }

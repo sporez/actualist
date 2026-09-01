@@ -72,4 +72,16 @@ struct ShortcutMoneyTests {
         let amount = IntentCurrencyAmount(amount: Decimal(string: "1.00")!, currencyCode: "")
         #expect(try ShortcutMoney.minorUnits(from: amount) == 100)
     }
+
+    @Test func currencyNeutralBudgetAcceptsSameScaleIntentAmounts() throws {
+        let amount = IntentCurrencyAmount(amount: Decimal(string: "1.00")!, currencyCode: "USD")
+        #expect(try ShortcutMoney.minorUnits(from: amount, currency: .none) == 100)
+    }
+
+    @Test func currencyNeutralBudgetRejectsZeroDecimalIntentAmounts() {
+        let amount = IntentCurrencyAmount(amount: Decimal(1_234), currencyCode: "JPY")
+        #expect(throws: ShortcutsError.currencyMismatch) {
+            _ = try ShortcutMoney.minorUnits(from: amount, currency: .none)
+        }
+    }
 }
