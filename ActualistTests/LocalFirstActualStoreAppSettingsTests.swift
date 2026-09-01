@@ -29,6 +29,7 @@ extension LocalFirstActualStoreTests {
         #expect(!settings.greenIncomeTransactionAmountsEnabled)
         #expect(!settings.includeCarryoverCategoriesInOverspentAlerts)
         #expect(!settings.showTotalAssigned)
+        #expect(!settings.hideCarryoverArrows)
         #expect(!settings.showHiddenCategories)
         #expect(settings.appSwitcherPrivacyMode == .whenBackgrounded)
         #expect(settings.shortcutsEnabled)
@@ -75,6 +76,29 @@ extension LocalFirstActualStoreTests {
         state.updateShowTotalAssigned(true)
         #expect(state.settings.showTotalAssigned)
         #expect(AppSettingsStore(defaults: defaults).load().showTotalAssigned)
+    }
+
+    @Test func hideCarryoverArrowsPreferenceDefaultsOffAndPersists() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+
+        #expect(!AppSettings().hideCarryoverArrows)
+        let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: Data("{}".utf8))
+        #expect(!decoded.hideCarryoverArrows)
+
+        store.save(AppSettings(hideCarryoverArrows: true))
+
+        #expect(store.load().hideCarryoverArrows)
+    }
+
+    @Test func hideCarryoverArrowsPreferenceUpdatesThroughAppState() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+
+        #expect(!state.settings.hideCarryoverArrows)
+        state.updateHideCarryoverArrows(true)
+        #expect(state.settings.hideCarryoverArrows)
+        #expect(AppSettingsStore(defaults: defaults).load().hideCarryoverArrows)
     }
 
     @Test func showHiddenCategoriesPreferenceDefaultsOffAndPersists() throws {

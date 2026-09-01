@@ -12,6 +12,7 @@ struct BudgetGroupSection: View {
     let beginAssignmentEditing: (BudgetMonthCategory, CGRect) -> Void
     let toggle: () -> Void
     var showHidden = false
+    var hidesCarryoverArrows = false
     var canChangeVisibility = true
     var onOpenCategoryNote: (BudgetMonthCategory) -> Void = { _ in }
     var onOpenGroupNote: () -> Void = {}
@@ -109,6 +110,7 @@ struct BudgetGroupSection: View {
                                 category: category,
                                 group: group
                             ),
+                            hidesCarryoverArrows: hidesCarryoverArrows,
                             canChangeVisibility: canChangeVisibility && !isGroupHidden,
                             beginAssignmentEditing: { categoryFrame in
                                 beginAssignmentEditing(category, categoryFrame)
@@ -160,6 +162,7 @@ struct BudgetCategoryRow: View {
     let isPrivacyModeEnabled: Bool
     let showsBottomSeparator: Bool
     var isDimmed = false
+    var hidesCarryoverArrows = false
     var canChangeVisibility = false
     let beginAssignmentEditing: (CGRect) -> Void
     var onOpenNote: () -> Void = {}
@@ -286,28 +289,29 @@ struct BudgetCategoryRow: View {
         return ActualistTheme.positiveForeground
     }
 
+    private var showsCarryoverBadge: Bool {
+        category.carryover && !hidesCarryoverArrows
+    }
+
     private var availablePill: some View {
         Text(availableText)
             .font(ActualistTypography.rowValue(for: density))
             .foregroundStyle(availableForeground)
             .lineLimit(1)
             .minimumScaleFactor(0.78)
-            .padding(.leading, BudgetLayout.availablePillHorizontalPadding)
-            .padding(
-                .trailing,
-                BudgetLayout.availablePillHorizontalPadding
-                    + (category.carryover ? BudgetLayout.rolloverIndicatorReservedWidth : 0)
-            )
+            .padding(.horizontal, BudgetLayout.availablePillHorizontalPadding)
             .padding(.vertical, 5)
             .background(availableBackground, in: Capsule())
             .overlay(alignment: .topTrailing) {
-                if category.carryover {
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: BudgetLayout.rolloverIndicatorSize, weight: .black))
-                        .foregroundStyle(availableForeground.opacity(0.82))
-                        .padding(.top, BudgetLayout.rolloverIndicatorTopPadding)
-                        .padding(.trailing, BudgetLayout.rolloverIndicatorTrailingPadding)
-                        .accessibilityHidden(true)
+                if showsCarryoverBadge {
+                    BudgetCarryoverBadge(
+                        fill: availableBackground,
+                        foreground: availableForeground
+                    )
+                    .offset(
+                        x: BudgetLayout.rolloverBadgeOffset,
+                        y: -BudgetLayout.rolloverBadgeOffset
+                    )
                 }
             }
             .frame(width: BudgetLayout.availableWidth, alignment: .trailing)

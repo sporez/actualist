@@ -561,6 +561,7 @@ struct BudgetView: View {
                         }
                     },
                     showHidden: appState.settings.showHiddenCategories,
+                    hidesCarryoverArrows: appState.settings.hideCarryoverArrows,
                     canChangeVisibility: !visibilityWorkflow.isSubmitting,
                     onOpenCategoryNote: { category in
                         noteTarget = ActualNoteTarget.category(

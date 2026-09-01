@@ -11,10 +11,10 @@ enum BudgetLayout {
     static let assignedWidth: CGFloat = 96
     static let availableWidth: CGFloat = 104
     static let availablePillHorizontalPadding: CGFloat = 6
-    static let rolloverIndicatorReservedWidth: CGFloat = 12
-    static let rolloverIndicatorSize: CGFloat = 7
-    static let rolloverIndicatorTopPadding: CGFloat = 3
-    static let rolloverIndicatorTrailingPadding: CGFloat = 4
+    static let rolloverBadgeSize: CGFloat = 12
+    static let rolloverBadgeArrowSize: CGFloat = 6
+    static let rolloverBadgeRingWidth: CGFloat = 1.5
+    static let rolloverBadgeOffset: CGFloat = 5
     static let alertHorizontalPadding: CGFloat = 16
     static let alertVerticalPadding: CGFloat = 10
     static let summaryStackedVerticalPadding: CGFloat = 6
@@ -31,6 +31,23 @@ enum BudgetLayout {
         280_000_000,
         460_000_000
     ]
+}
+
+struct BudgetCarryoverBadge: View {
+    let fill: Color
+    let foreground: Color
+
+    var body: some View {
+        Image(systemName: "arrow.right")
+            .font(.system(size: BudgetLayout.rolloverBadgeArrowSize, weight: .heavy))
+            .foregroundStyle(foreground)
+            .frame(width: BudgetLayout.rolloverBadgeSize, height: BudgetLayout.rolloverBadgeSize)
+            .background(fill, in: Circle())
+            .padding(BudgetLayout.rolloverBadgeRingWidth)
+            .background(ActualistTheme.surface, in: Circle())
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 }
 
 struct BudgetTemplateConfirmationModifier: ViewModifier {

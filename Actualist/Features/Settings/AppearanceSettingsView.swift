@@ -95,10 +95,11 @@ struct AppearanceSettingsView: View {
                     isOn: includeCarryoverCategoriesInOverspentAlertsSelection
                 )
                 Toggle("Show Total Assigned", isOn: showTotalAssignedSelection)
+                Toggle("Hide Carryover Arrows", isOn: hideCarryoverArrowsSelection)
             } header: {
                 Text("Budget Options")
             } footer: {
-                Text("Controls additional information shown on the Budget screen.")
+                Text("Controls additional information shown on the Budget screen. Carryover arrows mark categories that roll leftover or overspending into next month.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -158,6 +159,14 @@ struct AppearanceSettingsView: View {
             appState.settings.showTotalAssigned
         } set: { isEnabled in
             appState.updateShowTotalAssigned(isEnabled)
+        }
+    }
+
+    private var hideCarryoverArrowsSelection: Binding<Bool> {
+        Binding {
+            appState.settings.hideCarryoverArrows
+        } set: { isHidden in
+            appState.updateHideCarryoverArrows(isHidden)
         }
     }
 }

@@ -551,6 +551,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateHideCarryoverArrows(_ isHidden: Bool) {
+        settings.hideCarryoverArrows = isHidden
+        settingsStore.save(settings)
+    }
+
     func updateShowHiddenCategories(_ isEnabled: Bool) {
         settings.showHiddenCategories = isEnabled
         settingsStore.save(settings)
