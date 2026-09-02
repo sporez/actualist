@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct ActualNoteTarget: Hashable, Identifiable, Sendable {
     enum Kind: String, Hashable, Sendable {
@@ -57,7 +58,7 @@ struct ActualNoteTarget: Hashable, Identifiable, Sendable {
 
 struct ActualNotePresentation: Equatable, Sendable {
     /// Shown above the notes editor. Keep in sync with the parser subset.
-    static let editorSyntaxHint = "Supports **bold**, *italic*, and `code`. Line breaks are kept."
+    static let editorSyntaxHint = "Supports **bold** and *italic*."
 
     let attributedText: AttributedString
 
@@ -79,6 +80,28 @@ struct ActualNotePresentation: Equatable, Sendable {
             )
         )
         attributedText = parsed.map(Self.removingLinks) ?? AttributedString(source)
+    }
+
+    /// Apply fonts on the attributed runs. A view-level weighted `.font()` on
+    /// `Text` flattens **bold** down to the same weight as surrounding text.
+    func displayAttributedText(baseFont: Font) -> AttributedString {
+        var output = AttributedString()
+        for run in attributedText.runs {
+            var piece = AttributedString(String(attributedText[run.range].characters))
+            if let intent = run.inlinePresentationIntent {
+                piece.inlinePresentationIntent = intent
+            }
+            var font = baseFont
+            if run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true {
+                font = font.bold()
+            }
+            if run.inlinePresentationIntent?.contains(.emphasized) == true {
+                font = font.italic()
+            }
+            piece.font = font
+            output += piece
+        }
+        return output
     }
 
     private static func removingLinks(from markdown: AttributedString) -> AttributedString {

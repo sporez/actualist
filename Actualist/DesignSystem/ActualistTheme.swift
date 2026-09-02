@@ -468,6 +468,16 @@ enum ActualistTypography {
         }
     }
 
+    /// Unweighted so Markdown **bold** can resolve to a heavier face.
+    static func markdownBody(for density: ActualistDisplayDensity) -> Font {
+        switch density {
+        case .large: .body
+        case .comfortable: .callout
+        case .compact: .subheadline
+        case .dense: .footnote
+        }
+    }
+
     static func keypadDigit(for density: ActualistDisplayDensity) -> Font {
         switch density {
         case .large: .system(size: 32, weight: .regular, design: .rounded)

@@ -120,8 +120,11 @@ struct AccountTransactionsSummaryView: View {
                 .foregroundStyle(ActualistTheme.accent)
 
             ScrollView(.vertical) {
-                Text(note.attributedText)
-                    .font(ActualistTypography.body(for: density))
+                Text(
+                    note.displayAttributedText(
+                        baseFont: ActualistTypography.markdownBody(for: density)
+                    )
+                )
                     .foregroundStyle(ActualistTheme.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)

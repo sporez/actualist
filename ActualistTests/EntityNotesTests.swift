@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import SwiftUI
 import Testing
 @testable import Actualist
 
@@ -83,7 +84,27 @@ struct ActualNoteValueTests {
         )
         #expect(
             ActualNotePresentation.editorSyntaxHint
-                == "Supports **bold**, *italic*, and `code`. Line breaks are kept."
+                == "Supports **bold** and *italic*."
+        )
+    }
+
+    @Test func markdownPresentationAppliesBoldFontForStrongEmphasis() throws {
+        let presentation = try #require(
+            ActualNotePresentation(userBody: "Keep **left** over *right*")
+        )
+        let styled = presentation.displayAttributedText(baseFont: .body)
+
+        #expect(
+            styled.runs.contains {
+                $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
+                    && $0.font != nil
+            }
+        )
+        #expect(
+            styled.runs.contains {
+                $0.inlinePresentationIntent?.contains(.emphasized) == true
+                    && $0.font != nil
+            }
         )
     }
 
