@@ -5,6 +5,7 @@ accounts
 appearance
 budget
 demo
+history
 onboarding
 payees
 privacy

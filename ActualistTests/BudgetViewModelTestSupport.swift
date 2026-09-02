@@ -377,6 +377,16 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         didAssignCallbackFinished
     }
 
+    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
+
+    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
+
+    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
+        BudgetActionUndoPreview(actionID: actionID, month: "", entries: [], block: nil)
+    }
+
+    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
+
     func didMoveFinished() -> Bool {
         didMoveCallbackFinished
     }

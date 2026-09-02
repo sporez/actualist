@@ -31,6 +31,9 @@ enum LocalFirstError: LocalizedError, Equatable {
     case remoteDataLimitExceeded
     case insufficientStorage
     case invalidLocalWrite(String)
+    /// A History undo was refused by the conflict check; the string is the
+    /// user-facing reason (from `BudgetActionUndoBlock.userFacingReason`).
+    case actionUndoBlocked(String)
     case budgetNotOpened
     case unsupportedTemplate(String)
     case keychainFailure(String, OSStatus)
@@ -85,6 +88,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "This device does not have enough free storage to import the budget safely."
         case .invalidLocalWrite(let reason):
             "Actualist could not apply the local-first write: \(reason)"
+        case .actionUndoBlocked(let reason):
+            reason
         case .budgetNotOpened:
             "Open a local-first budget before loading this screen."
         case .unsupportedTemplate(let reason):

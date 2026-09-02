@@ -188,50 +188,13 @@ extension BudgetDatabase {
                     try captureActionLogFacts(descriptor: $0.descriptor, db: db)
                 }
 
-                var appliedCount = 0
-                var insertedRows = Set<String>()
-                var firstTimestamp: String?
-                var lastTimestamp: String?
-                for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
-                    let message = ActualSyncDecodedMessage(
-                        timestamp: try clock.next(now: now),
-                        dataset: draft.dataset,
-                        row: draft.row,
-                        column: draft.column,
-                        serializedValue: draft.serializedValue
-                    )
-                    try validateLocalMessage(message, db: db)
-
-                    if try hasSameOrNewerMessage(message, db: db) {
-                        throw LocalFirstError.localWriteSuperseded
-                    }
-
-                    let rowKey = message.dataset + message.row
-                    let hasRow: Bool
-                    if insertedRows.contains(rowKey) {
-                        hasRow = true
-                    } else {
-                        hasRow = try rowExists(
-                            table: message.dataset,
-                            rowID: message.row,
-                            db: db
-                        )
-                    }
-                    let value = try deserializeSyncValue(message.serializedValue)
-                    try apply(message: message, value: value, rowExists: hasRow, db: db)
-                    insertedRows.insert(rowKey)
-                    try insertCRDTMessage(message, db: db)
-                    try insertLocalSyncOutboxMessage(
-                        message,
-                        baseTimestamp: baseTimestamp,
-                        db: db
-                    )
-                    if firstTimestamp == nil {
-                        firstTimestamp = message.timestamp
-                    }
-                    lastTimestamp = message.timestamp
-                    appliedCount += 1
-                }
+                let applied = try applyCommittedDrafts(
+                    drafts,
+                    clock: &clock,
+                    now: now,
+                    baseTimestamp: baseTimestamp,
+                    db: db
+                )
                 if let actionLogCommit, let actionLogFacts {
                     try ensureActionLog(db)
                     try insertActionLogRecord(
@@ -239,14 +202,14 @@ extension BudgetDatabase {
                             id: actionLogCommit.actionID,
                             createdAt: now,
                             source: actionLogCommit.source,
-                            forwardTimestampStart: firstTimestamp,
-                            forwardTimestampEnd: lastTimestamp
+                            forwardTimestampStart: applied.firstTimestamp,
+                            forwardTimestampEnd: applied.lastTimestamp
                         ),
                         db: db
                     )
                     try pruneActionLog(keeping: Self.actionLogRetentionLimit, db: db)
                 }
-                return appliedCount
+                return applied.appliedCount
             }
         } catch let error as LocalFirstError {
             throw error
@@ -255,6 +218,75 @@ extension BudgetDatabase {
         }
         localClock = clock
         return appliedCount
+    }
+
+    struct CommittedDraftsResult: Sendable {
+        var appliedCount: Int
+        var firstTimestamp: String?
+        var lastTimestamp: String?
+    }
+
+    /// Applies pending-timestamp drafts inside an already-open write
+    /// transaction: stamps hybrid-logical timestamps, validates, rejects
+    /// superseded writes, applies cells, appends `messages_crdt`, and
+    /// enqueues outbox rows. Shared by the forward commit and the History
+    /// undo commit so the two paths can never diverge.
+    func applyCommittedDrafts(
+        _ drafts: [ActualSyncDecodedMessage],
+        clock: inout HybridLogicalClock,
+        now: Date,
+        baseTimestamp: String,
+        db: Database
+    ) throws -> CommittedDraftsResult {
+        var appliedCount = 0
+        var insertedRows = Set<String>()
+        var firstTimestamp: String?
+        var lastTimestamp: String?
+        for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
+            let message = ActualSyncDecodedMessage(
+                timestamp: try clock.next(now: now),
+                dataset: draft.dataset,
+                row: draft.row,
+                column: draft.column,
+                serializedValue: draft.serializedValue
+            )
+            try validateLocalMessage(message, db: db)
+
+            if try hasSameOrNewerMessage(message, db: db) {
+                throw LocalFirstError.localWriteSuperseded
+            }
+
+            let rowKey = message.dataset + message.row
+            let hasRow: Bool
+            if insertedRows.contains(rowKey) {
+                hasRow = true
+            } else {
+                hasRow = try rowExists(
+                    table: message.dataset,
+                    rowID: message.row,
+                    db: db
+                )
+            }
+            let value = try deserializeSyncValue(message.serializedValue)
+            try apply(message: message, value: value, rowExists: hasRow, db: db)
+            insertedRows.insert(rowKey)
+            try insertCRDTMessage(message, db: db)
+            try insertLocalSyncOutboxMessage(
+                message,
+                baseTimestamp: baseTimestamp,
+                db: db
+            )
+            if firstTimestamp == nil {
+                firstTimestamp = message.timestamp
+            }
+            lastTimestamp = message.timestamp
+            appliedCount += 1
+        }
+        return CommittedDraftsResult(
+            appliedCount: appliedCount,
+            firstTimestamp: firstTimestamp,
+            lastTimestamp: lastTimestamp
+        )
     }
 
     func applyLocalSyncMessages(

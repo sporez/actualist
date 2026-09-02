@@ -329,6 +329,18 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         throw TestError("not used")
     }
 
+    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
+
+    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
+
+    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
+        throw TestError("not used")
+    }
+
+    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {
+        throw TestError("not used")
+    }
+
     static func makeLoadedMonth(_ month: String, toBudget: Int = 0) -> LoadedBudgetMonth {
         let json = """
         {

@@ -1,6 +1,16 @@
 import Foundation
 import GRDB
 
+/// The template engine's output for one apply: the CRDT messages plus the
+/// per-category resulting assignment, which the History action log pairs with
+/// live before-values to record a `template` gesture. Categories whose rows
+/// only cleared orphan goals or tombstoned cleanup groups appear in messages
+/// but not in `assignments`.
+struct BudgetTemplateApplyResult: Sendable {
+    var messages: [ActualSyncDecodedMessage]
+    var assignments: [BudgetTemplateAssignment]
+}
+
 extension BudgetDatabase {
     func budgetTemplateMessages(
         command: BudgetTemplateCommand,
@@ -8,6 +18,20 @@ extension BudgetDatabase {
         currentMonth: String? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
+        try budgetTemplateApply(
+            command: command,
+            month: month,
+            currentMonth: currentMonth,
+            builder: &builder
+        ).messages
+    }
+
+    func budgetTemplateApply(
+        command: BudgetTemplateCommand,
+        month: String,
+        currentMonth: String? = nil,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> BudgetTemplateApplyResult {
         let monthValue = try Self.actualMonthValue(month)
         let currentMonthValue = try Self.actualMonthValue(
             currentMonth ?? BudgetTemplateCalendar.currentMonthID()
@@ -196,7 +220,12 @@ extension BudgetDatabase {
                 }
             }
             messages += try tombstoneOrphanCleanupGroupMessages(db: db, builder: &builder)
-            return messages
+            return BudgetTemplateApplyResult(
+                messages: messages,
+                assignments: writes.map {
+                    BudgetTemplateAssignment(categoryID: $0.categoryID, amount: $0.amount)
+                }
+            )
         }
     }
 

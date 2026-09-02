@@ -4,7 +4,7 @@ import Observation
 @MainActor
 @Observable
 final class BudgetMoveMoneyWorkflow {
-    private static let maximumUserAmountMinorUnits = 9_000_000_000_000_000
+    private static let maximumUserAmountMinorUnits = Money.maximumUserAmountMinorUnits
 
     private(set) var draft: BudgetMoveMoneyDraft?
     private var sliderDetent = BudgetMoveMoneySliderDetent()

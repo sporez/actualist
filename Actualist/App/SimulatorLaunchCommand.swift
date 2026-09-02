@@ -8,7 +8,7 @@ import Foundation
 /// a clean install.
 ///
 /// `-actualist-screen` takes a slash path, not a closed enum. Roots are tabs,
-/// `settings`, and `uncategorized`. Nested settings pages use the
+/// `settings`, `history`, and `uncategorized`. Nested settings pages use the
 /// `SettingsPage` slug (`settings/appearance`). Unique slugs also work as
 /// shorthand (`appearance`). Unknown paths are kept but do not change routing.
 struct SimulatorLaunchCommand: Equatable, Sendable {
@@ -66,6 +66,9 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
         if first == "uncategorized" {
             return .uncategorized(month: "")
         }
+        if first == "history" {
+            return .history
+        }
         if first == "settings" || SettingsPage(rawValue: first) != nil {
             return .settings
         }
@@ -90,7 +93,7 @@ enum SimulatorLaunchApplier {
             appState.selectedTab = tab
         case .account:
             appState.selectedTab = .accounts
-        case .category, .uncategorized, .settings:
+        case .category, .uncategorized, .history, .settings:
             appState.selectedTab = .budget
         case .newTransaction:
             break

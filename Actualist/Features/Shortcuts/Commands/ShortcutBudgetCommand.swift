@@ -93,6 +93,7 @@ enum ShortcutBudgetCommand {
                 command: command,
                 budgetID: prepared.budgetID,
                 month: monthID,
+                actionSource: .shortcuts,
                 didApply: {}
             )
             session.recordSuccessfulWrite()

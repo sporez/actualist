@@ -300,21 +300,48 @@ extension LocalFirstActualStore {
         return max(startMonth, YearMonth(date: horizonDate).rawValue)
     }
 
+    // BudgetRepositoryProtocol witness; records the gesture with a UI source.
     func applyBudgetTemplateAndRefresh(
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
         didApply: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
+        try await applyBudgetTemplateAndRefresh(
+            command: command,
+            budgetID: budgetID,
+            month: month,
+            actionSource: .ui,
+            didApply: didApply
+        )
+    }
+
+    func applyBudgetTemplateAndRefresh(
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        actionSource: BudgetActionSource,
+        didApply: @escaping () async -> Void
+    ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let result = try await database.budgetTemplateApply(
             command: command,
             month: month,
             builder: &builder
         )
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        if result.assignments.isEmpty {
+            // A goal-only or orphan-cleanup write moved no money; History
+            // records money-flow gestures only.
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(result.messages)
+        } else {
+            _ = try await database.commitUserAction(
+                result.messages,
+                descriptor: .template(month: month, mode: command.mode, assignments: result.assignments),
+                source: actionSource
+            )
+        }
         await didApply()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)

@@ -5,6 +5,7 @@ enum AppRoute: Equatable {
     case account(id: String)
     case category(id: String, month: String)
     case uncategorized(month: String)
+    case history
     case settings
     case newTransaction(ShortcutEditorPrefill)
 }

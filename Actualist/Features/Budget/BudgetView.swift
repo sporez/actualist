@@ -6,6 +6,7 @@ struct BudgetView: View {
     @State private var viewModel: BudgetViewModel
     @State private var isTransactionEditorPresented = false
     @State private var isSettingsPresented = false
+    @State private var isHistoryPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
     @State private var uncategorizedRouteMonth: String?
@@ -182,6 +183,14 @@ struct BudgetView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button {
+                                isHistoryPresented = true
+                            } label: {
+                                Label("History", systemImage: "clock.arrow.circlepath")
+                            }
+
+                            Divider()
+
+                            Button {
                                 presentMonthNote()
                             } label: {
                                 Label("Notes", systemImage: "note.text")
@@ -256,6 +265,11 @@ struct BudgetView: View {
                     TransactionEditorView(prefilledAccount: nil) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
+                        .environment(appState)
+                        .appSwitcherPrivacyProtected()
+                }
+                .sheet(isPresented: $isHistoryPresented) {
+                    HistoryView()
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
                 }
@@ -485,6 +499,11 @@ struct BudgetView: View {
     private func applyShortcutRoute() {
         if case .settings = appState.routeCoordinator.pendingRoute {
             isSettingsPresented = true
+            _ = appState.routeCoordinator.consume()
+            return
+        }
+        if case .history = appState.routeCoordinator.pendingRoute {
+            isHistoryPresented = true
             _ = appState.routeCoordinator.consume()
             return
         }

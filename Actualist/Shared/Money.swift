@@ -31,6 +31,13 @@ extension Int {
     }
 }
 
+extension Money {
+    /// Largest absolute amount (Actual minor units) a user gesture or a write
+    /// restoring one may create. Shared by the move-money workflow and the
+    /// History undo conflict check.
+    static let maximumUserAmountMinorUnits = 9_000_000_000_000_000
+}
+
 enum PrivacyDisplayKind {
     case account
     case budget

@@ -18,6 +18,21 @@ struct MoveBudgetActionInverse: Codable, Equatable, Sendable {
 enum BudgetActionInverse: Equatable, Sendable {
     case assign(AssignBudgetAction)
     case move(MoveBudgetActionInverse)
+    case template(TemplateBudgetAction)
+}
+
+extension BudgetActionInverse {
+    /// The budget month the gesture wrote into. All v1 kinds are month-scoped.
+    var month: String {
+        switch self {
+        case .assign(let assign):
+            return assign.month
+        case .move(let move):
+            return move.month
+        case .template(let template):
+            return template.month
+        }
+    }
 }
 
 /// A user gesture as submitted, before live cells are read. The write path
@@ -26,12 +41,17 @@ enum BudgetActionInverse: Equatable, Sendable {
 enum BudgetActionDescriptor: Equatable, Sendable {
     case assign(month: String, categoryID: String, budgeted: Int)
     case move(month: String, legs: [BudgetMoveLeg])
+    /// `assignments` are the engine's resulting amounts; the commit pairs them
+    /// with live before-values to build the recorded facts. Skip recording
+    /// when empty (a goal-only or orphan-cleanup write moved no money).
+    case template(month: String, mode: BudgetTemplateApplicationMode, assignments: [BudgetTemplateAssignment])
 }
 
 extension BudgetActionInverse: Codable {
     private enum InverseKind: String, Codable {
         case assign
         case move
+        case template
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -47,6 +67,8 @@ extension BudgetActionInverse: Codable {
             self = .assign(try payload.decode(AssignBudgetAction.self, forKey: .payload))
         case .move:
             self = .move(try payload.decode(MoveBudgetActionInverse.self, forKey: .payload))
+        case .template:
+            self = .template(try payload.decode(TemplateBudgetAction.self, forKey: .payload))
         }
     }
 
@@ -60,6 +82,9 @@ extension BudgetActionInverse: Codable {
         case .move(let move):
             try container.encode(InverseKind.move, forKey: .type)
             try payload.encode(move, forKey: .payload)
+        case .template(let template):
+            try container.encode(InverseKind.template, forKey: .type)
+            try payload.encode(template, forKey: .payload)
         }
     }
 }

@@ -198,6 +198,229 @@ extension LocalFirstActualStoreTests {
 
         #expect(try await store.recentBudgetActions(budgetID: "group-1").isEmpty)
     }
+
+    @Test func templateApplyRecordsOneRowWithBeforeAndAfter() async throws {
+        let store = try await makeOpenedWritableStore()
+
+        _ = try await store.applyBudgetTemplateAndRefresh(
+            command: .category("utilities"),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let row = try #require(rows.only)
+        #expect(row.kind == .template)
+        #expect(row.status == .applied)
+        #expect(row.source == .ui)
+        #expect(row.month == "2026-07")
+        #expect(row.affectedCategoryIDs == ["utilities"])
+        let template = TemplateBudgetAction(
+            month: "2026-07",
+            mode: .overwrite,
+            entries: [BudgetTemplateAssignmentFact(categoryID: "utilities", before: 0, after: 30_000)]
+        )
+        #expect(row.summary == .template(template))
+        #expect(row.inverse == .template(template))
+    }
+
+    @Test func undoAssignRestoresBeforeAndMarksRowUndoneWithoutANewRow() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let pendingBefore = try await store.pendingLocalSyncMessageCount(budgetID: "group-1")
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(
+            loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceries.budgeted == 50_000)
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let undone = try #require(rows.only)
+        #expect(undone.id == row.id)
+        #expect(undone.status == .undone)
+        // The compensating write syncs like any local write.
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > pendingBefore)
+    }
+
+    @Test func undoMoveRestoresEveryLegAtomically() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.moveMoneyAndRefresh(
+            commands: [
+                BudgetMoveMoneyCommand(fromCategoryID: "groceries", toCategoryID: "dining", amount: 5_000),
+                BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "dining", amount: 500)
+            ],
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let categories = Dictionary(
+            uniqueKeysWithValues: loaded.month.categoryGroups.flatMap(\.categories).map { ($0.id, $0.budgeted) }
+        )
+        #expect(categories["groceries"] == 50_000)
+        #expect(categories["dining"] == 0)
+        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
+    }
+
+    @Test func undoOfAnOlderAppliedRowIsRefusedLIFO() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 61_000,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 63_000,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(rows.count == 2)
+        let older = try #require(rows.last)
+
+        await #expect(throws: LocalFirstError.actionUndoBlocked("Undo the newest action before this one.")) {
+            try await store.undoBudgetActionAndRefresh(actionID: older.id, budgetID: "group-1")
+        }
+
+        let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(
+            loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceries.budgeted == 63_000)
+        #expect(try await store.recentBudgetActions(budgetID: "group-1").allSatisfy { $0.status == .applied })
+    }
+
+    @Test func undoNewestThenPreviousRestoresInReverseOrder() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 61_000,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 63_000,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        var rows = try await store.recentBudgetActions(budgetID: "group-1")
+
+        try await store.undoBudgetActionAndRefresh(actionID: rows[0].id, budgetID: "group-1")
+        try await store.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
+
+        let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = try #require(
+            loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        )
+        #expect(groceries.budgeted == 50_000)
+        rows = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(rows.allSatisfy { $0.status == .undone })
+    }
+
+    @Test func undoIsBlockedWhenAnUntrackedChangeOwnsTheCell() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+
+        // A remote-style or peer write that History never grouped: the live
+        // cell no longer matches the recorded after-state.
+        let database = try await store.requireDatabase(for: "group-1")
+        var builder = LocalFirstSyncMessageBuilder()
+        let untracked = try await database.assignCategoryBudgetMessages(
+            categoryID: "groceries",
+            budgeted: 65_000,
+            month: "2026-07",
+            builder: &builder
+        )
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(untracked)
+
+        await #expect(throws: LocalFirstError.actionUndoBlocked(
+            "Something changed a category after this action. Undo would overwrite the newer change, so it was refused."
+        )) {
+            try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        }
+
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(rows.only?.status == .applied)
+        let database2 = try await store.requireDatabase(for: "group-1")
+        let preview = try await database2.actionUndoPreview(record: row)
+        #expect(preview.block == .changedSinceApplied)
+        #expect(preview.entries.isEmpty)
+    }
+
+    @Test func undoTemplateRestoresEveryAssignedCategory() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.applyBudgetTemplateAndRefresh(
+            command: .category("utilities"),
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let utilities = try #require(
+            loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" }
+        )
+        #expect(utilities.budgeted == 0)
+        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
+    }
+
+    @Test func undoPreviewShowsCurrentAndProposedAmounts() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+
+        let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
+        #expect(preview.isUndoable)
+        #expect(preview.month == "2026-07")
+        #expect(preview.entries == [
+            BudgetActionUndoPreview.Entry(categoryID: "groceries", current: 62_500, proposed: 50_000)
+        ])
+    }
+
+    @Test func undoOfAnAlreadyUndoneRowIsRefused() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        await #expect(throws: LocalFirstError.actionUndoBlocked("This action was already undone.")) {
+            try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        }
+        let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
+        #expect(preview.block == .alreadyUndone)
+    }
 }
 
 private extension Collection {
