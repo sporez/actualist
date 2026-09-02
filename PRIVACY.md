@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective August 6, 2026.
+Effective September 1, 2026.
 
 Actualist is an independent, open-source iPhone client for Actual Budget. This
 policy describes the data handling performed by Actualist itself.
@@ -12,9 +12,23 @@ uses that connection to authenticate, download and synchronize your selected
 budget, and send changes you make in the app.
 
 Your budget data is stored in Actualist's private app container on your device
-and on the Actual Budget server you choose. Sync tokens and unlocked budget
-encryption keys are stored in the iOS Keychain. Your Actual server password is
-used to authenticate and is not retained by Actualist.
+and on the Actual Budget server you choose. Sync tokens, unlocked budget
+encryption keys, and any SimpleFIN device access URL you claim are stored in
+the iOS Keychain. Your Actual server password is used to authenticate and is
+not retained by Actualist.
+
+If your server uses OpenID, sign-in happens with the identity provider that
+server is configured to use. Actualist receives a session token from the Actual
+server and does not operate the identity provider.
+
+If you import from Apple Wallet, Actualist uses Apple's on-device transaction
+picker. You choose which transactions to add. Those records stay on this device
+and on your Actual server after you save; the developer does not receive them.
+
+If you use Bank Sync, downloads go through your Actual server when it hosts
+SimpleFIN. If you paste a SimpleFIN setup token instead, Actualist claims a
+device access URL over HTTPS and downloads from SimpleFIN on this device.
+Background Bank Sync, when enabled, uses the server path only.
 
 New-transaction alerts are local notifications generated on your device.
 Actualist does not use a developer-operated push-notification service.

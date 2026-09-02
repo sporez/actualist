@@ -13,7 +13,8 @@ tests can be submitted directly as pull requests.
 - Use Xcode 26 or later and target iOS 26+.
 - Keep production reads and writes behind `LocalFirstActualStore` and the
   repository protocols.
-- Add every new Swift file to `Actualist.xcodeproj/project.pbxproj`.
+- New Swift files under `Actualist/` or `ActualistTests/` are picked up by the
+  synchronized Xcode groups; do not hand-edit `project.pbxproj` to add them.
 - Run `scripts/check.sh` and the relevant tests before submitting.
 - Pin simulator destinations by UDID, not display name.
 

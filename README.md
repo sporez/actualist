@@ -7,6 +7,10 @@
 ![UI: SwiftUI](https://img.shields.io/badge/UI-SwiftUI-1F6B64)
 ![License: GPL v3](https://img.shields.io/badge/license-GPLv3%20with%20App%20Store%20Exception-2F6FEB)
 
+**Beta:** [Join TestFlight](https://testflight.apple.com/join/HDG6PcGX) ·
+[actualist.app](https://actualist.app) ·
+[Source](https://github.com/sporez/actualist)
+
 Actualist connects directly to a normal Actual sync server, imports your budget
 to a local SQLite database, and renders from that local copy. It is designed for
 quick, repeated budget review on iPhone, with native SwiftUI navigation and iOS
@@ -33,16 +37,27 @@ Liquid Glass controls.
 ## What Actualist Does
 
 - Shows monthly category groups, assigned amounts, available balances, To Budget,
-  uncategorized transactions, and overspending alerts.
+  uncategorized transactions, and overspending alerts. Hide or show categories,
+  apply templates already authored in Actual, and add notes on months, groups,
+  and categories.
 - Provides an all-account Spending feed plus searchable transaction histories for
   individual accounts.
 - Supports common transaction flows, including create, edit, delete, categorize,
   split, and transfer.
 - Supports core budget writes such as category assignment, move money, and
   category rollover.
-- Shows on-budget, off-budget, and closed accounts, with local account ordering.
+- Shows on-budget, off-budget, and closed accounts, with local account ordering
+  and account notes. Account groups appear when the Actual server supports them.
 - Includes native reports for net worth, cash flow, monthly comparisons, budget
   overview, spending averages, and transaction activity.
+- Can download SimpleFIN transactions through Bank Sync and import Apple Wallet
+  activity you choose, both under Settings → Budget & Data, with review before
+  save.
+- Keeps payee rules in sync with Actual, including imported split rules. Split
+  rules stay read-only in the editor; unsupported shapes stay visible so their
+  JSON is never rewritten.
+- Includes Shortcuts and Siri for logging transactions, assigning budget money,
+  opening screens, and reading balances.
 - Opens an imported budget from local storage first, then syncs Actual CRDT
   messages in the background.
 - Queues offline changes locally and uploads them when the Actual server is
@@ -61,20 +76,21 @@ server or web app. It does not use or require an `actual-http-api` REST wrapper.
 - Network access from the iPhone to that server. If the server is available only
   through a VPN, Tailscale, or another private network, connect the iPhone to that
   network first.
-- Your Actual server password.
+- Your Actual server password, or OpenID if the server is configured for it.
 - For an encrypted budget, the separate budget encryption password.
 
-Beta testers should install the app through the TestFlight invitation supplied
-for their test group. Developers can also [build from source](#building-from-source).
-Public TestFlight builds are tied to `testflight/v<version>-b<build>` tags so
-the corresponding source remains identifiable.
+Install the beta from [TestFlight](https://testflight.apple.com/join/HDG6PcGX).
+Developers can also [build from source](#building-from-source). Public
+TestFlight builds are tied to `testflight/v<version>-b<build>` tags so the
+corresponding source remains identifiable.
 
 ## Connecting to Your Server
 
 1. Launch Actualist.
 2. Enter the full URL of your Actual server, for example
    `https://budget.example.com`.
-3. Enter the **server password** used to sign in to Actual, then tap **Connect**.
+3. Sign in with the **server password**, or **OpenID** if the server uses it,
+   then tap **Connect**.
 4. Choose a budget from the server.
 5. If the budget uses end-to-end encryption, enter its separate encryption
    password when prompted.
@@ -97,7 +113,7 @@ screen's gear or overflow menu.
 - Check that the phone is connected to the required Wi-Fi, VPN, or tailnet.
 - Use HTTPS for any server that is not on the local network.
 - Confirm that you entered the server password, not the budget encryption
-  password.
+  password. If the server uses OpenID, complete the browser sign-in instead.
 - If the budget is encrypted, confirm the second password when selecting it.
 - Update the Actual server and retry before reporting a sync-version problem.
 
