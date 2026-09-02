@@ -65,6 +65,7 @@ enum ShortcutBudgetCommand {
                 ),
                 budgetID: prepared.budgetID,
                 month: monthID,
+                actionSource: .shortcuts,
                 didMove: {}
             )
             session.recordSuccessfulWrite()
@@ -178,6 +179,7 @@ enum ShortcutBudgetCommand {
             budgeted: amountMinorUnits,
             budgetID: prepared.budgetID,
             month: monthID,
+            actionSource: .shortcuts,
             didAssign: {}
         )
         session.recordSuccessfulWrite()

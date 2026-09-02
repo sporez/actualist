@@ -198,29 +198,6 @@ extension LocalFirstActualStore {
         throw LocalFirstError.unsupportedWrite
     }
 
-    func assignCategoryBudgetAndRefresh(
-        categoryID: String,
-        budgeted: Int,
-        budgetID: String,
-        month: String,
-        didAssign: @escaping () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        let database = try requireDatabase(for: budgetID)
-        var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.assignCategoryBudgetMessages(
-            categoryID: categoryID,
-            budgeted: budgeted,
-            month: month,
-            builder: &builder
-        )
-
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        await didAssign()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
-        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
-    }
-
     func setCategoryCarryoverAndRefresh(
         categoryID: String,
         carryover: Bool,
@@ -339,41 +316,6 @@ extension LocalFirstActualStore {
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         await didApply()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
-        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
-    }
-
-    func moveMoneyAndRefresh(
-        command: BudgetMoveMoneyCommand,
-        budgetID: String,
-        month: String,
-        didMove: @escaping () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        try await moveMoneyAndRefresh(
-            commands: [command],
-            budgetID: budgetID,
-            month: month,
-            didMove: didMove
-        )
-    }
-
-    func moveMoneyAndRefresh(
-        commands: [BudgetMoveMoneyCommand],
-        budgetID: String,
-        month: String,
-        didMove: @escaping () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        let database = try requireDatabase(for: budgetID)
-        var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.moveMoneyMessages(
-            commands: commands,
-            month: month,
-            builder: &builder
-        )
-
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        await didMove()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)

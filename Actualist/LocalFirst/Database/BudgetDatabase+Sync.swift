@@ -157,9 +157,13 @@ extension BudgetDatabase {
     }
 
     // Work on a clock copy so a rolled-back transaction cannot advance in-memory time.
+    // `actionLogCommit` captures facts and inserts the action-log row inside
+    // the same write transaction, so the log row and the CRDT write commit or
+    // roll back together.
     func commitLocalSyncMessagesAndEnqueue(
         _ drafts: [ActualSyncDecodedMessage],
-        now: Date = Date()
+        now: Date = Date(),
+        actionLogCommit: ActionLogCommit? = nil
     ) throws -> Int {
         guard !drafts.isEmpty else {
             return 0
@@ -180,8 +184,14 @@ extension BudgetDatabase {
                     sql: "SELECT MAX(timestamp) FROM messages_crdt"
                 ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
 
+                let actionLogFacts = try actionLogCommit.map {
+                    try captureActionLogFacts(descriptor: $0.descriptor, db: db)
+                }
+
                 var appliedCount = 0
                 var insertedRows = Set<String>()
+                var firstTimestamp: String?
+                var lastTimestamp: String?
                 for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
                     let message = ActualSyncDecodedMessage(
                         timestamp: try clock.next(now: now),
@@ -216,7 +226,25 @@ extension BudgetDatabase {
                         baseTimestamp: baseTimestamp,
                         db: db
                     )
+                    if firstTimestamp == nil {
+                        firstTimestamp = message.timestamp
+                    }
+                    lastTimestamp = message.timestamp
                     appliedCount += 1
+                }
+                if let actionLogCommit, let actionLogFacts {
+                    try ensureActionLog(db)
+                    try insertActionLogRecord(
+                        actionLogFacts.record(
+                            id: actionLogCommit.actionID,
+                            createdAt: now,
+                            source: actionLogCommit.source,
+                            forwardTimestampStart: firstTimestamp,
+                            forwardTimestampEnd: lastTimestamp
+                        ),
+                        db: db
+                    )
+                    try pruneActionLog(keeping: Self.actionLogRetentionLimit, db: db)
                 }
                 return appliedCount
             }
@@ -656,6 +684,12 @@ extension BudgetDatabase {
         outboxDateFormatterLock.lock()
         defer { outboxDateFormatterLock.unlock() }
         return outboxDateFormatter.string(from: date)
+    }
+
+    static func outboxDate(_ string: String) -> Date? {
+        outboxDateFormatterLock.lock()
+        defer { outboxDateFormatterLock.unlock() }
+        return outboxDateFormatter.date(from: string)
     }
 
     private static let outboxDateFormatterLock = NSLock()
