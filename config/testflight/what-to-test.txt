@@ -13,6 +13,7 @@ Please test:
 Report problems through Settings → Support → Share Diagnostic Report. Include reproduction steps and redacted screenshots.
 
 Known limitations:
-- Bank sync and reconciliation are unavailable.
-- Account lifecycle actions are incomplete.
-- Budget Templates are experimental.
+- Bank Sync supports SimpleFIN only. Other providers still need another Actual client or the server.
+- Account reconciliation is not available.
+- Creating, renaming, closing, and deleting accounts is incomplete.
+- Budget templates can be applied, not created or edited.
