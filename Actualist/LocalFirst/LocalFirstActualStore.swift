@@ -31,6 +31,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var accountGroupManagementEnabledByBudget: [String: Bool] = [:]
     var payeesByBudget: [String: PayeeManagementSnapshot] = [:]
     var lastPayeeUndoMessagesByBudget: [String: [ActualSyncDecodedMessage]] = [:]
+    var actionLogDiagnosticSnapshot = ActionLogDiagnosticSnapshot.empty
     var rulesByBudget: [String: [ManagedRule]] = [:]
     var monthsByBudget: [String: [String]] = [:]
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
@@ -186,6 +187,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         accountGroupManagementEnabledByBudget = [:]
         payeesByBudget = [:]
         lastPayeeUndoMessagesByBudget = [:]
+        actionLogDiagnosticSnapshot = .empty
         rulesByBudget = [:]
         monthsByBudget = [:]
         loadedBudgetMonthsByBudget = [:]

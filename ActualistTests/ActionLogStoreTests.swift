@@ -714,6 +714,25 @@ extension LocalFirstActualStoreTests {
         #expect(rows.filter(\.kind.isMoneyFlow).count == 25)
     }
 
+    @Test func actionLogDiagnosticStatsAreCountAndAgeOnly() async throws {
+        let store = try await makeOpenedWritableStore()
+        let before = store.actionLogDiagnosticStats()
+        #expect(before.count == 0)
+        #expect(before.newestAgeSeconds == nil)
+
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+
+        let after = store.actionLogDiagnosticStats()
+        #expect(after.count == 1)
+        #expect(after.newestAgeSeconds != nil)
+        #expect((after.newestAgeSeconds ?? 0) >= 0)
+    }
+
     @Test func createAccountRecordsAHistoryRow() async throws {
         let store = try await makeOpenedWritableStore()
         try await store.createAccountAndRefresh(budgetID: "group-1", name: "New Cash", offbudget: false)

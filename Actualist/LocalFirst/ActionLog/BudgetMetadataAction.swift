@@ -1,5 +1,13 @@
 import Foundation
 
+/// Diagnostics may publish count and age, never names or amounts.
+struct ActionLogDiagnosticSnapshot: Equatable, Sendable {
+    var count: Int
+    var newestCreatedAt: Date?
+
+    static let empty = ActionLogDiagnosticSnapshot(count: 0, newestCreatedAt: nil)
+}
+
 extension BudgetActionKind {
     /// v1 History undo and the 25-row retention cap apply only to money-flow
     /// gestures. Metadata rows are visible in the same log without consuming a

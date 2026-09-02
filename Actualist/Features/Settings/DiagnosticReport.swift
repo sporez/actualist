@@ -39,6 +39,7 @@ enum ActualistDiagnosticReportBuilder {
         }
         let importedBudgetCount = (try? store.fileManager.importedBudgetFileIDs().count) ?? 0
         let availableStorageBytes = availableStorageBytes()
+        let historyStats = store.actionLogDiagnosticStats(now: generatedAt)
 
         var lines: [String] = [
             "Actualist Diagnostic Report",
@@ -124,6 +125,8 @@ enum ActualistDiagnosticReportBuilder {
             "Cached spending feeds: \(store.spendingTransactionsByBudget.count)",
             "Cached category transaction feeds: \(store.categoryTransactionsByKey.count)",
             "Cached report snapshots: \(store.reportsByKey.count)",
+            "History row count: \(historyStats.count)",
+            "History newest age seconds: \(historyStats.newestAgeSeconds.map(String.init) ?? "none")",
             "Pending sync flush active: \(yesNo(store.isFlushingPendingLocalMessages))",
             "Pending sync flush requested again: \(yesNo(store.shouldFlushPendingLocalMessagesAgain))",
             "Pending sync waiter count: \(store.pendingLocalMessageFlushWaiters.count)",

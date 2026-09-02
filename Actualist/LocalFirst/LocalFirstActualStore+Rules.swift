@@ -73,5 +73,6 @@ extension LocalFirstActualStore {
         rulesByBudget[budgetID] = try await database.fetchRules()
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        await refreshActionLogDiagnosticSnapshot(database: database)
     }
 }

@@ -183,6 +183,23 @@ extension LocalFirstActualStoreTests {
         #expect(row.amountText != nil)
     }
 
+    @Test func privacyModeRandomizesUndoReviewAmountsAndNames() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let appState = try makeAppState(for: bundle)
+        try await assignGroceries(bundle.store, budgeted: 62_500)
+        appState.updateRandomizedDisplayValuesEnabled(true)
+
+        let viewModel = HistoryViewModel()
+        await viewModel.load(using: appState)
+        let row = try #require(viewModel.rows.first)
+        await viewModel.beginUndo(row, using: appState)
+        let review = try #require(viewModel.activeReview)
+        #expect(!review.gestureSummary.contains("625.00"))
+        #expect(!review.gestureSummary.contains("Groceries"))
+        #expect(review.entries.allSatisfy { !$0.currentText.contains("625.00") && !$0.proposedText.contains("500.00") })
+        #expect(review.entries.allSatisfy { $0.name != "Groceries" })
+    }
+
     @Test func createTransactionRowDescribesThePayeeAndAmount() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)

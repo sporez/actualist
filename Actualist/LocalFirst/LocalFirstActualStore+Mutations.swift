@@ -194,6 +194,7 @@ extension LocalFirstActualStore {
         }
         categoryTransactionsByKey = categoryTransactionsByKey.filter { !$0.key.hasPrefix(prefix) }
         uncategorizedTransactionsByKey = uncategorizedTransactionsByKey.filter { !$0.key.hasPrefix(prefix) }
+        await refreshActionLogDiagnosticSnapshot(database: database)
     }
 
     // MARK: - Account mutations / server operations
@@ -463,6 +464,7 @@ extension LocalFirstActualStore {
                 )
             )
         }
+        await refreshActionLogDiagnosticSnapshot(database: database)
     }
 
     func reloadAfterBudgetMutation(
@@ -484,6 +486,7 @@ extension LocalFirstActualStore {
                 )
             )
         }
+        await refreshActionLogDiagnosticSnapshot(database: database)
     }
 
     func reloadAfterAccountMutation(
@@ -492,5 +495,6 @@ extension LocalFirstActualStore {
     ) async throws {
         invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
+        await refreshActionLogDiagnosticSnapshot(database: database)
     }
 }

@@ -127,6 +127,14 @@ struct DemoModeStoreTests {
         #expect(store.syncStatus?.pendingLocalMessageCount == 0)
         // The local write still never reached a server.
         #expect(await transport.messageCounts().isEmpty)
+
+        let rows = try await store.recentBudgetActions(budgetID: budgetID)
+        let row = try #require(rows.first)
+        #expect(row.kind == .createTransaction)
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: budgetID)
+        #expect(try await store.recentBudgetActions(budgetID: budgetID).first?.status == .undone)
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: budgetID) == 0)
+        #expect(await transport.messageCounts().isEmpty)
     }
 
     @Test func refreshPerformsZeroTransportCalls() async throws {

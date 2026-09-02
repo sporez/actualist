@@ -77,6 +77,25 @@ extension BudgetDatabase {
 
     /// Keep the newest 25 money-flow rows. Metadata in that time window stays
     /// and does not consume a slot. If the log is metadata-only, keep 25 rows.
+    /// Count and newest timestamp only. Never reads summary or inverse JSON.
+    func actionLogDiagnosticSnapshot() throws -> ActionLogDiagnosticSnapshot {
+        try queue.read { db in
+            guard try tableExists("actualist_action_log", db: db) else {
+                return .empty
+            }
+            let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM actualist_action_log") ?? 0
+            guard count > 0,
+                  let newest = try String.fetchOne(
+                    db,
+                    sql: "SELECT MAX(created_at) FROM actualist_action_log"
+                  ),
+                  let date = Self.outboxDate(newest) else {
+                return ActionLogDiagnosticSnapshot(count: count, newestCreatedAt: nil)
+            }
+            return ActionLogDiagnosticSnapshot(count: count, newestCreatedAt: date)
+        }
+    }
+
     func pruneActionLogKeepingMoneyFlowWindow(limit: Int, db: Database) throws {
         let rows = try Row.fetchAll(
             db,

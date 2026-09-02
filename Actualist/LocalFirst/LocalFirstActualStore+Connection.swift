@@ -440,6 +440,7 @@ extension LocalFirstActualStore {
         try? await reloadAccountCaches(database: database, budgetID: budgetID)
         payeesByBudget[budgetID] = try? await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        await refreshActionLogDiagnosticSnapshot(database: database)
         let checkpoint = try? await database.localSyncCheckpoint()
         syncStatus = LocalFirstSyncStatus(
             fileID: budgetID,

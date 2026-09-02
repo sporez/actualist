@@ -128,6 +128,8 @@ struct DiagnosticReportTests {
         #expect(report.text.contains("Total schedule attempts: 5"))
         #expect(report.text.contains("Total wakes: 4"))
         #expect(report.text.contains("Transaction count: 2"))
+        #expect(report.text.contains("History row count: 0"))
+        #expect(report.text.contains("History newest age seconds: none"))
         #expect(!report.text.contains("actual.private.example"))
         #expect(!report.text.contains("private-budget-id"))
         #expect(!report.text.contains("private-file-id"))

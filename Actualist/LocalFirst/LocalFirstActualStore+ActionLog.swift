@@ -4,6 +4,23 @@ extension LocalFirstActualStore {
     /// Newest-first local money-flow gestures for the open budget. The rows
     /// live inside that budget's SQLite, so a budget switch or reimport never
     /// leaks another budget's history.
+    /// Count and newest-row age for diagnostics. Uses the snapshot refreshed
+    /// after open and local writes so Settings can stay synchronous.
+    func actionLogDiagnosticStats(now: Date = Date()) -> (count: Int, newestAgeSeconds: Int?) {
+        let age = actionLogDiagnosticSnapshot.newestCreatedAt.map {
+            max(0, Int(now.timeIntervalSince($0)))
+        }
+        return (actionLogDiagnosticSnapshot.count, age)
+    }
+
+    func refreshActionLogDiagnosticSnapshot(database: BudgetDatabase? = nil) async {
+        guard let database = database ?? self.database else {
+            actionLogDiagnosticSnapshot = .empty
+            return
+        }
+        actionLogDiagnosticSnapshot = (try? await database.actionLogDiagnosticSnapshot()) ?? .empty
+    }
+
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] {
         let database = try requireDatabase(for: budgetID)
         return try await database.recentBudgetActions()
