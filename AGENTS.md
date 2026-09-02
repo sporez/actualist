@@ -209,6 +209,20 @@ Hard rules:
   `Combined`.
 - Describe what changed and where to find it. Do not tell the tester what to
   tap, say, search, try, confirm, or verify.
+- Write in the tester's voice, not the developer's. A tester who has never
+  read Actual's internals or this repo must understand every sentence. Say
+  what they will see or be able to do, and on which screen — never the
+  mechanism that produces it.
+- Name outcomes, not behaviors. Do not enumerate internal rules, guards, or
+  clamp/refuse/fail-close branches; pick the one or two results a tester can
+  observe. The full mechanism belongs in the commit body, not the trailer.
+- No version-parity references (`matches Actual 26.8.1`), math symbols
+  (`±7-day`), or engine/schema terms (CRDT, split family, rule projection,
+  minor units, available vs To Budget sign conventions). If the tester does
+  not type it or tap it, do not name it. Feature names the app itself shows
+  (Apply Templates, Bank Sync, Split, Starting Balance) are allowed.
+- Keep sentences short and concrete: one user-visible change per sentence,
+  common words, no stacked clauses joined by commas and semicolons.
 - No implementation jargon, credentials, hostnames, budget IDs, personal data,
   or real financial amounts.
 - Omit layout-only and developer-only notes. If a tester would not notice it
@@ -226,6 +240,23 @@ Right:
 
 ```text
 TestFlight-Note: [shortcuts] Added Shortcuts and Siri support, grouped under Accounts, Budget, Transactions, and Reports. You can log or import transactions, assign or move budget money, open screens, and read balances.
+```
+
+Developer-voice notes are wrong even when every hard rule passes. Describe
+the outcome a tester sees, not the machinery:
+
+Wrong:
+
+```text
+TestFlight-Note: [budget] Apply Templates reserves Hold for Next Month, tracks from total saved, refuses a stale note-based template directive, and clamps a priority template to leftover To Budget like Actual.
+TestFlight-Note: [banksync] Fixed Bank Sync so imported-payee rules run before matching, ±7-day matches work across calendar boundaries, and unknown booking state stays pending.
+```
+
+Right:
+
+```text
+TestFlight-Note: [budget] Apply Templates now matches the web app more closely. Money you hold for next month stays reserved, average templates use your real spending history, and a template never assigns more than you have left to budget.
+TestFlight-Note: [banksync] Fixed Bank Sync matching so downloaded transactions find existing ones even across month boundaries, and your own payee rules now apply before matches are suggested.
 ```
 
 After writing trailers, run `scripts/lint-testflight-notes.sh --range <base>..HEAD`

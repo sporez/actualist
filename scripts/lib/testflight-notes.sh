@@ -131,12 +131,18 @@ testflight_lint_message() {
   local message="$2"
   local status=0
   local topic note seen_topics="" line
+  local note_count=0
 
   while IFS= read -r line; do
     testflight_split_note_line "$line"
     topic="$_tf_topic"
     note="$_tf_note"
     [[ -n "$note" ]] || continue
+    note_count=$((note_count + 1))
+    if [[ "$note_count" -eq 3 ]]; then
+      echo "error: $source_label: three or more TestFlight-Note trailers; keep one, or two only for unrelated surfaces" >&2
+      status=1
+    fi
     if [[ -n "$topic" ]] && printf '%s\n' "$seen_topics" | grep -Fxq -- "$topic"; then
       echo "error: $source_label: more than one [$topic] note; rewrite the single complete summary" >&2
       status=1
