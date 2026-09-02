@@ -18,6 +18,7 @@ struct BudgetView: View {
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
     @State private var noteTarget: ActualNoteTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
+    @State private var addTransactionExpansion = ScrollDirectedExpansion()
 
     init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
         _viewModel = State(
@@ -49,6 +50,14 @@ struct BudgetView: View {
                 }
                 .scrollIndicators(.hidden)
                 .background(ActualistTheme.background)
+                .onScrollGeometryChange(for: ScrollDirectedExpansionSample.self) { geometry in
+                    ScrollDirectedExpansionSample(
+                        offset: geometry.visibleRect.minY,
+                        maxOffset: max(0, geometry.contentSize.height - geometry.visibleRect.height)
+                    )
+                } action: { previous, current in
+                    updateAddTransactionExpansion(previous: previous, current: current)
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if viewModel.isAssignmentKeypadPresented {
                         BudgetAssignmentKeypad(
@@ -114,16 +123,26 @@ struct BudgetView: View {
                     }
                 }
                 .animation(BudgetLayout.assignmentKeypadAnimation, value: viewModel.isAssignmentKeypadPresented)
+                .overlay(alignment: .bottomTrailing) {
+                    if !viewModel.isAssignmentKeypadPresented {
+                        BudgetAddTransactionButton(isExpanded: addTransactionExpansion.isExpanded) {
+                            isTransactionEditorPresented = true
+                        }
+                        .padding(.trailing, BudgetLayout.screenHorizontalPadding)
+                        .padding(.bottom, BudgetLayout.addTransactionFloatingPadding)
+                    }
+                }
                 .navigationTitle(viewModel.navigationTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            isTransactionEditorPresented = true
+                            isSettingsPresented = true
                         } label: {
-                            Image(systemName: "plus")
+                            Image(systemName: "gearshape")
                         }
                         .actualistToolbarGlassButton()
+                        .accessibilityLabel("Settings")
                     }
 
                     ToolbarItem(placement: .principal) {
@@ -193,14 +212,6 @@ struct BudgetView: View {
                                     Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
                                 }
                                 .disabled(viewModel.isApplyingMonthTemplate)
-                            }
-
-                            Divider()
-
-                            Button {
-                                isSettingsPresented = true
-                            } label: {
-                                Label("Settings", systemImage: "gearshape")
                             }
                         } label: {
                             Image(systemName: "ellipsis")
@@ -594,6 +605,24 @@ struct BudgetView: View {
             month: month,
             title: viewModel.navigationTitle
         )
+    }
+
+    private func updateAddTransactionExpansion(
+        previous: ScrollDirectedExpansionSample,
+        current: ScrollDirectedExpansionSample
+    ) {
+        var next = addTransactionExpansion
+        next.update(
+            previousOffset: previous.offset,
+            offset: current.offset,
+            maxOffset: current.maxOffset
+        )
+        guard next != addTransactionExpansion else {
+            return
+        }
+        withAnimation(BudgetLayout.addTransactionExpansionAnimation) {
+            addTransactionExpansion = next
+        }
     }
 
     private func scheduleAssignmentCategoryScroll(
