@@ -426,7 +426,10 @@ private extension LocalFirstActualStore.BankSyncAccountStatusRow {
             isLinked: isLinked,
             isSyncable: isLinked && BankSyncLinkEligibility.isSimpleFIN(syncSource: syncSource),
             remoteAccountID: remoteAccountID,
-            lastSyncText: BankSyncCopy.lastSyncText(epochMilliseconds: lastSyncEpochMilliseconds),
+            lastSyncText: BankSyncCopy.lastSyncText(
+                epochMilliseconds: lastSyncEpochMilliseconds,
+                isLinked: isLinked
+            ),
             statusText: BankSyncCopy.statusText(durableStatus: durableStatus),
             statusColorKind: BankSyncCopy.statusColorKind(
                 durableStatus: durableStatus,
@@ -472,7 +475,10 @@ private extension BankSyncReview.AccountPlan {
 /// decision-log wording (server-shared connection, never a token) lives in
 /// one place.
 enum BankSyncCopy {
-    static func lastSyncText(epochMilliseconds: Int64?) -> String {
+    static func lastSyncText(epochMilliseconds: Int64?, isLinked: Bool) -> String {
+        guard isLinked else {
+            return "Not linked"
+        }
         guard let epochMilliseconds else {
             return "Never synced"
         }

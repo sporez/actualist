@@ -86,6 +86,8 @@ extension LocalFirstActualStoreTests {
         let credit = try #require(model.accountLines.first { $0.id == "credit" })
         #expect(!credit.isLinked)
         #expect(!credit.isSyncable)
+        #expect(credit.lastSyncText == "Not linked")
+        #expect(credit.statusColorKind == .none)
 
         await model.ensureRemoteAccounts()
         #expect(model.remoteAccountsStatus == .ready)
