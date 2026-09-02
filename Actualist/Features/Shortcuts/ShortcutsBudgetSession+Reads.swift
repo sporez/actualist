@@ -205,15 +205,29 @@ extension ShortcutsBudgetSession {
     private func uncategorizedPayload(month: String? = nil) async throws -> LoadedUncategorizedTransactions {
         let prepared = try await prepare()
         let loadedMonth = try await loadedMonth(preferred: month)
+        let loaded: LoadedUncategorizedTransactions
         if let cached = prepared.store.cachedUncategorizedTransactions(
             budgetID: prepared.budgetID,
             month: loadedMonth.selectedMonth
         ) {
-            return cached
+            loaded = cached
+        } else {
+            loaded = try await prepared.store.uncategorizedTransactions(
+                budgetID: prepared.budgetID,
+                month: loadedMonth.selectedMonth
+            )
         }
-        return try await prepared.store.uncategorizedTransactions(
-            budgetID: prepared.budgetID,
-            month: loadedMonth.selectedMonth
+        // Dedicated Shortcut reads stay month-scoped; the Budget banner is global.
+        let monthID = loadedMonth.selectedMonth
+        return LoadedUncategorizedTransactions(
+            transactions: loaded.transactions.filter { $0.date.hasPrefix(monthID) },
+            accountNames: loaded.accountNames,
+            categoryNames: loaded.categoryNames,
+            payeeNames: loaded.payeeNames,
+            transferPayeeIDs: loaded.transferPayeeIDs,
+            transferAccountIDsByPayeeID: loaded.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: loaded.offBudgetAccountIDs,
+            categoryGroups: loaded.categoryGroups
         )
     }
 

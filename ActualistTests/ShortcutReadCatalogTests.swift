@@ -37,13 +37,18 @@ struct ShortcutReadCatalogTests {
 
     @Test func uncategorizedCountAndTransactionsUseTheSelectedMonth() async throws {
         let session = try await makeSession(
-            extraSQL: "INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent) VALUES ('uncat', 'checking', 20260704, -500, NULL, 0, NULL, 0);"
+            extraSQL: """
+                INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent) VALUES
+                ('uncat', 'checking', 20260704, -500, NULL, 0, NULL, 0),
+                ('june-uncat', 'checking', 20260604, -400, NULL, 0, NULL, 0);
+                """
         )
 
         #expect(try await session.uncategorizedCount() == 1)
         let items = try await session.uncategorizedTransactions()
         #expect(items.map(\.id) == ["uncat"])
         #expect(items.first?.category == nil)
+        #expect(try await session.uncategorizedCount(month: "2026-06") == 1)
     }
 
     @Test func transactionQueryCapsAtOneHundred() async throws {

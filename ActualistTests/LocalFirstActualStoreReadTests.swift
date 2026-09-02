@@ -181,8 +181,7 @@ extension LocalFirstActualStoreTests {
         let alerts = LocalFirstActualStore.uncategorizedAlerts(
             transactions: transactions,
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: [],
-            month: "2026-07"
+            offBudgetAccountIDs: []
         )
 
         #expect(alerts.count == 1)
@@ -191,7 +190,7 @@ extension LocalFirstActualStoreTests {
         #expect(alert.severity == "warning")
         #expect(alert.title == "Uncategorized transactions")
         #expect(alert.actionTitle == "Review")
-        #expect(alert.count == 3)
+        #expect(alert.count == 4)
     }
 
     @Test func uncategorizedAlertEmptyWhenEverythingCategorized() async {
@@ -203,8 +202,7 @@ extension LocalFirstActualStoreTests {
         let alerts = LocalFirstActualStore.uncategorizedAlerts(
             transactions: transactions,
             transferAccountIDsByPayeeID: [:],
-            offBudgetAccountIDs: [],
-            month: "2026-07"
+            offBudgetAccountIDs: []
         )
 
         #expect(alerts.isEmpty)
@@ -222,8 +220,7 @@ extension LocalFirstActualStoreTests {
                 "off-budget-xfer": "savings",
                 "on-budget-xfer": "checking"
             ],
-            offBudgetAccountIDs: ["savings"],
-            month: "2026-07"
+            offBudgetAccountIDs: ["savings"]
         )
 
         #expect(alerts.first?.count == 1)
@@ -238,8 +235,7 @@ extension LocalFirstActualStoreTests {
         let alerts = LocalFirstActualStore.uncategorizedAlerts(
             transactions: transactions,
             transferAccountIDsByPayeeID: [:],
-            offBudgetAccountIDs: ["tracking"],
-            month: "2026-07"
+            offBudgetAccountIDs: ["tracking"]
         )
 
         #expect(alerts.first?.count == 1)
@@ -338,7 +334,6 @@ extension LocalFirstActualStoreTests {
 
         let alerts = LocalFirstActualStore.budgetAlerts(
             month: month,
-            monthID: "2026-07",
             transactions: transactions,
             transferAccountIDsByPayeeID: [:],
             offBudgetAccountIDs: [],
@@ -401,7 +396,7 @@ extension LocalFirstActualStoreTests {
         #expect(loaded.availableMonths.contains("2026-07"))
     }
 
-    @Test func budgetMonthUncategorizedAlertIsMonthBoundedAndPreservesSplitTransferSemantics() async throws {
+    @Test func budgetMonthUncategorizedAlertIsGlobalAndPreservesSplitTransferSemantics() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: """
                 UPDATE transactions
@@ -430,15 +425,15 @@ extension LocalFirstActualStoreTests {
             bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-06")
         )
 
-        #expect(july.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 3)
-        #expect(Set(julyCached.transactions.compactMap(\.id)) == [
-            "txn", "july-split-a", "july-off-budget-xfer",
-        ])
-        #expect(!julyCached.transactions.contains { $0.id == "june-uncat" })
+        let reviewableIDs: Set<String> = [
+            "txn", "june-uncat", "july-split-a", "july-off-budget-xfer",
+        ]
+        #expect(july.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 4)
+        #expect(Set(julyCached.transactions.compactMap(\.id)) == reviewableIDs)
         #expect(!julyCached.transactions.contains { $0.id == "july-split" || $0.id == "july-split-b" })
         #expect(!julyCached.transactions.contains { $0.id == "july-on-budget-xfer" || $0.id == "july-tracking" })
-        #expect(june.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 1)
-        #expect(juneCached.transactions.compactMap(\.id) == ["june-uncat"])
+        #expect(june.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 4)
+        #expect(Set(juneCached.transactions.compactMap(\.id)) == reviewableIDs)
     }
 
     @Test func budgetMonthRetainsUncategorizedAlertDrillDownSnapshot() async throws {

@@ -277,10 +277,9 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedUncategorizedTransactions {
         let database = try requireDatabase(for: budgetID)
         let maps = try await nameMaps(database)
-        let transactions = try await database.fetchTransactionPage(splits: .inline, month: month).transactions.filter { transaction in
+        let transactions = try await database.fetchUncategorizedTransactions().filter { transaction in
             Self.isUncategorized(
                 transaction,
-                month: month,
                 transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
                 offBudgetAccountIDs: maps.offBudgetAccountIDs
             )
@@ -387,11 +386,9 @@ extension LocalFirstActualStore {
         isTrackingBudget: Bool
     ) async throws -> [BudgetMonthAlert] {
         let maps = try await nameMaps(database)
-        let transactions = try await database.fetchTransactionPage(splits: .inline, month: monthID).transactions
-        let uncategorized = transactions.filter { transaction in
+        let uncategorized = try await database.fetchUncategorizedTransactions().filter { transaction in
             Self.isUncategorized(
                 transaction,
-                month: monthID,
                 transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
                 offBudgetAccountIDs: maps.offBudgetAccountIDs
             )
@@ -409,8 +406,7 @@ extension LocalFirstActualStore {
             )
         return Self.budgetAlerts(
             month: month,
-            monthID: monthID,
-            transactions: transactions,
+            transactions: uncategorized,
             transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             isTrackingBudget: isTrackingBudget
@@ -419,7 +415,6 @@ extension LocalFirstActualStore {
 
     static func budgetAlerts(
         month: BudgetMonth,
-        monthID: String,
         transactions: [ActualTransaction],
         transferAccountIDsByPayeeID: [String: String],
         offBudgetAccountIDs: Set<String>,
@@ -435,8 +430,7 @@ extension LocalFirstActualStore {
         alerts.append(contentsOf: uncategorizedAlerts(
             transactions: transactions,
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: offBudgetAccountIDs,
-            month: monthID
+            offBudgetAccountIDs: offBudgetAccountIDs
         ))
         return alerts
     }
@@ -478,13 +472,11 @@ extension LocalFirstActualStore {
     static func uncategorizedAlerts(
         transactions: [ActualTransaction],
         transferAccountIDsByPayeeID: [String: String],
-        offBudgetAccountIDs: Set<String>,
-        month: String
+        offBudgetAccountIDs: Set<String>
     ) -> [BudgetMonthAlert] {
         let count = transactions.filter {
             isUncategorized(
                 $0,
-                month: month,
                 transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
                 offBudgetAccountIDs: offBudgetAccountIDs
             )
@@ -507,16 +499,16 @@ extension LocalFirstActualStore {
     // Cross-budget transfers from a budget account still need a category.
     // Split parents are excluded because their effective category is always
     // null; uncategorized children are independent `.inline` rows.
+    // Uncategorized is budget-global: prior months still reduce To Budget,
+    // and Actual web's banner has no month filter.
     static func isUncategorized(
         _ transaction: ActualTransaction,
-        month: String,
         transferAccountIDsByPayeeID: [String: String],
         offBudgetAccountIDs: Set<String>
     ) -> Bool {
         let destinationAccountID = transaction.payee.flatMap { transferAccountIDsByPayeeID[$0] }
         let isOnBudgetTransfer = destinationAccountID.map { !offBudgetAccountIDs.contains($0) } ?? false
-        return transaction.date.hasPrefix(month)
-            && !offBudgetAccountIDs.contains(transaction.account)
+        return !offBudgetAccountIDs.contains(transaction.account)
             && (transaction.category?.isEmpty ?? true)
             && transaction.subtransactions.isEmpty
             && !transaction.isParent

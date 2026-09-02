@@ -370,6 +370,35 @@ struct TransactionSplitQueryTests {
         #expect(invalid.transactions.isEmpty)
     }
 
+    @Test func uncategorizedReadSpansMonthsWithoutLoadingCategorizedOrTransferNoise() async throws {
+        let database = try exactSchemaDatabase(extraSQL: """
+            INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 2);
+            INSERT INTO accounts VALUES ('tracking', 'Tracking', 1, 0, 0, 3);
+            INSERT INTO payees VALUES ('xfer-savings', '', 'savings', 0);
+            INSERT INTO payees VALUES ('xfer-tracking', '', 'tracking', 0);
+            INSERT INTO payee_mapping VALUES ('xfer-savings', 'xfer-savings');
+            INSERT INTO payee_mapping VALUES ('xfer-tracking', 'xfer-tracking');
+            INSERT INTO transactions (
+                id, isParent, isChild, acct, category, amount, description, notes, date,
+                sort_order, tombstone, parent_id
+            ) VALUES
+            ('july-uncat', 0, 0, 'checking', NULL, -1000, 'coffee', NULL, 20260720, 7, 0, NULL),
+            ('july-cat', 0, 0, 'checking', 'groceries', -800, 'coffee', NULL, 20260718, 6, 0, NULL),
+            ('july-parent', 1, 0, 'checking', NULL, -5000, NULL, NULL, 20260715, 5, 0, NULL),
+            ('july-child', 0, 1, 'checking', NULL, -2000, 'coffee', NULL, 20260715, 4, 0, 'july-parent'),
+            ('july-on-budget-xfer', 0, 0, 'checking', NULL, -4000, 'xfer-savings', NULL, 20260714, 3, 0, NULL),
+            ('july-off-budget-xfer', 0, 0, 'checking', NULL, -1500, 'xfer-tracking', NULL, 20260713, 2, 0, NULL),
+            ('july-tracking', 0, 0, 'tracking', NULL, -900, NULL, NULL, 20260712, 1, 0, NULL),
+            ('june-uncat', 0, 0, 'checking', NULL, -900, 'coffee', NULL, 20260610, 0, 0, NULL);
+            """)
+
+        let rows = try await database.fetchUncategorizedTransactions()
+
+        #expect(Set(rows.compactMap(\.id)) == [
+            "july-uncat", "july-child", "july-off-budget-xfer", "june-uncat",
+        ])
+    }
+
     @Test func twoChildFamilyIsIdentifiedAsParentOnPermissiveFixture() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "ActualistSplitQueryPermissive-\(UUID().uuidString)", directoryHint: .isDirectory)

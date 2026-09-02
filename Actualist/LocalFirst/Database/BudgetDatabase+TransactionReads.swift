@@ -159,6 +159,58 @@ extension BudgetDatabase {
         }
     }
 
+    /// Reviewable uncategorized rows across every month. Actual web's banner
+    /// has no date filter; SQL keeps this from loading categorized history.
+    func fetchUncategorizedTransactions() throws -> [ActualTransaction] {
+        try queue.read { db in
+            guard try tableExists("transactions", db: db) else {
+                return []
+            }
+
+            let columns = try columnSet(for: "transactions", db: db)
+            let split = transactionSplitQueryExpressions(columns: columns)
+            let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+            let joins = try transactionReadJoins(db: db, split: split, includeNames: true)
+
+            var extraJoin = ""
+            var conditions: [String] = [split.liveEffectivePredicate()]
+            conditions.append("(\(joins.mappedCategory) IS NULL OR \(joins.mappedCategory) = '')")
+
+            if try tableExists("accounts", db: db) {
+                extraJoin = "LEFT JOIN accounts src ON src.id = \(split.qualifiedAccount)"
+                conditions.append("IFNULL(src.offbudget, 0) = 0")
+            }
+
+            if try tableExists("payees", db: db) {
+                let payeeColumns = try columnSet(for: "payees", db: db)
+                if payeeColumns.contains("transfer_acct"), try tableExists("accounts", db: db) {
+                    conditions.append(
+                        "(py.transfer_acct IS NULL OR py.transfer_acct = '' OR IFNULL(pax.offbudget, 0) = 1)"
+                    )
+                }
+            }
+
+            let uncategorizedJoins = TransactionReadJoins(
+                sql: [joins.sql, extraJoin].filter { !$0.isEmpty }.joined(separator: "\n"),
+                mappedPayee: joins.mappedPayee,
+                mappedCategory: joins.mappedCategory,
+                payeeNameSelect: joins.payeeNameSelect,
+                categoryNameSelect: joins.categoryNameSelect
+            )
+            return try fetchFlatTransactionPage(
+                db: db,
+                split: split,
+                joins: uncategorizedJoins,
+                normalizedDate: normalizedDate,
+                mode: .inline,
+                conditions: conditions,
+                arguments: [],
+                rowLimit: nil,
+                rowOffset: 0
+            ).transactions
+        }
+    }
+
     func escapeLikePattern(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
