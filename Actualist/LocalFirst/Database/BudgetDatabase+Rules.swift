@@ -142,6 +142,11 @@ extension BudgetDatabase {
 
     func fetchRules() throws -> [ManagedRule] {
         try queue.read { db in
+            try fetchRules(db: db)
+        }
+    }
+
+    func fetchRules(db: Database) throws -> [ManagedRule] {
             guard try tableExists("rules", db: db) else { return [] }
             let columns = try columnSet(for: "rules", db: db)
             guard columns.isSuperset(of: ["id", "conditions", "actions"]) else { return [] }
@@ -201,7 +206,6 @@ extension BudgetDatabase {
                 )
             }
             .rankedForExecution()
-        }
     }
 
     func createRuleMessages(
@@ -263,9 +267,23 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         guard !changedTransactionIDs.isEmpty else { return [] }
-        let rules = try fetchRules()
         return try queue.read { db in
-            guard try globalCategoryLearningEnabled(db: db),
+            try categoryLearningRuleMessages(
+                changedTransactionIDs: changedTransactionIDs,
+                builder: &builder,
+                db: db
+            )
+        }
+    }
+
+    func categoryLearningRuleMessages(
+        changedTransactionIDs: Set<String>,
+        builder: inout LocalFirstSyncMessageBuilder,
+        db: Database
+    ) throws -> [ActualSyncDecodedMessage] {
+        guard !changedTransactionIDs.isEmpty else { return [] }
+        let rules = try fetchRules(db: db)
+        guard try globalCategoryLearningEnabled(db: db),
                   try tableExists("transactions", db: db),
                   try tableExists("payees", db: db),
                   try tableExists("rules", db: db) else { return [] }
@@ -395,7 +413,6 @@ extension BudgetDatabase {
                 }
             }
             return messages
-        }
     }
 
     private func ruleMessages(

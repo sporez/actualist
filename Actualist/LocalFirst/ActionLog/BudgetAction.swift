@@ -8,6 +8,10 @@ enum BudgetActionKind: String, Codable, Sendable {
     case assign
     case move
     case template
+    case createTransaction
+    case editTransaction
+    case deleteTransaction
+    case categorize
 }
 
 enum BudgetActionStatus: String, Codable, Sendable {
@@ -75,6 +79,10 @@ enum BudgetActionSummary: Equatable, Sendable {
     case assign(AssignBudgetAction)
     case move(MoveBudgetAction)
     case template(TemplateBudgetAction)
+    case createTransaction(TransactionBudgetAction)
+    case editTransaction(EditTransactionBudgetAction)
+    case deleteTransaction(TransactionBudgetAction)
+    case categorize(CategorizeBudgetAction)
 }
 
 /// A persisted money-flow gesture, decoded from `actualist_action_log`.
@@ -97,6 +105,10 @@ extension BudgetActionSummary: Codable {
         case assign
         case move
         case template
+        case createTransaction
+        case editTransaction
+        case deleteTransaction
+        case categorize
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -114,6 +126,14 @@ extension BudgetActionSummary: Codable {
             self = .move(try payload.decode(MoveBudgetAction.self, forKey: .payload))
         case .template:
             self = .template(try payload.decode(TemplateBudgetAction.self, forKey: .payload))
+        case .createTransaction:
+            self = .createTransaction(try payload.decode(TransactionBudgetAction.self, forKey: .payload))
+        case .editTransaction:
+            self = .editTransaction(try payload.decode(EditTransactionBudgetAction.self, forKey: .payload))
+        case .deleteTransaction:
+            self = .deleteTransaction(try payload.decode(TransactionBudgetAction.self, forKey: .payload))
+        case .categorize:
+            self = .categorize(try payload.decode(CategorizeBudgetAction.self, forKey: .payload))
         }
     }
 
@@ -130,6 +150,18 @@ extension BudgetActionSummary: Codable {
         case .template(let template):
             try container.encode(SummaryKind.template, forKey: .type)
             try payload.encode(template, forKey: .payload)
+        case .createTransaction(let create):
+            try container.encode(SummaryKind.createTransaction, forKey: .type)
+            try payload.encode(create, forKey: .payload)
+        case .editTransaction(let edit):
+            try container.encode(SummaryKind.editTransaction, forKey: .type)
+            try payload.encode(edit, forKey: .payload)
+        case .deleteTransaction(let delete):
+            try container.encode(SummaryKind.deleteTransaction, forKey: .type)
+            try payload.encode(delete, forKey: .payload)
+        case .categorize(let categorize):
+            try container.encode(SummaryKind.categorize, forKey: .type)
+            try payload.encode(categorize, forKey: .payload)
         }
     }
 }

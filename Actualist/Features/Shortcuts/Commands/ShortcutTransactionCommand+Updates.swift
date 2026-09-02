@@ -23,6 +23,7 @@ extension ShortcutTransactionCommand {
                 original,
                 categoryID: categoryID,
                 budgetID: prepared.budgetID,
+                actionSource: .shortcuts,
                 didUpdate: {}
             )
             session.recordSuccessfulWrite()
@@ -60,6 +61,7 @@ extension ShortcutTransactionCommand {
             budgetID: prepared.budgetID,
             originalAccountID: original.account,
             originalMonth: original.date.actualYearMonth ?? draft.month.rawValue,
+            actionSource: .shortcuts,
             didUpdate: {}
         )
         session.recordSuccessfulWrite()
@@ -79,6 +81,7 @@ extension ShortcutTransactionCommand {
             _ = try await prepared.store.deleteTransactionAndRefresh(
                 original,
                 budgetID: prepared.budgetID,
+                actionSource: .shortcuts,
                 didDelete: {}
             )
             session.recordSuccessfulWrite()

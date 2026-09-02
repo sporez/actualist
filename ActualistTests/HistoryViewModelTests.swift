@@ -183,6 +183,33 @@ extension LocalFirstActualStoreTests {
         #expect(row.amountText != nil)
     }
 
+    @Test func createTransactionRowDescribesThePayeeAndAmount() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let appState = try makeAppState(for: bundle)
+        _ = try await bundle.store.createTransactionAndRefresh(
+            TransactionDraft(
+                accountID: "checking",
+                date: try makeDate(year: 2026, month: 7, day: 8),
+                amountMinorUnits: -450,
+                payeeID: "coffee",
+                payeeName: "Coffee Shop",
+                categoryID: "groceries",
+                notes: nil,
+                cleared: false,
+                isTransfer: false
+            ),
+            budgetID: "group-1"
+        ) {}
+
+        let viewModel = HistoryViewModel()
+        await viewModel.load(using: appState)
+
+        let row = try #require(viewModel.rows.first)
+        #expect(row.visual == .createTransaction)
+        #expect(row.title.contains("Coffee Shop"))
+        #expect(row.canUndo)
+    }
+
     @Test func emptyHistoryLoadsEmptyRows() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)

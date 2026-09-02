@@ -7,6 +7,10 @@ struct HistoryRowModel: Identifiable, Equatable, Sendable {
         case assign
         case move
         case template
+        case createTransaction
+        case editTransaction
+        case deleteTransaction
+        case categorize
     }
 
     enum AmountTone: Equatable, Sendable {
@@ -46,7 +50,7 @@ struct HistoryUndoReviewPresentation: Identifiable, Equatable, Sendable {
     let blockReason: String?
 
     var id: String { actionID }
-    var isUndoable: Bool { blockReason == nil && !entries.isEmpty }
+    var isUndoable: Bool { blockReason == nil }
 }
 
 /// Pure projection from records to display rows. Amounts and names honor the
@@ -128,7 +132,65 @@ enum HistoryRowPresentation {
             let noun = template.entries.count == 1 ? "category" : "categories"
             let action = template.mode == .overwrite ? "overwrite" : "fill"
             return "Applied Templates (\(action)) across \(template.entries.count) \(noun)"
+        case .createTransaction(let create):
+            return transactionGesture(
+                verb: create.graph == .transfer ? "Transferred" : (create.graph == .split ? "Split" : "Added"),
+                amount: create.amount,
+                payeeName: create.payeeName,
+                recordID: record.id,
+                currency: currency,
+                privacyEnabled: privacyEnabled
+            )
+        case .editTransaction(let edit):
+            return transactionGesture(
+                verb: "Edited",
+                amount: edit.amountAfter,
+                payeeName: edit.payeeName,
+                recordID: record.id,
+                currency: currency,
+                privacyEnabled: privacyEnabled
+            )
+        case .deleteTransaction(let delete):
+            return transactionGesture(
+                verb: "Deleted",
+                amount: delete.amount,
+                payeeName: delete.payeeName,
+                recordID: record.id,
+                currency: currency,
+                privacyEnabled: privacyEnabled
+            )
+        case .categorize(let categorize):
+            let noun = categorize.itemCount == 1 ? "transaction" : "transactions"
+            return "Categorized \(categorize.itemCount) \(noun)"
         }
+    }
+
+    private static func transactionGesture(
+        verb: String,
+        amount: Int,
+        payeeName: String?,
+        recordID: String,
+        currency: BudgetCurrency,
+        privacyEnabled: Bool
+    ) -> String {
+        let amountText = moneyText(amount, seed: "\(recordID)-txn", currency: currency, privacyEnabled: privacyEnabled)
+        let payee = displayPayee(payeeName, seed: recordID, privacyEnabled: privacyEnabled)
+        if let payee {
+            return "\(verb) \(amountText) · \(payee)"
+        }
+        return "\(verb) \(amountText)"
+    }
+
+    static func displayPayee(
+        _ name: String?,
+        seed: String,
+        privacyEnabled: Bool
+    ) -> String? {
+        if privacyEnabled {
+            return PrivacyDisplay.name(for: .payee, seed: seed)
+        }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
     }
 
     private static func row(
@@ -189,6 +251,50 @@ enum HistoryRowPresentation {
             let noun = template.entries.count == 1 ? "category" : "categories"
             actionDetail = "\(template.entries.count) \(noun)"
             visual = .template
+
+        case .createTransaction(let create):
+            let amount = moneyText(create.amount, seed: "\(record.id)-txn", currency: currency, privacyEnabled: privacyEnabled)
+            let payee = displayPayee(create.payeeName, seed: record.id, privacyEnabled: privacyEnabled)
+            switch create.graph {
+            case .transfer:
+                title = "Transferred \(amount)"
+            case .split:
+                title = "Split \(amount)"
+            case .simple:
+                title = payee.map { "Added \(amount) · \($0)" } ?? "Added \(amount)"
+            }
+            actionDetail = create.graph == .simple ? (payee == nil ? "Transaction" : "") : (payee ?? "Transfer")
+            amountText = moneyText(abs(create.amount), seed: "\(record.id)-txn-abs", currency: currency, privacyEnabled: privacyEnabled)
+            amountTone = create.amount < 0 ? .negative : .positive
+            visual = .createTransaction
+
+        case .editTransaction(let edit):
+            let amount = moneyText(edit.amountAfter, seed: "\(record.id)-txn", currency: currency, privacyEnabled: privacyEnabled)
+            let payee = displayPayee(edit.payeeName, seed: record.id, privacyEnabled: privacyEnabled)
+            title = payee.map { "Edited \(amount) · \($0)" } ?? "Edited \(amount)"
+            if edit.unsafeGraph {
+                actionDetail = "Can't undo"
+            } else if edit.amountAfter != edit.amountBefore {
+                let before = moneyText(edit.amountBefore, seed: "\(record.id)-txn-before", currency: currency, privacyEnabled: privacyEnabled)
+                actionDetail = "was \(before)"
+            } else {
+                actionDetail = "Transaction"
+            }
+            visual = .editTransaction
+
+        case .deleteTransaction(let delete):
+            let amount = moneyText(delete.amount, seed: "\(record.id)-txn", currency: currency, privacyEnabled: privacyEnabled)
+            let payee = displayPayee(delete.payeeName, seed: record.id, privacyEnabled: privacyEnabled)
+            title = payee.map { "Deleted \(amount) · \($0)" } ?? "Deleted \(amount)"
+            actionDetail = "Transaction"
+            visual = .deleteTransaction
+
+        case .categorize(let categorize):
+            let name = displayName(for: categorize.categoryID, categoryNames: categoryNames, privacyEnabled: privacyEnabled)
+            let noun = categorize.itemCount == 1 ? "transaction" : "transactions"
+            title = "Categorized as \(name)"
+            actionDetail = "\(categorize.itemCount) \(noun)"
+            visual = .categorize
         }
 
         let detail = ([isUndone ? "Undone" : nil, actionDetail, occurrence].compactMap { $0 })

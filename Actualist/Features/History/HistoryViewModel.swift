@@ -184,7 +184,7 @@ final class HistoryViewModel {
         from preview: BudgetActionUndoPreview,
         row: HistoryRowModel
     ) -> HistoryUndoReviewPresentation {
-        let entries = preview.entries.map { entry in
+        var entries = preview.entries.map { entry in
             HistoryUndoReviewPresentation.Entry(
                 categoryID: entry.categoryID,
                 name: HistoryRowPresentation.displayName(
@@ -205,6 +205,66 @@ final class HistoryViewModel {
                     privacyEnabled: privacyEnabled
                 )
             )
+        }
+        if entries.isEmpty {
+            entries = preview.transactionLines.map { line in
+                let name = HistoryRowPresentation.displayPayee(
+                    line.payeeName,
+                    seed: line.id,
+                    privacyEnabled: privacyEnabled
+                ) ?? "Transaction"
+                let current: String
+                let proposed: String
+                switch line.effect {
+                case .delete:
+                    current = line.amount.map {
+                        HistoryRowPresentation.moneyText(
+                            $0,
+                            seed: "\(preview.actionID)-txn-\(line.id)",
+                            currency: currency,
+                            privacyEnabled: privacyEnabled
+                        )
+                    } ?? "Transaction"
+                    proposed = "Deleted"
+                case .restore:
+                    current = "Deleted"
+                    proposed = line.amount.map {
+                        HistoryRowPresentation.moneyText(
+                            $0,
+                            seed: "\(preview.actionID)-txn-\(line.id)",
+                            currency: currency,
+                            privacyEnabled: privacyEnabled
+                        )
+                    } ?? "Restored"
+                case .recategorize:
+                    current = HistoryRowPresentation.displayName(
+                        for: line.currentCategoryID,
+                        categoryNames: categoryNames,
+                        privacyEnabled: privacyEnabled
+                    )
+                    proposed = HistoryRowPresentation.displayName(
+                        for: line.proposedCategoryID,
+                        categoryNames: categoryNames,
+                        privacyEnabled: privacyEnabled
+                    )
+                case .edit:
+                    current = line.amount.map {
+                        HistoryRowPresentation.moneyText(
+                            $0,
+                            seed: "\(preview.actionID)-txn-\(line.id)",
+                            currency: currency,
+                            privacyEnabled: privacyEnabled
+                        )
+                    } ?? "Current"
+                    proposed = "Previous"
+                }
+                return HistoryUndoReviewPresentation.Entry(
+                    categoryID: line.id,
+                    name: name,
+                    currentText: current,
+                    proposedText: proposed
+                )
+            }
         }
         let summary = records.first { $0.id == preview.actionID }.map {
             HistoryRowPresentation.gestureSummary(

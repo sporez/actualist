@@ -110,7 +110,7 @@ struct HistoryView: View {
     private var emptyState: some View {
         messageRow(
             title: "No Actions Yet",
-            detail: "Assignments, moves, and template applies you make on this device appear here.",
+            detail: "Assignments, moves, template applies, and transactions you make on this device appear here.",
             systemImage: "clock"
         )
     }
@@ -221,6 +221,14 @@ private struct HistoryRowView: View {
             "arrow.left.arrow.right"
         case .template:
             "sparkles"
+        case .createTransaction:
+            "plus"
+        case .editTransaction:
+            "pencil"
+        case .deleteTransaction:
+            "trash"
+        case .categorize:
+            "tag"
         }
     }
 

@@ -118,6 +118,13 @@ extension BudgetDatabase {
         }
     }
 
+    func existingTransactionState(id: String) throws -> ExistingTransactionState {
+        try queue.read { db in
+            let columns = try resolveTransactionRowColumns(db: db)
+            return try existingTransactionState(id: id, columns: columns, db: db)
+        }
+    }
+
     func existingTransactionState(
         id: String,
         columns: TransactionRowColumns,

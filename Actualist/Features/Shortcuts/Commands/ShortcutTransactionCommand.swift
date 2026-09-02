@@ -146,6 +146,7 @@ enum ShortcutTransactionCommand {
         let result = try await prepared.store.createTransactionAndRefresh(
             draft,
             budgetID: prepared.budgetID,
+            actionSource: .shortcuts,
             didCreate: {}
         )
         session.recordSuccessfulWrite()

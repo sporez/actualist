@@ -195,19 +195,16 @@ extension BudgetDatabase {
                     baseTimestamp: baseTimestamp,
                     db: db
                 )
-                if let actionLogCommit, let actionLogFacts {
-                    try ensureActionLog(db)
-                    try insertActionLogRecord(
-                        actionLogFacts.record(
-                            id: actionLogCommit.actionID,
-                            createdAt: now,
-                            source: actionLogCommit.source,
-                            forwardTimestampStart: applied.firstTimestamp,
-                            forwardTimestampEnd: applied.lastTimestamp
-                        ),
+                if let actionLogCommit {
+                    return try finishActionLogCommit(
+                        actionLogCommit,
+                        facts: actionLogFacts,
+                        applied: applied,
+                        clock: &clock,
+                        now: now,
+                        baseTimestamp: baseTimestamp,
                         db: db
                     )
-                    try pruneActionLog(keeping: Self.actionLogRetentionLimit, db: db)
                 }
                 return applied.appliedCount
             }

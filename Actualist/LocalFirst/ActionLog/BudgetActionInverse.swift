@@ -19,6 +19,10 @@ enum BudgetActionInverse: Equatable, Sendable {
     case assign(AssignBudgetAction)
     case move(MoveBudgetActionInverse)
     case template(TemplateBudgetAction)
+    case createTransaction(CreateTransactionInverse)
+    case editTransaction(EditTransactionInverse)
+    case deleteTransaction(DeleteTransactionInverse)
+    case categorize(CategorizeTransactionInverse)
 }
 
 extension BudgetActionInverse {
@@ -31,6 +35,55 @@ extension BudgetActionInverse {
             return move.month
         case .template(let template):
             return template.month
+        case .createTransaction(let create):
+            return create.month
+        case .editTransaction(let edit):
+            return edit.month
+        case .deleteTransaction(let delete):
+            return delete.month
+        case .categorize(let categorize):
+            return categorize.month
+        }
+    }
+
+    var learning: BudgetActionLearningSideEffect {
+        switch self {
+        case .createTransaction(let create): create.learning
+        case .editTransaction(let edit): edit.learning
+        case .categorize(let categorize): categorize.learning
+        case .assign, .move, .template, .deleteTransaction: .empty
+        }
+    }
+
+    var transactionIDs: [String] {
+        switch self {
+        case .createTransaction(let create):
+            create.transactionIDs
+        case .deleteTransaction(let delete):
+            delete.transactionIDs
+        case .editTransaction(let edit):
+            edit.allAfterSnapshots.map(\.id)
+        case .categorize(let categorize):
+            categorize.items.map(\.transactionID)
+        case .assign, .move, .template:
+            []
+        }
+    }
+
+    func appending(learning: BudgetActionLearningSideEffect) -> BudgetActionInverse {
+        guard !learning.isEmpty else { return self }
+        switch self {
+        case .createTransaction(var create):
+            create.learning = learning
+            return .createTransaction(create)
+        case .editTransaction(var edit):
+            edit.learning = learning
+            return .editTransaction(edit)
+        case .categorize(var categorize):
+            categorize.learning = learning
+            return .categorize(categorize)
+        case .assign, .move, .template, .deleteTransaction:
+            return self
         }
     }
 }
@@ -45,6 +98,10 @@ enum BudgetActionDescriptor: Equatable, Sendable {
     /// with live before-values to build the recorded facts. Skip recording
     /// when empty (a goal-only or orphan-cleanup write moved no money).
     case template(month: String, mode: BudgetTemplateApplicationMode, assignments: [BudgetTemplateAssignment])
+    case createTransaction(CreateTransactionDescriptor)
+    case editTransaction(EditTransactionDescriptor)
+    case deleteTransaction(DeleteTransactionDescriptor)
+    case categorize(CategorizeTransactionDescriptor)
 }
 
 extension BudgetActionInverse: Codable {
@@ -52,6 +109,10 @@ extension BudgetActionInverse: Codable {
         case assign
         case move
         case template
+        case createTransaction
+        case editTransaction
+        case deleteTransaction
+        case categorize
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -69,6 +130,14 @@ extension BudgetActionInverse: Codable {
             self = .move(try payload.decode(MoveBudgetActionInverse.self, forKey: .payload))
         case .template:
             self = .template(try payload.decode(TemplateBudgetAction.self, forKey: .payload))
+        case .createTransaction:
+            self = .createTransaction(try payload.decode(CreateTransactionInverse.self, forKey: .payload))
+        case .editTransaction:
+            self = .editTransaction(try payload.decode(EditTransactionInverse.self, forKey: .payload))
+        case .deleteTransaction:
+            self = .deleteTransaction(try payload.decode(DeleteTransactionInverse.self, forKey: .payload))
+        case .categorize:
+            self = .categorize(try payload.decode(CategorizeTransactionInverse.self, forKey: .payload))
         }
     }
 
@@ -85,6 +154,18 @@ extension BudgetActionInverse: Codable {
         case .template(let template):
             try container.encode(InverseKind.template, forKey: .type)
             try payload.encode(template, forKey: .payload)
+        case .createTransaction(let create):
+            try container.encode(InverseKind.createTransaction, forKey: .type)
+            try payload.encode(create, forKey: .payload)
+        case .editTransaction(let edit):
+            try container.encode(InverseKind.editTransaction, forKey: .type)
+            try payload.encode(edit, forKey: .payload)
+        case .deleteTransaction(let delete):
+            try container.encode(InverseKind.deleteTransaction, forKey: .type)
+            try payload.encode(delete, forKey: .payload)
+        case .categorize(let categorize):
+            try container.encode(InverseKind.categorize, forKey: .type)
+            try payload.encode(categorize, forKey: .payload)
         }
     }
 }

@@ -12,6 +12,7 @@ struct ActionLogCommit: Sendable {
     var descriptor: BudgetActionDescriptor
     var source: BudgetActionSource
     var actionID: String
+    var learningTransactionIDs: Set<String> = []
 }
 
 extension BudgetDatabase {
@@ -26,6 +27,7 @@ extension BudgetDatabase {
         _ drafts: [ActualSyncDecodedMessage],
         descriptor: BudgetActionDescriptor,
         source: BudgetActionSource,
+        learningTransactionIDs: Set<String> = [],
         actionID: String = UUID().uuidString,
         now: Date = Date()
     ) throws -> Int {
@@ -35,7 +37,8 @@ extension BudgetDatabase {
             actionLogCommit: ActionLogCommit(
                 descriptor: descriptor,
                 source: source,
-                actionID: actionID
+                actionID: actionID,
+                learningTransactionIDs: learningTransactionIDs
             )
         )
     }
@@ -70,6 +73,76 @@ extension BudgetDatabase {
                 source: source
             )
         }
+
+        func appending(learning: BudgetActionLearningSideEffect) -> ActionLogFacts {
+            var copy = self
+            copy.inverse = inverse.appending(learning: learning)
+            return copy
+        }
+    }
+
+    /// Completes inverse facts after the forward write, applies category-learning
+    /// follow-up messages in the same transaction, and inserts the log row.
+    func finishActionLogCommit(
+        _ commit: ActionLogCommit,
+        facts: ActionLogFacts?,
+        applied: CommittedDraftsResult,
+        clock: inout HybridLogicalClock,
+        now: Date,
+        baseTimestamp: String,
+        db: Database
+    ) throws -> Int {
+        var actionLogFacts = facts
+        var firstTimestamp = applied.firstTimestamp
+        var lastTimestamp = applied.lastTimestamp
+        var appliedCount = applied.appliedCount
+        if let facts {
+            actionLogFacts = try completeActionLogFacts(
+                facts,
+                descriptor: commit.descriptor,
+                db: db
+            )
+        }
+        if !commit.learningTransactionIDs.isEmpty {
+            var learningBuilder = LocalFirstSyncMessageBuilder()
+            let rulesBefore = try fetchRules(db: db)
+            let learning = try categoryLearningRuleMessages(
+                changedTransactionIDs: commit.learningTransactionIDs,
+                builder: &learningBuilder,
+                db: db
+            )
+            if !learning.isEmpty {
+                let learningApplied = try applyCommittedDrafts(
+                    learning,
+                    clock: &clock,
+                    now: now,
+                    baseTimestamp: baseTimestamp,
+                    db: db
+                )
+                appliedCount += learningApplied.appliedCount
+                if firstTimestamp == nil {
+                    firstTimestamp = learningApplied.firstTimestamp
+                }
+                lastTimestamp = learningApplied.lastTimestamp ?? lastTimestamp
+                let sideEffect = learningSideEffect(beforeRules: rulesBefore, messages: learning)
+                actionLogFacts = actionLogFacts?.appending(learning: sideEffect)
+            }
+        }
+        if let actionLogFacts {
+            try ensureActionLog(db)
+            try insertActionLogRecord(
+                actionLogFacts.record(
+                    id: commit.actionID,
+                    createdAt: now,
+                    source: commit.source,
+                    forwardTimestampStart: firstTimestamp,
+                    forwardTimestampEnd: lastTimestamp
+                ),
+                db: db
+            )
+            try pruneActionLog(keeping: Self.actionLogRetentionLimit, db: db)
+        }
+        return appliedCount
     }
 
     func captureActionLogFacts(descriptor: BudgetActionDescriptor, db: Database) throws -> ActionLogFacts {
@@ -134,6 +207,8 @@ extension BudgetDatabase {
                 inverse: .template(template),
                 affectedCategoryIDs: affectedIDs
             )
+        case .createTransaction, .editTransaction, .deleteTransaction, .categorize:
+            return try captureTransactionActionLogFacts(descriptor: descriptor, db: db)
         }
     }
 
@@ -320,26 +395,37 @@ extension BudgetDatabase {
     /// explaining why the gesture cannot be undone.
     func actionUndoPreview(record: BudgetActionRecord) throws -> BudgetActionUndoPreview {
         try queue.read { db in
-            let live = try liveBudgetedForUndo(record: record, db: db)
-            switch BudgetActionUndo.evaluate(record: record, liveBudgeted: live) {
-            case .clean(let targets):
-                let entries = targets.keys.sorted().compactMap { categoryID -> BudgetActionUndoPreview.Entry? in
-                    guard let current = live[categoryID] ?? nil,
-                          let proposed = targets[categoryID] else {
-                        return nil
+            switch try evaluateActionUndo(record: record, db: db) {
+            case .clean(let plan):
+                switch plan {
+                case .assignments(let targets):
+                    let live = try liveBudgetedForUndo(record: record, db: db)
+                    let entries = targets.keys.sorted().compactMap { categoryID -> BudgetActionUndoPreview.Entry? in
+                        guard let current = live[categoryID] ?? nil,
+                              let proposed = targets[categoryID] else {
+                            return nil
+                        }
+                        return BudgetActionUndoPreview.Entry(
+                            categoryID: categoryID,
+                            current: current,
+                            proposed: proposed
+                        )
                     }
-                    return BudgetActionUndoPreview.Entry(
-                        categoryID: categoryID,
-                        current: current,
-                        proposed: proposed
+                    return BudgetActionUndoPreview(
+                        actionID: record.id,
+                        month: record.inverse.month,
+                        entries: entries,
+                        block: nil
+                    )
+                case .tombstoneTransactions, .unTombstoneTransactions, .restoreSnapshots, .restoreCategories:
+                    return BudgetActionUndoPreview(
+                        actionID: record.id,
+                        month: record.inverse.month,
+                        entries: [],
+                        transactionLines: undoPreviewLines(record: record, plan: plan),
+                        block: nil
                     )
                 }
-                return BudgetActionUndoPreview(
-                    actionID: record.id,
-                    month: record.inverse.month,
-                    entries: entries,
-                    block: nil
-                )
             case .blocked(let block):
                 return BudgetActionUndoPreview(
                     actionID: record.id,
@@ -349,6 +435,27 @@ extension BudgetDatabase {
                 )
             }
         }
+    }
+
+    func evaluateActionUndo(
+        record: BudgetActionRecord,
+        db: Database
+    ) throws -> BudgetActionUndoEvaluation {
+        let liveBudgeted = try liveBudgetedForUndo(record: record, db: db)
+        let liveTransactions = try liveTransactionsForUndo(
+            ids: record.inverse.transactionIDs,
+            db: db
+        )
+        let liveRules = try liveRuleActionsForUndo(
+            learning: record.inverse.learning,
+            db: db
+        )
+        return BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: liveBudgeted,
+            liveTransactions: liveTransactions,
+            liveRuleActions: liveRules
+        )
     }
 
     /// Atomic "restore the inverse + mark the row undone" commit. The inverse
@@ -374,42 +481,22 @@ extension BudgetDatabase {
                 }
                 try requireNewestAppliedUndo(record: record, db: db)
 
-                let live = try liveBudgetedForUndo(record: record, db: db)
-                let targets: [String: Int]
-                switch BudgetActionUndo.evaluate(record: record, liveBudgeted: live) {
-                case .clean(let cleanTargets):
-                    targets = cleanTargets
+                let plan: BudgetActionUndoPlan
+                switch try evaluateActionUndo(record: record, db: db) {
+                case .clean(let cleanPlan):
+                    plan = cleanPlan
                 case .blocked(let block):
                     throw LocalFirstError.actionUndoBlocked(block.userFacingReason)
                 }
-                guard !targets.isEmpty else {
-                    throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
-                }
 
-                let monthValue = try Self.actualMonthValue(record.inverse.month)
-                let table = try budgetTable(db: db)
-                let columns = try requiredColumns(
-                    table: table.rawValue,
-                    required: ["month", "category", "amount"],
-                    db: db
-                )
                 let baseTimestamp = try String.fetchOne(
                     db,
                     sql: "SELECT MAX(timestamp) FROM messages_crdt"
                 ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
                 var builder = LocalFirstSyncMessageBuilder()
-                var drafts: [ActualSyncDecodedMessage] = []
-                for categoryID in targets.keys.sorted() {
-                    guard let amount = targets[categoryID] else { continue }
-                    drafts += try assignCategoryBudgetMessages(
-                        categoryID: categoryID,
-                        budgeted: amount,
-                        monthValue: monthValue,
-                        table: table,
-                        columns: columns,
-                        db: db,
-                        builder: &builder
-                    )
+                let drafts = try undoMessages(for: plan, record: record, db: db, builder: &builder)
+                guard !drafts.isEmpty else {
+                    throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
                 }
                 let applied = try applyCommittedDrafts(
                     drafts,
@@ -428,6 +515,40 @@ extension BudgetDatabase {
         }
         localClock = clock
         return appliedCount
+    }
+
+    func undoMessages(
+        for plan: BudgetActionUndoPlan,
+        record: BudgetActionRecord,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        switch plan {
+        case .assignments(let targets):
+            let monthValue = try Self.actualMonthValue(record.inverse.month)
+            let table = try budgetTable(db: db)
+            let columns = try requiredColumns(
+                table: table.rawValue,
+                required: ["month", "category", "amount"],
+                db: db
+            )
+            var drafts: [ActualSyncDecodedMessage] = []
+            for categoryID in targets.keys.sorted() {
+                guard let amount = targets[categoryID] else { continue }
+                drafts += try assignCategoryBudgetMessages(
+                    categoryID: categoryID,
+                    budgeted: amount,
+                    monthValue: monthValue,
+                    table: table,
+                    columns: columns,
+                    db: db,
+                    builder: &builder
+                )
+            }
+            return drafts
+        case .tombstoneTransactions, .unTombstoneTransactions, .restoreSnapshots, .restoreCategories:
+            return try transactionUndoMessages(plan: plan, db: db, builder: &builder)
+        }
     }
 
     /// Storage-level LIFO: undo is only offered for the newest applied row,

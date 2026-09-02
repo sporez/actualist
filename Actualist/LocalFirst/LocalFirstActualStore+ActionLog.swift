@@ -38,6 +38,17 @@ extension LocalFirstActualStore {
         }
         _ = try await database.commitActionUndo(record: record)
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+        let prefix = "\(budgetID)|"
+        let accountIDs = accountTransactionsByKey.keys.compactMap { key -> String? in
+            guard key.hasPrefix(prefix) else { return nil }
+            return String(key.dropFirst(prefix.count))
+        }
+        try await reloadAfterTransactionMutation(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: accountIDs,
+            monthIDs: []
+        )
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 }

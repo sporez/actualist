@@ -421,6 +421,267 @@ extension LocalFirstActualStoreTests {
         let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
         #expect(preview.block == .alreadyUndone)
     }
+
+    @Test func createTransactionRecordsOneRowAndUndoTombstonesIt() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 8),
+            amountMinorUnits: -450,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: "morning",
+            cleared: true,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        #expect(row.kind == .createTransaction)
+        #expect(row.source == .ui)
+        guard case .createTransaction(let summary) = row.summary else {
+            Issue.record("expected create summary")
+            return
+        }
+        #expect(summary.amount == -450)
+        #expect(summary.payeeName == "Coffee Shop")
+        #expect(summary.graph == .simple)
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        #expect(!loaded.transactions.contains { $0.id == transactionID })
+    }
+
+    @Test func deleteTransactionRecordsAndUndoRestoresIt() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+        let createdRow = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        _ = try await store.deleteTransactionAndRefresh(createdRow, budgetID: "group-1") {}
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(rows.count == 2)
+        #expect(rows[0].kind == .deleteTransaction)
+
+        try await store.undoBudgetActionAndRefresh(actionID: rows[0].id, budgetID: "group-1")
+
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        #expect(loaded.transactions.contains { $0.id == transactionID })
+        #expect(try await store.recentBudgetActions(budgetID: "group-1").first?.status == .undone)
+    }
+
+    @Test func categorizeRecordsAndUndoRestoresThePreviousCategory() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+        let createdRow = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        _ = try await store.categorizeTransactionAndRefresh(
+            createdRow,
+            categoryID: "groceries",
+            budgetID: "group-1"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").first)
+        #expect(row.kind == .categorize)
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        let loaded = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(loaded.category == nil)
+    }
+
+    @Test func notesOnlyEditIsNotRecorded() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: "old note",
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+        let notesOnly = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: "new note",
+            cleared: false,
+            isTransfer: false
+        )
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: notesOnly,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(rows.count == 1)
+        #expect(rows[0].kind == .createTransaction)
+    }
+
+    @Test func transferCreateIsOneRowAndUndoTombstonesBothSides() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 12),
+            amountMinorUnits: -1000,
+            payeeID: "xfer-credit",
+            payeeName: "",
+            categoryID: nil,
+            notes: "move to card",
+            cleared: false,
+            isTransfer: true
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        #expect(row.kind == .createTransaction)
+        guard case .createTransaction(let summary) = row.summary else {
+            Issue.record("expected create summary")
+            return
+        }
+        #expect(summary.graph == .transfer)
+        #expect(summary.transactionCount == 2)
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let credit = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "credit"))
+        #expect(!checking.transactions.contains { $0.id == created.changed.transactions.first })
+        #expect(!credit.transactions.contains { $0.amount == 1000 && $0.notes == "move to card" })
+    }
+
+    @Test func splitCreateIsOneRowAndUndoTombstonesTheFamily() async throws {
+        let store = try await makeOpenedWritableStore()
+        let created = try await store.createTransactionAndRefresh(
+            splitDraft(
+                amount: -10_000,
+                splits: [
+                    TransactionSplitDraft(id: "child-a", categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -4_000),
+                    TransactionSplitDraft(id: "child-b", categoryID: "utilities", categoryName: "Utilities", amountMinorUnits: -6_000),
+                ]
+            ),
+            budgetID: "group-1"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        #expect(row.kind == .createTransaction)
+        guard case .createTransaction(let summary) = row.summary else {
+            Issue.record("expected create summary")
+            return
+        }
+        #expect(summary.graph == .split)
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        #expect(!loaded.transactions.contains { $0.id == created.changed.transactions.first })
+    }
+
+    @Test func amountEditRecordsAndUndoRestoresThePreviousAmount() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -725,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let transactionID = try #require(created.changed.transactions.first)
+        let edited = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 11),
+            amountMinorUnits: -900,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        _ = try await store.updateTransactionAndRefresh(
+            transactionID,
+            with: edited,
+            budgetID: "group-1",
+            originalAccountID: "checking",
+            originalMonth: "2026-07"
+        ) {}
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").first)
+        #expect(row.kind == .editTransaction)
+
+        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+
+        let loaded = try #require(
+            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+                .transactions.first { $0.id == transactionID }
+        )
+        #expect(loaded.amount == -725)
+    }
+
+    @Test func shortcutTransactionWritesRecordShortcutsSource() async throws {
+        let store = try await makeOpenedWritableStore()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 8),
+            amountMinorUnits: -450,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            isTransfer: false
+        )
+        _ = try await store.createTransactionAndRefresh(
+            draft,
+            budgetID: "group-1",
+            actionSource: .shortcuts
+        ) {}
+        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.source == .shortcuts)
+    }
 }
 
 private extension Collection {

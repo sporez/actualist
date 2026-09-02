@@ -44,6 +44,21 @@ import Testing
         try #expect(inverse.codableRoundTrip() == inverse)
     }
 
+    @Test func createTransactionInverseCodableRoundTrips() throws {
+        let inverse = BudgetActionInverse.createTransaction(CreateTransactionInverse(
+            month: "2026-07",
+            primaryTransactionID: "txn-1",
+            transactionIDs: ["txn-1", "txn-2"],
+            graph: .transfer(pairedID: "txn-2"),
+            createdPayeeID: "payee-1",
+            learning: BudgetActionLearningSideEffect(
+                createdRuleIDs: ["rule-1"],
+                updatedRules: []
+            )
+        ))
+        try #expect(inverse.codableRoundTrip() == inverse)
+    }
+
     @Test func kindsPersistAsDistinctDiscriminators() throws {
         let assign = BudgetActionInverse.assign(AssignBudgetAction(
             month: "2026-07",

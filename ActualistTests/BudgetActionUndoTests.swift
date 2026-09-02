@@ -47,7 +47,7 @@ import Testing
             record: record,
             liveBudgeted: ["groceries": 62_500]
         )
-        #expect(evaluation == .clean(targets: ["groceries": 50_000]))
+        #expect(evaluation == .clean(.assignments(targets: ["groceries": 50_000])))
     }
 
     @Test func assignWithNewerCellChangeIsBlocked() {
@@ -98,7 +98,7 @@ import Testing
             record: record,
             liveBudgeted: ["groceries": 45_000, "dining": 10_500]
         )
-        #expect(clean == .clean(targets: ["groceries": 50_000, "dining": 5_000]))
+        #expect(clean == .clean(.assignments(targets: ["groceries": 50_000, "dining": 5_000])))
 
         let changed = BudgetActionUndo.evaluate(
             record: record,
@@ -142,7 +142,7 @@ import Testing
             record: record,
             liveBudgeted: ["utilities": 30_000, "subscriptions": 4_500]
         )
-        #expect(clean == .clean(targets: ["utilities": 0, "subscriptions": 2_000]))
+        #expect(clean == .clean(.assignments(targets: ["utilities": 0, "subscriptions": 2_000])))
 
         // One category later assigned by hand blocks the whole gesture.
         let changed = BudgetActionUndo.evaluate(
@@ -150,6 +150,255 @@ import Testing
             liveBudgeted: ["utilities": 30_000, "subscriptions": 6_000]
         )
         #expect(changed == .blocked(.changedSinceApplied))
+    }
+
+    @Test func createTransactionStillLiveTombstonesTheGraph() {
+        let inverse = CreateTransactionInverse(
+            month: "2026-07",
+            primaryTransactionID: "txn-1",
+            transactionIDs: ["txn-1"],
+            graph: .simple,
+            createdPayeeID: nil,
+            learning: .empty
+        )
+        let summary = TransactionBudgetAction(
+            month: "2026-07",
+            amount: -450,
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            graph: .simple,
+            transactionCount: 1
+        )
+        let record = makeRecord(
+            inverse: .createTransaction(inverse),
+            summary: .createTransaction(summary),
+            affectedCategoryIDs: ["groceries"]
+        )
+        let live = TransactionUndoSnapshot(
+            id: "txn-1",
+            accountID: "checking",
+            dateValue: 20260708,
+            amount: -450,
+            payeeID: "coffee",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            tombstone: false,
+            transferID: nil,
+            isParent: false,
+            isChild: false,
+            parentID: nil
+        )
+        let evaluation = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: ["txn-1": live]
+        )
+        #expect(evaluation == .clean(.tombstoneTransactions(
+            transactionIDs: ["txn-1"],
+            createdPayeeID: nil,
+            learning: .empty
+        )))
+    }
+
+    @Test func createTransactionAlreadyTombstonedIsBlocked() {
+        let inverse = CreateTransactionInverse(
+            month: "2026-07",
+            primaryTransactionID: "txn-1",
+            transactionIDs: ["txn-1"],
+            graph: .simple,
+            createdPayeeID: nil,
+            learning: .empty
+        )
+        let summary = TransactionBudgetAction(
+            month: "2026-07",
+            amount: -450,
+            payeeName: nil,
+            categoryID: nil,
+            graph: .simple,
+            transactionCount: 1
+        )
+        let record = makeRecord(
+            inverse: .createTransaction(inverse),
+            summary: .createTransaction(summary),
+            affectedCategoryIDs: []
+        )
+        var live = TransactionUndoSnapshot(
+            id: "txn-1",
+            accountID: "checking",
+            dateValue: 20260708,
+            amount: -450,
+            payeeID: "coffee",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            tombstone: true,
+            transferID: nil,
+            isParent: false,
+            isChild: false,
+            parentID: nil
+        )
+        let evaluation = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: ["txn-1": live]
+        )
+        #expect(evaluation == .blocked(.alreadyTombstoned))
+        live.tombstone = false
+        live.isParent = true
+        let rewritten = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: ["txn-1": live]
+        )
+        #expect(rewritten == .blocked(.graphRewritten))
+    }
+
+    @Test func deleteTransactionStillTombstonedRestoresIt() {
+        let inverse = DeleteTransactionInverse(
+            month: "2026-07",
+            transactionIDs: ["txn-1"],
+            graph: .simple
+        )
+        let summary = TransactionBudgetAction(
+            month: "2026-07",
+            amount: -450,
+            payeeName: nil,
+            categoryID: nil,
+            graph: .simple,
+            transactionCount: 1
+        )
+        let record = makeRecord(
+            inverse: .deleteTransaction(inverse),
+            summary: .deleteTransaction(summary),
+            affectedCategoryIDs: []
+        )
+        let live = TransactionUndoSnapshot(
+            id: "txn-1",
+            accountID: "checking",
+            dateValue: 20260708,
+            amount: -450,
+            payeeID: "coffee",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            tombstone: true,
+            transferID: nil,
+            isParent: false,
+            isChild: false,
+            parentID: nil
+        )
+        let clean = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: ["txn-1": live]
+        )
+        #expect(clean == .clean(.unTombstoneTransactions(transactionIDs: ["txn-1"])))
+        var restored = live
+        restored.tombstone = false
+        let blocked = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: ["txn-1": restored]
+        )
+        #expect(blocked == .blocked(.alreadyLive))
+    }
+
+    @Test func categorizeSkipsAlreadyChangedItemsAndBlocksWhenNoneRemain() {
+        let items = [
+            BudgetCategorizeFact(transactionID: "txn-1", beforeCategoryID: nil, afterCategoryID: "groceries"),
+            BudgetCategorizeFact(transactionID: "txn-2", beforeCategoryID: nil, afterCategoryID: "groceries")
+        ]
+        let inverse = CategorizeTransactionInverse(month: "2026-07", items: items, learning: .empty)
+        let record = makeRecord(
+            inverse: .categorize(inverse),
+            summary: .categorize(CategorizeBudgetAction(month: "2026-07", categoryID: "groceries", itemCount: 2)),
+            affectedCategoryIDs: ["groceries"]
+        )
+        func snapshot(_ id: String, category: String?) -> TransactionUndoSnapshot {
+            TransactionUndoSnapshot(
+                id: id,
+                accountID: "checking",
+                dateValue: 20260708,
+                amount: -100,
+                payeeID: "coffee",
+                categoryID: category,
+                notes: nil,
+                cleared: false,
+                tombstone: false,
+                transferID: nil,
+                isParent: false,
+                isChild: false,
+                parentID: nil
+            )
+        }
+        let mixed = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: [
+                "txn-1": snapshot("txn-1", category: "groceries"),
+                "txn-2": snapshot("txn-2", category: "dining")
+            ]
+        )
+        #expect(mixed == .clean(.restoreCategories(
+            items: [items[0]],
+            learning: .empty
+        )))
+        let allChanged = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: [
+                "txn-1": snapshot("txn-1", category: "dining"),
+                "txn-2": snapshot("txn-2", category: "dining")
+            ]
+        )
+        #expect(allChanged == .blocked(.transactionChanged))
+    }
+
+    @Test func unsafeGraphEditIsLocked() {
+        let snapshot = TransactionUndoSnapshot(
+            id: "txn-1",
+            accountID: "checking",
+            dateValue: 20260708,
+            amount: -450,
+            payeeID: "coffee",
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            tombstone: false,
+            transferID: nil,
+            isParent: true,
+            isChild: false,
+            parentID: nil
+        )
+        let inverse = EditTransactionInverse(
+            month: "2026-07",
+            primaryBefore: snapshot,
+            primaryAfter: snapshot,
+            relatedBefore: [],
+            relatedAfter: [],
+            unsafeGraph: true,
+            createdPayeeID: nil,
+            learning: .empty
+        )
+        let record = makeRecord(
+            inverse: .editTransaction(inverse),
+            summary: .editTransaction(EditTransactionBudgetAction(
+                month: "2026-07",
+                amountBefore: -450,
+                amountAfter: -450,
+                payeeName: "Coffee Shop",
+                graph: .split,
+                unsafeGraph: true
+            )),
+            affectedCategoryIDs: []
+        )
+        let evaluation = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactions: ["txn-1": snapshot]
+        )
+        #expect(evaluation == .blocked(.graphRewritten))
     }
 
     @Test func restoringARecordedAmountPastTheSupportedRangeIsBlocked() {

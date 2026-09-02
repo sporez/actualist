@@ -323,7 +323,7 @@ extension BudgetDatabase {
         sourceTransactionID: String,
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String) {
+    ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String, pairedTransactionID: String) {
         guard !draft.accountID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
@@ -387,7 +387,7 @@ extension BudgetDatabase {
                 columns: columns,
                 builder: &builder
             )
-            return (sourceMessages + pairedMessages, destinationAccountID)
+            return (sourceMessages + pairedMessages, destinationAccountID, pairedTransactionID)
         }
     }
 
