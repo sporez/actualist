@@ -23,6 +23,12 @@ enum BudgetActionInverse: Equatable, Sendable {
     case editTransaction(EditTransactionInverse)
     case deleteTransaction(DeleteTransactionInverse)
     case categorize(CategorizeTransactionInverse)
+    case payee(PayeeBudgetAction)
+    case rule(RuleBudgetAction)
+    case account(AccountBudgetAction)
+    case carryover(CarryoverBudgetAction)
+    case learningPref(LearningPrefBudgetAction)
+    case transactionMetadata(TransactionMetadataBudgetAction)
 }
 
 extension BudgetActionInverse {
@@ -43,6 +49,12 @@ extension BudgetActionInverse {
             return delete.month
         case .categorize(let categorize):
             return categorize.month
+        case .payee, .rule, .account, .learningPref:
+            return ""
+        case .carryover(let carryover):
+            return carryover.startMonth
+        case .transactionMetadata(let metadata):
+            return metadata.month
         }
     }
 
@@ -51,7 +63,9 @@ extension BudgetActionInverse {
         case .createTransaction(let create): create.learning
         case .editTransaction(let edit): edit.learning
         case .categorize(let categorize): categorize.learning
-        case .assign, .move, .template, .deleteTransaction: .empty
+        case .assign, .move, .template, .deleteTransaction,
+                .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            .empty
         }
     }
 
@@ -65,7 +79,8 @@ extension BudgetActionInverse {
             edit.allAfterSnapshots.map(\.id)
         case .categorize(let categorize):
             categorize.items.map(\.transactionID)
-        case .assign, .move, .template:
+        case .assign, .move, .template,
+                .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             []
         }
     }
@@ -82,7 +97,8 @@ extension BudgetActionInverse {
         case .categorize(var categorize):
             categorize.learning = learning
             return .categorize(categorize)
-        case .assign, .move, .template, .deleteTransaction:
+        case .assign, .move, .template, .deleteTransaction,
+                .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             return self
         }
     }
@@ -102,6 +118,12 @@ enum BudgetActionDescriptor: Equatable, Sendable {
     case editTransaction(EditTransactionDescriptor)
     case deleteTransaction(DeleteTransactionDescriptor)
     case categorize(CategorizeTransactionDescriptor)
+    case payee(PayeeActionDescriptor)
+    case rule(RuleActionDescriptor)
+    case account(AccountActionDescriptor)
+    case carryover(CarryoverActionDescriptor)
+    case learningPref(LearningPrefActionDescriptor)
+    case transactionMetadata(TransactionMetadataActionDescriptor)
 }
 
 extension BudgetActionInverse: Codable {
@@ -113,6 +135,12 @@ extension BudgetActionInverse: Codable {
         case editTransaction
         case deleteTransaction
         case categorize
+        case payee
+        case rule
+        case account
+        case carryover
+        case learningPref
+        case transactionMetadata
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -138,6 +166,18 @@ extension BudgetActionInverse: Codable {
             self = .deleteTransaction(try payload.decode(DeleteTransactionInverse.self, forKey: .payload))
         case .categorize:
             self = .categorize(try payload.decode(CategorizeTransactionInverse.self, forKey: .payload))
+        case .payee:
+            self = .payee(try payload.decode(PayeeBudgetAction.self, forKey: .payload))
+        case .rule:
+            self = .rule(try payload.decode(RuleBudgetAction.self, forKey: .payload))
+        case .account:
+            self = .account(try payload.decode(AccountBudgetAction.self, forKey: .payload))
+        case .carryover:
+            self = .carryover(try payload.decode(CarryoverBudgetAction.self, forKey: .payload))
+        case .learningPref:
+            self = .learningPref(try payload.decode(LearningPrefBudgetAction.self, forKey: .payload))
+        case .transactionMetadata:
+            self = .transactionMetadata(try payload.decode(TransactionMetadataBudgetAction.self, forKey: .payload))
         }
     }
 
@@ -166,6 +206,24 @@ extension BudgetActionInverse: Codable {
         case .categorize(let categorize):
             try container.encode(InverseKind.categorize, forKey: .type)
             try payload.encode(categorize, forKey: .payload)
+        case .payee(let payee):
+            try container.encode(InverseKind.payee, forKey: .type)
+            try payload.encode(payee, forKey: .payload)
+        case .rule(let rule):
+            try container.encode(InverseKind.rule, forKey: .type)
+            try payload.encode(rule, forKey: .payload)
+        case .account(let account):
+            try container.encode(InverseKind.account, forKey: .type)
+            try payload.encode(account, forKey: .payload)
+        case .carryover(let carryover):
+            try container.encode(InverseKind.carryover, forKey: .type)
+            try payload.encode(carryover, forKey: .payload)
+        case .learningPref(let learning):
+            try container.encode(InverseKind.learningPref, forKey: .type)
+            try payload.encode(learning, forKey: .payload)
+        case .transactionMetadata(let metadata):
+            try container.encode(InverseKind.transactionMetadata, forKey: .type)
+            try payload.encode(metadata, forKey: .payload)
         }
     }
 }

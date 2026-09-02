@@ -196,8 +196,21 @@ struct CategorizeTransactionDescriptor: Equatable, Sendable {
     var items: [BudgetCategorizeFact]
 }
 
-/// Notes-only and cleared-only edits are not money-flow and stay out of History.
+/// Money-flow vs notes/cleared-only. Notes-only and cleared-only edits are
+/// recorded as metadata (Phase 4) and do not consume a money-flow slot.
 enum BudgetTransactionLogging {
+    static func metadataChanges(
+        existing: ActualTransaction,
+        draft: TransactionDraft
+    ) -> (notes: Bool, cleared: Bool) {
+        let existingNotes = existing.notes ?? ""
+        let draftNotes = draft.notes ?? ""
+        let notesChanged = existingNotes != draftNotes
+        let existingCleared = existing.cleared?.boolValue ?? false
+        let clearedChanged = existingCleared != draft.cleared
+        return (notesChanged, clearedChanged)
+    }
+
     static func shouldRecordUpdate(
         existing: ActualTransaction,
         draft: TransactionDraft,

@@ -11,6 +11,7 @@ struct HistoryRowModel: Identifiable, Equatable, Sendable {
         case editTransaction
         case deleteTransaction
         case categorize
+        case metadata
     }
 
     enum AmountTone: Equatable, Sendable {
@@ -162,6 +163,65 @@ enum HistoryRowPresentation {
         case .categorize(let categorize):
             let noun = categorize.itemCount == 1 ? "transaction" : "transactions"
             return "Categorized \(categorize.itemCount) \(noun)"
+        case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            return metadataTitle(
+                for: record.summary,
+                categoryNames: categoryNames,
+                privacyEnabled: privacyEnabled,
+                recordID: record.id
+            ).title
+        }
+    }
+
+    private static func metadataTitle(
+        for summary: BudgetActionSummary,
+        categoryNames: [String: String],
+        privacyEnabled: Bool,
+        recordID: String
+    ) -> (title: String, detail: String) {
+        switch summary {
+        case .payee(let payee):
+            let name = payee.names.first.flatMap {
+                displayPayee($0, seed: recordID, privacyEnabled: privacyEnabled)
+            }
+            switch payee.operation {
+            case .create: return (name.map { "Added payee · \($0)" } ?? "Added a payee", "Payee")
+            case .rename: return (name.map { "Renamed payee · \($0)" } ?? "Renamed a payee", "Payee")
+            case .delete: return ("Deleted payee", "Payee")
+            case .merge: return ("Merged payees", "Payee")
+            case .update: return ("Updated payees", "Payee")
+            }
+        case .rule(let rule):
+            switch rule.operation {
+            case .create: return ("Added a rule", "Rule")
+            case .update: return ("Updated a rule", "Rule")
+            case .delete: return ("Deleted a rule", "Rule")
+            }
+        case .account(let account):
+            let name = privacyEnabled
+                ? PrivacyDisplay.name(for: .account, seed: recordID)
+                : account.name
+            return ("Added \(name)", account.offbudget ? "Off-budget account" : "Account")
+        case .carryover(let carryover):
+            let noun = carryover.categoryCount == 1 ? "category" : "categories"
+            let countText = carryover.categoryCount == 0 ? "all expense categories" : noun
+            return (
+                carryover.after ? "Turned on rollover" : "Turned off rollover",
+                countText
+            )
+        case .learningPref(let learning):
+            return (learning.after ? "Turned on category learning" : "Turned off category learning", "Payees")
+        case .transactionMetadata(let metadata):
+            let payee = displayPayee(metadata.payeeName, seed: recordID, privacyEnabled: privacyEnabled)
+            if metadata.notesChanged && metadata.clearedChanged {
+                return (payee.map { "Updated note and cleared · \($0)" } ?? "Updated note and cleared", "Transaction")
+            }
+            if metadata.notesChanged {
+                return (payee.map { "Updated note · \($0)" } ?? "Updated note", "Transaction")
+            }
+            return (payee.map { "Updated cleared · \($0)" } ?? "Updated cleared", "Transaction")
+        default:
+            return ("Updated budget", "")
         }
     }
 
@@ -295,6 +355,17 @@ enum HistoryRowPresentation {
             title = "Categorized as \(name)"
             actionDetail = "\(categorize.itemCount) \(noun)"
             visual = .categorize
+
+        case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            let metadata = metadataTitle(
+                for: record.summary,
+                categoryNames: categoryNames,
+                privacyEnabled: privacyEnabled,
+                recordID: record.id
+            )
+            title = metadata.title
+            actionDetail = metadata.detail
+            visual = .metadata
         }
 
         let detail = ([isUndone ? "Undone" : nil, actionDetail, occurrence].compactMap { $0 })

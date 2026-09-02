@@ -106,7 +106,7 @@ extension BudgetDatabase {
                 )).sorted()
             )
 
-        case .assign, .move, .template:
+        case .assign, .move, .template, .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             throw LocalFirstError.invalidLocalWrite("unexpected budget action in transaction capture")
         }
     }

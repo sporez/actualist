@@ -64,7 +64,7 @@ extension BudgetDatabase {
                 createdAt: createdAt,
                 kind: kind,
                 status: .applied,
-                month: month,
+                month: month.isEmpty ? nil : month,
                 summary: summary,
                 inverse: inverse,
                 affectedCategoryIDs: affectedCategoryIDs,
@@ -209,6 +209,8 @@ extension BudgetDatabase {
             )
         case .createTransaction, .editTransaction, .deleteTransaction, .categorize:
             return try captureTransactionActionLogFacts(descriptor: descriptor, db: db)
+        case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            return try captureMetadataActionLogFacts(descriptor: descriptor, db: db)
         }
     }
 
@@ -265,17 +267,7 @@ extension BudgetDatabase {
     }
 
     func pruneActionLog(keeping limit: Int, db: Database) throws {
-        try db.execute(
-            sql: """
-                DELETE FROM actualist_action_log
-                WHERE id NOT IN (
-                    SELECT id FROM actualist_action_log
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT ?
-                )
-                """,
-            arguments: [limit]
-        )
+        try pruneActionLogKeepingMoneyFlowWindow(limit: limit, db: db)
     }
 
     /// Newest first. Empty when the table does not exist (fresh import before
@@ -294,7 +286,7 @@ extension BudgetDatabase {
                     ORDER BY created_at DESC, id DESC
                     LIMIT ?
                     """,
-                arguments: [limit]
+                arguments: [max(limit, 200)]
             )
             var records: [BudgetActionRecord] = []
             for row in rows {
@@ -561,14 +553,16 @@ extension BudgetDatabase {
             sql: """
                 SELECT COUNT(*) FROM actualist_action_log
                 WHERE status = ?
+                  AND kind IN (?, ?, ?, ?, ?, ?, ?)
                   AND (created_at > ? OR (created_at = ? AND id > ?))
                 """,
-            arguments: [
-                BudgetActionStatus.applied.rawValue,
-                createdAt,
-                createdAt,
-                record.id
-            ]
+            arguments: StatementArguments(
+                [BudgetActionStatus.applied.rawValue] + BudgetActionKind.moneyFlowRawValues + [
+                    createdAt,
+                    createdAt,
+                    record.id
+                ]
+            )
         ) ?? 0
         guard newerApplied == 0 else {
             throw LocalFirstError.actionUndoBlocked("Undo the newest action before this one.")

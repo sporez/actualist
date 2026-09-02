@@ -155,7 +155,8 @@ enum ShortcutBudgetCommand {
             try await prepared.store.createAccountAndRefresh(
                 budgetID: prepared.budgetID,
                 name: trimmed,
-                offbudget: offBudget
+                offbudget: offBudget,
+                actionSource: .shortcuts
             )
             session.recordSuccessfulWrite()
             let after = try await session.accounts(includeClosed: true)

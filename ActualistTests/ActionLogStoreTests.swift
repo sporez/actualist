@@ -522,7 +522,7 @@ extension LocalFirstActualStoreTests {
         #expect(loaded.category == nil)
     }
 
-    @Test func notesOnlyEditIsNotRecorded() async throws {
+    @Test func notesOnlyEditRecordsMetadataWithoutStealingMoneyFlowUndo() async throws {
         let store = try await makeOpenedWritableStore()
         let draft = TransactionDraft(
             accountID: "checking",
@@ -556,8 +556,12 @@ extension LocalFirstActualStoreTests {
             originalMonth: "2026-07"
         ) {}
         let rows = try await store.recentBudgetActions(budgetID: "group-1")
-        #expect(rows.count == 1)
-        #expect(rows[0].kind == .createTransaction)
+        #expect(rows.count == 2)
+        #expect(rows[0].kind == .transactionMetadata)
+        #expect(rows[1].kind == .createTransaction)
+        #expect(!rows[0].kind.isMoneyFlow)
+        try await store.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
+        #expect(try await store.recentBudgetActions(budgetID: "group-1")[1].status == .undone)
     }
 
     @Test func transferCreateIsOneRowAndUndoTombstonesBothSides() async throws {
@@ -660,6 +664,62 @@ extension LocalFirstActualStoreTests {
                 .transactions.first { $0.id == transactionID }
         )
         #expect(loaded.amount == -725)
+    }
+
+    @Test func payeeCreateRecordsWithoutStealingMoneyFlowLIFO() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries",
+            budgeted: 62_500,
+            budgetID: "group-1",
+            month: "2026-07"
+        ) {}
+        try await store.createPayeeAndRefresh(budgetID: "group-1", name: "New Cafe")
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(rows.count == 2)
+        #expect(rows[0].kind == .payee)
+        #expect(rows[1].kind == .assign)
+        let payees = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(payees.canUndo)
+        try await store.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
+        #expect(try await store.recentBudgetActions(budgetID: "group-1")[1].status == .undone)
+        try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
+        let afterUndo = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(!afterUndo.canUndo)
+    }
+
+    @Test func metadataDoesNotConsumeMoneyFlowRetentionSlots() async throws {
+        let store = try await makeOpenedWritableStore()
+        let database = try await store.requireDatabase(for: "group-1")
+        for index in 1...25 {
+            var builder = LocalFirstSyncMessageBuilder()
+            let messages = try await database.assignCategoryBudgetMessages(
+                categoryID: "groceries",
+                budgeted: 10_000 + index,
+                month: "2026-07",
+                builder: &builder
+            )
+            try await database.commitUserAction(
+                messages,
+                descriptor: .assign(month: "2026-07", categoryID: "groceries", budgeted: 10_000 + index),
+                source: .ui,
+                actionID: "money-\(index)",
+                now: Date(timeIntervalSince1970: 1_700_000_000 + Double(index))
+            )
+        }
+        try await store.createPayeeAndRefresh(budgetID: "group-1", name: "Late Payee")
+        let rows = try await database.recentBudgetActions(limit: 100)
+        #expect(rows.contains { $0.id == "money-1" })
+        #expect(rows.contains { $0.kind == .payee })
+        #expect(rows.filter(\.kind.isMoneyFlow).count == 25)
+    }
+
+    @Test func createAccountRecordsAHistoryRow() async throws {
+        let store = try await makeOpenedWritableStore()
+        try await store.createAccountAndRefresh(budgetID: "group-1", name: "New Cash", offbudget: false)
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        #expect(row.kind == .account)
+        #expect(row.source == .ui)
     }
 
     @Test func shortcutTransactionWritesRecordShortcutsSource() async throws {

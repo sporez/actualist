@@ -14,7 +14,11 @@ extension LocalFirstActualStore {
         )
         let undo = try await database.payeeUndoMessagesForCreate(payeeID: payeeID, builder: &builder)
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .payee(PayeeActionDescriptor(operation: .create, names: [name])),
+            source: .ui
+        )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -37,7 +41,11 @@ extension LocalFirstActualStore {
         }
         let undo = try await database.payeeUndoMessagesForRename(payeeID: payeeID, builder: &builder)
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .payee(PayeeActionDescriptor(operation: .rename, names: [name])),
+            source: .ui
+        )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -60,7 +68,11 @@ extension LocalFirstActualStore {
             builder: &builder
         )
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .payee(PayeeActionDescriptor(operation: .merge, names: [])),
+            source: .ui
+        )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -87,7 +99,11 @@ extension LocalFirstActualStore {
             ))
         }
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .payee(PayeeActionDescriptor(operation: .delete, names: [])),
+            source: .ui
+        )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -104,7 +120,11 @@ extension LocalFirstActualStore {
             builder: &builder
         )
         guard !mutation.messages.isEmpty else { return }
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(mutation.messages)
+        _ = try await database.commitUserAction(
+            mutation.messages,
+            descriptor: .payee(PayeeActionDescriptor(operation: .update, names: [])),
+            source: .ui
+        )
         lastPayeeUndoMessagesByBudget[budgetID] = mutation.undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -118,7 +138,11 @@ extension LocalFirstActualStore {
             builder: &builder
         )
         guard !mutation.messages.isEmpty else { return }
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(mutation.messages)
+        _ = try await database.commitUserAction(
+            mutation.messages,
+            descriptor: .learningPref(LearningPrefActionDescriptor(after: enabled)),
+            source: .ui
+        )
         lastPayeeUndoMessagesByBudget[budgetID] = mutation.undo
         try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -175,6 +199,20 @@ extension LocalFirstActualStore {
     // MARK: - Account mutations / server operations
 
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
+        try await createAccountAndRefresh(
+            budgetID: budgetID,
+            name: name,
+            offbudget: offbudget,
+            actionSource: .ui
+        )
+    }
+
+    func createAccountAndRefresh(
+        budgetID: String,
+        name: String,
+        offbudget: Bool,
+        actionSource: BudgetActionSource
+    ) async throws {
         let database = try requireDatabase(for: budgetID)
         let accountID = UUID().uuidString
         var builder = LocalFirstSyncMessageBuilder()
@@ -185,7 +223,11 @@ extension LocalFirstActualStore {
             builder: &builder
         )
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .account(AccountActionDescriptor(name: name, offbudget: offbudget)),
+            source: actionSource
+        )
         try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -215,7 +257,15 @@ extension LocalFirstActualStore {
             builder: &builder
         )
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .carryover(CarryoverActionDescriptor(
+                startMonth: startMonth,
+                after: carryover,
+                categoryCount: 1
+            )),
+            source: .ui
+        )
         await didSetCarryover()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -237,7 +287,15 @@ extension LocalFirstActualStore {
         )
 
         if !messages.isEmpty {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+            _ = try await database.commitUserAction(
+                messages,
+                descriptor: .carryover(CarryoverActionDescriptor(
+                    startMonth: startMonth,
+                    after: carryover,
+                    categoryCount: 0
+                )),
+                source: .ui
+            )
         }
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)

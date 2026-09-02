@@ -24,6 +24,8 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
     case graphRewritten
     /// A category-learning rule that rode along with this gesture changed later.
     case sideEffectChanged
+    /// Phase 4 metadata is visible in History but v1 LIFO undo is money-flow only.
+    case notOfferedFromHistory
 
     /// Shared copy for undo refusals surfaced through `LocalFirstError`
     /// (store-thrown) and the History review sheet.
@@ -49,6 +51,8 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
             "This transaction was split, transferred, or rewritten after this action. Undo would not be safe."
         case .sideEffectChanged:
             "A category-learning rule from this action changed later. Undo would not be safe."
+        case .notOfferedFromHistory:
+            "This change isn't undone from History."
         }
     }
 }
@@ -257,6 +261,9 @@ enum BudgetActionUndo {
                 return .blocked(blockedCount == categorize.items.count ? .transactionChanged : .transactionMissing)
             }
             return .clean(.restoreCategories(items: restorables, learning: categorize.learning))
+
+        case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            return .blocked(.notOfferedFromHistory)
         }
     }
 

@@ -30,7 +30,11 @@ extension LocalFirstActualStore {
             draft: draft,
             builder: &builder
         )
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .rule(RuleActionDescriptor(operation: .create)),
+            source: .ui
+        )
         try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -43,7 +47,11 @@ extension LocalFirstActualStore {
             draft: draft,
             builder: &builder
         )
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .rule(RuleActionDescriptor(operation: .update)),
+            source: .ui
+        )
         try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -52,7 +60,11 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.deleteRuleMessages(ruleID: ruleID, builder: &builder)
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        _ = try await database.commitUserAction(
+            messages,
+            descriptor: .rule(RuleActionDescriptor(operation: .delete)),
+            source: .ui
+        )
         try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }

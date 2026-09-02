@@ -12,6 +12,12 @@ enum BudgetActionKind: String, Codable, Sendable {
     case editTransaction
     case deleteTransaction
     case categorize
+    case payee
+    case rule
+    case account
+    case carryover
+    case learningPref
+    case transactionMetadata
 }
 
 enum BudgetActionStatus: String, Codable, Sendable {
@@ -83,6 +89,12 @@ enum BudgetActionSummary: Equatable, Sendable {
     case editTransaction(EditTransactionBudgetAction)
     case deleteTransaction(TransactionBudgetAction)
     case categorize(CategorizeBudgetAction)
+    case payee(PayeeBudgetAction)
+    case rule(RuleBudgetAction)
+    case account(AccountBudgetAction)
+    case carryover(CarryoverBudgetAction)
+    case learningPref(LearningPrefBudgetAction)
+    case transactionMetadata(TransactionMetadataBudgetAction)
 }
 
 /// A persisted money-flow gesture, decoded from `actualist_action_log`.
@@ -109,6 +121,12 @@ extension BudgetActionSummary: Codable {
         case editTransaction
         case deleteTransaction
         case categorize
+        case payee
+        case rule
+        case account
+        case carryover
+        case learningPref
+        case transactionMetadata
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -134,6 +152,18 @@ extension BudgetActionSummary: Codable {
             self = .deleteTransaction(try payload.decode(TransactionBudgetAction.self, forKey: .payload))
         case .categorize:
             self = .categorize(try payload.decode(CategorizeBudgetAction.self, forKey: .payload))
+        case .payee:
+            self = .payee(try payload.decode(PayeeBudgetAction.self, forKey: .payload))
+        case .rule:
+            self = .rule(try payload.decode(RuleBudgetAction.self, forKey: .payload))
+        case .account:
+            self = .account(try payload.decode(AccountBudgetAction.self, forKey: .payload))
+        case .carryover:
+            self = .carryover(try payload.decode(CarryoverBudgetAction.self, forKey: .payload))
+        case .learningPref:
+            self = .learningPref(try payload.decode(LearningPrefBudgetAction.self, forKey: .payload))
+        case .transactionMetadata:
+            self = .transactionMetadata(try payload.decode(TransactionMetadataBudgetAction.self, forKey: .payload))
         }
     }
 
@@ -162,6 +192,24 @@ extension BudgetActionSummary: Codable {
         case .categorize(let categorize):
             try container.encode(SummaryKind.categorize, forKey: .type)
             try payload.encode(categorize, forKey: .payload)
+        case .payee(let payee):
+            try container.encode(SummaryKind.payee, forKey: .type)
+            try payload.encode(payee, forKey: .payload)
+        case .rule(let rule):
+            try container.encode(SummaryKind.rule, forKey: .type)
+            try payload.encode(rule, forKey: .payload)
+        case .account(let account):
+            try container.encode(SummaryKind.account, forKey: .type)
+            try payload.encode(account, forKey: .payload)
+        case .carryover(let carryover):
+            try container.encode(SummaryKind.carryover, forKey: .type)
+            try payload.encode(carryover, forKey: .payload)
+        case .learningPref(let learning):
+            try container.encode(SummaryKind.learningPref, forKey: .type)
+            try payload.encode(learning, forKey: .payload)
+        case .transactionMetadata(let metadata):
+            try container.encode(SummaryKind.transactionMetadata, forKey: .type)
+            try payload.encode(metadata, forKey: .payload)
         }
     }
 }

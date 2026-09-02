@@ -195,17 +195,25 @@ extension LocalFirstActualStore {
                 source: actionSource,
                 learningTransactionIDs: learningIDs
             )
+        } else if let existing {
+            let metadata = BudgetTransactionLogging.metadataChanges(existing: existing, draft: draft)
+            if metadata.notes || metadata.cleared {
+                _ = try await database.commitUserAction(
+                    messages,
+                    descriptor: .transactionMetadata(TransactionMetadataActionDescriptor(
+                        month: draft.month.rawValue,
+                        payeeName: trimmedPayeeName(draft.payeeName) ?? existing.payeeName,
+                        notesChanged: metadata.notes,
+                        clearedChanged: metadata.cleared
+                    )),
+                    source: actionSource,
+                    learningTransactionIDs: learningIDs
+                )
+            } else {
+                _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+            }
         } else {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-            if !learningIDs.isEmpty {
-                let learningMessages = try await database.categoryLearningRuleMessages(
-                    changedTransactionIDs: learningIDs,
-                    builder: &builder
-                )
-                if !learningMessages.isEmpty {
-                    _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
-                }
-            }
         }
         try await reloadRulesIfNeeded(learningIDs: learningIDs, database: database, budgetID: budgetID)
         await didUpdate()
