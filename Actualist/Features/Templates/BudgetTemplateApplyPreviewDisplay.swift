@@ -113,7 +113,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
     ) -> String {
         if category.drafts.count == category.perTemplate.count,
            category.drafts.indices.contains(index) {
-            return category.drafts[index].cutAKind.title
+            return category.drafts[index].kind.title
         }
         return "Template \(index + 1)"
     }

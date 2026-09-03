@@ -58,17 +58,38 @@ extension BudgetDatabase {
                 goalDefJSON: goalDefJSON
             )
             let drafts = BudgetTemplateDefinition.drafts(fromJSON: goalDefJSON, now: now) ?? []
+            let authoringContext = try templateEditorAuthoringContext(db: db, now: now)
             let hasDefinition = hasStoredTemplateDefinition(goalDefJSON)
             return BudgetTemplateEditorSnapshot(
                 categoryID: trimmed,
                 categoryName: name,
                 drafts: drafts,
                 lock: lock,
-                schedules: try templateEditorSchedules(db: db),
+                schedules: authoringContext.schedules,
+                incomeCategories: authoringContext.incomeCategories,
                 currency: try budgetCurrency(db: db),
                 hasDefinition: hasDefinition
             )
         }
+    }
+
+    private func templateEditorIncomeCategories(db: Database) throws -> [BudgetTemplateIncomeOption] {
+        let catalog = try templateIncomeCatalog(db: db)
+        return catalog.incomeCategoryIDsInOrder.compactMap { id in
+            guard let name = catalog.incomeCategoryNamesByID[id] else { return nil }
+            return BudgetTemplateIncomeOption(id: id, name: name)
+        }
+    }
+
+    func templateEditorAuthoringContext(
+        db: Database,
+        now: Date = Date()
+    ) throws -> BudgetTemplateAuthoringContext {
+        BudgetTemplateAuthoringContext(
+            today: now,
+            schedules: try templateEditorSchedules(db: db),
+            incomeCategories: try templateEditorIncomeCategories(db: db)
+        )
     }
 
     private func templateEditorSchedules(db: Database) throws -> [BudgetTemplateScheduleOption] {

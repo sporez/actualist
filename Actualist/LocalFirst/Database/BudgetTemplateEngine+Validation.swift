@@ -271,9 +271,9 @@ extension BudgetTemplateEngine {
         }
         switch limit.period {
         case "monthly":
-            guard limit.start == nil else {
+            guard limit.start == nil || BudgetTemplateCalendar.validatedDate(limit.start!) != nil else {
                 throw LocalFirstError.unsupportedTemplate(
-                    "only basic monthly up-to limits are supported"
+                    "monthly up-to limit has an invalid start date"
                 )
             }
         case "daily":

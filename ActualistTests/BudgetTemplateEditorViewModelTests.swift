@@ -69,10 +69,10 @@ struct BudgetTemplateEditorViewModelTests {
         viewModel.add(.monthlyFixed)
         viewModel.add(.remainder)
         viewModel.add(.remainder)
-        #expect(viewModel.items.map(\.draft.cutAKind) == [.monthlyFixed, .remainder])
+        #expect(viewModel.items.map(\.draft.kind) == [.monthlyFixed, .remainder])
         #expect(!viewModel.addableKinds.contains(.remainder))
         viewModel.remove(id: try #require(viewModel.items.last?.id))
-        #expect(viewModel.items.map(\.draft.cutAKind) == [.monthlyFixed])
+        #expect(viewModel.items.map(\.draft.kind) == [.monthlyFixed])
         #expect(viewModel.addableKinds.contains(.remainder))
     }
 

@@ -15,7 +15,7 @@ struct BudgetTemplateEditorItemSection: View {
             }
         } header: {
             HStack {
-                Text(item.draft.cutAKind.title)
+                Text(item.draft.kind.title)
                 Spacer()
                 if item.draft.showsContribution {
                     Text(viewModel.contributionText(at: index))
@@ -31,6 +31,9 @@ struct BudgetTemplateEditorItemSection: View {
         switch item.draft {
         case .monthlyFixed(let value):
             monthlyFixedFields(value)
+        case .dateTarget, .percentage, .balanceLimit, .refill:
+            Text("This template type is not editable yet.")
+                .foregroundStyle(ActualistTheme.secondaryText)
         case .copy(let value):
             integerField("Months back", value: String(value.lookBack)) { text in
                 viewModel.setLookBack(text, id: item.id)

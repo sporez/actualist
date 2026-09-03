@@ -33,6 +33,13 @@ struct BudgetTemplateEngineTests {
         }
     }
 
+    @Test func monthlyLimitAcceptsAnObservedRetainedAnchor() throws {
+        let entries = try engine.decodeSupportedEntries(
+            json: #"[{"directive":"template","type":"simple","monthly":10,"limit":{"amount":20,"period":"monthly","hold":false,"start":"2026-09-07"},"priority":0}]"#
+        )
+        #expect(entries?.count == 1)
+    }
+
     @Test func ancientDailyRecurrenceIsCalculatedArithmetically() throws {
         let decoded = try engine.decodeSupportedEntries(
             json: """

@@ -71,7 +71,15 @@ extension BudgetDatabase {
                     BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
                 )
             case .success(let entries):
-                guard BudgetTemplateDefinition.areCutAEditable(entries) else {
+                guard BudgetTemplateDefinition.areEditorEditable(entries),
+                      let drafts = BudgetTemplateDefinition.drafts(
+                          fromJSON: incomingJSON,
+                          now: Date()
+                      ),
+                      BudgetTemplateAuthoringValidation.isValid(
+                          drafts,
+                          context: try templateEditorAuthoringContext(db: db)
+                      ) else {
                     throw LocalFirstError.invalidLocalWrite(
                         BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
                     )

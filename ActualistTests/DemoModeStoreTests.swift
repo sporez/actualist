@@ -178,7 +178,7 @@ struct DemoModeStoreTests {
         )
         #expect(rent.lock == .editable)
         #expect(rent.hasDefinition)
-        #expect(rent.drafts.map(\.cutAKind) == [.monthlyFixed, .remainder])
+        #expect(rent.drafts.map(\.kind) == [.monthlyFixed, .remainder])
 
         let groceries = try await store.categoryTemplateEditorSnapshot(
             categoryID: "groceries",

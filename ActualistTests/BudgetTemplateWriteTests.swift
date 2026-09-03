@@ -217,6 +217,57 @@ struct BudgetTemplateWriteTests {
         #expect(try categoryTemplateState("groceries", at: fixtureURL).goalDef == nil)
     }
 
+    @Test func templateWriteRefusesUnknownEditorFieldsBeforeCreatingMessages() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            ALTER TABLE categories ADD COLUMN template_settings TEXT;
+            UPDATE categories SET template_settings = '{"source":"ui"}' WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        var builder = LocalFirstSyncMessageBuilder()
+        await #expect(throws: LocalFirstError.invalidLocalWrite(
+            BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
+        )) {
+            _ = try await database.setCategoryTemplateMessages(
+                categoryID: "groceries",
+                goalDefJSON: #"[{"directive":"template","type":"simple","monthly":400,"priority":1,"futureField":true}]"#,
+                builder: &builder
+            )
+        }
+        #expect(try await database.pendingLocalSyncMessageCount() == 0)
+    }
+
+    @Test func templateWritePreservesAutomationDescriptionWithoutChangingBudget() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            ALTER TABLE categories ADD COLUMN template_settings TEXT;
+            UPDATE categories SET template_settings = '{"source":"ui"}' WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        let json = try BudgetTemplateDefinition.encode([
+            .monthlyFixed(
+                amount: 400,
+                now: Self.templateWriteNow,
+                description: "Keep this note\nexactly"
+            )
+        ])
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.setCategoryTemplateMessages(
+            categoryID: "groceries",
+            goalDefJSON: json,
+            builder: &builder
+        )
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        let after = try await database.fetchBudgetMonth(month: "2026-07")
+        #expect(after.toBudget == before.toBudget)
+        let snapshot = try await database.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            now: Self.templateWriteNow
+        )
+        #expect(snapshot.drafts.first?.description == "Keep this note\nexactly")
+    }
+
     @Test func templateStoreSaveReloadsDefinitionAndDoesNotRecordHistory() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
             ALTER TABLE categories ADD COLUMN template_settings TEXT;

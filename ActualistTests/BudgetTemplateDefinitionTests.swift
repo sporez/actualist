@@ -259,7 +259,6 @@ struct BudgetTemplateDefinitionTests {
         #"[{"directive":"template","type":"schedule","name":"Rent","adjustment":10,"adjustmentType":"percent","priority":1}]"#,
         #"[{"directive":"template","type":"average","numMonths":3,"adjustment":5,"adjustmentType":"percent","priority":1}]"#,
         #"[{"directive":"template","type":"remainder","weight":1,"priority":null,"limit":{"amount":500,"hold":true,"period":"monthly"}}]"#,
-        #"[{"directive":"template","type":"copy","lookBack":1,"priority":0,"limit":{"amount":100,"hold":false,"period":"monthly"}}]"#,
         ##"[{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]"##,
         #"[{"directive":"template","type":"simple","priority":1,"limit":{"amount":1000,"hold":false,"period":"monthly"}}]"#
     ])

@@ -45,6 +45,26 @@ enum BudgetTemplateSummary {
                 seed: "\(seed)-cap"
             )
             return upTo.hold ? "\(amount)/mo hold \(cap)" : "\(amount)/mo up to \(cap)"
+        case .dateTarget(let value):
+            return value.isSpend ? "Save by \(value.month) with early spending" : "Save by \(value.month)"
+        case .percentage(let value):
+            return "\(value.percent)% of \(value.sourceCategory)"
+        case .balanceLimit(let value):
+            let amount = formattedAmount(
+                value.amount,
+                currency: currency,
+                randomized: randomized,
+                seed: seed
+            )
+            let cadence: String
+            switch value.period {
+            case .daily: cadence = "day"
+            case .weekly: cadence = "week"
+            case .monthly: cadence = "month"
+            }
+            return "Limit \(amount)/\(cadence)"
+        case .refill:
+            return "Refill"
         case .copy(let value):
             if value.lookBack == 1 {
                 return "Copy last month"

@@ -1,0 +1,635 @@
+import Foundation
+
+/// The editor's loss-aware JSON boundary. `BudgetTemplateEntry` is intentionally
+/// not used here because its apply-focused shape omits authoring metadata.
+enum BudgetTemplateEditorCodec {
+    static func decodeCutA(
+        json: String?,
+        now: Date
+    ) -> Result<[BudgetTemplateDraft]?, BudgetTemplateDefinition.ParseFailure> {
+        do {
+            let entries = try rawEntries(from: json)
+            guard entries.count <= BudgetTemplateEngine.Bounds.maximumEntriesPerCategory else {
+                return .failure(.unsupportedType("too many template entries"))
+            }
+            var drafts: [BudgetTemplateDraft] = []
+            drafts.reserveCapacity(entries.count)
+            for entry in entries {
+                guard let draft = try cutADraft(from: entry, now: now) else {
+                    return .success(nil)
+                }
+                drafts.append(draft)
+            }
+            return .success(drafts)
+        } catch let failure as BudgetTemplateDefinition.ParseFailure {
+            return .failure(failure)
+        } catch {
+            return .failure(.unreadable)
+        }
+    }
+
+    static func decodeNormalized(
+        json: String?,
+        now: Date
+    ) throws -> [BudgetTemplateDraft] {
+        let entries = try rawEntries(from: json)
+        var drafts: [BudgetTemplateDraft] = []
+        for entry in entries {
+            drafts.append(contentsOf: try normalizedDrafts(from: entry, now: now))
+        }
+        guard drafts.count <= BudgetTemplateEngine.Bounds.maximumEntriesPerCategory else {
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedType("too many template entries")
+        }
+        return drafts
+    }
+
+    static func encode(_ drafts: [BudgetTemplateDraft]) throws -> String {
+        try BudgetTemplateEditorEncoder.encode(drafts)
+    }
+}
+
+private extension BudgetTemplateEditorCodec {
+    struct RawPeriod: Decodable {
+        let period: String?
+        let amount: Int?
+    }
+
+    struct RawLimit: Decodable {
+        let amount: Double?
+        let hold: Bool?
+        let period: String?
+        let start: String?
+    }
+
+    struct RawEntry: Decodable {
+        let type: String
+        let directive: String?
+        let description: String?
+        let priority: Int?
+        let monthly: Double?
+        let amount: Double?
+        let percentage: Double?
+        let percent: Double?
+        let previous: Bool?
+        let sourceCategory: String?
+        let numMonths: Int?
+        let adjustment: Double?
+        let adjustmentType: String?
+        let period: RawPeriod?
+        let limitPeriod: String?
+        let starting: String?
+        let lookBack: Int?
+        let limit: RawLimit?
+        let month: String?
+        let fromMonth: String?
+        let annual: Bool?
+        let repeatInterval: Int?
+        let weight: Double?
+        let name: String?
+        let scheduleId: String?
+        let full: Bool?
+        let limitAmount: Double?
+        let limitHold: Bool?
+        let limitStart: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case directive
+            case description
+            case priority
+            case monthly
+            case amount
+            case percentage
+            case percent
+            case previous
+            case sourceCategory = "category"
+            case numMonths
+            case adjustment
+            case adjustmentType
+            case period
+            case starting
+            case lookBack
+            case limit
+            case hold
+            case start
+            case month
+            case fromMonth = "from"
+            case annual
+            case repeatInterval = "repeat"
+            case weight
+            case name
+            case scheduleId
+            case full
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            type = try container.decode(String.self, forKey: .type)
+            directive = try container.decodeIfPresent(String.self, forKey: .directive)
+            description = try container.decodeIfPresent(String.self, forKey: .description)
+            priority = try container.decodeIfPresent(Int.self, forKey: .priority)
+            monthly = try container.decodeIfPresent(Double.self, forKey: .monthly)
+            amount = try container.decodeIfPresent(Double.self, forKey: .amount)
+            percentage = try container.decodeIfPresent(Double.self, forKey: .percentage)
+            percent = try container.decodeIfPresent(Double.self, forKey: .percent)
+            previous = try container.decodeIfPresent(Bool.self, forKey: .previous)
+            sourceCategory = try container.decodeIfPresent(String.self, forKey: .sourceCategory)
+            numMonths = try container.decodeIfPresent(Int.self, forKey: .numMonths)
+            adjustment = try container.decodeIfPresent(Double.self, forKey: .adjustment)
+            adjustmentType = try container.decodeIfPresent(String.self, forKey: .adjustmentType)
+            starting = try container.decodeIfPresent(String.self, forKey: .starting)
+            lookBack = try container.decodeIfPresent(Int.self, forKey: .lookBack)
+            limit = try container.decodeIfPresent(RawLimit.self, forKey: .limit)
+            month = try container.decodeIfPresent(String.self, forKey: .month)
+            fromMonth = try container.decodeIfPresent(String.self, forKey: .fromMonth)
+            annual = try container.decodeIfPresent(Bool.self, forKey: .annual)
+            repeatInterval = try container.decodeIfPresent(Int.self, forKey: .repeatInterval)
+            weight = try container.decodeIfPresent(Double.self, forKey: .weight)
+            name = try container.decodeIfPresent(String.self, forKey: .name)
+            scheduleId = try container.decodeIfPresent(String.self, forKey: .scheduleId)
+            full = try container.decodeIfPresent(Bool.self, forKey: .full)
+
+            if type == "limit" {
+                period = nil
+                limitPeriod = try container.decodeIfPresent(String.self, forKey: .period)
+                limitAmount = amount
+                limitHold = try container.decodeIfPresent(Bool.self, forKey: .hold)
+                limitStart = try container.decodeIfPresent(String.self, forKey: .start)
+            } else {
+                limitPeriod = nil
+                limitAmount = nil
+                limitHold = nil
+                limitStart = nil
+                period = try container.decodeIfPresent(RawPeriod.self, forKey: .period)
+            }
+        }
+
+        var editorLimit: BudgetTemplateUpToHold? {
+            if let limit {
+                guard let amount = limit.amount, let period = limit.period else {
+                    return nil
+                }
+                return BudgetTemplateUpToHold(
+                    amount: amount,
+                    hold: limit.hold ?? false,
+                    period: period,
+                    start: limit.start
+                )
+            }
+            guard let limitAmount, let limitPeriod else { return nil }
+            return BudgetTemplateUpToHold(
+                amount: limitAmount,
+                hold: limitHold ?? false,
+                period: limitPeriod,
+                start: limitStart
+            )
+        }
+
+        var normalizedDescription: String? {
+            guard let description,
+                  !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return nil
+            }
+            return description
+        }
+    }
+
+    static let commonKeys: Set<String> = ["directive", "type", "description"]
+
+    static let allowedKeysByType: [String: Set<String>] = [
+        "simple": commonKeys.union(["monthly", "priority", "limit"]),
+        "periodic": commonKeys.union(["amount", "period", "starting", "priority", "limit"]),
+        "by": commonKeys.union(["amount", "month", "annual", "repeat", "from", "priority"]),
+        "spend": commonKeys.union(["amount", "month", "annual", "repeat", "from", "priority"]),
+        "percentage": commonKeys.union(["percent", "percentage", "previous", "category", "priority"]),
+        "limit": commonKeys.union(["amount", "period", "hold", "start", "priority"]),
+        "refill": commonKeys.union(["priority"]),
+        "schedule": commonKeys.union(["name", "scheduleId", "full", "adjustment", "adjustmentType", "priority"]),
+        "average": commonKeys.union(["numMonths", "adjustment", "adjustmentType", "priority"]),
+        "copy": commonKeys.union(["lookBack", "priority", "limit"]),
+        "remainder": commonKeys.union(["weight", "limit", "priority"]),
+        "goal": commonKeys.union(["amount", "priority"])
+    ]
+
+    static func rawEntries(from json: String?) throws -> [RawEntry] {
+        guard let json else { return [] }
+        let trimmed = json.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == "null" { return [] }
+        guard let data = trimmed.data(using: .utf8) else {
+            throw BudgetTemplateDefinition.ParseFailure.unreadable
+        }
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw BudgetTemplateDefinition.ParseFailure.unreadable
+        }
+        guard let dictionaries = object as? [[String: Any]] else {
+            throw BudgetTemplateDefinition.ParseFailure.unreadable
+        }
+        for dictionary in dictionaries {
+            guard let type = dictionary["type"] as? String,
+                  let allowed = allowedKeysByType[type] else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("unknown template type")
+            }
+            if let unknown = Set(dictionary.keys).subtracting(allowed).sorted().first {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedField(
+                    type + "." + unknown
+                )
+            }
+            try validateNestedLimit(dictionary["limit"], type: type)
+            if type != "limit" {
+                try validateNestedPeriod(dictionary["period"], type: type)
+            }
+        }
+        do {
+            let entries = try JSONDecoder().decode([RawEntry].self, from: data)
+            for entry in entries {
+                if let limit = entry.limit,
+                   limit.amount == nil || limit.period == nil {
+                    throw BudgetTemplateDefinition.ParseFailure.unsupportedType(
+                        entry.type + " limit"
+                    )
+                }
+                if let period = entry.period,
+                   period.period == nil || period.amount == nil {
+                    throw BudgetTemplateDefinition.ParseFailure.unsupportedType(
+                        entry.type + " period"
+                    )
+                }
+            }
+            return entries
+        } catch let failure as BudgetTemplateDefinition.ParseFailure {
+            throw failure
+        } catch {
+            throw BudgetTemplateDefinition.ParseFailure.unreadable
+        }
+    }
+
+    static func validateNestedLimit(_ value: Any?, type: String) throws {
+        guard let value, !(value is NSNull) else { return }
+        guard let dictionary = value as? [String: Any] else {
+            throw BudgetTemplateDefinition.ParseFailure.unreadable
+        }
+        let allowed = Set(["amount", "hold", "period", "start"])
+        if let unknown = Set(dictionary.keys).subtracting(allowed).sorted().first {
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedField(
+                type + ".limit." + unknown
+            )
+        }
+    }
+
+    static func validateNestedPeriod(_ value: Any?, type: String) throws {
+        guard let value, !(value is NSNull) else { return }
+        guard let dictionary = value as? [String: Any] else {
+            throw BudgetTemplateDefinition.ParseFailure.unreadable
+        }
+        let allowed = Set(["amount", "period"])
+        if let unknown = Set(dictionary.keys).subtracting(allowed).sorted().first {
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedField(
+                type + ".period." + unknown
+            )
+        }
+    }
+
+    static func cutADraft(from entry: RawEntry, now: Date) throws -> BudgetTemplateDraft? {
+        let directive = entry.directive?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (entry.type == "goal" && directive == "goal")
+                || (entry.type != "goal" && directive == "template") else {
+            return nil
+        }
+        let nestedLimit = try requiredOrNilLimit(entry.editorLimit, type: entry.type)
+        switch entry.type {
+        case "simple":
+            guard let monthly = entry.monthly,
+                  isSignedAmount(monthly),
+                  entry.priority != nil,
+                  BudgetTemplateEngine.Bounds.priority.contains(entry.priority!) else { return nil }
+            return .monthlyFixed(
+                amount: monthly,
+                priority: entry.priority!,
+                now: now,
+                upTo: nestedLimit,
+                description: entry.normalizedDescription
+            )
+        case "periodic":
+            guard let amount = entry.amount,
+                  let period = entry.period,
+                  period.period == "month",
+                  period.amount == 1,
+                  isSignedAmount(amount),
+                  let priority = entry.priority,
+                  BudgetTemplateEngine.Bounds.priority.contains(priority),
+                  entry.starting.map(validDateOrEmpty) ?? true else { return nil }
+            return .monthlyFixed(
+                BudgetTemplateDraft.MonthlyFixed(
+                    amount: amount,
+                    priority: priority,
+                    starting: entry.starting.flatMap { $0.isEmpty ? nil : $0 }
+                        ?? BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
+                    upTo: nestedLimit,
+                    description: entry.normalizedDescription
+                )
+            )
+        case "copy":
+            guard let lookBack = entry.lookBack,
+                  let priority = entry.priority,
+                  BudgetTemplateEngine.Bounds.lookBack.contains(lookBack),
+                  BudgetTemplateEngine.Bounds.priority.contains(priority),
+                  entry.adjustmentType == nil else { return nil }
+            return .copy(
+                lookBack: lookBack,
+                priority: priority,
+                legacyLimit: nestedLimit,
+                description: entry.normalizedDescription
+            )
+        case "average":
+            guard let numMonths = entry.numMonths,
+                  let priority = entry.priority,
+                  BudgetTemplateEngine.Bounds.numMonths.contains(numMonths),
+                  BudgetTemplateEngine.Bounds.priority.contains(priority),
+                  entry.adjustment == nil,
+                  entry.adjustmentType == nil else { return nil }
+            return .average(numMonths: numMonths, priority: priority, description: entry.normalizedDescription)
+        case "schedule":
+            guard let priority = entry.priority,
+                  BudgetTemplateEngine.Bounds.priority.contains(priority),
+                  entry.scheduleNameOrID != nil,
+                  entry.full != true,
+                  entry.adjustment == nil,
+                  entry.adjustmentType == nil else { return nil }
+            return .schedule(
+                name: entry.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+                scheduleId: entry.presentScheduleID,
+                priority: priority,
+                description: entry.normalizedDescription
+            )
+        case "remainder":
+            guard let weight = entry.weight,
+                  BudgetTemplateEngine.Bounds.weight.contains(weight),
+                  entry.priority == nil,
+                  entry.editorLimit == nil else { return nil }
+            return .remainder(weight: weight, description: entry.normalizedDescription)
+        case "goal":
+            guard let amount = entry.amount,
+                  isSignedAmount(amount),
+                  entry.priority.map(BudgetTemplateEngine.Bounds.priority.contains) ?? true else {
+                return nil
+            }
+            return .goal(amount: amount, description: entry.normalizedDescription)
+        default:
+            return nil
+        }
+    }
+
+    static func normalizedDrafts(from entry: RawEntry, now: Date) throws -> [BudgetTemplateDraft] {
+        guard let directive = entry.directive?.trimmingCharacters(in: .whitespacesAndNewlines),
+              (entry.type == "goal" && directive == "goal"
+                || entry.type != "goal" && directive == "template") else {
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedType("unsupported template directive")
+        }
+        switch entry.type {
+        case "simple":
+            let limit = try requiredOrNilLimit(entry.editorLimit, type: entry.type)
+            guard let monthly = entry.monthly else {
+                guard let limit else {
+                    return []
+                }
+                return [
+                    .balanceLimit(
+                        amount: limit.amount,
+                        hold: limit.hold,
+                        period: try limitPeriod(limit.period),
+                        start: limit.start,
+                        description: entry.normalizedDescription
+                    ),
+                    .refill(
+                        priority: try requiredPriority(entry.priority, type: entry.type)
+                    )
+                ]
+            }
+            if monthly == 0, limit != nil {
+                return []
+            }
+            var result: [BudgetTemplateDraft] = [
+                .monthlyFixed(
+                    BudgetTemplateDraft.MonthlyFixed(
+                        amount: monthly,
+                        priority: try requiredPriority(entry.priority, type: entry.type),
+                        starting: BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
+                        upTo: nil,
+                        description: entry.normalizedDescription
+                    )
+                )
+            ]
+            if let limit {
+                result.append(
+                    .balanceLimit(
+                        amount: limit.amount,
+                        hold: limit.hold,
+                        period: try limitPeriod(limit.period),
+                        start: limit.start
+                    )
+                )
+            }
+            return result
+        case "periodic":
+            guard let amount = entry.amount, let period = entry.period,
+                  let cadence = period.period.flatMap(BudgetTemplateCadence.init(rawValue:)),
+                  let interval = period.amount,
+                  BudgetTemplateEngine.Bounds.periodInterval.contains(interval) else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("periodic")
+            }
+            let base = BudgetTemplateDraft.MonthlyFixed(
+                amount: amount,
+                priority: try requiredPriority(entry.priority, type: entry.type),
+                starting: entry.starting.flatMap { $0.isEmpty ? nil : $0 }
+                    ?? BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
+                upTo: nil,
+                cadence: cadence,
+                interval: interval,
+                description: entry.normalizedDescription
+            )
+            return try baseAndLimit(base: .monthlyFixed(base), limit: entry.editorLimit)
+        case "by", "spend":
+            guard let amount = entry.amount, let month = entry.month,
+                  BudgetTemplateCalendar.validMonth(month) else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType(
+                    "invalid " + entry.type + " template"
+                )
+            }
+            let repeatInterval = entry.repeatInterval ?? (entry.annual == nil ? nil : 1)
+            if let repeatInterval,
+               !BudgetTemplateEngine.Bounds.repeatInterval.contains(repeatInterval) {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("invalid repeat interval")
+            }
+            if entry.type == "spend", !BudgetTemplateCalendar.validMonth(entry.fromMonth) {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("invalid spend start month")
+            }
+            return [
+                .dateTarget(
+                    BudgetTemplateDraft.DateTarget(
+                        amount: amount,
+                        month: month,
+                        priority: try requiredPriority(entry.priority, type: entry.type),
+                        repeatInterval: repeatInterval,
+                        annual: entry.annual ?? false,
+                        fromMonth: entry.fromMonth,
+                        isSpend: entry.type == "spend",
+                        description: entry.normalizedDescription
+                    )
+                )
+            ]
+        case "percentage":
+            guard let percent = entry.percent ?? entry.percentage,
+                  let source = entry.sourceCategory,
+                  let priority = entry.priority else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("percentage")
+            }
+            return [.percentage(.init(
+                percent: percent,
+                sourceCategory: source,
+                previous: entry.previous ?? false,
+                priority: priority,
+                description: entry.normalizedDescription
+            ))]
+        case "limit":
+            guard let amount = entry.limitAmount,
+                  let period = entry.limitPeriod else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("limit")
+            }
+            return [.balanceLimit(.init(
+                amount: amount,
+                hold: entry.limitHold ?? false,
+                period: try limitPeriod(period),
+                start: entry.limitStart,
+                description: entry.normalizedDescription
+            ))]
+        case "refill":
+            return [.refill(priority: try requiredPriority(entry.priority, type: entry.type), description: entry.normalizedDescription)]
+        case "copy":
+            guard let lookBack = entry.lookBack else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("copy")
+            }
+            return [.copy(
+                lookBack: lookBack,
+                priority: try requiredPriority(entry.priority, type: entry.type),
+                legacyLimit: try requiredOrNilLimit(entry.editorLimit, type: entry.type),
+                description: entry.normalizedDescription
+            )]
+        case "average":
+            guard let numMonths = entry.numMonths else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("average")
+            }
+            return [.average(
+                numMonths: numMonths,
+                priority: try requiredPriority(entry.priority, type: entry.type),
+                adjustment: try adjustment(value: entry.adjustment, type: entry.adjustmentType),
+                description: entry.normalizedDescription
+            )]
+        case "schedule":
+            return [.schedule(
+                name: entry.name ?? "",
+                scheduleId: entry.presentScheduleID,
+                priority: try requiredPriority(entry.priority, type: entry.type),
+                full: entry.full ?? false,
+                adjustment: try adjustment(value: entry.adjustment, type: entry.adjustmentType),
+                description: entry.normalizedDescription
+            )]
+        case "remainder":
+            guard let weight = entry.weight else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("remainder")
+            }
+            let base = BudgetTemplateDraft.remainder(weight: weight, description: entry.normalizedDescription)
+            return try baseAndLimit(base: base, limit: entry.editorLimit)
+        case "goal":
+            guard let amount = entry.amount else {
+                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("goal")
+            }
+            return [.goal(amount: amount, description: entry.normalizedDescription)]
+        default:
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedType(entry.type)
+        }
+    }
+
+    static func baseAndLimit(
+        base: BudgetTemplateDraft,
+        limit rawLimit: BudgetTemplateUpToHold?
+    ) throws -> [BudgetTemplateDraft] {
+        guard let rawLimit else { return [base] }
+        let limit = try requiredOrNilLimit(rawLimit, type: "limit")!
+        return [
+            base,
+            .balanceLimit(
+                amount: limit.amount,
+                hold: limit.hold,
+                period: try limitPeriod(limit.period),
+                start: limit.start
+            )
+        ]
+    }
+
+    static func adjustment(value: Double?, type: String?) throws -> BudgetTemplateAdjustment? {
+        guard let value, let type else { return nil }
+        switch type {
+        case "fixed": return .fixed(value)
+        case "percent": return .percent(value)
+        default: throw BudgetTemplateDefinition.ParseFailure.unsupportedType("adjustment")
+        }
+    }
+
+    static func requiredPriority(_ priority: Int?, type: String) throws -> Int {
+        guard let priority else {
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedType(
+                type + " requires a priority"
+            )
+        }
+        return priority
+    }
+
+    static func requiredOrNilLimit(
+        _ limit: BudgetTemplateUpToHold?,
+        type: String
+    ) throws -> BudgetTemplateUpToHold? {
+        guard let limit else { return nil }
+        guard limit.amount.isFinite,
+              BudgetTemplateEngine.Bounds.nonnegativeAmount.contains(limit.amount),
+              let period = BudgetTemplateLimitPeriod(rawValue: limit.period),
+              limit.start.map({ BudgetTemplateCalendar.validatedDate($0) != nil }) ?? true,
+              period != .weekly || limit.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil else {
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedType(type + " limit")
+        }
+        return limit
+    }
+
+    static func limitPeriod(_ period: String) throws -> BudgetTemplateLimitPeriod {
+        guard let result = BudgetTemplateLimitPeriod(rawValue: period) else {
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedType("limit period")
+        }
+        return result
+    }
+
+    static func isSignedAmount(_ amount: Double) -> Bool {
+        amount.isFinite && BudgetTemplateEngine.Bounds.signedTemplateAmount.contains(amount)
+    }
+
+    static func validDateOrEmpty(_ value: String) -> Bool {
+        value.isEmpty || BudgetTemplateCalendar.validatedDate(value) != nil
+    }
+}
+
+private extension BudgetTemplateEditorCodec.RawEntry {
+    var presentScheduleID: String? {
+        guard let scheduleId, !scheduleId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return scheduleId
+    }
+
+    var scheduleNameOrID: String? {
+        if let presentScheduleID { return presentScheduleID }
+        guard let name else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}

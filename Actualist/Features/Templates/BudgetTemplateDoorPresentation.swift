@@ -1,8 +1,13 @@
 import Foundation
 
-/// Cut A types the editor can add. Titles are tester-facing.
-enum BudgetTemplateCutAKind: String, CaseIterable, Identifiable, Sendable {
+/// Template types the editor can add. Newly modeled types stay locked until
+/// their complete form workflow is available.
+enum BudgetTemplateKind: String, CaseIterable, Hashable, Identifiable, Sendable {
     case monthlyFixed
+    case dateTarget
+    case percentage
+    case balanceLimit
+    case refill
     case copy
     case average
     case schedule
@@ -11,9 +16,24 @@ enum BudgetTemplateCutAKind: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// Cut B models the complete catalog first. Form availability advances
+    /// only when its vertical slice can render and preserve every field.
+    var isAvailableForAuthoring: Bool {
+        switch self {
+        case .monthlyFixed, .copy, .average, .schedule, .remainder, .goal:
+            true
+        case .dateTarget, .percentage, .balanceLimit, .refill:
+            false
+        }
+    }
+
     var title: String {
         switch self {
         case .monthlyFixed: "Fixed Amount"
+        case .dateTarget: "Save by Date"
+        case .percentage: "Percentage"
+        case .balanceLimit: "Balance Limit"
+        case .refill: "Refill"
         case .copy: "Copy Previous Month"
         case .average: "Average"
         case .schedule: "Cover Schedule"
@@ -24,16 +44,22 @@ enum BudgetTemplateCutAKind: String, CaseIterable, Identifiable, Sendable {
 
     var isSingleton: Bool {
         switch self {
-        case .remainder, .goal:
+        case .remainder, .goal, .balanceLimit:
             true
-        case .monthlyFixed, .copy, .average, .schedule:
+        case .monthlyFixed, .dateTarget, .percentage, .copy, .average, .schedule:
             false
+        case .refill:
+            true
         }
     }
 
     func makeDraft(now: Date) -> BudgetTemplateDraft {
         switch self {
         case .monthlyFixed: .monthlyFixed(now: now)
+        case .dateTarget: .dateTarget(now: now)
+        case .percentage: .percentage()
+        case .balanceLimit: .balanceLimit()
+        case .refill: .refill()
         case .copy: .copy()
         case .average: .average()
         case .schedule: .schedule()

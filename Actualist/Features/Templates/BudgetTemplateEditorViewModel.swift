@@ -23,6 +23,7 @@ final class BudgetTemplateEditorViewModel {
     private(set) var lock: BudgetTemplateCategoryLock = .editable
     private(set) var items: [Item] = []
     private(set) var schedules: [BudgetTemplateScheduleOption] = []
+    private(set) var incomeCategories: [BudgetTemplateIncomeOption] = []
     private(set) var currency: BudgetCurrency = .none
     private(set) var dryRun: BudgetTemplateCategoryDryRun?
     var errorMessage: String?
@@ -57,7 +58,14 @@ final class BudgetTemplateEditorViewModel {
     var canSave: Bool {
         isEditable
             && phase == .ready
-            && items.allSatisfy(\.draft.isComplete)
+            && BudgetTemplateAuthoringValidation.isValid(
+                items.map(\.draft),
+                context: BudgetTemplateAuthoringContext(
+                    today: now,
+                    schedules: schedules,
+                    incomeCategories: incomeCategories
+                )
+            )
     }
 
     var navigationTitle: String {
@@ -67,10 +75,11 @@ final class BudgetTemplateEditorViewModel {
         ).editorTitle
     }
 
-    var addableKinds: [BudgetTemplateCutAKind] {
-        let present = Set(items.map(\.draft.cutAKind))
-        return BudgetTemplateCutAKind.allCases.filter { kind in
-            !kind.isSingleton || !present.contains(kind)
+    var addableKinds: [BudgetTemplateKind] {
+        let present = Set(items.map(\.draft.kind))
+        return BudgetTemplateKind.allCases.filter { kind in
+            kind.isAvailableForAuthoring
+                && (!kind.isSingleton || !present.contains(kind))
         }
     }
 
@@ -125,7 +134,7 @@ final class BudgetTemplateEditorViewModel {
         }
     }
 
-    func add(_ kind: BudgetTemplateCutAKind) {
+    func add(_ kind: BudgetTemplateKind) {
         guard isEditable, addableKinds.contains(kind) else {
             return
         }
@@ -275,7 +284,16 @@ final class BudgetTemplateEditorViewModel {
             case .schedule(var value):
                 value.priority = priority
                 draft = .schedule(value)
-            case .remainder, .goal:
+            case .dateTarget(var value):
+                value.priority = priority
+                draft = .dateTarget(value)
+            case .percentage(var value):
+                value.priority = priority
+                draft = .percentage(value)
+            case .refill(var value):
+                value.priority = priority
+                draft = .refill(value)
+            case .balanceLimit, .remainder, .goal:
                 break
             }
         }
@@ -322,6 +340,7 @@ final class BudgetTemplateEditorViewModel {
         lock = snapshot.lock
         currency = snapshot.currency
         schedules = snapshot.schedules
+        incomeCategories = snapshot.incomeCategories
         items = snapshot.drafts.map { Item(id: UUID(), draft: $0) }
     }
 

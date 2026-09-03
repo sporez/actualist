@@ -79,6 +79,8 @@ extension BudgetDatabase {
 
         var incomeCategoryIDs: Set<String> = []
         var incomeCategoryIDByLocalizedName: [String: String] = [:]
+        var incomeCategoryIDsInOrder: [String] = []
+        var incomeCategoryNamesByID: [String: String] = [:]
         for row in rows {
             guard let id = row["id"] as String? else {
                 continue
@@ -87,6 +89,8 @@ extension BudgetDatabase {
             let rawName = (row["name"] as String?)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let label = rawName.flatMap { $0.isEmpty ? nil : $0 } ?? id
+            incomeCategoryIDsInOrder.append(id)
+            incomeCategoryNamesByID[id] = label
             let lowered = label.localizedLowercase
             if incomeCategoryIDByLocalizedName[lowered] == nil {
                 incomeCategoryIDByLocalizedName[lowered] = id
@@ -94,7 +98,9 @@ extension BudgetDatabase {
         }
         return BudgetTemplateEngine.MonthSources(
             incomeCategoryIDs: incomeCategoryIDs,
-            incomeCategoryIDByLocalizedName: incomeCategoryIDByLocalizedName
+            incomeCategoryIDByLocalizedName: incomeCategoryIDByLocalizedName,
+            incomeCategoryIDsInOrder: incomeCategoryIDsInOrder,
+            incomeCategoryNamesByID: incomeCategoryNamesByID
         )
     }
 
@@ -240,6 +246,8 @@ extension BudgetDatabase {
             incomeActivityByCategoryID: incomeActivityByCategoryID,
             incomeCategoryIDs: catalog.incomeCategoryIDs,
             incomeCategoryIDByLocalizedName: catalog.incomeCategoryIDByLocalizedName,
+            incomeCategoryIDsInOrder: catalog.incomeCategoryIDsInOrder,
+            incomeCategoryNamesByID: catalog.incomeCategoryNamesByID,
             activeScheduleNames: catalog.activeScheduleNames,
             activeScheduleIDs: catalog.activeScheduleIDs
         )

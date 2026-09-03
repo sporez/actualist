@@ -1,6 +1,7 @@
 import Foundation
 
-/// Whether a category's templates can be edited in Cut A.
+/// Whether a category's templates can be edited by the currently shipped form
+/// catalog. Unknown fields lock the entire category to prevent data loss.
 ///
 /// Note-managed, unsupported types, missing columns, and stale notes all
 /// lock the whole category. There is no lossless partial rewrite.
@@ -67,7 +68,8 @@ enum BudgetTemplateCategoryLock: Equatable, Sendable {
         case .failure:
             return .readOnly(.unsupportedType)
         case .success(let entries):
-            guard BudgetTemplateDefinition.areCutAEditable(entries) else {
+            guard BudgetTemplateDefinition.isEditorEditableJSON(goalDefJSON),
+                  BudgetTemplateDefinition.areEditorEditable(entries) else {
                 return .readOnly(.unsupportedType)
             }
             return .editable

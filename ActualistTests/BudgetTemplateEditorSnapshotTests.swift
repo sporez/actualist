@@ -54,6 +54,27 @@ struct BudgetTemplateEditorSnapshotTests {
         #expect(!snapshot.hasDefinition)
     }
 
+    @Test func snapshotUsesApplyIncomeCatalogOrderForPercentagePicker() async throws {
+        let fixtureURL = try fixtures.makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            ALTER TABLE categories ADD COLUMN template_settings TEXT;
+            INSERT INTO category_groups VALUES ('income-group', 'Income', 1, 0, 0, 0);
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def, template_settings)
+                VALUES ('salary', 'Salary', 'income-group', 1, 0, 0, 1, NULL, NULL);
+            INSERT INTO categories (id, name, cat_group, is_income, hidden, tombstone, sort_order, goal_def, template_settings)
+                VALUES ('bonus', 'Bonus', 'income-group', 1, 0, 0, 0, NULL, NULL);
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        let snapshot = try await database.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            now: now
+        )
+        #expect(snapshot.incomeCategories == [
+            BudgetTemplateIncomeOption(id: "bonus", name: "Bonus"),
+            BudgetTemplateIncomeOption(id: "salary", name: "Salary")
+        ])
+    }
+
     @Test func snapshotLocksNoteManagedAndKeepsCutADrafts() async throws {
         let fixtureURL = try fixtures.makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;

@@ -51,6 +51,8 @@ struct BudgetTemplateEngine {
         var incomeActivityByCategoryID: [String: [Int: Int]] = [:]
         var incomeCategoryIDs: Set<String> = []
         var incomeCategoryIDByLocalizedName: [String: String] = [:]
+        var incomeCategoryIDsInOrder: [String] = []
+        var incomeCategoryNamesByID: [String: String] = [:]
         var activeScheduleNames: Set<String> = []
         var activeScheduleIDs: Set<String> = []
     }
