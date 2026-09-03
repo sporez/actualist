@@ -49,6 +49,12 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didApply: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
+    func setCategoryTemplatesAndRefresh(
+        categoryID: String,
+        drafts: [BudgetTemplateDraft],
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
     func moveMoneyAndRefresh(
         command: BudgetMoveMoneyCommand,
         budgetID: String,
@@ -66,6 +72,17 @@ protocol BudgetRepositoryProtocol: Sendable {
     func budgetActionCategoryNames(budgetID: String) async throws -> [String: String]
     func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview
     func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws
+}
+
+extension BudgetRepositoryProtocol {
+    func setCategoryTemplatesAndRefresh(
+        categoryID: String,
+        drafts: [BudgetTemplateDraft],
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
 }
 
 struct LoadedBudgetMonth: Equatable {
