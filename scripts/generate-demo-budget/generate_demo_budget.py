@@ -28,7 +28,8 @@ Why a generator (and why Python):
 
 Usage:
   python3 scripts/generate-demo-budget/generate_demo_budget.py \
-      --output Actualist/Resources/DemoBudget.zip
+      --output Actualist/Resources/DemoBudget.zip \
+      --end-date 2026-08-31
 
   Run from the repository root. The script prints the zip's SHA-256 and byte
   size; copy both into `DemoBudget.swift` (`DemoBudget.artifactSHA256` /
@@ -59,6 +60,8 @@ Dataset design (matches the demo-mode plan):
     one uncategorized transaction.
   - Transfer payees (`xfer-<account>`) and payee/category mappings so transfer
     rendering and category/payee editors work.
+  - One UI-managed template (Rent: monthly Fixed + remainder) and one
+    note-managed template (Groceries) so Edit vs View is visible.
 """
 
 from __future__ import annotations
@@ -66,6 +69,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import json
 import sqlite3
 import zipfile
 from pathlib import Path
@@ -73,7 +77,7 @@ from pathlib import Path
 
 # --- Identity (must match DemoBudget.swift) ---------------------------------
 
-DEMO_FILE_ID = "actualist-demo-budget-v2"
+DEMO_FILE_ID = "actualist-demo-budget-v3"
 DEMO_GROUP_ID = "actualist-demo-group-v1"
 DEMO_NODE_ID = "demo-node-00000001"
 DEMO_BUDGET_NAME = "Demo Budget"
@@ -110,7 +114,8 @@ CREATE TABLE categories (
     hidden INTEGER NOT NULL DEFAULT 0,
     tombstone INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
-    goal_def TEXT
+    goal_def TEXT,
+    template_settings TEXT
 );
 CREATE TABLE zero_budgets (
     month INTEGER,
@@ -417,6 +422,8 @@ def populate(conn: sqlite3.Connection, end_date: datetime.date):
     cur.executemany(
         "INSERT INTO notes (id, note) VALUES (?, ?)",
         [
+            # Groceries is the view-only note-managed example. Do not also put a
+            # UI template on this category.
             ("groceries", "Plan pantry-first meals before shopping.\n#template 350"),
             ("essentials", "Review recurring household costs each quarter."),
             ("account-checking", "Primary account for everyday spending."),
@@ -448,8 +455,52 @@ def populate(conn: sqlite3.Connection, end_date: datetime.date):
         "INSERT INTO zero_budgets (month, category, amount, carryover) VALUES (?, ?, ?, ?)",
         assignments,
     )
+    apply_templates(cur, end_date)
 
     conn.commit()
+
+
+def apply_templates(cur: sqlite3.Cursor, end_date: datetime.date) -> None:
+    """Rent is UI-managed (editable). Groceries stays note-managed (view-only)."""
+    starting = f"{end_date.year:04d}-{end_date.month:02d}-01"
+    rent_goal_def = json.dumps(
+        [
+            {
+                "amount": 1800,
+                "directive": "template",
+                "period": {"amount": 1, "period": "month"},
+                "priority": 1,
+                "starting": starting,
+                "type": "periodic",
+            },
+            {
+                "directive": "template",
+                "priority": None,
+                "type": "remainder",
+                "weight": 1,
+            },
+        ],
+        separators=(",", ":"),
+    )
+    groceries_goal_def = json.dumps(
+        [
+            {
+                "directive": "template",
+                "monthly": 350,
+                "priority": 0,
+                "type": "simple",
+            }
+        ],
+        separators=(",", ":"),
+    )
+    cur.execute(
+        "UPDATE categories SET goal_def = ?, template_settings = ? WHERE id = 'rent'",
+        (rent_goal_def, '{"source":"ui"}'),
+    )
+    cur.execute(
+        "UPDATE categories SET goal_def = ?, template_settings = ? WHERE id = 'groceries'",
+        (groceries_goal_def, '{"source":"notes"}'),
+    )
 
 
 def main() -> int:
@@ -459,12 +510,21 @@ def main() -> int:
         default="Actualist/Resources/DemoBudget.zip",
         help="Destination zip path (default: Actualist/Resources/DemoBudget.zip)",
     )
+    parser.add_argument(
+        "--end-date",
+        default=None,
+        help="Last month of the fixture as YYYY-MM-DD (default: today). Pin this when regenerating so DemoBudget.fixtureMonth stays stable.",
+    )
     args = parser.parse_args()
 
     out_path = Path(args.output).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    today = datetime.date.today()
+    today = (
+        datetime.date.fromisoformat(args.end_date)
+        if args.end_date
+        else datetime.date.today()
+    )
     db_path = out_path.parent / "db.sqlite"
     if db_path.exists():
         db_path.unlink()
@@ -490,6 +550,7 @@ def main() -> int:
         out_path.unlink()
     with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.write(db_path, arcname="db.sqlite")
+    db_path.unlink(missing_ok=True)
 
     data = out_path.read_bytes()
     sha = hashlib.sha256(data).hexdigest()

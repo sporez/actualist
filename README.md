@@ -38,8 +38,8 @@ Liquid Glass controls.
 
 - Shows monthly category groups, assigned amounts, available balances, To Budget,
   uncategorized transactions, and overspending alerts. Hide or show categories,
-  apply templates already authored in Actual, and add notes on months, groups,
-  and categories.
+  add or edit budget templates, preview Apply Template, and add notes on months,
+  groups, and categories.
 - Provides an all-account Spending feed plus searchable transaction histories for
   individual accounts.
 - Supports common transaction flows, including create, edit, delete, categorize,
@@ -148,9 +148,14 @@ erasing a device, open Actualist while online and confirm Settings shows
 
 ### Budget Templates
 
-Budget Templates are available from the Budget screen for templates already
-authored in Actual. Applying or overwriting a template can change many
+Actualist can add and edit monthly amount, copy, average, schedule, remainder,
+and goal templates from Budget category long-press, Category Details, and
+Settings → Templates. Apply Template shows how much each category would receive
+before it assigns the money. Applying or overwriting a template can change many
 assignments at once, so keep a current backup and review the result.
+
+Templates written in a category note stay view-only. Resetting leftover money
+with a cleanup template is not available.
 
 ### Experimental Features
 
@@ -169,8 +174,9 @@ always available under Settings → Budget & Data.
   actions, delete-transaction, and fixed/percent/remainder splits. Formula
   actions, some date and recurrence shapes, and schedule-owned rules stay
   visible but read-only so their JSON is never rewritten or lost.
-- Actualist can apply Budget Templates authored in Actual, but does not yet
-  include a template editor or preview.
+- Some Budget Template types from Actual stay view-only. Templates written in a
+  category note cannot be edited here. Resetting leftover money with a cleanup
+  template is not available.
 
 ## Reporting Bugs
 

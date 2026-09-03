@@ -165,4 +165,31 @@ struct DemoModeStoreTests {
         #expect(!fileManager.importedDatabaseExists(fileID: DemoBudget.fileID))
         #expect(!store.isDemoBudgetActive)
     }
+
+    @Test func demoBudgetHasEditableAndReadOnlyTemplates() async throws {
+        let transport = RecordingSyncTransport()
+        let (store, _) = makeDemoStore(transport: transport)
+        try await store.openDemoBudget()
+        let budgetID = DemoBudget.groupID
+
+        let rent = try await store.categoryTemplateEditorSnapshot(
+            categoryID: "rent",
+            budgetID: budgetID
+        )
+        #expect(rent.lock == .editable)
+        #expect(rent.hasDefinition)
+        #expect(rent.drafts.map(\.cutAKind) == [.monthlyFixed, .remainder])
+
+        let groceries = try await store.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            budgetID: budgetID
+        )
+        #expect(groceries.lock == .readOnly(.noteManaged))
+        #expect(groceries.hasDefinition)
+
+        let browser = try await store.categoryTemplateBrowserSnapshot(budgetID: budgetID)
+        #expect(browser.categories.contains { $0.id == "rent" && $0.hasDefinition && $0.lock == .editable })
+        #expect(browser.categories.contains { $0.id == "groceries" && $0.hasDefinition && $0.lock == .readOnly(.noteManaged) })
+        #expect(await transport.messageCounts().isEmpty)
+    }
 }
