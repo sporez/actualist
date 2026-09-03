@@ -83,6 +83,7 @@ struct BudgetTemplateEditorView: View {
                         viewModel.cancel()
                         dismiss()
                     }
+                    .disabled(viewModel.phase == .saving)
                 }
                 if viewModel.isEditable {
                     ToolbarItem(placement: .confirmationAction) {

@@ -320,6 +320,98 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         }
     }
 
+    func updatingDescription(_ description: String?) -> BudgetTemplateDraft {
+        let description = normalizedDescription(description)
+        switch self {
+        case .monthlyFixed(var value):
+            value.description = description
+            return .monthlyFixed(value)
+        case .dateTarget(var value):
+            value.description = description
+            return .dateTarget(value)
+        case .percentage(var value):
+            value.description = description
+            return .percentage(value)
+        case .balanceLimit(var value):
+            value.description = description
+            return .balanceLimit(value)
+        case .refill(var value):
+            value.description = description
+            return .refill(value)
+        case .copy(var value):
+            value.description = description
+            return .copy(value)
+        case .average(var value):
+            value.description = description
+            return .average(value)
+        case .schedule(var value):
+            value.description = description
+            return .schedule(value)
+        case .remainder(var value):
+            value.description = description
+            return .remainder(value)
+        case .goal(var value):
+            value.description = description
+            return .goal(value)
+        }
+    }
+
+    /// Creates a new authoring shape for an explicit type change while
+    /// retaining the item's note, amount, and priority where they apply.
+    func retyped(to kind: BudgetTemplateKind, now: Date) -> BudgetTemplateDraft {
+        guard self.kind != kind else {
+            return self
+        }
+        let retainedAmount: Double? = switch self {
+        case .monthlyFixed(let value): value.amount
+        case .goal(let value): value.amount
+        default: nil
+        }
+        let retainedPriority: Int? = switch self {
+        case .monthlyFixed(let value): value.priority
+        case .dateTarget(let value): value.priority
+        case .percentage(let value): value.priority
+        case .refill(let value): value.priority
+        case .copy(let value): value.priority
+        case .average(let value): value.priority
+        case .schedule(let value): value.priority
+        case .balanceLimit, .remainder, .goal: nil
+        }
+        let retainedHistoryCount: Int? = switch self {
+        case .copy(let value): value.lookBack
+        case .average(let value): value.numMonths
+        default: nil
+        }
+        let next: BudgetTemplateDraft
+        switch kind {
+        case .monthlyFixed:
+            next = .monthlyFixed(
+                amount: retainedAmount ?? 100,
+                priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority,
+                now: now
+            )
+        case .copy:
+            next = .copy(
+                lookBack: retainedHistoryCount ?? 1,
+                priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority
+            )
+        case .average:
+            next = .average(
+                numMonths: retainedHistoryCount ?? 3,
+                priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority
+            )
+        case .schedule:
+            next = .schedule(priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority)
+        case .remainder:
+            next = .remainder()
+        case .goal:
+            next = .goal(amount: retainedAmount ?? 1_000)
+        case .dateTarget, .percentage, .balanceLimit, .refill:
+            next = kind.makeDraft(now: now)
+        }
+        return next.updatingDescription(description)
+    }
+
     var showsPriority: Bool {
         switch self {
         case .monthlyFixed, .dateTarget, .percentage, .refill, .copy, .average, .schedule:

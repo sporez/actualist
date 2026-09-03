@@ -105,6 +105,235 @@ struct BudgetTemplateEditorViewModelTests {
         #expect(viewModel.dryRun?.perTemplate == [10_000])
     }
 
+    @Test func invalidVisibleInputDisablesSaveUntilCorrected() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [.monthlyFixed(amount: 400, now: now)])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+        try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
+
+        viewModel.setAmount("", id: id)
+        #expect(viewModel.inputText(for: .amount, id: id).isEmpty)
+        #expect(!viewModel.inputIsValid(for: .amount, id: id))
+        #expect(!viewModel.canSave)
+        try await waitUntil { viewModel.dryRun == nil }
+
+        viewModel.setAmount("250", id: id)
+        #expect(viewModel.inputIsValid(for: .amount, id: id))
+        #expect(viewModel.canSave)
+        try await waitUntil { viewModel.dryRun?.budgeted == 25_000 }
+    }
+
+    @Test func notesAreIndependentAndClearWithoutChangingTheTemplateMath() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [
+                .monthlyFixed(amount: 400, now: now),
+                .copy(lookBack: 2)
+            ])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let firstID = try #require(viewModel.items.first?.id)
+        let secondID = try #require(viewModel.items.last?.id)
+
+        let firstNote = "First line\nSecond line"
+        viewModel.setNoteText(firstNote, id: firstID)
+        viewModel.setNoteText("Copy this month's history", id: secondID)
+        #expect(viewModel.noteText(id: firstID) == firstNote)
+        #expect(viewModel.hasNote(id: firstID))
+        #expect(viewModel.noteText(id: secondID) == "Copy this month's history")
+        try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
+        #expect(await viewModel.save())
+
+        let saved = try #require(await repository.savedDrafts().last)
+        #expect(saved.map(\.description) == [firstNote, "Copy this month's history"])
+
+        viewModel.clearNote(id: firstID)
+        #expect(viewModel.noteText(id: firstID).isEmpty)
+        #expect(!viewModel.hasNote(id: firstID))
+        #expect(viewModel.noteText(id: secondID) == "Copy this month's history")
+        #expect(await viewModel.save())
+        let cleared = try #require(await repository.savedDrafts().last)
+        #expect(cleared.map(\.description) == [nil, "Copy this month's history"])
+    }
+
+    @Test func typeChangesPreserveItemIdentityNotesAndApplicablePriority() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [
+                .monthlyFixed(amount: 400, priority: 3, now: now, description: "Keep this note")
+            ])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+
+        viewModel.setKind(.copy, id: id)
+        #expect(viewModel.items.first?.id == id)
+        guard case .copy(let copy) = viewModel.items.first?.draft else {
+            Issue.record("Expected the item to become Copy")
+            return
+        }
+        #expect(copy.priority == 3)
+        #expect(copy.description == "Keep this note")
+        #expect(viewModel.canSave)
+    }
+
+    @Test func typeChangeRespectsSingletonKindsAlreadyInTheList() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [.monthlyFixed(now: now), .remainder()])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let fixedID = try #require(viewModel.items.first?.id)
+
+        #expect(!viewModel.typeChangeKinds(for: fixedID).contains(.remainder))
+        viewModel.setKind(.remainder, id: fixedID)
+        #expect(viewModel.items.first?.draft.kind == .monthlyFixed)
+    }
+
+    @Test func copyAndAverageTypeChangesRetainTheHistoryCountAndPriority() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [
+                .average(
+                    numMonths: 5,
+                    priority: 3,
+                    adjustment: .percent(10)
+                )
+            ])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+
+        viewModel.setKind(.copy, id: id)
+        guard case .copy(let copy) = viewModel.items.first?.draft else {
+            Issue.record("Expected the item to become Copy")
+            return
+        }
+        #expect(copy.lookBack == 5)
+        #expect(copy.priority == 3)
+        viewModel.setKind(.average, id: id)
+        guard case .average(let average) = viewModel.items.first?.draft else {
+            Issue.record("Expected the item to become Average")
+            return
+        }
+        #expect(average.numMonths == 5)
+        #expect(average.priority == 3)
+        #expect(average.adjustment == nil)
+    }
+
+    @Test func privacyModePreservesButDoesNotAllowNoteEdits() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [
+                .monthlyFixed(amount: 400, now: now, description: "Private note")
+            ])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+
+        viewModel.isPrivacyModeEnabled = true
+        #expect(!viewModel.canEditNotes)
+        viewModel.setNoteText("Should not replace the note", id: id)
+        #expect(viewModel.noteText(id: id) == "Private note")
+
+        viewModel.isPrivacyModeEnabled = false
+        #expect(viewModel.canEditNotes)
+        viewModel.setNoteText("Visible again", id: id)
+        #expect(viewModel.noteText(id: id) == "Visible again")
+    }
+
+    @Test func cancellingAStaleLoadDoesNotApplyItsLateSnapshot() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [.monthlyFixed(amount: 400, now: now)])
+        )
+        await repository.blockNextSnapshot()
+        let viewModel = makeViewModel()
+        let loadTask = Task { @MainActor in
+            await viewModel.load(repository: repository, budgetID: "budget-1")
+        }
+        await repository.waitUntilSnapshotStarts()
+        viewModel.cancel()
+        await repository.releaseSnapshot()
+        await loadTask.value
+
+        #expect(viewModel.items.isEmpty)
+        #expect(!viewModel.isEditable)
+        #expect(viewModel.dryRun == nil)
+    }
+
+    @Test func saveInFlightRejectsConcurrentDraftMutations() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [.monthlyFixed(amount: 400, now: now)])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+        await repository.blockNextSave()
+
+        let saveTask = Task { @MainActor in
+            await viewModel.save()
+        }
+        await repository.waitUntilSaveStarts()
+        #expect(viewModel.phase == .saving)
+        #expect(!viewModel.isEditable)
+        viewModel.setAmount("250", id: id)
+        viewModel.setNoteText("Must not enter the in-flight save", id: id)
+        #expect(viewModel.items.first?.draft == .monthlyFixed(amount: 400, now: now))
+        viewModel.cancel()
+        #expect(viewModel.phase == .saving)
+
+        await repository.releaseSave()
+        #expect(await saveTask.value)
+        #expect(await repository.savedDrafts() == [[.monthlyFixed(amount: 400, now: now)]])
+    }
+
+    @Test func cancelThenReloadDiscardsUncommittedNoteEdits() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [
+                .monthlyFixed(amount: 400, now: now, description: "Original note")
+            ])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+        viewModel.setNoteText("Discarded edit", id: id)
+        #expect(viewModel.noteText(id: id) == "Discarded edit")
+
+        viewModel.cancel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let reloadedID = try #require(viewModel.items.first?.id)
+        #expect(viewModel.noteText(id: reloadedID) == "Original note")
+    }
+
+    @Test func missingScheduleReferenceRemainsVisibleUntilRepaired() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [
+                .schedule(name: "Deleted Rent", scheduleId: "deleted")
+            ])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+
+        #expect(viewModel.scheduleOptions(for: id) == [
+            BudgetTemplateScheduleOption(id: "deleted", name: "Deleted Rent", isAvailable: false),
+            BudgetTemplateScheduleOption(id: "rent", name: "Rent")
+        ])
+        #expect(!viewModel.canSave)
+        viewModel.setSchedule(
+            BudgetTemplateScheduleOption(id: "deleted", name: "Deleted Rent", isAvailable: false),
+            id: id
+        )
+        #expect(viewModel.items.first?.draft == .schedule(name: "Deleted Rent", scheduleId: "deleted"))
+
+        viewModel.setSchedule(BudgetTemplateScheduleOption(id: "rent", name: "Rent"), id: id)
+        #expect(viewModel.canSave)
+        #expect(viewModel.items.first?.draft == .schedule(name: "Rent", scheduleId: "rent"))
+    }
+
     @Test func emptyListSaves() async throws {
         let repository = EditorTemplateRepository(
             snapshot: editableSnapshot(drafts: [.monthlyFixed(amount: 400, now: now)])
@@ -151,6 +380,12 @@ struct BudgetTemplateEditorViewModelTests {
 private actor EditorTemplateRepository: BudgetRepositoryProtocol {
     var snapshot: BudgetTemplateEditorSnapshot
     private var saved: [[BudgetTemplateDraft]] = []
+    private var blockSnapshot = false
+    private var snapshotStarted = false
+    private var snapshotContinuation: CheckedContinuation<Void, Never>?
+    private var blockSave = false
+    private var saveStarted = false
+    private var saveContinuation: CheckedContinuation<Void, Never>?
 
     init(snapshot: BudgetTemplateEditorSnapshot) {
         self.snapshot = snapshot
@@ -158,11 +393,44 @@ private actor EditorTemplateRepository: BudgetRepositoryProtocol {
 
     func savedDrafts() -> [[BudgetTemplateDraft]] { saved }
 
+    func blockNextSnapshot() { blockSnapshot = true }
+
+    func waitUntilSnapshotStarts() async {
+        while !snapshotStarted {
+            await Task.yield()
+        }
+    }
+
+    func releaseSnapshot() {
+        snapshotContinuation?.resume()
+        snapshotContinuation = nil
+    }
+
+    func blockNextSave() { blockSave = true }
+
+    func waitUntilSaveStarts() async {
+        while !saveStarted {
+            await Task.yield()
+        }
+    }
+
+    func releaseSave() {
+        saveContinuation?.resume()
+        saveContinuation = nil
+    }
+
     func categoryTemplateEditorSnapshot(
         categoryID: String,
         budgetID: String
     ) async throws -> BudgetTemplateEditorSnapshot {
-        snapshot
+        if blockSnapshot {
+            blockSnapshot = false
+            snapshotStarted = true
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                snapshotContinuation = continuation
+            }
+        }
+        return snapshot
     }
 
     func dryRunCategoryTemplate(
@@ -193,6 +461,13 @@ private actor EditorTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String
     ) async throws -> LoadedBudgetMonth {
+        if blockSave {
+            blockSave = false
+            saveStarted = true
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                saveContinuation = continuation
+            }
+        }
         saved.append(drafts)
         return Self.dummyMonth
     }
