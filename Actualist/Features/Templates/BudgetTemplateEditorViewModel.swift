@@ -85,6 +85,14 @@ final class BudgetTemplateEditorViewModel {
         }
     }
 
+    var hasBalanceLimit: Bool {
+        items.contains { if case .balanceLimit = $0.draft { true } else { false } }
+    }
+
+    var canAddBalanceLimit: Bool {
+        isEditable && addableKinds.contains(.balanceLimit)
+    }
+
     func typeChangeKinds(for id: UUID) -> [BudgetTemplateKind] {
         let otherKinds = Set(items.filter { $0.id != id }.map(\.draft.kind))
         return BudgetTemplateKind.allCases.filter { kind in
@@ -204,37 +212,82 @@ final class BudgetTemplateEditorViewModel {
         setInput(text, field: .amount, id: id)
     }
 
-    func setCapEnabled(_ enabled: Bool, id: UUID) {
+    func setFixedInterval(_ text: String, id: UUID) {
+        setInput(text, field: .interval, id: id)
+    }
+
+    var defaultWeeklyStart: String {
+        BudgetTemplateEditorCalendar.defaultWeeklyStart(for: items.map(\.draft), now: now)
+    }
+
+    func fixedStartingDate(for id: UUID) -> Date {
+        guard case .monthlyFixed(let value) = items.first(where: { $0.id == id })?.draft,
+              let date = BudgetTemplateCalendar.validatedDate(value.starting) else {
+            return BudgetTemplateCalendar.validatedDate(
+                BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now)
+            ) ?? now
+        }
+        return date
+    }
+
+    func setFixedCadence(_ cadence: BudgetTemplateCadence, id: UUID) {
         mutate(id: id) { draft in
             guard case .monthlyFixed(var value) = draft else {
                 return
             }
-            if enabled {
-                value.upTo = value.upTo ?? BudgetTemplateUpToHold(
-                    amount: 0,
-                    hold: false,
-                    period: "monthly",
-                    start: nil
-                )
-            } else {
-                value.upTo = nil
-            }
+            value.cadence = cadence
             draft = .monthlyFixed(value)
         }
     }
 
-    func setCapAmount(_ text: String, id: UUID) {
-        setInput(text, field: .capAmount, id: id)
+    func setFixedStartingDate(_ date: Date, id: UUID) {
+        mutate(id: id) { draft in
+            guard case .monthlyFixed(var value) = draft else { return }
+            value.starting = BudgetTemplateCalendar.dayID(from: date)
+            draft = .monthlyFixed(value)
+        }
     }
 
-    func setHold(_ hold: Bool, id: UUID) {
+    func setLimitPeriod(_ period: BudgetTemplateLimitPeriod, id: UUID) {
+        let weeklyStart = defaultWeeklyStart
         mutate(id: id) { draft in
-            guard case .monthlyFixed(var value) = draft, var upTo = value.upTo else {
+            guard case .balanceLimit(var value) = draft else { return }
+            value.period = period
+            if period == .weekly, value.start == nil {
+                value.start = weeklyStart
+            }
+            draft = .balanceLimit(value)
+        }
+    }
+
+    func setLimitHold(_ hold: Bool, id: UUID) {
+        mutate(id: id) { draft in
+            guard case .balanceLimit(var value) = draft else { return }
+            value.hold = hold
+            draft = .balanceLimit(value)
+        }
+    }
+
+    func limitWeekday(for id: UUID) -> Int {
+        guard case .balanceLimit(let value) = items.first(where: { $0.id == id })?.draft else {
+            return BudgetTemplateEditorCalendar.weekday(for: defaultWeeklyStart) ?? 1
+        }
+        return BudgetTemplateEditorCalendar.weekday(for: value.start ?? defaultWeeklyStart) ?? 1
+    }
+
+    func setLimitWeekday(_ weekday: Int, id: UUID) {
+        let fallbackStart = defaultWeeklyStart
+        mutate(id: id) { draft in
+            guard case .balanceLimit(var value) = draft else {
                 return
             }
-            upTo.hold = hold
-            value.upTo = upTo
-            draft = .monthlyFixed(value)
+            let start = value.start ?? fallbackStart
+            guard let updated = BudgetTemplateEditorCalendar.dayID(
+                start,
+                movingToWeekday: weekday
+            ) else { return }
+            value.start = updated
+            draft = .balanceLimit(value)
         }
     }
 

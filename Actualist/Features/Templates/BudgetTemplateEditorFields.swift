@@ -38,9 +38,13 @@ struct BudgetTemplateEditorItemSection: View {
         switch item.draft {
         case .monthlyFixed(let value):
             monthlyFixedFields(value)
-        case .dateTarget, .percentage, .balanceLimit, .refill:
+        case .dateTarget, .percentage:
             Text("This template type is not editable yet.")
                 .foregroundStyle(ActualistTheme.secondaryText)
+        case .balanceLimit(let value):
+            balanceLimitFields(value)
+        case .refill(let value):
+            refillFields(value)
         case .copy(let value):
             integerField("Months back", field: .lookBack)
             priorityField(value.priority)
@@ -61,14 +65,54 @@ struct BudgetTemplateEditorItemSection: View {
     @ViewBuilder
     private func monthlyFixedFields(_ value: BudgetTemplateDraft.MonthlyFixed) -> some View {
         amountField("Amount", field: .amount)
-        Toggle("Cap available", isOn: capEnabledBinding(value))
-            .disabled(!viewModel.isEditable)
-        if value.upTo != nil {
-            amountField("Cap", field: .capAmount)
-            Toggle("Hold extra over the cap", isOn: holdBinding)
-                .disabled(!viewModel.isEditable)
+        integerField("Every", field: .interval)
+        Picker("Period", selection: cadenceBinding) {
+            ForEach(BudgetTemplateCadence.allCases, id: \.self) { cadence in
+                Text(cadenceLabel(cadence)).tag(cadence)
+            }
         }
+        .disabled(!viewModel.isEditable)
+        DatePicker("Starting", selection: startingDateBinding, displayedComponents: .date)
+            .disabled(!viewModel.isEditable)
         priorityField(value.priority)
+    }
+
+    @ViewBuilder
+    private func balanceLimitFields(_ value: BudgetTemplateDraft.BalanceLimit) -> some View {
+        amountField("Amount", field: .amount)
+        Picker("Every", selection: limitPeriodBinding) {
+            ForEach(BudgetTemplateLimitPeriod.allCases, id: \.self) { period in
+                Text(limitPeriodLabel(period)).tag(period)
+            }
+        }
+        .disabled(!viewModel.isEditable)
+        if value.period == .weekly {
+            Picker("Weekday", selection: limitWeekdayBinding) {
+                ForEach(1...7, id: \.self) { weekday in
+                    Text(BudgetTemplateEditorCalendar.weekdayName(weekday)).tag(weekday)
+                }
+            }
+            .disabled(!viewModel.isEditable)
+        }
+        Toggle("Retain existing funds over the cap", isOn: limitHoldBinding)
+            .disabled(!viewModel.isEditable)
+        Text("Weekly and daily caps change with the number of days or weeks in each month.")
+            .font(.footnote)
+            .foregroundStyle(ActualistTheme.secondaryText)
+    }
+
+    @ViewBuilder
+    private func refillFields(_ value: BudgetTemplateDraft.Refill) -> some View {
+        priorityField(value.priority)
+        if !viewModel.hasBalanceLimit {
+            Text("Add a Balance Limit to set the refill target.")
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+            Button("Add Balance Limit") {
+                viewModel.add(.balanceLimit)
+            }
+            .disabled(!viewModel.canAddBalanceLimit)
+        }
     }
 
     @ViewBuilder
@@ -151,15 +195,14 @@ struct BudgetTemplateEditorItemSection: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
         } else {
             LabeledContent("Note") {
-                TextField(
-                    "Note",
+                TextEditor(
                     text: Binding(
                         get: { viewModel.noteText(id: item.id) },
                         set: { viewModel.setNoteText($0, id: item.id) }
-                    ),
-                    axis: .vertical
+                    )
                 )
-                .lineLimit(1...4)
+                .frame(minHeight: 68, maxHeight: 110)
+                .scrollContentBackground(.hidden)
                 .disabled(!viewModel.canEditNotes)
                 .accessibilityLabel("Automation note")
             }
@@ -172,23 +215,71 @@ struct BudgetTemplateEditorItemSection: View {
         }
     }
 
-    private func capEnabledBinding(_ value: BudgetTemplateDraft.MonthlyFixed) -> Binding<Bool> {
-        Binding(
-            get: { value.upTo != nil },
-            set: { viewModel.setCapEnabled($0, id: item.id) }
-        )
-    }
-
-    private var holdBinding: Binding<Bool> {
+    private var cadenceBinding: Binding<BudgetTemplateCadence> {
         Binding(
             get: {
                 if case .monthlyFixed(let value) = item.draft {
-                    return value.upTo?.hold ?? false
+                    return value.cadence
+                }
+                return .month
+            },
+            set: { viewModel.setFixedCadence($0, id: item.id) }
+        )
+    }
+
+    private var startingDateBinding: Binding<Date> {
+        Binding(
+            get: { viewModel.fixedStartingDate(for: item.id) },
+            set: { viewModel.setFixedStartingDate($0, id: item.id) }
+        )
+    }
+
+    private var limitPeriodBinding: Binding<BudgetTemplateLimitPeriod> {
+        Binding(
+            get: {
+                if case .balanceLimit(let value) = item.draft {
+                    return value.period
+                }
+                return .monthly
+            },
+            set: { viewModel.setLimitPeriod($0, id: item.id) }
+        )
+    }
+
+    private var limitWeekdayBinding: Binding<Int> {
+        Binding(
+            get: { viewModel.limitWeekday(for: item.id) },
+            set: { viewModel.setLimitWeekday($0, id: item.id) }
+        )
+    }
+
+    private var limitHoldBinding: Binding<Bool> {
+        Binding(
+            get: {
+                if case .balanceLimit(let value) = item.draft {
+                    return value.hold
                 }
                 return false
             },
-            set: { viewModel.setHold($0, id: item.id) }
+            set: { viewModel.setLimitHold($0, id: item.id) }
         )
+    }
+
+    private func cadenceLabel(_ cadence: BudgetTemplateCadence) -> String {
+        switch cadence {
+        case .day: "Day"
+        case .week: "Week"
+        case .month: "Month"
+        case .year: "Year"
+        }
+    }
+
+    private func limitPeriodLabel(_ period: BudgetTemplateLimitPeriod) -> String {
+        switch period {
+        case .daily: "Day"
+        case .weekly: "Week"
+        case .monthly: "Month"
+        }
     }
 
     private func scheduleBinding(_ value: BudgetTemplateDraft.Schedule) -> Binding<String?> {

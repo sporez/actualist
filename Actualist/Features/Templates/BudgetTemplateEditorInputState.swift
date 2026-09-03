@@ -2,7 +2,7 @@ import Foundation
 
 enum BudgetTemplateEditorInputField: Hashable, Sendable {
     case amount
-    case capAmount
+    case interval
     case lookBack
     case numMonths
     case priority
@@ -32,8 +32,10 @@ enum BudgetTemplateEditorInputInterpreter {
             BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
         case (.amount, .goal(let value)):
             BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
-        case (.capAmount, .monthlyFixed(let value)):
-            value.upTo.map { BudgetTemplateAmountInput.formatAmount($0.amount, currency: currency) }
+        case (.amount, .balanceLimit(let value)):
+            BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
+        case (.interval, .monthlyFixed(let value)):
+            String(value.interval)
         case (.lookBack, .copy(let value)):
             String(value.lookBack)
         case (.numMonths, .average(let value)):
@@ -77,17 +79,19 @@ enum BudgetTemplateEditorInputInterpreter {
             case .goal(var value):
                 value.amount = amount
                 return .goal(value)
+            case .balanceLimit(var value):
+                value.amount = amount
+                return .balanceLimit(value)
             default:
                 return nil
             }
-        case .capAmount:
-            guard let amount = BudgetTemplateAmountInput.parseAmount(text, currency: currency),
-                  case .monthlyFixed(var value) = draft,
-                  var upTo = value.upTo else {
+        case .interval:
+            guard let interval = BudgetTemplateAmountInput.parseInt(text),
+                  BudgetTemplateEngine.Bounds.periodInterval.contains(interval),
+                  case .monthlyFixed(var value) = draft else {
                 return nil
             }
-            upTo.amount = amount
-            value.upTo = upTo
+            value.interval = interval
             return .monthlyFixed(value)
         case .lookBack:
             guard let lookBack = BudgetTemplateAmountInput.parseInt(text),

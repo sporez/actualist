@@ -42,6 +42,56 @@ struct BudgetTemplateEditorSnapshotTests {
         #expect(snapshot.schedules == [BudgetTemplateScheduleOption(id: "rent", name: "Rent")])
     }
 
+    @Test func snapshotNormalizesLegacyFixedCapToStandaloneLimit() async throws {
+        let fixtureURL = try fixtures.makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            ALTER TABLE categories ADD COLUMN template_settings TEXT;
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"periodic","amount":125,"period":{"period":"week","amount":2},"starting":"2026-09-01","priority":1,"limit":{"amount":500,"hold":true,"period":"monthly"}}]',
+                template_settings = '{"source":"ui"}'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        let snapshot = try await database.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            now: now
+        )
+        #expect(snapshot.lock == .editable)
+        #expect(snapshot.drafts == [
+            .monthlyFixed(
+                BudgetTemplateDraft.MonthlyFixed(
+                    amount: 125,
+                    priority: 1,
+                    starting: "2026-09-01",
+                    cadence: .week,
+                    interval: 2
+                )
+            ),
+            .balanceLimit(amount: 500, hold: true, period: .monthly)
+        ])
+    }
+
+    @Test func snapshotLoadsStandaloneLimitAndRefillForRepair() async throws {
+        let fixtureURL = try fixtures.makeSQLiteFixture(extraSQL: """
+            ALTER TABLE categories ADD COLUMN goal_def TEXT;
+            ALTER TABLE categories ADD COLUMN template_settings TEXT;
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"limit","amount":500,"period":"monthly","hold":false,"priority":null},{"directive":"template","type":"refill","priority":1}]',
+                template_settings = '{"source":"ui"}'
+            WHERE id = 'groceries';
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        let snapshot = try await database.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            now: now
+        )
+        #expect(snapshot.lock == .editable)
+        #expect(snapshot.drafts == [
+            .balanceLimit(amount: 500, period: .monthly),
+            .refill(priority: 1)
+        ])
+    }
+
     @Test func snapshotLocksWhenColumnsAreMissing() async throws {
         let fixtureURL = try fixtures.makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")

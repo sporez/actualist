@@ -3,22 +3,18 @@ import Foundation
 /// The editor's loss-aware JSON boundary. `BudgetTemplateEntry` is intentionally
 /// not used here because its apply-focused shape omits authoring metadata.
 enum BudgetTemplateEditorCodec {
-    static func decodeCutA(
+    /// Decodes the normalized authoring catalog. Legacy fixed/simple nested
+    /// limits become standalone Limit drafts before the editor sees them.
+    static func decodeEditor(
         json: String?,
         now: Date
     ) -> Result<[BudgetTemplateDraft]?, BudgetTemplateDefinition.ParseFailure> {
         do {
             let entries = try rawEntries(from: json)
-            guard entries.count <= BudgetTemplateEngine.Bounds.maximumEntriesPerCategory else {
-                return .failure(.unsupportedType("too many template entries"))
-            }
-            var drafts: [BudgetTemplateDraft] = []
-            drafts.reserveCapacity(entries.count)
-            for entry in entries {
-                guard let draft = try cutADraft(from: entry, now: now) else {
-                    return .success(nil)
-                }
-                drafts.append(draft)
+            let drafts = try decodeNormalized(json: json, now: now)
+            guard entries.isEmpty || !drafts.isEmpty,
+                  drafts.allSatisfy(isEditorReady) else {
+                return .success(nil)
             }
             return .success(drafts)
         } catch let failure as BudgetTemplateDefinition.ParseFailure {
@@ -45,6 +41,37 @@ enum BudgetTemplateEditorCodec {
 
     static func encode(_ drafts: [BudgetTemplateDraft]) throws -> String {
         try BudgetTemplateEditorEncoder.encode(drafts)
+    }
+}
+
+private extension BudgetTemplateEditorCodec {
+    static func isEditorReady(_ draft: BudgetTemplateDraft) -> Bool {
+        guard draft.isComplete else { return false }
+        switch draft {
+        case .monthlyFixed, .balanceLimit, .refill, .goal:
+            return true
+        case .copy(let value):
+            return value.legacyLimit == nil
+                || legacyLimitIsComplete(value.legacyLimit)
+        case .average(let value):
+            return value.adjustment == nil
+        case .schedule(let value):
+            return !value.full && value.adjustment == nil
+        case .remainder(let value):
+            return value.legacyLimit == nil
+        case .dateTarget, .percentage:
+            return false
+        }
+    }
+
+    static func legacyLimitIsComplete(_ value: BudgetTemplateUpToHold?) -> Bool {
+        guard let value else { return true }
+        return value.amount.isFinite
+            && BudgetTemplateEngine.Bounds.nonnegativeAmount.contains(value.amount)
+            && BudgetTemplateLimitPeriod(rawValue: value.period) != nil
+            && (value.start == nil || value.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil)
+            && (value.period != BudgetTemplateLimitPeriod.weekly.rawValue
+                || value.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil)
     }
 }
 
@@ -292,96 +319,6 @@ private extension BudgetTemplateEditorCodec {
         }
     }
 
-    static func cutADraft(from entry: RawEntry, now: Date) throws -> BudgetTemplateDraft? {
-        let directive = entry.directive?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (entry.type == "goal" && directive == "goal")
-                || (entry.type != "goal" && directive == "template") else {
-            return nil
-        }
-        let nestedLimit = try requiredOrNilLimit(entry.editorLimit, type: entry.type)
-        switch entry.type {
-        case "simple":
-            guard let monthly = entry.monthly,
-                  isSignedAmount(monthly),
-                  entry.priority != nil,
-                  BudgetTemplateEngine.Bounds.priority.contains(entry.priority!) else { return nil }
-            return .monthlyFixed(
-                amount: monthly,
-                priority: entry.priority!,
-                now: now,
-                upTo: nestedLimit,
-                description: entry.normalizedDescription
-            )
-        case "periodic":
-            guard let amount = entry.amount,
-                  let period = entry.period,
-                  period.period == "month",
-                  period.amount == 1,
-                  isSignedAmount(amount),
-                  let priority = entry.priority,
-                  BudgetTemplateEngine.Bounds.priority.contains(priority),
-                  entry.starting.map(validDateOrEmpty) ?? true else { return nil }
-            return .monthlyFixed(
-                BudgetTemplateDraft.MonthlyFixed(
-                    amount: amount,
-                    priority: priority,
-                    starting: entry.starting.flatMap { $0.isEmpty ? nil : $0 }
-                        ?? BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
-                    upTo: nestedLimit,
-                    description: entry.normalizedDescription
-                )
-            )
-        case "copy":
-            guard let lookBack = entry.lookBack,
-                  let priority = entry.priority,
-                  BudgetTemplateEngine.Bounds.lookBack.contains(lookBack),
-                  BudgetTemplateEngine.Bounds.priority.contains(priority),
-                  entry.adjustmentType == nil else { return nil }
-            return .copy(
-                lookBack: lookBack,
-                priority: priority,
-                legacyLimit: nestedLimit,
-                description: entry.normalizedDescription
-            )
-        case "average":
-            guard let numMonths = entry.numMonths,
-                  let priority = entry.priority,
-                  BudgetTemplateEngine.Bounds.numMonths.contains(numMonths),
-                  BudgetTemplateEngine.Bounds.priority.contains(priority),
-                  entry.adjustment == nil,
-                  entry.adjustmentType == nil else { return nil }
-            return .average(numMonths: numMonths, priority: priority, description: entry.normalizedDescription)
-        case "schedule":
-            guard let priority = entry.priority,
-                  BudgetTemplateEngine.Bounds.priority.contains(priority),
-                  entry.scheduleNameOrID != nil,
-                  entry.full != true,
-                  entry.adjustment == nil,
-                  entry.adjustmentType == nil else { return nil }
-            return .schedule(
-                name: entry.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-                scheduleId: entry.presentScheduleID,
-                priority: priority,
-                description: entry.normalizedDescription
-            )
-        case "remainder":
-            guard let weight = entry.weight,
-                  BudgetTemplateEngine.Bounds.weight.contains(weight),
-                  entry.priority == nil,
-                  entry.editorLimit == nil else { return nil }
-            return .remainder(weight: weight, description: entry.normalizedDescription)
-        case "goal":
-            guard let amount = entry.amount,
-                  isSignedAmount(amount),
-                  entry.priority.map(BudgetTemplateEngine.Bounds.priority.contains) ?? true else {
-                return nil
-            }
-            return .goal(amount: amount, description: entry.normalizedDescription)
-        default:
-            return nil
-        }
-    }
-
     static func normalizedDrafts(from entry: RawEntry, now: Date) throws -> [BudgetTemplateDraft] {
         guard let directive = entry.directive?.trimmingCharacters(in: .whitespacesAndNewlines),
               (entry.type == "goal" && directive == "goal"
@@ -417,7 +354,6 @@ private extension BudgetTemplateEditorCodec {
                         amount: monthly,
                         priority: try requiredPriority(entry.priority, type: entry.type),
                         starting: BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
-                        upTo: nil,
                         description: entry.normalizedDescription
                     )
                 )
@@ -445,7 +381,6 @@ private extension BudgetTemplateEditorCodec {
                 priority: try requiredPriority(entry.priority, type: entry.type),
                 starting: entry.starting.flatMap { $0.isEmpty ? nil : $0 }
                     ?? BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
-                upTo: nil,
                 cadence: cadence,
                 interval: interval,
                 description: entry.normalizedDescription
@@ -609,13 +544,6 @@ private extension BudgetTemplateEditorCodec {
         return result
     }
 
-    static func isSignedAmount(_ amount: Double) -> Bool {
-        amount.isFinite && BudgetTemplateEngine.Bounds.signedTemplateAmount.contains(amount)
-    }
-
-    static func validDateOrEmpty(_ value: String) -> Bool {
-        value.isEmpty || BudgetTemplateCalendar.validatedDate(value) != nil
-    }
 }
 
 private extension BudgetTemplateEditorCodec.RawEntry {
@@ -626,10 +554,4 @@ private extension BudgetTemplateEditorCodec.RawEntry {
         return scheduleId
     }
 
-    var scheduleNameOrID: String? {
-        if let presentScheduleID { return presentScheduleID }
-        guard let name else { return nil }
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
 }

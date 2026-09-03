@@ -1,7 +1,7 @@
 import Foundation
 
-/// Template types the editor can add. Newly modeled types stay locked until
-/// their complete form workflow is available.
+/// Template types the editor can add. A kind becomes available with its full
+/// field and validation workflow, not merely when its decoder exists.
 enum BudgetTemplateKind: String, CaseIterable, Hashable, Identifiable, Sendable {
     case monthlyFixed
     case dateTarget
@@ -20,9 +20,9 @@ enum BudgetTemplateKind: String, CaseIterable, Hashable, Identifiable, Sendable 
     /// only when its vertical slice can render and preserve every field.
     var isAvailableForAuthoring: Bool {
         switch self {
-        case .monthlyFixed, .copy, .average, .schedule, .remainder, .goal:
+        case .monthlyFixed, .balanceLimit, .refill, .copy, .average, .schedule, .remainder, .goal:
             true
-        case .dateTarget, .percentage, .balanceLimit, .refill:
+        case .dateTarget, .percentage:
             false
         }
     }

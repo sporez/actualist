@@ -106,7 +106,6 @@ enum BudgetTemplateEditorEncoder {
                 )
                 try container.encode(value.starting, forKey: .starting)
                 try container.encode(value.priority, forKey: .priority)
-                try encodeLimit(value.upTo)
                 try encodeDescription(value.description)
             case .dateTarget(let value):
                 try container.encode("template", forKey: .directive)

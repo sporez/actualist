@@ -309,6 +309,40 @@ struct BudgetTemplateWriteTests {
         #expect(cleared.month.toBudget == before.month.toBudget)
     }
 
+    @Test func templateStoreRoundTripsFixedLimitAndRefillAsStandaloneRows() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            ALTER TABLE categories ADD COLUMN template_settings TEXT;
+            UPDATE categories SET template_settings = '{"source":"ui"}' WHERE id = 'groceries';
+            """)
+        let drafts: [BudgetTemplateDraft] = [
+            .monthlyFixed(amount: 250, now: Self.templateWriteNow),
+            .balanceLimit(amount: 500, hold: true, period: .monthly),
+            .refill(priority: 1)
+        ]
+
+        _ = try await bundle.store.setCategoryTemplatesAndRefresh(
+            categoryID: "groceries",
+            drafts: drafts,
+            budgetID: "group-1",
+            month: "2026-07"
+        )
+
+        let snapshot = try await bundle.store.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            budgetID: "group-1"
+        )
+        #expect(snapshot.lock == .editable)
+        #expect(snapshot.drafts == drafts)
+
+        let state = try categoryTemplateState(
+            "groceries",
+            at: bundle.fileManager.databaseURL(fileID: "file-1")
+        )
+        #expect(state.goalDef?.contains(#""type":"limit""#) == true)
+        #expect(state.goalDef?.contains(#""type":"refill""#) == true)
+        #expect(state.goalDef?.contains(#""limit":{"#) == false)
+    }
+
     private static let templateWriteNow = Calendar(identifier: .gregorian).date(
         from: DateComponents(year: 2026, month: 9, day: 15, hour: 12)
     )!

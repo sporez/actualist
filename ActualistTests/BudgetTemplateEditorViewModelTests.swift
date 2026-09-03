@@ -346,6 +346,92 @@ struct BudgetTemplateEditorViewModelTests {
         #expect(await repository.savedDrafts() == [[]])
     }
 
+    @Test func phase3AddsBalanceLimitAndRepairsRefillDependency() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [.monthlyFixed(now: now)])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+
+        #expect(viewModel.addableKinds.contains(.balanceLimit))
+        #expect(viewModel.addableKinds.contains(.refill))
+        viewModel.add(.refill)
+        #expect(!viewModel.canSave)
+        #expect(viewModel.addableKinds.contains(.balanceLimit))
+
+        viewModel.add(.balanceLimit)
+        #expect(viewModel.canSave)
+        #expect(viewModel.items.contains { if case .balanceLimit = $0.draft { true } else { false } })
+        #expect(viewModel.items.contains { if case .refill = $0.draft { true } else { false } })
+
+        let limitID = try #require(
+            viewModel.items.first { if case .balanceLimit = $0.draft { true } else { false } }?.id
+        )
+        viewModel.remove(id: limitID)
+        #expect(!viewModel.hasBalanceLimit)
+        #expect(!viewModel.canSave)
+        viewModel.add(.balanceLimit)
+        #expect(viewModel.canSave)
+    }
+
+    @Test func phase3FixedCadenceControlsPreserveAmountAndPriority() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [.monthlyFixed(amount: 400, priority: 7, now: now)])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let id = try #require(viewModel.items.first?.id)
+
+        viewModel.setFixedInterval("2", id: id)
+        viewModel.setFixedCadence(.year, id: id)
+        viewModel.setFixedStartingDate(
+            Calendar(identifier: .gregorian).date(
+                from: DateComponents(year: 2024, month: 2, day: 29, hour: 12)
+            )!,
+            id: id
+        )
+
+        guard case .monthlyFixed(let fixed) = viewModel.items.first?.draft else {
+            Issue.record("Expected a fixed draft")
+            return
+        }
+        #expect(fixed.amount == 400)
+        #expect(fixed.priority == 7)
+        #expect(fixed.interval == 2)
+        #expect(fixed.cadence == .year)
+        #expect(fixed.starting == "2024-02-29")
+        #expect(viewModel.canSave)
+    }
+
+    @Test func phase3WeeklyLimitUsesFixedStartAndRetainsHold() async throws {
+        var fixed = BudgetTemplateDraft.monthlyFixed(now: now)
+        if case .monthlyFixed(var value) = fixed {
+            value.starting = "2026-09-20"
+            fixed = .monthlyFixed(value)
+        }
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [fixed])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        viewModel.add(.balanceLimit)
+        let limitID = try #require(viewModel.items.last?.id)
+
+        viewModel.setLimitPeriod(.weekly, id: limitID)
+        #expect(viewModel.limitWeekday(for: limitID) == 1)
+        viewModel.setLimitWeekday(3, id: limitID)
+        viewModel.setLimitHold(true, id: limitID)
+
+        guard case .balanceLimit(let limit) = viewModel.items.last?.draft else {
+            Issue.record("Expected a balance limit draft")
+            return
+        }
+        #expect(limit.start == "2026-09-22")
+        #expect(limit.hold)
+        #expect(limit.period == .weekly)
+        #expect(viewModel.canSave)
+    }
+
     private func makeViewModel() -> BudgetTemplateEditorViewModel {
         BudgetTemplateEditorViewModel(target: target, now: now, dryRunDelay: .zero)
     }

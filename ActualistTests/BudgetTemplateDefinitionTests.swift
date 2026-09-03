@@ -22,7 +22,6 @@ struct BudgetTemplateDefinitionTests {
                     amount: 400,
                     priority: 1,
                     starting: "2026-04-01",
-                    upTo: nil
                 )
             )
         ])
@@ -39,15 +38,10 @@ struct BudgetTemplateDefinitionTests {
                 BudgetTemplateDraft.MonthlyFixed(
                     amount: 20,
                     priority: 11,
-                    starting: "2026-02-01",
-                    upTo: BudgetTemplateUpToHold(
-                        amount: 200,
-                        hold: true,
-                        period: "monthly",
-                        start: nil
-                    )
+                    starting: "2026-02-01"
                 )
-            )
+            ),
+            .balanceLimit(amount: 200, hold: true, period: .monthly)
         ])
         try assertEngineAccepts(drafts)
     }
@@ -127,19 +121,21 @@ struct BudgetTemplateDefinitionTests {
         #expect(entries[0].priority == 3)
     }
 
-    @Test func simpleSaveEncoding_preservesNestedUpTo() throws {
+    @Test func simpleSaveEncoding_normalizesNestedUpToToStandaloneLimit() throws {
         let json = """
             [{"directive":"template","type":"simple","monthly":20,"priority":11,"limit":{"amount":200,"hold":false,"period":"monthly"}}]
             """
         let drafts = try #require(BudgetTemplateDefinition.drafts(fromJSON: json, now: now))
         let encoded = try BudgetTemplateDefinition.encode(drafts)
         let entries = try #require(try engine.decodeSupportedEntries(json: encoded))
-        #expect(entries.count == 1)
+        #expect(entries.count == 2)
         #expect(entries[0].type == "periodic")
         #expect(entries[0].amount == 20)
-        #expect(entries[0].limit?.amount == 200)
-        #expect(entries[0].limit?.hold == false)
-        #expect(entries[0].limit?.period == "monthly")
+        #expect(entries[0].limit == nil)
+        #expect(entries[1].type == "limit")
+        #expect(entries[1].standaloneLimit?.amount == 200)
+        #expect(entries[1].standaloneLimit?.hold == false)
+        #expect(entries[1].standaloneLimit?.period == "monthly")
     }
 
     @Test func newMonthlyFixed_usesDefaultPriorityAndFirstOfMonth() throws {
@@ -251,16 +247,10 @@ struct BudgetTemplateDefinitionTests {
         #"[{"directive":"template","type":"by","amount":1200,"month":"2027-09","priority":1}]"#,
         #"[{"directive":"template","type":"spend","amount":300,"month":"2026-09","from":"2026-07","priority":0}]"#,
         #"[{"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}]"#,
-        #"[{"directive":"template","type":"limit","amount":500,"period":"monthly","hold":false,"priority":null}]"#,
-        #"[{"directive":"template","type":"refill","priority":1}]"#,
-        #"[{"directive":"template","type":"periodic","amount":1,"period":{"period":"day","amount":1},"starting":"2026-01-01","priority":0}]"#,
-        #"[{"directive":"template","type":"periodic","amount":50,"period":{"period":"month","amount":2},"starting":"2026-01-01","priority":0}]"#,
         #"[{"directive":"template","type":"schedule","name":"Rent","full":true,"priority":1}]"#,
         #"[{"directive":"template","type":"schedule","name":"Rent","adjustment":10,"adjustmentType":"percent","priority":1}]"#,
         #"[{"directive":"template","type":"average","numMonths":3,"adjustment":5,"adjustmentType":"percent","priority":1}]"#,
-        #"[{"directive":"template","type":"remainder","weight":1,"priority":null,"limit":{"amount":500,"hold":true,"period":"monthly"}}]"#,
-        ##"[{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]"##,
-        #"[{"directive":"template","type":"simple","priority":1,"limit":{"amount":1000,"hold":false,"period":"monthly"}}]"#
+        ##"[{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]"##
     ])
     func lock_cutBAndInvalidTypes(json: String) {
         #expect(lock(source: "ui", json: json) == .readOnly(.unsupportedType))
@@ -290,24 +280,20 @@ struct BudgetTemplateDefinitionTests {
     }
 
     @Test func summary_upToAndHoldAndGoalAndHistory() {
-        let upTo = BudgetTemplateDraft.monthlyFixed(
-            amount: 20,
-            now: now,
-            upTo: BudgetTemplateUpToHold(amount: 200, hold: false, period: "monthly", start: nil)
-        )
-        let hold = BudgetTemplateDraft.monthlyFixed(
-            amount: 50,
-            now: now,
-            upTo: BudgetTemplateUpToHold(amount: 1_000, hold: true, period: "monthly", start: nil)
+        let upTo = BudgetTemplateDraft.monthlyFixed(amount: 20, now: now)
+        let hold = BudgetTemplateDraft.balanceLimit(
+            amount: 1_000,
+            hold: true,
+            period: .monthly
         )
         let currency = BudgetCurrency.usd
         #expect(
             BudgetTemplateSummary.line(
-                drafts: [upTo],
+                drafts: [upTo, .balanceLimit(amount: 200, period: .monthly)],
                 currency: currency,
                 randomized: false,
                 seed: "a"
-            ) == "\(currency.formatted(2_000))/mo up to \(currency.formatted(20_000))"
+            ) == "\(currency.formatted(2_000))/mo · Limit \(currency.formatted(20_000))/month"
         )
         #expect(
             BudgetTemplateSummary.line(
@@ -315,7 +301,7 @@ struct BudgetTemplateDefinitionTests {
                 currency: currency,
                 randomized: false,
                 seed: "b"
-            ) == "\(currency.formatted(5_000))/mo hold \(currency.formatted(100_000))"
+            ) == "Limit \(currency.formatted(100_000))/month hold"
         )
         #expect(
             BudgetTemplateSummary.line(

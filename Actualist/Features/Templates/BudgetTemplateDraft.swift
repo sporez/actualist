@@ -31,8 +31,9 @@ enum BudgetTemplateAdjustment: Equatable, Sendable {
     }
 }
 
-/// Optional nested cap retained for Cut A's existing fixed form and for
-/// decoding legacy definitions until the standalone Limit editor lands.
+/// Legacy nested cap metadata retained for Copy and Remainder definitions.
+/// Fixed and periodic nested caps are normalized to a standalone Limit draft
+/// before they reach the editor.
 struct BudgetTemplateUpToHold: Equatable, Sendable {
     var amount: Double
     var hold: Bool
@@ -50,7 +51,6 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         var amount: Double
         var priority: Int
         var starting: String
-        var upTo: BudgetTemplateUpToHold?
         var cadence: BudgetTemplateCadence = .month
         var interval: Int = 1
         var description: String?
@@ -138,7 +138,6 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         amount: Double = 100,
         priority: Int = BudgetTemplateDefinition.defaultPriority,
         now: Date = Date(),
-        upTo: BudgetTemplateUpToHold? = nil,
         description: String? = nil
     ) -> BudgetTemplateDraft {
         .monthlyFixed(
@@ -146,7 +145,6 @@ enum BudgetTemplateDraft: Equatable, Sendable {
                 amount: amount,
                 priority: priority,
                 starting: BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
-                upTo: upTo,
                 description: normalizedDescription(description)
             )
         )
@@ -437,8 +435,7 @@ enum BudgetTemplateDraft: Equatable, Sendable {
                   BudgetTemplateEngine.Bounds.priority.contains(value.priority),
                   BudgetTemplateEngine.Bounds.periodInterval.contains(value.interval),
                   BudgetTemplateCalendar.validatedDate(value.starting) != nil else { return false }
-            guard let upTo = value.upTo else { return true }
-            return isComplete(upTo)
+            return true
         case .dateTarget(let value):
             return value.amount.isFinite
                 && BudgetTemplateEngine.Bounds.signedTemplateAmount.contains(value.amount)
@@ -479,6 +476,13 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         }
     }
 
+    private func isComplete(_ value: String?, period: BudgetTemplateLimitPeriod) -> Bool {
+        if period == .weekly {
+            return value.flatMap(BudgetTemplateCalendar.validatedDate) != nil
+        }
+        return value == nil || value.flatMap(BudgetTemplateCalendar.validatedDate) != nil
+    }
+
     private func isComplete(_ value: BudgetTemplateUpToHold) -> Bool {
         value.amount.isFinite
             && BudgetTemplateEngine.Bounds.nonnegativeAmount.contains(value.amount)
@@ -486,13 +490,6 @@ enum BudgetTemplateDraft: Equatable, Sendable {
             && (value.start == nil || value.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil)
             && (value.period != BudgetTemplateLimitPeriod.weekly.rawValue
                 || value.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil)
-    }
-
-    private func isComplete(_ value: String?, period: BudgetTemplateLimitPeriod) -> Bool {
-        if period == .weekly {
-            return value.flatMap(BudgetTemplateCalendar.validatedDate) != nil
-        }
-        return value == nil || value.flatMap(BudgetTemplateCalendar.validatedDate) != nil
     }
 
     private func isComplete(_ value: BudgetTemplateAdjustment) -> Bool {

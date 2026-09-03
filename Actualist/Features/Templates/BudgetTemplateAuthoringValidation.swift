@@ -85,7 +85,6 @@ enum BudgetTemplateAuthoringValidation {
 
         let limitCount = drafts.reduce(into: 0) { count, draft in
             if case .balanceLimit = draft { count += 1 }
-            if case .monthlyFixed(let value) = draft, value.upTo != nil { count += 1 }
         }
         if limitCount > 1 {
             issues.append(.multipleLimits)

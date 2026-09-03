@@ -33,7 +33,7 @@ struct BudgetTemplateEditorCodecTests {
         #expect(BudgetTemplateDefinition.drafts(fromJSON: json, now: now) == nil)
         #expect(!BudgetTemplateDefinition.isEditorEditableJSON(json, now: now))
         #expect(
-            BudgetTemplateEditorCodec.decodeCutA(json: json, now: now)
+            BudgetTemplateEditorCodec.decodeEditor(json: json, now: now)
                 == .failure(.unsupportedField("simple.futureField"))
         )
     }
@@ -41,7 +41,7 @@ struct BudgetTemplateEditorCodecTests {
     @Test func unknownNestedFieldsAndIncompleteLimitsDoNotGetDefaulted() {
         let periodJSON = #"[{"directive":"template","type":"periodic","amount":400,"period":{"period":"month","amount":1,"future":true},"priority":1}]"#
         #expect(
-            BudgetTemplateEditorCodec.decodeCutA(json: periodJSON, now: now)
+            BudgetTemplateEditorCodec.decodeEditor(json: periodJSON, now: now)
                 == .failure(.unsupportedField("periodic.period.future"))
         )
 
@@ -52,11 +52,11 @@ struct BudgetTemplateEditorCodecTests {
     @Test func monthlyLimitRetainsValidWeeklyAnchorForActualCompatibility() throws {
         let json = #"[{"directive":"template","type":"simple","monthly":400,"priority":1,"limit":{"amount":500,"hold":false,"period":"monthly","start":"2026-09-07"}}]"#
         let drafts = try #require(BudgetTemplateDefinition.drafts(fromJSON: json, now: now))
-        guard case .monthlyFixed(let fixed) = drafts[0] else {
-            Issue.record("Expected a fixed draft")
+        guard case .balanceLimit(let limit) = drafts[1] else {
+            Issue.record("Expected a standalone limit draft")
             return
         }
-        #expect(fixed.upTo?.start == "2026-09-07")
+        #expect(limit.start == "2026-09-07")
         #expect(BudgetTemplateDefinition.isEditorEditableJSON(json, now: now))
     }
 

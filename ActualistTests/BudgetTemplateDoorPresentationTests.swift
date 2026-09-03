@@ -69,7 +69,7 @@ struct BudgetTemplateDoorPresentationTests {
         }
     }
 
-    @Test func cutAKindsMakeCompleteDefaults() {
+    @Test func availableKindsMakeCompleteDefaults() {
         let now = Date()
         for kind in BudgetTemplateKind.allCases
         where kind.isAvailableForAuthoring && kind != .schedule {
@@ -79,6 +79,8 @@ struct BudgetTemplateDoorPresentationTests {
         #expect(!BudgetTemplateKind.schedule.makeDraft(now: now).isComplete)
         #expect(BudgetTemplateKind.remainder.isSingleton)
         #expect(BudgetTemplateKind.goal.isSingleton)
+        #expect(BudgetTemplateKind.balanceLimit.isSingleton)
+        #expect(BudgetTemplateKind.refill.isSingleton)
         #expect(!BudgetTemplateKind.monthlyFixed.isSingleton)
     }
 }

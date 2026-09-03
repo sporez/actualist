@@ -35,16 +35,17 @@ enum BudgetTemplateSummary {
                 randomized: randomized,
                 seed: seed
             )
-            guard let upTo = value.upTo else {
-                return "\(amount)/mo"
+            let unit: String
+            switch value.cadence {
+            case .day: unit = "day"
+            case .week: unit = "week"
+            case .month: unit = "mo"
+            case .year: unit = "year"
             }
-            let cap = formattedAmount(
-                upTo.amount,
-                currency: currency,
-                randomized: randomized,
-                seed: "\(seed)-cap"
-            )
-            return upTo.hold ? "\(amount)/mo hold \(cap)" : "\(amount)/mo up to \(cap)"
+            if value.interval == 1 {
+                return "\(amount)/\(unit)"
+            }
+            return "\(amount)/\(value.interval) \(unit)s"
         case .dateTarget(let value):
             return value.isSpend ? "Save by \(value.month) with early spending" : "Save by \(value.month)"
         case .percentage(let value):
@@ -62,7 +63,7 @@ enum BudgetTemplateSummary {
             case .weekly: cadence = "week"
             case .monthly: cadence = "month"
             }
-            return "Limit \(amount)/\(cadence)"
+            return value.hold ? "Limit \(amount)/\(cadence) hold" : "Limit \(amount)/\(cadence)"
         case .refill:
             return "Refill"
         case .copy(let value):

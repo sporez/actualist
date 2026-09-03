@@ -29,17 +29,17 @@ enum BudgetTemplateDefinition {
         }
     }
 
-    /// Cut A-compatible editor drafts. Strictly decodes known fields first;
-    /// `nil` means the whole definition must remain view-only.
+    /// Editor drafts use one normalized list. Strictly decodes known fields
+    /// first; `nil` means the whole definition must remain view-only.
     static func drafts(fromJSON json: String?, now: Date) -> [BudgetTemplateDraft]? {
-        switch BudgetTemplateEditorCodec.decodeCutA(json: json, now: now) {
+        switch BudgetTemplateEditorCodec.decodeEditor(json: json, now: now) {
         case .failure, .success(nil): return nil
         case .success(let drafts?): return drafts
         }
     }
 
-    /// Apply-preview drafts do not need authoring metadata, so this overload
-    /// intentionally accepts the engine's calculation entries.
+    /// Apply-preview drafts intentionally retain one display draft per engine
+    /// entry so contribution amounts and labels stay aligned.
     static func drafts(
         from entries: [BudgetTemplateEntry],
         now: Date
@@ -57,14 +57,13 @@ enum BudgetTemplateDefinition {
         try BudgetTemplateEditorCodec.encode(drafts)
     }
 
-    /// Strictly decode the complete pinned Actual catalog. This is used by
-    /// fixtures and later form phases; Cut A's editor gate remains separate.
+    /// Strictly decode and normalize the complete pinned Actual catalog.
     static func normalizedDrafts(fromJSON json: String?, now: Date) throws -> [BudgetTemplateDraft] {
         try BudgetTemplateEditorCodec.decodeNormalized(json: json, now: now)
     }
 
     static func isEditorEditableJSON(_ json: String?, now: Date = Date()) -> Bool {
-        switch BudgetTemplateEditorCodec.decodeCutA(json: json, now: now) {
+        switch BudgetTemplateEditorCodec.decodeEditor(json: json, now: now) {
         case .success(let drafts?):
             return drafts.count <= BudgetTemplateEngine.Bounds.maximumEntriesPerCategory
                 && drafts.allSatisfy(\.isComplete)
@@ -86,7 +85,11 @@ enum BudgetTemplateDefinition {
         case ("template", "simple"):
             return isMonthlySimple(entry)
         case ("template", "periodic"):
-            return isMonthlyPeriodic(entry)
+            return isPeriodic(entry)
+        case ("template", "limit"):
+            return isStandaloneLimit(entry)
+        case ("template", "refill"):
+            return isRefill(entry)
         case ("template", "copy"):
             return isCopy(entry)
         case ("template", "average"):
@@ -111,14 +114,21 @@ enum BudgetTemplateDefinition {
 
 private extension BudgetTemplateDefinition {
     static func draft(from entry: BudgetTemplateEntry, now: Date) -> BudgetTemplateDraft? {
-        guard isEditorEditable(entry) else { return nil }
         switch entry.type {
         case "simple":
-            return .monthlyFixed(
-                amount: entry.monthly ?? 0,
-                priority: entry.priority ?? defaultPriority,
-                now: now,
-                upTo: upToHold(from: entry.limit)
+            if let monthly = entry.monthly {
+                return .monthlyFixed(
+                    amount: monthly,
+                    priority: entry.priority ?? defaultPriority,
+                    now: now
+                )
+            }
+            guard let limit = upToHold(from: entry.limit) else { return nil }
+            return .balanceLimit(
+                amount: limit.amount,
+                hold: limit.hold,
+                period: BudgetTemplateLimitPeriod(rawValue: limit.period) ?? .monthly,
+                start: limit.start
             )
         case "periodic":
             let starting = entry.starting?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -128,9 +138,45 @@ private extension BudgetTemplateDefinition {
                     priority: entry.priority ?? defaultPriority,
                     starting: starting.flatMap { $0.isEmpty ? nil : $0 }
                         ?? firstDayOfCurrentMonth(now: now),
-                    upTo: upToHold(from: entry.limit)
+                    cadence: BudgetTemplateCadence(rawValue: entry.period?.period ?? "month") ?? .month,
+                    interval: entry.period?.amount ?? 1
                 )
             )
+        case "by", "spend":
+            guard let amount = entry.amount, let month = entry.month else { return nil }
+            return .dateTarget(
+                amount: amount,
+                month: month,
+                priority: entry.priority ?? defaultPriority,
+                repeatInterval: entry.repeatInterval,
+                annual: entry.annual ?? false,
+                fromMonth: entry.fromMonth,
+                isSpend: entry.type == "spend"
+            )
+        case "percentage":
+            guard let percent = entry.percentageAmount,
+                  let source = entry.sourceCategory else { return nil }
+            return .percentage(
+                percent: percent,
+                sourceCategory: source,
+                previous: entry.previous ?? false,
+                priority: entry.priority ?? defaultPriority
+            )
+        case "limit":
+            guard let limit = entry.standaloneLimit,
+                  let amount = limit.amount,
+                  let period = limit.period,
+                  let parsedPeriod = BudgetTemplateLimitPeriod(rawValue: period) else {
+                return nil
+            }
+            return .balanceLimit(
+                amount: amount,
+                hold: limit.hold ?? false,
+                period: parsedPeriod,
+                start: limit.start
+            )
+        case "refill":
+            return .refill(priority: entry.priority ?? defaultPriority)
         case "copy":
             return .copy(
                 lookBack: entry.lookBack ?? 1,
@@ -140,16 +186,19 @@ private extension BudgetTemplateDefinition {
         case "average":
             return .average(
                 numMonths: entry.numMonths ?? 3,
-                priority: entry.priority ?? defaultPriority
+                priority: entry.priority ?? defaultPriority,
+                adjustment: adjustment(from: entry)
             )
         case "schedule":
             return .schedule(
                 name: entry.trimmedScheduleName ?? "",
                 scheduleId: entry.presentScheduleID,
-                priority: entry.priority ?? defaultPriority
+                priority: entry.priority ?? defaultPriority,
+                full: entry.full ?? false,
+                adjustment: adjustment(from: entry)
             )
         case "remainder":
-            return .remainder(weight: entry.weight ?? 1)
+            return .remainder(weight: entry.weight ?? 1, legacyLimit: upToHold(from: entry.limit))
         case "goal":
             return .goal(amount: entry.amount ?? 0)
         default:
@@ -159,7 +208,21 @@ private extension BudgetTemplateDefinition {
 
     static func isMonthlySimple(_ entry: BudgetTemplateEntry) -> Bool {
         guard hasPriority(entry),
-              isSignedAmount(entry.monthly),
+              isSupportedLimit(entry.limit),
+              entry.adjustment == nil,
+              entry.adjustmentType == nil,
+              entry.full != true else { return false }
+        return isSignedAmount(entry.monthly) || entry.limit != nil
+    }
+
+    static func isPeriodic(_ entry: BudgetTemplateEntry) -> Bool {
+        guard hasPriority(entry),
+              isSignedAmount(entry.amount),
+              let period = entry.period?.period,
+              BudgetTemplateCadence(rawValue: period) != nil,
+              let interval = entry.period?.amount,
+              BudgetTemplateEngine.Bounds.periodInterval.contains(interval),
+              isSupportedStarting(entry.starting),
               isSupportedLimit(entry.limit),
               entry.adjustment == nil,
               entry.adjustmentType == nil,
@@ -167,17 +230,14 @@ private extension BudgetTemplateDefinition {
         return true
     }
 
-    static func isMonthlyPeriodic(_ entry: BudgetTemplateEntry) -> Bool {
-        guard hasPriority(entry),
-              isSignedAmount(entry.amount),
-              entry.period?.period == "month",
-              entry.period?.amount == 1,
-              isSupportedStarting(entry.starting),
-              isSupportedLimit(entry.limit),
-              entry.adjustment == nil,
-              entry.adjustmentType == nil,
-              entry.full != true else { return false }
-        return true
+    static func isStandaloneLimit(_ entry: BudgetTemplateEntry) -> Bool {
+        entry.priority == nil
+            && entry.standaloneLimit != nil
+            && isSupportedLimit(entry.standaloneLimit)
+    }
+
+    static func isRefill(_ entry: BudgetTemplateEntry) -> Bool {
+        hasPriority(entry) && entry.limit == nil
     }
 
     static func isCopy(_ entry: BudgetTemplateEntry) -> Bool {
@@ -285,5 +345,15 @@ private extension BudgetTemplateDefinition {
             period: period,
             start: limit.start
         )
+    }
+
+    static func adjustment(from entry: BudgetTemplateEntry) -> BudgetTemplateAdjustment? {
+        guard let value = entry.adjustment,
+              let type = entry.adjustmentType else { return nil }
+        switch type {
+        case "fixed": return .fixed(value)
+        case "percent": return .percent(value)
+        default: return nil
+        }
     }
 }
