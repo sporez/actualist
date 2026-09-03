@@ -145,212 +145,6 @@ struct BudgetTemplateEngine {
         }
     }
 
-    func computeWrites(
-        categories: [String: Category],
-        orderedCategoryIDs: [String],
-        monthValue: Int,
-        availableBudget: Int,
-        monthSources: MonthSources = MonthSources(),
-        currentMonthValue: Int? = nil
-    ) throws -> [Write] {
-        guard !categories.isEmpty else {
-            return []
-        }
-        _ = try BudgetTemplateCalendar.validatedMonth(monthValue)
-        let currentMonth = try BudgetTemplateCalendar.validatedMonth(
-            currentMonthValue ?? monthValue
-        )
-        for category in categories.values {
-            try validatePercentageSources(category.entries, monthSources: monthSources)
-            try validateByScheduleAndSpend(
-                category.entries,
-                monthValue: monthValue,
-                activeScheduleNames: monthSources.activeScheduleNames,
-                activeScheduleIDs: monthSources.activeScheduleIDs
-            )
-        }
-
-        let categoryIDs = orderedCategoryIDs.filter { categories[$0] != nil }
-        let limitStates: [String: LimitState] = try Dictionary(
-            uniqueKeysWithValues: categoryIDs.compactMap { categoryID -> (String, LimitState)? in
-                guard let category = categories[categoryID] else {
-                    return nil
-                }
-                return try limitState(for: category, monthValue: monthValue).map {
-                    (categoryID, $0)
-                }
-            }
-        )
-        var remainingAvailable = availableBudget
-        for categoryID in categoryIDs {
-            guard let state = limitStates[categoryID] else {
-                continue
-            }
-            remainingAvailable = try Self.checkedAdd(
-                remainingAvailable,
-                state.releasedExcess()
-            )
-        }
-
-        var budgetedByCategory = Dictionary(
-            uniqueKeysWithValues: categories.keys.map { ($0, 0) }
-        )
-        var fullAmountByCategory: [String: Int] = [:]
-        var limitMetByCategory: [String: Bool] = [:]
-        for categoryID in categoryIDs {
-            guard let state = limitStates[categoryID], state.isInitiallyMet else {
-                continue
-            }
-            let initial = try state.initialBudgetedAmount()
-            budgetedByCategory[categoryID] = initial
-            fullAmountByCategory[categoryID] = initial
-            limitMetByCategory[categoryID] = true
-        }
-        let priorities = Set(categories.values.flatMap { category in
-            category.entries.compactMap { entry -> Int? in
-                guard Self.participatesInPriority(entry) else {
-                    return nil
-                }
-                return entry.priority
-            }
-        }).sorted()
-
-        for priority in priorities {
-            let availableFunds = remainingAvailable
-            for categoryID in categoryIDs {
-                guard let category = categories[categoryID] else {
-                    continue
-                }
-                let entries = category.entries.filter {
-                    Self.participatesInPriority($0) && $0.priority == priority
-                }
-                guard !entries.isEmpty,
-                      limitMetByCategory[categoryID] != true else {
-                    continue
-                }
-
-                var amount = 0
-                var ranBy = false
-                var ranSchedule = false
-                for entry in entries {
-                    switch entry.type {
-                    case "by":
-                        guard !ranBy else { continue }
-                        ranBy = true
-                        amount = try Self.checkedAdd(
-                            amount,
-                            computeByAmount(
-                                entries.filter { $0.type == "by" },
-                                monthValue: monthValue,
-                                fromLastMonth: category.fromLastMonth
-                            )
-                        )
-                    case "schedule":
-                        guard !ranSchedule else { continue }
-                        ranSchedule = true
-                        amount = try Self.checkedAdd(
-                            amount,
-                            computeScheduleAmount(
-                                entries.filter { $0.type == "schedule" },
-                                monthValue: monthValue,
-                                category: category,
-                                alreadyBudgeted: amount
-                            )
-                        )
-                    default:
-                        amount = try Self.checkedAdd(
-                            amount,
-                            computeEntryAmount(
-                                entry,
-                                monthValue: monthValue,
-                                currentMonthValue: currentMonth,
-                                category: category,
-                                limitState: limitStates[categoryID],
-                                availableFunds: availableFunds,
-                                monthSources: monthSources
-                            )
-                        )
-                    }
-                }
-
-                if let limitState = limitStates[categoryID] {
-                    let alreadyBudgeted = budgetedByCategory[categoryID, default: 0]
-                    let availableBeforeLimit = max(
-                        0,
-                        try Self.checkedSubtract(
-                            try Self.checkedSubtract(
-                                limitState.limitAmount,
-                                limitState.fromLastMonth
-                            ),
-                            alreadyBudgeted
-                        )
-                    )
-                    if amount > availableBeforeLimit {
-                        amount = availableBeforeLimit
-                        limitMetByCategory[categoryID] = true
-                    }
-                }
-
-                if currency.hideFraction {
-                    amount = try removeFractionLikeActual(amount)
-                }
-
-                fullAmountByCategory[categoryID] = try Self.checkedAdd(
-                    fullAmountByCategory[categoryID, default: 0],
-                    amount
-                )
-
-                // Actual's "do not overbudget when using a priority" clamp gates on
-                // `available < 0` where `available = budgetAvail - toBudget` (the
-                // resulting availability), NOT on whether the amount is positive.
-                // Actual supports signed templates, so a negative template that
-                // still leaves availability negative (avail -100, template -50 →
-                // available -50) is clamped to `max(0, budgetAvail)` like a positive
-                // over-request. `max(0, remainingAvailable)` equals Actual's
-                // `max(0, toBudget + available)` since `toBudget + available ==
-                // budgetAvail`. `fullAmount` was credited above with the unclamped
-                // amount, matching Actual's pre-clamp `fullAmount` add.
-                if priority > 0,
-                   !category.isIncome,
-                   remainingAvailable < amount {
-                    amount = max(0, remainingAvailable)
-                }
-
-                budgetedByCategory[categoryID] = try Self.checkedAdd(
-                    budgetedByCategory[categoryID, default: 0],
-                    amount
-                )
-                if category.isIncome {
-                    remainingAvailable = try Self.checkedAdd(
-                        remainingAvailable,
-                        amount
-                    )
-                } else {
-                    remainingAvailable = try Self.checkedSubtract(
-                        remainingAvailable,
-                        amount
-                    )
-                }
-            }
-        }
-
-        try distributeRemainder(
-            categories: categories,
-            orderedCategoryIDs: categoryIDs,
-            limitStates: limitStates,
-            budgetedByCategory: &budgetedByCategory,
-            limitMetByCategory: &limitMetByCategory,
-            remainingAvailable: &remainingAvailable
-        )
-
-        return try finalizeWrites(
-            categories: categories,
-            orderedCategoryIDs: categoryIDs,
-            budgetedByCategory: budgetedByCategory,
-            fullAmountByCategory: fullAmountByCategory
-        )
-    }
-
     func periodicAmount(_ entry: BudgetTemplateEntry, monthValue: Int) throws -> Int {
         guard let amount = entry.amount,
               let periodAmount = entry.period?.amount,
@@ -443,7 +237,7 @@ struct BudgetTemplateEngine {
         return try Self.checkedMultiply(roundedDisplay, integerScale)
     }
 
-    private func limitState(for category: Category, monthValue: Int) throws -> LimitState? {
+    func limitState(for category: Category, monthValue: Int) throws -> LimitState? {
         let limits = category.entries.compactMap(Self.effectiveLimit)
         guard !limits.isEmpty else {
             return nil
@@ -495,7 +289,7 @@ struct BudgetTemplateEngine {
         }
     }
 
-    private func computeEntryAmount(
+    func computeEntryAmount(
         _ entry: BudgetTemplateEntry,
         monthValue: Int,
         currentMonthValue: Int,
@@ -624,7 +418,7 @@ struct BudgetTemplateEngine {
         }
     }
 
-    private func computeByAmount(
+    func computeByAmount(
         _ entries: [BudgetTemplateEntry],
         monthValue: Int,
         fromLastMonth: Int
@@ -674,7 +468,7 @@ struct BudgetTemplateEngine {
         )
     }
 
-    private func resolvedByTarget(
+    func resolvedByTarget(
         _ entry: BudgetTemplateEntry,
         monthValue: Int
     ) throws -> (amount: Int, monthsRemaining: Int, repeatPeriod: Int?) {

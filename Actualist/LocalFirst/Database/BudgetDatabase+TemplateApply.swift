@@ -32,154 +32,22 @@ extension BudgetDatabase {
         currentMonth: String? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> BudgetTemplateApplyResult {
-        let monthValue = try Self.actualMonthValue(month)
-        let currentMonthValue = try Self.actualMonthValue(
-            currentMonth ?? BudgetTemplateCalendar.currentMonthID()
-        )
-
         return try queue.read { db in
-            let templateEngine = BudgetTemplateEngine(currency: try budgetCurrency(db: db))
-            let table = try budgetTable(db: db)
-            let columns = try requiredColumns(
-                table: table.rawValue,
-                required: ["month", "category", "amount"],
+            let prepared = try budgetTemplatePlan(
+                command: command,
+                month: month,
+                currentMonth: currentMonth,
+                skipAvailableClamp: false,
+                goalDefOverrides: [:],
+                skipStaleCheck: false,
                 db: db
             )
-            let canWriteGoals = columns.contains("goal")
-            let goalDefsRaw = try readCategoryGoalDefsRaw(db: db)
-            let categoryNames = try templateCategoryNames(db: db)
-            let categoryIsIncome = try templateCategoryIsIncomeByID(db: db)
-            let isTracking = table == .tracking
-            let targeted = Set(
-                command.categoryIDs
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-            )
-            let scope: [String]
-            if targeted.isEmpty {
-                // Actual walks every visible category so orphan goals can clear.
-                scope = try templateCategoryIDsInBudgetOrder(
-                    db: db,
-                    includeIncome: isTracking,
-                    includeHidden: false
-                )
-            } else {
-                // Actual applyMultipleCategoryTemplates queries `categories`
-                // directly (ORDER BY sort_order, id). Do not reuse whole-budget
-                // group-aware order for targeted applications.
-                scope = try templateCategoryIDsInCategoryOrder(db: db)
-                    .filter { targeted.contains($0) }
-            }
-
-            // Fail safe before applying: refuse any note-managed goal_def that
-            // is stale relative to its synced category note. Actual regenerates
-            // (or clears) goal_def from the note as a preprocessing step before
-            // applying; Actualist applies synced goal_def directly, so a stale
-            // definition must never be written. See
-            // `staleNoteManagedTemplateCategories` and the note-sync guard.
-            let stale = try staleNoteManagedTemplateCategories(
-                goalDefsRaw: goalDefsRaw.filter { scope.contains($0.key) },
-                db: db
-            )
-            if !stale.isEmpty {
-                let described = stale
-                    .map { (categoryNames[$0.categoryID] ?? $0.categoryID) + " — " + $0.reason }
-                    .sorted()
-                throw LocalFirstError.unsupportedTemplate(
-                    "note-managed template definition(s) are stale relative to their category notes and were not applied: \(described.joined(separator: "; ")). Open the budget in Actual and apply templates once to refresh the stored definitions."
-                )
-            }
-            let force = command.mode == .overwrite || !targeted.isEmpty
-            let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
-            let existingGoals = canWriteGoals
-                ? try categoryGoals(month: monthID(monthValue), db: db)
-                : [:]
-
-            var unsupported: [String] = []
-            var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
-            var orphanGoalCategoryIDs: [String] = []
-            // Actual computeTemplates starts from envelope `to-budget` (includes
-            // Hold for Next Month) or tracking `total-saved`, then adds back the
-            // current assignment for each template-managed category.
-            var availableBudget = try isTracking
-                ? trackingTotalSaved(month: monthID(monthValue), db: db)
-                : envelopeToBudget(month: monthID(monthValue), db: db)
-            var incomeCatalog = try templateIncomeCatalog(db: db)
-            let activeSchedules = try templateActiveSchedules(db: db)
-            incomeCatalog.activeScheduleIDs = activeSchedules.ids
-            incomeCatalog.activeScheduleNames = activeSchedules.names
-            for categoryID in scope {
-                let currentBudgeted = currentBudgets[categoryID]?.budgeted ?? 0
-                guard let json = goalDefsRaw[categoryID] else {
-                    if existingGoals[categoryID] != nil {
-                        orphanGoalCategoryIDs.append(categoryID)
-                    }
-                    continue
-                }
-                guard force || currentBudgeted == 0 else { continue }
-
-                do {
-                    if let entries = try templateEngine.decodeSupportedEntries(json: json) {
-                        try templateEngine.validate(entries, for: monthValue)
-                        try templateEngine.validatePercentageSources(
-                            entries,
-                            monthSources: incomeCatalog
-                        )
-                        try templateEngine.validateByScheduleAndSpend(
-                            entries,
-                            monthValue: monthValue,
-                            activeScheduleNames: incomeCatalog.activeScheduleNames,
-                            activeScheduleIDs: incomeCatalog.activeScheduleIDs
-                        )
-                        categoryTemplates[categoryID] = entries
-                        if !isGoalOnly(entries) {
-                            availableBudget = try BudgetTemplateEngine.checkedAdd(
-                                availableBudget,
-                                currentBudgeted
-                            )
-                        }
-                    }
-                } catch LocalFirstError.unsupportedTemplate(let reason) {
-                    unsupported.append(
-                        "\(categoryNames[categoryID] ?? categoryID) (\(reason))"
-                    )
-                    continue
-                } catch {
-                    unsupported.append(
-                        "\(categoryNames[categoryID] ?? categoryID) (unreadable template definition)"
-                    )
-                    continue
-                }
-            }
-
-            guard unsupported.isEmpty else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "categories use template types not supported yet: \(unsupported.sorted().joined(separator: ", "))"
-                )
-            }
-
-            let (categories, monthSources) = try templateEngineInputs(
-                categoryTemplates: categoryTemplates,
-                monthValue: monthValue,
-                categoryIsIncome: categoryIsIncome,
-                previouslyBudgetedByCategory: currentBudgets.mapValues(\.budgeted),
-                isTrackingBudget: isTracking,
-                db: db
-            )
-            let writes = try templateEngine.computeWrites(
-                categories: categories,
-                orderedCategoryIDs: scope.filter { categories[$0] != nil },
-                monthValue: monthValue,
-                availableBudget: availableBudget,
-                monthSources: monthSources,
-                currentMonthValue: currentMonthValue
-            )
-
-            if writes.contains(where: { $0.longGoal == 1 }), !canWriteGoals {
-                throw LocalFirstError.unsupportedTemplate(
-                    "goal writes require \(table.rawValue).goal"
-                )
-            }
+            let writes = prepared.compute.writes
+            let table = prepared.table
+            let columns = prepared.columns
+            let canWriteGoals = prepared.canWriteGoals
+            let orphanGoalCategoryIDs = prepared.orphanGoalCategoryIDs
+            let monthValue = try Self.actualMonthValue(month)
 
             var messages: [ActualSyncDecodedMessage] = []
             for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
@@ -372,7 +240,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func isGoalOnly(_ entries: [BudgetTemplateEntry]) -> Bool {
+    func isGoalOnly(_ entries: [BudgetTemplateEntry]) -> Bool {
         !entries.contains {
             $0.directive == "template" && $0.type != "limit"
         } && entries.contains(where: \.isGoal)

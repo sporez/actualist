@@ -55,6 +55,17 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         month: String
     ) async throws -> LoadedBudgetMonth
+    func dryRunCategoryTemplate(
+        categoryID: String,
+        drafts: [BudgetTemplateDraft],
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateCategoryDryRun
+    func previewBudgetTemplate(
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateApplyPreview
     func moveMoneyAndRefresh(
         command: BudgetMoveMoneyCommand,
         budgetID: String,
@@ -81,6 +92,23 @@ extension BudgetRepositoryProtocol {
         budgetID: String,
         month: String
     ) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func dryRunCategoryTemplate(
+        categoryID: String,
+        drafts: [BudgetTemplateDraft],
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateCategoryDryRun {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func previewBudgetTemplate(
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateApplyPreview {
         throw LocalFirstError.unsupportedWrite
     }
 }

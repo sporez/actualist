@@ -27,4 +27,36 @@ extension LocalFirstActualStore {
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
+
+    func dryRunCategoryTemplate(
+        categoryID: String,
+        drafts: [BudgetTemplateDraft],
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateCategoryDryRun {
+        let database = try requireDatabase(for: budgetID)
+        let goalDefJSON: String?
+        if drafts.isEmpty {
+            goalDefJSON = nil
+        } else {
+            goalDefJSON = try BudgetTemplateDefinition.encode(drafts)
+        }
+        return try await database.dryRunCategoryTemplate(
+            categoryID: categoryID,
+            goalDefJSON: goalDefJSON,
+            month: month
+        )
+    }
+
+    func previewBudgetTemplate(
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateApplyPreview {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.previewBudgetTemplate(
+            command: command,
+            month: month
+        )
+    }
 }

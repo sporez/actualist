@@ -7,7 +7,8 @@ extension BudgetTemplateEngine {
         limitStates: [String: LimitState],
         budgetedByCategory: inout [String: Int],
         limitMetByCategory: inout [String: Bool],
-        remainingAvailable: inout Int
+        remainingAvailable: inout Int,
+        contributions: inout [String: [Int]]
     ) throws {
         func remainderCategoryIDs() -> [String] {
             orderedCategoryIDs.filter { categoryID in
@@ -61,6 +62,12 @@ extension BudgetTemplateEngine {
                     allocated
                 )
                 remainingAvailable = try Self.checkedSubtract(remainingAvailable, allocated)
+                try attributeRemainder(
+                    allocated,
+                    category: category,
+                    categoryID: categoryID,
+                    contributions: &contributions
+                )
             }
             if remainingAvailable == beforePass {
                 break
@@ -115,6 +122,40 @@ extension BudgetTemplateEngine {
                 return partial
             }
             return partial + weight
+        }
+    }
+
+
+    private func attributeRemainder(
+        _ allocated: Int,
+        category: Category,
+        categoryID: String,
+        contributions: inout [String: [Int]]
+    ) throws {
+        guard allocated > 0 else { return }
+        let indexes = category.entries.indices.filter { category.entries[$0].type == "remainder" }
+        guard !indexes.isEmpty else { return }
+        if contributions[categoryID] == nil {
+            contributions[categoryID] = Array(repeating: 0, count: category.entries.count)
+        }
+        let weights = indexes.map { category.entries[$0].weight ?? 0 }
+        let weightSum = weights.reduce(0, +)
+        var remaining = allocated
+        for (offset, index) in indexes.enumerated() {
+            let isLast = offset == indexes.count - 1
+            let share: Int
+            if isLast {
+                share = remaining
+            } else if weightSum > 0 {
+                share = max(
+                    0,
+                    min(remaining, try Self.actualRound(Double(allocated) * (weights[offset] / weightSum)))
+                )
+            } else {
+                share = 0
+            }
+            contributions[categoryID]![index] += share
+            remaining -= share
         }
     }
 
