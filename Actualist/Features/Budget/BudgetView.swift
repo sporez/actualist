@@ -17,6 +17,7 @@ struct BudgetView: View {
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
     @State private var assignmentKeypadTopY: CGFloat = 0
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
+    @State private var templateEditorTarget: BudgetTemplateEditorTarget?
     @State private var noteTarget: ActualNoteTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
     @State private var addTransactionExpansion = ScrollDirectedExpansion()
@@ -298,6 +299,15 @@ struct BudgetView: View {
                     CategoryMonthDetailsView(details: details)
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
+                }
+                .sheet(item: $templateEditorTarget, onDismiss: {
+                    Task { await viewModel.refreshSelectedMonth(using: appState) }
+                }) { target in
+                    BudgetTemplateEditorView(target: target) {
+                        Task { await viewModel.refreshSelectedMonth(using: appState) }
+                    }
+                    .environment(appState)
+                    .appSwitcherPrivacyProtected()
                 }
                 .sheet(item: $noteTarget) { target in
                     if let budgetID = appState.settings.selectedBudgetID {
@@ -605,6 +615,12 @@ struct BudgetView: View {
                             title: group.name
                         )
                     },
+                    onOpenTemplates: { category in
+                        presentTemplates(for: category)
+                    },
+                    templatesMenuTitle: { category in
+                        templatesMenuTitle(for: category)
+                    },
                     onToggleCategoryHidden: { category in
                         toggleCategoryHidden(category, in: group)
                     },
@@ -624,6 +640,31 @@ struct BudgetView: View {
             month: month,
             title: viewModel.navigationTitle
         )
+    }
+
+    private func templatesMenuTitle(for category: BudgetMonthCategory) -> String? {
+        guard canManageTemplates(category) else {
+            return nil
+        }
+        return BudgetTemplateDoorKind.kind(hasDefinition: category.hasTemplateDefinition).menuTitle
+    }
+
+    private func presentTemplates(for category: BudgetMonthCategory) {
+        guard canManageTemplates(category), let month = viewModel.selectedMonth else {
+            return
+        }
+        templateEditorTarget = BudgetTemplateEditorTarget(
+            categoryID: category.id,
+            categoryName: category.name.actualistCategoryNameParts.name,
+            month: month
+        )
+    }
+
+    private func canManageTemplates(_ category: BudgetMonthCategory) -> Bool {
+        if category.isIncome {
+            return viewModel.isTrackingBudget
+        }
+        return true
     }
 
     private func updateAddTransactionExpansion(

@@ -11,6 +11,8 @@ struct AccountTransactionsSummaryView: View {
     let canEditCategoryCarryover: Bool
     let categoryCarryoverErrorMessage: String?
     let onCategoryCarryoverChanged: (Bool) -> Void
+    var templateDoor: BudgetTemplateDoorRow? = nil
+    var onOpenTemplates: () -> Void = {}
 
     var body: some View {
         Group {
@@ -57,6 +59,11 @@ struct AccountTransactionsSummaryView: View {
             if let categoryCarryoverIsEnabled {
                 Divider().overlay(ActualistTheme.separator)
                 categoryCarryoverRow(isEnabled: categoryCarryoverIsEnabled)
+            }
+
+            if let templateDoor {
+                Divider().overlay(ActualistTheme.separator)
+                templateDoorRow(templateDoor)
             }
 
             if let categoryNotePresentation {
@@ -111,6 +118,32 @@ struct AccountTransactionsSummaryView: View {
             .accessibilityValue(isEnabled ? "On" : "Off")
         }
         .padding(.vertical, 10)
+    }
+
+    private func templateDoorRow(_ row: BudgetTemplateDoorRow) -> some View {
+        Button(action: onOpenTemplates) {
+            HStack(spacing: 12) {
+                Text(row.kind.detailsTitle)
+                    .font(ActualistTypography.body(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                Spacer(minLength: 8)
+                if !row.summary.isEmpty {
+                    Text(row.summary)
+                        .font(ActualistTypography.rowLabel(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.trailing)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
     }
 
     private func categoryNoteCallout(_ note: ActualNotePresentation) -> some View {

@@ -32,8 +32,11 @@ final class CategoryMonthDetailsViewModel {
     var isUpdatingCarryover = false
     var carryoverErrorMessage: String?
     private(set) var categoryNotePresentation: ActualNotePresentation?
+    private(set) var templateDoor: BudgetTemplateDoorRow?
+    private(set) var isTrackingBudget = false
 
     private var noteLoadGeneration = 0
+    private var templateDoorGeneration = 0
 
     init(details: CategoryMonthDetails) {
         self.details = details
@@ -49,6 +52,55 @@ final class CategoryMonthDetailsViewModel {
 
         await refresh(budgetID: budgetID, repository: repository)
         await refreshNote(using: appState)
+        await refreshTemplateDoor(using: appState)
+    }
+
+    func refreshTemplateDoor(using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            templateDoor = nil
+            return
+        }
+        await loadTemplateDoor(
+            budgetID: budgetID,
+            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            currency: appState.localFirstStore.budgetCurrency(budgetID: budgetID),
+            repository: appState.budgetRepository
+        )
+    }
+
+    func loadTemplateDoor(
+        budgetID: String,
+        isPrivacyModeEnabled: Bool,
+        currency: BudgetCurrency,
+        repository: any BudgetRepositoryProtocol
+    ) async {
+        templateDoorGeneration += 1
+        let requestGeneration = templateDoorGeneration
+        if details.category.isIncome && !isTrackingBudget {
+            templateDoor = nil
+            return
+        }
+        templateDoor = .placeholder(hasDefinition: details.category.hasTemplateDefinition)
+        do {
+            let snapshot = try await repository.categoryTemplateEditorSnapshot(
+                categoryID: details.category.id,
+                budgetID: budgetID
+            )
+            guard requestGeneration == templateDoorGeneration,
+                  details.category.id == snapshot.categoryID else {
+                return
+            }
+            templateDoor = .make(
+                snapshot: snapshot,
+                currency: currency,
+                randomized: isPrivacyModeEnabled
+            )
+        } catch {
+            guard requestGeneration == templateDoorGeneration else {
+                return
+            }
+            templateDoor = .placeholder(hasDefinition: details.category.hasTemplateDefinition)
+        }
     }
 
     func refreshNote(using appState: AppState) async {
@@ -160,12 +212,14 @@ final class CategoryMonthDetailsViewModel {
 
         details = CategoryMonthDetails(category: category, month: details.month)
         isCarryoverEnabled = category.carryover
+        isTrackingBudget = loaded.isTrackingBudget
     }
 }
 
 struct CategoryMonthDetailsView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel: CategoryMonthDetailsViewModel
+    @State private var templateEditorTarget: BudgetTemplateEditorTarget?
 
     init(details: CategoryMonthDetails) {
         _viewModel = State(initialValue: CategoryMonthDetailsViewModel(details: details))
@@ -187,6 +241,14 @@ struct CategoryMonthDetailsView: View {
                 categoryCarryoverErrorMessage: viewModel.carryoverErrorMessage,
                 onCategoryCarryoverChanged: { enabled in
                     Task { await viewModel.setCarryover(enabled, using: appState) }
+                },
+                templateDoor: viewModel.templateDoor,
+                onOpenTemplates: {
+                    templateEditorTarget = BudgetTemplateEditorTarget(
+                        categoryID: viewModel.details.category.id,
+                        categoryName: viewModel.details.category.name.actualistCategoryNameParts.name,
+                        month: viewModel.details.month
+                    )
                 }
             )
         }
@@ -195,7 +257,17 @@ struct CategoryMonthDetailsView: View {
             Task { await viewModel.refresh(using: appState) }
         }
         .onChange(of: appState.settings.randomizedDisplayValuesEnabled) {
-            Task { await viewModel.refreshNote(using: appState) }
+            Task {
+                await viewModel.refreshNote(using: appState)
+                await viewModel.refreshTemplateDoor(using: appState)
+            }
+        }
+        .sheet(item: $templateEditorTarget) { target in
+            BudgetTemplateEditorView(target: target) {
+                Task { await viewModel.refresh(using: appState) }
+            }
+            .environment(appState)
+            .appSwitcherPrivacyProtected()
         }
         .presentationDetents([.large])
         .appSwitcherPrivacyAwareDragIndicator()

@@ -48,6 +48,14 @@ extension LocalFirstActualStore {
         )
     }
 
+    func categoryTemplateEditorSnapshot(
+        categoryID: String,
+        budgetID: String
+    ) async throws -> BudgetTemplateEditorSnapshot {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.categoryTemplateEditorSnapshot(categoryID: categoryID)
+    }
+
     func previewBudgetTemplate(
         command: BudgetTemplateCommand,
         budgetID: String,

@@ -12,6 +12,8 @@ struct AccountTransactionsView: View {
     let canEditCategoryCarryover: Bool
     let categoryCarryoverErrorMessage: String?
     let onCategoryCarryoverChanged: (Bool) -> Void
+    let templateDoor: BudgetTemplateDoorRow?
+    let onOpenTemplates: () -> Void
 
     @FocusState private var isSearchFieldFocused: Bool
     @State private var isSearchFieldVisible = false
@@ -26,6 +28,8 @@ struct AccountTransactionsView: View {
         self.canEditCategoryCarryover = false
         self.categoryCarryoverErrorMessage = nil
         self.onCategoryCarryoverChanged = { _ in }
+        self.templateDoor = nil
+        self.onOpenTemplates = {}
         _viewModel = State(initialValue: AccountTransactionsViewModel(scope: .account(account)))
     }
 
@@ -37,7 +41,9 @@ struct AccountTransactionsView: View {
         categoryCarryoverIsUpdating: Bool = false,
         canEditCategoryCarryover: Bool = false,
         categoryCarryoverErrorMessage: String? = nil,
-        onCategoryCarryoverChanged: @escaping (Bool) -> Void = { _ in }
+        onCategoryCarryoverChanged: @escaping (Bool) -> Void = { _ in },
+        templateDoor: BudgetTemplateDoorRow? = nil,
+        onOpenTemplates: @escaping () -> Void = {}
     ) {
         self.scope = scope
         self.onChanged = onChanged
@@ -47,6 +53,8 @@ struct AccountTransactionsView: View {
         self.canEditCategoryCarryover = canEditCategoryCarryover
         self.categoryCarryoverErrorMessage = categoryCarryoverErrorMessage
         self.onCategoryCarryoverChanged = onCategoryCarryoverChanged
+        self.templateDoor = templateDoor
+        self.onOpenTemplates = onOpenTemplates
         _viewModel = State(initialValue: AccountTransactionsViewModel(scope: scope))
     }
 
@@ -239,7 +247,9 @@ struct AccountTransactionsView: View {
             categoryCarryoverIsUpdating: categoryCarryoverIsUpdating,
             canEditCategoryCarryover: canEditCategoryCarryover,
             categoryCarryoverErrorMessage: categoryCarryoverErrorMessage,
-            onCategoryCarryoverChanged: onCategoryCarryoverChanged
+            onCategoryCarryoverChanged: onCategoryCarryoverChanged,
+            templateDoor: templateDoor,
+            onOpenTemplates: onOpenTemplates
         )
     }
 

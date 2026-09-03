@@ -16,6 +16,8 @@ struct BudgetGroupSection: View {
     var canChangeVisibility = true
     var onOpenCategoryNote: (BudgetMonthCategory) -> Void = { _ in }
     var onOpenGroupNote: () -> Void = {}
+    var onOpenTemplates: (BudgetMonthCategory) -> Void = { _ in }
+    var templatesMenuTitle: (BudgetMonthCategory) -> String? = { _ in nil }
     var onToggleCategoryHidden: (BudgetMonthCategory) -> Void = { _ in }
     var onToggleGroupHidden: () -> Void = {}
 
@@ -118,6 +120,10 @@ struct BudgetGroupSection: View {
                             onOpenNote: {
                                 onOpenCategoryNote(category)
                             },
+                            templatesMenuTitle: templatesMenuTitle(category),
+                            onOpenTemplates: {
+                                onOpenTemplates(category)
+                            },
                             onToggleHidden: {
                                 onToggleCategoryHidden(category)
                             }
@@ -166,6 +172,8 @@ struct BudgetCategoryRow: View {
     var canChangeVisibility = false
     let beginAssignmentEditing: (CGRect) -> Void
     var onOpenNote: () -> Void = {}
+    var templatesMenuTitle: String? = nil
+    var onOpenTemplates: () -> Void = {}
     var onToggleHidden: () -> Void = {}
 
     @State private var globalFrame: CGRect = .zero
@@ -209,6 +217,14 @@ struct BudgetCategoryRow: View {
                 onOpenNote()
             } label: {
                 Label("Notes", systemImage: "note.text")
+            }
+
+            if let templatesMenuTitle {
+                Button {
+                    onOpenTemplates()
+                } label: {
+                    Label(templatesMenuTitle, systemImage: "sparkles")
+                }
             }
 
             if canChangeVisibility {

@@ -256,7 +256,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func hasStoredTemplateDefinition(_ rawValue: String?) -> Bool {
+    func hasStoredTemplateDefinition(_ rawValue: String?) -> Bool {
         guard let rawValue else {
             return false
         }

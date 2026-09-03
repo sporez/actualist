@@ -106,7 +106,7 @@ extension BudgetDatabase {
 }
 
 extension BudgetDatabase {
-    fileprivate func isStaleNoteManagedTemplate(
+    func isStaleNoteManagedTemplate(
         categoryID: String,
         goalDefJSON: String?,
         db: Database
@@ -145,7 +145,7 @@ extension BudgetDatabase {
         normalizedGoalDefJSON(current) == incoming
     }
 
-    fileprivate static func templateSource(from raw: String?) -> String? {
+    static func templateSource(from raw: String?) -> String? {
         guard let raw,
               let data = raw.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

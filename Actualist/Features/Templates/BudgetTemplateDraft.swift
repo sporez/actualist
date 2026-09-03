@@ -94,4 +94,69 @@ enum BudgetTemplateDraft: Equatable, Sendable {
     static func goal(amount: Double = 1_000) -> BudgetTemplateDraft {
         .goal(Goal(amount: amount))
     }
+
+    var cutAKind: BudgetTemplateCutAKind {
+        switch self {
+        case .monthlyFixed: .monthlyFixed
+        case .copy: .copy
+        case .average: .average
+        case .schedule: .schedule
+        case .remainder: .remainder
+        case .goal: .goal
+        }
+    }
+
+    var showsPriority: Bool {
+        switch self {
+        case .monthlyFixed, .copy, .average, .schedule:
+            true
+        case .remainder, .goal:
+            false
+        }
+    }
+
+    var showsContribution: Bool {
+        if case .goal = self {
+            return false
+        }
+        return true
+    }
+
+    /// Whether this draft can encode as a Cut A `goal_def` entry.
+    var isComplete: Bool {
+        switch self {
+        case .monthlyFixed(let value):
+            guard value.amount.isFinite,
+                  BudgetTemplateEngine.Bounds.signedTemplateAmount.contains(value.amount),
+                  BudgetTemplateEngine.Bounds.priority.contains(value.priority) else {
+                return false
+            }
+            guard let upTo = value.upTo else {
+                return true
+            }
+            return upTo.amount.isFinite
+                && BudgetTemplateEngine.Bounds.nonnegativeAmount.contains(upTo.amount)
+        case .copy(let value):
+            return BudgetTemplateEngine.Bounds.lookBack.contains(value.lookBack)
+                && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
+        case .average(let value):
+            return BudgetTemplateEngine.Bounds.numMonths.contains(value.numMonths)
+                && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
+        case .schedule(let value):
+            let hasID = !(value.scheduleId ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+            let hasName = !value.name
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+            return (hasID || hasName)
+                && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
+        case .remainder(let value):
+            return value.weight.isFinite
+                && BudgetTemplateEngine.Bounds.weight.contains(value.weight)
+        case .goal(let value):
+            return value.amount.isFinite
+                && BudgetTemplateEngine.Bounds.signedTemplateAmount.contains(value.amount)
+        }
+    }
 }
