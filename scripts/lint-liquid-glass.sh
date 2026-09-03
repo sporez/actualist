@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_DIR="${ROOT_DIR}/Actualist"
+SOURCE_DIRS=(
+  "${ROOT_DIR}/Actualist"
+  "${ROOT_DIR}/ActualistWidget"
+)
 
 DISALLOWED_PATTERNS=(
   "\\.regularMaterial"
@@ -20,7 +23,7 @@ DISALLOWED_PATTERNS=(
 status=0
 
 for pattern in "${DISALLOWED_PATTERNS[@]}"; do
-  if rg --line-number --glob '*.swift' "${pattern}" "${APP_DIR}"; then
+  if rg --line-number --glob '*.swift' "${pattern}" "${SOURCE_DIRS[@]}"; then
     status=1
   fi
 done

@@ -16,5 +16,6 @@ shortcuts
 sync
 transactions
 wallet
+widgets
 banksync
 templates

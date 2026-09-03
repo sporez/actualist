@@ -14,6 +14,13 @@
 		AA0000000000000000000005 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = AA0D00000000000000000002 /* SwiftProtobuf */; };
 		AA0000000000000000000006 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = AA0D00000000000000000003 /* ZIPFoundation */; };
 		AA0000000000000000000007 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA0D00000000000000000001 /* GRDB */; };
+		WW0000000000000000000001 /* ActualistWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000001 /* ActualistWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		WW0000000000000000000002 /* WidgetConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000002 /* WidgetConstants.swift */; };
+		WW0000000000000000000004 /* WidgetMonthID.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000004 /* WidgetMonthID.swift */; };
+		WW0000000000000000000005 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000005 /* WidgetSnapshot.swift */; };
+		WW0000000000000000000006 /* WidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000006 /* WidgetSnapshotStore.swift */; };
+		WW0000000000000000000007 /* WidgetSnapshotRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000007 /* WidgetSnapshotRows.swift */; };
+		WW0000000000000000000008 /* WidgetDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000008 /* WidgetDeepLink.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -24,7 +31,28 @@
 			remoteGlobalIDString = AA0500000000000000000001;
 			remoteInfo = Actualist;
 		};
+		WW0800000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0A00000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = WW0500000000000000000001;
+			remoteInfo = ActualistWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		WW0E00000000000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				WW0000000000000000000001 /* ActualistWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		AA0200000000000000000001 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
@@ -32,6 +60,13 @@
 		AA0200000000000000000003 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
 		AA0200000000000000000015 /* Actualist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Actualist.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0200000000000000000016 /* ActualistTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualistTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		WW0200000000000000000001 /* ActualistWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ActualistWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		WW0200000000000000000002 /* WidgetConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetConstants.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000004 /* WidgetMonthID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetMonthID.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000005 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshot.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000006 /* WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshotStore.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000007 /* WidgetSnapshotRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshotRows.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000008 /* WidgetDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetDeepLink.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -42,6 +77,14 @@
 				Info.plist,
 			);
 			target = AA0500000000000000000001 /* Actualist */;
+		};
+		WW0F00000000000000000001 /* Exceptions for "ActualistWidget" folder in "ActualistWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ActualistWidget.entitlements,
+				Info.plist,
+			);
+			target = WW0500000000000000000001 /* ActualistWidgetExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -57,6 +100,14 @@
 		AA0400000000000000000002 /* ActualistTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ActualistTests;
+			sourceTree = "<group>";
+		};
+		WW0400000000000000000001 /* ActualistWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				WW0F00000000000000000001 /* Exceptions for "ActualistWidget" folder in "ActualistWidgetExtension" target */,
+			);
+			path = ActualistWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -80,6 +131,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		WW0300000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -88,6 +146,7 @@
 			children = (
 				AA0200000000000000000015 /* Actualist.app */,
 				AA0200000000000000000016 /* ActualistTests.xctest */,
+				WW0200000000000000000001 /* ActualistWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -102,11 +161,26 @@
 			name = Support;
 			sourceTree = "<group>";
 		};
+		WW0400000000000000000002 /* Shared Widget Sources */ = {
+			isa = PBXGroup;
+			children = (
+				WW0200000000000000000002 /* WidgetConstants.swift */,
+				WW0200000000000000000004 /* WidgetMonthID.swift */,
+				WW0200000000000000000005 /* WidgetSnapshot.swift */,
+				WW0200000000000000000006 /* WidgetSnapshotStore.swift */,
+				WW0200000000000000000007 /* WidgetSnapshotRows.swift */,
+				WW0200000000000000000008 /* WidgetDeepLink.swift */,
+			);
+			name = "Shared Widget Sources";
+			sourceTree = "<group>";
+		};
 		AA0400000000000000000000 = {
 			isa = PBXGroup;
 			children = (
 				AA0400000000000000000001 /* Actualist */,
 				AA0400000000000000000002 /* ActualistTests */,
+				WW0400000000000000000001 /* ActualistWidget */,
+				WW0400000000000000000002 /* Shared Widget Sources */,
 				AA0400000000000000000012 /* Support */,
 				AA0400000000000000000011 /* Products */,
 			);
@@ -122,10 +196,12 @@
 				AA0600000000000000000001 /* Sources */,
 				AA0300000000000000000001 /* Frameworks */,
 				AA0700000000000000000001 /* Resources */,
+				WW0E00000000000000000001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				WW0800000000000000000002 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AA0400000000000000000001 /* Actualist */,
@@ -164,6 +240,28 @@
 			productReference = AA0200000000000000000016 /* ActualistTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		WW0500000000000000000001 /* ActualistWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = WW0900000000000000000001 /* Build configuration list for PBXNativeTarget "ActualistWidgetExtension" */;
+			buildPhases = (
+				WW0600000000000000000001 /* Sources */,
+				WW0300000000000000000001 /* Frameworks */,
+				WW0700000000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				WW0400000000000000000001 /* ActualistWidget */,
+			);
+			name = ActualistWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = ActualistWidgetExtension;
+			productReference = WW0200000000000000000001 /* ActualistWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -180,6 +278,9 @@
 					AA0500000000000000000002 = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = AA0500000000000000000001;
+					};
+					WW0500000000000000000001 = {
+						CreatedOnToolsVersion = 26.3;
 					};
 				};
 			};
@@ -203,6 +304,7 @@
 			targets = (
 				AA0500000000000000000001 /* Actualist */,
 				AA0500000000000000000002 /* ActualistTests */,
+				WW0500000000000000000001 /* ActualistWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -219,6 +321,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		AA0700000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		WW0700000000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -242,6 +351,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		WW0600000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				WW0000000000000000000002 /* WidgetConstants.swift in Sources */,
+				WW0000000000000000000004 /* WidgetMonthID.swift in Sources */,
+				WW0000000000000000000005 /* WidgetSnapshot.swift in Sources */,
+				WW0000000000000000000006 /* WidgetSnapshotStore.swift in Sources */,
+				WW0000000000000000000007 /* WidgetSnapshotRows.swift in Sources */,
+				WW0000000000000000000008 /* WidgetDeepLink.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -249,6 +371,11 @@
 			isa = PBXTargetDependency;
 			target = AA0500000000000000000001 /* Actualist */;
 			targetProxy = AA0800000000000000000002 /* PBXContainerItemProxy */;
+		};
+		WW0800000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = WW0500000000000000000001 /* ActualistWidgetExtension */;
+			targetProxy = WW0800000000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -520,6 +647,64 @@
 			};
 			name = Release;
 		};
+		WW0B00000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ActualistWidget/ActualistWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
+				DEVELOPMENT_TEAM = BJNL8CJWW6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ActualistWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		WW0B00000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ActualistWidget/ActualistWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
+				DEVELOPMENT_TEAM = BJNL8CJWW6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ActualistWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -546,6 +731,15 @@
 			buildConfigurations = (
 				AA0B0000000000000000000005 /* Debug */,
 				AA0B0000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		WW0900000000000000000001 /* Build configuration list for PBXNativeTarget "ActualistWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				WW0B00000000000000000001 /* Debug */,
+				WW0B00000000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

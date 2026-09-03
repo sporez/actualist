@@ -1,9 +1,12 @@
 import Foundation
 
+enum ShortcutTransactionLimits {
+    static let suggested = 50
+    static let maximum = 100
+    static let `default` = 25
+}
+
 extension ShortcutsBudgetSession {
-    static let suggestedTransactionLimit = 50
-    static let maximumTransactionLimit = 100
-    static let defaultTransactionLimit = 25
 
     func account(id: String, includeClosed: Bool = true) async throws -> AccountEntity {
         let accounts = try await accounts(includeClosed: includeClosed)
@@ -73,7 +76,7 @@ extension ShortcutsBudgetSession {
 
     func uncategorizedTransactions(
         month: String? = nil,
-        limit: Int = defaultTransactionLimit
+        limit: Int = ShortcutTransactionLimits.default
     ) async throws -> [TransactionEntity] {
         let loaded = try await uncategorizedPayload(month: month)
         let prepared = try await prepare()
@@ -90,7 +93,7 @@ extension ShortcutsBudgetSession {
     func transactions(
         accountID: String? = nil,
         search: String? = nil,
-        limit: Int = defaultTransactionLimit
+        limit: Int = ShortcutTransactionLimits.default
     ) async throws -> [TransactionEntity] {
         let prepared = try await prepare()
         let capped = Self.cappedTransactionLimit(limit)
@@ -186,7 +189,7 @@ extension ShortcutsBudgetSession {
     }
 
     static func cappedTransactionLimit(_ limit: Int) -> Int {
-        min(max(limit, 1), maximumTransactionLimit)
+        min(max(limit, 1), ShortcutTransactionLimits.maximum)
     }
 
     static func reportRange(for monthID: String) -> ReportDateRange {

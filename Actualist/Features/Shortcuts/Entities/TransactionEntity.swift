@@ -101,7 +101,7 @@ struct TransactionEntityQuery: EntityQuery {
     }
 
     func suggestedEntities() async throws -> [TransactionEntity] {
-        try await session.transactions(limit: ShortcutsBudgetSession.suggestedTransactionLimit)
+        try await session.transactions(limit: ShortcutTransactionLimits.suggested)
     }
 }
 
@@ -109,7 +109,7 @@ extension TransactionEntityQuery: EntityStringQuery {
     func entities(matching string: String) async throws -> [TransactionEntity] {
         try await session.transactions(
             search: string,
-            limit: ShortcutsBudgetSession.suggestedTransactionLimit
+            limit: ShortcutTransactionLimits.suggested
         )
     }
 }
