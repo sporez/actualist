@@ -126,7 +126,7 @@ extension LocalFirstActualStoreTests {
             ALTER TABLE categories ADD COLUMN template_settings TEXT;
             UPDATE categories
             SET goal_def = '[{"directive":"template","type":"simple","monthly":500,"priority":0}]',
-                template_settings = '{"source":"note"}'
+                template_settings = '{"source":"notes"}'
             WHERE id = 'groceries';
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', 'Just a plain note now.');
@@ -221,7 +221,7 @@ extension LocalFirstActualStoreTests {
             ALTER TABLE categories ADD COLUMN template_settings TEXT;
             UPDATE categories
             SET goal_def = '[{"directive":"template","type":"simple","monthly":700,"priority":0}]',
-                template_settings = '{"source":"note"}'
+                template_settings = '{"source":"notes"}'
             WHERE id = 'groceries';
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '#template 700');
@@ -344,7 +344,7 @@ extension LocalFirstActualStoreTests {
             ALTER TABLE categories ADD COLUMN template_settings TEXT;
             UPDATE categories
             SET goal_def = '\(goalDef)',
-                template_settings = '{"source":"note"}'
+                template_settings = '{"source":"notes"}'
             WHERE id = 'groceries';
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '\(note)');

@@ -257,21 +257,14 @@ extension BudgetDatabase {
     }
 
     func hasStoredTemplateDefinition(_ rawValue: String?) -> Bool {
-        guard let rawValue else {
-            return false
-        }
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return false
-        }
-        guard let data = trimmed.data(using: .utf8),
-              let value = try? JSONSerialization.jsonObject(with: data),
-              let definitions = value as? [Any] else {
+        switch BudgetTemplateDefinition.parseEntries(from: rawValue) {
+        case .success(let definitions):
+            return !definitions.isEmpty
+        case .failure:
             // Keep malformed stored definitions visible so Apply Template can
             // surface the existing fail-closed validation error.
             return true
         }
-        return !definitions.isEmpty
     }
 
     func envelopeCategoryValues(through month: String, db: Database) throws -> [String: EnvelopeCategoryValue] {

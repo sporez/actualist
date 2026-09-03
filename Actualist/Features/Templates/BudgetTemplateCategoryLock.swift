@@ -54,10 +54,16 @@ enum BudgetTemplateCategoryLock: Equatable, Sendable {
         if !hasGoalDefColumn || !hasTemplateSettingsColumn {
             return .readOnly(.missingColumns)
         }
+        let parsed = BudgetTemplateDefinition.parseEntries(from: goalDefJSON)
+        // Actual defaults even unauthored categories to source=notes.
+        if case .success(let entries) = parsed,
+           entries.isEmpty, !noteHasDirectives, !isStale {
+            return .editable
+        }
         if isNoteManaged(source: source, noteHasDirectives: noteHasDirectives) {
             return .readOnly(isStale ? .staleNotes : .noteManaged)
         }
-        switch BudgetTemplateDefinition.parseEntries(from: goalDefJSON) {
+        switch parsed {
         case .failure:
             return .readOnly(.unsupportedType)
         case .success(let entries):

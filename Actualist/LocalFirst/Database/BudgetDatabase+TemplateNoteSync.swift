@@ -57,16 +57,12 @@ extension BudgetDatabase {
                 continue
             }
 
-            let explicitSource = sources[categoryID]
             let note = notes[categoryID] ?? ""
             let noteDirectives = BudgetTemplateNoteParser.directives(in: note)
-            let noteManaged = (explicitSource == "note")
-                || (explicitSource == nil && !noteDirectives.isEmpty)
-
-            // UI-managed (explicit "ui") or unresolvable origin with no note
-            // directive to compare against: preserve current behavior.
-            if explicitSource == "ui" { continue }
-            guard noteManaged else { continue }
+            guard BudgetTemplateCategoryLock.isNoteManaged(
+                source: sources[categoryID],
+                noteHasDirectives: !noteDirectives.isEmpty
+            ) else { continue }
 
             if let reason = BudgetTemplateNoteParser.stalenessReason(
                 noteDirectives: noteDirectives,
@@ -124,13 +120,9 @@ extension BudgetDatabase {
         var result: [String: String] = [:]
         for row in rows {
             guard let id = row["id"] as String?,
-                  let raw = row["template_settings"] as String?,
-                  let data = raw.data(using: .utf8),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let source = object["source"] as? String else { continue }
+                  let source = Self.templateSource(from: row["template_settings"] as String?) else { continue }
             result[id] = source
         }
         return result
     }
 }
-

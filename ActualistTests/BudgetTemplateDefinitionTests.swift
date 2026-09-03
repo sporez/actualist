@@ -160,10 +160,20 @@ struct BudgetTemplateDefinitionTests {
         )
     }
 
-    @Test func lock_emptyListIsEditable() {
-        #expect(lock(source: "ui", json: nil) == .editable)
-        #expect(lock(source: "ui", json: "[]") == .editable)
-        #expect(lock(source: "ui", json: "null") == .editable)
+    @Test(arguments: [nil, "ui", "notes", "note", " NOTES "] as [String?],
+          [nil, "", " \n", "null", "[]", " [ ] "] as [String?])
+    func lock_emptyListIsEditable(source: String?, json: String?) {
+        #expect(lock(source: source, json: json) == .editable)
+    }
+
+    @Test(arguments: [nil, "notes", "note"] as [String?], [nil, "[]", "null"] as [String?])
+    func lock_noteDirectivesWithoutStoredDefinitionStayReadOnly(source: String?, json: String?) {
+        #expect(lock(source: source, noteHasDirectives: true, json: json) == .readOnly(.noteManaged))
+    }
+
+    @Test(arguments: ["{", "{}", "[1]"])
+    func lock_unreadableNoteManagedDefinitionCannotBeTreatedAsEmpty(json: String) {
+        #expect(lock(source: "notes", json: json) == .readOnly(.noteManaged))
     }
 
     @Test func lock_noteManagedIsReadOnly() {
