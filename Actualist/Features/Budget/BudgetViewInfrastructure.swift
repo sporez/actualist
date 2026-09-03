@@ -54,12 +54,16 @@ struct BudgetCarryoverBadge: View {
 
 struct BudgetTemplateConfirmationModifier: ViewModifier {
     @Binding var confirmation: BudgetTemplateConfirmation?
+    var categoryID: String?
+    var month: String?
     let apply: (BudgetTemplateConfirmation) -> Void
 
     func body(content: Content) -> some View {
         content.sheet(item: $confirmation) { confirmation in
             BudgetTemplateConfirmationSheet(
                 confirmation: confirmation,
+                categoryID: categoryID,
+                month: month ?? "",
                 cancel: {
                     self.confirmation = nil
                 },
@@ -68,58 +72,11 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
                     apply(confirmation)
                 }
             )
-            .presentationDetents([.height(310)])
+            .presentationDetents([.medium, .large])
             .appSwitcherPrivacyAwareDragIndicator()
             .presentationBackground(ActualistTheme.background)
             .appSwitcherPrivacyProtected()
         }
-    }
-}
-
-private struct BudgetTemplateConfirmationSheet: View {
-    let confirmation: BudgetTemplateConfirmation
-    let cancel: () -> Void
-    let apply: () -> Void
-
-    var body: some View {
-        VStack(spacing: 18) {
-            VStack(spacing: 8) {
-                Text("Are you sure?")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .multilineTextAlignment(.center)
-
-                Text(confirmation.message)
-                    .font(.subheadline)
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            VStack(spacing: 10) {
-                Button(role: confirmation.buttonRole) {
-                    apply()
-                } label: {
-                    Text(confirmation.actionTitle)
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(confirmation.buttonTint)
-
-                Button(role: .cancel) {
-                    cancel()
-                } label: {
-                    Text("Cancel")
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                }
-                .buttonStyle(.glass)
-            }
-        }
-        .padding(.horizontal, 22)
-        .padding(.top, 18)
-        .padding(.bottom, 24)
     }
 }
 

@@ -46,6 +46,24 @@ enum BudgetTemplateConfirmation: String, Identifiable {
             ActualistTheme.positive
         }
     }
+
+    func command(categoryID: String?) -> BudgetTemplateCommand? {
+        switch self {
+        case .monthFillEmpty:
+            return .fillEmpty
+        case .monthOverwrite:
+            return .overwrite
+        case .category:
+            guard let categoryID else {
+                return nil
+            }
+            let trimmed = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                return nil
+            }
+            return .category(trimmed)
+        }
+    }
 }
 
 struct ConnectionStatusDot: View {

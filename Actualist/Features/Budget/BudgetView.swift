@@ -342,6 +342,8 @@ struct BudgetView: View {
                 .modifier(
                     BudgetTemplateConfirmationModifier(
                         confirmation: $pendingTemplateConfirmation,
+                        categoryID: viewModel.activeAssignmentCategoryID,
+                        month: viewModel.selectedMonth,
                         apply: applyTemplate
                     )
                 )

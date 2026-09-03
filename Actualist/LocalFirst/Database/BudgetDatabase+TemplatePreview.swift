@@ -77,7 +77,8 @@ extension BudgetDatabase {
     func previewBudgetTemplate(
         command: BudgetTemplateCommand,
         month: String,
-        currentMonth: String? = nil
+        currentMonth: String? = nil,
+        now: Date = Date()
     ) throws -> BudgetTemplateApplyPreview {
         try queue.read { db in
             let prepared = try budgetTemplatePlan(
@@ -89,6 +90,7 @@ extension BudgetDatabase {
                 skipStaleCheck: false,
                 db: db
             )
+            let names = try templateCategoryNames(db: db)
             var categories: [BudgetTemplateApplyPreview.Category] = []
             for write in prepared.compute.writes {
                 let current = prepared.currentBudgeted[write.categoryID] ?? 0
@@ -97,10 +99,12 @@ extension BudgetDatabase {
                 categories.append(
                     BudgetTemplateApplyPreview.Category(
                         categoryID: write.categoryID,
+                        name: names[write.categoryID] ?? write.categoryID,
                         current: current,
                         proposed: write.amount,
                         perTemplate: prepared.compute.contributions[write.categoryID]
-                            ?? Array(repeating: 0, count: entries.count)
+                            ?? Array(repeating: 0, count: entries.count),
+                        drafts: BudgetTemplateDefinition.drafts(from: entries, now: now) ?? []
                     )
                 )
             }
@@ -108,6 +112,7 @@ extension BudgetDatabase {
                 assigned: categories.reduce(0) { $0 + $1.proposed },
                 leftover: prepared.compute.leftover,
                 isTrackingBudget: prepared.isTracking,
+                currency: try budgetCurrency(db: db),
                 categories: categories
             )
         }

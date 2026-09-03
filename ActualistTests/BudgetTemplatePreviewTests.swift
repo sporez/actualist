@@ -97,6 +97,8 @@ struct BudgetTemplatePreviewTests {
             builder: &builder
         )
         #expect(preview.categories.map(\.proposed) == applied.assignments.map(\.amount))
+        #expect(preview.categories.first?.name == "Groceries")
+        #expect(preview.categories.first?.drafts.count == 1)
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == before)
         _ = try await database.applyLocalSyncMessages(applied.messages)
         if let proposed = preview.categories.first(where: { $0.categoryID == "groceries" })?.proposed {
