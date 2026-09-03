@@ -473,6 +473,7 @@ extension LocalFirstActualStore {
     ) async throws {
         invalidateReports(budgetID: budgetID)
         monthsByBudget[budgetID] = nil
+        templateBrowserByBudget[budgetID] = nil
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         if let currentSpending = spendingTransactionsByBudget[budgetID] {
             let limit = max(currentSpending.nextOffset, transactionPageSize)

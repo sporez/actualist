@@ -60,6 +60,13 @@ struct SimulatorLaunchCommandTests {
         )
         #expect(reportsSettings?.route == .settings)
         #expect(SettingsPage.stack(fromScreenPath: reportsSettings?.screenPath ?? []) == [.reports])
+
+        let templates = SimulatorLaunchCommand.parse(
+            arguments: ["/Actualist", "-actualist-screen", "settings/templates"]
+        )
+        #expect(templates?.route == .settings)
+        #expect(SettingsPage.stack(fromScreenPath: templates?.screenPath ?? []) == [.templates])
+        #expect(SettingsPage.stack(fromScreenPath: ["templates"]) == [.templates])
     }
 
     @Test func bankSyncLaunchPathIsKeptWithoutExperimentalFeature() {

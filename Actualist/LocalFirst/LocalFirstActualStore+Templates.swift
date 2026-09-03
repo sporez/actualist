@@ -56,6 +56,25 @@ extension LocalFirstActualStore {
         return try await database.categoryTemplateEditorSnapshot(categoryID: categoryID)
     }
 
+    func categoryTemplateBrowserSnapshot(
+        budgetID: String
+    ) async throws -> BudgetTemplateBrowserSnapshot {
+        let month = loadedBudgetMonthsByBudget[budgetID]?.selectedMonth
+        if var cached = templateBrowserByBudget[budgetID] {
+            if let month {
+                cached.month = month
+            }
+            return cached
+        }
+        let database = try requireDatabase(for: budgetID)
+        var snapshot = try await database.categoryTemplateBrowserSnapshot()
+        if let month {
+            snapshot.month = month
+        }
+        templateBrowserByBudget[budgetID] = snapshot
+        return snapshot
+    }
+
     func previewBudgetTemplate(
         command: BudgetTemplateCommand,
         budgetID: String,

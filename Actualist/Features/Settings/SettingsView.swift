@@ -5,6 +5,7 @@ import SwiftUI
 enum SettingsPage: String, CaseIterable, Hashable, Sendable {
     case connection
     case budgetData = "budget-data"
+    case templates
     case bankSync = "bank-sync"
     case appearance
     case privacy
@@ -53,6 +54,17 @@ struct SettingsView: View {
                             systemImage: "banknote",
                             title: "Budget & Data",
                             subtitle: budgetSubtitle
+                        )
+                    }
+                }
+                .settingsSectionChrome()
+
+                Section {
+                    NavigationLink(value: SettingsPage.templates) {
+                        SettingsCategoryRow(
+                            systemImage: "sparkles",
+                            title: "Templates",
+                            subtitle: templatesSubtitle
                         )
                     }
                 }
@@ -122,6 +134,8 @@ struct SettingsView: View {
                     ConnectionSyncSettingsView()
                 case .budgetData:
                     BudgetDataSettingsView()
+                case .templates:
+                    BudgetTemplatesBrowserView()
                 case .bankSync:
                     BankSyncView()
                 case .appearance:
@@ -231,6 +245,10 @@ struct SettingsView: View {
         case .connecting: return ActualistTheme.warning
         case .offline: return ActualistTheme.danger
         }
+    }
+
+    private var templatesSubtitle: String {
+        appState.settings.selectedBudgetID == nil ? "None" : "Category templates"
     }
 
     private var budgetSubtitle: String {

@@ -65,6 +65,9 @@ protocol BudgetRepositoryProtocol: Sendable {
         categoryID: String,
         budgetID: String
     ) async throws -> BudgetTemplateEditorSnapshot
+    func categoryTemplateBrowserSnapshot(
+        budgetID: String
+    ) async throws -> BudgetTemplateBrowserSnapshot
     func previewBudgetTemplate(
         command: BudgetTemplateCommand,
         budgetID: String,
@@ -112,6 +115,12 @@ extension BudgetRepositoryProtocol {
         categoryID: String,
         budgetID: String
     ) async throws -> BudgetTemplateEditorSnapshot {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func categoryTemplateBrowserSnapshot(
+        budgetID: String
+    ) async throws -> BudgetTemplateBrowserSnapshot {
         throw LocalFirstError.unsupportedWrite
     }
 
