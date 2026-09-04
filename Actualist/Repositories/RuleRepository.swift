@@ -331,8 +331,8 @@ extension RuleCondition {
         }
         if operation == "isbetween" {
             guard case .object(let range) = value,
-                  range["num1"] != nil,
-                  range["num2"] != nil else { return false }
+                  range["num1"]?.isNumberLike == true,
+                  range["num2"]?.isNumberLike == true else { return false }
         }
         return true
     }

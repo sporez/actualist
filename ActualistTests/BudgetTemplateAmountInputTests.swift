@@ -9,7 +9,7 @@ struct BudgetTemplateAmountInputTests {
         let fullPrecision = BudgetCurrency.catalog(code: currency.code)
         let minor = currency.decimalPlaces == 0 ? -1_400 : -140_025
         let amount = fullPrecision.displayAmount(fromMinorUnits: minor)
-        let formatted = amount.formatted(BudgetTemplateMoneyFormat(currency: currency, locale: .current))
+        let formatted = amount.formatted(BudgetMoneyInputFormat(currency: currency, locale: .current))
         #expect(formatted == fullPrecision.formatted(minor))
         #expect(BudgetTemplateAmountInput.formatAmount(-1400.25, currency: currency)
             == (currency.decimalPlaces == 0 ? "-1400" : "-1400.25"))

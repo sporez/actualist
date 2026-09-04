@@ -7,6 +7,7 @@ import SwiftUI
 struct RuleConditionEditor: View {
     @Binding var condition: RuleCondition
     let options: RuleEditorOptions?
+    let focus: FocusState<RuleEditorFocus?>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -17,7 +18,14 @@ struct RuleConditionEditor: View {
                 ForEach(operations, id: \.self) { Text(RulePresentation.operationName($0)).tag($0) }
             }
             if condition.operation != "onBudget" && condition.operation != "offBudget" {
-                RuleValueEditor(value: $condition.value, field: condition.editorField, operation: condition.operation, options: options)
+                RuleValueEditor(
+                    value: $condition.value,
+                    field: condition.editorField,
+                    operation: condition.operation,
+                    options: options,
+                    inputID: condition.id,
+                    focus: focus
+                )
             }
         }
         .onChange(of: condition.operation) {
@@ -47,6 +55,7 @@ struct RuleConditionEditor: View {
 struct RuleActionEditor: View {
     @Binding var action: RuleAction
     let options: RuleEditorOptions?
+    let focus: FocusState<RuleEditorFocus?>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -68,7 +77,9 @@ struct RuleActionEditor: View {
                     value: $action.value,
                     field: action.editorField ?? action.operation,
                     operation: action.operation,
-                    options: options
+                    options: options,
+                    inputID: action.id,
+                    focus: focus
                 )
             }
         }

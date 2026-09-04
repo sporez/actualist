@@ -15,8 +15,9 @@ import Foundation
 /// - field-change re-derivation for `RuleCondition`
 ///   (``condition(afterFieldChange:from:)``);
 /// - operation-change and field-change re-derivation for `RuleAction`;
-/// - amount text <-> Actual minor-units parse/format;
+/// - native amount values <-> Actual minor-units conversion;
 /// - range `num1`/`num2` get/set for `isbetween` values;
+/// - exact Actual day ids <-> native calendar selections;
 /// - multi-value array add/remove and payee selection.
 ///
 /// Behavior intentionally mirrors the inline logic previously embedded in the
@@ -32,7 +33,7 @@ enum RuleEditorDraftState {
         switch kind {
         case .boolean: .bool(false)
         case .number: .number(0)
-        case .date: .string(sharedDateFormatter.string(from: Date()))
+        case .date: dateValue(from: Date())
         case .string: .string("")
         case .id, nil: .null
         }
@@ -155,7 +156,7 @@ enum RuleEditorDraftState {
         return updated
     }
 
-    // MARK: Amount text <-> minor units
+    // MARK: Native amount values <-> minor units
 
     /// The Actual minor-units `Double` carried by an amount value, whether stored
     /// as `.number` or a numeric `.string`. Returns `nil` for non-numeric shapes.
@@ -167,25 +168,27 @@ enum RuleEditorDraftState {
         }
     }
 
-    /// Editable display text for an amount value, in budget display units with
-    /// no currency symbol (suitable for a `TextField`).
-    static func amountDisplayText(
+    /// Editable numeric value for an amount in budget display units.
+    static func amountDisplayValue(
         _ raw: RuleJSONValue,
         currency: BudgetCurrency = .usd
-    ) -> String {
-        guard let number = minorUnits(in: raw) else { return "" }
-        return editableAmount(currency.displayUnits(fromMinorUnits: Int(number.rounded())))
+    ) -> Decimal? {
+        guard let number = minorUnits(in: raw),
+              let minorUnits = Int(exactly: number.rounded()) else {
+            return nil
+        }
+        return currency.displayAmount(fromMinorUnits: minorUnits)
     }
 
-    /// Parses typed display units into the Actual minor-units value to store.
-    /// Invalid or empty input becomes `.number(0)`, matching the original editor.
+    /// Converts a native editable amount into Actual minor units. Empty or
+    /// unrepresentable input remains invalid instead of becoming a saved zero.
     static func amountValue(
-        from text: String,
+        from amount: Decimal?,
         currency: BudgetCurrency = .usd
     ) -> RuleJSONValue {
-        guard let decimal = Decimal(string: text),
-              let minorUnits = currency.minorUnits(fromDisplay: decimal) else {
-            return .number(0)
+        guard let amount,
+              let minorUnits = currency.minorUnits(fromDisplay: amount) else {
+            return .null
         }
         return .number(Double(minorUnits))
     }
@@ -203,20 +206,20 @@ enum RuleEditorDraftState {
 
     // MARK: Range (isbetween) get/set
 
-    /// Display text for one bound of an `isbetween` range object.
-    static func rangeDisplayText(
+    /// Native editable value for one bound of an `isbetween` range object.
+    static func rangeDisplayValue(
         _ raw: RuleJSONValue,
         key: String,
         currency: BudgetCurrency = .usd
-    ) -> String {
-        guard case .object(let range) = raw, let cell = range[key] else { return "" }
-        return amountDisplayText(cell, currency: currency)
+    ) -> Decimal? {
+        guard case .object(let range) = raw, let cell = range[key] else { return nil }
+        return amountDisplayValue(cell, currency: currency)
     }
 
     /// Sets one bound of an `isbetween` range object, creating the object when
     /// the current value is not already a range.
     static func rangeValue(
-        from text: String,
+        from amount: Decimal?,
         current: RuleJSONValue,
         key: String,
         currency: BudgetCurrency = .usd
@@ -227,8 +230,48 @@ enum RuleEditorDraftState {
         } else {
             range = [:]
         }
-        range[key] = amountValue(from: text, currency: currency)
+        range[key] = amountValue(from: amount, currency: currency)
         return .object(range)
+    }
+
+    // MARK: Exact date selection
+
+    /// Returns a native calendar selection only for a complete Actual day id.
+    /// Year- and month-only `is` conditions stay in their lossless text form.
+    static func dateSelection(_ raw: RuleJSONValue) -> Date? {
+        guard case .string(let dayID) = raw else { return nil }
+        let parts = dayID.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]),
+              (1...9_999).contains(year),
+              let date = dateCalendar.date(
+                  from: DateComponents(year: year, month: month, day: day, hour: 12)
+              ),
+              dateValue(from: date) == raw else {
+            return nil
+        }
+        return date
+    }
+
+    /// Stores the calendar day shown by a native date picker as Actual's
+    /// `yyyy-MM-dd` string without converting the selection through UTC.
+    static func dateValue(from date: Date) -> RuleJSONValue {
+        .string(dayID(from: date))
+    }
+
+    static func dayID(from date: Date) -> String {
+        let components = dateCalendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0
+        )
     }
 
     // MARK: Multi-value (oneOf / notOneOf)
@@ -301,24 +344,9 @@ enum RuleEditorDraftState {
         return .string(id)
     }
 
-    // MARK: Shared formatter
-
-    /// Gregorian `yyyy-MM-dd` formatter used to produce default date values.
-    ///
-    /// This consolidates the two byte-identical private formatters previously
-    /// duplicated across `RuleConditionEditor` and `RuleActionEditor`.
-    /// `RuleRepository.ruleDateFormatter` is kept separate because it performs
-    /// strict (`isLenient == false`) *parsing* for validation, whereas this
-    /// formatter performs only `Date -> String` *formatting* (unaffected by
-    /// leniency); the two concerns are not genuinely identical.
-    static let sharedDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+    private static var dateCalendar: Calendar {
+        Calendar(identifier: .gregorian)
+    }
 
     /// Renders a `Double` as an editable numeric string: an integer when the value
     /// is integral and in `Int` range, otherwise its full `Double` representation.

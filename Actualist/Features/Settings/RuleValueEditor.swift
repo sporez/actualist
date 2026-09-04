@@ -4,28 +4,25 @@ import SwiftUI
 /// value controls for a single rule condition/action value.
 ///
 /// This view renders layout only. All payload interpretation and normalization
-/// (amount text <-> Actual minor units, range get/set, multi-value add/remove,
+/// (native amount values <-> Actual minor units, range get/set, date selection,
+/// multi-value add/remove,
 /// payee selection) is delegated to ``RuleEditorDraftState`` so the view never
 /// computes a payload value in a binding setter.
 struct RuleValueEditor: View {
     @Environment(\.budgetCurrency) private var currency
+    @Environment(\.locale) private var locale
     @Binding var value: RuleJSONValue
     let field: String
     let operation: String
     let options: RuleEditorOptions?
+    let inputID: UUID
+    let focus: FocusState<RuleEditorFocus?>.Binding
     @State private var isPayeePickerPresented = false
 
     var body: some View {
         Group {
             if operation == "isbetween" {
-                HStack {
-                    TextField("Minimum", text: rangeBinding(key: "num1"))
-                        .keyboardType(.decimalPad)
-                    Text("and")
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                    TextField("Maximum", text: rangeBinding(key: "num2"))
-                        .keyboardType(.decimalPad)
-                }
+                rangeEditor
             } else if ["cleared", "reconciled", "transfer", "parent"].contains(field) {
                 RuleMenuPickerRow("Value", selection: boolBinding) {
                     Text("Yes").tag(true)
@@ -35,9 +32,18 @@ struct RuleValueEditor: View {
                 multiValueEditor
             } else if RuleCondition.valueKind(for: field) == .id {
                 identifierEditor
+            } else if RuleCondition.valueKind(for: field) == .date {
+                dateEditor
+            } else if RuleCondition.valueKind(for: field) == .number {
+                amountEditor
             } else {
-                TextField(placeholder, text: stringBinding)
-                    .textInputAutocapitalization(field == "notes" ? .sentences : .never)
+                labeledInput("Value") {
+                    TextField(placeholder, text: stringBinding)
+                        .textInputAutocapitalization(field == "notes" ? .sentences : .never)
+                        .focused(focus, equals: .value(inputID))
+                        .submitLabel(.done)
+                        .onSubmit { focus.wrappedValue = nil }
+                }
             }
         }
         .sheet(isPresented: $isPayeePickerPresented) {
@@ -65,6 +71,38 @@ struct RuleValueEditor: View {
         operation == "oneOf" || operation == "notOneOf"
     }
 
+    private var rangeEditor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            amountInput("Minimum", binding: rangeBinding(key: "num1"), focusValue: .range(inputID, "num1"))
+            amountInput("Maximum", binding: rangeBinding(key: "num2"), focusValue: .range(inputID, "num2"))
+        }
+    }
+
+    @ViewBuilder
+    private var dateEditor: some View {
+        if RuleEditorDraftState.dateSelection(value) != nil {
+            DatePicker("Value", selection: dateBinding, displayedComponents: .date)
+                .accessibilityIdentifier("rule-date-picker")
+        } else {
+            labeledInput("Value") {
+                TextField("YYYY or YYYY-MM or YYYY-MM-DD", text: stringBinding)
+                    .keyboardType(.numbersAndPunctuation)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused(focus, equals: .value(inputID))
+                    .submitLabel(.done)
+                    .onSubmit { focus.wrappedValue = nil }
+            }
+            Text("Enter a complete date to use the calendar. Year- and month-only matches keep their existing precision.")
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+    }
+
+    private var amountEditor: some View {
+        amountInput("Value", binding: amountBinding, focusValue: .value(inputID))
+    }
+
     @ViewBuilder
     private var multiValueEditor: some View {
         if RuleCondition.valueKind(for: field) == .id {
@@ -87,6 +125,7 @@ struct RuleValueEditor: View {
                         .controlSize(.small)
                 } else if field == "payee" {
                     Button("Choose Payees", systemImage: "person.crop.circle.badge.plus") {
+                        focus.wrappedValue = nil
                         isPayeePickerPresented = true
                     }
                     .buttonStyle(.plain)
@@ -109,6 +148,9 @@ struct RuleValueEditor: View {
                     HStack {
                         TextField("Value \(index + 1)", text: stringValueBinding(at: index))
                             .textInputAutocapitalization(.never)
+                            .focused(focus, equals: .listValue(inputID, index))
+                            .submitLabel(.done)
+                            .onSubmit { focus.wrappedValue = nil }
                         Button("Remove Value \(index + 1)", systemImage: "minus.circle") {
                             value = RuleEditorDraftState.removeStringValue(at: index, from: value)
                         }
@@ -163,6 +205,7 @@ struct RuleValueEditor: View {
                 .controlSize(.small)
         } else if field == "payee" {
             Button {
+                focus.wrappedValue = nil
                 isPayeePickerPresented = true
             } label: {
                 HStack {
@@ -204,25 +247,42 @@ struct RuleValueEditor: View {
 
     private var stringBinding: Binding<String> {
         Binding(
-            get: {
-                field == "amount"
-                    ? RuleEditorDraftState.amountDisplayText(value, currency: currency)
-                    : RuleEditorDraftState.editableString(value)
-            },
+            get: { RuleEditorDraftState.editableString(value) },
             set: { text in
-                if field == "amount" {
-                    value = RuleEditorDraftState.amountValue(from: text, currency: currency)
-                } else {
-                    value = text.isEmpty ? .null : .string(text)
-                }
+                value = text.isEmpty ? .null : .string(text)
             }
         )
     }
 
-    private func rangeBinding(key: String) -> Binding<String> {
+    private var amountBinding: Binding<Decimal?> {
         Binding(
-            get: { RuleEditorDraftState.rangeDisplayText(value, key: key, currency: currency) },
-            set: { text in value = RuleEditorDraftState.rangeValue(from: text, current: value, key: key, currency: currency) }
+            get: { RuleEditorDraftState.amountDisplayValue(value, currency: currency) },
+            set: { amount in value = RuleEditorDraftState.amountValue(from: amount, currency: currency) }
+        )
+    }
+
+    private func rangeBinding(key: String) -> Binding<Decimal?> {
+        Binding(
+            get: { RuleEditorDraftState.rangeDisplayValue(value, key: key, currency: currency) },
+            set: { amount in
+                value = RuleEditorDraftState.rangeValue(
+                    from: amount,
+                    current: value,
+                    key: key,
+                    currency: currency
+                )
+            }
+        )
+    }
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: {
+                RuleEditorDraftState.dateSelection(value)
+                    ?? RuleEditorDraftState.dateSelection(RuleEditorDraftState.defaultValue(for: .date))
+                    ?? Date()
+            },
+            set: { value = RuleEditorDraftState.dateValue(from: $0) }
         )
     }
 
@@ -241,6 +301,37 @@ struct RuleValueEditor: View {
         case "category_group": return options.categoryGroups.map { ($0.id, $0.name) }
         case "payee": return options.payees.map { ($0.id, $0.name) }
         default: return nil
+        }
+    }
+
+    private func amountInput(
+        _ title: String,
+        binding: Binding<Decimal?>,
+        focusValue: RuleEditorFocus
+    ) -> some View {
+        labeledInput(title) {
+            TextField(
+                title,
+                value: binding,
+                format: BudgetMoneyInputFormat(currency: currency, locale: locale)
+            )
+            .keyboardType(.decimalPad)
+            .multilineTextAlignment(.leading)
+            .focused(focus, equals: focusValue)
+            .submitLabel(.done)
+            .onSubmit { focus.wrappedValue = nil }
+        }
+    }
+
+    private func labeledInput<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            content()
         }
     }
 }

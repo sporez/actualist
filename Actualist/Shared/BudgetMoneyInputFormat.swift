@@ -1,8 +1,8 @@
 import Foundation
 
-/// Native currency formatting with full-string parsing, so pasted suffixes
-/// cannot silently become a different saved amount.
-struct BudgetTemplateMoneyFormat: ParseableFormatStyle, ParseStrategy {
+/// Native currency formatting with full-string parsing for editable money
+/// fields, so pasted suffixes cannot silently become a different saved amount.
+struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
     let currencyCode: String
     var locale: Locale
 

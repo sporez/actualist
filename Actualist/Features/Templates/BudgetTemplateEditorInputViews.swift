@@ -53,7 +53,7 @@ struct BudgetTemplateEditorInput: View {
     @ViewBuilder private var input: some View {
         if viewModel.isMoneyInput(field, id: itemID) && !viewModel.isPrivacyModeEnabled {
             TextField(title, value: amountBinding,
-                      format: BudgetTemplateMoneyFormat(currency: viewModel.editor.currency, locale: locale))
+                      format: BudgetMoneyInputFormat(currency: viewModel.editor.currency, locale: locale))
         } else {
             TextField(title, text: Binding(
                 get: { viewModel.inputText(for: field, id: itemID) },

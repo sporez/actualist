@@ -11,6 +11,7 @@ struct RuleEditorView: View {
     let isSubmitting: Bool
     let errorMessage: String?
     let onSave: (RuleDraft) async -> Bool
+    @FocusState private var focusedField: RuleEditorFocus?
     @State private var viewModel: RuleEditorViewModel
 
     init(
@@ -64,7 +65,11 @@ struct RuleEditorView: View {
 
                     Section("Conditions") {
                         ForEach($viewModel.draft.conditions) { $condition in
-                            RuleConditionEditor(condition: $condition, options: viewModel.options)
+                            RuleConditionEditor(
+                                condition: $condition,
+                                options: viewModel.options,
+                                focus: $focusedField
+                            )
                         }
                         .onDelete { viewModel.draft.conditions.remove(atOffsets: $0) }
                         Button("Add Condition", systemImage: "plus") {
@@ -77,7 +82,11 @@ struct RuleEditorView: View {
 
                     Section("Actions") {
                         ForEach($viewModel.draft.actions) { $action in
-                            RuleActionEditor(action: $action, options: viewModel.options)
+                            RuleActionEditor(
+                                action: $action,
+                                options: viewModel.options,
+                                focus: $focusedField
+                            )
                         }
                         .onDelete { viewModel.draft.actions.remove(atOffsets: $0) }
                         Button("Add Action", systemImage: "plus") {
@@ -96,17 +105,33 @@ struct RuleEditorView: View {
                         .settingsRowChrome()
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .tint(ActualistTheme.accent)
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
             .navigationTitle(target.rule == nil ? "New Rule" : target.rule?.isEditable == false ? "View Rule" : "Edit Rule")
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaBar(edge: .bottom, alignment: .trailing) {
+                if focusedField != nil {
+                    Button("Done") { focusedField = nil }
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
+                        .tint(ActualistTheme.chromeForeground)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 12)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(target.rule?.isEditable == false ? "Done" : "Cancel") {
+                        dismiss()
+                    }
+                    .disabled(isSubmitting)
                 }
                 if target.rule?.isEditable != false {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
+                            focusedField = nil
                             Task { if await onSave(viewModel.draft) { dismiss() } }
                         }
                         .disabled(!viewModel.draft.canRoundTripAndEvaluate || isSubmitting)
@@ -123,6 +148,7 @@ struct RuleEditorView: View {
                 viewModel.cancelMatchRefresh()
             }
         }
+        .interactiveDismissDisabled(isSubmitting)
     }
 
     @ViewBuilder
@@ -161,6 +187,12 @@ struct RuleEditorView: View {
         }
         .settingsSectionChrome()
     }
+}
+
+enum RuleEditorFocus: Hashable {
+    case value(UUID)
+    case range(UUID, String)
+    case listValue(UUID, Int)
 }
 
 /// A labeled menu-style picker row that pushes the inline picker to the trailing

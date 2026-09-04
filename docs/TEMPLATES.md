@@ -26,7 +26,7 @@ whole definition from rewriting.
   Conversion into the existing draft interpreter stays in the view model.
   Total uses the decimal pad; signed fixed adjustments retain the punctuation
   keyboard. Other freeform inputs are leading fields, not trailing labels.
-  `BudgetTemplateMoneyFormat` delegates presentation and full-string matching
+  `BudgetMoneyInputFormat` delegates presentation and full-string matching
   to Foundation's localized currency/number FormatStyles. It rejects partial
   numeric matches and stays unpadded during editing so inserted zeros or focus
   changes cannot replace the entered value.

@@ -6,7 +6,8 @@ import Testing
 /// logic previously embedded (untested) in SwiftUI binding setters: default
 /// values per value kind, condition operation-change value normalization,
 /// condition/action field-change re-derivation, action operation-change
-/// re-derivation, amount text <-> Actual minor-units, range get/set, and
+/// re-derivation, native amount values <-> Actual minor-units, calendar dates,
+/// range get/set, and
 /// multi-value array mutation including payee toggle behavior.
 struct RuleEditorDraftStateTests {
 
@@ -38,13 +39,13 @@ struct RuleEditorDraftStateTests {
             Issue.record("expected string date, got \(value)")
             return
         }
-        // Round-trips through the shared formatter and matches yyyy-MM-dd.
-        let formatted = RuleEditorDraftState.sharedDateFormatter.string(from: Date())
         #expect(dateText.count == 10)
         #expect(dateText.filter { $0 == "-" }.count == 2)
-        #expect(RuleEditorDraftState.sharedDateFormatter.date(from: dateText) != nil)
-        // Same calendar day as "now" in gregorian UTC.
-        #expect(dateText == formatted)
+        guard let selection = RuleEditorDraftState.dateSelection(value) else {
+            Issue.record("expected a valid exact-date selection")
+            return
+        }
+        #expect(RuleEditorDraftState.dateValue(from: selection) == value)
     }
 
     // MARK: - valueForChangedOperation
@@ -275,7 +276,7 @@ struct RuleEditorDraftStateTests {
             Issue.record("expected date string")
             return
         }
-        #expect(RuleEditorDraftState.sharedDateFormatter.date(from: dateText) != nil)
+        #expect(RuleEditorDraftState.dateSelection(.string(dateText)) != nil)
     }
 
     @Test func actionFieldChange_toClearedResetsToBoolFalse() {
@@ -295,7 +296,7 @@ struct RuleEditorDraftStateTests {
         #expect(updated == nil)
     }
 
-    // MARK: - amount text <-> minor units
+    // MARK: - native amount values <-> minor units
 
     @Test func minorUnits_extractsFromNumber() {
         #expect(RuleEditorDraftState.minorUnits(in: .number(1250)) == 1250)
@@ -311,35 +312,34 @@ struct RuleEditorDraftStateTests {
         #expect(RuleEditorDraftState.minorUnits(in: .bool(true)) == nil)
     }
 
-    @Test func amountDisplayText_integralMinorUnitsRendersAsIntegerDollars() {
-        #expect(RuleEditorDraftState.amountDisplayText(.number(1200)) == "12")
-        #expect(RuleEditorDraftState.amountDisplayText(.number(0)) == "0")
+    @Test func amountDisplayValue_integralMinorUnitsUsesBudgetScale() {
+        #expect(RuleEditorDraftState.amountDisplayValue(.number(1200)) == Decimal(12))
+        #expect(RuleEditorDraftState.amountDisplayValue(.number(0)) == Decimal(0))
     }
 
-    @Test func amountDisplayText_fractionalMinorUnitsRendersAsDecimalDollars() {
-        #expect(RuleEditorDraftState.amountDisplayText(.number(1250)) == "12.5")
-        #expect(RuleEditorDraftState.amountDisplayText(.number(1255)) == "12.55")
+    @Test func amountDisplayValue_fractionalMinorUnitsUsesExactDecimal() {
+        #expect(RuleEditorDraftState.amountDisplayValue(.number(1250)) == Decimal(string: "12.5"))
+        #expect(RuleEditorDraftState.amountDisplayValue(.number(1255)) == Decimal(string: "12.55"))
     }
 
-    @Test func amountDisplayText_acceptsNumericString() {
-        #expect(RuleEditorDraftState.amountDisplayText(.string("1250")) == "12.5")
+    @Test func amountDisplayValue_acceptsNumericString() {
+        #expect(RuleEditorDraftState.amountDisplayValue(.string("1250")) == Decimal(string: "12.5"))
     }
 
-    @Test func amountDisplayText_nonNumericRendersEmpty() {
-        #expect(RuleEditorDraftState.amountDisplayText(.null) == "")
-        #expect(RuleEditorDraftState.amountDisplayText(.string("abc")) == "")
-        #expect(RuleEditorDraftState.amountDisplayText(.bool(true)) == "")
+    @Test func amountDisplayValue_nonNumericIsNil() {
+        #expect(RuleEditorDraftState.amountDisplayValue(.null) == nil)
+        #expect(RuleEditorDraftState.amountDisplayValue(.string("abc")) == nil)
+        #expect(RuleEditorDraftState.amountDisplayValue(.bool(true)) == nil)
     }
 
-    @Test func amountValue_parsesDecimalDollarsToMinorUnits() {
-        #expect(RuleEditorDraftState.amountValue(from: "12.50") == .number(1250))
-        #expect(RuleEditorDraftState.amountValue(from: "12.5") == .number(1250))
-        #expect(RuleEditorDraftState.amountValue(from: "0") == .number(0))
+    @Test func amountValue_convertsDecimalDollarsToMinorUnits() {
+        #expect(RuleEditorDraftState.amountValue(from: Decimal(string: "12.50")) == .number(1250))
+        #expect(RuleEditorDraftState.amountValue(from: Decimal(string: "12.5")) == .number(1250))
+        #expect(RuleEditorDraftState.amountValue(from: Decimal(0)) == .number(0))
     }
 
-    @Test func amountValue_invalidInputBecomesZero() {
-        #expect(RuleEditorDraftState.amountValue(from: "abc") == .number(0))
-        #expect(RuleEditorDraftState.amountValue(from: "") == .number(0))
+    @Test func amountValue_emptyInputStaysInvalid() {
+        #expect(RuleEditorDraftState.amountValue(from: nil) == .null)
     }
 
     @Test func editableString_passesThroughString() {
@@ -360,31 +360,58 @@ struct RuleEditorDraftStateTests {
 
     // MARK: - range (isbetween) get/set
 
-    @Test func rangeDisplayText_readsBoundFromObject() {
+    @Test func rangeDisplayValue_readsBoundFromObject() {
         let range: RuleJSONValue = .object(["num1": .number(1250), "num2": .number(2500)])
-        #expect(RuleEditorDraftState.rangeDisplayText(range, key: "num1") == "12.5")
-        #expect(RuleEditorDraftState.rangeDisplayText(range, key: "num2") == "25")
+        #expect(RuleEditorDraftState.rangeDisplayValue(range, key: "num1") == Decimal(string: "12.5"))
+        #expect(RuleEditorDraftState.rangeDisplayValue(range, key: "num2") == Decimal(25))
     }
 
-    @Test func rangeDisplayText_emptyForNonObjectOrMissingKey() {
-        #expect(RuleEditorDraftState.rangeDisplayText(.null, key: "num1") == "")
-        #expect(RuleEditorDraftState.rangeDisplayText(.object(["num2": .number(0)]), key: "num1") == "")
+    @Test func rangeDisplayValue_isNilForNonObjectOrMissingKey() {
+        #expect(RuleEditorDraftState.rangeDisplayValue(.null, key: "num1") == nil)
+        #expect(RuleEditorDraftState.rangeDisplayValue(.object(["num2": .number(0)]), key: "num1") == nil)
     }
 
     @Test func rangeValue_setsBoundOnExistingRange() {
         let current: RuleJSONValue = .object(["num1": .number(0), "num2": .number(0)])
-        let result = RuleEditorDraftState.rangeValue(from: "10", current: current, key: "num1")
+        let result = RuleEditorDraftState.rangeValue(from: Decimal(10), current: current, key: "num1")
         #expect(result == .object(["num1": .number(1000), "num2": .number(0)]))
     }
 
     @Test func rangeValue_createsRangeWhenCurrentIsNotAnObject() {
-        let result = RuleEditorDraftState.rangeValue(from: "25", current: .null, key: "num2")
+        let result = RuleEditorDraftState.rangeValue(from: Decimal(25), current: .null, key: "num2")
         #expect(result == .object(["num2": .number(2500)]))
     }
 
-    @Test func rangeValue_invalidInputBecomesZero() {
-        let result = RuleEditorDraftState.rangeValue(from: "abc", current: .null, key: "num1")
-        #expect(result == .object(["num1": .number(0)]))
+    @Test func rangeValue_emptyInputStaysInvalid() {
+        let result = RuleEditorDraftState.rangeValue(from: nil, current: .null, key: "num1")
+        #expect(result == .object(["num1": .null]))
+    }
+
+    @Test func rangeValue_emptyBoundDisablesRuleSave() {
+        let condition = RuleCondition(
+            field: "amount",
+            operation: "isbetween",
+            value: .object(["num1": .null, "num2": .number(2_500)]),
+            type: "number"
+        )
+        #expect(!condition.canRoundTripAndEvaluate)
+    }
+
+    // MARK: - exact date selection
+
+    @Test func dateSelection_roundTripsCalendarDaysWithoutUTCConversion() throws {
+        for dayID in ["2026-03-08", "2026-11-01", "2028-02-29"] {
+            let selection = try #require(RuleEditorDraftState.dateSelection(.string(dayID)))
+            #expect(RuleEditorDraftState.dateValue(from: selection) == .string(dayID))
+            #expect(RuleEditorDraftState.dayID(from: selection) == dayID)
+        }
+    }
+
+    @Test func dateSelection_preservesPartialAndInvalidValuesForTextRepair() {
+        #expect(RuleEditorDraftState.dateSelection(.string("2026")) == nil)
+        #expect(RuleEditorDraftState.dateSelection(.string("2026-09")) == nil)
+        #expect(RuleEditorDraftState.dateSelection(.string("2026-02-30")) == nil)
+        #expect(RuleEditorDraftState.dateSelection(.null) == nil)
     }
 
     // MARK: - multi-value arrays

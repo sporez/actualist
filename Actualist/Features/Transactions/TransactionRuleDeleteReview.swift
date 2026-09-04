@@ -50,7 +50,7 @@ final class TransactionRuleDeleteReview {
         let snapshot = ActualTransaction(
             id: transactionID,
             account: accountID,
-            date: RuleEditorDraftState.sharedDateFormatter.string(from: date),
+            date: RuleEditorDraftState.dayID(from: date),
             amount: nil,
             payee: nil,
             payeeName: nil,

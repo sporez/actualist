@@ -40,11 +40,11 @@ struct BudgetCurrencyPreferenceTests {
     }
 
     @Test func ruleAmountRoundTripsYenAndDollars() {
-        let yen = RuleEditorDraftState.amountValue(from: "1234", currency: .jpy)
-        #expect(RuleEditorDraftState.amountDisplayText(yen, currency: .jpy) == "1234")
+        let yen = RuleEditorDraftState.amountValue(from: Decimal(1_234), currency: .jpy)
+        #expect(RuleEditorDraftState.amountDisplayValue(yen, currency: .jpy) == Decimal(1_234))
         #expect(RuleEditorDraftState.minorUnits(in: yen) == 1_234)
 
-        let dollars = RuleEditorDraftState.amountValue(from: "12.34", currency: .usd)
+        let dollars = RuleEditorDraftState.amountValue(from: Decimal(string: "12.34"), currency: .usd)
         #expect(RuleEditorDraftState.minorUnits(in: dollars) == 1_234)
     }
 
