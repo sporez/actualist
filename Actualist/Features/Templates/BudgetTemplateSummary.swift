@@ -11,7 +11,7 @@ enum BudgetTemplateSummary {
         seed: String
     ) -> String {
         drafts.enumerated().compactMap { index, draft in
-            fragment(
+            label(
                 draft,
                 currency: currency,
                 randomized: randomized,
@@ -21,7 +21,7 @@ enum BudgetTemplateSummary {
         .joined(separator: " · ")
     }
 
-    private static func fragment(
+    static func label(
         _ draft: BudgetTemplateDraft,
         currency: BudgetCurrency,
         randomized: Bool,
@@ -72,10 +72,17 @@ enum BudgetTemplateSummary {
             }
             return "Copy \(value.lookBack) months ago"
         case .average(let value):
-            return "\(value.numMonths)-month average"
+            return "\(value.numMonths)-month average\(adjustmentSummary(value.adjustment, currency: currency, randomized: randomized, seed: seed))"
         case .schedule(let value):
             let name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? "Schedule" : name
+            let mode = value.full ? "Cover" : "Save up for"
+            let base = name.isEmpty ? "\(mode) schedule" : "\(mode) \(name)"
+            return base + adjustmentSummary(
+                value.adjustment,
+                currency: currency,
+                randomized: randomized,
+                seed: seed
+            )
         case .remainder:
             return "Remainder"
         case .goal(let value):
@@ -87,6 +94,35 @@ enum BudgetTemplateSummary {
             )
             return "Goal \(amount)"
         }
+    }
+
+    private static func adjustmentSummary(
+        _ adjustment: BudgetTemplateAdjustment?,
+        currency: BudgetCurrency,
+        randomized: Bool,
+        seed: String
+    ) -> String {
+        guard let adjustment else { return "" }
+        let direction = adjustment.value < 0 ? "decreased by" : "increased by"
+        switch adjustment {
+        case .fixed(let value):
+            let amount = formattedAmount(
+                abs(value),
+                currency: currency,
+                randomized: randomized,
+                seed: "\(seed)-adjustment"
+            )
+            return " (\(direction) \(amount))"
+        case .percent(let value):
+            return " (\(direction) \(formattedNumber(abs(value)))%)"
+        }
+    }
+
+    private static func formattedNumber(_ value: Double) -> String {
+        if value.rounded() == value, let integer = Int(exactly: value) {
+            return String(integer)
+        }
+        return String(value)
     }
 
     private static func formattedAmount(

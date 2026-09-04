@@ -49,6 +49,34 @@ struct BudgetTemplateEditorCodecTests {
         #expect(BudgetTemplateDefinition.drafts(fromJSON: limitJSON, now: now) == nil)
     }
 
+    @Test func phase5ModifiersStayEditableUntilTheirValuesAreRepaired() throws {
+        let json = """
+            [{"directive":"template","type":"schedule","name":"Rent","full":true,"adjustment":-100,"adjustmentType":"percent","priority":1},
+            {"directive":"template","type":"average","numMonths":3,"adjustment":1001,"adjustmentType":"percent","priority":1}
+            ]
+            """
+        #expect(BudgetTemplateDefinition.isEditorEditableJSON(json, now: now))
+        let drafts = try #require(BudgetTemplateDefinition.drafts(fromJSON: json, now: now))
+        #expect(drafts.count == 2)
+        let encoded = try BudgetTemplateDefinition.encode(drafts)
+        #expect(encoded.contains(#""full":true"#))
+        #expect(encoded.contains(#""adjustment":-100"#))
+        #expect(encoded.contains(#""adjustmentType":"percent""#))
+        #expect(try BudgetTemplateDefinition.drafts(fromJSON: encoded, now: now) == drafts)
+        #expect(
+            BudgetTemplateAuthoringValidation.issues(
+                for: drafts,
+                context: BudgetTemplateAuthoringContext(today: now)
+            ).contains(.invalidEntry(index: 0))
+        )
+        #expect(
+            BudgetTemplateAuthoringValidation.issues(
+                for: drafts,
+                context: BudgetTemplateAuthoringContext(today: now)
+            ).contains(.invalidEntry(index: 1))
+        )
+    }
+
     @Test func monthlyLimitRetainsValidWeeklyAnchorForActualCompatibility() throws {
         let json = #"[{"directive":"template","type":"simple","monthly":400,"priority":1,"limit":{"amount":500,"hold":false,"period":"monthly","start":"2026-09-07"}}]"#
         let drafts = try #require(BudgetTemplateDefinition.drafts(fromJSON: json, now: now))

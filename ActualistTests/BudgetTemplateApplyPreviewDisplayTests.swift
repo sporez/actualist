@@ -154,4 +154,33 @@ struct BudgetTemplateApplyPreviewDisplayTests {
             categories: categories
         )
     }
+
+    @Test func modifierLabelsAndNonContributingTemplatesStayAligned() {
+        let display = BudgetTemplateApplyPreviewDisplay.make(
+            preview: preview(
+                categories: [
+                    BudgetTemplateApplyPreview.Category(
+                        categoryID: "rent",
+                        name: "Rent",
+                        current: 0,
+                        proposed: 7_000,
+                        perTemplate: [2_000, 0, 5_000],
+                        drafts: [
+                            .average(numMonths: 3, adjustment: .percent(-10)),
+                            .balanceLimit(amount: 500),
+                            .schedule(name: "Rent", full: true, adjustment: .fixed(20))
+                        ]
+                    )
+                ]
+            ),
+            randomized: false,
+            month: "2026-07"
+        )
+
+        #expect(display.categories[0].contributions.map(\.id) == [0, 2])
+        #expect(display.categories[0].contributions.map(\.title) == [
+            "3-month average (decreased by 10%)",
+            "Cover Rent (increased by \(BudgetCurrency.usd.formatted(2_000)))"
+        ])
+    }
 }

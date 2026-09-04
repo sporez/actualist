@@ -246,10 +246,17 @@ struct BudgetTemplateDefinitionTests {
     @Test(arguments: [
         #"[{"directive":"template","type":"schedule","name":"Rent","full":true,"priority":1}]"#,
         #"[{"directive":"template","type":"schedule","name":"Rent","adjustment":10,"adjustmentType":"percent","priority":1}]"#,
-        #"[{"directive":"template","type":"average","numMonths":3,"adjustment":5,"adjustmentType":"percent","priority":1}]"#,
-        ##"[{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]"##
+        #"[{"directive":"template","type":"average","numMonths":3,"adjustment":5,"adjustmentType":"percent","priority":1}]"#
     ])
-    func lock_cutBAndInvalidTypes(json: String) {
+    func lock_phase5ModifiersAreEditorEditable(json: String) {
+        #expect(lock(source: "ui", json: json) == .editable)
+        #expect(BudgetTemplateDefinition.drafts(fromJSON: json, now: now) != nil)
+    }
+
+    @Test func lock_unknownTypeRemainsReadOnly() {
+        let json = """
+            [{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]
+            """
         #expect(lock(source: "ui", json: json) == .readOnly(.unsupportedType))
         #expect(BudgetTemplateDefinition.drafts(fromJSON: json, now: now) == nil)
     }
@@ -324,7 +331,7 @@ struct BudgetTemplateDefinitionTests {
                 currency: currency,
                 randomized: false,
                 seed: "d"
-            ) == "Rent · Schedule"
+            ) == "Save up for Rent · Save up for schedule"
         )
         #expect(
             BudgetTemplateSummary.line(
@@ -333,6 +340,22 @@ struct BudgetTemplateDefinitionTests {
                 randomized: false,
                 seed: "e"
             ) == ""
+        )
+    }
+
+    @Test func summary_modifierLabelsIncludeModeAndDirection() {
+        let currency = BudgetCurrency.usd
+        let line = BudgetTemplateSummary.line(
+            drafts: [
+                .average(numMonths: 6, adjustment: .percent(-10)),
+                .schedule(name: "Rent", full: true, adjustment: .fixed(20))
+            ],
+            currency: currency,
+            randomized: false,
+            seed: "modifiers"
+        )
+        #expect(
+            line == "6-month average (decreased by 10%) · Cover Rent (increased by \(currency.formatted(2_000)))"
         )
     }
 

@@ -466,6 +466,51 @@ final class BudgetTemplateEditorViewModel {
         }
     }
 
+    func setScheduleFull(_ full: Bool, id: UUID) {
+        mutate(id: id) { draft in
+            guard case .schedule(var value) = draft else { return }
+            value.full = full
+            draft = .schedule(value)
+        }
+    }
+
+    func adjustmentMode(for id: UUID) -> BudgetTemplateAdjustmentMode {
+        guard let adjustment = adjustment(for: id) else {
+            return .none
+        }
+        switch adjustment {
+        case .fixed: return .fixed
+        case .percent: return .percent
+        }
+    }
+
+    func adjustmentDirection(for id: UUID) -> BudgetTemplateAdjustmentDirection {
+        guard case .percent(let value) = adjustment(for: id) else {
+            return .increase
+        }
+        return value < 0 ? .decrease : .increase
+    }
+
+    func setAdjustmentMode(_ mode: BudgetTemplateAdjustmentMode, id: UUID) {
+        let current = adjustment(for: id)
+        let updated = Self.adjustment(for: mode, current: current)
+        mutate(id: id) { draft in
+            draft = draft.updatingModifierAdjustment(updated)
+        }
+    }
+
+    func setAdjustmentDirection(_ direction: BudgetTemplateAdjustmentDirection, id: UUID) {
+        guard case .percent(let current) = adjustment(for: id) else {
+            return
+        }
+        let updated = BudgetTemplateAdjustment.percent(
+            direction == .decrease ? -abs(current) : abs(current)
+        )
+        mutate(id: id) { draft in
+            draft = draft.updatingModifierAdjustment(updated)
+        }
+    }
+
     func setWeight(_ text: String, id: UUID) {
         setInput(text, field: .weight, id: id)
     }
@@ -590,6 +635,24 @@ final class BudgetTemplateEditorViewModel {
         items = snapshot.drafts.map { Item(id: UUID(), draft: $0) }
         fieldInputs.removeAll()
         noteInputs = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0.draft.description ?? "") })
+    }
+
+    private func adjustment(for id: UUID) -> BudgetTemplateAdjustment? {
+        items.first(where: { $0.id == id })?.draft.modifierAdjustment
+    }
+
+    private static func adjustment(
+        for mode: BudgetTemplateAdjustmentMode,
+        current: BudgetTemplateAdjustment?
+    ) -> BudgetTemplateAdjustment? {
+        switch mode {
+        case .none:
+            return nil
+        case .fixed:
+            return .fixed(current?.value ?? 10)
+        case .percent:
+            return .percent(current?.value ?? 10)
+        }
     }
 
     private func mutate(id: UUID, _ body: (inout BudgetTemplateDraft) -> Void) {

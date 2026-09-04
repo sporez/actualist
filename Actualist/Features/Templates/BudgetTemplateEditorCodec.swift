@@ -55,14 +55,15 @@ extension BudgetTemplateEditorCodec {
                 || legacyLimitIsComplete(value.legacyLimit)
                 )
         case .average(let value):
-            return draft.isComplete && value.adjustment == nil
+            return BudgetTemplateEngine.Bounds.numMonths.contains(value.numMonths)
+                && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
+                && (value.adjustment.map { $0.value.isFinite } ?? true)
         case .schedule(let value):
             // A missing schedule reference is a repairable editor state. The
             // authoring validator prevents saving it until the user chooses a
             // live schedule.
             return BudgetTemplateEngine.Bounds.priority.contains(value.priority)
-                && !value.full
-                && value.adjustment == nil
+                && (value.adjustment.map { $0.value.isFinite } ?? true)
         case .remainder(let value):
             return draft.isComplete && value.legacyLimit == nil
         case .dateTarget(let value):
@@ -518,11 +519,15 @@ private extension BudgetTemplateEditorCodec {
     }
 
     static func adjustment(value: Double?, type: String?) throws -> BudgetTemplateAdjustment? {
-        guard let value, let type else { return nil }
-        switch type {
-        case "fixed": return .fixed(value)
-        case "percent": return .percent(value)
-        default: throw BudgetTemplateDefinition.ParseFailure.unsupportedType("adjustment")
+        switch (value, type) {
+        case (nil, nil):
+            return nil
+        case (let value?, "fixed"):
+            return .fixed(value)
+        case (let value?, "percent"):
+            return .percent(value)
+        default:
+            throw BudgetTemplateDefinition.ParseFailure.unsupportedType("adjustment")
         }
     }
 

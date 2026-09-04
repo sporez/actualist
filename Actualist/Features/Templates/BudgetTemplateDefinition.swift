@@ -284,19 +284,26 @@ private extension BudgetTemplateDefinition {
               let numMonths = entry.numMonths,
               BudgetTemplateEngine.Bounds.numMonths.contains(numMonths),
               entry.limit == nil,
-              entry.adjustment == nil,
-              entry.adjustmentType == nil,
-              entry.full != true else { return false }
+              isSupportedAdjustment(entry.adjustment, entry.adjustmentType) else { return false }
         return true
     }
 
     static func isSchedule(_ entry: BudgetTemplateEntry) -> Bool {
         guard hasPriority(entry),
               entry.limit == nil,
-              entry.full != true,
-              entry.adjustment == nil,
-              entry.adjustmentType == nil else { return false }
+              isSupportedAdjustment(entry.adjustment, entry.adjustmentType) else { return false }
         return true
+    }
+
+    static func isSupportedAdjustment(_ amount: Double?, _ type: String?) -> Bool {
+        switch (amount, type) {
+        case (nil, nil):
+            return true
+        case (let amount?, let type?):
+            return amount.isFinite && (type == "fixed" || type == "percent")
+        default:
+            return false
+        }
     }
 
     static func isRemainder(_ entry: BudgetTemplateEntry) -> Bool {

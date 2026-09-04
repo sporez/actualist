@@ -224,6 +224,60 @@ struct BudgetTemplateEditorViewModelTests {
         #expect(average.adjustment == nil)
     }
 
+    @Test func phase5ModifierControlsRetainSignedValuesAndSave() async throws {
+        let repository = EditorTemplateRepository(
+            snapshot: editableSnapshot(drafts: [
+                .average(numMonths: 5, priority: 3),
+                .schedule(name: "Rent", scheduleId: "rent", priority: 3)
+            ])
+        )
+        let viewModel = makeViewModel()
+        await viewModel.load(repository: repository, budgetID: "budget-1")
+        let averageID = try #require(viewModel.items.first?.id)
+        let scheduleID = try #require(viewModel.items.last?.id)
+
+        viewModel.setAdjustmentMode(.percent, id: averageID)
+        #expect(viewModel.items.first?.draft == .average(
+            numMonths: 5,
+            priority: 3,
+            adjustment: .percent(10)
+        ))
+        viewModel.setAdjustmentMode(.none, id: averageID)
+        #expect(viewModel.adjustmentMode(for: averageID) == .none)
+        viewModel.setAdjustmentMode(.fixed, id: averageID)
+        #expect(viewModel.adjustmentMode(for: averageID) == .fixed)
+        viewModel.setInput("-12.50", field: .adjustment, id: averageID)
+        viewModel.setAdjustmentMode(.percent, id: averageID)
+        #expect(viewModel.items.first?.draft == .average(
+            numMonths: 5,
+            priority: 3,
+            adjustment: .percent(-12.5)
+        ))
+        viewModel.setAdjustmentDirection(.increase, id: averageID)
+        #expect(viewModel.items.first?.draft == .average(
+            numMonths: 5,
+            priority: 3,
+            adjustment: .percent(12.5)
+        ))
+
+        viewModel.setScheduleFull(true, id: scheduleID)
+        viewModel.setAdjustmentMode(.fixed, id: scheduleID)
+        viewModel.setInput("20", field: .adjustment, id: scheduleID)
+        #expect(viewModel.items.last?.draft == .schedule(
+            name: "Rent",
+            scheduleId: "rent",
+            priority: 3,
+            full: true,
+            adjustment: .fixed(20)
+        ))
+        #expect(viewModel.canSave)
+        #expect(await viewModel.save())
+        #expect(await repository.savedDrafts().last == [
+            .average(numMonths: 5, priority: 3, adjustment: .percent(12.5)),
+            .schedule(name: "Rent", scheduleId: "rent", priority: 3, full: true, adjustment: .fixed(20))
+        ])
+    }
+
     @Test func privacyModePreservesButDoesNotAllowNoteEdits() async throws {
         let repository = EditorTemplateRepository(
             snapshot: editableSnapshot(drafts: [

@@ -318,6 +318,27 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         }
     }
 
+    var modifierAdjustment: BudgetTemplateAdjustment? {
+        switch self {
+        case .average(let value): return value.adjustment
+        case .schedule(let value): return value.adjustment
+        default: return nil
+        }
+    }
+
+    func updatingModifierAdjustment(_ adjustment: BudgetTemplateAdjustment?) -> BudgetTemplateDraft {
+        switch self {
+        case .average(var value):
+            value.adjustment = adjustment
+            return .average(value)
+        case .schedule(var value):
+            value.adjustment = adjustment
+            return .schedule(value)
+        default:
+            return self
+        }
+    }
+
     func updatingDescription(_ description: String?) -> BudgetTemplateDraft {
         let description = normalizedDescription(description)
         switch self {
@@ -459,13 +480,13 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         case .average(let value):
             return BudgetTemplateEngine.Bounds.numMonths.contains(value.numMonths)
                 && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
-                && (value.adjustment.map(isComplete) ?? true)
+                && Self.isValidAdjustment(value.adjustment)
         case .schedule(let value):
             let hasID = !(value.scheduleId ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let hasName = !value.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             return (hasID || hasName)
                 && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
-                && (value.adjustment.map(isComplete) ?? true)
+                && Self.isValidAdjustment(value.adjustment)
         case .remainder(let value):
             return value.weight.isFinite
                 && BudgetTemplateEngine.Bounds.weight.contains(value.weight)
@@ -492,7 +513,8 @@ enum BudgetTemplateDraft: Equatable, Sendable {
                 || value.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil)
     }
 
-    private func isComplete(_ value: BudgetTemplateAdjustment) -> Bool {
+    static func isValidAdjustment(_ value: BudgetTemplateAdjustment?) -> Bool {
+        guard let value else { return true }
         guard value.value.isFinite else { return false }
         switch value {
         case .fixed:
@@ -501,6 +523,7 @@ enum BudgetTemplateDraft: Equatable, Sendable {
             return value.value > -100 && value.value <= 1_000
         }
     }
+
 }
 
 private func defaultDateTargetMonth(now: Date) -> String {

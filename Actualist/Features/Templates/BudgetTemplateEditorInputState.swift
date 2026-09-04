@@ -7,6 +7,7 @@ enum BudgetTemplateEditorInputField: Hashable, Sendable {
     case repeatInterval
     case lookBack
     case numMonths
+    case adjustment
     case priority
     case weight
     case targetMonth
@@ -48,6 +49,10 @@ enum BudgetTemplateEditorInputInterpreter {
             String(value.lookBack)
         case (.numMonths, .average(let value)):
             String(value.numMonths)
+        case (.adjustment, .average(let value)):
+            adjustmentText(value.adjustment, currency: currency)
+        case (.adjustment, .schedule(let value)):
+            adjustmentText(value.adjustment, currency: currency)
         case (.priority, .monthlyFixed(let value)):
             String(value.priority)
         case (.priority, .copy(let value)):
@@ -136,6 +141,27 @@ enum BudgetTemplateEditorInputInterpreter {
             }
             value.numMonths = numMonths
             return .average(value)
+        case .adjustment:
+            switch draft {
+            case .average(var value):
+                guard let adjustment = applyingAdjustment(
+                    text,
+                    to: value.adjustment,
+                    currency: currency
+                ) else { return nil }
+                value.adjustment = adjustment
+                return .average(value)
+            case .schedule(var value):
+                guard let adjustment = applyingAdjustment(
+                    text,
+                    to: value.adjustment,
+                    currency: currency
+                ) else { return nil }
+                value.adjustment = adjustment
+                return .schedule(value)
+            default:
+                return nil
+            }
         case .priority:
             guard let priority = BudgetTemplateAmountInput.parseInt(text),
                   BudgetTemplateEngine.Bounds.priority.contains(priority) else {
@@ -194,5 +220,39 @@ enum BudgetTemplateEditorInputInterpreter {
             return String(Int(weight))
         }
         return String(weight)
+    }
+
+    private static func adjustmentText(
+        _ adjustment: BudgetTemplateAdjustment?,
+        currency: BudgetCurrency
+    ) -> String? {
+        guard let adjustment else { return nil }
+        switch adjustment {
+        case .fixed(let value):
+            return BudgetTemplateAmountInput.formatAmount(value, currency: currency)
+        case .percent(let value):
+            return String(abs(value))
+        }
+    }
+
+    private static func applyingAdjustment(
+        _ text: String,
+        to current: BudgetTemplateAdjustment?,
+        currency: BudgetCurrency
+    ) -> BudgetTemplateAdjustment? {
+        guard let current else { return nil }
+        switch current {
+        case .fixed:
+            guard let value = BudgetTemplateAmountInput.parseAmount(text, currency: currency) else {
+                return nil
+            }
+            return .fixed(value)
+        case .percent(let signedValue):
+            guard let magnitude = BudgetTemplateAmountInput.parsePercentage(text),
+                  magnitude >= 0 else {
+                return nil
+            }
+            return .percent(signedValue < 0 ? -magnitude : magnitude)
+        }
     }
 }

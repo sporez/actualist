@@ -53,13 +53,22 @@ struct BudgetTemplateEditorItemSection: View {
         case .refill(let value):
             refillFields(value)
         case .copy(let value):
-            integerField("Months back", field: .lookBack)
+            BudgetTemplateEditorHistoricalFields(
+                itemID: item.id,
+                viewModel: viewModel
+            )
             priorityField(value.priority)
         case .average(let value):
-            integerField("Months", field: .numMonths)
+            BudgetTemplateEditorHistoricalFields(
+                itemID: item.id,
+                viewModel: viewModel
+            )
             priorityField(value.priority)
         case .schedule(let value):
-            scheduleFields(value)
+            BudgetTemplateEditorScheduleFields(
+                itemID: item.id,
+                viewModel: viewModel
+            )
             priorityField(value.priority)
         case .remainder:
             decimalField("Weight", field: .weight)
@@ -119,25 +128,6 @@ struct BudgetTemplateEditorItemSection: View {
                 viewModel.add(.balanceLimit)
             }
             .disabled(!viewModel.canAddBalanceLimit)
-        }
-    }
-
-    @ViewBuilder
-    private func scheduleFields(_ value: BudgetTemplateDraft.Schedule) -> some View {
-        let options = viewModel.scheduleOptions(for: item.id)
-        if options.isEmpty {
-            Text("No schedules to cover.")
-                .foregroundStyle(ActualistTheme.secondaryText)
-        } else {
-            Picker("Schedule", selection: scheduleBinding(value)) {
-                Text("Select a schedule").tag(String?.none)
-                ForEach(options) { option in
-                    Text(option.isAvailable ? option.name : "\(option.name) (unavailable)")
-                        .tag(Optional(option.id))
-                        .disabled(!option.isAvailable)
-                }
-            }
-            .disabled(!viewModel.isEditable)
         }
     }
 
@@ -288,27 +278,6 @@ struct BudgetTemplateEditorItemSection: View {
         case .weekly: "Week"
         case .monthly: "Month"
         }
-    }
-
-    private func scheduleBinding(_ value: BudgetTemplateDraft.Schedule) -> Binding<String?> {
-        Binding(
-            get: {
-                if let id = value.scheduleId,
-                   viewModel.scheduleOptions(for: item.id).contains(where: { $0.id == id }) {
-                    return id
-                }
-                return value.scheduleId == nil
-                    ? viewModel.schedules.first { $0.name == value.name }?.id
-                    : nil
-            },
-            set: { selectedID in
-                guard let selectedID,
-                      let option = viewModel.schedules.first(where: { $0.id == selectedID }) else {
-                    return
-                }
-                viewModel.setSchedule(option, id: item.id)
-            }
-        )
     }
 
 }

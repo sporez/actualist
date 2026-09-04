@@ -93,10 +93,21 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         guard category.perTemplate.count > 1 else {
             return []
         }
-        return category.perTemplate.enumerated().map { index, amount in
-            Contribution(
+        let hasAlignedDrafts = category.drafts.count == category.perTemplate.count
+        return category.perTemplate.enumerated().compactMap { index, amount in
+            if hasAlignedDrafts,
+               category.drafts.indices.contains(index),
+               !category.drafts[index].showsContribution {
+                return nil
+            }
+            return Contribution(
                 id: index,
-                title: contributionTitle(category, index: index),
+                title: contributionTitle(
+                    category,
+                    index: index,
+                    currency: currency,
+                    randomized: randomized
+                ),
                 amountText: BudgetTemplateAmountInput.contributionText(
                     minorUnits: amount,
                     currency: currency,
@@ -109,11 +120,30 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
 
     private static func contributionTitle(
         _ category: BudgetTemplateApplyPreview.Category,
-        index: Int
+        index: Int,
+        currency: BudgetCurrency,
+        randomized: Bool
     ) -> String {
         if category.drafts.count == category.perTemplate.count,
            category.drafts.indices.contains(index) {
-            return category.drafts[index].kind.title
+            let draft = category.drafts[index]
+            if case .average = draft.kind {
+                return BudgetTemplateSummary.label(
+                    draft,
+                    currency: currency,
+                    randomized: randomized,
+                    seed: "template-contribution-\(index)"
+                ) ?? draft.kind.title
+            }
+            if case .schedule = draft.kind {
+                return BudgetTemplateSummary.label(
+                    draft,
+                    currency: currency,
+                    randomized: randomized,
+                    seed: "template-contribution-\(index)"
+                ) ?? draft.kind.title
+            }
+            return draft.kind.title
         }
         return "Template \(index + 1)"
     }
