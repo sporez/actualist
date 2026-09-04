@@ -219,8 +219,7 @@ struct AccountTransactionsView: View {
                     await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository)
                 }
             }
-                .environment(appState)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

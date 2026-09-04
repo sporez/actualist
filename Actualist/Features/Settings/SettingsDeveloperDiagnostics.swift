@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsDeveloperDiagnosticsSheet: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
     let hideDeveloperMode: () -> Void
@@ -87,7 +88,7 @@ struct SettingsDeveloperDiagnosticsSheet: View {
                 }
             }
         }
-        .appSwitcherPrivacyProtected()
+        .appSwitcherPrivacyProtected(using: appState)
     }
 
     private func retrySync() async {

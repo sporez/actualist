@@ -73,6 +73,7 @@ struct AdvancedSettingsView: View {
                 debugNotificationMessage: $debugNotificationMessage,
                 postDebugNotification: postDebugNotification
             )
+            .environment(appState)
             #else
             SettingsDeveloperDiagnosticsSheet(
                 hideDeveloperMode: hideDeveloperMode,
@@ -82,6 +83,7 @@ struct AdvancedSettingsView: View {
                 endpointHealth: appState.localFirstStore.endpointHealthDisplay,
                 retryPendingSync: appState.retryPendingLocalFirstSync
             )
+            .environment(appState)
             #endif
         }
     }

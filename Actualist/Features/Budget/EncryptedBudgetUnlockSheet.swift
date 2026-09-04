@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EncryptedBudgetUnlockSheet: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
     @State private var selectedDetent: PresentationDetent = .medium
 
@@ -50,6 +51,6 @@ struct EncryptedBudgetUnlockSheet: View {
         .presentationDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
         .interactiveDismissDisabled(isUnlocking)
-        .appSwitcherPrivacyProtected()
+        .appSwitcherPrivacyProtected(using: appState)
     }
 }

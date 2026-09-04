@@ -1,0 +1,149 @@
+import CoreGraphics
+import SwiftUI
+
+enum BudgetPresentationMode: Equatable {
+    case compact
+    case splitSingleMonth
+    case multiMonth
+}
+
+/// The inputs measured by the adaptive shell. `budgetDetailWidth` should be
+/// the width inside the native split view (and inspector, when presented).
+/// When it is present, the resolver does not subtract those widths again.
+struct BudgetLayoutInputs: Equatable {
+    var rootWidth: CGFloat
+    /// The measured detail container width before content margins. When set,
+    /// sidebar and inspector widths are not subtracted a second time.
+    var budgetDetailWidth: CGFloat?
+    var sidebarWidth: CGFloat = BudgetLayoutMetrics.defaultSidebarWidth
+    var inspectorWidth: CGFloat = 0
+    var dynamicTypeScale: CGFloat = 1
+    var horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins
+    var preference: MonthDisplayPreference = .automatic
+
+    init(
+        rootWidth: CGFloat,
+        budgetDetailWidth: CGFloat? = nil,
+        sidebarWidth: CGFloat = BudgetLayoutMetrics.defaultSidebarWidth,
+        inspectorWidth: CGFloat = 0,
+        dynamicTypeScale: CGFloat = 1,
+        horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins,
+        preference: MonthDisplayPreference = .automatic
+    ) {
+        self.rootWidth = rootWidth
+        self.budgetDetailWidth = budgetDetailWidth
+        self.sidebarWidth = sidebarWidth
+        self.inspectorWidth = inspectorWidth
+        self.dynamicTypeScale = dynamicTypeScale
+        self.horizontalMargins = horizontalMargins
+        self.preference = preference
+    }
+}
+
+struct BudgetLayoutMetrics: Equatable {
+    static let compactRootWidth: CGFloat = defaultSidebarWidth + singleMonthMinimumWidth + defaultHorizontalMargins
+    static let singleMonthMinimumWidth: CGFloat = 520
+    static let defaultSidebarWidth: CGFloat = 240
+    static let defaultHorizontalMargins: CGFloat = 32
+    static let minimumMonthGroupWidth: CGFloat = 216
+    static let minimumMoneyColumnWidth: CGFloat = 104
+    static let minimumCategoryColumnWidth: CGFloat = 180
+    static let preferredCategoryColumnWidth: CGFloat = 240
+    static let maximumCategoryColumnWidth: CGFloat = 300
+    static let supportedMonthRange = 1...5
+
+    let presentationMode: BudgetPresentationMode
+    let visibleMonthCount: Int
+    let categoryColumnWidth: CGFloat
+    let monthColumnWidth: CGFloat
+    let inspectorAvailable: Bool
+
+    static func resolve(_ inputs: BudgetLayoutInputs) -> Self {
+        let rootWidth = finiteNonnegative(inputs.rootWidth)
+        let scale = min(max(finitePositive(inputs.dynamicTypeScale), 1), 3)
+        let margins = finiteNonnegative(inputs.horizontalMargins)
+        let sidebar = finiteNonnegative(inputs.sidebarWidth)
+        let inspector = finiteNonnegative(inputs.inspectorWidth)
+        let preferredCategoryWidth = min(
+            max(preferredCategoryColumnWidth * scale, minimumCategoryColumnWidth * scale),
+            maximumCategoryColumnWidth * scale
+        )
+        let measuredDetail = inputs.budgetDetailWidth.map(finiteNonnegative)
+        let detailWidth = measuredDetail.map { max($0 - margins, 0) }
+            ?? max(rootWidth - sidebar - inspector - margins, 0)
+        let categoryWidth = min(
+            preferredCategoryWidth,
+            max(detailWidth - minimumMoneyColumnWidth * 2 * scale, 0)
+        )
+        let sidebarFits = rootWidth >= sidebar + singleMonthMinimumWidth * scale + margins
+        guard sidebarFits else {
+            return Self(
+                presentationMode: .compact,
+                visibleMonthCount: 1,
+                categoryColumnWidth: min(categoryWidth, max(detailWidth - minimumMoneyColumnWidth * 2, 0)),
+                monthColumnWidth: max(detailWidth, 0),
+                inspectorAvailable: false
+            )
+        }
+
+        let availableForMonths = max(detailWidth - categoryWidth, 0)
+        let minimumGroupWidth = max(minimumMonthGroupWidth, minimumMoneyColumnWidth * 2) * scale
+        let physicallyPossible = max(1, min(supportedMonthRange.upperBound, Int(floor(availableForMonths / minimumGroupWidth))))
+        let requested = inputs.preference.resolvedCount
+        let visibleCount = min(max(requested, supportedMonthRange.lowerBound), physicallyPossible)
+        let mode: BudgetPresentationMode = visibleCount > 1 ? .multiMonth : .splitSingleMonth
+        let naturalMonthWidth = availableForMonths / CGFloat(visibleCount)
+        // A narrow inspector can leave less than the readable baseline. Keep
+        // the single-month fallback within the measured container rather than
+        // allowing its minimum width to overlap the category column.
+        let monthWidth = visibleCount == 1 && naturalMonthWidth < minimumMoneyColumnWidth * 2 * scale
+            ? max(naturalMonthWidth, 0)
+            : max(naturalMonthWidth, minimumMoneyColumnWidth * 2 * scale)
+        return Self(
+            presentationMode: mode,
+            visibleMonthCount: visibleCount,
+            categoryColumnWidth: categoryWidth,
+            monthColumnWidth: monthWidth,
+            inspectorAvailable: detailWidth >= (singleMonthMinimumWidth + 80) * scale
+        )
+    }
+
+    private static func finiteNonnegative(_ value: CGFloat) -> CGFloat {
+        value.isFinite ? max(value, 0) : 0
+    }
+
+    private static func finitePositive(_ value: CGFloat) -> CGFloat {
+        value.isFinite && value > 0 ? value : 1
+    }
+}
+
+extension DynamicTypeSize {
+    var budgetLayoutScale: CGFloat {
+        switch self {
+        case .xSmall: 0.85
+        case .small: 0.9
+        case .medium: 1
+        case .large: 1.1
+        case .xLarge: 1.2
+        case .xxLarge: 1.3
+        case .xxxLarge: 1.45
+        case .accessibility1: 1.65
+        case .accessibility2: 1.85
+        case .accessibility3: 2.1
+        case .accessibility4: 2.35
+        case .accessibility5: 2.6
+        @unknown default: 1
+        }
+    }
+}
+
+private struct BudgetSidebarLayoutActiveKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var budgetSidebarLayoutActive: Bool {
+        get { self[BudgetSidebarLayoutActiveKey.self] }
+        set { self[BudgetSidebarLayoutActiveKey.self] = newValue }
+    }
+}

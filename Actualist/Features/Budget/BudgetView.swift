@@ -20,6 +20,12 @@ struct BudgetView: View {
     @State private var noteTarget: ActualNoteTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
     @State private var addTransactionExpansion = ScrollDirectedExpansion()
+    let loadsOnAppear: Bool
+
+    init(viewModel: BudgetViewModel, loadsOnAppear: Bool = true) {
+        _viewModel = State(initialValue: viewModel)
+        self.loadsOnAppear = loadsOnAppear
+    }
 
     init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
         _viewModel = State(
@@ -28,6 +34,7 @@ struct BudgetView: View {
                 initialBudgetID: initialBudgetID
             )
         )
+        self.loadsOnAppear = true
     }
 
     var body: some View {
@@ -176,7 +183,7 @@ struct BudgetView: View {
                                 Task { await viewModel.selectMonth(month, using: appState) }
                             }
                             .presentationCompactAdaptation(.popover)
-                            .appSwitcherPrivacyProtected()
+                            .appSwitcherPrivacyProtected(using: appState)
                         }
                     }
 
@@ -230,7 +237,9 @@ struct BudgetView: View {
                         .accessibilityLabel("Budget Actions")
                     }
                 }
-                .task { await viewModel.load(using: appState) }
+                .task {
+                    if loadsOnAppear { await viewModel.load(using: appState) }
+                }
                 .refreshable { await viewModel.refresh(using: appState) }
                 .onChange(of: appState.localDataRevision) {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
@@ -265,13 +274,11 @@ struct BudgetView: View {
                     TransactionEditorView(prefilledAccount: nil) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(isPresented: $isHistoryPresented) {
                     HistoryView()
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .fullScreenCover(
                     isPresented: Binding(
@@ -281,8 +288,7 @@ struct BudgetView: View {
                     onDismiss: appState.routeCoordinator.settingsDidDismiss
                 ) {
                     SettingsView(showsDismissButton: true)
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(isPresented: $isUncategorizedTransactionsPresented) {
                     UncategorizedTransactionsView(
@@ -295,15 +301,13 @@ struct BudgetView: View {
                             isUncategorizedTransactionsPresented = false
                         }
                     )
-                    .environment(appState)
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(item: $categoryDetailsPresentation, onDismiss: {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
                 }) { details in
                     CategoryMonthDetailsView(details: details)
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(item: $templateEditorTarget, onDismiss: {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
@@ -311,8 +315,7 @@ struct BudgetView: View {
                     BudgetTemplateEditorView(target: target) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
-                    .environment(appState)
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(item: $noteTarget) { target in
                     if let budgetID = appState.settings.selectedBudgetID {
@@ -325,7 +328,7 @@ struct BudgetView: View {
                                 Task { await viewModel.refreshSelectedMonth(using: appState) }
                             }
                         )
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                     }
                 }
                 .sheet(isPresented: $isOverspentCategoriesPresented) {
@@ -333,16 +336,14 @@ struct BudgetView: View {
                         viewModel: viewModel,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
                     )
-                    .environment(appState)
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(isPresented: moveMoneyPresentationBinding) {
                     BudgetMoveMoneyView(
                         viewModel: viewModel,
                         onSaved: {}
                     )
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .modifier(
                     BudgetTemplateConfirmationModifier(

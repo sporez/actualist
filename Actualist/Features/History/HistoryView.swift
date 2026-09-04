@@ -45,7 +45,7 @@ struct HistoryView: View {
                 .environment(appState)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
             }
             .alert(
                 "Couldn't Undo",

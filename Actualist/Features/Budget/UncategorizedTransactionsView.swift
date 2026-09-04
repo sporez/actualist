@@ -124,7 +124,7 @@ struct UncategorizedTransactionsView: View {
                     }
                 }
             }
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isBulkCategoryPickerPresented) {
             TransactionCategorySelectionView(
@@ -149,7 +149,7 @@ struct UncategorizedTransactionsView: View {
                     }
                 }
             }
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

@@ -81,7 +81,7 @@ struct AppIconPickerSheet: View {
                 }
             }
         }
-        .appSwitcherPrivacyProtected()
+        .appSwitcherPrivacyProtected(using: appState)
         .onDisappear {
             toastTask?.cancel()
         }

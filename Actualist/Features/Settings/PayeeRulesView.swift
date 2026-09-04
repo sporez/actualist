@@ -68,7 +68,7 @@ struct PayeeRulesView: View {
                 )
             }
             .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

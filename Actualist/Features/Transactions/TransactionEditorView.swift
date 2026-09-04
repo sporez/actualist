@@ -86,19 +86,19 @@ struct TransactionEditorView: View {
         }
         .sheet(isPresented: $isPayeePickerPresented) {
             PayeeSelectionView(viewModel: viewModel)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isCategoryPickerPresented) {
             TransactionCategorySelectionView(viewModel: viewModel)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(item: childPayeePickerItem) { row in
             childPayeePicker(for: row)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(item: childCategoryPickerItem) { row in
             childCategoryPicker(for: row)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

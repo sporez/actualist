@@ -7,7 +7,7 @@ final class BudgetViewModel {
     var budgetMonth: BudgetMonth?
     var selectedMonth: String?
     var availableMonths: [String] = []
-    private var loadedBudgetID: String?
+    private(set) var loadedBudgetID: String?
     private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
     var isLoading = true
@@ -300,7 +300,7 @@ final class BudgetViewModel {
         do {
             let loadedMonth = try await repository.currentBudgetMonth(
                 budgetID: budgetID,
-                preferredMonth: preferredMonth
+                preferredMonth: loadedBudgetID == budgetID ? selectedMonth ?? preferredMonth : preferredMonth
             )
             apply(loadedMonth, budgetID: budgetID)
         } catch {

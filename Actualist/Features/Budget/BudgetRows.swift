@@ -3,6 +3,7 @@ import SwiftUI
 struct BudgetGroupSection: View {
     @Environment(\.actualistDensity) private var density
     @Environment(\.budgetCurrency) private var currency
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let group: BudgetMonthCategoryGroup
     let isExpanded: Bool
@@ -32,50 +33,7 @@ struct BudgetGroupSection: View {
     var body: some View {
         VStack(spacing: 0) {
             Button(action: toggle) {
-                HStack(alignment: .center, spacing: BudgetLayout.rowSpacing) {
-                    Image(systemName: "chevron.down")
-                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
-                        .font(.body.weight(.bold))
-                        .frame(width: BudgetLayout.chevronWidth)
-
-                    HStack(spacing: 6) {
-                        Text(groupName)
-                            .font(ActualistTypography.sectionTitle(for: density))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.82)
-
-                        if group.hasUserNote {
-                            Image(systemName: "note.text")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                                .accessibilityHidden(true)
-                        }
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text("Assigned")
-                            .font(ActualistTypography.rowLabel(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                        Text(groupBudgetedText)
-                            .font(ActualistTypography.rowValue(for: density))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-                    .frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
-
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text("Available")
-                            .font(ActualistTypography.rowLabel(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                        Text(groupBalanceText)
-                            .font(ActualistTypography.rowValue(for: density))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                    }
-                    .frame(width: BudgetLayout.availableWidth, alignment: .trailing)
-                }
+                groupRowLabel
                 .foregroundStyle(ActualistTheme.primaryText)
                 .padding(.vertical, 12)
                 .padding(.horizontal, BudgetLayout.rowHorizontalPadding)
@@ -156,11 +114,82 @@ struct BudgetGroupSection: View {
     private var groupBalanceText: String {
         currency.formatted(group.balance)
     }
+
+    @ViewBuilder
+    private var groupRowLabel: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 10) {
+                groupHeading
+                VStack(spacing: 6) {
+                    groupTotalRow(label: "Assigned", value: groupBudgetedText)
+                    groupTotalRow(label: "Available", value: groupBalanceText)
+                }
+            }
+        } else {
+            HStack(alignment: .center, spacing: BudgetLayout.rowSpacing) {
+                groupHeading
+                Spacer()
+                groupTotal(label: "Assigned", value: groupBudgetedText, width: BudgetLayout.assignedWidth)
+                groupTotal(label: "Available", value: groupBalanceText, width: BudgetLayout.availableWidth)
+            }
+        }
+    }
+
+    private var groupHeading: some View {
+        HStack(spacing: BudgetLayout.rowSpacing) {
+            Image(systemName: "chevron.down")
+                .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                .font(.body.weight(.bold))
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : BudgetLayout.chevronWidth)
+
+            HStack(spacing: 6) {
+                Text(groupName)
+                    .font(ActualistTypography.sectionTitle(for: density))
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .minimumScaleFactor(0.82)
+
+                if group.hasUserNote {
+                    Image(systemName: "note.text")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+    }
+
+    private func groupTotalRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(ActualistTypography.rowLabel(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(ActualistTypography.rowValue(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private func groupTotal(label: String, value: String, width: CGFloat) -> some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            Text(label)
+                .font(ActualistTypography.rowLabel(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+            Text(value)
+                .font(ActualistTypography.rowValue(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(width: width, alignment: .trailing)
+    }
 }
 
 struct BudgetCategoryRow: View {
     @Environment(\.actualistDensity) private var density
     @Environment(\.budgetCurrency) private var currency
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let category: BudgetMonthCategory
     let assignedDisplay: BudgetAssignedAmountDisplay
@@ -184,27 +213,7 @@ struct BudgetCategoryRow: View {
                 beginAssignmentEditing(globalFrame)
             }
         } label: {
-            HStack(spacing: BudgetLayout.rowSpacing) {
-                categoryLabel
-
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(assignedPrimaryText)
-                        .font(ActualistTypography.rowValue(for: density))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-
-                    if let secondaryText = assignedDisplay.secondaryText {
-                        Text(secondaryText)
-                            .font(ActualistTypography.rowLabel(for: density).weight(.bold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.78)
-                    }
-                }
-                .foregroundStyle(assignedDisplay.isEditing ? ActualistTheme.accent : ActualistTheme.primaryText)
-                .frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
-
-                availablePill
-            }
+            categoryRowLabel
             .padding(.vertical, 10)
             .padding(.horizontal, BudgetLayout.rowHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -272,7 +281,7 @@ struct BudgetCategoryRow: View {
             Text(categoryName)
                 .font(ActualistTypography.body(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.86)
 
             if category.hasUserNote {
@@ -330,7 +339,11 @@ struct BudgetCategoryRow: View {
                     )
                 }
             }
-            .frame(width: BudgetLayout.availableWidth, alignment: .trailing)
+            .frame(
+                width: dynamicTypeSize.isAccessibilitySize ? nil : BudgetLayout.availableWidth,
+                alignment: .trailing
+            )
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, alignment: .trailing)
             .accessibilityLabel(
                 category.carryover
                     ? "\(availableText), rollover enabled"
@@ -350,12 +363,56 @@ struct BudgetCategoryRow: View {
         return PrivacyDisplay.name(for: .category, seed: category.id)
     }
 
-    private var assignedPrimaryText: String {
-        assignedDisplay.primaryText
-    }
-
     private var availableText: String {
         currency.formatted(category.balance)
     }
-}
 
+    @ViewBuilder
+    private var categoryRowLabel: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                categoryLabel
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("Assigned")
+                            .font(ActualistTypography.rowLabel(for: density))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                        Spacer(minLength: 12)
+                        assignedAmount
+                    }
+                    HStack {
+                        Text("Available")
+                            .font(ActualistTypography.rowLabel(for: density))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                        Spacer(minLength: 12)
+                        availablePill
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        } else {
+            HStack(spacing: BudgetLayout.rowSpacing) {
+                categoryLabel
+                assignedAmount.frame(width: BudgetLayout.assignedWidth, alignment: .trailing)
+                availablePill
+            }
+        }
+    }
+
+    private var assignedAmount: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(assignedDisplay.primaryText)
+                .font(ActualistTypography.rowValue(for: density))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+
+            if let secondaryText = assignedDisplay.secondaryText {
+                Text(secondaryText)
+                    .font(ActualistTypography.rowLabel(for: density).weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+        }
+        .foregroundStyle(assignedDisplay.isEditing ? ActualistTheme.accent : ActualistTheme.primaryText)
+    }
+}

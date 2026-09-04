@@ -536,6 +536,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateMonthDisplayPreference(_ preference: MonthDisplayPreference) {
+        settings.monthDisplayPreference = preference
+        settingsStore.save(settings)
+    }
+
     func updateGreenIncomeTransactionAmountsEnabled(_ isEnabled: Bool) {
         settings.greenIncomeTransactionAmountsEnabled = isEnabled
         settingsStore.save(settings)

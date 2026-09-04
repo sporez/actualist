@@ -2,15 +2,16 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
-    @State private var editorPrefill: ShortcutEditorPrefill?
-    @State private var isShortcutEditorPresented = false
+    let budgetViewModel: BudgetViewModel
+    @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
+
+    init(budgetViewModel: BudgetViewModel) {
+        self.budgetViewModel = budgetViewModel
+    }
 
     var body: some View {
         TabView(selection: selectedTab) {
-            BudgetView(
-                initialMonth: appState.cachedSelectedBudgetMonth,
-                initialBudgetID: appState.settings.selectedBudgetID
-            )
+            BudgetView(viewModel: budgetViewModel, loadsOnAppear: false)
                 .tabItem {
                     Label(AppTab.budget.title, systemImage: AppTab.budget.symbolName)
                 }
@@ -34,42 +35,19 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.reports)
         }
+        // The width-selected compact shell keeps native tabs at the bottom on iPad.
+        .environment(\.horizontalSizeClass, .compact)
         .environment(\.budgetCurrency, displayedBudgetCurrency)
         .safeAreaInset(edge: .top, spacing: 0) {
             if appState.requiresReauthentication {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.crop.circle.badge.exclamationmark")
-                        .foregroundStyle(ActualistTheme.warning)
-                    Text("Your Actual session expired. Sign in again to resume syncing.")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                    Spacer(minLength: 8)
-                    Button("Sign In Again") {
-                        appState.beginReauthentication()
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(ActualistTheme.background)
+                RootReauthenticationBanner()
             }
         }
         .onAppear(perform: consumeShortcutRoute)
         .onChange(of: appState.routeCoordinator.pendingRoute) {
             consumeShortcutRoute()
         }
-        .sheet(isPresented: $isShortcutEditorPresented) {
-            TransactionEditorView(
-                prefilledAccount: prefilledAccount,
-                prefilledPayeeName: editorPrefill?.payeeName,
-                prefilledCategoryName: editorPrefill?.categoryName,
-                shortcutPrefill: editorPrefill
-            )
-            .environment(appState)
-            .environment(\.budgetCurrency, displayedBudgetCurrency)
-            .appSwitcherPrivacyProtected()
-        }
+
     }
 
     private var displayedBudgetCurrency: BudgetCurrency {
@@ -79,29 +57,12 @@ struct MainTabView: View {
         return appState.localFirstStore.budgetCurrency(budgetID: budgetID)
     }
 
-    private var prefilledAccount: ActualAccount? {
-        guard let accountID = editorPrefill?.accountID,
-              let budgetID = appState.settings.selectedBudgetID else {
-            return nil
-        }
-        return appState.accountRepository.accountDisplays(budgetID: budgetID)
-            .map(\.account)
-            .first { $0.id == accountID }
-    }
-
     private func consumeShortcutRoute() {
         _ = appState.routeCoordinator.consume {
             if case .tab = $0 { return true }
             return false
         }
-        guard case .newTransaction(let prefill) = appState.routeCoordinator.consume(if: {
-            if case .newTransaction = $0 { return true }
-            return false
-        }) else {
-            return
-        }
-        editorPrefill = prefill
-        isShortcutEditorPresented = true
+        _ = transactionPresenter.consumeNewTransaction(from: appState.routeCoordinator)
     }
 
     private var selectedTab: Binding<AppTab> {

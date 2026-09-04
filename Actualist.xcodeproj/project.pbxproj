@@ -15,21 +15,28 @@
 		AA0000000000000000000006 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = AA0D00000000000000000003 /* ZIPFoundation */; };
 		AA0000000000000000000007 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA0D00000000000000000001 /* GRDB */; };
 		WW0000000000000000000001 /* ActualistWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000001 /* ActualistWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		WW0000000000000000000002 /* WidgetConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000002 /* WidgetConstants.swift */; };
-		WW0000000000000000000004 /* WidgetMonthID.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000004 /* WidgetMonthID.swift */; };
-		WW0000000000000000000005 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000005 /* WidgetSnapshot.swift */; };
-		WW0000000000000000000006 /* WidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000006 /* WidgetSnapshotStore.swift */; };
-		WW0000000000000000000007 /* WidgetSnapshotRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000007 /* WidgetSnapshotRows.swift */; };
-		WW0000000000000000000008 /* WidgetDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000008 /* WidgetDeepLink.swift */; };
-		WW0000000000000000000010 /* WidgetQuickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000010 /* WidgetQuickAction.swift */; };
-		WW0000000000000000000011 /* WidgetFinancialSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000011 /* WidgetFinancialSnapshot.swift */; };
-		WW0000000000000000000012 /* WidgetFinancialProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000012 /* WidgetFinancialProjection.swift */; };
-		WW0000000000000000000013 /* ActualistThemePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000013 /* ActualistThemePalette.swift */; };
-		WW0000000000000000000014 /* WidgetThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000014 /* WidgetThemeStore.swift */; };
-		WW0000000000000000000015 /* WidgetPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000015 /* WidgetPalette.swift */; };
+		WW0000000000000000000002 /* Actualist/Widgets/WidgetConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000002 /* Actualist/Widgets/WidgetConstants.swift */; };
+		WW0000000000000000000004 /* Actualist/Widgets/WidgetMonthID.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000004 /* Actualist/Widgets/WidgetMonthID.swift */; };
+		WW0000000000000000000005 /* Actualist/Widgets/WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000005 /* Actualist/Widgets/WidgetSnapshot.swift */; };
+		WW0000000000000000000006 /* Actualist/Widgets/WidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000006 /* Actualist/Widgets/WidgetSnapshotStore.swift */; };
+		WW0000000000000000000007 /* Actualist/Widgets/WidgetSnapshotRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000007 /* Actualist/Widgets/WidgetSnapshotRows.swift */; };
+		WW0000000000000000000008 /* Actualist/Widgets/WidgetDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000008 /* Actualist/Widgets/WidgetDeepLink.swift */; };
+		WW0000000000000000000010 /* Actualist/Widgets/WidgetQuickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000010 /* Actualist/Widgets/WidgetQuickAction.swift */; };
+		WW0000000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift */; };
+		WW0000000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift */; };
+		WW0000000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift */; };
+		WW0000000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift */; };
+		WW0000000000000000000015 /* Actualist/Widgets/WidgetPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000015 /* Actualist/Widgets/WidgetPalette.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		286E676B304B2D2E00FF19A2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA0A00000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0500000000000000000001;
+			remoteInfo = Actualist;
+		};
 		AA0800000000000000000002 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = AA0A00000000000000000001 /* Project object */;
@@ -61,31 +68,31 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		286E675A304B275000FF19A2 /* ActualistUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualistUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0200000000000000000001 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		AA0200000000000000000002 /* APP_STORE_EXCEPTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = APP_STORE_EXCEPTION.md; sourceTree = "<group>"; };
 		AA0200000000000000000003 /* THIRD_PARTY_NOTICES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = THIRD_PARTY_NOTICES.md; sourceTree = "<group>"; };
 		AA0200000000000000000015 /* Actualist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Actualist.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0200000000000000000016 /* ActualistTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ActualistTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		WW0200000000000000000001 /* ActualistWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ActualistWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		WW0200000000000000000002 /* WidgetConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetConstants.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000004 /* WidgetMonthID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetMonthID.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000005 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshot.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000006 /* WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshotStore.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000007 /* WidgetSnapshotRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshotRows.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000008 /* WidgetDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetDeepLink.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000010 /* WidgetQuickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetQuickAction.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000011 /* WidgetFinancialSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialSnapshot.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000012 /* WidgetFinancialProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialProjection.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000013 /* ActualistThemePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/DesignSystem/ActualistThemePalette.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000014 /* WidgetThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetThemeStore.swift; sourceTree = SOURCE_ROOT; };
-		WW0200000000000000000015 /* WidgetPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetPalette.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000002 /* Actualist/Widgets/WidgetConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetConstants.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000004 /* Actualist/Widgets/WidgetMonthID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetMonthID.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000005 /* Actualist/Widgets/WidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshot.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000006 /* Actualist/Widgets/WidgetSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshotStore.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000007 /* Actualist/Widgets/WidgetSnapshotRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshotRows.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000008 /* Actualist/Widgets/WidgetDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetDeepLink.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000010 /* Actualist/Widgets/WidgetQuickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetQuickAction.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialSnapshot.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialProjection.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/DesignSystem/ActualistThemePalette.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetThemeStore.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000015 /* Actualist/Widgets/WidgetPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetPalette.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		AA0F0000000000000000000001 /* Exceptions for "Actualist" folder in "Actualist" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Actualist.entitlements,
 				Info.plist,
 			);
 			target = AA0500000000000000000001 /* Actualist */;
@@ -93,7 +100,6 @@
 		WW0F00000000000000000001 /* Exceptions for "ActualistWidget" folder in "ActualistWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				ActualistWidget.entitlements,
 				Info.plist,
 			);
 			target = WW0500000000000000000001 /* ActualistWidgetExtension */;
@@ -101,6 +107,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		286E675B304B275000FF19A2 /* ActualistUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ActualistUITests;
+			sourceTree = "<group>";
+		};
 		AA0400000000000000000001 /* Actualist */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -125,6 +136,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		286E6757304B275000FF19A2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA0300000000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -153,12 +171,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		AA0400000000000000000000 = {
+			isa = PBXGroup;
+			children = (
+				AA0400000000000000000001 /* Actualist */,
+				AA0400000000000000000002 /* ActualistTests */,
+				WW0400000000000000000001 /* ActualistWidget */,
+				WW0400000000000000000002 /* Shared Widget Sources */,
+				AA0400000000000000000012 /* Support */,
+				286E675B304B275000FF19A2 /* ActualistUITests */,
+				AA0400000000000000000011 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
 		AA0400000000000000000011 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				AA0200000000000000000015 /* Actualist.app */,
 				AA0200000000000000000016 /* ActualistTests.xctest */,
 				WW0200000000000000000001 /* ActualistWidgetExtension.appex */,
+				286E675A304B275000FF19A2 /* ActualistUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -176,37 +208,48 @@
 		WW0400000000000000000002 /* Shared Widget Sources */ = {
 			isa = PBXGroup;
 			children = (
-				WW0200000000000000000013 /* ActualistThemePalette.swift */,
-				WW0200000000000000000014 /* WidgetThemeStore.swift */,
-				WW0200000000000000000015 /* WidgetPalette.swift */,
-				WW0200000000000000000002 /* WidgetConstants.swift */,
-				WW0200000000000000000004 /* WidgetMonthID.swift */,
-				WW0200000000000000000005 /* WidgetSnapshot.swift */,
-				WW0200000000000000000006 /* WidgetSnapshotStore.swift */,
-				WW0200000000000000000007 /* WidgetSnapshotRows.swift */,
-				WW0200000000000000000008 /* WidgetDeepLink.swift */,
-				WW0200000000000000000010 /* WidgetQuickAction.swift */,
-				WW0200000000000000000012 /* WidgetFinancialProjection.swift */,
-				WW0200000000000000000011 /* WidgetFinancialSnapshot.swift */,
+				WW0200000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift */,
+				WW0200000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift */,
+				WW0200000000000000000015 /* Actualist/Widgets/WidgetPalette.swift */,
+				WW0200000000000000000002 /* Actualist/Widgets/WidgetConstants.swift */,
+				WW0200000000000000000004 /* Actualist/Widgets/WidgetMonthID.swift */,
+				WW0200000000000000000005 /* Actualist/Widgets/WidgetSnapshot.swift */,
+				WW0200000000000000000006 /* Actualist/Widgets/WidgetSnapshotStore.swift */,
+				WW0200000000000000000007 /* Actualist/Widgets/WidgetSnapshotRows.swift */,
+				WW0200000000000000000008 /* Actualist/Widgets/WidgetDeepLink.swift */,
+				WW0200000000000000000010 /* Actualist/Widgets/WidgetQuickAction.swift */,
+				WW0200000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift */,
+				WW0200000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift */,
 			);
 			name = "Shared Widget Sources";
-			sourceTree = "<group>";
-		};
-		AA0400000000000000000000 = {
-			isa = PBXGroup;
-			children = (
-				AA0400000000000000000001 /* Actualist */,
-				AA0400000000000000000002 /* ActualistTests */,
-				WW0400000000000000000001 /* ActualistWidget */,
-				WW0400000000000000000002 /* Shared Widget Sources */,
-				AA0400000000000000000012 /* Support */,
-				AA0400000000000000000011 /* Products */,
-			);
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		286E6759304B275000FF19A2 /* ActualistUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 286E675E304B275000FF19A2 /* Build configuration list for PBXNativeTarget "ActualistUITests" */;
+			buildPhases = (
+				286E6756304B275000FF19A2 /* Sources */,
+				286E6757304B275000FF19A2 /* Frameworks */,
+				286E6758304B275000FF19A2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				286E676C304B2D2E00FF19A2 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				286E675B304B275000FF19A2 /* ActualistUITests */,
+			);
+			name = ActualistUITests;
+			packageProductDependencies = (
+			);
+			productName = ActualistUITests;
+			productReference = 286E675A304B275000FF19A2 /* ActualistUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		AA0500000000000000000001 /* Actualist */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA0900000000000000000003 /* Build configuration list for PBXNativeTarget "Actualist" */;
@@ -287,9 +330,13 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					286E6759304B275000FF19A2 = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = AA0500000000000000000001;
+					};
 					AA0500000000000000000001 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -323,11 +370,19 @@
 				AA0500000000000000000001 /* Actualist */,
 				AA0500000000000000000002 /* ActualistTests */,
 				WW0500000000000000000001 /* ActualistWidgetExtension */,
+				286E6759304B275000FF19A2 /* ActualistUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		286E6758304B275000FF19A2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA0700000000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -355,6 +410,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		286E6756304B275000FF19A2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA0600000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -373,24 +435,29 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				WW0000000000000000000013 /* ActualistThemePalette.swift in Sources */,
-				WW0000000000000000000014 /* WidgetThemeStore.swift in Sources */,
-				WW0000000000000000000015 /* WidgetPalette.swift in Sources */,
-				WW0000000000000000000002 /* WidgetConstants.swift in Sources */,
-				WW0000000000000000000004 /* WidgetMonthID.swift in Sources */,
-				WW0000000000000000000005 /* WidgetSnapshot.swift in Sources */,
-				WW0000000000000000000006 /* WidgetSnapshotStore.swift in Sources */,
-				WW0000000000000000000007 /* WidgetSnapshotRows.swift in Sources */,
-				WW0000000000000000000008 /* WidgetDeepLink.swift in Sources */,
-				WW0000000000000000000010 /* WidgetQuickAction.swift in Sources */,
-				WW0000000000000000000012 /* WidgetFinancialProjection.swift in Sources */,
-				WW0000000000000000000011 /* WidgetFinancialSnapshot.swift in Sources */,
+				WW0000000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift in Sources */,
+				WW0000000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift in Sources */,
+				WW0000000000000000000015 /* Actualist/Widgets/WidgetPalette.swift in Sources */,
+				WW0000000000000000000002 /* Actualist/Widgets/WidgetConstants.swift in Sources */,
+				WW0000000000000000000004 /* Actualist/Widgets/WidgetMonthID.swift in Sources */,
+				WW0000000000000000000005 /* Actualist/Widgets/WidgetSnapshot.swift in Sources */,
+				WW0000000000000000000006 /* Actualist/Widgets/WidgetSnapshotStore.swift in Sources */,
+				WW0000000000000000000007 /* Actualist/Widgets/WidgetSnapshotRows.swift in Sources */,
+				WW0000000000000000000008 /* Actualist/Widgets/WidgetDeepLink.swift in Sources */,
+				WW0000000000000000000010 /* Actualist/Widgets/WidgetQuickAction.swift in Sources */,
+				WW0000000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift in Sources */,
+				WW0000000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		286E676C304B2D2E00FF19A2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0500000000000000000001 /* Actualist */;
+			targetProxy = 286E676B304B2D2E00FF19A2 /* PBXContainerItemProxy */;
+		};
 		AA0800000000000000000001 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = AA0500000000000000000001 /* Actualist */;
@@ -403,52 +470,60 @@
 		};
 /* End PBXTargetDependency section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		AA0C00000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/groue/GRDB.swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 7.0.0;
-			};
-		};
-		AA0C00000000000000000002 /* XCRemoteSwiftPackageReference "swift-protobuf" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-protobuf.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.29.0;
-			};
-		};
-		AA0C00000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.19;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		AA0D00000000000000000001 /* GRDB */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AA0C00000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
-			productName = GRDB;
-		};
-		AA0D00000000000000000002 /* SwiftProtobuf */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AA0C00000000000000000002 /* XCRemoteSwiftPackageReference "swift-protobuf" */;
-			productName = SwiftProtobuf;
-		};
-		AA0D00000000000000000003 /* ZIPFoundation */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AA0C00000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
-			productName = ZIPFoundation;
-		};
-/* End XCSwiftPackageProductDependency section */
-
 /* Begin XCBuildConfiguration section */
+		286E675F304B275000FF19A2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Actualist;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		286E6760304B275000FF19A2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sporez.actualist.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Actualist;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
 		AA0B0000000000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -588,10 +663,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -618,10 +693,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -643,7 +718,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Actualist.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Actualist";
 			};
 			name = Debug;
@@ -666,7 +741,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Actualist.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Actualist";
 			};
 			name = Release;
@@ -696,7 +771,7 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -725,13 +800,22 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		286E675E304B275000FF19A2 /* Build configuration list for PBXNativeTarget "ActualistUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				286E675F304B275000FF19A2 /* Debug */,
+				286E6760304B275000FF19A2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		AA0900000000000000000001 /* Build configuration list for PBXProject "Actualist" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -769,6 +853,51 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA0C00000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.0.0;
+			};
+		};
+		AA0C00000000000000000002 /* XCRemoteSwiftPackageReference "swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-protobuf.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.29.0;
+			};
+		};
+		AA0C00000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0D00000000000000000001 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0C00000000000000000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		AA0D00000000000000000002 /* SwiftProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0C00000000000000000002 /* XCRemoteSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobuf;
+		};
+		AA0D00000000000000000003 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0C00000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AA0A00000000000000000001 /* Project object */;
 }

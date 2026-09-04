@@ -3,7 +3,7 @@ import Observation
 @MainActor
 @Observable
 final class BudgetAssignmentWorkflow {
-    static let maxInputDigits = 9
+    nonisolated static let maxInputDigits = 9
 
     private(set) var draft: BudgetAssignmentDraft?
 
@@ -91,6 +91,16 @@ final class BudgetAssignmentWorkflow {
         }
 
         draft.inputDigits.removeLast()
+        self.draft = draft
+    }
+
+    /// Replaces only the typed operand. Calculation and overflow validation
+    /// remain owned by `BudgetAssignmentDraft`.
+    func replaceInputDigits(_ digits: String) {
+        guard var draft = editableDraft,
+              digits.allSatisfy(\.isNumber),
+              digits.count <= Self.maxInputDigits else { return }
+        draft.inputDigits = digits
         self.draft = draft
     }
 

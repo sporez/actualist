@@ -53,6 +53,7 @@ struct BudgetCarryoverBadge: View {
 }
 
 struct BudgetTemplateConfirmationModifier: ViewModifier {
+    @Environment(AppState.self) private var appState
     @Binding var confirmation: BudgetTemplateConfirmation?
     var categoryID: String?
     var month: String?
@@ -75,7 +76,7 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
             .presentationDetents([.medium, .large])
             .appSwitcherPrivacyAwareDragIndicator()
             .presentationBackground(ActualistTheme.background)
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 }
