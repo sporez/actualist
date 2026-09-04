@@ -463,7 +463,7 @@ struct BudgetTemplateEditorViewModelTests {
     }
 }
 
-private actor EditorTemplateRepository: BudgetRepositoryProtocol {
+actor EditorTemplateRepository: BudgetRepositoryProtocol {
     var snapshot: BudgetTemplateEditorSnapshot
     private var saved: [[BudgetTemplateDraft]] = []
     private var blockSnapshot = false

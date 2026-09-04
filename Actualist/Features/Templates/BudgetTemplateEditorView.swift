@@ -30,6 +30,19 @@ struct BudgetTemplateEditorView: View {
                         .settingsSectionChrome()
                     }
 
+                    if viewModel.isEditable && !viewModel.authoringIssueMessages.isEmpty {
+                        Section {
+                            ForEach(
+                                Array(viewModel.authoringIssueMessages.enumerated()),
+                                id: \.offset
+                            ) { _, message in
+                                Label(message, systemImage: "exclamationmark.triangle")
+                                    .foregroundStyle(ActualistTheme.danger)
+                            }
+                        }
+                        .settingsSectionChrome()
+                    }
+
                     Section {
                         LabeledContent("This month", value: viewModel.totalContributionText)
                     } footer: {

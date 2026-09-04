@@ -77,7 +77,11 @@ extension BudgetDatabase {
         let catalog = try templateIncomeCatalog(db: db)
         return catalog.incomeCategoryIDsInOrder.compactMap { id in
             guard let name = catalog.incomeCategoryNamesByID[id] else { return nil }
-            return BudgetTemplateIncomeOption(id: id, name: name)
+            return BudgetTemplateIncomeOption(
+                id: id,
+                name: name,
+                isAvailable: !catalog.hiddenIncomeCategoryIDs.contains(id)
+            )
         }
     }
 

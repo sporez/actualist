@@ -20,10 +20,8 @@ enum BudgetTemplateKind: String, CaseIterable, Hashable, Identifiable, Sendable 
     /// only when its vertical slice can render and preserve every field.
     var isAvailableForAuthoring: Bool {
         switch self {
-        case .monthlyFixed, .balanceLimit, .refill, .copy, .average, .schedule, .remainder, .goal:
+        case .monthlyFixed, .dateTarget, .percentage, .balanceLimit, .refill, .copy, .average, .schedule, .remainder, .goal:
             true
-        case .dateTarget, .percentage:
-            false
         }
     }
 

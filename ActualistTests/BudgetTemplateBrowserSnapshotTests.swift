@@ -50,7 +50,7 @@ struct BudgetTemplateBrowserSnapshotTests {
         #expect(snapshot.categories.first?.lock == .readOnly(.missingColumns))
     }
 
-    @Test func noteManagedAndUnsupportedStayInTheIndex() async throws {
+    @Test func noteManagedAndPercentageStayInTheIndex() async throws {
         let fixtureURL = try fixtures.makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
             ALTER TABLE categories ADD COLUMN template_settings TEXT;
@@ -75,8 +75,12 @@ struct BudgetTemplateBrowserSnapshotTests {
         #expect(groceries.lock == .readOnly(.noteManaged))
         #expect(groceries.drafts == [.monthlyFixed(amount: 500, priority: 0, now: now)])
         #expect(percent.hasDefinition)
-        #expect(percent.lock == .readOnly(.unsupportedType))
-        #expect(percent.drafts.isEmpty)
+        #expect(percent.lock == .editable)
+        #expect(percent.drafts == [.percentage(
+            percent: 10,
+            sourceCategory: "all income",
+            priority: 0
+        )])
     }
 
     @Test func storeSnapshotRefreshesAfterClearingATemplate() async throws {

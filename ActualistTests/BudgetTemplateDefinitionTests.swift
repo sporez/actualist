@@ -232,21 +232,18 @@ struct BudgetTemplateDefinitionTests {
         #expect(lock(source: "ui", json: "{}") == .readOnly(.unsupportedType))
     }
 
-    @Test func lock_anyUnsupportedTypeLocksTheCategory() {
+    @Test func lock_mixedPhase4TypesRemainsEditable() {
         let mixed = """
             [
               {"directive":"template","type":"simple","monthly":400,"priority":1},
               {"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}
             ]
             """
-        #expect(lock(source: "ui", json: mixed) == .readOnly(.unsupportedType))
-        #expect(BudgetTemplateDefinition.drafts(fromJSON: mixed, now: now) == nil)
+        #expect(lock(source: "ui", json: mixed) == .editable)
+        #expect(BudgetTemplateDefinition.drafts(fromJSON: mixed, now: now)?.count == 2)
     }
 
     @Test(arguments: [
-        #"[{"directive":"template","type":"by","amount":1200,"month":"2027-09","priority":1}]"#,
-        #"[{"directive":"template","type":"spend","amount":300,"month":"2026-09","from":"2026-07","priority":0}]"#,
-        #"[{"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}]"#,
         #"[{"directive":"template","type":"schedule","name":"Rent","full":true,"priority":1}]"#,
         #"[{"directive":"template","type":"schedule","name":"Rent","adjustment":10,"adjustmentType":"percent","priority":1}]"#,
         #"[{"directive":"template","type":"average","numMonths":3,"adjustment":5,"adjustmentType":"percent","priority":1}]"#,
@@ -255,6 +252,16 @@ struct BudgetTemplateDefinitionTests {
     func lock_cutBAndInvalidTypes(json: String) {
         #expect(lock(source: "ui", json: json) == .readOnly(.unsupportedType))
         #expect(BudgetTemplateDefinition.drafts(fromJSON: json, now: now) == nil)
+    }
+
+    @Test(arguments: [
+        #"[{"directive":"template","type":"by","amount":1200,"month":"2027-09","priority":1}]"#,
+        #"[{"directive":"template","type":"spend","amount":300,"month":"2026-09","from":"2026-07","priority":0}]"#,
+        #"[{"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}]"#,
+    ])
+    func phase4TypesAreEditorEditable(json: String) {
+        #expect(lock(source: "ui", json: json) == .editable)
+        #expect(BudgetTemplateDefinition.drafts(fromJSON: json, now: now) != nil)
     }
 
     @Test func lock_scheduleWithoutFullOrAdjustmentIsEditable() {

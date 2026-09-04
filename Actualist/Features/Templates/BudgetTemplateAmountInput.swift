@@ -38,6 +38,16 @@ enum BudgetTemplateAmountInput {
         return value
     }
 
+    static func parsePercentage(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let value = Double(trimmed),
+              value.isFinite else {
+            return nil
+        }
+        return value
+    }
+
     static func contributionText(
         minorUnits: Int?,
         currency: BudgetCurrency,

@@ -60,14 +60,22 @@ final class BudgetTemplateEditorViewModel {
         isEditable
             && phase == .ready
             && fieldInputs.values.allSatisfy(\.isValid)
-            && BudgetTemplateAuthoringValidation.isValid(
-                items.map(\.draft),
-                context: BudgetTemplateAuthoringContext(
-                    today: now,
-                    schedules: schedules,
-                    incomeCategories: incomeCategories
-                )
+            && authoringIssues.isEmpty
+    }
+
+    var authoringIssues: [BudgetTemplateAuthoringIssue] {
+        BudgetTemplateAuthoringValidation.issues(
+            for: items.map(\.draft),
+            context: BudgetTemplateAuthoringContext(
+                today: now,
+                schedules: schedules,
+                incomeCategories: incomeCategories
             )
+        )
+    }
+
+    var authoringIssueMessages: [String] {
+        authoringIssues.map(\.message)
     }
 
     var navigationTitle: String {
@@ -114,6 +122,69 @@ final class BudgetTemplateEditorViewModel {
             isAvailable: false
         )
         return [unavailable] + schedules
+    }
+
+    func percentageSourceOptions(for id: UUID) -> [BudgetTemplatePercentageSourceOption] {
+        guard case .percentage(let value) = items.first(where: { $0.id == id })?.draft else {
+            return []
+        }
+
+        var options = [
+            BudgetTemplatePercentageSourceOption(
+                id: BudgetTemplatePercentageSource.allIncomeID,
+                name: BudgetTemplatePercentageSource.allIncomeName
+            )
+        ]
+        if !value.previous {
+            options.append(
+                BudgetTemplatePercentageSourceOption(
+                    id: BudgetTemplatePercentageSource.availableFundsID,
+                    name: BudgetTemplatePercentageSource.availableFundsName
+                )
+            )
+        }
+        options.append(contentsOf: incomeCategories.filter(\.isAvailable).map {
+            BudgetTemplatePercentageSourceOption(id: $0.id, name: $0.name)
+        })
+
+        let source = value.sourceCategory.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty,
+              !options.contains(where: { $0.id == source }) else {
+            return options
+        }
+        if let income = incomeCategories.first(where: {
+            $0.id == source ||
+            $0.name.localizedLowercase == source.localizedLowercase
+        }) {
+            if options.contains(where: { $0.id == income.id }) {
+                return options
+            }
+            let unavailable = BudgetTemplatePercentageSourceOption(
+                id: income.id,
+                name: "\(income.name) (unavailable)",
+                isAvailable: false
+            )
+            return [unavailable] + options
+        }
+        let unavailable = BudgetTemplatePercentageSourceOption(
+            id: source,
+            name: "\(source) (unavailable)",
+            isAvailable: false
+        )
+        return [unavailable] + options
+    }
+
+    func percentageSourceSelection(for id: UUID) -> String {
+        guard case .percentage(let value) = items.first(where: { $0.id == id })?.draft else {
+            return ""
+        }
+        let source = value.sourceCategory.trimmingCharacters(in: .whitespacesAndNewlines)
+        if percentageSourceOptions(for: id).contains(where: { $0.id == source }) {
+            return source
+        }
+        return incomeCategories.first {
+            $0.name.localizedLowercase == source.localizedLowercase
+        }?.id ?? source
     }
 
     var totalContributionText: String {
@@ -216,6 +287,62 @@ final class BudgetTemplateEditorViewModel {
         setInput(text, field: .interval, id: id)
     }
 
+    func dateTargetRepeats(for id: UUID) -> Bool {
+        guard case .dateTarget(let value) = items.first(where: { $0.id == id })?.draft else {
+            return false
+        }
+        return value.repeatInterval != nil
+    }
+
+    func dateTargetIsAnnual(for id: UUID) -> Bool {
+        guard case .dateTarget(let value) = items.first(where: { $0.id == id })?.draft else {
+            return false
+        }
+        return value.annual
+    }
+
+    func dateTargetAllowsEarlySpending(for id: UUID) -> Bool {
+        guard case .dateTarget(let value) = items.first(where: { $0.id == id })?.draft else {
+            return false
+        }
+        return value.isSpend
+    }
+
+    func setDateTargetRepeats(_ repeats: Bool, id: UUID) {
+        mutate(id: id) { draft in
+            guard case .dateTarget(var value) = draft else { return }
+            if repeats {
+                value.repeatInterval = value.repeatInterval ?? 1
+            } else {
+                value.repeatInterval = nil
+                value.annual = false
+            }
+            draft = .dateTarget(value)
+        }
+    }
+
+    func setDateTargetAnnual(_ annual: Bool, id: UUID) {
+        mutate(id: id) { draft in
+            guard case .dateTarget(var value) = draft,
+                  value.repeatInterval != nil else { return }
+            value.annual = annual
+            draft = .dateTarget(value)
+        }
+    }
+
+    func setDateTargetEarlySpending(_ enabled: Bool, id: UUID) {
+        mutate(id: id) { draft in
+            guard case .dateTarget(var value) = draft else { return }
+            value.isSpend = enabled
+            if enabled {
+                value.fromMonth = value.fromMonth ?? value.month
+            } else {
+                value.fromMonth = nil
+            }
+            draft = .dateTarget(value)
+        }
+    }
+
     var defaultWeeklyStart: String {
         BudgetTemplateEditorCalendar.defaultWeeklyStart(for: items.map(\.draft), now: now)
     }
@@ -297,6 +424,31 @@ final class BudgetTemplateEditorViewModel {
 
     func setNumMonths(_ text: String, id: UUID) {
         setInput(text, field: .numMonths, id: id)
+    }
+
+    func setPercentageSource(_ sourceID: String, id: UUID) {
+        guard let option = percentageSourceOptions(for: id).first(where: { $0.id == sourceID }),
+              option.isAvailable else {
+            return
+        }
+        mutate(id: id) { draft in
+            guard case .percentage(var value) = draft else { return }
+            value.sourceCategory = sourceID
+            draft = .percentage(value)
+        }
+    }
+
+    func setPercentagePrevious(_ previous: Bool, id: UUID) {
+        mutate(id: id) { draft in
+            guard case .percentage(var value) = draft else { return }
+            value.previous = previous
+            if previous,
+               value.sourceCategory.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .localizedLowercase == BudgetTemplatePercentageSource.availableFundsID {
+                value.sourceCategory = ""
+            }
+            draft = .percentage(value)
+        }
     }
 
     func setSchedule(_ option: BudgetTemplateScheduleOption, id: UUID) {

@@ -9,6 +9,7 @@ struct BudgetTemplateScheduleOption: Equatable, Identifiable, Hashable, Sendable
 struct BudgetTemplateIncomeOption: Equatable, Identifiable, Hashable, Sendable {
     var id: String
     var name: String
+    var isAvailable: Bool = true
 }
 
 /// Loaded category templates, lock, and schedule picker options.

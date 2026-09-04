@@ -66,7 +66,7 @@ enum BudgetTemplateDefinition {
         switch BudgetTemplateEditorCodec.decodeEditor(json: json, now: now) {
         case .success(let drafts?):
             return drafts.count <= BudgetTemplateEngine.Bounds.maximumEntriesPerCategory
-                && drafts.allSatisfy(\.isComplete)
+                && drafts.allSatisfy(BudgetTemplateEditorCodec.isEditorReady)
         case .success(nil), .failure:
             return false
         }
@@ -86,6 +86,10 @@ enum BudgetTemplateDefinition {
             return isMonthlySimple(entry)
         case ("template", "periodic"):
             return isPeriodic(entry)
+        case ("template", "by"), ("template", "spend"):
+            return isDateTarget(entry)
+        case ("template", "percentage"):
+            return isPercentage(entry)
         case ("template", "limit"):
             return isStandaloneLimit(entry)
         case ("template", "refill"):
@@ -236,6 +240,30 @@ private extension BudgetTemplateDefinition {
             && isSupportedLimit(entry.standaloneLimit)
     }
 
+    static func isDateTarget(_ entry: BudgetTemplateEntry) -> Bool {
+        guard hasPriority(entry),
+              isSignedAmount(entry.amount),
+              entry.limit == nil,
+              entry.adjustment == nil,
+              entry.adjustmentType == nil,
+              entry.full != true else { return false }
+        if let repeatInterval = entry.repeatInterval {
+            return BudgetTemplateEngine.Bounds.repeatInterval.contains(repeatInterval)
+        }
+        return true
+    }
+
+    static func isPercentage(_ entry: BudgetTemplateEntry) -> Bool {
+        guard hasPriority(entry),
+              let percent = entry.percentageAmount,
+              percent.isFinite,
+              entry.limit == nil,
+              entry.adjustment == nil,
+              entry.adjustmentType == nil,
+              entry.full != true else { return false }
+        return true
+    }
+
     static func isRefill(_ entry: BudgetTemplateEntry) -> Bool {
         hasPriority(entry) && entry.limit == nil
     }
@@ -264,7 +292,6 @@ private extension BudgetTemplateDefinition {
 
     static func isSchedule(_ entry: BudgetTemplateEntry) -> Bool {
         guard hasPriority(entry),
-              entry.scheduleLookupKey != nil,
               entry.limit == nil,
               entry.full != true,
               entry.adjustment == nil,

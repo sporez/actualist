@@ -2,11 +2,15 @@ import Foundation
 
 enum BudgetTemplateEditorInputField: Hashable, Sendable {
     case amount
+    case percent
     case interval
+    case repeatInterval
     case lookBack
     case numMonths
     case priority
     case weight
+    case targetMonth
+    case spendStartMonth
 }
 
 struct BudgetTemplateEditorInputKey: Hashable, Sendable {
@@ -34,8 +38,12 @@ enum BudgetTemplateEditorInputInterpreter {
             BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
         case (.amount, .balanceLimit(let value)):
             BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
+        case (.percent, .percentage(let value)):
+            String(value.percent)
         case (.interval, .monthlyFixed(let value)):
             String(value.interval)
+        case (.repeatInterval, .dateTarget(let value)):
+            value.repeatInterval.map(String.init)
         case (.lookBack, .copy(let value)):
             String(value.lookBack)
         case (.numMonths, .average(let value)):
@@ -54,6 +62,10 @@ enum BudgetTemplateEditorInputInterpreter {
             String(value.priority)
         case (.priority, .refill(let value)):
             String(value.priority)
+        case (.targetMonth, .dateTarget(let value)):
+            value.month
+        case (.spendStartMonth, .dateTarget(let value)):
+            value.fromMonth ?? ""
         case (.weight, .remainder(let value)):
             weightText(value.weight)
         default:
@@ -85,6 +97,13 @@ enum BudgetTemplateEditorInputInterpreter {
             default:
                 return nil
             }
+        case .percent:
+            guard let percent = BudgetTemplateAmountInput.parsePercentage(text),
+                  case .percentage(var value) = draft else {
+                return nil
+            }
+            value.percent = percent
+            return .percentage(value)
         case .interval:
             guard let interval = BudgetTemplateAmountInput.parseInt(text),
                   BudgetTemplateEngine.Bounds.periodInterval.contains(interval),
@@ -93,6 +112,14 @@ enum BudgetTemplateEditorInputInterpreter {
             }
             value.interval = interval
             return .monthlyFixed(value)
+        case .repeatInterval:
+            guard let interval = BudgetTemplateAmountInput.parseInt(text),
+                  BudgetTemplateEngine.Bounds.repeatInterval.contains(interval),
+                  case .dateTarget(var value) = draft else {
+                return nil
+            }
+            value.repeatInterval = interval
+            return .dateTarget(value)
         case .lookBack:
             guard let lookBack = BudgetTemplateAmountInput.parseInt(text),
                   BudgetTemplateEngine.Bounds.lookBack.contains(lookBack),
@@ -147,6 +174,18 @@ enum BudgetTemplateEditorInputInterpreter {
             }
             value.weight = weight
             return .remainder(value)
+        case .targetMonth, .spendStartMonth:
+            guard let month = try? BudgetTemplateCalendar.parseMonth(text),
+                  case .dateTarget(var value) = draft else {
+                return nil
+            }
+            let monthID = BudgetTemplateCalendar.monthID(month)
+            if field == .targetMonth {
+                value.month = monthID
+            } else {
+                value.fromMonth = monthID
+            }
+            return .dateTarget(value)
         }
     }
 

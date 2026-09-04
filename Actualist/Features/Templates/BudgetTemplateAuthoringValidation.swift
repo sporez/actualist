@@ -31,6 +31,39 @@ enum BudgetTemplateAuthoringIssue: Equatable, Sendable {
     case targetMonthPast(index: Int)
     case spendStartMissing(index: Int)
     case spendStartAfterTarget(index: Int)
+
+    var message: String {
+        switch self {
+        case .invalidEntry(let index):
+            "Template \(index + 1) has an invalid value."
+        case .duplicateType(let kind):
+            "Only one \(kind.title) template is allowed in this category."
+        case .duplicateSpend:
+            "Only one early-spending template is allowed in this category."
+        case .refillRequiresLimit:
+            "Refill needs a Balance Limit."
+        case .limitRequiresContributor:
+            "Balance Limit needs a contributing template."
+        case .multipleLimits:
+            "Only one Balance Limit is allowed in this category."
+        case .scheduleNotFound:
+            "Choose an available schedule."
+        case .percentageSourceNotFound:
+            "Choose an available income source."
+        case .percentageConflict(_, let source):
+            "Percentage templates for \(source.isEmpty ? "this source" : source) cannot total more than 100%."
+        case .schedulePriorityMismatch:
+            "Schedule and Save by Date templates must use the same priority."
+        case .targetMonthMissing:
+            "Enter a valid target month in YYYY-MM format."
+        case .targetMonthPast:
+            "A one-time target month must not be in the past."
+        case .spendStartMissing:
+            "Enter a month to start early spending."
+        case .spendStartAfterTarget:
+            "Early spending must start on or before the target month."
+        }
+    }
 }
 
 /// Pure list-level validation shared by the editor state and the definition
@@ -46,7 +79,13 @@ enum BudgetTemplateAuthoringValidation {
         }
 
         for (index, draft) in drafts.enumerated() {
-            if !draft.isComplete {
+            let missingScheduleReference: Bool = if case .schedule(let value) = draft {
+                value.scheduleId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+                    && value.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            } else {
+                false
+            }
+            if !draft.isComplete && !missingScheduleReference {
                 issues.append(.invalidEntry(index: index))
             }
             switch draft {

@@ -175,7 +175,7 @@ struct BudgetTemplateWriteTests {
         #expect(try categoryTemplateState("groceries", at: fixtureURL).goalDef?.contains("500") == true)
     }
 
-    @Test func templateWriteRefusesUnsupportedTypesAndIncomingCutB() async throws {
+    @Test func templateWriteReplacesExistingPercentageWithMonthlyTemplate() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
             ALTER TABLE categories ADD COLUMN template_settings TEXT;
@@ -186,18 +186,18 @@ struct BudgetTemplateWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite(
-            BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
-        )) {
-            _ = try await database.setCategoryTemplateMessages(
-                categoryID: "groceries",
-                goalDefJSON: #"[{"directive":"template","type":"simple","monthly":400,"priority":1}]"#,
-                builder: &builder
-            )
-        }
+        let incoming = #"[{"directive":"template","type":"simple","monthly":400,"priority":1}]"#
+        let messages = try await database.setCategoryTemplateMessages(
+            categoryID: "groceries",
+            goalDefJSON: incoming,
+            builder: &builder
+        )
+        #expect(messages.count == 1)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        #expect(try categoryTemplateState("groceries", at: fixtureURL).goalDef == incoming)
     }
 
-    @Test func templateWriteRefusesIncomingCutBOnEditableCategory() async throws {
+    @Test func templateWriteAcceptsPercentageOnEditableCategory() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
             ALTER TABLE categories ADD COLUMN template_settings TEXT;
@@ -205,16 +205,54 @@ struct BudgetTemplateWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite(
-            BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
-        )) {
-            _ = try await database.setCategoryTemplateMessages(
-                categoryID: "groceries",
-                goalDefJSON: #"[{"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}]"#,
-                builder: &builder
+        let incoming = #"[{"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}]"#
+        let messages = try await database.setCategoryTemplateMessages(
+            categoryID: "groceries",
+            goalDefJSON: incoming,
+            builder: &builder
+        )
+        #expect(messages.count == 1)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        #expect(try categoryTemplateState("groceries", at: fixtureURL).goalDef == incoming)
+    }
+
+    @Test func templateStoreRoundTripsDateTargetsAndPercentageSources() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            ALTER TABLE categories ADD COLUMN template_settings TEXT;
+            UPDATE categories SET template_settings = '{"source":"ui"}' WHERE id = 'groceries';
+            """)
+        let drafts: [BudgetTemplateDraft] = [
+            .dateTarget(
+                amount: 1_200,
+                month: "2027-09",
+                priority: 1,
+                repeatInterval: 1,
+                annual: true,
+                fromMonth: "2027-01",
+                isSpend: true,
+                description: "Holiday fund"
+            ),
+            .percentage(
+                percent: 15,
+                sourceCategory: "all income",
+                previous: false,
+                priority: 1
             )
-        }
-        #expect(try categoryTemplateState("groceries", at: fixtureURL).goalDef == nil)
+        ]
+
+        _ = try await bundle.store.setCategoryTemplatesAndRefresh(
+            categoryID: "groceries",
+            drafts: drafts,
+            budgetID: "group-1",
+            month: "2026-07"
+        )
+
+        let snapshot = try await bundle.store.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            budgetID: "group-1"
+        )
+        #expect(snapshot.lock == .editable)
+        #expect(snapshot.drafts == drafts)
     }
 
     @Test func templateWriteRefusesUnknownEditorFieldsBeforeCreatingMessages() async throws {

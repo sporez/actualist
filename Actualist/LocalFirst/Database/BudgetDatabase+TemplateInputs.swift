@@ -61,6 +61,7 @@ extension BudgetDatabase {
         let columns = try columnSet(for: "categories", db: db)
         let isIncome = column("is_income", fallback: "0", columns: columns)
         let name = column("name", fallback: "id", columns: columns)
+        let hidden = column("hidden", fallback: "0", columns: columns)
         var order = [String]()
         if columns.contains("sort_order") {
             order.append("sort_order")
@@ -69,7 +70,7 @@ extension BudgetDatabase {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT id, \(name) AS name
+                SELECT id, \(name) AS name, \(hidden) AS hidden
                 FROM categories
                 WHERE \(predicateForLiveRows(columns: columns))
                   AND (\(isIncome) = 1)
@@ -81,6 +82,7 @@ extension BudgetDatabase {
         var incomeCategoryIDByLocalizedName: [String: String] = [:]
         var incomeCategoryIDsInOrder: [String] = []
         var incomeCategoryNamesByID: [String: String] = [:]
+        var hiddenIncomeCategoryIDs: Set<String> = []
         for row in rows {
             guard let id = row["id"] as String? else {
                 continue
@@ -91,6 +93,9 @@ extension BudgetDatabase {
             let label = rawName.flatMap { $0.isEmpty ? nil : $0 } ?? id
             incomeCategoryIDsInOrder.append(id)
             incomeCategoryNamesByID[id] = label
+            if flexibleBool(row["hidden"]) {
+                hiddenIncomeCategoryIDs.insert(id)
+            }
             let lowered = label.localizedLowercase
             if incomeCategoryIDByLocalizedName[lowered] == nil {
                 incomeCategoryIDByLocalizedName[lowered] = id
@@ -100,7 +105,8 @@ extension BudgetDatabase {
             incomeCategoryIDs: incomeCategoryIDs,
             incomeCategoryIDByLocalizedName: incomeCategoryIDByLocalizedName,
             incomeCategoryIDsInOrder: incomeCategoryIDsInOrder,
-            incomeCategoryNamesByID: incomeCategoryNamesByID
+            incomeCategoryNamesByID: incomeCategoryNamesByID,
+            hiddenIncomeCategoryIDs: hiddenIncomeCategoryIDs
         )
     }
 
@@ -248,6 +254,7 @@ extension BudgetDatabase {
             incomeCategoryIDByLocalizedName: catalog.incomeCategoryIDByLocalizedName,
             incomeCategoryIDsInOrder: catalog.incomeCategoryIDsInOrder,
             incomeCategoryNamesByID: catalog.incomeCategoryNamesByID,
+            hiddenIncomeCategoryIDs: catalog.hiddenIncomeCategoryIDs,
             activeScheduleNames: catalog.activeScheduleNames,
             activeScheduleIDs: catalog.activeScheduleIDs
         )

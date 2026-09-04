@@ -38,9 +38,16 @@ struct BudgetTemplateEditorItemSection: View {
         switch item.draft {
         case .monthlyFixed(let value):
             monthlyFixedFields(value)
-        case .dateTarget, .percentage:
-            Text("This template type is not editable yet.")
-                .foregroundStyle(ActualistTheme.secondaryText)
+        case .dateTarget:
+            BudgetTemplateEditorDateTargetFields(
+                itemID: item.id,
+                viewModel: viewModel
+            )
+        case .percentage:
+            BudgetTemplateEditorPercentageFields(
+                itemID: item.id,
+                viewModel: viewModel
+            )
         case .balanceLimit(let value):
             balanceLimitFields(value)
         case .refill(let value):
@@ -171,6 +178,7 @@ struct BudgetTemplateEditorItemSection: View {
                 set: { viewModel.setInput($0, field: field, id: item.id) }
             ),
             isDecimal: isDecimal,
+            isMonth: false,
             isEnabled: viewModel.isEditable,
             isValid: viewModel.inputIsValid(for: field, id: item.id)
         )
@@ -310,13 +318,18 @@ struct BudgetTemplateEditorTextField: View {
     let title: String
     @Binding var text: String
     var isDecimal = false
+    var isMonth = false
     let isEnabled: Bool
     let isValid: Bool
 
     var body: some View {
         LabeledContent(title) {
             TextField(title, text: $text)
-                .keyboardType(isDecimal ? .decimalPad : .numberPad)
+                .keyboardType(
+                    isMonth
+                        ? .numbersAndPunctuation
+                        : (isDecimal ? .decimalPad : .numberPad)
+                )
                 .multilineTextAlignment(.trailing)
                 .disabled(!isEnabled)
                 .foregroundStyle(isValid ? ActualistTheme.primaryText : ActualistTheme.danger)
