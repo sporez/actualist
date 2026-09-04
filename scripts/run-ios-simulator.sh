@@ -110,27 +110,27 @@ xcodebuild \
   -derivedDataPath "${DERIVED_DATA_PATH}" \
   build
 
-if ! xcrun simctl list devices booted | grep -q "(Booted)"; then
+if ! xcrun simctl list devices booted | grep -Fq "${SIMULATOR_ID}"; then
   if [[ "${BOOT_IF_NEEDED}" == "1" ]]; then
     echo "Booting ${SIMULATOR_NAME} (${SIMULATOR_ID})"
     xcrun simctl boot "${SIMULATOR_ID}" >/dev/null 2>&1 || true
     xcrun simctl bootstatus "${SIMULATOR_ID}" -b
   else
-    echo "No simulator is booted. Start one in Simulator, or rerun with --boot." >&2
+    echo "The pinned simulator is not booted. Start it in Simulator, or rerun with --boot." >&2
     exit 1
   fi
 fi
 
 if [[ "${RESET_APP}" == "1" ]]; then
   echo "Uninstalling ${BUNDLE_ID}"
-  xcrun simctl uninstall booted "${BUNDLE_ID}" >/dev/null 2>&1 || true
+  xcrun simctl uninstall "${SIMULATOR_ID}" "${BUNDLE_ID}" >/dev/null 2>&1 || true
 fi
 
 echo "Installing ${APP_PATH}"
-xcrun simctl install booted "${APP_PATH}"
+xcrun simctl install "${SIMULATOR_ID}" "${APP_PATH}"
 
 if [[ "${LAUNCH_APP}" == "1" ]]; then
-  xcrun simctl terminate booted "${BUNDLE_ID}" >/dev/null 2>&1 || true
+  xcrun simctl terminate "${SIMULATOR_ID}" "${BUNDLE_ID}" >/dev/null 2>&1 || true
   launch_args=()
   if [[ "${ENTER_DEMO}" == "1" ]]; then
     launch_args+=(-actualist-demo)
@@ -139,7 +139,7 @@ if [[ "${LAUNCH_APP}" == "1" ]]; then
     launch_args+=(-actualist-screen "${SCREEN_NAME}")
   fi
   echo "Launching ${BUNDLE_ID} ${launch_args[*]:-}"
-  xcrun simctl launch booted "${BUNDLE_ID}" "${launch_args[@]+"${launch_args[@]}"}"
+  xcrun simctl launch "${SIMULATOR_ID}" "${BUNDLE_ID}" "${launch_args[@]+"${launch_args[@]}"}"
 fi
 
 if [[ "${CAPTURE_SCREENSHOT}" == "1" ]]; then
@@ -149,7 +149,7 @@ if [[ "${CAPTURE_SCREENSHOT}" == "1" ]]; then
   screen_slug="${screen_slug//\//-}"
   SCREENSHOT_PATH="${SCREENSHOT_DIR}/actualist-${screen_slug}-$(date +%Y%m%d-%H%M%S).png"
   echo "Capturing ${SCREENSHOT_PATH}"
-  xcrun simctl io booted screenshot "${SCREENSHOT_PATH}"
+  xcrun simctl io "${SIMULATOR_ID}" screenshot "${SCREENSHOT_PATH}"
   echo "Done: ${SCREENSHOT_PATH}"
 else
   echo "Done."
