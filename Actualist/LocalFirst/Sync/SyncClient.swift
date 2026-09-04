@@ -116,9 +116,11 @@ actor SyncClient {
             request.messages.map { ($0.timestamp, $0) },
             uniquingKeysWith: { _, newest in newest }
         )
-        var confirmedTimestamps = Set(responseEnvelopes.compactMap { envelope in
-            pushedEnvelopesByTimestamp[envelope.timestamp] == envelope ? envelope.timestamp : nil
-        })
+        var confirmedTimestamps = try confirmedUploadTimestamps(
+            in: responseEnvelopes,
+            matching: pushedEnvelopesByTimestamp,
+            configuration: configuration
+        )
 
         // The server reads before inserting this upload, so confirm it with a second pull.
         if confirmedTimestamps.count != pushedEnvelopesByTimestamp.count {
@@ -135,9 +137,11 @@ actor SyncClient {
             try validateResponseSize(confirmationData)
             let confirmationResponse = try ActualSync_SyncResponse(serializedBytes: confirmationData)
             responseEnvelopes.append(contentsOf: confirmationResponse.messages)
-            confirmedTimestamps.formUnion(confirmationResponse.messages.compactMap { envelope in
-                pushedEnvelopesByTimestamp[envelope.timestamp] == envelope ? envelope.timestamp : nil
-            })
+            confirmedTimestamps.formUnion(try confirmedUploadTimestamps(
+                in: confirmationResponse.messages,
+                matching: pushedEnvelopesByTimestamp,
+                configuration: configuration
+            ))
         }
 
         let unconfirmedCount = pushedEnvelopesByTimestamp.keys.filter {
@@ -168,39 +172,69 @@ actor SyncClient {
         }
     }
 
+    private func confirmedUploadTimestamps(
+        in envelopes: [ActualSync_MessageEnvelope],
+        matching uploaded: [String: ActualSync_MessageEnvelope],
+        configuration: LocalFirstSyncConfiguration
+    ) throws -> Set<String> {
+        var confirmed = Set<String>()
+        for envelope in envelopes {
+            guard let expected = uploaded[envelope.timestamp] else { continue }
+            if envelope == expected {
+                confirmed.insert(envelope.timestamp)
+            } else if envelope.isEncrypted && expected.isEncrypted {
+                // Actual keeps the first envelope for a timestamp. A retry uses a fresh IV,
+                // so authenticate and compare message content instead of encrypted bytes.
+                let returnedMessage = try decodedMessage(from: envelope, configuration: configuration)
+                let uploadedMessage = try decodedMessage(from: expected, configuration: configuration)
+                if returnedMessage == uploadedMessage {
+                    confirmed.insert(envelope.timestamp)
+                }
+            }
+        }
+        return confirmed
+    }
+
     private func decodedMessages(
         from response: ActualSync_SyncResponse,
         configuration: LocalFirstSyncConfiguration
     ) throws -> [ActualSyncDecodedMessage] {
         try auditPlaintextEnvelopes(in: response, configuration: configuration)
 
-        return try response.messages.map { envelope in
-            let messageData: Data
-            if envelope.isEncrypted {
-                guard let encryptionContext = configuration.encryptionContext else {
-                    throw LocalFirstError.encryptedBudgetRequiresPassword
-                }
-                let encryptedData = try ActualSync_EncryptedData(serializedBytes: envelope.content)
-                messageData = try ActualBudgetCrypto.decrypt(
-                    ActualEncryptedData(
-                        data: encryptedData.data,
-                        iv: encryptedData.iv,
-                        authTag: encryptedData.authTag
-                    ),
-                    keyData: encryptionContext.keyData
-                )
-            } else {
-                messageData = envelope.content
-            }
-            let message = try ActualSync_Message(serializedBytes: messageData)
-            return ActualSyncDecodedMessage(
-                timestamp: envelope.timestamp,
-                dataset: message.dataset,
-                row: message.row,
-                column: message.column,
-                serializedValue: message.value
-            )
+        return try response.messages.map {
+            try decodedMessage(from: $0, configuration: configuration)
         }
+    }
+
+    private func decodedMessage(
+        from envelope: ActualSync_MessageEnvelope,
+        configuration: LocalFirstSyncConfiguration
+    ) throws -> ActualSyncDecodedMessage {
+        let messageData: Data
+        if envelope.isEncrypted {
+            guard let encryptionContext = configuration.encryptionContext else {
+                throw LocalFirstError.encryptedBudgetRequiresPassword
+            }
+            let encryptedData = try ActualSync_EncryptedData(serializedBytes: envelope.content)
+            messageData = try ActualBudgetCrypto.decrypt(
+                ActualEncryptedData(
+                    data: encryptedData.data,
+                    iv: encryptedData.iv,
+                    authTag: encryptedData.authTag
+                ),
+                keyData: encryptionContext.keyData
+            )
+        } else {
+            messageData = envelope.content
+        }
+        let message = try ActualSync_Message(serializedBytes: messageData)
+        return ActualSyncDecodedMessage(
+            timestamp: envelope.timestamp,
+            dataset: message.dataset,
+            row: message.row,
+            column: message.column,
+            serializedValue: message.value
+        )
     }
 
     private func auditPlaintextEnvelopes(

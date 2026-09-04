@@ -218,16 +218,19 @@ actor RecordingSyncTransport: ActualSyncTransport {
     private var capturedMessageCounts: [Int] = []
     private var capturedSinceValues: [String] = []
     private var serverMessagesByTimestamp: [String: ActualSync_MessageEnvelope] = [:]
+    private let lostResponseAtCall: Int?
 
     init(
         shouldFail: Bool = false,
         failureCount: Int = 0,
         dropsUploadedMessages: Bool = false,
-        delayNanoseconds: UInt64 = 0
+        delayNanoseconds: UInt64 = 0,
+        lostResponseAtCall: Int? = nil
     ) {
         self.remainingFailureCount = shouldFail ? .max : max(0, failureCount)
         self.dropsUploadedMessages = dropsUploadedMessages
         self.delayNanoseconds = delayNanoseconds
+        self.lostResponseAtCall = lostResponseAtCall
     }
 
     func sync(data: Data, token: String) async throws -> Data {
@@ -248,9 +251,13 @@ actor RecordingSyncTransport: ActualSyncTransport {
             .filter { $0.timestamp > request.since }
             .sorted { $0.timestamp < $1.timestamp }
         if !dropsUploadedMessages {
-            for message in request.messages {
+            // Actual 26.9.0 uses INSERT OR IGNORE: retries retain the first envelope.
+            for message in request.messages where serverMessagesByTimestamp[message.timestamp] == nil {
                 serverMessagesByTimestamp[message.timestamp] = message
             }
+        }
+        if capturedMessageCounts.count == lostResponseAtCall {
+            throw LocalFirstTestSyncError.failed
         }
         return try response.serializedData()
     }
