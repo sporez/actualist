@@ -45,12 +45,23 @@ struct BudgetTemplateEditorView: View {
 
                     Section {
                         LabeledContent("This month", value: viewModel.totalContributionText)
+                        if viewModel.previewState == .loading {
+                            ProgressView("Updating preview")
+                        } else if viewModel.previewState == .invalid {
+                            Text("Correct the template fields to preview this month.")
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+                        if viewModel.isPrivacyModeEnabled {
+                            Text("Amounts and notes are hidden in Sample Values. Disable it to edit those fields.")
+                                .font(.footnote)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
                     } footer: {
                         Text(target.categoryName)
                     }
                     .settingsSectionChrome()
 
-                    ForEach(Array(viewModel.items.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(viewModel.editor.items.enumerated()), id: \.element.id) { index, item in
                         BudgetTemplateEditorItemSection(
                             item: item,
                             index: index,
@@ -61,9 +72,9 @@ struct BudgetTemplateEditorView: View {
                     if viewModel.isEditable {
                         Section {
                             Menu("Add Template", systemImage: "plus") {
-                                ForEach(viewModel.addableKinds) { kind in
+                                ForEach(viewModel.editor.addableKinds) { kind in
                                     Button(kind.title) {
-                                        viewModel.add(kind)
+                                        viewModel.edit(.add(kind))
                                     }
                                 }
                             }
@@ -109,22 +120,16 @@ struct BudgetTemplateEditorView: View {
             }
         }
         .interactiveDismissDisabled(viewModel.phase == .saving)
-        .environment(\.budgetCurrency, viewModel.currency)
-        .task {
-            await load()
+        .environment(\.budgetCurrency, viewModel.editor.currency)
+        .task(id: appState.settings.selectedBudgetID) {
+            await viewModel.load(repository: appState.budgetRepository, budgetID: appState.settings.selectedBudgetID)
+        }
+        .onChange(of: appState.settings.randomizedDisplayValuesEnabled, initial: true) { _, enabled in
+            viewModel.isPrivacyModeEnabled = enabled
         }
         .onDisappear {
             viewModel.cancel()
         }
-    }
-
-    private func load() async {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            viewModel.errorMessage = "No budget is selected."
-            return
-        }
-        viewModel.isPrivacyModeEnabled = appState.settings.randomizedDisplayValuesEnabled
-        await viewModel.load(repository: appState.budgetRepository, budgetID: budgetID)
     }
 
     private func save() async {

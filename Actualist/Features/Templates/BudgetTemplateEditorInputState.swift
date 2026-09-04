@@ -12,6 +12,8 @@ enum BudgetTemplateEditorInputField: Hashable, Sendable {
     case weight
     case targetMonth
     case spendStartMonth
+    case fixedStart
+    case limitStart
 }
 
 struct BudgetTemplateEditorInputKey: Hashable, Sendable {
@@ -34,6 +36,8 @@ enum BudgetTemplateEditorInputInterpreter {
     ) -> String? {
         switch (field, draft) {
         case (.amount, .monthlyFixed(let value)):
+            BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
+        case (.amount, .dateTarget(let value)):
             BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
         case (.amount, .goal(let value)):
             BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
@@ -67,6 +71,10 @@ enum BudgetTemplateEditorInputInterpreter {
             String(value.priority)
         case (.priority, .refill(let value)):
             String(value.priority)
+        case (.fixedStart, .monthlyFixed(let value)):
+            value.starting
+        case (.limitStart, .balanceLimit(let value)):
+            value.start ?? ""
         case (.targetMonth, .dateTarget(let value)):
             value.month
         case (.spendStartMonth, .dateTarget(let value)):
@@ -93,6 +101,9 @@ enum BudgetTemplateEditorInputInterpreter {
             case .monthlyFixed(var value):
                 value.amount = amount
                 return .monthlyFixed(value)
+            case .dateTarget(var value):
+                value.amount = amount
+                return .dateTarget(value)
             case .goal(var value):
                 value.amount = amount
                 return .goal(value)
@@ -200,6 +211,18 @@ enum BudgetTemplateEditorInputInterpreter {
             }
             value.weight = weight
             return .remainder(value)
+        case .fixedStart, .limitStart:
+            guard let date = BudgetTemplateCalendar.validatedDate(text) else { return nil }
+            let day = BudgetTemplateCalendar.dayID(from: date)
+            switch draft {
+            case .monthlyFixed(var value):
+                value.starting = day
+                return .monthlyFixed(value)
+            case .balanceLimit(var value):
+                value.start = day
+                return .balanceLimit(value)
+            default: return nil
+            }
         case .targetMonth, .spendStartMonth:
             guard let month = try? BudgetTemplateCalendar.parseMonth(text),
                   case .dateTarget(var value) = draft else {
@@ -216,8 +239,8 @@ enum BudgetTemplateEditorInputInterpreter {
     }
 
     private static func weightText(_ weight: Double) -> String {
-        if weight.rounded() == weight {
-            return String(Int(weight))
+        if let integer = Int(exactly: weight) {
+            return String(integer)
         }
         return String(weight)
     }
@@ -252,7 +275,7 @@ enum BudgetTemplateEditorInputInterpreter {
                   magnitude >= 0 else {
                 return nil
             }
-            return .percent(signedValue < 0 ? -magnitude : magnitude)
+            return .percent(signedValue.sign == .minus ? -magnitude : magnitude)
         }
     }
 }

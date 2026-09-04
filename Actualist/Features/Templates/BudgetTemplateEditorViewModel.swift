@@ -10,30 +10,19 @@ final class BudgetTemplateEditorViewModel {
         case saving
     }
 
-    struct Item: Identifiable, Equatable, Sendable {
-        var id: UUID
-        var draft: BudgetTemplateDraft
-    }
-
     let target: BudgetTemplateEditorTarget
     let now: Date
     let dryRunDelay: Duration
 
     private(set) var phase: Phase = .loading
     private(set) var lock: BudgetTemplateCategoryLock = .editable
-    private(set) var items: [Item] = []
-    private(set) var schedules: [BudgetTemplateScheduleOption] = []
-    private(set) var incomeCategories: [BudgetTemplateIncomeOption] = []
-    private(set) var currency: BudgetCurrency = .none
-    private(set) var dryRun: BudgetTemplateCategoryDryRun?
+    private(set) var editor: BudgetTemplateDraftEditor
+    private(set) var previewState: PreviewState = .idle
     var errorMessage: String?
-    var dryRunErrorMessage: String?
     var isPrivacyModeEnabled = false
     private var didLoadSuccessfully = false
 
     private var loadGeneration = 0
-    private var fieldInputs: [BudgetTemplateEditorInputKey: BudgetTemplateEditorInputState] = [:]
-    private var noteInputs: [UUID: String] = [:]
     @ObservationIgnored private var previewCoordinator = BudgetTemplateEditorPreviewCoordinator()
     @ObservationIgnored private var session: Session?
 
@@ -47,6 +36,7 @@ final class BudgetTemplateEditorViewModel {
         now: Date = Date(),
         dryRunDelay: Duration = .milliseconds(200)
     ) {
+        self.editor = BudgetTemplateDraftEditor(now: now)
         self.target = target
         self.now = now
         self.dryRunDelay = dryRunDelay
@@ -59,17 +49,17 @@ final class BudgetTemplateEditorViewModel {
     var canSave: Bool {
         isEditable
             && phase == .ready
-            && fieldInputs.values.allSatisfy(\.isValid)
+            && editor.hasValidInputs
             && authoringIssues.isEmpty
     }
 
     var authoringIssues: [BudgetTemplateAuthoringIssue] {
         BudgetTemplateAuthoringValidation.issues(
-            for: items.map(\.draft),
+            for: editor.items.map(\.draft),
             context: BudgetTemplateAuthoringContext(
                 today: now,
-                schedules: schedules,
-                incomeCategories: incomeCategories
+                schedules: editor.schedules,
+                incomeCategories: editor.incomeCategories
             )
         )
     }
@@ -80,117 +70,89 @@ final class BudgetTemplateEditorViewModel {
 
     var navigationTitle: String {
         BudgetTemplateDoorKind.kind(
-            hasDefinition: !items.isEmpty,
+            hasDefinition: !editor.items.isEmpty,
             lock: lock
         ).editorTitle
     }
 
-    var addableKinds: [BudgetTemplateKind] {
-        let present = Set(items.map(\.draft.kind))
-        return BudgetTemplateKind.allCases.filter { kind in
-            kind.isAvailableForAuthoring
-                && (!kind.isSingleton || !present.contains(kind))
+    enum PreviewState: Equatable {
+        case idle
+        case empty
+        case invalid
+        case loading
+        case ready(BudgetTemplateCategoryDryRun)
+        case failed(String)
+    }
+
+    var dryRun: BudgetTemplateCategoryDryRun? {
+        switch previewState {
+        case .ready(let result): result
+        case .empty: BudgetTemplateCategoryDryRun(budgeted: 0, perTemplate: [])
+        default: nil
         }
     }
 
-    var hasBalanceLimit: Bool {
-        items.contains { if case .balanceLimit = $0.draft { true } else { false } }
+    var dryRunErrorMessage: String? {
+        if case .failed(let message) = previewState { return message }
+        return nil
     }
 
-    var canAddBalanceLimit: Bool {
-        isEditable && addableKinds.contains(.balanceLimit)
+    var canAddBalanceLimit: Bool { isEditable && editor.addableKinds.contains(.balanceLimit) }
+    var canEditNotes: Bool { isEditable && !isPrivacyModeEnabled }
+
+    func inputText(for field: BudgetTemplateEditorInputField, id: UUID) -> String {
+        if isPrivacyModeEnabled && (field == .amount || field == .adjustment) { return "Hidden" }
+        return editor.inputText(for: field, id: id)
     }
 
-    func typeChangeKinds(for id: UUID) -> [BudgetTemplateKind] {
-        let otherKinds = Set(items.filter { $0.id != id }.map(\.draft.kind))
-        return BudgetTemplateKind.allCases.filter { kind in
-            kind.isAvailableForAuthoring
-                && (!kind.isSingleton || !otherKinds.contains(kind))
-        }
+    func inputIsEnabled(_ field: BudgetTemplateEditorInputField) -> Bool {
+        isEditable && !(isPrivacyModeEnabled && (field == .amount || field == .adjustment))
     }
 
-    func scheduleOptions(for id: UUID) -> [BudgetTemplateScheduleOption] {
-        guard case .schedule(let value) = items.first(where: { $0.id == id })?.draft,
-              let scheduleID = value.scheduleId,
-              !schedules.contains(where: { $0.id == scheduleID }) else {
-            return schedules
-        }
-        let name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let unavailable = BudgetTemplateScheduleOption(
-            id: scheduleID,
-            name: name.isEmpty ? "Unavailable schedule" : name,
-            isAvailable: false
-        )
-        return [unavailable] + schedules
+    func noteText(id: UUID) -> String {
+        isPrivacyModeEnabled ? "" : editor.noteText(id: id)
     }
 
-    func percentageSourceOptions(for id: UUID) -> [BudgetTemplatePercentageSourceOption] {
-        guard case .percentage(let value) = items.first(where: { $0.id == id })?.draft else {
-            return []
+    func edit(_ intent: BudgetTemplateEdit) {
+        guard isEditable else { return }
+        switch intent {
+        case .setNoteText, .clearNote:
+            guard canEditNotes else { return }
+        case .setAdjustmentMode, .setAdjustmentDirection:
+            guard inputIsEnabled(.adjustment) else { return }
+        case .setInput(_, let field, _):
+            guard inputIsEnabled(field) else { return }
+        default: break
         }
-
-        var options = [
-            BudgetTemplatePercentageSourceOption(
-                id: BudgetTemplatePercentageSource.allIncomeID,
-                name: BudgetTemplatePercentageSource.allIncomeName
-            )
-        ]
-        if !value.previous {
-            options.append(
-                BudgetTemplatePercentageSourceOption(
-                    id: BudgetTemplatePercentageSource.availableFundsID,
-                    name: BudgetTemplatePercentageSource.availableFundsName
-                )
-            )
+        switch intent {
+        case .add(let kind): editor.add(kind)
+        case .remove(let id): editor.remove(id: id)
+        case .setKind(let kind, let id): editor.setKind(kind, id: id)
+        case .setInput(let text, let field, let id): editor.setInput(text, field: field, id: id)
+        case .setNoteText(let text, let id): editor.setNoteText(text, id: id)
+        case .clearNote(let id): editor.clearNote(id: id)
+        case .setDateTargetRepeats(let value, let id): editor.setDateTargetRepeats(value, id: id)
+        case .setDateTargetAnnual(let value, let id): editor.setDateTargetAnnual(value, id: id)
+        case .setDateTargetEarlySpending(let value, let id): editor.setDateTargetEarlySpending(value, id: id)
+        case .setFixedCadence(let value, let id): editor.setFixedCadence(value, id: id)
+        case .setFixedStartingDate(let value, let id): editor.setFixedStartingDate(value, id: id)
+        case .setLimitPeriod(let value, let id): editor.setLimitPeriod(value, id: id)
+        case .setLimitHold(let value, let id): editor.setLimitHold(value, id: id)
+        case .setLimitWeekday(let value, let id): editor.setLimitWeekday(value, id: id)
+        case .setPercentageSource(let value, let id): editor.setPercentageSource(value, id: id)
+        case .setPercentagePrevious(let value, let id): editor.setPercentagePrevious(value, id: id)
+        case .setSchedule(let value, let id): editor.setSchedule(value, id: id)
+        case .setScheduleFull(let value, let id): editor.setScheduleFull(value, id: id)
+        case .setAdjustmentMode(let value, let id): editor.setAdjustmentMode(value, id: id)
+        case .setAdjustmentDirection(let value, let id): editor.setAdjustmentDirection(value, id: id)
         }
-        options.append(contentsOf: incomeCategories.filter(\.isAvailable).map {
-            BudgetTemplatePercentageSourceOption(id: $0.id, name: $0.name)
-        })
-
-        let source = value.sourceCategory.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !source.isEmpty,
-              !options.contains(where: { $0.id == source }) else {
-            return options
-        }
-        if let income = incomeCategories.first(where: {
-            $0.id == source ||
-            $0.name.localizedLowercase == source.localizedLowercase
-        }) {
-            if options.contains(where: { $0.id == income.id }) {
-                return options
-            }
-            let unavailable = BudgetTemplatePercentageSourceOption(
-                id: income.id,
-                name: "\(income.name) (unavailable)",
-                isAvailable: false
-            )
-            return [unavailable] + options
-        }
-        let unavailable = BudgetTemplatePercentageSourceOption(
-            id: source,
-            name: "\(source) (unavailable)",
-            isAvailable: false
-        )
-        return [unavailable] + options
-    }
-
-    func percentageSourceSelection(for id: UUID) -> String {
-        guard case .percentage(let value) = items.first(where: { $0.id == id })?.draft else {
-            return ""
-        }
-        let source = value.sourceCategory.trimmingCharacters(in: .whitespacesAndNewlines)
-        if percentageSourceOptions(for: id).contains(where: { $0.id == source }) {
-            return source
-        }
-        return incomeCategories.first {
-            $0.name.localizedLowercase == source.localizedLowercase
-        }?.id ?? source
+        scheduleDryRun()
     }
 
     var totalContributionText: String {
         BudgetTemplateAmountInput.contributionText(
             minorUnits: dryRun?.budgeted,
-            currency: currency,
+            currency: editor.currency,
             randomized: isPrivacyModeEnabled,
             seed: "template-total-\(target.categoryID)"
         )
@@ -202,27 +164,29 @@ final class BudgetTemplateEditorViewModel {
         }
         return BudgetTemplateAmountInput.contributionText(
             minorUnits: amount,
-            currency: currency,
+            currency: editor.currency,
             randomized: isPrivacyModeEnabled,
             seed: "template-row-\(target.categoryID)-\(index)"
         )
     }
 
-    func load(repository: any BudgetRepositoryProtocol, budgetID: String) async {
+    func load(repository: any BudgetRepositoryProtocol, budgetID: String?) async {
         loadGeneration += 1
         let requestGeneration = loadGeneration
         cancelDryRun()
-        session = Session(repository: repository, budgetID: budgetID)
+        session = nil
         didLoadSuccessfully = false
         phase = .loading
-        items = []
-        schedules = []
-        incomeCategories = []
-        dryRun = nil
+        editor = BudgetTemplateDraftEditor(now: now)
+        previewState = .loading
         errorMessage = nil
-        dryRunErrorMessage = nil
-        fieldInputs.removeAll()
-        noteInputs.removeAll()
+        guard let budgetID else {
+            errorMessage = "No budget is selected."
+            phase = .ready
+            previewState = .empty
+            return
+        }
+        session = Session(repository: repository, budgetID: budgetID)
         do {
             let snapshot = try await repository.categoryTemplateEditorSnapshot(
                 categoryID: target.categoryID,
@@ -231,7 +195,8 @@ final class BudgetTemplateEditorViewModel {
             guard requestGeneration == loadGeneration else {
                 return
             }
-            apply(snapshot)
+            lock = snapshot.lock
+            editor = BudgetTemplateDraftEditor(snapshot: snapshot, now: now)
             didLoadSuccessfully = true
             phase = .ready
             scheduleDryRun()
@@ -240,346 +205,9 @@ final class BudgetTemplateEditorViewModel {
                 return
             }
             errorMessage = error.localizedDescription
+            previewState = .failed("Templates could not be loaded.")
             phase = .ready
         }
-    }
-
-    func add(_ kind: BudgetTemplateKind) {
-        guard isEditable, addableKinds.contains(kind) else {
-            return
-        }
-        let item = Item(id: UUID(), draft: kind.makeDraft(now: now))
-        items.append(item)
-        noteInputs[item.id] = item.draft.description ?? ""
-        scheduleDryRun()
-    }
-
-    func remove(id: UUID) {
-        guard isEditable else {
-            return
-        }
-        items.removeAll { $0.id == id }
-        noteInputs.removeValue(forKey: id)
-        fieldInputs = fieldInputs.filter { $0.key.itemID != id }
-        scheduleDryRun()
-    }
-
-    func setKind(_ kind: BudgetTemplateKind, id: UUID) {
-        guard isEditable,
-              typeChangeKinds(for: id).contains(kind),
-              let index = items.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        let note = noteInputs[id]
-        items[index].draft = items[index].draft.retyped(to: kind, now: now)
-        if let note {
-            items[index].draft = items[index].draft.updatingDescription(note)
-        }
-        fieldInputs = fieldInputs.filter { $0.key.itemID != id }
-        scheduleDryRun()
-    }
-
-    func setAmount(_ text: String, id: UUID) {
-        setInput(text, field: .amount, id: id)
-    }
-
-    func setFixedInterval(_ text: String, id: UUID) {
-        setInput(text, field: .interval, id: id)
-    }
-
-    func dateTargetRepeats(for id: UUID) -> Bool {
-        guard case .dateTarget(let value) = items.first(where: { $0.id == id })?.draft else {
-            return false
-        }
-        return value.repeatInterval != nil
-    }
-
-    func dateTargetIsAnnual(for id: UUID) -> Bool {
-        guard case .dateTarget(let value) = items.first(where: { $0.id == id })?.draft else {
-            return false
-        }
-        return value.annual
-    }
-
-    func dateTargetAllowsEarlySpending(for id: UUID) -> Bool {
-        guard case .dateTarget(let value) = items.first(where: { $0.id == id })?.draft else {
-            return false
-        }
-        return value.isSpend
-    }
-
-    func setDateTargetRepeats(_ repeats: Bool, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .dateTarget(var value) = draft else { return }
-            if repeats {
-                value.repeatInterval = value.repeatInterval ?? 1
-            } else {
-                value.repeatInterval = nil
-                value.annual = false
-            }
-            draft = .dateTarget(value)
-        }
-    }
-
-    func setDateTargetAnnual(_ annual: Bool, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .dateTarget(var value) = draft,
-                  value.repeatInterval != nil else { return }
-            value.annual = annual
-            draft = .dateTarget(value)
-        }
-    }
-
-    func setDateTargetEarlySpending(_ enabled: Bool, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .dateTarget(var value) = draft else { return }
-            value.isSpend = enabled
-            if enabled {
-                value.fromMonth = value.fromMonth ?? value.month
-            } else {
-                value.fromMonth = nil
-            }
-            draft = .dateTarget(value)
-        }
-    }
-
-    var defaultWeeklyStart: String {
-        BudgetTemplateEditorCalendar.defaultWeeklyStart(for: items.map(\.draft), now: now)
-    }
-
-    func fixedStartingDate(for id: UUID) -> Date {
-        guard case .monthlyFixed(let value) = items.first(where: { $0.id == id })?.draft,
-              let date = BudgetTemplateCalendar.validatedDate(value.starting) else {
-            return BudgetTemplateCalendar.validatedDate(
-                BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now)
-            ) ?? now
-        }
-        return date
-    }
-
-    func setFixedCadence(_ cadence: BudgetTemplateCadence, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .monthlyFixed(var value) = draft else {
-                return
-            }
-            value.cadence = cadence
-            draft = .monthlyFixed(value)
-        }
-    }
-
-    func setFixedStartingDate(_ date: Date, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .monthlyFixed(var value) = draft else { return }
-            value.starting = BudgetTemplateCalendar.dayID(from: date)
-            draft = .monthlyFixed(value)
-        }
-    }
-
-    func setLimitPeriod(_ period: BudgetTemplateLimitPeriod, id: UUID) {
-        let weeklyStart = defaultWeeklyStart
-        mutate(id: id) { draft in
-            guard case .balanceLimit(var value) = draft else { return }
-            value.period = period
-            if period == .weekly, value.start == nil {
-                value.start = weeklyStart
-            }
-            draft = .balanceLimit(value)
-        }
-    }
-
-    func setLimitHold(_ hold: Bool, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .balanceLimit(var value) = draft else { return }
-            value.hold = hold
-            draft = .balanceLimit(value)
-        }
-    }
-
-    func limitWeekday(for id: UUID) -> Int {
-        guard case .balanceLimit(let value) = items.first(where: { $0.id == id })?.draft else {
-            return BudgetTemplateEditorCalendar.weekday(for: defaultWeeklyStart) ?? 1
-        }
-        return BudgetTemplateEditorCalendar.weekday(for: value.start ?? defaultWeeklyStart) ?? 1
-    }
-
-    func setLimitWeekday(_ weekday: Int, id: UUID) {
-        let fallbackStart = defaultWeeklyStart
-        mutate(id: id) { draft in
-            guard case .balanceLimit(var value) = draft else {
-                return
-            }
-            let start = value.start ?? fallbackStart
-            guard let updated = BudgetTemplateEditorCalendar.dayID(
-                start,
-                movingToWeekday: weekday
-            ) else { return }
-            value.start = updated
-            draft = .balanceLimit(value)
-        }
-    }
-
-    func setLookBack(_ text: String, id: UUID) {
-        setInput(text, field: .lookBack, id: id)
-    }
-
-    func setNumMonths(_ text: String, id: UUID) {
-        setInput(text, field: .numMonths, id: id)
-    }
-
-    func setPercentageSource(_ sourceID: String, id: UUID) {
-        guard let option = percentageSourceOptions(for: id).first(where: { $0.id == sourceID }),
-              option.isAvailable else {
-            return
-        }
-        mutate(id: id) { draft in
-            guard case .percentage(var value) = draft else { return }
-            value.sourceCategory = sourceID
-            draft = .percentage(value)
-        }
-    }
-
-    func setPercentagePrevious(_ previous: Bool, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .percentage(var value) = draft else { return }
-            value.previous = previous
-            if previous,
-               value.sourceCategory.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .localizedLowercase == BudgetTemplatePercentageSource.availableFundsID {
-                value.sourceCategory = ""
-            }
-            draft = .percentage(value)
-        }
-    }
-
-    func setSchedule(_ option: BudgetTemplateScheduleOption, id: UUID) {
-        guard option.isAvailable,
-              schedules.contains(option) else {
-            return
-        }
-        mutate(id: id) { draft in
-            guard case .schedule(var value) = draft else {
-                return
-            }
-            value.scheduleId = option.id
-            value.name = option.name
-            draft = .schedule(value)
-        }
-    }
-
-    func setScheduleFull(_ full: Bool, id: UUID) {
-        mutate(id: id) { draft in
-            guard case .schedule(var value) = draft else { return }
-            value.full = full
-            draft = .schedule(value)
-        }
-    }
-
-    func adjustmentMode(for id: UUID) -> BudgetTemplateAdjustmentMode {
-        guard let adjustment = adjustment(for: id) else {
-            return .none
-        }
-        switch adjustment {
-        case .fixed: return .fixed
-        case .percent: return .percent
-        }
-    }
-
-    func adjustmentDirection(for id: UUID) -> BudgetTemplateAdjustmentDirection {
-        guard case .percent(let value) = adjustment(for: id) else {
-            return .increase
-        }
-        return value < 0 ? .decrease : .increase
-    }
-
-    func setAdjustmentMode(_ mode: BudgetTemplateAdjustmentMode, id: UUID) {
-        let current = adjustment(for: id)
-        let updated = Self.adjustment(for: mode, current: current)
-        mutate(id: id) { draft in
-            draft = draft.updatingModifierAdjustment(updated)
-        }
-    }
-
-    func setAdjustmentDirection(_ direction: BudgetTemplateAdjustmentDirection, id: UUID) {
-        guard case .percent(let current) = adjustment(for: id) else {
-            return
-        }
-        let updated = BudgetTemplateAdjustment.percent(
-            direction == .decrease ? -abs(current) : abs(current)
-        )
-        mutate(id: id) { draft in
-            draft = draft.updatingModifierAdjustment(updated)
-        }
-    }
-
-    func setWeight(_ text: String, id: UUID) {
-        setInput(text, field: .weight, id: id)
-    }
-
-    func setPriority(_ text: String, id: UUID) {
-        setInput(text, field: .priority, id: id)
-    }
-
-    func inputText(for field: BudgetTemplateEditorInputField, id: UUID) -> String {
-        if let state = fieldInputs[BudgetTemplateEditorInputKey(itemID: id, field: field)] {
-            return state.text
-        }
-        guard let draft = items.first(where: { $0.id == id })?.draft else {
-            return ""
-        }
-        return BudgetTemplateEditorInputInterpreter.text(
-            for: field,
-            draft: draft,
-            currency: currency
-        ) ?? ""
-    }
-
-    func inputIsValid(for field: BudgetTemplateEditorInputField, id: UUID) -> Bool {
-        fieldInputs[BudgetTemplateEditorInputKey(itemID: id, field: field)]?.isValid ?? true
-    }
-
-    func setInput(_ text: String, field: BudgetTemplateEditorInputField, id: UUID) {
-        guard isEditable, let index = items.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        let key = BudgetTemplateEditorInputKey(itemID: id, field: field)
-        guard let updatedDraft = BudgetTemplateEditorInputInterpreter.applying(
-            text,
-            for: field,
-            to: items[index].draft,
-            currency: currency
-        ) else {
-            fieldInputs[key] = BudgetTemplateEditorInputState(text: text, isValid: false)
-            scheduleDryRun()
-            return
-        }
-        items[index].draft = updatedDraft
-        fieldInputs[key] = BudgetTemplateEditorInputState(text: text, isValid: true)
-        scheduleDryRun()
-    }
-
-    func noteText(id: UUID) -> String {
-        noteInputs[id] ?? items.first(where: { $0.id == id })?.draft.description ?? ""
-    }
-
-    func hasNote(id: UUID) -> Bool {
-        !noteText(id: id).isEmpty
-    }
-
-    var canEditNotes: Bool {
-        isEditable && !isPrivacyModeEnabled
-    }
-
-    func setNoteText(_ text: String, id: UUID) {
-        guard canEditNotes, let index = items.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        noteInputs[id] = text
-        items[index].draft = items[index].draft.updatingDescription(text)
-        scheduleDryRun()
-    }
-
-    func clearNote(id: UUID) {
-        setNoteText("", id: id)
     }
 
     func save() async -> Bool {
@@ -594,14 +222,11 @@ final class BudgetTemplateEditorViewModel {
         do {
             _ = try await session.repository.setCategoryTemplatesAndRefresh(
                 categoryID: target.categoryID,
-                drafts: items.map(\.draft),
+                drafts: editor.items.map(\.draft),
                 budgetID: session.budgetID,
                 month: target.month
             )
             guard requestGeneration == loadGeneration else {
-                if phase == .saving {
-                    phase = .ready
-                }
                 return false
             }
             phase = .ready
@@ -612,6 +237,7 @@ final class BudgetTemplateEditorViewModel {
             }
             errorMessage = error.localizedDescription
             phase = .ready
+            scheduleDryRun()
             return false
         }
     }
@@ -622,90 +248,36 @@ final class BudgetTemplateEditorViewModel {
         }
         loadGeneration += 1
         session = nil
+        didLoadSuccessfully = false
         cancelDryRun()
-        dryRun = nil
-        dryRunErrorMessage = nil
-    }
-
-    private func apply(_ snapshot: BudgetTemplateEditorSnapshot) {
-        lock = snapshot.lock
-        currency = snapshot.currency
-        schedules = snapshot.schedules
-        incomeCategories = snapshot.incomeCategories
-        items = snapshot.drafts.map { Item(id: UUID(), draft: $0) }
-        fieldInputs.removeAll()
-        noteInputs = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0.draft.description ?? "") })
-    }
-
-    private func adjustment(for id: UUID) -> BudgetTemplateAdjustment? {
-        items.first(where: { $0.id == id })?.draft.modifierAdjustment
-    }
-
-    private static func adjustment(
-        for mode: BudgetTemplateAdjustmentMode,
-        current: BudgetTemplateAdjustment?
-    ) -> BudgetTemplateAdjustment? {
-        switch mode {
-        case .none:
-            return nil
-        case .fixed:
-            return .fixed(current?.value ?? 10)
-        case .percent:
-            return .percent(current?.value ?? 10)
-        }
-    }
-
-    private func mutate(id: UUID, _ body: (inout BudgetTemplateDraft) -> Void) {
-        guard isEditable, let index = items.firstIndex(where: { $0.id == id }) else {
-            return
-        }
-        body(&items[index].draft)
-        fieldInputs = fieldInputs.filter { $0.key.itemID != id }
-        scheduleDryRun()
     }
 
     private func scheduleDryRun() {
-        let drafts = items.map(\.draft)
-        if drafts.isEmpty {
-            previewCoordinator.cancel()
-            dryRun = BudgetTemplateCategoryDryRun(budgeted: 0, perTemplate: [])
-            dryRunErrorMessage = nil
-            return
-        }
-        guard drafts.allSatisfy(\.isComplete), fieldInputs.values.allSatisfy(\.isValid) else {
-            previewCoordinator.cancel()
-            dryRun = nil
-            dryRunErrorMessage = nil
-            return
-        }
+        previewCoordinator.cancel()
+        let drafts = editor.items.map(\.draft)
+        guard !drafts.isEmpty else { previewState = .empty; return }
+        guard editor.hasValidInputs, authoringIssues.isEmpty else { previewState = .invalid; return }
+        guard let session else { previewState = .idle; return }
+        previewState = .loading
+        let target = target
         previewCoordinator.schedule(
             drafts: drafts,
             delay: dryRunDelay,
-            load: { [weak self] drafts in
-                guard let self, let session = self.session else {
-                    return nil
-                }
-                return try await session.repository.dryRunCategoryTemplate(
-                    categoryID: self.target.categoryID,
+            load: { drafts in
+                try await session.repository.dryRunCategoryTemplate(
+                    categoryID: target.categoryID,
                     drafts: drafts,
                     budgetID: session.budgetID,
-                    month: self.target.month
+                    month: target.month
                 )
             },
             completion: { [weak self] result in
-                guard let self else {
-                    return
-                }
+                guard let self else { return }
                 switch result {
                 case .success(let preview):
-                    guard let preview else {
-                        return
-                    }
-                    self.dryRun = preview
-                    self.dryRunErrorMessage = nil
+                    self.previewState = preview.map(PreviewState.ready) ?? .empty
                 case .failure(let error):
-                    self.dryRun = nil
-                    self.dryRunErrorMessage = error.localizedDescription
+                    self.previewState = .failed(error.localizedDescription)
                 }
             }
         )
@@ -713,5 +285,6 @@ final class BudgetTemplateEditorViewModel {
 
     private func cancelDryRun() {
         previewCoordinator.cancel()
+        previewState = .idle
     }
 }

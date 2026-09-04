@@ -8,7 +8,8 @@ enum BudgetTemplateAmountInput {
     static func parseAmount(_ text: String, currency: BudgetCurrency) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
-              let decimal = Decimal(string: trimmed),
+              trimmed.range(of: #"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$"#, options: .regularExpression) != nil,
+              let decimal = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")),
               let minor = currency.minorUnits(fromDisplay: decimal) else {
             return nil
         }
@@ -16,8 +17,11 @@ enum BudgetTemplateAmountInput {
     }
 
     static func formatAmount(_ amount: Double, currency: BudgetCurrency) -> String {
-        let minor = currency.minorUnits(fromDisplay: amount) ?? 0
-        return currency.editableAmountText(fromMinorUnits: minor)
+        guard let minor = currency.minorUnits(fromDisplay: amount) else { return String(amount) }
+        // Hide-fraction is a display preference. Editing must retain cents.
+        var editingCurrency = currency
+        editingCurrency.hideFraction = false
+        return editingCurrency.editableAmountText(fromMinorUnits: minor)
     }
 
     static func parseInt(_ text: String) -> Int? {

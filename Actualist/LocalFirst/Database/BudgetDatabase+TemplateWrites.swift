@@ -70,9 +70,8 @@ extension BudgetDatabase {
                 throw LocalFirstError.invalidLocalWrite(
                     BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
                 )
-            case .success(let entries):
-                guard BudgetTemplateDefinition.areEditorEditable(entries),
-                      let drafts = BudgetTemplateDefinition.drafts(
+            case .success:
+                guard let drafts = BudgetTemplateDefinition.drafts(
                           fromJSON: incomingJSON,
                           now: Date()
                       ),

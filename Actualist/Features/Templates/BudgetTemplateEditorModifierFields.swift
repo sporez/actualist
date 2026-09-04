@@ -5,7 +5,7 @@ struct BudgetTemplateEditorScheduleFields: View {
     let viewModel: BudgetTemplateEditorViewModel
 
     var body: some View {
-        let options = viewModel.scheduleOptions(for: itemID)
+        let options = viewModel.editor.scheduleOptions(for: itemID)
         if options.isEmpty {
             Text("No schedules to cover. Create a schedule before saving this template.")
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -32,37 +32,20 @@ struct BudgetTemplateEditorScheduleFields: View {
 
     private var scheduleBinding: Binding<String?> {
         Binding(
-            get: {
-                guard case .schedule(let value) = viewModel.items.first(where: { $0.id == itemID })?.draft else {
-                    return nil
-                }
-                if let id = value.scheduleId,
-                   viewModel.scheduleOptions(for: itemID).contains(where: { $0.id == id }) {
-                    return id
-                }
-                return value.scheduleId == nil
-                    ? viewModel.schedules.first { $0.name == value.name }?.id
-                    : nil
-            },
-            set: { selectedID in
-                guard let selectedID,
-                      let option = viewModel.schedules.first(where: { $0.id == selectedID }) else {
-                    return
-                }
-                viewModel.setSchedule(option, id: itemID)
-            }
+            get: { viewModel.editor.scheduleSelection(for: itemID) },
+            set: { viewModel.edit(.setSchedule($0, id: itemID)) }
         )
     }
 
     private var fullBinding: Binding<Bool> {
         Binding(
             get: {
-                guard case .schedule(let value) = viewModel.items.first(where: { $0.id == itemID })?.draft else {
+                guard case .schedule(let value) = viewModel.editor.items.first(where: { $0.id == itemID })?.draft else {
                     return false
                 }
                 return value.full
             },
-            set: { viewModel.setScheduleFull($0, id: itemID) }
+            set: { viewModel.edit(.setScheduleFull($0, id: itemID)) }
         )
     }
 }
@@ -78,7 +61,7 @@ struct BudgetTemplateEditorHistoricalFields: View {
         }
         .disabled(!viewModel.isEditable)
 
-        switch viewModel.items.first(where: { $0.id == itemID })?.draft {
+        switch viewModel.editor.items.first(where: { $0.id == itemID })?.draft {
         case .copy:
             inputField("Number of months back", field: .lookBack)
         case .average:
@@ -92,12 +75,12 @@ struct BudgetTemplateEditorHistoricalFields: View {
     private var modeBinding: Binding<BudgetTemplateKind> {
         Binding(
             get: {
-                switch viewModel.items.first(where: { $0.id == itemID })?.draft {
+                switch viewModel.editor.items.first(where: { $0.id == itemID })?.draft {
                 case .average: .average
                 default: .copy
                 }
             },
-            set: { viewModel.setKind($0, id: itemID) }
+            set: { viewModel.edit(.setKind($0, id: itemID)) }
         )
     }
 
@@ -109,10 +92,10 @@ struct BudgetTemplateEditorHistoricalFields: View {
             title: title,
             text: Binding(
                 get: { viewModel.inputText(for: field, id: itemID) },
-                set: { viewModel.setInput($0, field: field, id: itemID) }
+                set: { viewModel.edit(.setInput($0, field: field, id: itemID)) }
             ),
-            isEnabled: viewModel.isEditable,
-            isValid: viewModel.inputIsValid(for: field, id: itemID)
+            isEnabled: viewModel.inputIsEnabled(field),
+            isValid: viewModel.editor.inputIsValid(for: field, id: itemID)
         )
     }
 }
@@ -127,9 +110,9 @@ struct BudgetTemplateEditorAdjustmentFields: View {
                 Text(mode.title).tag(mode)
             }
         }
-        .disabled(!viewModel.isEditable)
+        .disabled(!viewModel.inputIsEnabled(.adjustment))
 
-        switch viewModel.adjustmentMode(for: itemID) {
+        switch viewModel.editor.adjustmentMode(for: itemID) {
         case .none:
             EmptyView()
         case .fixed:
@@ -137,8 +120,8 @@ struct BudgetTemplateEditorAdjustmentFields: View {
                 title: "Fixed amount",
                 text: adjustmentInput,
                 isDecimal: true,
-                isEnabled: viewModel.isEditable,
-                isValid: viewModel.inputIsValid(for: .adjustment, id: itemID)
+                isEnabled: viewModel.inputIsEnabled(.adjustment),
+                isValid: viewModel.editor.inputIsValid(for: .adjustment, id: itemID)
             )
         case .percent:
             Picker("Direction", selection: directionBinding) {
@@ -146,35 +129,35 @@ struct BudgetTemplateEditorAdjustmentFields: View {
                     Text(direction.title).tag(direction)
                 }
             }
-            .disabled(!viewModel.isEditable)
+            .disabled(!viewModel.inputIsEnabled(.adjustment))
             BudgetTemplateEditorTextField(
                 title: "Percentage",
                 text: adjustmentInput,
                 isDecimal: true,
-                isEnabled: viewModel.isEditable,
-                isValid: viewModel.inputIsValid(for: .adjustment, id: itemID)
+                isEnabled: viewModel.inputIsEnabled(.adjustment),
+                isValid: viewModel.editor.inputIsValid(for: .adjustment, id: itemID)
             )
         }
     }
 
     private var modeBinding: Binding<BudgetTemplateAdjustmentMode> {
         Binding(
-            get: { viewModel.adjustmentMode(for: itemID) },
-            set: { viewModel.setAdjustmentMode($0, id: itemID) }
+            get: { viewModel.editor.adjustmentMode(for: itemID) },
+            set: { viewModel.edit(.setAdjustmentMode($0, id: itemID)) }
         )
     }
 
     private var directionBinding: Binding<BudgetTemplateAdjustmentDirection> {
         Binding(
-            get: { viewModel.adjustmentDirection(for: itemID) },
-            set: { viewModel.setAdjustmentDirection($0, id: itemID) }
+            get: { viewModel.editor.adjustmentDirection(for: itemID) },
+            set: { viewModel.edit(.setAdjustmentDirection($0, id: itemID)) }
         )
     }
 
     private var adjustmentInput: Binding<String> {
         Binding(
             get: { viewModel.inputText(for: .adjustment, id: itemID) },
-            set: { viewModel.setInput($0, field: .adjustment, id: itemID) }
+            set: { viewModel.edit(.setInput($0, field: .adjustment, id: itemID)) }
         )
     }
 }

@@ -375,57 +375,17 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         }
     }
 
-    /// Creates a new authoring shape for an explicit type change while
-    /// retaining the item's note, amount, and priority where they apply.
+    /// Unrelated type changes use the pinned reducer's defaults; historical
+    /// mode changes alone retain their count and priority. Notes survive both.
     func retyped(to kind: BudgetTemplateKind, now: Date) -> BudgetTemplateDraft {
-        guard self.kind != kind else {
-            return self
-        }
-        let retainedAmount: Double? = switch self {
-        case .monthlyFixed(let value): value.amount
-        case .goal(let value): value.amount
-        default: nil
-        }
-        let retainedPriority: Int? = switch self {
-        case .monthlyFixed(let value): value.priority
-        case .dateTarget(let value): value.priority
-        case .percentage(let value): value.priority
-        case .refill(let value): value.priority
-        case .copy(let value): value.priority
-        case .average(let value): value.priority
-        case .schedule(let value): value.priority
-        case .balanceLimit, .remainder, .goal: nil
-        }
-        let retainedHistoryCount: Int? = switch self {
-        case .copy(let value): value.lookBack
-        case .average(let value): value.numMonths
-        default: nil
-        }
+        guard self.kind != kind else { return self }
         let next: BudgetTemplateDraft
-        switch kind {
-        case .monthlyFixed:
-            next = .monthlyFixed(
-                amount: retainedAmount ?? 100,
-                priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority,
-                now: now
-            )
-        case .copy:
-            next = .copy(
-                lookBack: retainedHistoryCount ?? 1,
-                priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority
-            )
-        case .average:
-            next = .average(
-                numMonths: retainedHistoryCount ?? 3,
-                priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority
-            )
-        case .schedule:
-            next = .schedule(priority: retainedPriority ?? BudgetTemplateDefinition.defaultPriority)
-        case .remainder:
-            next = .remainder()
-        case .goal:
-            next = .goal(amount: retainedAmount ?? 1_000)
-        case .dateTarget, .percentage, .balanceLimit, .refill:
+        switch (self, kind) {
+        case (.copy(let value), .average):
+            next = .average(numMonths: value.lookBack, priority: value.priority)
+        case (.average(let value), .copy):
+            next = .copy(lookBack: value.numMonths, priority: value.priority)
+        default:
             next = kind.makeDraft(now: now)
         }
         return next.updatingDescription(description)

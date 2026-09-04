@@ -130,7 +130,7 @@ enum BudgetTemplateAuthoringValidation {
         }
         let hasContributor = drafts.contains { draft in
             switch draft {
-            case .goal, .balanceLimit, .refill:
+            case .goal, .balanceLimit:
                 false
             default:
                 true

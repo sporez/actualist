@@ -25,9 +25,9 @@ struct BudgetTemplateEditorViewModelTests {
         #expect(viewModel.isEditable)
         #expect(viewModel.canSave)
         #expect(viewModel.navigationTitle == "Edit Templates")
-        #expect(viewModel.items.map(\.draft) == [.monthlyFixed(amount: 400, now: now)])
+        #expect(viewModel.editor.items.map(\.draft) == [.monthlyFixed(amount: 400, now: now)])
 
-        viewModel.setAmount("250", id: try #require(viewModel.items.first?.id))
+        viewModel.edit(.setInput("250", field: .amount, id: try #require(viewModel.editor.items.first?.id)))
         let saved = await viewModel.save()
         #expect(saved)
         let drafts = await repository.savedDrafts()
@@ -52,8 +52,8 @@ struct BudgetTemplateEditorViewModelTests {
         #expect(!viewModel.isEditable)
         #expect(!viewModel.canSave)
         #expect(viewModel.navigationTitle == "View Templates")
-        viewModel.add(.remainder)
-        #expect(viewModel.items.count == 1)
+        viewModel.edit(.add(.remainder))
+        #expect(viewModel.editor.items.count == 1)
         #expect(await viewModel.save() == false)
         #expect(await repository.savedDrafts().isEmpty)
     }
@@ -66,14 +66,14 @@ struct BudgetTemplateEditorViewModelTests {
         await viewModel.load(repository: repository, budgetID: "budget-1")
 
         #expect(viewModel.navigationTitle == "Add Template")
-        viewModel.add(.monthlyFixed)
-        viewModel.add(.remainder)
-        viewModel.add(.remainder)
-        #expect(viewModel.items.map(\.draft.kind) == [.monthlyFixed, .remainder])
-        #expect(!viewModel.addableKinds.contains(.remainder))
-        viewModel.remove(id: try #require(viewModel.items.last?.id))
-        #expect(viewModel.items.map(\.draft.kind) == [.monthlyFixed])
-        #expect(viewModel.addableKinds.contains(.remainder))
+        viewModel.edit(.add(.monthlyFixed))
+        viewModel.edit(.add(.remainder))
+        viewModel.edit(.add(.remainder))
+        #expect(viewModel.editor.items.map(\.draft.kind) == [.monthlyFixed, .remainder])
+        #expect(!viewModel.editor.addableKinds.contains(.remainder))
+        viewModel.edit(.remove(id: try #require(viewModel.editor.items.last?.id)))
+        #expect(viewModel.editor.items.map(\.draft.kind) == [.monthlyFixed])
+        #expect(viewModel.editor.addableKinds.contains(.remainder))
     }
 
     @Test func incompleteScheduleCannotSave() async throws {
@@ -82,12 +82,12 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        viewModel.add(.schedule)
+        viewModel.edit(.add(.schedule))
         #expect(!viewModel.canSave)
-        viewModel.setSchedule(
-            BudgetTemplateScheduleOption(id: "rent", name: "Rent"),
-            id: try #require(viewModel.items.first?.id)
-        )
+        viewModel.edit(.setSchedule(
+            "rent",
+            id: try #require(viewModel.editor.items.first?.id)
+        ))
         #expect(viewModel.canSave)
     }
 
@@ -100,7 +100,7 @@ struct BudgetTemplateEditorViewModelTests {
         try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
         #expect(viewModel.dryRun?.perTemplate == [40_000])
 
-        viewModel.setAmount("100", id: try #require(viewModel.items.first?.id))
+        viewModel.edit(.setInput("100", field: .amount, id: try #require(viewModel.editor.items.first?.id)))
         try await waitUntil { viewModel.dryRun?.budgeted == 10_000 }
         #expect(viewModel.dryRun?.perTemplate == [10_000])
     }
@@ -111,17 +111,17 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
         try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
 
-        viewModel.setAmount("", id: id)
+        viewModel.edit(.setInput("", field: .amount, id: id))
         #expect(viewModel.inputText(for: .amount, id: id).isEmpty)
-        #expect(!viewModel.inputIsValid(for: .amount, id: id))
+        #expect(!viewModel.editor.inputIsValid(for: .amount, id: id))
         #expect(!viewModel.canSave)
         try await waitUntil { viewModel.dryRun == nil }
 
-        viewModel.setAmount("250", id: id)
-        #expect(viewModel.inputIsValid(for: .amount, id: id))
+        viewModel.edit(.setInput("250", field: .amount, id: id))
+        #expect(viewModel.editor.inputIsValid(for: .amount, id: id))
         #expect(viewModel.canSave)
         try await waitUntil { viewModel.dryRun?.budgeted == 25_000 }
     }
@@ -135,14 +135,14 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let firstID = try #require(viewModel.items.first?.id)
-        let secondID = try #require(viewModel.items.last?.id)
+        let firstID = try #require(viewModel.editor.items.first?.id)
+        let secondID = try #require(viewModel.editor.items.last?.id)
 
         let firstNote = "First line\nSecond line"
-        viewModel.setNoteText(firstNote, id: firstID)
-        viewModel.setNoteText("Copy this month's history", id: secondID)
+        viewModel.edit(.setNoteText(firstNote, id: firstID))
+        viewModel.edit(.setNoteText("Copy this month's history", id: secondID))
         #expect(viewModel.noteText(id: firstID) == firstNote)
-        #expect(viewModel.hasNote(id: firstID))
+        #expect(viewModel.editor.hasNote(id: firstID))
         #expect(viewModel.noteText(id: secondID) == "Copy this month's history")
         try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
         #expect(await viewModel.save())
@@ -150,16 +150,16 @@ struct BudgetTemplateEditorViewModelTests {
         let saved = try #require(await repository.savedDrafts().last)
         #expect(saved.map(\.description) == [firstNote, "Copy this month's history"])
 
-        viewModel.clearNote(id: firstID)
+        viewModel.edit(.clearNote(id: firstID))
         #expect(viewModel.noteText(id: firstID).isEmpty)
-        #expect(!viewModel.hasNote(id: firstID))
+        #expect(!viewModel.editor.hasNote(id: firstID))
         #expect(viewModel.noteText(id: secondID) == "Copy this month's history")
         #expect(await viewModel.save())
         let cleared = try #require(await repository.savedDrafts().last)
         #expect(cleared.map(\.description) == [nil, "Copy this month's history"])
     }
 
-    @Test func typeChangesPreserveItemIdentityNotesAndApplicablePriority() async throws {
+    @Test func typeChangesPreserveIdentityAndNotesWithPinnedDefaults() async throws {
         let repository = EditorTemplateRepository(
             snapshot: editableSnapshot(drafts: [
                 .monthlyFixed(amount: 400, priority: 3, now: now, description: "Keep this note")
@@ -167,15 +167,15 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
 
-        viewModel.setKind(.copy, id: id)
-        #expect(viewModel.items.first?.id == id)
-        guard case .copy(let copy) = viewModel.items.first?.draft else {
+        viewModel.edit(.setKind(.copy, id: id))
+        #expect(viewModel.editor.items.first?.id == id)
+        guard case .copy(let copy) = viewModel.editor.items.first?.draft else {
             Issue.record("Expected the item to become Copy")
             return
         }
-        #expect(copy.priority == 3)
+        #expect(copy.priority == 1)
         #expect(copy.description == "Keep this note")
         #expect(viewModel.canSave)
     }
@@ -186,11 +186,11 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let fixedID = try #require(viewModel.items.first?.id)
+        let fixedID = try #require(viewModel.editor.items.first?.id)
 
-        #expect(!viewModel.typeChangeKinds(for: fixedID).contains(.remainder))
-        viewModel.setKind(.remainder, id: fixedID)
-        #expect(viewModel.items.first?.draft.kind == .monthlyFixed)
+        #expect(!viewModel.editor.typeChangeKinds(for: fixedID).contains(.remainder))
+        viewModel.edit(.setKind(.remainder, id: fixedID))
+        #expect(viewModel.editor.items.first?.draft.kind == .monthlyFixed)
     }
 
     @Test func copyAndAverageTypeChangesRetainTheHistoryCountAndPriority() async throws {
@@ -205,17 +205,17 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
 
-        viewModel.setKind(.copy, id: id)
-        guard case .copy(let copy) = viewModel.items.first?.draft else {
+        viewModel.edit(.setKind(.copy, id: id))
+        guard case .copy(let copy) = viewModel.editor.items.first?.draft else {
             Issue.record("Expected the item to become Copy")
             return
         }
         #expect(copy.lookBack == 5)
         #expect(copy.priority == 3)
-        viewModel.setKind(.average, id: id)
-        guard case .average(let average) = viewModel.items.first?.draft else {
+        viewModel.edit(.setKind(.average, id: id))
+        guard case .average(let average) = viewModel.editor.items.first?.draft else {
             Issue.record("Expected the item to become Average")
             return
         }
@@ -233,37 +233,37 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let averageID = try #require(viewModel.items.first?.id)
-        let scheduleID = try #require(viewModel.items.last?.id)
+        let averageID = try #require(viewModel.editor.items.first?.id)
+        let scheduleID = try #require(viewModel.editor.items.last?.id)
 
-        viewModel.setAdjustmentMode(.percent, id: averageID)
-        #expect(viewModel.items.first?.draft == .average(
+        viewModel.edit(.setAdjustmentMode(.percent, id: averageID))
+        #expect(viewModel.editor.items.first?.draft == .average(
             numMonths: 5,
             priority: 3,
             adjustment: .percent(10)
         ))
-        viewModel.setAdjustmentMode(.none, id: averageID)
-        #expect(viewModel.adjustmentMode(for: averageID) == .none)
-        viewModel.setAdjustmentMode(.fixed, id: averageID)
-        #expect(viewModel.adjustmentMode(for: averageID) == .fixed)
-        viewModel.setInput("-12.50", field: .adjustment, id: averageID)
-        viewModel.setAdjustmentMode(.percent, id: averageID)
-        #expect(viewModel.items.first?.draft == .average(
+        viewModel.edit(.setAdjustmentMode(.none, id: averageID))
+        #expect(viewModel.editor.adjustmentMode(for: averageID) == .none)
+        viewModel.edit(.setAdjustmentMode(.fixed, id: averageID))
+        #expect(viewModel.editor.adjustmentMode(for: averageID) == .fixed)
+        viewModel.edit(.setInput("-12.50", field: .adjustment, id: averageID))
+        viewModel.edit(.setAdjustmentMode(.percent, id: averageID))
+        #expect(viewModel.editor.items.first?.draft == .average(
             numMonths: 5,
             priority: 3,
             adjustment: .percent(-12.5)
         ))
-        viewModel.setAdjustmentDirection(.increase, id: averageID)
-        #expect(viewModel.items.first?.draft == .average(
+        viewModel.edit(.setAdjustmentDirection(.increase, id: averageID))
+        #expect(viewModel.editor.items.first?.draft == .average(
             numMonths: 5,
             priority: 3,
             adjustment: .percent(12.5)
         ))
 
-        viewModel.setScheduleFull(true, id: scheduleID)
-        viewModel.setAdjustmentMode(.fixed, id: scheduleID)
-        viewModel.setInput("20", field: .adjustment, id: scheduleID)
-        #expect(viewModel.items.last?.draft == .schedule(
+        viewModel.edit(.setScheduleFull(true, id: scheduleID))
+        viewModel.edit(.setAdjustmentMode(.fixed, id: scheduleID))
+        viewModel.edit(.setInput("20", field: .adjustment, id: scheduleID))
+        #expect(viewModel.editor.items.last?.draft == .schedule(
             name: "Rent",
             scheduleId: "rent",
             priority: 3,
@@ -286,16 +286,17 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
 
         viewModel.isPrivacyModeEnabled = true
         #expect(!viewModel.canEditNotes)
-        viewModel.setNoteText("Should not replace the note", id: id)
-        #expect(viewModel.noteText(id: id) == "Private note")
+        viewModel.edit(.setNoteText("Should not replace the note", id: id))
+        #expect(viewModel.noteText(id: id).isEmpty)
+        #expect(viewModel.editor.items.first?.draft.description == "Private note")
 
         viewModel.isPrivacyModeEnabled = false
         #expect(viewModel.canEditNotes)
-        viewModel.setNoteText("Visible again", id: id)
+        viewModel.edit(.setNoteText("Visible again", id: id))
         #expect(viewModel.noteText(id: id) == "Visible again")
     }
 
@@ -313,7 +314,7 @@ struct BudgetTemplateEditorViewModelTests {
         await repository.releaseSnapshot()
         await loadTask.value
 
-        #expect(viewModel.items.isEmpty)
+        #expect(viewModel.editor.items.isEmpty)
         #expect(!viewModel.isEditable)
         #expect(viewModel.dryRun == nil)
     }
@@ -324,7 +325,7 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
         await repository.blockNextSave()
 
         let saveTask = Task { @MainActor in
@@ -333,9 +334,9 @@ struct BudgetTemplateEditorViewModelTests {
         await repository.waitUntilSaveStarts()
         #expect(viewModel.phase == .saving)
         #expect(!viewModel.isEditable)
-        viewModel.setAmount("250", id: id)
-        viewModel.setNoteText("Must not enter the in-flight save", id: id)
-        #expect(viewModel.items.first?.draft == .monthlyFixed(amount: 400, now: now))
+        viewModel.edit(.setInput("250", field: .amount, id: id))
+        viewModel.edit(.setNoteText("Must not enter the in-flight save", id: id))
+        #expect(viewModel.editor.items.first?.draft == .monthlyFixed(amount: 400, now: now))
         viewModel.cancel()
         #expect(viewModel.phase == .saving)
 
@@ -352,13 +353,13 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
-        viewModel.setNoteText("Discarded edit", id: id)
+        let id = try #require(viewModel.editor.items.first?.id)
+        viewModel.edit(.setNoteText("Discarded edit", id: id))
         #expect(viewModel.noteText(id: id) == "Discarded edit")
 
         viewModel.cancel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let reloadedID = try #require(viewModel.items.first?.id)
+        let reloadedID = try #require(viewModel.editor.items.first?.id)
         #expect(viewModel.noteText(id: reloadedID) == "Original note")
     }
 
@@ -370,22 +371,22 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
 
-        #expect(viewModel.scheduleOptions(for: id) == [
+        #expect(viewModel.editor.scheduleOptions(for: id) == [
             BudgetTemplateScheduleOption(id: "deleted", name: "Deleted Rent", isAvailable: false),
             BudgetTemplateScheduleOption(id: "rent", name: "Rent")
         ])
         #expect(!viewModel.canSave)
-        viewModel.setSchedule(
-            BudgetTemplateScheduleOption(id: "deleted", name: "Deleted Rent", isAvailable: false),
+        viewModel.edit(.setSchedule(
+            "deleted",
             id: id
-        )
-        #expect(viewModel.items.first?.draft == .schedule(name: "Deleted Rent", scheduleId: "deleted"))
+        ))
+        #expect(viewModel.editor.items.first?.draft == .schedule(name: "Deleted Rent", scheduleId: "deleted"))
 
-        viewModel.setSchedule(BudgetTemplateScheduleOption(id: "rent", name: "Rent"), id: id)
+        viewModel.edit(.setSchedule("rent", id: id))
         #expect(viewModel.canSave)
-        #expect(viewModel.items.first?.draft == .schedule(name: "Rent", scheduleId: "rent"))
+        #expect(viewModel.editor.items.first?.draft == .schedule(name: "Rent", scheduleId: "rent"))
     }
 
     @Test func emptyListSaves() async throws {
@@ -394,7 +395,7 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        viewModel.remove(id: try #require(viewModel.items.first?.id))
+        viewModel.edit(.remove(id: try #require(viewModel.editor.items.first?.id)))
         #expect(viewModel.canSave)
         #expect(await viewModel.save())
         #expect(await repository.savedDrafts() == [[]])
@@ -407,24 +408,24 @@ struct BudgetTemplateEditorViewModelTests {
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
 
-        #expect(viewModel.addableKinds.contains(.balanceLimit))
-        #expect(viewModel.addableKinds.contains(.refill))
-        viewModel.add(.refill)
+        #expect(viewModel.editor.addableKinds.contains(.balanceLimit))
+        #expect(viewModel.editor.addableKinds.contains(.refill))
+        viewModel.edit(.add(.refill))
         #expect(!viewModel.canSave)
-        #expect(viewModel.addableKinds.contains(.balanceLimit))
+        #expect(viewModel.editor.addableKinds.contains(.balanceLimit))
 
-        viewModel.add(.balanceLimit)
+        viewModel.edit(.add(.balanceLimit))
         #expect(viewModel.canSave)
-        #expect(viewModel.items.contains { if case .balanceLimit = $0.draft { true } else { false } })
-        #expect(viewModel.items.contains { if case .refill = $0.draft { true } else { false } })
+        #expect(viewModel.editor.items.contains { if case .balanceLimit = $0.draft { true } else { false } })
+        #expect(viewModel.editor.items.contains { if case .refill = $0.draft { true } else { false } })
 
         let limitID = try #require(
-            viewModel.items.first { if case .balanceLimit = $0.draft { true } else { false } }?.id
+            viewModel.editor.items.first { if case .balanceLimit = $0.draft { true } else { false } }?.id
         )
-        viewModel.remove(id: limitID)
-        #expect(!viewModel.hasBalanceLimit)
+        viewModel.edit(.remove(id: limitID))
+        #expect(!viewModel.editor.hasBalanceLimit)
         #expect(!viewModel.canSave)
-        viewModel.add(.balanceLimit)
+        viewModel.edit(.add(.balanceLimit))
         #expect(viewModel.canSave)
     }
 
@@ -434,18 +435,18 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
 
-        viewModel.setFixedInterval("2", id: id)
-        viewModel.setFixedCadence(.year, id: id)
-        viewModel.setFixedStartingDate(
+        viewModel.edit(.setInput("2", field: .interval, id: id))
+        viewModel.edit(.setFixedCadence(.year, id: id))
+        viewModel.edit(.setFixedStartingDate(
             Calendar(identifier: .gregorian).date(
                 from: DateComponents(year: 2024, month: 2, day: 29, hour: 12)
             )!,
             id: id
-        )
+        ))
 
-        guard case .monthlyFixed(let fixed) = viewModel.items.first?.draft else {
+        guard case .monthlyFixed(let fixed) = viewModel.editor.items.first?.draft else {
             Issue.record("Expected a fixed draft")
             return
         }
@@ -468,15 +469,15 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        viewModel.add(.balanceLimit)
-        let limitID = try #require(viewModel.items.last?.id)
+        viewModel.edit(.add(.balanceLimit))
+        let limitID = try #require(viewModel.editor.items.last?.id)
 
-        viewModel.setLimitPeriod(.weekly, id: limitID)
-        #expect(viewModel.limitWeekday(for: limitID) == 1)
-        viewModel.setLimitWeekday(3, id: limitID)
-        viewModel.setLimitHold(true, id: limitID)
+        viewModel.edit(.setLimitPeriod(.weekly, id: limitID))
+        #expect(viewModel.editor.limitWeekday(for: limitID) == 1)
+        viewModel.edit(.setLimitWeekday(3, id: limitID))
+        viewModel.edit(.setLimitHold(true, id: limitID))
 
-        guard case .balanceLimit(let limit) = viewModel.items.last?.draft else {
+        guard case .balanceLimit(let limit) = viewModel.editor.items.last?.draft else {
             Issue.record("Expected a balance limit draft")
             return
         }

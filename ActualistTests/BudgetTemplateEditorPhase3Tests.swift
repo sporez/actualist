@@ -85,7 +85,7 @@ struct BudgetTemplateEditorPhase3Tests {
         #expect(entries[0].standaloneLimit?.start == "2026-09-15")
     }
 
-    @Test func refillValidationRequiresExactlyOneContributorAndLimit() {
+    @Test func refillCountsAsAContributorForItsRequiredLimit() {
         let context = BudgetTemplateAuthoringContext(today: now)
         let refillOnly = BudgetTemplateAuthoringValidation.issues(
             for: [.refill()],
@@ -97,7 +97,7 @@ struct BudgetTemplateEditorPhase3Tests {
             for: [.balanceLimit(), .refill()],
             context: context
         )
-        #expect(limitAndRefill.contains(.limitRequiresContributor))
+        #expect(limitAndRefill.isEmpty)
 
         let valid = BudgetTemplateAuthoringValidation.issues(
             for: [.monthlyFixed(now: now), .balanceLimit(), .refill()],

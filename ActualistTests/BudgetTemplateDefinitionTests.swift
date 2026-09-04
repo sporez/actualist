@@ -129,13 +129,13 @@ struct BudgetTemplateDefinitionTests {
         let encoded = try BudgetTemplateDefinition.encode(drafts)
         let entries = try #require(try engine.decodeSupportedEntries(json: encoded))
         #expect(entries.count == 2)
-        #expect(entries[0].type == "periodic")
-        #expect(entries[0].amount == 20)
-        #expect(entries[0].limit == nil)
-        #expect(entries[1].type == "limit")
-        #expect(entries[1].standaloneLimit?.amount == 200)
-        #expect(entries[1].standaloneLimit?.hold == false)
-        #expect(entries[1].standaloneLimit?.period == "monthly")
+        #expect(entries[1].type == "periodic")
+        #expect(entries[1].amount == 20)
+        #expect(entries[1].limit == nil)
+        #expect(entries[0].type == "limit")
+        #expect(entries[0].standaloneLimit?.amount == 200)
+        #expect(entries[0].standaloneLimit?.hold == false)
+        #expect(entries[0].standaloneLimit?.period == "monthly")
     }
 
     @Test func newMonthlyFixed_usesDefaultPriorityAndFirstOfMonth() throws {

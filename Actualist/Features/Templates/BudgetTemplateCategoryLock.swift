@@ -67,9 +67,8 @@ enum BudgetTemplateCategoryLock: Equatable, Sendable {
         switch parsed {
         case .failure:
             return .readOnly(.unsupportedType)
-        case .success(let entries):
-            guard BudgetTemplateDefinition.isEditorEditableJSON(goalDefJSON),
-                  BudgetTemplateDefinition.areEditorEditable(entries) else {
+        case .success:
+            guard BudgetTemplateDefinition.isEditorEditableJSON(goalDefJSON) else {
                 return .readOnly(.unsupportedType)
             }
             return .editable

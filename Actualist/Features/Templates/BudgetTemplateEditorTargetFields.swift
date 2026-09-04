@@ -12,7 +12,7 @@ struct BudgetTemplateEditorDateTargetFields: View {
         )
         Toggle("Repeats", isOn: repeatsBinding)
             .disabled(!viewModel.isEditable)
-        if viewModel.dateTargetRepeats(for: itemID) {
+        if viewModel.editor.dateTargetRepeats(for: itemID) {
             integerField("Repeat every", field: .repeatInterval)
             Picker("Period", selection: annualBinding) {
                 Text("Months").tag(false)
@@ -22,7 +22,7 @@ struct BudgetTemplateEditorDateTargetFields: View {
         }
         Toggle("Allow early spending", isOn: earlySpendingBinding)
             .disabled(!viewModel.isEditable)
-        if viewModel.dateTargetAllowsEarlySpending(for: itemID) {
+        if viewModel.editor.dateTargetAllowsEarlySpending(for: itemID) {
             monthField(
                 title: "Start spending in",
                 field: .spendStartMonth
@@ -39,8 +39,8 @@ struct BudgetTemplateEditorDateTargetFields: View {
             title: "Total",
             text: inputBinding(for: .amount),
             isDecimal: true,
-            isEnabled: viewModel.isEditable,
-            isValid: viewModel.inputIsValid(for: .amount, id: itemID)
+            isEnabled: viewModel.inputIsEnabled(.amount),
+            isValid: viewModel.editor.inputIsValid(for: .amount, id: itemID)
         )
     }
 
@@ -52,8 +52,8 @@ struct BudgetTemplateEditorDateTargetFields: View {
             title: title,
             text: inputBinding(for: field),
             isMonth: true,
-            isEnabled: viewModel.isEditable,
-            isValid: viewModel.inputIsValid(for: field, id: itemID)
+            isEnabled: viewModel.inputIsEnabled(field),
+            isValid: viewModel.editor.inputIsValid(for: field, id: itemID)
         )
     }
 
@@ -64,8 +64,8 @@ struct BudgetTemplateEditorDateTargetFields: View {
         BudgetTemplateEditorTextField(
             title: title,
             text: inputBinding(for: field),
-            isEnabled: viewModel.isEditable,
-            isValid: viewModel.inputIsValid(for: field, id: itemID)
+            isEnabled: viewModel.inputIsEnabled(field),
+            isValid: viewModel.editor.inputIsValid(for: field, id: itemID)
         )
     }
 
@@ -76,28 +76,28 @@ struct BudgetTemplateEditorDateTargetFields: View {
     private func inputBinding(for field: BudgetTemplateEditorInputField) -> Binding<String> {
         Binding(
             get: { viewModel.inputText(for: field, id: itemID) },
-            set: { viewModel.setInput($0, field: field, id: itemID) }
+            set: { viewModel.edit(.setInput($0, field: field, id: itemID)) }
         )
     }
 
     private var repeatsBinding: Binding<Bool> {
         Binding(
-            get: { viewModel.dateTargetRepeats(for: itemID) },
-            set: { viewModel.setDateTargetRepeats($0, id: itemID) }
+            get: { viewModel.editor.dateTargetRepeats(for: itemID) },
+            set: { viewModel.edit(.setDateTargetRepeats($0, id: itemID)) }
         )
     }
 
     private var annualBinding: Binding<Bool> {
         Binding(
-            get: { viewModel.dateTargetIsAnnual(for: itemID) },
-            set: { viewModel.setDateTargetAnnual($0, id: itemID) }
+            get: { viewModel.editor.dateTargetIsAnnual(for: itemID) },
+            set: { viewModel.edit(.setDateTargetAnnual($0, id: itemID)) }
         )
     }
 
     private var earlySpendingBinding: Binding<Bool> {
         Binding(
-            get: { viewModel.dateTargetAllowsEarlySpending(for: itemID) },
-            set: { viewModel.setDateTargetEarlySpending($0, id: itemID) }
+            get: { viewModel.editor.dateTargetAllowsEarlySpending(for: itemID) },
+            set: { viewModel.edit(.setDateTargetEarlySpending($0, id: itemID)) }
         )
     }
 }
@@ -109,7 +109,7 @@ struct BudgetTemplateEditorPercentageFields: View {
     var body: some View {
         Picker("Income source", selection: sourceBinding) {
             Text("Choose an income source").tag("")
-            ForEach(viewModel.percentageSourceOptions(for: itemID)) { option in
+            ForEach(viewModel.editor.percentageSourceOptions(for: itemID)) { option in
                 Text(option.name)
                     .tag(option.id)
                     .disabled(!option.isAvailable)
@@ -121,7 +121,7 @@ struct BudgetTemplateEditorPercentageFields: View {
             text: inputBinding(for: .percent),
             isDecimal: true,
             isEnabled: viewModel.isEditable,
-            isValid: viewModel.inputIsValid(for: .percent, id: itemID)
+            isValid: viewModel.editor.inputIsValid(for: .percent, id: itemID)
         )
         Picker("Percentage of", selection: previousBinding) {
             Text("This month").tag(false)
@@ -136,20 +136,20 @@ struct BudgetTemplateEditorPercentageFields: View {
 
     private var sourceBinding: Binding<String> {
         Binding(
-            get: { viewModel.percentageSourceSelection(for: itemID) },
-            set: { viewModel.setPercentageSource($0, id: itemID) }
+            get: { viewModel.editor.percentageSourceSelection(for: itemID) },
+            set: { viewModel.edit(.setPercentageSource($0, id: itemID)) }
         )
     }
 
     private var previousBinding: Binding<Bool> {
         Binding(
             get: {
-                guard case .percentage(let current) = viewModel.items.first(where: { $0.id == itemID })?.draft else {
+                guard case .percentage(let current) = viewModel.editor.items.first(where: { $0.id == itemID })?.draft else {
                     return false
                 }
                 return current.previous
             },
-            set: { viewModel.setPercentagePrevious($0, id: itemID) }
+            set: { viewModel.edit(.setPercentagePrevious($0, id: itemID)) }
         )
     }
 
@@ -158,14 +158,14 @@ struct BudgetTemplateEditorPercentageFields: View {
             title: "Priority",
             text: inputBinding(for: .priority),
             isEnabled: viewModel.isEditable,
-            isValid: viewModel.inputIsValid(for: .priority, id: itemID)
+            isValid: viewModel.editor.inputIsValid(for: .priority, id: itemID)
         )
     }
 
     private func inputBinding(for field: BudgetTemplateEditorInputField) -> Binding<String> {
         Binding(
             get: { viewModel.inputText(for: field, id: itemID) },
-            set: { viewModel.setInput($0, field: field, id: itemID) }
+            set: { viewModel.edit(.setInput($0, field: field, id: itemID)) }
         )
     }
 }

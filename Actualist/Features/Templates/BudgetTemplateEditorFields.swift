@@ -1,7 +1,10 @@
 import SwiftUI
 
 struct BudgetTemplateEditorItemSection: View {
-    let item: BudgetTemplateEditorViewModel.Item
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var noteMinimumHeight = 68.0
+    @ScaledMetric(relativeTo: .body) private var noteMaximumHeight = 110.0
+    let item: BudgetTemplateDraftEditor.Item
     let index: Int
     let viewModel: BudgetTemplateEditorViewModel
 
@@ -9,7 +12,7 @@ struct BudgetTemplateEditorItemSection: View {
         Section {
             if viewModel.isEditable && item.draft.showsContribution {
                 Picker("Template type", selection: kindBinding) {
-                    ForEach(viewModel.typeChangeKinds(for: item.id)) { kind in
+                    ForEach(viewModel.editor.typeChangeKinds(for: item.id)) { kind in
                         Text(kind.title).tag(kind)
                     }
                 }
@@ -17,16 +20,23 @@ struct BudgetTemplateEditorItemSection: View {
             fields
             if viewModel.isEditable {
                 Button("Delete Template", role: .destructive) {
-                    viewModel.remove(id: item.id)
+                    viewModel.edit(.remove(id: item.id))
                 }
             }
         } header: {
-            HStack {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                : AnyLayout(HStackLayout())
+            layout {
                 Text(item.draft.kind.title)
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Spacer()
+                }
                 if item.draft.showsContribution {
                     Text(viewModel.contributionText(at: index))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
             }
         }
@@ -88,8 +98,12 @@ struct BudgetTemplateEditorItemSection: View {
             }
         }
         .disabled(!viewModel.isEditable)
-        DatePicker("Starting", selection: startingDateBinding, displayedComponents: .date)
-            .disabled(!viewModel.isEditable)
+        if viewModel.editor.fixedStartNeedsRepair(for: item.id) {
+            calendarField("Starting date (YYYY-MM-DD)", field: .fixedStart)
+        } else {
+            DatePicker("Starting", selection: startingDateBinding, displayedComponents: .date)
+                .disabled(!viewModel.isEditable)
+        }
         priorityField(value.priority)
     }
 
@@ -102,6 +116,9 @@ struct BudgetTemplateEditorItemSection: View {
             }
         }
         .disabled(!viewModel.isEditable)
+        if value.period == .weekly || viewModel.editor.limitStartNeedsRepair(for: item.id) {
+            calendarField("Starting date (YYYY-MM-DD)", field: .limitStart)
+        }
         if value.period == .weekly {
             Picker("Weekday", selection: limitWeekdayBinding) {
                 ForEach(1...7, id: \.self) { weekday in
@@ -120,15 +137,28 @@ struct BudgetTemplateEditorItemSection: View {
     @ViewBuilder
     private func refillFields(_ value: BudgetTemplateDraft.Refill) -> some View {
         priorityField(value.priority)
-        if !viewModel.hasBalanceLimit {
+        if !viewModel.editor.hasBalanceLimit {
             Text("Add a Balance Limit to set the refill target.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
             Button("Add Balance Limit") {
-                viewModel.add(.balanceLimit)
+                viewModel.edit(.add(.balanceLimit))
             }
             .disabled(!viewModel.canAddBalanceLimit)
         }
+    }
+
+    private func calendarField(_ title: String, field: BudgetTemplateEditorInputField) -> some View {
+        BudgetTemplateEditorTextField(
+            title: title,
+            text: Binding(
+                get: { viewModel.inputText(for: field, id: item.id) },
+                set: { viewModel.edit(.setInput($0, field: field, id: item.id)) }
+            ),
+            isMonth: true,
+            isEnabled: viewModel.isEditable,
+            isValid: viewModel.editor.inputIsValid(for: field, id: item.id)
+        )
     }
 
     private func amountField(
@@ -165,19 +195,19 @@ struct BudgetTemplateEditorItemSection: View {
             title: title,
             text: Binding(
                 get: { viewModel.inputText(for: field, id: item.id) },
-                set: { viewModel.setInput($0, field: field, id: item.id) }
+                set: { viewModel.edit(.setInput($0, field: field, id: item.id)) }
             ),
             isDecimal: isDecimal,
             isMonth: false,
-            isEnabled: viewModel.isEditable,
-            isValid: viewModel.inputIsValid(for: field, id: item.id)
+            isEnabled: viewModel.inputIsEnabled(field),
+            isValid: viewModel.editor.inputIsValid(for: field, id: item.id)
         )
     }
 
     private var kindBinding: Binding<BudgetTemplateKind> {
         Binding(
             get: { item.draft.kind },
-            set: { viewModel.setKind($0, id: item.id) }
+            set: { viewModel.edit(.setKind($0, id: item.id)) }
         )
     }
 
@@ -191,23 +221,31 @@ struct BudgetTemplateEditorItemSection: View {
             Text("Disable Sample Values to view or edit automation notes.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
+        } else if !viewModel.isEditable {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Note").foregroundStyle(ActualistTheme.secondaryText)
+                Text(viewModel.noteText(id: item.id))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .accessibilityLabel("Automation note")
         } else {
             LabeledContent("Note") {
                 TextEditor(
                     text: Binding(
                         get: { viewModel.noteText(id: item.id) },
-                        set: { viewModel.setNoteText($0, id: item.id) }
+                        set: { viewModel.edit(.setNoteText($0, id: item.id)) }
                     )
                 )
-                .frame(minHeight: 68, maxHeight: 110)
+                .frame(minHeight: noteMinimumHeight, maxHeight: noteMaximumHeight)
                 .scrollContentBackground(.hidden)
                 .disabled(!viewModel.canEditNotes)
                 .accessibilityLabel("Automation note")
             }
         }
-        if !viewModel.isPrivacyModeEnabled && viewModel.hasNote(id: item.id) {
+        if !viewModel.isPrivacyModeEnabled && viewModel.editor.hasNote(id: item.id) {
             Button("Clear Note", role: .destructive) {
-                viewModel.clearNote(id: item.id)
+                viewModel.edit(.clearNote(id: item.id))
             }
             .disabled(!viewModel.canEditNotes)
         }
@@ -221,14 +259,14 @@ struct BudgetTemplateEditorItemSection: View {
                 }
                 return .month
             },
-            set: { viewModel.setFixedCadence($0, id: item.id) }
+            set: { viewModel.edit(.setFixedCadence($0, id: item.id)) }
         )
     }
 
     private var startingDateBinding: Binding<Date> {
         Binding(
-            get: { viewModel.fixedStartingDate(for: item.id) },
-            set: { viewModel.setFixedStartingDate($0, id: item.id) }
+            get: { viewModel.editor.fixedStartingDate(for: item.id) },
+            set: { viewModel.edit(.setFixedStartingDate($0, id: item.id)) }
         )
     }
 
@@ -240,14 +278,14 @@ struct BudgetTemplateEditorItemSection: View {
                 }
                 return .monthly
             },
-            set: { viewModel.setLimitPeriod($0, id: item.id) }
+            set: { viewModel.edit(.setLimitPeriod($0, id: item.id)) }
         )
     }
 
     private var limitWeekdayBinding: Binding<Int> {
         Binding(
-            get: { viewModel.limitWeekday(for: item.id) },
-            set: { viewModel.setLimitWeekday($0, id: item.id) }
+            get: { viewModel.editor.limitWeekday(for: item.id) },
+            set: { viewModel.edit(.setLimitWeekday($0, id: item.id)) }
         )
     }
 
@@ -259,7 +297,7 @@ struct BudgetTemplateEditorItemSection: View {
                 }
                 return false
             },
-            set: { viewModel.setLimitHold($0, id: item.id) }
+            set: { viewModel.edit(.setLimitHold($0, id: item.id)) }
         )
     }
 
@@ -297,7 +335,7 @@ struct BudgetTemplateEditorTextField: View {
                 .keyboardType(
                     isMonth
                         ? .numbersAndPunctuation
-                        : (isDecimal ? .decimalPad : .numberPad)
+                        : (isDecimal ? .numbersAndPunctuation : .numberPad)
                 )
                 .multilineTextAlignment(.trailing)
                 .disabled(!isEnabled)

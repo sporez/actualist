@@ -62,7 +62,7 @@ struct BudgetTemplateEditorCodecTests {
         #expect(encoded.contains(#""full":true"#))
         #expect(encoded.contains(#""adjustment":-100"#))
         #expect(encoded.contains(#""adjustmentType":"percent""#))
-        #expect(try BudgetTemplateDefinition.drafts(fromJSON: encoded, now: now) == drafts)
+        #expect(BudgetTemplateDefinition.drafts(fromJSON: encoded, now: now) == drafts)
         #expect(
             BudgetTemplateAuthoringValidation.issues(
                 for: drafts,
@@ -80,7 +80,7 @@ struct BudgetTemplateEditorCodecTests {
     @Test func monthlyLimitRetainsValidWeeklyAnchorForActualCompatibility() throws {
         let json = #"[{"directive":"template","type":"simple","monthly":400,"priority":1,"limit":{"amount":500,"hold":false,"period":"monthly","start":"2026-09-07"}}]"#
         let drafts = try #require(BudgetTemplateDefinition.drafts(fromJSON: json, now: now))
-        guard case .balanceLimit(let limit) = drafts[1] else {
+        guard case .balanceLimit(let limit) = drafts[0] else {
             Issue.record("Expected a standalone limit draft")
             return
         }

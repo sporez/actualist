@@ -39,7 +39,7 @@ struct BudgetTemplateEditorPhase4Tests {
         #expect(encoded.contains(#""repeat":2"#))
         #expect(encoded.contains(#""annual":true"#))
         #expect(encoded.contains(#""from":"2027-03""#))
-        #expect(try BudgetTemplateDefinition.drafts(fromJSON: encoded, now: now) == [by, spend])
+        #expect(BudgetTemplateDefinition.drafts(fromJSON: encoded, now: now) == [by, spend])
     }
 
     @Test func invalidTargetAndPercentageFieldsRemainRepairable() throws {
@@ -84,10 +84,10 @@ struct BudgetTemplateEditorPhase4Tests {
         let viewModel = BudgetTemplateEditorViewModel(target: target, now: now, dryRunDelay: .zero)
         await viewModel.load(repository: repository, budgetID: "budget-1")
 
-        #expect(viewModel.addableKinds.contains(.dateTarget))
-        viewModel.add(.dateTarget)
-        let id = try #require(viewModel.items.first?.id)
-        guard case .dateTarget(let initial) = viewModel.items[0].draft else {
+        #expect(viewModel.editor.addableKinds.contains(.dateTarget))
+        viewModel.edit(.add(.dateTarget))
+        let id = try #require(viewModel.editor.items.first?.id)
+        guard case .dateTarget(let initial) = viewModel.editor.items[0].draft else {
             Issue.record("Expected a date target draft")
             return
         }
@@ -95,17 +95,17 @@ struct BudgetTemplateEditorPhase4Tests {
         #expect(initial.repeatInterval == 1)
         #expect(initial.annual)
 
-        viewModel.setInput("2027-10", field: .targetMonth, id: id)
-        viewModel.setDateTargetRepeats(false, id: id)
-        viewModel.setDateTargetEarlySpending(true, id: id)
+        viewModel.edit(.setInput("2027-10", field: .targetMonth, id: id))
+        viewModel.edit(.setDateTargetRepeats(false, id: id))
+        viewModel.edit(.setDateTargetEarlySpending(true, id: id))
         #expect(viewModel.inputText(for: .spendStartMonth, id: id) == "2027-10")
-        viewModel.setInput("2027-03", field: .spendStartMonth, id: id)
-        viewModel.setDateTargetEarlySpending(false, id: id)
-        viewModel.setDateTargetRepeats(true, id: id)
-        viewModel.setInput("2", field: .repeatInterval, id: id)
-        viewModel.setDateTargetAnnual(false, id: id)
+        viewModel.edit(.setInput("2027-03", field: .spendStartMonth, id: id))
+        viewModel.edit(.setDateTargetEarlySpending(false, id: id))
+        viewModel.edit(.setDateTargetRepeats(true, id: id))
+        viewModel.edit(.setInput("2", field: .repeatInterval, id: id))
+        viewModel.edit(.setDateTargetAnnual(false, id: id))
 
-        guard case .dateTarget(let value) = viewModel.items[0].draft else {
+        guard case .dateTarget(let value) = viewModel.editor.items[0].draft else {
             Issue.record("Expected a date target draft after editing")
             return
         }
@@ -131,36 +131,36 @@ struct BudgetTemplateEditorPhase4Tests {
         ]))
         let viewModel = BudgetTemplateEditorViewModel(target: target, now: now, dryRunDelay: .zero)
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
 
-        #expect(viewModel.percentageSourceSelection(for: id) == "Former salary")
-        #expect(viewModel.percentageSourceOptions(for: id).first?.isAvailable == false)
-        #expect(viewModel.percentageSourceOptions(for: id).contains {
+        #expect(viewModel.editor.percentageSourceSelection(for: id) == "Former salary")
+        #expect(viewModel.editor.percentageSourceOptions(for: id).first?.isAvailable == false)
+        #expect(viewModel.editor.percentageSourceOptions(for: id).contains {
             $0.id == "salary" && $0.name == "Salary"
         })
         #expect(!viewModel.canSave)
 
-        viewModel.setPercentageSource("salary", id: id)
+        viewModel.edit(.setPercentageSource("salary", id: id))
         #expect(viewModel.canSave)
-        viewModel.setPercentagePrevious(true, id: id)
-        #expect(viewModel.items[0].draft == .percentage(
+        viewModel.edit(.setPercentagePrevious(true, id: id))
+        #expect(viewModel.editor.items[0].draft == .percentage(
             percent: 10,
             sourceCategory: "salary",
             previous: true
         ))
 
-        viewModel.setPercentageSource("available funds", id: id)
-        #expect(viewModel.items[0].draft.description == nil)
-        viewModel.setPercentagePrevious(false, id: id)
-        viewModel.setPercentageSource("available funds", id: id)
-        viewModel.setPercentagePrevious(true, id: id)
-        guard case .percentage(let value) = viewModel.items[0].draft else {
+        viewModel.edit(.setPercentageSource("available funds", id: id))
+        #expect(viewModel.editor.items[0].draft.description == nil)
+        viewModel.edit(.setPercentagePrevious(false, id: id))
+        viewModel.edit(.setPercentageSource("available funds", id: id))
+        viewModel.edit(.setPercentagePrevious(true, id: id))
+        guard case .percentage(let value) = viewModel.editor.items[0].draft else {
             Issue.record("Expected a percentage draft")
             return
         }
         #expect(value.sourceCategory.isEmpty)
         #expect(!viewModel.canSave)
-        viewModel.setPercentageSource("salary", id: id)
+        viewModel.edit(.setPercentageSource("salary", id: id))
         #expect(viewModel.canSave)
     }
 
@@ -180,10 +180,10 @@ struct BudgetTemplateEditorPhase4Tests {
         ))
         let viewModel = BudgetTemplateEditorViewModel(target: target, now: now, dryRunDelay: .zero)
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        let id = try #require(viewModel.items.first?.id)
+        let id = try #require(viewModel.editor.items.first?.id)
 
-        #expect(viewModel.percentageSourceSelection(for: id) == "salary")
-        #expect(viewModel.percentageSourceOptions(for: id).first ==
+        #expect(viewModel.editor.percentageSourceSelection(for: id) == "salary")
+        #expect(viewModel.editor.percentageSourceOptions(for: id).first ==
             BudgetTemplatePercentageSourceOption(
                 id: "salary",
                 name: "Salary (unavailable)",
@@ -205,14 +205,14 @@ struct BudgetTemplateEditorPhase4Tests {
         )))
         #expect(!viewModel.canSave)
 
-        let firstID = try #require(viewModel.items.first?.id)
-        viewModel.setInput("101", field: .percent, id: firstID)
-        #expect(viewModel.inputIsValid(for: .percent, id: firstID))
+        let firstID = try #require(viewModel.editor.items.first?.id)
+        viewModel.edit(.setInput("101", field: .percent, id: firstID))
+        #expect(viewModel.editor.inputIsValid(for: .percent, id: firstID))
         #expect(!viewModel.canSave)
-        viewModel.setInput("15", field: .percent, id: firstID)
+        viewModel.edit(.setInput("15", field: .percent, id: firstID))
         #expect(viewModel.canSave)
-        viewModel.setInput("", field: .percent, id: firstID)
-        #expect(!viewModel.inputIsValid(for: .percent, id: firstID))
+        viewModel.edit(.setInput("", field: .percent, id: firstID))
+        #expect(!viewModel.editor.inputIsValid(for: .percent, id: firstID))
         #expect(!viewModel.canSave)
     }
 
@@ -230,8 +230,8 @@ struct BudgetTemplateEditorPhase4Tests {
         #expect(viewModel.isEditable)
         #expect(viewModel.authoringIssues.contains(.targetMonthPast(index: 0)))
         #expect(!viewModel.canSave)
-        let id = try #require(viewModel.items.first?.id)
-        viewModel.setInput("2026-10", field: .targetMonth, id: id)
+        let id = try #require(viewModel.editor.items.first?.id)
+        viewModel.edit(.setInput("2026-10", field: .targetMonth, id: id))
         #expect(viewModel.canSave)
     }
 

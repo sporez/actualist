@@ -46,50 +46,19 @@ enum BudgetTemplateEditorCodec {
 
 extension BudgetTemplateEditorCodec {
     static func isEditorReady(_ draft: BudgetTemplateDraft) -> Bool {
+        // Representability is distinct from validity. Known, finite values can
+        // open for repair; the shared authoring validator gates every save.
         switch draft {
-        case .monthlyFixed, .balanceLimit, .refill, .goal:
-            return draft.isComplete
-        case .copy(let value):
-            return draft.isComplete
-                && (value.legacyLimit == nil
-                || legacyLimitIsComplete(value.legacyLimit)
-                )
-        case .average(let value):
-            return BudgetTemplateEngine.Bounds.numMonths.contains(value.numMonths)
-                && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
-                && (value.adjustment.map { $0.value.isFinite } ?? true)
-        case .schedule(let value):
-            // A missing schedule reference is a repairable editor state. The
-            // authoring validator prevents saving it until the user chooses a
-            // live schedule.
-            return BudgetTemplateEngine.Bounds.priority.contains(value.priority)
-                && (value.adjustment.map { $0.value.isFinite } ?? true)
-        case .remainder(let value):
-            return draft.isComplete && value.legacyLimit == nil
-        case .dateTarget(let value):
-            // Month strings and spend starts stay editable when malformed or
-            // absent so the user can repair a known template definition.
-            return value.amount.isFinite
-                && BudgetTemplateEngine.Bounds.signedTemplateAmount.contains(value.amount)
-                && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
-                && value.repeatInterval.map(BudgetTemplateEngine.Bounds.repeatInterval.contains) ?? true
-        case .percentage(let value):
-            // Empty or out-of-range source/percent values are authoring errors,
-            // not unknown data. Keep them visible so Save can be disabled until
-            // the user repairs the field.
-            return value.percent.isFinite
-                && BudgetTemplateEngine.Bounds.priority.contains(value.priority)
+        case .monthlyFixed(let value): return value.amount.isFinite
+        case .dateTarget(let value): return value.amount.isFinite
+        case .percentage(let value): return value.percent.isFinite
+        case .balanceLimit(let value): return value.amount.isFinite
+        case .refill, .copy: return true
+        case .average(let value): return value.adjustment.map { $0.value.isFinite } ?? true
+        case .schedule(let value): return value.adjustment.map { $0.value.isFinite } ?? true
+        case .remainder(let value): return value.weight.isFinite && value.legacyLimit == nil
+        case .goal(let value): return value.amount.isFinite
         }
-    }
-
-    static func legacyLimitIsComplete(_ value: BudgetTemplateUpToHold?) -> Bool {
-        guard let value else { return true }
-        return value.amount.isFinite
-            && BudgetTemplateEngine.Bounds.nonnegativeAmount.contains(value.amount)
-            && BudgetTemplateLimitPeriod(rawValue: value.period) != nil
-            && (value.start == nil || value.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil)
-            && (value.period != BudgetTemplateLimitPeriod.weekly.rawValue
-                || value.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil)
     }
 }
 
@@ -345,53 +314,33 @@ private extension BudgetTemplateEditorCodec {
         }
         switch entry.type {
         case "simple":
-            let limit = try requiredOrNilLimit(entry.editorLimit, type: entry.type)
-            guard let monthly = entry.monthly else {
-                guard let limit else {
-                    return []
+            var result: [BudgetTemplateDraft] = []
+            let hasMonthly = entry.monthly.map { $0 != 0 } ?? false
+            if let limit = try requiredOrNilLimit(entry.editorLimit, type: entry.type) {
+                result.append(.balanceLimit(
+                    amount: limit.amount,
+                    hold: limit.hold,
+                    period: try limitPeriod(limit.period),
+                    start: limit.start,
+                    description: hasMonthly ? nil : entry.normalizedDescription
+                ))
+                if entry.monthly == nil {
+                    result.append(.refill(priority: try requiredPriority(entry.priority, type: entry.type)))
                 }
-                return [
-                    .balanceLimit(
-                        amount: limit.amount,
-                        hold: limit.hold,
-                        period: try limitPeriod(limit.period),
-                        start: limit.start,
-                        description: entry.normalizedDescription
-                    ),
-                    .refill(
-                        priority: try requiredPriority(entry.priority, type: entry.type)
-                    )
-                ]
             }
-            if monthly == 0, limit != nil {
-                return []
-            }
-            var result: [BudgetTemplateDraft] = [
-                .monthlyFixed(
-                    BudgetTemplateDraft.MonthlyFixed(
-                        amount: monthly,
-                        priority: try requiredPriority(entry.priority, type: entry.type),
-                        starting: BudgetTemplateDefinition.firstDayOfCurrentMonth(now: now),
-                        description: entry.normalizedDescription
-                    )
-                )
-            ]
-            if let limit {
-                result.append(
-                    .balanceLimit(
-                        amount: limit.amount,
-                        hold: limit.hold,
-                        period: try limitPeriod(limit.period),
-                        start: limit.start
-                    )
-                )
+            if let monthly = entry.monthly, hasMonthly || entry.limit == nil {
+                result.append(.monthlyFixed(
+                    amount: monthly,
+                    priority: try requiredPriority(entry.priority, type: entry.type),
+                    now: now,
+                    description: entry.normalizedDescription
+                ))
             }
             return result
         case "periodic":
             guard let amount = entry.amount, let period = entry.period,
                   let cadence = period.period.flatMap(BudgetTemplateCadence.init(rawValue:)),
-                  let interval = period.amount,
-                  BudgetTemplateEngine.Bounds.periodInterval.contains(interval) else {
+                  let interval = period.amount else {
                 throw BudgetTemplateDefinition.ParseFailure.unsupportedType("periodic")
             }
             let base = BudgetTemplateDraft.MonthlyFixed(
@@ -412,10 +361,6 @@ private extension BudgetTemplateEditorCodec {
             }
             let month = entry.month ?? ""
             let repeatInterval = entry.repeatInterval ?? (entry.annual == nil ? nil : 1)
-            if let repeatInterval,
-               !BudgetTemplateEngine.Bounds.repeatInterval.contains(repeatInterval) {
-                throw BudgetTemplateDefinition.ParseFailure.unsupportedType("invalid repeat interval")
-            }
             return [
                 .dateTarget(
                     BudgetTemplateDraft.DateTarget(
@@ -546,10 +491,7 @@ private extension BudgetTemplateEditorCodec {
     ) throws -> BudgetTemplateUpToHold? {
         guard let limit else { return nil }
         guard limit.amount.isFinite,
-              BudgetTemplateEngine.Bounds.nonnegativeAmount.contains(limit.amount),
-              let period = BudgetTemplateLimitPeriod(rawValue: limit.period),
-              limit.start.map({ BudgetTemplateCalendar.validatedDate($0) != nil }) ?? true,
-              period != .weekly || limit.start.flatMap(BudgetTemplateCalendar.validatedDate) != nil else {
+              BudgetTemplateLimitPeriod(rawValue: limit.period) != nil else {
             throw BudgetTemplateDefinition.ParseFailure.unsupportedType(type + " limit")
         }
         return limit
