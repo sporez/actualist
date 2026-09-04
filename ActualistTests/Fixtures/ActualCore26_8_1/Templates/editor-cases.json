@@ -1,0 +1,346 @@
+{
+  "today": "2026-09-04",
+  "normalizations": [
+    {
+      "id": "simple-missing-monthly-cap",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"simple\",\"priority\":1,\"limit\":{\"amount\":100,\"hold\":false,\"period\":\"monthly\"},\"description\":\"Cap note\"}]",
+      "expected": "[{\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"directive\":\"template\",\"priority\":null,\"description\":\"Cap note\"},{\"type\":\"refill\",\"directive\":\"template\",\"priority\":1}]"
+    },
+    {
+      "id": "simple-zero-cap-plus-fixed",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"simple\",\"monthly\":0,\"priority\":1,\"limit\":{\"amount\":100,\"hold\":false,\"period\":\"monthly\"},\"description\":\"Cap note\"},{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"directive\":\"template\",\"priority\":null,\"description\":\"Cap note\"},{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "simple-monthly-cap-order",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"simple\",\"monthly\":400,\"priority\":1,\"limit\":{\"amount\":100,\"hold\":false,\"period\":\"monthly\"},\"description\":\"Contribution note\"}]",
+      "expected": "[{\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"directive\":\"template\",\"priority\":null},{\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"directive\":\"template\",\"priority\":1,\"description\":\"Contribution note\"}]"
+    },
+    {
+      "id": "simple-zero-no-cap",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"simple\",\"monthly\":0,\"priority\":1}]",
+      "expected": "[{\"type\":\"periodic\",\"amount\":0,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"directive\":\"template\",\"priority\":1}]"
+    },
+    {
+      "id": "periodic-nested-cap",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \",\"limit\":{\"amount\":100,\"hold\":false,\"period\":\"weekly\",\"start\":\"2026-09-07\"}}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"},{\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"weekly\",\"start\":\"2026-09-07\",\"directive\":\"template\",\"priority\":null}]"
+    },
+    {
+      "id": "remainder-nested-cap",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":2,\"priority\":null,\"limit\":{\"amount\":100,\"hold\":false,\"period\":\"monthly\"},\"description\":\"Remainder note\"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":2,\"priority\":null,\"description\":\"Remainder note\"},{\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"directive\":\"template\",\"priority\":null}]"
+    },
+    {
+      "id": "copy-inert-cap",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"copy\",\"lookBack\":1,\"priority\":1,\"limit\":{\"amount\":100,\"hold\":false,\"period\":\"monthly\"},\"description\":\"Ignored cap\"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"copy\",\"lookBack\":1,\"priority\":1,\"limit\":{\"amount\":100,\"hold\":false,\"period\":\"monthly\"},\"description\":\"Ignored cap\"}]"
+    },
+    {
+      "id": "fixed-day",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"day\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"day\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "fixed-week",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"week\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"week\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "fixed-month",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "fixed-year",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"year\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"year\",\"amount\":2},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "legacy-annual-true",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":1200,\"month\":\"2027-09\",\"annual\":true,\"priority\":1}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":1200,\"month\":\"2027-09\",\"annual\":true,\"priority\":1,\"repeat\":1}]"
+    },
+    {
+      "id": "legacy-annual-false",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":1200,\"month\":\"2027-09\",\"annual\":false,\"priority\":1}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":1200,\"month\":\"2027-09\",\"annual\":false,\"priority\":1,\"repeat\":1}]"
+    },
+    {
+      "id": "by-legacy-from",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":1200,\"month\":\"2027-09\",\"from\":\"2027-01\",\"priority\":1}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":1200,\"month\":\"2027-09\",\"from\":\"2027-01\",\"priority\":1}]"
+    },
+    {
+      "id": "spend-repeat",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"spend\",\"amount\":1200,\"month\":\"2027-09\",\"from\":\"2027-01\",\"annual\":false,\"repeat\":3,\"priority\":1}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"spend\",\"amount\":1200,\"month\":\"2027-09\",\"from\":\"2027-01\",\"annual\":false,\"repeat\":3,\"priority\":1}]"
+    },
+    {
+      "id": "percentage-previous",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":15.5,\"category\":\"Salary\",\"previous\":true,\"priority\":1}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":15.5,\"category\":\"Salary\",\"previous\":true,\"priority\":1}]"
+    },
+    {
+      "id": "schedule-full-signed-fixed",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"schedule\",\"scheduleId\":\"rent\",\"name\":\"Rent\",\"full\":true,\"adjustment\":-12.5,\"adjustmentType\":\"fixed\",\"priority\":1}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"schedule\",\"scheduleId\":\"rent\",\"name\":\"Rent\",\"full\":true,\"adjustment\":-12.5,\"adjustmentType\":\"fixed\",\"priority\":1}]"
+    },
+    {
+      "id": "average-signed-percent",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"average\",\"numMonths\":3,\"adjustment\":-25,\"adjustmentType\":\"percent\",\"priority\":1}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"average\",\"numMonths\":3,\"adjustment\":-25,\"adjustmentType\":\"percent\",\"priority\":1}]"
+    },
+    {
+      "id": "monthly-retained-anchor",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"template\",\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"start\":\"2026-09-07\",\"priority\":null},{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"start\":\"2026-09-07\",\"priority\":null},{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "goal-note",
+      "sourceSymbol": "migrateTemplatesToAutomations/getInitialState",
+      "input": "[{\"directive\":\"goal\",\"type\":\"goal\",\"amount\":1000,\"description\":\"Goal note\"},{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"goal\",\"type\":\"goal\",\"amount\":1000,\"description\":\"Goal note\"},{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "switch-fixed",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "monthlyFixed",
+      "input": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":25,\"previous\":true,\"category\":\"Salary\",\"priority\":7,\"description\":\"Keep note\"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":1,\"description\":\"Keep note\"}]"
+    },
+    {
+      "id": "switch-by",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "dateTarget",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":1200,\"month\":\"2027-09\",\"annual\":true,\"repeat\":1,\"priority\":1,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "switch-percentage",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "percentage",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":15,\"previous\":false,\"category\":\"all income\",\"priority\":1,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "switch-schedule",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "schedule",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"schedule\",\"name\":\"\",\"priority\":1,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "switch-historical",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "average",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"average\",\"numMonths\":3,\"priority\":1,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "switch-limit",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "balanceLimit",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"limit\",\"amount\":500,\"period\":\"monthly\",\"hold\":false,\"priority\":null,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "switch-refill",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "refill",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"refill\",\"priority\":1,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "switch-remainder",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "remainder",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"template\",\"type\":\"remainder\",\"weight\":1,\"priority\":null,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "switch-goal",
+      "sourceSymbol": "templateReducer/set-type; AutomationEditorPane.dispatch",
+      "kind": "goal",
+      "input": "[{\"directive\":\"template\",\"type\":\"periodic\",\"amount\":400,\"period\":{\"period\":\"month\",\"amount\":1},\"starting\":\"2026-09-01\",\"priority\":3,\"description\":\"  Note\\nsecond line — café #template 99  \"}]",
+      "expected": "[{\"directive\":\"goal\",\"type\":\"goal\",\"amount\":1000,\"description\":\"  Note\\nsecond line — café #template 99  \"}]"
+    },
+    {
+      "id": "copy-to-average",
+      "sourceSymbol": "mapTemplateTypesForUpdate; AutomationEditorPane.dispatch",
+      "kind": "average",
+      "input": "[{\"directive\":\"template\",\"type\":\"copy\",\"lookBack\":5,\"priority\":3,\"description\":\"History\"}]",
+      "expected": "[{\"type\":\"average\",\"directive\":\"template\",\"numMonths\":5,\"priority\":3,\"description\":\"History\"}]"
+    },
+    {
+      "id": "average-to-copy",
+      "sourceSymbol": "mapTemplateTypesForUpdate; AutomationEditorPane.dispatch",
+      "kind": "copy",
+      "input": "[{\"directive\":\"template\",\"type\":\"average\",\"numMonths\":5,\"priority\":3,\"adjustment\":10,\"adjustmentType\":\"fixed\",\"description\":\"History\"}]",
+      "expected": "[{\"type\":\"copy\",\"directive\":\"template\",\"lookBack\":5,\"priority\":3,\"description\":\"History\"}]"
+    }
+  ],
+  "validations": [
+    {
+      "id": "refill-with-limit",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"refill\",\"priority\":1},{\"directive\":\"template\",\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"priority\":null}]",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "refill-no-limit",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"refill\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "refill-no-cap"
+        }
+      ]
+    },
+    {
+      "id": "limit-no-contributor",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"limit\",\"amount\":100,\"hold\":false,\"period\":\"monthly\",\"priority\":null}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "limit-no-contributor"
+        }
+      ]
+    },
+    {
+      "id": "percentage-range",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":101,\"previous\":false,\"category\":\"all income\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "percentage-out-of-range",
+          "percent": 101
+        },
+        {
+          "kind": "percent-over-100",
+          "total": 101
+        }
+      ]
+    },
+    {
+      "id": "percentage-conflict",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":60,\"previous\":false,\"category\":\"Salary\",\"priority\":1},{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":50,\"previous\":false,\"category\":\"Salary\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "percent-over-100",
+          "total": 110
+        }
+      ]
+    },
+    {
+      "id": "percentage-separate-periods",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":60,\"previous\":false,\"category\":\"Salary\",\"priority\":1},{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":60,\"previous\":true,\"category\":\"Salary\",\"priority\":1}]",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "missing-source",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"deleted\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "percentage-source-not-found",
+          "source": "deleted"
+        }
+      ]
+    },
+    {
+      "id": "missing-schedule-id-wins",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"schedule\",\"scheduleId\":\"deleted\",\"name\":\"Rent\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "schedule-not-found",
+          "name": "Rent"
+        }
+      ]
+    },
+    {
+      "id": "past-once",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":100,\"month\":\"2026-08\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "by-target-past",
+          "month": "2026-08"
+        }
+      ]
+    },
+    {
+      "id": "past-recurring",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"by\",\"amount\":100,\"month\":\"2025-08\",\"annual\":true,\"repeat\":1,\"priority\":1}]",
+      "valid": true,
+      "errors": []
+    },
+    {
+      "id": "spend-start-after-target",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"spend\",\"amount\":100,\"month\":\"2027-08\",\"from\":\"2027-09\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "spend-from-after-target"
+        }
+      ]
+    },
+    {
+      "id": "schedule-by-priority",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"schedule\",\"scheduleId\":\"rent\",\"priority\":2},{\"directive\":\"template\",\"type\":\"by\",\"amount\":100,\"month\":\"2027-08\",\"priority\":1}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "schedule-priority-mismatch"
+        }
+      ]
+    },
+    {
+      "id": "adjustment-boundary",
+      "sourceSymbol": "validateAutomation/validatePercentageAllocation/validateSchedulePriorities",
+      "input": "[{\"directive\":\"template\",\"type\":\"average\",\"numMonths\":3,\"priority\":1,\"adjustment\":-100,\"adjustmentType\":\"percent\"}]",
+      "valid": false,
+      "errors": [
+        {
+          "kind": "adjustment-out-of-range"
+        }
+      ]
+    }
+  ]
+}

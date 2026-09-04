@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "tag": "v26.8.1",
+  "commit": "063df03763ca772b51f6264752b88ddec22cfb8a",
+  "sourceFiles": [
+    {
+      "path": "packages/desktop-client/src/components/modals/BudgetAutomationsModal/migrateTemplatesToAutomations.ts",
+      "sha256": "15e7211e6b3f6b3a06ee85778837aab72989acaf624f7282d2d41f92b0fa2325"
+    },
+    {
+      "path": "packages/desktop-client/src/components/budget/goals/reducer.ts",
+      "sha256": "28a1dd659338b9862a2e73c84a4d721ccf6875e59a147a59eb25b8736b7fdd2e"
+    },
+    {
+      "path": "packages/desktop-client/src/components/budget/goals/validateAutomation.ts",
+      "sha256": "0e64c162cd7bffaf6582c95a030b29ec770a334a41171c90462829eee7bbe99d"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/BudgetAutomationsModal/AutomationEditorPane.tsx",
+      "sha256": "f881f835d544651f91c297dd7b1073f88c0251427b28ffed60e1e465445150c0"
+    },
+    {
+      "path": "packages/loot-core/src/types/models/templates.ts",
+      "sha256": "d2d4635ef0db471d99bbcf23e09780fda4c1e912797665a42ef7563eb25bdab7"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/category-template-context.ts",
+      "sha256": "332eea3f1a7cafa75a04e944f3dce14c0313f4ce8458a92cf42994b24f72fdcc"
+    }
+  ],
+  "generatorSHA256": "ef4bec47a4212ce6fed28565c3994aa486b0f5f92a03ff9b281bb3d6ff0a10ac",
+  "fixtureSHA256": "89097d51e49ab912b3438bfb673136f94f68de0a0d042a5fdc9d64ddad42cad2",
+  "caseCount": 44,
+  "oracleScope": "Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.",
+  "amountUnits": "JSON display units; previews and Apply integer minor units"
+}
