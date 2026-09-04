@@ -60,8 +60,11 @@ Dataset design (matches the demo-mode plan):
     one uncategorized transaction.
   - Transfer payees (`xfer-<account>`) and payee/category mappings so transfer
     rendering and category/payee editors work.
-  - One UI-managed template (Rent: monthly Fixed + remainder) and one
-    note-managed template (Groceries) so Edit vs View is visible.
+  - UI-managed examples for every template family: Fixed cadence, Balance Limit,
+    Refill, Save by Date, Percentage, Copy, Average, Schedule, Remainder, and
+    Goal. Rent also carries a multiline automation Note.
+  - One note-managed template (Groceries) and one genuinely empty category
+    (Retirement) so Edit, View, and Add doors are visible.
 """
 
 from __future__ import annotations
@@ -77,7 +80,7 @@ from pathlib import Path
 
 # --- Identity (must match DemoBudget.swift) ---------------------------------
 
-DEMO_FILE_ID = "actualist-demo-budget-v3"
+DEMO_FILE_ID = "actualist-demo-budget-v4"
 DEMO_GROUP_ID = "actualist-demo-group-v1"
 DEMO_NODE_ID = "demo-node-00000001"
 DEMO_BUDGET_NAME = "Demo Budget"
@@ -121,7 +124,9 @@ CREATE TABLE zero_budgets (
     month INTEGER,
     category TEXT,
     amount INTEGER NOT NULL DEFAULT 0,
-    carryover INTEGER NOT NULL DEFAULT 0
+    carryover INTEGER NOT NULL DEFAULT 0,
+    goal INTEGER,
+    long_goal INTEGER
 );
 CREATE TABLE transactions (
     id TEXT PRIMARY KEY,
@@ -160,6 +165,19 @@ CREATE TABLE category_mapping (
 CREATE TABLE notes (
     id TEXT PRIMARY KEY,
     note TEXT
+);
+CREATE TABLE rules (
+    id TEXT PRIMARY KEY,
+    conditions TEXT,
+    actions TEXT,
+    tombstone INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE schedules (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    rule TEXT,
+    completed INTEGER NOT NULL DEFAULT 0,
+    tombstone INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE messages_crdt (
     timestamp TEXT,
@@ -418,6 +436,42 @@ def populate(conn: sqlite3.Connection, end_date: datetime.date):
         [(c[0], c[0]) for c in CATEGORIES],
     )
 
+    schedule_rule_id = "annual-insurance-rule"
+    schedule_id = "annual-insurance"
+    cur.execute(
+        "INSERT INTO rules (id, conditions, actions, tombstone) VALUES (?, ?, ?, 0)",
+        (
+            schedule_rule_id,
+            json.dumps(
+                [
+                    {
+                        "op": "is",
+                        "field": "amount",
+                        "value": -120000,
+                    },
+                    {
+                        "op": "is",
+                        "field": "date",
+                        "value": {
+                            "start": "2027-01-15",
+                            "frequency": "yearly",
+                            "interval": 1,
+                        },
+                    },
+                ],
+                separators=(",", ":"),
+            ),
+            json.dumps(
+                [{"op": "link-schedule", "value": schedule_id}],
+                separators=(",", ":"),
+            ),
+        ),
+    )
+    cur.execute(
+        "INSERT INTO schedules (id, name, rule, completed, tombstone) VALUES (?, ?, ?, 0, 0)",
+        (schedule_id, "Annual Insurance", schedule_rule_id),
+    )
+
     month_note_id = f"budget-{end_date.year:04d}-{end_date.month:02d}"
     cur.executemany(
         "INSERT INTO notes (id, note) VALUES (?, ?)",
@@ -461,27 +515,161 @@ def populate(conn: sqlite3.Connection, end_date: datetime.date):
 
 
 def apply_templates(cur: sqlite3.Cursor, end_date: datetime.date) -> None:
-    """Rent is UI-managed (editable). Groceries stays note-managed (view-only)."""
+    """Populate a complete fictional catalog for editor and door smoke tests."""
     starting = f"{end_date.year:04d}-{end_date.month:02d}-01"
-    rent_goal_def = json.dumps(
-        [
-            {
-                "amount": 1800,
-                "directive": "template",
-                "period": {"amount": 1, "period": "month"},
-                "priority": 1,
-                "starting": starting,
-                "type": "periodic",
-            },
-            {
-                "directive": "template",
-                "priority": None,
-                "type": "remainder",
-                "weight": 1,
-            },
-        ],
-        separators=(",", ":"),
-    )
+    def definition(entries):
+        return json.dumps(entries, separators=(",", ":"))
+
+    rent_goal_def = definition([
+        {
+            "amount": 1800,
+            "description": "Set aside before weekend plans.\nReview after payday.",
+            "directive": "template",
+            "period": {"amount": 1, "period": "month"},
+            "priority": 1,
+            "starting": starting,
+            "type": "periodic",
+        },
+        {
+            "directive": "template",
+            "priority": None,
+            "type": "remainder",
+            "weight": 1,
+        },
+    ])
+    utilities_goal_def = definition([
+        {
+            "amount": 40,
+            "description": "Weekly utility buffer.",
+            "directive": "template",
+            "period": {"amount": 1, "period": "week"},
+            "priority": 1,
+            "starting": starting,
+            "type": "periodic",
+        }
+    ])
+    transportation_goal_def = definition([
+        {
+            "amount": 80,
+            "directive": "template",
+            "period": {"amount": 1, "period": "month"},
+            "priority": 1,
+            "starting": starting,
+            "type": "periodic",
+        },
+        {
+            "amount": 250,
+            "description": "Keep a monthly travel cushion.",
+            "directive": "template",
+            "hold": True,
+            "period": "monthly",
+            "priority": None,
+            "type": "limit",
+        }
+    ])
+    insurance_goal_def = definition([
+        {
+            "amount": 120,
+            "directive": "template",
+            "period": {"amount": 1, "period": "month"},
+            "priority": 1,
+            "starting": starting,
+            "type": "periodic",
+        },
+        {
+            "amount": 240,
+            "description": "Keep the insurance reserve topped up.",
+            "directive": "template",
+            "hold": True,
+            "period": "monthly",
+            "priority": None,
+            "type": "limit",
+        },
+        {
+            "description": "Refill the reserve automatically.",
+            "directive": "template",
+            "priority": 2,
+            "type": "refill",
+        },
+    ])
+    dining_goal_def = definition([
+        {
+            "amount": 900,
+            "annual": False,
+            "description": "Save for the next dinner celebration.",
+            "directive": "template",
+            "month": "2026-12",
+            "priority": 1,
+            "repeat": 1,
+            "type": "by",
+        }
+    ])
+    entertainment_goal_def = definition([
+        {
+            "amount": 1200,
+            "annual": False,
+            "description": "Spend this on a winter getaway.",
+            "directive": "template",
+            "from": "2026-09",
+            "month": "2026-11",
+            "priority": 1,
+            "repeat": 1,
+            "type": "spend",
+        }
+    ])
+    subscriptions_goal_def = definition([
+        {
+            "category": "all income",
+            "description": "Use a small share of income for subscriptions.",
+            "directive": "template",
+            "percent": 5,
+            "previous": False,
+            "priority": 1,
+            "type": "percentage",
+        }
+    ])
+    shopping_goal_def = definition([
+        {
+            "description": "Match the recent shopping month.",
+            "directive": "template",
+            "lookBack": 2,
+            "priority": 1,
+            "type": "copy",
+        }
+    ])
+    personal_care_goal_def = definition([
+        {
+            "adjustment": -10,
+            "adjustmentType": "percent",
+            "description": "Trim the average by ten percent.",
+            "directive": "template",
+            "numMonths": 3,
+            "priority": 1,
+            "type": "average",
+        }
+    ])
+    emergency_fund_goal_def = definition([
+        {
+            "adjustment": 50,
+            "adjustmentType": "fixed",
+            "description": "Cover the full annual bill when due.",
+            "directive": "template",
+            "full": True,
+            "name": "Annual Insurance",
+            "priority": 1,
+            "scheduleId": "annual-insurance",
+            "type": "schedule",
+        }
+    ])
+    vacation_goal_def = definition([
+        {
+            "amount": 1500,
+            "description": "A simple demo savings goal.",
+            "directive": "goal",
+            "priority": None,
+            "type": "goal",
+        }
+    ])
     groceries_goal_def = json.dumps(
         [
             {
@@ -493,10 +681,23 @@ def apply_templates(cur: sqlite3.Cursor, end_date: datetime.date) -> None:
         ],
         separators=(",", ":"),
     )
-    cur.execute(
-        "UPDATE categories SET goal_def = ?, template_settings = ? WHERE id = 'rent'",
-        (rent_goal_def, '{"source":"ui"}'),
-    )
+    for category_id, goal_def in {
+        "rent": rent_goal_def,
+        "utilities": utilities_goal_def,
+        "transportation": transportation_goal_def,
+        "insurance": insurance_goal_def,
+        "dining": dining_goal_def,
+        "entertainment": entertainment_goal_def,
+        "subscriptions": subscriptions_goal_def,
+        "shopping": shopping_goal_def,
+        "personal_care": personal_care_goal_def,
+        "emergency_fund": emergency_fund_goal_def,
+        "vacation": vacation_goal_def,
+    }.items():
+        cur.execute(
+            "UPDATE categories SET goal_def = ?, template_settings = ? WHERE id = ?",
+            (goal_def, '{"source":"ui"}', category_id),
+        )
     cur.execute(
         "UPDATE categories SET goal_def = ?, template_settings = ? WHERE id = 'groceries'",
         (groceries_goal_def, '{"source":"notes"}'),
@@ -548,8 +749,24 @@ def main() -> int:
 
     if out_path.exists():
         out_path.unlink()
-    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.write(db_path, arcname="db.sqlite")
+    # Do not inherit db.sqlite's filesystem mtime into the archive. A stable
+    # entry header keeps the committed digest reproducible across regenerations.
+    archive_info = zipfile.ZipInfo("db.sqlite", date_time=(2020, 1, 1, 0, 0, 0))
+    archive_info.compress_type = zipfile.ZIP_DEFLATED
+    archive_info.create_system = 3
+    archive_info.external_attr = 0o600 << 16
+    with zipfile.ZipFile(
+        out_path,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
+    ) as archive:
+        archive.writestr(
+            archive_info,
+            db_path.read_bytes(),
+            compress_type=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
+        )
     db_path.unlink(missing_ok=True)
 
     data = out_path.read_bytes()

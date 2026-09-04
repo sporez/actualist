@@ -148,11 +148,14 @@ erasing a device, open Actualist while online and confirm Settings shows
 
 ### Budget Templates
 
-Actualist can add and edit monthly amount, copy, average, schedule, remainder,
-and goal templates from Budget category long-press, Category Details, and
-Settings → Templates. Apply Template shows how much each category would receive
-before it assigns the money. Applying or overwriting a template can change many
-assignments at once, so keep a current backup and review the result.
+Actualist can add and edit the current UI-managed template catalog: Fixed Amount
+with day/week/month/year cadence, Save by Date, Percentage, Balance Limit,
+Refill, Copy Previous Month, Average, Cover Schedule, Remainder, and Goal. Each
+template can include an optional Note. Templates open from Budget category
+long-press, Category Details, and Settings → Templates. Apply Template shows how
+much each category would receive before it assigns the money. Applying or
+overwriting a template can change many assignments at once, so keep a current
+backup and review the result.
 
 Templates written in a category note stay view-only. Resetting leftover money
 with a cleanup template is not available.
@@ -174,9 +177,9 @@ always available under Settings → Budget & Data.
   actions, delete-transaction, and fixed/percent/remainder splits. Formula
   actions, some date and recurrence shapes, and schedule-owned rules stay
   visible but read-only so their JSON is never rewritten or lost.
-- Some Budget Template types from Actual stay view-only. Templates written in a
-  category note cannot be edited here. Resetting leftover money with a cleanup
-  template is not available.
+- Template definitions written in a category note stay view-only. Unsupported
+  newer fields, schedule formulas or splits, and cleanup templates are not
+  available for editing here, so their stored definition is not rewritten.
 
 ## Reporting Bugs
 

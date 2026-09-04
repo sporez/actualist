@@ -192,4 +192,82 @@ struct DemoModeStoreTests {
         #expect(browser.categories.contains { $0.id == "groceries" && $0.hasDefinition && $0.lock == .readOnly(.noteManaged) })
         #expect(await transport.messageCounts().isEmpty)
     }
+
+    @Test func demoBudgetCoversEveryTemplateFamilyAndEmptyAddDoor() async throws {
+        let transport = RecordingSyncTransport()
+        let (store, _) = makeDemoStore(transport: transport)
+        try await store.openDemoBudget()
+        let budgetID = DemoBudget.groupID
+
+        let expectedKinds: [String: [BudgetTemplateKind]] = [
+            "rent": [.monthlyFixed, .remainder],
+            "utilities": [.monthlyFixed],
+            "transportation": [.monthlyFixed, .balanceLimit],
+            "insurance": [.monthlyFixed, .balanceLimit, .refill],
+            "dining": [.dateTarget],
+            "entertainment": [.dateTarget],
+            "subscriptions": [.percentage],
+            "shopping": [.copy],
+            "personal_care": [.average],
+            "emergency_fund": [.schedule],
+            "vacation": [.goal],
+        ]
+        for (categoryID, kinds) in expectedKinds {
+            let snapshot = try await store.categoryTemplateEditorSnapshot(
+                categoryID: categoryID,
+                budgetID: budgetID
+            )
+            #expect(snapshot.lock == .editable)
+            #expect(snapshot.drafts.map(\.kind) == kinds)
+            #expect(snapshot.drafts.contains { $0.description != nil })
+
+            let preview = try await store.previewBudgetTemplate(
+                command: .category(categoryID),
+                budgetID: budgetID,
+                month: DemoBudget.fixtureMonth
+            )
+            #expect(preview.categories.allSatisfy { $0.categoryID == categoryID })
+        }
+
+        let rent = try await store.categoryTemplateEditorSnapshot(
+            categoryID: "rent",
+            budgetID: budgetID
+        )
+        #expect(rent.drafts.first?.description == "Set aside before weekend plans.\nReview after payday.")
+
+        let schedule = try await store.categoryTemplateEditorSnapshot(
+            categoryID: "emergency_fund",
+            budgetID: budgetID
+        )
+        #expect(schedule.schedules == [
+            BudgetTemplateScheduleOption(id: "annual-insurance", name: "Annual Insurance")
+        ])
+        #expect(schedule.drafts.first == .schedule(
+            name: "Annual Insurance",
+            scheduleId: "annual-insurance",
+            priority: 1,
+            full: true,
+            adjustment: .fixed(50),
+            description: "Cover the full annual bill when due."
+        ))
+
+        let groceries = try await store.categoryTemplateEditorSnapshot(
+            categoryID: "groceries",
+            budgetID: budgetID
+        )
+        #expect(groceries.lock == .readOnly(.noteManaged))
+
+        let empty = try await store.categoryTemplateEditorSnapshot(
+            categoryID: "retirement",
+            budgetID: budgetID
+        )
+        #expect(empty.lock == .editable)
+        #expect(empty.hasDefinition == false)
+        #expect(empty.drafts.isEmpty)
+
+        let browser = try await store.categoryTemplateBrowserSnapshot(budgetID: budgetID)
+        #expect(browser.categories.filter(\.hasDefinition).count == expectedKinds.count + 1)
+        #expect(browser.categories.first { $0.id == "retirement" }?.hasDefinition == false)
+        #expect(await transport.messageCounts().isEmpty)
+    }
 }

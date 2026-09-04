@@ -16,4 +16,7 @@ Known limitations:
 - Bank Sync supports SimpleFIN only. Other providers still need another Actual client or the server.
 - Account reconciliation is not available.
 - Creating, renaming, closing, and deleting accounts is incomplete.
-- Budget templates can be applied, not created or edited.
+- Budget templates support creating and editing the current Fixed Amount, Save
+  by Date, Percentage, Balance Limit, Refill, Copy, Average, Schedule, Remainder,
+  and Goal catalog. Category-note templates and unsupported newer shapes remain
+  view-only.
