@@ -37,8 +37,10 @@ struct BudgetGroupSection: View {
                 .foregroundStyle(ActualistTheme.primaryText)
                 .padding(.vertical, 12)
                 .padding(.horizontal, BudgetLayout.rowHorizontalPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("budget-group-\(group.id)")
             .opacity(isGroupHidden ? BudgetLayout.hiddenCategoryOpacity : 1)
             .contextMenu {
                 Button {
@@ -145,8 +147,10 @@ struct BudgetGroupSection: View {
             HStack(spacing: 6) {
                 Text(groupName)
                     .font(ActualistTypography.sectionTitle(for: density))
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .minimumScaleFactor(0.82)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+                    .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.82)
+                    .layoutPriority(1)
 
                 if group.hasUserNote {
                     Image(systemName: "note.text")
@@ -155,7 +159,12 @@ struct BudgetGroupSection: View {
                         .accessibilityHidden(true)
                 }
             }
+
+            if dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 0)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func groupTotalRow(label: String, value: String) -> some View {
@@ -220,6 +229,7 @@ struct BudgetCategoryRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("budget-category-\(category.id)")
         .opacity(isDimmed ? BudgetLayout.hiddenCategoryOpacity : 1)
         .contextMenu {
             Button {
@@ -281,8 +291,10 @@ struct BudgetCategoryRow: View {
             Text(categoryName)
                 .font(ActualistTypography.body(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                .minimumScaleFactor(0.86)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.86)
+                .layoutPriority(1)
 
             if category.hasUserNote {
                 Image(systemName: "note.text")

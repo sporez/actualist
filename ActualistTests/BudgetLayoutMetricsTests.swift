@@ -32,6 +32,26 @@ struct BudgetLayoutMetricsTests {
         #expect(metrics.visibleMonthCount == 5)
     }
 
+    @Test func fixedOneMonthCapsScanWidthWithoutChangingAutoCapacity() {
+        let inputs = BudgetLayoutInputs(
+            rootWidth: 1_500,
+            budgetDetailWidth: 1_200,
+            preference: .fixed(1)
+        )
+        let fixed = BudgetLayoutMetrics.resolve(inputs)
+        let automatic = BudgetLayoutMetrics.resolve(
+            BudgetLayoutInputs(rootWidth: inputs.rootWidth, budgetDetailWidth: inputs.budgetDetailWidth)
+        )
+        let availableWidth = inputs.budgetDetailWidth! - inputs.horizontalMargins
+
+        #expect(fixed.presentationMode == .splitSingleMonth)
+        #expect(fixed.tableWidth <= BudgetLayoutMetrics.maximumSingleMonthTableWidth)
+        #expect(fixed.tableWidth <= availableWidth)
+        #expect(automatic.visibleMonthCount >= 3)
+        #expect(automatic.tableWidth <= availableWidth)
+        #expect(automatic.tableWidth > fixed.tableWidth)
+    }
+
     @Test func dynamicTypeIncreasesMinimumWidthsAndCategoryWidth() {
         let regular = BudgetLayoutMetrics.resolve(
             BudgetLayoutInputs(rootWidth: 1_400, budgetDetailWidth: 1_100)

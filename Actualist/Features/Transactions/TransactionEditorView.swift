@@ -53,7 +53,8 @@ struct TransactionEditorView: View {
                     .padding(.top, 18)
                     .padding(.bottom, 32)
                 }
-                .scrollDismissesKeyboard(.immediately)
+                .scrollDismissesKeyboard(.never)
+                .accessibilityIdentifier("transaction-editor-scroll")
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -226,6 +227,7 @@ struct TransactionEditorView: View {
                         .lineLimit(2...4)
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
+                        .accessibilityIdentifier("transaction-notes-field")
                 }
             }
             .padding(.horizontal, density.rowHorizontalPadding)
@@ -318,6 +320,7 @@ struct TransactionEditorView: View {
             )
         }
         .padding(.top, 4)
+        .accessibilityIdentifier("transaction-save-button")
     }
 
     private func submitAndDismissIfSaved() async {

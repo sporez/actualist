@@ -50,6 +50,7 @@ struct BudgetLayoutMetrics: Equatable {
     static let minimumCategoryColumnWidth: CGFloat = 180
     static let preferredCategoryColumnWidth: CGFloat = 240
     static let maximumCategoryColumnWidth: CGFloat = 300
+    static let maximumSingleMonthTableWidth: CGFloat = 760
     static let supportedMonthRange = 1...5
 
     let presentationMode: BudgetPresentationMode
@@ -57,6 +58,10 @@ struct BudgetLayoutMetrics: Equatable {
     let categoryColumnWidth: CGFloat
     let monthColumnWidth: CGFloat
     let inspectorAvailable: Bool
+
+    var tableWidth: CGFloat {
+        categoryColumnWidth + monthColumnWidth * CGFloat(visibleMonthCount)
+    }
 
     static func resolve(_ inputs: BudgetLayoutInputs) -> Self {
         let rootWidth = finiteNonnegative(inputs.rootWidth)
@@ -92,7 +97,15 @@ struct BudgetLayoutMetrics: Equatable {
         let requested = inputs.preference.resolvedCount
         let visibleCount = min(max(requested, supportedMonthRange.lowerBound), physicallyPossible)
         let mode: BudgetPresentationMode = visibleCount > 1 ? .multiMonth : .splitSingleMonth
-        let naturalMonthWidth = availableForMonths / CGFloat(visibleCount)
+        let maximumTableWidth = maximumSingleMonthTableWidth * scale
+        let tableWidth = visibleCount == 1 ? min(detailWidth, maximumTableWidth) : detailWidth
+        let tableCategoryWidth = visibleCount == 1
+            ? min(categoryWidth, max(tableWidth - minimumMoneyColumnWidth * 2 * scale, 0))
+            : categoryWidth
+        let tableMonthWidth = max(tableWidth - tableCategoryWidth, 0)
+        let naturalMonthWidth = visibleCount == 1
+            ? tableMonthWidth
+            : availableForMonths / CGFloat(visibleCount)
         // A narrow inspector can leave less than the readable baseline. Keep
         // the single-month fallback within the measured container rather than
         // allowing its minimum width to overlap the category column.
@@ -102,7 +115,7 @@ struct BudgetLayoutMetrics: Equatable {
         return Self(
             presentationMode: mode,
             visibleMonthCount: visibleCount,
-            categoryColumnWidth: categoryWidth,
+            categoryColumnWidth: tableCategoryWidth,
             monthColumnWidth: monthWidth,
             inspectorAvailable: detailWidth >= (singleMonthMinimumWidth + 80) * scale
         )

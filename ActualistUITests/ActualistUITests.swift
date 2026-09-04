@@ -10,7 +10,9 @@ final class ActualistUITests: XCTestCase {
         try requireCompact(app)
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Add Transaction"].waitForExistence(timeout: 5))
-        attachScreenshot(named: "compact-budget", app: app)
+        attachScreenshot(named: "compact-budget-top", app: app)
+        assertFinalCompactBudgetContentClearsBottomControls(in: app)
+        attachScreenshot(named: "compact-budget-bottom", app: app)
     }
 
     @MainActor
@@ -29,12 +31,12 @@ final class ActualistUITests: XCTestCase {
         let app = launchDemo(dynamicType: "UICTContentSizeCategoryAccessibilityXXXL")
 
         XCTAssertTrue(app.buttons["Add Transaction"].waitForExistence(timeout: 15))
-        if budgetGrid(in: app).exists {
-            XCTAssertLessThanOrEqual(visibleMonthCount(in: app), 1)
-        } else {
-            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Spending'")).firstMatch.exists)
-        }
-        attachScreenshot(named: "ipad-accessibility-xxxl-budget", app: app)
+        XCTAssertFalse(budgetGrid(in: app).exists)
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 5))
+        assertAccessibilityBudgetLayout(in: app)
+        attachScreenshot(named: "accessibility-xxxl-budget-top", app: app)
+        assertFinalCompactBudgetContentClearsBottomControls(in: app)
+        attachScreenshot(named: "accessibility-xxxl-budget-bottom", app: app)
     }
 
     @MainActor
@@ -85,7 +87,22 @@ final class ActualistUITests: XCTestCase {
         XCTAssertLessThan(app.frame.width, 792)
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         XCTAssertTrue(amount.exists)
-        attachScreenshot(named: "transaction-draft-after-rotation", app: app)
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        let editorScroll = app.scrollViews["transaction-editor-scroll"]
+        XCTAssertTrue(editorScroll.waitForExistence(timeout: 5))
+        let notes = app.descendants(matching: .any)["transaction-notes-field"]
+        scroll(notes, fullyAbove: keyboard, in: editorScroll)
+        XCTAssertTrue(notes.isHittable)
+        notes.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        let save = app.descendants(matching: .any)["transaction-save-button"]
+        scroll(save, fullyAbove: keyboard, in: editorScroll)
+        XCTAssertLessThanOrEqual(save.frame.maxY, keyboard.frame.minY - 4)
+        XCTAssertTrue(editor.buttons.firstMatch.isHittable)
+        XCTAssertTrue(amount.exists)
+        XCTAssertTrue(amount.label.contains("12.34"))
+        attachScreenshot(named: "transaction-draft-lower-fields-after-rotation", app: app)
         editor.buttons.firstMatch.tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
         XCTAssertFalse(budgetGrid(in: app).exists)
@@ -390,6 +407,8 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(reachedCompact)
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Add Transaction"].waitForExistence(timeout: 5))
+        assertFinalCompactBudgetContentClearsBottomControls(in: app)
+        attachScreenshot(named: "stage-manager-compact-bottom", app: app)
 
         var returnedToSidebar = false
         for _ in 0..<8 where !returnedToSidebar {
@@ -444,6 +463,67 @@ final class ActualistUITests: XCTestCase {
 
     private func assignmentPopover(in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: "assignment-popover").firstMatch
+    }
+
+    private func assertAccessibilityBudgetLayout(in app: XCUIApplication) {
+        let alert = app.buttons["budget-alert-uncategorizedTransactions"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.label.contains("Uncategorized transactions"))
+        XCTAssertTrue(alert.label.contains("Review"))
+        XCTAssertGreaterThan(alert.frame.height, 100)
+
+        let group = app.buttons["budget-group-essentials"]
+        let firstCategory = app.buttons["budget-category-rent"]
+        XCTAssertTrue(group.waitForExistence(timeout: 5))
+        XCTAssertTrue(firstCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(group.label.contains("Essentials"))
+        XCTAssertTrue(group.label.contains("Assigned"))
+        XCTAssertTrue(group.label.contains("Available"))
+        XCTAssertGreaterThan(group.frame.height, 120)
+        XCTAssertLessThanOrEqual(group.frame.maxY, firstCategory.frame.minY)
+        XCTAssertFalse(group.frame.intersects(firstCategory.frame))
+        XCTAssertGreaterThan(firstCategory.frame.height, 120)
+    }
+
+    private func assertFinalCompactBudgetContentClearsBottomControls(in app: XCUIApplication) {
+        let scrollView = app.scrollViews["budget-compact-scroll"]
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 5))
+        let finalCategory = app.buttons["budget-category-retirement"]
+        let addTransaction = app.buttons["Add Transaction"]
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(addTransaction.waitForExistence(timeout: 5))
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 5))
+
+        for _ in 0..<12 {
+            let clearanceY = min(addTransaction.frame.minY, tabBar.frame.minY) - 4
+            if finalCategory.exists,
+               finalCategory.frame != .zero,
+               finalCategory.frame.maxY <= clearanceY,
+               finalCategory.isHittable {
+                break
+            }
+            scrollView.swipeUp()
+        }
+
+        XCTAssertTrue(finalCategory.waitForExistence(timeout: 3))
+        XCTAssertTrue(finalCategory.isHittable)
+        XCTAssertLessThanOrEqual(finalCategory.frame.maxY, addTransaction.frame.minY - 4)
+        XCTAssertLessThanOrEqual(finalCategory.frame.maxY, tabBar.frame.minY - 4)
+    }
+
+    private func scroll(_ element: XCUIElement, fullyAbove occluder: XCUIElement, in scrollView: XCUIElement) {
+        for _ in 0..<8 {
+            if element.exists,
+               element.frame != .zero,
+               element.frame.minY >= scrollView.frame.minY,
+               element.frame.maxY <= occluder.frame.minY - 4 {
+                return
+            }
+            scrollView.swipeUp()
+        }
+        XCTAssertTrue(element.exists)
+        XCTAssertGreaterThanOrEqual(element.frame.minY, scrollView.frame.minY)
+        XCTAssertLessThanOrEqual(element.frame.maxY, occluder.frame.minY - 4)
     }
 
     private func visibleMonthCount(in app: XCUIApplication) -> Int {

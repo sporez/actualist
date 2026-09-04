@@ -166,6 +166,7 @@ extension BudgetAlert {
 
 struct BudgetAlertBanner: View {
     @Environment(\.actualistDensity) private var density
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let alert: BudgetAlert
     let assignedText: String?
@@ -196,7 +197,25 @@ struct BudgetAlertBanner: View {
 
     @ViewBuilder
     private var toBudgetContent: some View {
-        if let assignedText {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: BudgetLayout.summaryColumnSpacing) {
+                summaryMetric(
+                    value: alert.valueText ?? "",
+                    label: alert.title,
+                    amountFont: ActualistTypography.workScreenAmount(for: density),
+                    alignment: .leading
+                )
+                if let assignedText {
+                    summaryMetric(
+                        value: assignedText,
+                        label: "Assigned",
+                        amountFont: ActualistTypography.summarySecondaryAmount(for: density),
+                        alignment: .leading
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let assignedText {
             stackedSummary(assignedText: assignedText)
         } else {
             inlineSummary
@@ -268,8 +287,9 @@ struct BudgetAlertBanner: View {
                 .frame(maxWidth: .infinity, alignment: frameAlignment)
             Text(label)
                 .font(ActualistTypography.body(for: density))
-                .lineLimit(1)
-                .minimumScaleFactor(0.86)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.86)
                 .multilineTextAlignment(textAlignment)
                 .frame(maxWidth: .infinity, alignment: frameAlignment)
         }
@@ -278,34 +298,76 @@ struct BudgetAlertBanner: View {
         .accessibilityLabel("\(label) \(value)")
     }
 
+    @ViewBuilder
     private var standardContent: some View {
-        HStack(spacing: 10) {
-            if let valueText = alert.valueText {
-                Text(valueText)
-                    .font(ActualistTypography.workScreenAmount(for: density))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 10) {
+                    standardValue
+                    standardTitle
+                }
+                HStack(spacing: 10) {
+                    standardCount
+                    Spacer(minLength: 12)
+                    standardAction
+                }
             }
-
-            if let count = alert.count {
-                Text("\(count)")
-                    .font(ActualistTypography.control(for: density))
-                    .foregroundStyle(alert.countForeground)
-                    .frame(width: 28, height: 28)
-                    .background(alert.countBackground, in: Circle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(spacing: 10) {
+                standardValue
+                standardCount
+                standardTitle
+                Spacer()
+                standardAction
             }
+        }
+    }
 
-            Text(alert.title)
-                .font(ActualistTypography.body(for: density))
+    @ViewBuilder
+    private var standardValue: some View {
+        if let valueText = alert.valueText {
+            Text(valueText)
+                .font(ActualistTypography.workScreenAmount(for: density))
                 .lineLimit(1)
-                .minimumScaleFactor(0.86)
+                .minimumScaleFactor(0.75)
+        }
+    }
 
-            Spacer()
+    @ViewBuilder
+    private var standardCount: some View {
+        if let count = alert.count {
+            Text("\(count)")
+                .font(ActualistTypography.control(for: density))
+                .foregroundStyle(alert.countForeground)
+                .padding(dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+                .frame(
+                    width: dynamicTypeSize.isAccessibilitySize ? nil : 28,
+                    height: dynamicTypeSize.isAccessibilitySize ? nil : 28
+                )
+                .background(alert.countBackground, in: Circle())
+                .fixedSize()
+        }
+    }
 
+    private var standardTitle: some View {
+        Text(alert.title)
+            .font(ActualistTypography.body(for: density))
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.86)
+            .multilineTextAlignment(.leading)
+            .layoutPriority(1)
+    }
+
+    @ViewBuilder
+    private var standardAction: some View {
+        HStack(spacing: 8) {
             if let actionTitle = alert.actionTitle {
                 Text(actionTitle)
                     .font(ActualistTypography.control(for: density))
                     .lineLimit(1)
+                    .fixedSize()
             }
 
             if alert.isActionable {

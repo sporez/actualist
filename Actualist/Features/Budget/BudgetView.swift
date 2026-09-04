@@ -3,6 +3,7 @@ import SwiftUI
 struct BudgetView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel: BudgetViewModel
     @State private var isTransactionEditorPresented = false
     @State private var isHistoryPresented = false
@@ -57,6 +58,7 @@ struct BudgetView: View {
                     .padding(.bottom, scrollBottomPadding)
                 }
                 .scrollIndicators(.hidden)
+                .accessibilityIdentifier("budget-compact-scroll")
                 .background(ActualistTheme.background)
                 .onScrollGeometryChange(for: ScrollDirectedExpansionSample.self) { geometry in
                     ScrollDirectedExpansionSample(
@@ -121,6 +123,21 @@ struct BudgetView: View {
                             }
                         }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else {
+                        HStack {
+                            Spacer(minLength: 0)
+                            BudgetAddTransactionButton(isExpanded: addTransactionExpansion.isExpanded) {
+                                isTransactionEditorPresented = true
+                            }
+                        }
+                        .padding(.horizontal, BudgetLayout.screenHorizontalPadding)
+                        .padding(.bottom, BudgetLayout.addTransactionFloatingPadding)
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            if dynamicTypeSize.isAccessibilitySize {
+                                ActualistTheme.background
+                            }
+                        }
                     }
                 }
                 .onPreferenceChange(BudgetAssignmentKeypadHeightKey.self) { height in
@@ -131,15 +148,6 @@ struct BudgetView: View {
                     }
                 }
                 .animation(BudgetLayout.assignmentKeypadAnimation, value: viewModel.isAssignmentKeypadPresented)
-                .overlay(alignment: .bottomTrailing) {
-                    if !viewModel.isAssignmentKeypadPresented {
-                        BudgetAddTransactionButton(isExpanded: addTransactionExpansion.isExpanded) {
-                            isTransactionEditorPresented = true
-                        }
-                        .padding(.trailing, BudgetLayout.screenHorizontalPadding)
-                        .padding(.bottom, BudgetLayout.addTransactionFloatingPadding)
-                    }
-                }
                 .navigationTitle(viewModel.navigationTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -424,7 +432,7 @@ struct BudgetView: View {
 
     private var scrollBottomPadding: CGFloat {
         guard viewModel.isAssignmentKeypadPresented else {
-            return 28
+            return BudgetLayout.sectionSpacing
         }
 
         return max(assignmentKeypadHeight + BudgetLayout.assignmentScrollBottomClearance, 360)
@@ -492,6 +500,7 @@ struct BudgetView: View {
                     budgetAlertLabel(alert)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("budget-alert-\(alert.id)")
             } else {
                 budgetAlertLabel(alert)
             }

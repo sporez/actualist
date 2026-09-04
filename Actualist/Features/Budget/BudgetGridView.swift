@@ -10,9 +10,9 @@ struct BudgetGridView: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 Section {
-                    LazyVStack(spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(presentation.groups) { group in
                             groupRow(group)
                                 .id(group.id)
@@ -25,6 +25,7 @@ struct BudgetGridView: View {
                         }
                     }
                     .scrollTargetLayout()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 } header: {
                     BudgetGridMonthHeaders(
                         presentation: presentation,
