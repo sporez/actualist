@@ -520,6 +520,7 @@ struct BudgetTemplateEditorViewModelTests {
 
 actor EditorTemplateRepository: BudgetRepositoryProtocol {
     var snapshot: BudgetTemplateEditorSnapshot
+    private(set) var dryRunCount = 0
     private var saved: [[BudgetTemplateDraft]] = []
     private var blockSnapshot = false
     private var snapshotStarted = false
@@ -580,6 +581,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String
     ) async throws -> BudgetTemplateCategoryDryRun {
+        dryRunCount += 1
         let perTemplate = drafts.map { draft -> Int in
             switch draft {
             case .monthlyFixed(let value):

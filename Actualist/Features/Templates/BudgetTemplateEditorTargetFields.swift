@@ -3,6 +3,7 @@ import SwiftUI
 struct BudgetTemplateEditorDateTargetFields: View {
     let itemID: UUID
     let viewModel: BudgetTemplateEditorViewModel
+    let focus: FocusState<BudgetTemplateEditorFocus?>.Binding
 
     var body: some View {
         amountField
@@ -29,18 +30,19 @@ struct BudgetTemplateEditorDateTargetFields: View {
             )
         }
         priorityField
-        Text("Use YYYY-MM for month fields. Repeating targets can be anchored in a past month.")
+        Text("Repeating targets can be anchored in a past month.")
             .font(.footnote)
             .foregroundStyle(ActualistTheme.secondaryText)
     }
 
     private var amountField: some View {
-        BudgetTemplateEditorTextField(
+        BudgetTemplateEditorInput(
             title: "Total",
-            text: inputBinding(for: .amount),
-            isDecimal: true,
-            isEnabled: viewModel.inputIsEnabled(.amount),
-            isValid: viewModel.editor.inputIsValid(for: .amount, id: itemID)
+            field: .amount,
+            itemID: itemID,
+            viewModel: viewModel,
+            focus: focus,
+            isDecimal: true
         )
     }
 
@@ -48,12 +50,12 @@ struct BudgetTemplateEditorDateTargetFields: View {
         title: String,
         field: BudgetTemplateEditorInputField
     ) -> some View {
-        BudgetTemplateEditorTextField(
+        BudgetTemplateEditorMonthField(
             title: title,
-            text: inputBinding(for: field),
-            isMonth: true,
-            isEnabled: viewModel.inputIsEnabled(field),
-            isValid: viewModel.editor.inputIsValid(for: field, id: itemID)
+            field: field,
+            itemID: itemID,
+            viewModel: viewModel,
+            focus: focus
         )
     }
 
@@ -61,23 +63,17 @@ struct BudgetTemplateEditorDateTargetFields: View {
         _ title: String,
         field: BudgetTemplateEditorInputField
     ) -> some View {
-        BudgetTemplateEditorTextField(
+        BudgetTemplateEditorInput(
             title: title,
-            text: inputBinding(for: field),
-            isEnabled: viewModel.inputIsEnabled(field),
-            isValid: viewModel.editor.inputIsValid(for: field, id: itemID)
+            field: field,
+            itemID: itemID,
+            viewModel: viewModel,
+            focus: focus
         )
     }
 
     private var priorityField: some View {
         integerField("Priority", field: .priority)
-    }
-
-    private func inputBinding(for field: BudgetTemplateEditorInputField) -> Binding<String> {
-        Binding(
-            get: { viewModel.inputText(for: field, id: itemID) },
-            set: { viewModel.edit(.setInput($0, field: field, id: itemID)) }
-        )
     }
 
     private var repeatsBinding: Binding<Bool> {
@@ -105,6 +101,7 @@ struct BudgetTemplateEditorDateTargetFields: View {
 struct BudgetTemplateEditorPercentageFields: View {
     let itemID: UUID
     let viewModel: BudgetTemplateEditorViewModel
+    let focus: FocusState<BudgetTemplateEditorFocus?>.Binding
 
     var body: some View {
         Picker("Income source", selection: sourceBinding) {
@@ -116,12 +113,13 @@ struct BudgetTemplateEditorPercentageFields: View {
             }
         }
         .disabled(!viewModel.isEditable)
-        BudgetTemplateEditorTextField(
+        BudgetTemplateEditorInput(
             title: "Percentage",
-            text: inputBinding(for: .percent),
-            isDecimal: true,
-            isEnabled: viewModel.isEditable,
-            isValid: viewModel.editor.inputIsValid(for: .percent, id: itemID)
+            field: .percent,
+            itemID: itemID,
+            viewModel: viewModel,
+            focus: focus,
+            isDecimal: true
         )
         Picker("Percentage of", selection: previousBinding) {
             Text("This month").tag(false)
@@ -154,18 +152,12 @@ struct BudgetTemplateEditorPercentageFields: View {
     }
 
     private var priorityField: some View {
-        BudgetTemplateEditorTextField(
+        BudgetTemplateEditorInput(
             title: "Priority",
-            text: inputBinding(for: .priority),
-            isEnabled: viewModel.isEditable,
-            isValid: viewModel.editor.inputIsValid(for: .priority, id: itemID)
-        )
-    }
-
-    private func inputBinding(for field: BudgetTemplateEditorInputField) -> Binding<String> {
-        Binding(
-            get: { viewModel.inputText(for: field, id: itemID) },
-            set: { viewModel.edit(.setInput($0, field: field, id: itemID)) }
+            field: .priority,
+            itemID: itemID,
+            viewModel: viewModel,
+            focus: focus
         )
     }
 }

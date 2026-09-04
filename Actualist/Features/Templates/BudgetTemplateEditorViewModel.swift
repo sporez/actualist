@@ -18,6 +18,7 @@ final class BudgetTemplateEditorViewModel {
     private(set) var lock: BudgetTemplateCategoryLock = .editable
     private(set) var editor: BudgetTemplateDraftEditor
     private(set) var previewState: PreviewState = .idle
+    private(set) var activeInput: BudgetTemplateEditorInputKey?
     var errorMessage: String?
     var isPrivacyModeEnabled = false
     private var didLoadSuccessfully = false
@@ -65,7 +66,7 @@ final class BudgetTemplateEditorViewModel {
     }
 
     var authoringIssueMessages: [String] {
-        authoringIssues.map(\.message)
+        activeInput == nil ? authoringIssues.map(\.message) : []
     }
 
     var navigationTitle: String {
@@ -79,6 +80,7 @@ final class BudgetTemplateEditorViewModel {
         case idle
         case empty
         case invalid
+        case editing
         case loading
         case ready(BudgetTemplateCategoryDryRun)
         case failed(String)
@@ -97,12 +99,89 @@ final class BudgetTemplateEditorViewModel {
         return nil
     }
 
+    var previewStatusText: String {
+        switch previewState {
+        case .editing: "Finish editing to update this preview."
+        case .loading: "Updating preview…"
+        case .invalid: "Complete the template fields to see a preview."
+        case .failed: "Preview unavailable."
+        case .idle, .empty, .ready: "Preview only. Your budget is unchanged."
+        }
+    }
+
+    func inputShowsError(for field: BudgetTemplateEditorInputField, id: UUID) -> Bool {
+        activeInput != BudgetTemplateEditorInputKey(itemID: id, field: field)
+            && !editor.inputIsValid(for: field, id: id)
+    }
+
+    func inputFocusChanged(to key: BudgetTemplateEditorInputKey?) {
+        guard isEditable, activeInput != key else { return }
+        activeInput = key
+        if previewState == .editing {
+            scheduleDryRun()
+        }
+    }
+
     var canAddBalanceLimit: Bool { isEditable && editor.addableKinds.contains(.balanceLimit) }
     var canEditNotes: Bool { isEditable && !isPrivacyModeEnabled }
 
     func inputText(for field: BudgetTemplateEditorInputField, id: UUID) -> String {
         if isPrivacyModeEnabled && (field == .amount || field == .adjustment) { return "Hidden" }
         return editor.inputText(for: field, id: id)
+    }
+
+    func isMoneyInput(_ field: BudgetTemplateEditorInputField, id: UUID) -> Bool {
+        guard let draft = editor.items.first(where: { $0.id == id })?.draft else { return false }
+        return BudgetTemplateEditorInputInterpreter.monetaryAmount(for: field, draft: draft) != nil
+    }
+
+    func numericAmount(for field: BudgetTemplateEditorInputField, id: UUID) -> Decimal? {
+        guard !isPrivacyModeEnabled, isMoneyInput(field, id: id) else { return nil }
+        return BudgetTemplateAmountInput.numericValue(editor.inputText(for: field, id: id))
+    }
+
+    func setNumericAmount(_ amount: Decimal?, field: BudgetTemplateEditorInputField, id: UUID) {
+        edit(.setInput(BudgetTemplateAmountInput.inputText(amount), field: field, id: id))
+    }
+
+    func integerValue(for field: BudgetTemplateEditorInputField, id: UUID) -> Int {
+        BudgetTemplateAmountInput.parseInt(editor.inputText(for: field, id: id)) ?? 0
+    }
+
+    func setIntegerValue(_ value: Int, field: BudgetTemplateEditorInputField, id: UUID) {
+        edit(.setInput(String(value), field: field, id: id))
+    }
+
+    func monthSelection(for field: BudgetTemplateEditorInputField, id: UUID) -> BudgetTemplateEditorMonth {
+        BudgetTemplateEditorMonth(storage: editor.inputText(for: field, id: id)) ?? .init(now: now)
+    }
+
+    func monthTitle(for field: BudgetTemplateEditorInputField, id: UUID, locale: Locale) -> String {
+        BudgetTemplateEditorMonth(storage: editor.inputText(for: field, id: id))?.title(locale: locale) ?? "Choose month"
+    }
+
+    func setMonth(_ month: BudgetTemplateEditorMonth, field: BudgetTemplateEditorInputField, id: UUID) {
+        edit(.setInput(month.storage, field: field, id: id))
+    }
+
+    func monthYears(for field: BudgetTemplateEditorInputField, id: UUID) -> ClosedRange<Int> {
+        monthSelection(for: field, id: id).supportedYears(now: now)
+    }
+
+    func completeMonthSelection(field: BudgetTemplateEditorInputField, id: UUID) {
+        setMonth(monthSelection(for: field, id: id), field: field, id: id)
+    }
+
+    func setMonthNumber(_ month: Int, field: BudgetTemplateEditorInputField, id: UUID) {
+        var selection = monthSelection(for: field, id: id)
+        selection.month = month
+        setMonth(selection, field: field, id: id)
+    }
+
+    func setMonthYear(_ year: Int, field: BudgetTemplateEditorInputField, id: UUID) {
+        var selection = monthSelection(for: field, id: id)
+        selection.year = year
+        setMonth(selection, field: field, id: id)
     }
 
     func inputIsEnabled(_ field: BudgetTemplateEditorInputField) -> Bool {
@@ -129,8 +208,12 @@ final class BudgetTemplateEditorViewModel {
         case .remove(let id): editor.remove(id: id)
         case .setKind(let kind, let id): editor.setKind(kind, id: id)
         case .setInput(let text, let field, let id): editor.setInput(text, field: field, id: id)
-        case .setNoteText(let text, let id): editor.setNoteText(text, id: id)
-        case .clearNote(let id): editor.clearNote(id: id)
+        case .setNoteText(let text, let id):
+            editor.setNoteText(text, id: id)
+            return
+        case .clearNote(let id):
+            editor.clearNote(id: id)
+            return
         case .setDateTargetRepeats(let value, let id): editor.setDateTargetRepeats(value, id: id)
         case .setDateTargetAnnual(let value, let id): editor.setDateTargetAnnual(value, id: id)
         case .setDateTargetEarlySpending(let value, let id): editor.setDateTargetEarlySpending(value, id: id)
@@ -146,7 +229,13 @@ final class BudgetTemplateEditorViewModel {
         case .setAdjustmentMode(let value, let id): editor.setAdjustmentMode(value, id: id)
         case .setAdjustmentDirection(let value, let id): editor.setAdjustmentDirection(value, id: id)
         }
-        scheduleDryRun()
+        if case .setInput(_, let field, let id) = intent,
+           activeInput == BudgetTemplateEditorInputKey(itemID: id, field: field) {
+            previewCoordinator.cancel()
+            previewState = .editing
+        } else {
+            scheduleDryRun()
+        }
     }
 
     var totalContributionText: String {
@@ -156,6 +245,10 @@ final class BudgetTemplateEditorViewModel {
             randomized: isPrivacyModeEnabled,
             seed: "template-total-\(target.categoryID)"
         )
+    }
+
+    var showsContributionBreakdown: Bool {
+        editor.items.count(where: { $0.draft.showsContribution }) > 1
     }
 
     func contributionText(at index: Int) -> String {
@@ -174,6 +267,7 @@ final class BudgetTemplateEditorViewModel {
         loadGeneration += 1
         let requestGeneration = loadGeneration
         cancelDryRun()
+        activeInput = nil
         session = nil
         didLoadSuccessfully = false
         phase = .loading
@@ -217,6 +311,7 @@ final class BudgetTemplateEditorViewModel {
         loadGeneration += 1
         let requestGeneration = loadGeneration
         cancelDryRun()
+        activeInput = nil
         phase = .saving
         errorMessage = nil
         do {
@@ -247,6 +342,7 @@ final class BudgetTemplateEditorViewModel {
             return
         }
         loadGeneration += 1
+        activeInput = nil
         session = nil
         didLoadSuccessfully = false
         cancelDryRun()

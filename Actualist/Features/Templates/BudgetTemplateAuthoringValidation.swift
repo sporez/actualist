@@ -55,7 +55,7 @@ enum BudgetTemplateAuthoringIssue: Equatable, Sendable {
         case .schedulePriorityMismatch:
             "Schedule and Save by Date templates must use the same priority."
         case .targetMonthMissing:
-            "Enter a valid target month in YYYY-MM format."
+            "Choose a valid target month."
         case .targetMonthPast:
             "A one-time target month must not be in the past."
         case .spendStartMissing:

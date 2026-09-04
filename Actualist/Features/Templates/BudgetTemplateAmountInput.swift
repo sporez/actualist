@@ -6,10 +6,7 @@ import Foundation
 /// goes through `BudgetCurrency` so scale stays catalog-owned.
 enum BudgetTemplateAmountInput {
     static func parseAmount(_ text: String, currency: BudgetCurrency) -> Double? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              trimmed.range(of: #"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$"#, options: .regularExpression) != nil,
-              let decimal = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")),
+        guard let decimal = numericValue(text),
               let minor = currency.minorUnits(fromDisplay: decimal) else {
             return nil
         }
@@ -22,6 +19,17 @@ enum BudgetTemplateAmountInput {
         var editingCurrency = currency
         editingCurrency.hideFraction = false
         return editingCurrency.editableAmountText(fromMinorUnits: minor)
+    }
+
+    static func numericValue(_ text: String) -> Decimal? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.range(of: #"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$"#, options: .regularExpression) != nil else { return nil }
+        return Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX"))
+    }
+
+    static func inputText(_ value: Decimal?) -> String {
+        value.map { NSDecimalNumber(decimal: $0).stringValue } ?? ""
     }
 
     static func parseInt(_ text: String) -> Int? {

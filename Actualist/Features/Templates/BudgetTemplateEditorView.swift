@@ -3,9 +3,11 @@ import SwiftUI
 struct BudgetTemplateEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let target: BudgetTemplateEditorTarget
     let onSaved: () -> Void
 
+    @FocusState private var focusedField: BudgetTemplateEditorFocus?
     @State private var viewModel: BudgetTemplateEditorViewModel
 
     init(target: BudgetTemplateEditorTarget, onSaved: @escaping () -> Void = {}) {
@@ -30,26 +32,14 @@ struct BudgetTemplateEditorView: View {
                         .settingsSectionChrome()
                     }
 
-                    if viewModel.isEditable && !viewModel.authoringIssueMessages.isEmpty {
-                        Section {
-                            ForEach(
-                                Array(viewModel.authoringIssueMessages.enumerated()),
-                                id: \.offset
-                            ) { _, message in
-                                Label(message, systemImage: "exclamationmark.triangle")
-                                    .foregroundStyle(ActualistTheme.danger)
-                            }
-                        }
-                        .settingsSectionChrome()
-                    }
-
                     Section {
-                        LabeledContent("This month", value: viewModel.totalContributionText)
-                        if viewModel.previewState == .loading {
-                            ProgressView("Updating preview")
-                        } else if viewModel.previewState == .invalid {
-                            Text("Correct the template fields to preview this month.")
+                        VStack(alignment: .leading, spacing: 8) {
+                            LabeledContent("This month", value: viewModel.totalContributionText)
+                                .monospacedDigit()
+                            Text(viewModel.previewStatusText)
+                                .font(.footnote)
                                 .foregroundStyle(ActualistTheme.secondaryText)
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2, reservesSpace: true)
                         }
                         if viewModel.isPrivacyModeEnabled {
                             Text("Amounts and notes are hidden in Sample Values. Disable it to edit those fields.")
@@ -65,7 +55,8 @@ struct BudgetTemplateEditorView: View {
                         BudgetTemplateEditorItemSection(
                             item: item,
                             index: index,
-                            viewModel: viewModel
+                            viewModel: viewModel,
+                            focus: $focusedField
                         )
                     }
 
@@ -77,6 +68,19 @@ struct BudgetTemplateEditorView: View {
                                         viewModel.edit(.add(kind))
                                     }
                                 }
+                            }
+                        }
+                        .settingsSectionChrome()
+                    }
+
+                    if viewModel.isEditable && !viewModel.authoringIssueMessages.isEmpty {
+                        Section {
+                            ForEach(
+                                Array(viewModel.authoringIssueMessages.enumerated()),
+                                id: \.offset
+                            ) { _, message in
+                                Label(message, systemImage: "exclamationmark.triangle")
+                                    .foregroundStyle(ActualistTheme.danger)
                             }
                         }
                         .settingsSectionChrome()
@@ -97,10 +101,22 @@ struct BudgetTemplateEditorView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .tint(ActualistTheme.accent)
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
             .navigationTitle(viewModel.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaBar(edge: .bottom, alignment: .trailing) {
+                if focusedField != nil {
+                    Button("Done") { focusedField = nil }
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
+                        .tint(ActualistTheme.chromeForeground)
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 12)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(viewModel.isEditable ? "Cancel" : "Done") {
@@ -118,6 +134,9 @@ struct BudgetTemplateEditorView: View {
                     }
                 }
             }
+        }
+        .onChange(of: focusedField) { _, field in
+            viewModel.inputFocusChanged(to: field?.inputKey)
         }
         .interactiveDismissDisabled(viewModel.phase == .saving)
         .environment(\.budgetCurrency, viewModel.editor.currency)

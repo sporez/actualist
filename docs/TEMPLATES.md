@@ -12,8 +12,31 @@ whole definition from rewriting.
   unfinished text. Only hiding a dependent field or explicitly changing type
   discards that field's input.
 - `BudgetTemplateEditorViewModel` owns the session, permissions, Save, and preview
-  lifecycle. Preview states distinguish inactive, empty, invalid, loading, ready,
-  and failed. A new request immediately invalidates earlier displayed amounts.
+  lifecycle. Preview states distinguish inactive, empty, invalid, editing,
+  loading, ready, and failed. Typing invalidates earlier amounts, then waits for
+  field completion before requesting a preview. Visible validation waits for
+  completion too; Save always checks the current input. Note-only edits leave
+  the preview unchanged.
+- Shared input views own native keyboard focus and Done, theme tint, and field
+  layout. Preview status and Note actions keep stable row space. A repaired date
+  retains its text control for the rest of that editor session.
+- Money inputs are leading native numeric TextFields with Decimal currency
+  FormatStyle (plain number for a currency-neutral budget), locale-aware
+  punctuation, and full editing precision even with hidden display fractions.
+  Conversion into the existing draft interpreter stays in the view model.
+  Total uses the decimal pad; signed fixed adjustments retain the punctuation
+  keyboard. Other freeform inputs are leading fields, not trailing labels.
+  `BudgetTemplateMoneyFormat` delegates presentation and full-string matching
+  to Foundation's localized currency/number FormatStyles. It rejects partial
+  numeric matches and stays unpadded during editing so inserted zeros or focus
+  changes cannot replace the entered value.
+- Budget months display localized month/year names and open two native wheel
+  Pickers. `BudgetTemplateEditorMonth` converts selections to existing YYYY-MM
+  storage; no day is shown. The year wheel covers 1900 through 100 years ahead,
+  expanded to include an existing outlying year. Repetition, priority, and
+  historical counts use native Steppers with existing engine bounds. Repeat
+  interval and period appear only while Repeats is on. Save and Cancel remain
+  in the navigation bar, with no bottom Save action.
 - The strict editor codec detects unknown keys before the math decoder can drop
   them. Representable invalid values open for repair. One pure authoring validator
   gates both the form and the SQLite definition-write boundary.
@@ -49,10 +72,18 @@ mechanical gate. `scripts/check.sh` verifies their provenance and hashes.
 - `BudgetTemplateEditorRegressionTests`: Total input, invalid/intermediate text,
   dependent-field transitions, stale previews, privacy, repairable definitions,
   signed modifiers, and cancellation.
+- `BudgetTemplateEditorInteractionTests`: typing and field completion, deferred
+  visible errors, preview request counts, note-only edits, focus reset, and
+  saving the current input while a field remains focused. Money presentation
+  covers focus/Done, invalid text, privacy, adjustment units, and unchanged
+  saved amounts across currency scales and hide-fraction settings.
 - `BudgetTemplateEditorPersistenceTests`: cap/Note preservation, Refill + Limit,
   rejected writes with no outbox messages, save/reopen, and actual persisted
   Apply parity for Fill, Overwrite, and Apply Category in envelope/tracking mode
   with USD, JPY, None, and hide-fraction preferences.
+- `BudgetTemplateNativeFormTests`: localized currency formatting/parsing,
+  numeric saves, privacy, month/year display and storage round trips, invalid
+  month repair, existing stepper bounds, and repeat-toggle transitions.
 - Existing template, browser, source-lock, store-refresh, preview, and Apply
   suites retain coverage from the original editor rollout.
 
@@ -68,6 +99,9 @@ Mac to capture a screen. With an existing selected budget, the demo flag preserv
 it; use a known demo simulator for authoring checks. UI tests can open the editor,
 enter text, and capture sheets without desktop input.
 
+The category total stays visible. Individual template amounts appear only when
+there are multiple contributing templates; Goal and Balance Limit entries do
+not count toward that breakdown. Visibility does not change with typed amounts.
 Check largest accessibility text as well as standard sizes. Template section
-headings stack their contribution at accessibility sizes, keep the amount on one
-line, and scale the multiline Note editor with Dynamic Type.
+headings stack visible contributions at accessibility sizes, keep the amount on
+one line, and scale the multiline Note editor with Dynamic Type.

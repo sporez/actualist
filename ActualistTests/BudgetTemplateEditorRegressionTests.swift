@@ -102,7 +102,7 @@ struct BudgetTemplateEditorRegressionTests {
         draft.description = "Keep me"
         let (vm, _) = await loaded([.monthlyFixed(draft)])
         let id = try #require(vm.editor.items.first?.id)
-        #expect(vm.editor.fixedStartNeedsRepair(for: id))
+        #expect(vm.editor.fixedStartUsesTextField(for: id))
         #expect(!vm.canSave)
         vm.edit(.setInput("2026-02-28", field: .fixedStart, id: id))
         #expect(vm.canSave)

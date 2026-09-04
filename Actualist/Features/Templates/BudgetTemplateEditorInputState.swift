@@ -14,6 +14,17 @@ enum BudgetTemplateEditorInputField: Hashable, Sendable {
     case spendStartMonth
     case fixedStart
     case limitStart
+
+    var integerRange: ClosedRange<Int>? {
+        switch self {
+        case .priority: BudgetTemplateEngine.Bounds.priority
+        case .interval: BudgetTemplateEngine.Bounds.periodInterval
+        case .repeatInterval: BudgetTemplateEngine.Bounds.repeatInterval
+        case .lookBack: BudgetTemplateEngine.Bounds.lookBack
+        case .numMonths: BudgetTemplateEngine.Bounds.numMonths
+        default: nil
+        }
+    }
 }
 
 struct BudgetTemplateEditorInputKey: Hashable, Sendable {
@@ -34,15 +45,10 @@ enum BudgetTemplateEditorInputInterpreter {
         draft: BudgetTemplateDraft,
         currency: BudgetCurrency
     ) -> String? {
-        switch (field, draft) {
-        case (.amount, .monthlyFixed(let value)):
-            BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
-        case (.amount, .dateTarget(let value)):
-            BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
-        case (.amount, .goal(let value)):
-            BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
-        case (.amount, .balanceLimit(let value)):
-            BudgetTemplateAmountInput.formatAmount(value.amount, currency: currency)
+        if let amount = monetaryAmount(for: field, draft: draft) {
+            return BudgetTemplateAmountInput.formatAmount(amount, currency: currency)
+        }
+        return switch (field, draft) {
         case (.percent, .percentage(let value)):
             String(value.percent)
         case (.interval, .monthlyFixed(let value)):
@@ -53,10 +59,8 @@ enum BudgetTemplateEditorInputInterpreter {
             String(value.lookBack)
         case (.numMonths, .average(let value)):
             String(value.numMonths)
-        case (.adjustment, .average(let value)):
-            adjustmentText(value.adjustment, currency: currency)
-        case (.adjustment, .schedule(let value)):
-            adjustmentText(value.adjustment, currency: currency)
+        case (.adjustment, _):
+            draft.modifierAdjustment.map { String(abs($0.value)) }
         case (.priority, .monthlyFixed(let value)):
             String(value.priority)
         case (.priority, .copy(let value)):
@@ -83,6 +87,22 @@ enum BudgetTemplateEditorInputInterpreter {
             weightText(value.weight)
         default:
             nil
+        }
+    }
+
+    static func monetaryAmount(
+        for field: BudgetTemplateEditorInputField,
+        draft: BudgetTemplateDraft
+    ) -> Double? {
+        switch (field, draft) {
+        case (.amount, .monthlyFixed(let value)): return value.amount
+        case (.amount, .dateTarget(let value)): return value.amount
+        case (.amount, .goal(let value)): return value.amount
+        case (.amount, .balanceLimit(let value)): return value.amount
+        case (.adjustment, _):
+            if case .fixed(let value) = draft.modifierAdjustment { return value }
+            return nil
+        default: return nil
         }
     }
 
@@ -243,19 +263,6 @@ enum BudgetTemplateEditorInputInterpreter {
             return String(integer)
         }
         return String(weight)
-    }
-
-    private static func adjustmentText(
-        _ adjustment: BudgetTemplateAdjustment?,
-        currency: BudgetCurrency
-    ) -> String? {
-        guard let adjustment else { return nil }
-        switch adjustment {
-        case .fixed(let value):
-            return BudgetTemplateAmountInput.formatAmount(value, currency: currency)
-        case .percent(let value):
-            return String(abs(value))
-        }
     }
 
     private static func applyingAdjustment(

@@ -216,14 +216,16 @@ struct BudgetTemplateDraftEditor {
         BudgetTemplateEditorCalendar.defaultWeeklyStart(for: items.map(\.draft), now: now)
     }
 
-    func fixedStartNeedsRepair(for id: UUID) -> Bool {
+    func fixedStartUsesTextField(for id: UUID) -> Bool {
         guard case .monthlyFixed(let value) = items.first(where: { $0.id == id })?.draft else { return false }
-        return BudgetTemplateCalendar.validatedDate(value.starting) == nil || !inputIsValid(for: .fixedStart, id: id)
+        return BudgetTemplateCalendar.validatedDate(value.starting) == nil
+            || fieldInputs[BudgetTemplateEditorInputKey(itemID: id, field: .fixedStart)] != nil
     }
 
-    func limitStartNeedsRepair(for id: UUID) -> Bool {
+    func limitStartUsesTextField(for id: UUID) -> Bool {
         guard case .balanceLimit(let value) = items.first(where: { $0.id == id })?.draft else { return false }
-        return value.start.map { BudgetTemplateCalendar.validatedDate($0) == nil } ?? (value.period == .weekly)
+        return fieldInputs[BudgetTemplateEditorInputKey(itemID: id, field: .limitStart)] != nil
+            || (value.start.map { BudgetTemplateCalendar.validatedDate($0) == nil } ?? (value.period == .weekly))
     }
 
     func fixedStartingDate(for id: UUID) -> Date {
