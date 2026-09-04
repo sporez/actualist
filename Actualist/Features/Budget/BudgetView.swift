@@ -5,7 +5,6 @@ struct BudgetView: View {
     @Environment(\.actualistDensity) private var density
     @State private var viewModel: BudgetViewModel
     @State private var isTransactionEditorPresented = false
-    @State private var isSettingsPresented = false
     @State private var isHistoryPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
@@ -139,7 +138,7 @@ struct BudgetView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            isSettingsPresented = true
+                            appState.routeCoordinator.presentSettings(path: [])
                         } label: {
                             Image(systemName: "gearshape")
                         }
@@ -274,7 +273,13 @@ struct BudgetView: View {
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
                 }
-                .fullScreenCover(isPresented: $isSettingsPresented) {
+                .fullScreenCover(
+                    isPresented: Binding(
+                        get: { appState.routeCoordinator.isSettingsPresented },
+                        set: { appState.routeCoordinator.setSettingsPresented($0) }
+                    ),
+                    onDismiss: appState.routeCoordinator.settingsDidDismiss
+                ) {
                     SettingsView(showsDismissButton: true)
                         .environment(appState)
                         .appSwitcherPrivacyProtected()
@@ -510,7 +515,7 @@ struct BudgetView: View {
 
     private func applyShortcutRoute() {
         if case .settings = appState.routeCoordinator.pendingRoute {
-            isSettingsPresented = true
+            appState.routeCoordinator.presentSettings()
             _ = appState.routeCoordinator.consume()
             return
         }

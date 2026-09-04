@@ -89,6 +89,23 @@ struct SimulatorLaunchCommandTests {
 
 @MainActor
 struct SimulatorLaunchApplierTests {
+    @Test func settingsLaunchPreparesTheSharedNavigationPath() async throws {
+        let suite = "SimulatorSettingsRouteTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+
+        await SimulatorLaunchApplier.apply(
+            SimulatorLaunchCommand(screenPath: ["settings", "budget-data", "bank-sync"]),
+            to: state
+        )
+        #expect(state.routeCoordinator.settingsPath == [.budgetData, .bankSync])
+        #expect(state.routeCoordinator.pendingRoute == .settings)
+
+        await SimulatorLaunchApplier.apply(SimulatorLaunchCommand(screenPath: ["settings"]), to: state)
+        #expect(state.routeCoordinator.settingsPath.isEmpty)
+    }
+
     @Test func demoFlagEntersDemoFromOnboardingAndSelectsTab() async throws {
         let transport = RecordingSyncTransport()
         let root = FileManager.default.temporaryDirectory

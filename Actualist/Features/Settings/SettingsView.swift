@@ -6,6 +6,8 @@ enum SettingsPage: String, CaseIterable, Hashable, Sendable {
     case connection
     case budgetData = "budget-data"
     case templates
+    case payees
+    case rules
     case bankSync = "bank-sync"
     case appearance
     case privacy
@@ -28,8 +30,6 @@ struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     let showsDismissButton: Bool
-    @State private var path: [SettingsPage] = []
-    @State private var didApplyLaunchDestination = false
     @State private var developerUnlockToastTask: Task<Void, Never>?
 
     init(showsDismissButton: Bool = false) {
@@ -37,7 +37,8 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        @Bindable var routes = appState.routeCoordinator
+        NavigationStack(path: $routes.settingsPath) {
             List {
                 Section {
                     NavigationLink(value: SettingsPage.connection) {
@@ -136,6 +137,10 @@ struct SettingsView: View {
                     BudgetDataSettingsView()
                 case .templates:
                     BudgetTemplatesBrowserView()
+                case .payees:
+                    PayeesView()
+                case .rules:
+                    BudgetRulesView()
                 case .bankSync:
                     BankSyncView()
                 case .appearance:
@@ -149,9 +154,6 @@ struct SettingsView: View {
                 case .support:
                     SupportSettingsView()
                 }
-            }
-            .onAppear {
-                applyLaunchDestination()
             }
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -308,19 +310,6 @@ struct SettingsView: View {
         }
 
         return "Actualist \(version) (\(build))"
-    }
-
-    // MARK: - Simulator launch
-
-    private func applyLaunchDestination() {
-        guard !didApplyLaunchDestination else {
-            return
-        }
-        didApplyLaunchDestination = true
-
-        path = SettingsPage.stack(
-            fromScreenPath: SimulatorLaunchCommand.fromProcessInfo()?.screenPath ?? []
-        )
     }
 
     // MARK: - Developer unlock

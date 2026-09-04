@@ -87,6 +87,9 @@ enum SimulatorLaunchApplier {
             return
         }
 
+        if route == .settings {
+            appState.routeCoordinator.settingsPath = SettingsPage.stack(fromScreenPath: command.screenPath)
+        }
         appState.accountNavigationPath = []
         switch route {
         case .tab(let tab):
