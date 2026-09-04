@@ -24,6 +24,18 @@ struct WidgetCategoryBalanceRow: Equatable, Identifiable, Sendable {
     }
 }
 
+enum WidgetCategoryBalanceCapacity {
+    static let medium = 3
+    static let large = 8
+
+    static func maximum(for family: WidgetFamilySize) -> Int {
+        switch family {
+        case .medium: medium
+        case .large: large
+        }
+    }
+}
+
 enum WidgetCategoryBalanceProjection {
     static func rows(
         selectedIDs: [String],
@@ -53,13 +65,6 @@ enum WidgetCategoryBalanceProjection {
         }
         .prefix(max(limit, 0))
         .map { $0 }
-    }
-
-    static func visibleCount(for family: WidgetFamilySize) -> Int {
-        switch family {
-        case .medium: 3
-        case .large: 8
-        }
     }
 }
 

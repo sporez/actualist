@@ -52,9 +52,9 @@ struct CategoryBalanceTimelineProvider: AppIntentTimelineProvider {
     private func visibleCount(for family: WidgetFamily) -> Int {
         switch family {
         case .systemLarge:
-            WidgetCategoryBalanceProjection.visibleCount(for: .large)
+            WidgetCategoryBalanceCapacity.maximum(for: .large)
         default:
-            WidgetCategoryBalanceProjection.visibleCount(for: .medium)
+            WidgetCategoryBalanceCapacity.maximum(for: .medium)
         }
     }
 

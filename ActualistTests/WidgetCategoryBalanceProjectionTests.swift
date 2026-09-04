@@ -4,8 +4,8 @@ import Testing
 
 struct WidgetCategoryBalanceProjectionTests {
     @Test func familyCapacitiesMatchTheSupportedWidgetLayouts() {
-        #expect(WidgetCategoryBalanceProjection.visibleCount(for: .medium) == 3)
-        #expect(WidgetCategoryBalanceProjection.visibleCount(for: .large) == 8)
+        #expect(WidgetCategoryBalanceCapacity.maximum(for: .medium) == 3)
+        #expect(WidgetCategoryBalanceCapacity.maximum(for: .large) == 8)
     }
 
     @Test func preservesConfigurationOrderAndAppliesFamilyLimit() {
