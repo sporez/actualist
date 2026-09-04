@@ -4,7 +4,7 @@ struct RootView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        let theme = ActualistTheme.palette(for: appState.settings.theme)
+        let theme = appState.settings.theme.palette
 
         Group {
             switch appState.setupPhase {

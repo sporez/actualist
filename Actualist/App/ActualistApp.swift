@@ -123,7 +123,7 @@ private struct AppSwitcherPrivacyCover: View {
     let theme: ActualistThemeOption
 
     var body: some View {
-        let palette = ActualistTheme.palette(for: theme)
+        let palette = theme.palette
 
         ZStack {
             palette.background

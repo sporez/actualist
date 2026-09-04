@@ -4,7 +4,7 @@ struct ThemePreviewStrip: View {
     let theme: ActualistThemeOption
 
     var body: some View {
-        let palette = ActualistTheme.palette(for: theme)
+        let palette = theme.palette
 
         HStack(spacing: 8) {
             ThemeSwatch(color: palette.background)
