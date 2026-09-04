@@ -111,6 +111,18 @@ struct ShortcutIntentTests {
         }
     }
 
+    @Test func openIntentsUseDynamicForegroundMode() {
+        let expected = IntentModes.foreground(.dynamic)
+        #expect(OpenBudgetIntent.supportedModes == expected)
+        #expect(OpenAccountsIntent.supportedModes == expected)
+        #expect(OpenSpendingIntent.supportedModes == expected)
+        #expect(OpenReportsIntent.supportedModes == expected)
+        #expect(OpenAccountIntent.supportedModes == expected)
+        #expect(OpenCategoryIntent.supportedModes == expected)
+        #expect(OpenUncategorizedIntent.supportedModes == expected)
+        #expect(OpenNewTransactionIntent.supportedModes == expected)
+    }
+
     @Test func intentMetadataGettersAreReachable() {
         _ = GetAccountsIntent.authenticationPolicy
         _ = GetAccountsIntent.parameterSummary

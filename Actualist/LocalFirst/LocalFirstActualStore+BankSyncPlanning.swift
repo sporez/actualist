@@ -78,9 +78,10 @@ extension LocalFirstActualStore {
             accountHadLiveTransactions.append(oldest != nil)
         }
 
+        let requestedStartDates = startDates
         async let responseRequest = provider.transactions(
             accountIDs: linked.map(\.remoteAccountID),
-            startDates: startDates
+            startDates: requestedStartDates
         )
         // Balance metadata improves first-sync opening-balance accuracy but is
         // not allowed to discard an otherwise valid transaction batch. Server

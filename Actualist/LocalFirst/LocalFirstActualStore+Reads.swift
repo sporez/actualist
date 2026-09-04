@@ -26,6 +26,18 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: selected)
     }
 
+    /// Reads one month for an external snapshot without changing the month the
+    /// Budget screen currently owns in `loadedBudgetMonthsByBudget`.
+    func fetchBudgetMonthUncached(
+        budgetID: String,
+        month: String
+    ) async throws -> (month: BudgetMonth, currency: BudgetCurrency) {
+        let database = try requireDatabase(for: budgetID)
+        let budgetMonth = try await database.fetchBudgetMonth(month: month)
+        let currency = (try? await database.fetchBudgetCurrency()) ?? budgetCurrency(budgetID: budgetID)
+        return (budgetMonth, currency)
+    }
+
     func budgetMonth(
         budgetID: String,
         selectedMonth: String

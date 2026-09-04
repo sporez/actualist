@@ -50,15 +50,17 @@ section "Actual 26.8.1 split oracle"
 "$ROOT/scripts/split-parity/verify.mjs" || status=1
 
 section "Xcode synchronized groups"
-# Sources are auto-registered: Actualist/ and ActualistTests/ are file system
-# synchronized root groups, so any file on disk is compiled without a pbxproj
-# edit. The check only guards that the project still uses synchronized groups.
+# Sources are auto-registered: Actualist/, ActualistTests/, and
+# ActualistWidget/ are file system synchronized root groups, so any file on
+# disk is compiled without a pbxproj edit. The check only guards that the
+# project still uses synchronized groups.
 if grep -q 'PBXFileSystemSynchronizedRootGroup' Actualist.xcodeproj/project.pbxproj \
   && grep -q 'path = Actualist;' Actualist.xcodeproj/project.pbxproj \
-  && grep -q 'path = ActualistTests;' Actualist.xcodeproj/project.pbxproj; then
+  && grep -q 'path = ActualistTests;' Actualist.xcodeproj/project.pbxproj \
+  && grep -q 'path = ActualistWidget;' Actualist.xcodeproj/project.pbxproj; then
   echo "Synchronized root groups present; Swift files auto-register."
 else
-  echo "error: project.pbxproj no longer uses synchronized root groups for Actualist/ActualistTests"
+  echo "error: project.pbxproj no longer uses synchronized root groups for Actualist/ActualistTests/ActualistWidget"
   status=1
 fi
 

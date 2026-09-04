@@ -29,6 +29,7 @@ struct ActualistApp: App {
         let appState = AppState()
         _appState = State(initialValue: appState)
         BackgroundTransactionRefreshCoordinator.shared.configure(appState: appState)
+        WidgetSnapshotCoordinator.shared.configure(appState: appState)
         let session = ShortcutsBudgetSession(appState: appState)
         AppDependencyManager.shared.add { session }
     }
@@ -41,6 +42,9 @@ struct ActualistApp: App {
                 .preferredColorScheme(appState.settings.theme.colorScheme)
                 .onAppear {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
+                }
+                .onOpenURL { url in
+                    WidgetDeepLinkRouter.handle(url, appState: appState)
                 }
                 .task {
                     await appState.prepareBackgroundTransactionNotifications()
