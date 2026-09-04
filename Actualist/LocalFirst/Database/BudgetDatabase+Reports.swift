@@ -28,6 +28,12 @@ private enum ReportCalendarTransferFilter: Equatable {
 }
 
 extension BudgetDatabase {
+    func fetchNetWorthReport(range: ReportDateRange) throws -> NetWorthReport {
+        let end = ReportCalendar.dayID(month: range.anchorMonth, day: max(ReportCalendar.days(in: range.anchorMonth), 1))
+        let rows = try queue.read { db in try reportNetWorthDays(through: end, db: db) }
+        return try buildNetWorth(range: range, rows: rows)
+    }
+
     func fetchReportsDashboard(range: ReportDateRange) throws -> ReportsDashboardSnapshot {
         let anchorMonthEnd = ReportCalendar.dayID(
             month: range.anchorMonth,
@@ -201,7 +207,9 @@ extension BudgetDatabase {
                   AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
                   AND COALESCE(a.\(offBudget), 0) = 0
                   AND \(normalizedDate) BETWEEN ? AND ?
-                GROUP BY \(normalizedDate), \(mappedCategory), \(isIncomeExpression), \(isTransferExpression), \(isInflowExpression)
+                -- Group projected columns: a missing transfer field yields literal 0,
+                -- which SQLite would otherwise interpret as an invalid column index.
+                GROUP BY 1, 2, 3, 4, 5
                 ORDER BY \(normalizedDate)
                 """,
             arguments: [startDay, endDay]

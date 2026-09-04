@@ -9,7 +9,13 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
     var updatedAt: Date
     var categories: [WidgetCategorySnapshot]
 
-    static let currentSchemaVersion = 1
+    var accounts: [WidgetAccountSnapshot]?
+    var attention: WidgetAttentionSnapshot?
+    var overview: WidgetMonthOverviewSnapshot?
+    var recentTransactions: [WidgetTransactionSnapshot]?
+    var netWorth: WidgetNetWorthSnapshot?
+
+    static let currentSchemaVersion = 2
 
     func hasSameDisplayContent(as other: WidgetSnapshot) -> Bool {
         schemaVersion == other.schemaVersion
@@ -18,6 +24,11 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
             && month == other.month
             && privacyEnabled == other.privacyEnabled
             && categories == other.categories
+            && accounts == other.accounts
+            && attention == other.attention
+            && overview == other.overview
+            && recentTransactions == other.recentTransactions
+            && netWorth == other.netWorth
     }
 }
 

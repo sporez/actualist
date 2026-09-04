@@ -15,7 +15,7 @@ struct WidgetSnapshotPublicationGeneration {
     }
 }
 
-/// Publishes a current-month category snapshot into the App Group container
+/// Publishes a current-budget display snapshot into the App Group container
 /// so widget extensions can render without opening SQLite.
 @MainActor
 final class WidgetSnapshotCoordinator {
@@ -26,9 +26,17 @@ final class WidgetSnapshotCoordinator {
     private var isArmed = false
     private var publicationGeneration = WidgetSnapshotPublicationGeneration()
     private var publishTask: Task<Void, Never>?
+    private let themeStore: WidgetThemeStore
+    private let reloadAllTimelines: () -> Void
 
-    init(snapshotStore: WidgetSnapshotStore = .live) {
+    init(
+        snapshotStore: WidgetSnapshotStore = .live,
+        themeStore: WidgetThemeStore = .live,
+        reloadAllTimelines: @escaping () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
+    ) {
         self.snapshotStore = snapshotStore
+        self.themeStore = themeStore
+        self.reloadAllTimelines = reloadAllTimelines
     }
 
     func configure(appState: AppState, snapshotStore: WidgetSnapshotStore = .live) {
@@ -38,8 +46,21 @@ final class WidgetSnapshotCoordinator {
             return
         }
         isArmed = true
+        armTheme()
         arm()
         enqueuePublish()
+    }
+
+    private func armTheme() {
+        guard let appState else { return }
+        let theme = withObservationTracking {
+            appState.settings.theme
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.armTheme() }
+        }
+        if themeStore.saveIfChanged(theme) {
+            reloadAllTimelines()
+        }
     }
 
     private func arm() {
@@ -80,38 +101,20 @@ final class WidgetSnapshotCoordinator {
             replaceSnapshot(nil)
             return
         }
-        guard appState.localFirstStore.isOpen(budgetID: budgetID) else {
-            if snapshotStore.load()?.budgetID != budgetID {
-                replaceSnapshot(nil)
-            }
-            return
-        }
-
-        let monthID = WidgetMonthID.current()
         let budgetName = appState.settings.selectedBudgetName ?? ""
         let privacyEnabled = appState.settings.randomizedDisplayValuesEnabled
+        if let previous = snapshotStore.load(),
+           previous.budgetID != budgetID || previous.privacyEnabled != privacyEnabled {
+            replaceSnapshot(nil)
+        }
+        guard appState.localFirstStore.isOpen(budgetID: budgetID) else { return }
         do {
-            let month: BudgetMonth
-            let currency: BudgetCurrency
-            if let cached = appState.localFirstStore.cachedBudgetMonth(budgetID: budgetID),
-               cached.selectedMonth == monthID {
-                month = cached.month
-                currency = cached.currency
-            } else {
-                (month, currency) = try await appState.localFirstStore.fetchBudgetMonthUncached(
-                    budgetID: budgetID,
-                    month: monthID
-                )
-            }
-
-            guard !Task.isCancelled, publicationGeneration.isCurrent(generation) else {
-                return
-            }
-            let snapshot = WidgetSnapshotBuilder.make(
-                budgetID: budgetID,
-                budgetName: budgetName,
-                month: month,
-                currency: currency,
+            let source = try await appState.localFirstStore.fetchWidgetSource(budgetID: budgetID)
+            guard !Task.isCancelled, publicationGeneration.isCurrent(generation),
+                  appState.settings.selectedBudgetID == budgetID,
+                  appState.settings.randomizedDisplayValuesEnabled == privacyEnabled else { return }
+            let snapshot = WidgetFinancialSnapshotBuilder.make(
+                source: source, budgetID: budgetID, budgetName: budgetName,
                 privacyEnabled: privacyEnabled
             )
             replaceSnapshot(snapshot)
@@ -130,11 +133,11 @@ final class WidgetSnapshotCoordinator {
             } catch {
                 return
             }
-        } else if snapshotStore.load() != nil {
-            snapshotStore.clear()
         } else {
-            return
+            snapshotStore.clear()
         }
-        WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.categoryBalance)
+        for kind in WidgetKind.dataWidgets {
+            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        }
     }
 }

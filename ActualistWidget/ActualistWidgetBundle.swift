@@ -5,5 +5,11 @@ import WidgetKit
 struct ActualistWidgetBundle: WidgetBundle {
     var body: some Widget {
         CategoryBalanceWidget()
+        QuickActionsWidget()
+        AccountBalancesWidget()
+        NeedsAttentionWidget()
+        MonthOverviewWidget()
+        RecentTransactionsWidget()
+        NetWorthWidget()
     }
 }

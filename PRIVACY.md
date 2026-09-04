@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective September 1, 2026.
+Effective September 4, 2026.
 
 Actualist is an independent, open-source iPhone client for Actual Budget. This
 policy describes the data handling performed by Actualist itself.
@@ -16,6 +16,15 @@ and on the Actual Budget server you choose. Sync tokens, unlocked budget
 encryption keys, and any SimpleFIN device access URL you claim are stored in
 the iOS Keychain. Your Actual server password is used to authenticate and is
 not retained by Actualist.
+
+To display widgets, Actualist also keeps a local snapshot in an App Group
+container shared with its widget extension. This includes budget, category and
+account names, balances, recent transaction summaries, attention counts, and
+net-worth history. The sample-values privacy setting replaces names and amounts
+before this snapshot is saved. The extension does not receive server credentials,
+open the budget database, or contact your server. Financial widget views are
+marked as sensitive for Apple's system-controlled redaction. The selected color
+theme is also shared locally so widgets follow the app's appearance.
 
 If your server uses OpenID, sign-in happens with the identity provider that
 server is configured to use. Actualist receives a session token from the Actual

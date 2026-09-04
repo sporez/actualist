@@ -2,7 +2,9 @@ import WidgetKit
 
 struct CategoryBalanceTimelineProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> CategoryBalanceEntry {
-        .placeholder
+        var value = CategoryBalanceEntry.placeholder
+        value.theme = WidgetThemeStore.live.load()
+        return value
     }
 
     func snapshot(
@@ -10,7 +12,7 @@ struct CategoryBalanceTimelineProvider: AppIntentTimelineProvider {
         in context: Context
     ) async -> CategoryBalanceEntry {
         if context.isPreview, configuration.categories?.isEmpty != false {
-            return .placeholder
+            return placeholder(in: context)
         }
         return entry(for: configuration, family: context.family)
     }
@@ -45,17 +47,13 @@ struct CategoryBalanceTimelineProvider: AppIntentTimelineProvider {
                 now: now
             ),
             rows: rows,
-            budgetName: snapshot?.budgetName ?? ""
+            budgetName: snapshot?.budgetName ?? "",
+            theme: WidgetThemeStore.live.load()
         )
     }
 
     private func visibleCount(for family: WidgetFamily) -> Int {
-        switch family {
-        case .systemLarge:
-            WidgetCategoryBalanceCapacity.maximum(for: .large)
-        default:
-            WidgetCategoryBalanceCapacity.maximum(for: .medium)
-        }
+        WidgetCategoryBalanceCapacity.maximum(for: WidgetSizeSupport.size(family))
     }
 
 }

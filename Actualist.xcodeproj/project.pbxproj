@@ -22,6 +22,11 @@
 		WW0000000000000000000007 /* WidgetSnapshotRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000007 /* WidgetSnapshotRows.swift */; };
 		WW0000000000000000000008 /* WidgetDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000008 /* WidgetDeepLink.swift */; };
 		WW0000000000000000000010 /* WidgetQuickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000010 /* WidgetQuickAction.swift */; };
+		WW0000000000000000000011 /* WidgetFinancialSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000011 /* WidgetFinancialSnapshot.swift */; };
+		WW0000000000000000000012 /* WidgetFinancialProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000012 /* WidgetFinancialProjection.swift */; };
+		WW0000000000000000000013 /* ActualistThemePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000013 /* ActualistThemePalette.swift */; };
+		WW0000000000000000000014 /* WidgetThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000014 /* WidgetThemeStore.swift */; };
+		WW0000000000000000000015 /* WidgetPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000015 /* WidgetPalette.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +74,11 @@
 		WW0200000000000000000007 /* WidgetSnapshotRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetSnapshotRows.swift; sourceTree = SOURCE_ROOT; };
 		WW0200000000000000000008 /* WidgetDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetDeepLink.swift; sourceTree = SOURCE_ROOT; };
 		WW0200000000000000000010 /* WidgetQuickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetQuickAction.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000011 /* WidgetFinancialSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialSnapshot.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000012 /* WidgetFinancialProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialProjection.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000013 /* ActualistThemePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/DesignSystem/ActualistThemePalette.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000014 /* WidgetThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetThemeStore.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000015 /* WidgetPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetPalette.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -166,6 +176,9 @@
 		WW0400000000000000000002 /* Shared Widget Sources */ = {
 			isa = PBXGroup;
 			children = (
+				WW0200000000000000000013 /* ActualistThemePalette.swift */,
+				WW0200000000000000000014 /* WidgetThemeStore.swift */,
+				WW0200000000000000000015 /* WidgetPalette.swift */,
 				WW0200000000000000000002 /* WidgetConstants.swift */,
 				WW0200000000000000000004 /* WidgetMonthID.swift */,
 				WW0200000000000000000005 /* WidgetSnapshot.swift */,
@@ -173,6 +186,8 @@
 				WW0200000000000000000007 /* WidgetSnapshotRows.swift */,
 				WW0200000000000000000008 /* WidgetDeepLink.swift */,
 				WW0200000000000000000010 /* WidgetQuickAction.swift */,
+				WW0200000000000000000012 /* WidgetFinancialProjection.swift */,
+				WW0200000000000000000011 /* WidgetFinancialSnapshot.swift */,
 			);
 			name = "Shared Widget Sources";
 			sourceTree = "<group>";
@@ -358,6 +373,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				WW0000000000000000000013 /* ActualistThemePalette.swift in Sources */,
+				WW0000000000000000000014 /* WidgetThemeStore.swift in Sources */,
+				WW0000000000000000000015 /* WidgetPalette.swift in Sources */,
 				WW0000000000000000000002 /* WidgetConstants.swift in Sources */,
 				WW0000000000000000000004 /* WidgetMonthID.swift in Sources */,
 				WW0000000000000000000005 /* WidgetSnapshot.swift in Sources */,
@@ -365,6 +383,8 @@
 				WW0000000000000000000007 /* WidgetSnapshotRows.swift in Sources */,
 				WW0000000000000000000008 /* WidgetDeepLink.swift in Sources */,
 				WW0000000000000000000010 /* WidgetQuickAction.swift in Sources */,
+				WW0000000000000000000012 /* WidgetFinancialProjection.swift in Sources */,
+				WW0000000000000000000011 /* WidgetFinancialSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

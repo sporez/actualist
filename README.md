@@ -56,6 +56,11 @@ Liquid Glass controls.
 - Keeps payee rules in sync with Actual, including imported split rules. Split
   rules stay read-only in the editor; unsupported shapes stay visible so their
   JSON is never rewritten.
+- Includes widgets for category and account balances, Needs Attention, Month
+  Overview, Recent Transactions, Net Worth, and four Quick Actions.
+  Choose from a searchable action catalog and reorder the buttons with native
+  Edit Widget. Each widget keeps its own selection and follows the app's chosen
+  color theme.
 - Includes Shortcuts and Siri for logging transactions, assigning budget money,
   opening screens, and reading balances.
 - Opens an imported budget from local storage first, then syncs Actual CRDT

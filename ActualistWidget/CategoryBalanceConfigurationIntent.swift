@@ -3,18 +3,9 @@ import WidgetKit
 
 struct CategoryBalanceConfigurationIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Category Balances"
-    static let description = IntentDescription(
-        "Choose categories in display order. Medium shows up to 3; large shows up to 8."
-    )
+    static let description = IntentDescription("Choose categories in display order. Larger widgets show more balances.")
 
-    // AppIntents requires literal bounds here. These mirror
-    // WidgetCategoryBalanceCapacity, which owns runtime row limits.
-    @Parameter(
-        title: "Categories",
-        size: [
-            .systemMedium: .init(min: 1, max: 3),
-            .systemLarge: .init(min: 1, max: 8)
-        ]
-    )
+    // Keep the ordered selection when resizing; the layout applies its row limit.
+    @Parameter(title: "Categories", size: .init(min: 1, max: 16))
     var categories: [WidgetCategoryEntity]?
 }

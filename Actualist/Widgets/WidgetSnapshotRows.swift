@@ -25,11 +25,15 @@ struct WidgetCategoryBalanceRow: Equatable, Identifiable, Sendable {
 }
 
 enum WidgetCategoryBalanceCapacity {
+    static let small = 1
+    static let extraLarge = 16
     static let medium = 3
     static let large = 8
 
     static func maximum(for family: WidgetFamilySize) -> Int {
         switch family {
+        case .small: small
+        case .extraLarge: extraLarge
         case .medium: medium
         case .large: large
         }
@@ -69,6 +73,8 @@ enum WidgetCategoryBalanceProjection {
 }
 
 enum WidgetFamilySize: String, Sendable {
+    case small
+    case extraLarge
     case medium
     case large
 }
