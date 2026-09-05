@@ -7,6 +7,7 @@ import Foundation
 func withTimeLimit<Result: Sendable>(
     _ timeLimit: Duration,
     timeoutError: some Error,
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
     operation: @escaping @MainActor @Sendable () async throws -> Result
 ) async throws -> Result {
     try await withThrowingTaskGroup(of: Result.self) { group in
@@ -14,7 +15,7 @@ func withTimeLimit<Result: Sendable>(
             try await operation()
         }
         group.addTask {
-            try await Task.sleep(for: timeLimit)
+            try await sleep(timeLimit)
             throw timeoutError
         }
         guard let result = try await group.next() else {

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-@Suite("Budget template editor view model")
+@Suite("Budget template editor view model", .timeLimit(.minutes(2)))
 @MainActor
 struct BudgetTemplateEditorViewModelTests {
     private let now = Calendar(identifier: .gregorian).date(
@@ -97,11 +97,13 @@ struct BudgetTemplateEditorViewModelTests {
         )
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
-        try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
+        try await waitForTemplatePreview(viewModel)
+        #expect(viewModel.dryRun?.budgeted == 40_000)
         #expect(viewModel.dryRun?.perTemplate == [40_000])
 
         viewModel.edit(.setInput("100", field: .amount, id: try #require(viewModel.editor.items.first?.id)))
-        try await waitUntil { viewModel.dryRun?.budgeted == 10_000 }
+        try await waitForTemplatePreview(viewModel)
+        #expect(viewModel.dryRun?.budgeted == 10_000)
         #expect(viewModel.dryRun?.perTemplate == [10_000])
     }
 
@@ -112,18 +114,20 @@ struct BudgetTemplateEditorViewModelTests {
         let viewModel = makeViewModel()
         await viewModel.load(repository: repository, budgetID: "budget-1")
         let id = try #require(viewModel.editor.items.first?.id)
-        try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
+        try await waitForTemplatePreview(viewModel)
+        #expect(viewModel.dryRun?.budgeted == 40_000)
 
         viewModel.edit(.setInput("", field: .amount, id: id))
         #expect(viewModel.inputText(for: .amount, id: id).isEmpty)
         #expect(!viewModel.editor.inputIsValid(for: .amount, id: id))
         #expect(!viewModel.canSave)
-        try await waitUntil { viewModel.dryRun == nil }
+        #expect(viewModel.dryRun == nil)
 
         viewModel.edit(.setInput("250", field: .amount, id: id))
         #expect(viewModel.editor.inputIsValid(for: .amount, id: id))
         #expect(viewModel.canSave)
-        try await waitUntil { viewModel.dryRun?.budgeted == 25_000 }
+        try await waitForTemplatePreview(viewModel)
+        #expect(viewModel.dryRun?.budgeted == 25_000)
     }
 
     @Test func notesAreIndependentAndClearWithoutChangingTheTemplateMath() async throws {
@@ -144,7 +148,8 @@ struct BudgetTemplateEditorViewModelTests {
         #expect(viewModel.noteText(id: firstID) == firstNote)
         #expect(viewModel.editor.hasNote(id: firstID))
         #expect(viewModel.noteText(id: secondID) == "Copy this month's history")
-        try await waitUntil { viewModel.dryRun?.budgeted == 40_000 }
+        try await waitForTemplatePreview(viewModel)
+        #expect(viewModel.dryRun?.budgeted == 40_000)
         #expect(await viewModel.save())
 
         let saved = try #require(await repository.savedDrafts().last)
@@ -501,20 +506,6 @@ struct BudgetTemplateEditorViewModelTests {
             currency: .usd,
             hasDefinition: !drafts.isEmpty
         )
-    }
-
-    private func waitUntil(
-        timeout: Duration = .seconds(1),
-        _ condition: @escaping () -> Bool
-    ) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while ContinuousClock.now < deadline {
-            if condition() {
-                return
-            }
-            await Task.yield()
-        }
-        Issue.record("Timed out waiting for editor state")
     }
 }
 

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import Actualist
 
@@ -718,17 +719,14 @@ private final class ControllableClock {
 /// Counts how many sync transports a factory has produced, so tests can
 /// assert that the store memoizes clients per URL (and clears them on reset).
 private final class TransportCreationCounter: Sendable {
-    private let lock = NSLock()
-    private var _count = 0
+    private let storage = Mutex(0)
 
     var count: Int {
-        lock.lock(); defer { lock.unlock() }
-        return _count
+        storage.withLock { $0 }
     }
 
     func next() -> any ActualSyncTransport {
-        lock.lock(); defer { lock.unlock() }
-        _count += 1
+        storage.withLock { $0 += 1 }
         return RecordingSyncTransport()
     }
 }

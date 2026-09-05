@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-@Suite("Template editor plan acceptance")
+@Suite("Template editor plan acceptance", .timeLimit(.minutes(2)))
 @MainActor
 struct BudgetTemplateEditorRegressionTests {
     private let now = BudgetTemplateCalendar.validatedDate("2026-09-04")!
@@ -49,13 +49,13 @@ struct BudgetTemplateEditorRegressionTests {
 
     @Test func deletionInvalidatesTotalsAndRowContributionsImmediately() async throws {
         let (vm, _) = await loaded([.monthlyFixed(amount: 100, now: now), .monthlyFixed(amount: 200, now: now)])
-        try await waitForPreview(vm)
+        try await waitForTemplatePreview(vm)
         #expect(vm.dryRun?.budgeted == 30_000)
         vm.edit(.remove(id: try #require(vm.editor.items.first?.id)))
         #expect(vm.previewState == .loading)
         #expect(vm.dryRun == nil)
         #expect(vm.contributionText(at: 0) == "—")
-        try await waitForPreview(vm)
+        try await waitForTemplatePreview(vm)
         #expect(vm.dryRun?.perTemplate == [20_000])
     }
 
@@ -147,14 +147,8 @@ struct BudgetTemplateEditorRegressionTests {
             lock: .editable, schedules: [], currency: currency, hasDefinition: !drafts.isEmpty)
         let repository = EditorTemplateRepository(snapshot: snapshot)
         let vm = BudgetTemplateEditorViewModel(target: .init(categoryID: "groceries", categoryName: "Groceries", month: "2026-09"),
-            now: now, dryRunDelay: .milliseconds(30))
+            now: now, dryRunDelay: .zero)
         await vm.load(repository: repository, budgetID: "synthetic")
         return (vm, repository)
-    }
-
-    private func waitForPreview(_ vm: BudgetTemplateEditorViewModel) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
-        while vm.dryRun == nil && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        #expect(vm.dryRun != nil)
     }
 }

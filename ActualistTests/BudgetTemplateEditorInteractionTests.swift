@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-@Suite("Template editor field interactions")
+@Suite("Template editor field interactions", .timeLimit(.minutes(2)))
 @MainActor
 struct BudgetTemplateEditorInteractionTests {
     private let now = BudgetTemplateCalendar.validatedDate("2026-09-04")!
@@ -96,7 +96,7 @@ struct BudgetTemplateEditorInteractionTests {
         }
         #expect(await repository.dryRunCount == 1)
         vm.inputFocusChanged(to: nil)
-        try await waitForPreview(vm)
+        try await waitForTemplatePreview(vm)
         #expect(vm.dryRun?.budgeted == 25_025)
         #expect(await repository.dryRunCount == 2)
     }
@@ -151,7 +151,7 @@ struct BudgetTemplateEditorInteractionTests {
         #expect(await repository.dryRunCount == 1)
         vm.edit(.setInput("250", field: .amount, id: id))
         vm.edit(.setNoteText("Kept on save", id: id))
-        try await waitForPreview(vm)
+        try await waitForTemplatePreview(vm)
         #expect(vm.dryRun?.budgeted == 25_000)
         #expect(await repository.dryRunCount == 2)
         #expect(await vm.save())
@@ -180,7 +180,7 @@ struct BudgetTemplateEditorInteractionTests {
         await vm.load(repository: repository, budgetID: "synthetic")
         #expect(vm.activeInput == nil)
         #expect(vm.canSave)
-        try await waitForPreview(vm)
+        try await waitForTemplatePreview(vm)
         #expect(vm.dryRun?.budgeted == 10_000)
     }
 
@@ -209,18 +209,10 @@ struct BudgetTemplateEditorInteractionTests {
         ))
         let vm = BudgetTemplateEditorViewModel(
             target: .init(categoryID: "category", categoryName: "Category", month: "2026-09"),
-            now: now, dryRunDelay: .milliseconds(10)
+            now: now, dryRunDelay: .zero
         )
         await vm.load(repository: repository, budgetID: "synthetic")
-        try await waitForPreview(vm)
+        try await waitForTemplatePreview(vm)
         return (vm, repository, try #require(vm.editor.items.first?.id))
-    }
-
-    private func waitForPreview(_ vm: BudgetTemplateEditorViewModel) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
-        while vm.dryRun == nil && ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(5))
-        }
-        #expect(vm.dryRun != nil)
     }
 }

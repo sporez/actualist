@@ -1,6 +1,7 @@
 import Foundation
 import GRDB
 import SwiftUI
+import Synchronization
 import Testing
 @testable import Actualist
 
@@ -242,13 +243,25 @@ struct ReportsTests {
     @Test func longHistoryAggregateCompletesWithoutPerDayQueries() async throws {
         let url = try makeReportsFixture(extraTransactionCount: 5_000)
         let database = try BudgetDatabase(databaseURL: url)
-        let clock = ContinuousClock()
-        let started = clock.now
+        let transactionQueries = Mutex(0)
+        let queue = await database.queue
+        try await queue.read { db in
+            db.trace { event in
+                if case .statement(let statement) = event,
+                   statement.sql.lowercased().contains("from transactions") {
+                    transactionQueries.withLock { $0 += 1 }
+                }
+            }
+        }
 
         let snapshot = try await database.fetchReportsDashboard(range: reportRange)
 
         #expect(snapshot.netWorth.points.count == 7)
-        #expect(started.duration(to: clock.now) < .seconds(5))
+        let queryCount = transactionQueries.withLock { $0 }
+        // Six months of history must use a bounded set of aggregate reads,
+        // not one query per day. Wall time varies with unrelated test work.
+        #expect(queryCount > 0)
+        #expect(queryCount <= 6)
     }
 
     @Test func reportArithmeticOverflowFailsAsInvalidRemoteData() async throws {

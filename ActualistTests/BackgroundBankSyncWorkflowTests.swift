@@ -6,6 +6,7 @@ import Testing
 /// the task, only the alerts toggle notifies, only-alerts mode never
 /// touches SimpleFIN, and a SimpleFIN failure or timeout never fails the
 /// parent refresh.
+@Suite(.timeLimit(.minutes(2)))
 @MainActor
 struct BackgroundBankSyncWorkflowTests {
     private let service = "com.sporez.actualist.tests"
@@ -52,14 +53,10 @@ struct BackgroundBankSyncWorkflowTests {
 
     @MainActor
     private final class SleepingApplier: BackgroundBankSyncApplying {
-        let sleep: Duration
-
-        init(sleep: Duration) {
-            self.sleep = sleep
-        }
+        let delay = ManualTestDelay()
 
         func backgroundBankSyncApply(budgetID: String) async throws -> BankSyncBackgroundApplyResult {
-            try await Task.sleep(for: sleep)
+            try await delay.sleep(for: .seconds(2))
             return BankSyncBackgroundApplyResult(accountCount: 1, insertedTransactionIDsByAccount: [:])
         }
     }
@@ -93,6 +90,7 @@ struct BackgroundBankSyncWorkflowTests {
         runner: (any BackgroundTransactionRefreshing)? = nil,
         applier: (any BackgroundBankSyncApplying)? = nil,
         bankSyncTimeLimit: Duration = .seconds(5),
+        timer: ManualTestDelay = ManualTestDelay(),
         badgeUpdates: @escaping @MainActor (Int) -> Void = { _ in }
     ) -> BackgroundTransactionWorkflow {
         BackgroundTransactionWorkflow(
@@ -100,6 +98,7 @@ struct BackgroundBankSyncWorkflowTests {
                 let defaults = UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")!
                 return AppSettingsStore(defaults: defaults)
             }(),
+            bankSyncTimeoutSleep: { try await timer.sleep(for: $0) },
             notificationAuthorizationRequester: { true },
             applicationBadgeUpdater: badgeUpdates,
             runner: runner ?? FakeBackgroundTransactionRefreshRunner(
@@ -342,22 +341,30 @@ struct BackgroundBankSyncWorkflowTests {
     }
 
     @Test func simplefinTimeoutNeverFailsTheParentRefresh() async throws {
-        let applier = SleepingApplier(sleep: .seconds(2))
+        let applier = SleepingApplier()
+        let timer = ManualTestDelay()
         let workflow = makeWorkflow(
             applier: applier,
-            bankSyncTimeLimit: .milliseconds(50)
+            bankSyncTimeLimit: .milliseconds(50),
+            timer: timer
         )
         let settings = makeSettings(alerts: true, backgroundBankSync: true)
 
-        let output = await workflow.performRefresh(
-            timeLimit: .seconds(25),
-            isDemoMode: false,
-            settings: settings,
-            selectedBudget: nil,
-            budgets: [],
-            hasSyncCredentials: true,
-            store: makeStore()
-        )
+        let task = Task {
+            await workflow.performRefresh(
+                timeLimit: .seconds(25),
+                isDemoMode: false,
+                settings: settings,
+                selectedBudget: nil,
+                budgets: [],
+                hasSyncCredentials: true,
+                store: makeStore()
+            )
+        }
+        _ = try await applier.delay.waitUntilSleeping()
+        #expect(try await timer.waitUntilSleeping() == .milliseconds(50))
+        timer.resume()
+        let output = await task.value
 
         #expect(output.outcome == .success)
         let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)

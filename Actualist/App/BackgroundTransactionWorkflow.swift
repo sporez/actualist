@@ -45,6 +45,7 @@ final class BackgroundTransactionWorkflow {
     /// Wall-clock budget for the background SimpleFIN step, which runs
     /// after the `/sync/sync` refresh within the same BGTask.
     private let bankSyncTimeLimit: Duration
+    private let bankSyncTimeoutSleep: @Sendable (Duration) async throws -> Void
     /// Leaves time after network/database work to persist diagnostics, update
     /// badges, post notifications, and report BGTask completion before iOS
     /// reaches its expiration deadline.
@@ -52,6 +53,7 @@ final class BackgroundTransactionWorkflow {
 
     init(
         settingsStore: AppSettingsStore,
+        bankSyncTimeoutSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool,
         applicationBadgeUpdater: @escaping @MainActor (Int) -> Void,
         runner: (any BackgroundTransactionRefreshing)? = nil,
@@ -64,6 +66,7 @@ final class BackgroundTransactionWorkflow {
         self.applicationBadgeUpdater = applicationBadgeUpdater
         self.bankSyncApplier = bankSyncApplier
         self.bankSyncTimeLimit = bankSyncTimeLimit
+        self.bankSyncTimeoutSleep = bankSyncTimeoutSleep
         self.completionTimeReserve = completionTimeReserve
         self.debugRecorder = BackgroundRefreshDebugRecorder(settingsStore: settingsStore)
         // Constructed in the main-actor init body (not a default argument) so
@@ -293,7 +296,8 @@ final class BackgroundTransactionWorkflow {
         do {
             let result = try await withTimeLimit(
                 bankSyncTimeLimit,
-                timeoutError: BackgroundBankSyncStepError.timedOut
+                timeoutError: BackgroundBankSyncStepError.timedOut,
+                sleep: bankSyncTimeoutSleep
             ) {
                 try await applier.backgroundBankSyncApply(budgetID: budgetID)
             }
