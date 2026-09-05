@@ -51,7 +51,7 @@ struct AdaptiveRootShell: View {
                     if selection?.isAccount != true && !(selection == .budget && viewport.selectedCategoryDetails != nil) {
                         ToolbarItem(placement: .primaryAction) {
                             Button {
-                                transactionPresenter.present()
+                                transactionPresenter.present(using: appState)
                             } label: {
                                 Label("Add Transaction", systemImage: "plus")
                             }
@@ -69,29 +69,25 @@ struct AdaptiveRootShell: View {
             if appState.requiresReauthentication { RootReauthenticationBanner() }
         }
         .onAppear {
+            appState.routeCoordinator.settingsHostRemoved()
             synchronizeSelection(preservingSettings: true)
             consumeShortcutRoute()
         }
-        .onChange(of: appState.selectedTab) { _, _ in synchronizeSelection() }
-        .onChange(of: selection) { _, newSelection in
-            guard let newSelection else { return }
-            switch newSelection {
-            case .budget: appState.selectedTab = .budget
-            case .spending: appState.selectedTab = .spending
-            case .reports: appState.selectedTab = .reports
-            case .accounts: appState.selectedTab = .accounts
-            case .account(let account):
-                appState.selectedTab = .accounts
-                appState.accountNavigationPath = [account]
-            case .settings: break
-            }
+        .onChange(of: appState.selectedTab) { _, tab in
+            if selection?.appTab != tab { synchronizeSelection() }
         }
         .onChange(of: appState.routeCoordinator.pendingRoute) { consumeShortcutRoute() }
 
     }
 
     private var sidebar: some View {
-        List(selection: $selection) {
+        List(selection: Binding(
+            get: { selection },
+            set: { destination in
+                if let destination { AdaptiveRootRouting.activate(destination, using: appState, mode: .sidebar) }
+                selection = destination
+            }
+        )) {
             Section {
                 destinationRow(.budget)
                 destinationRow(.spending)
@@ -141,6 +137,7 @@ struct AdaptiveRootShell: View {
             NavigationStack {
                 AccountTransactionsView(account: account)
             }
+            .id(account.id)
         case .settings:
             SettingsView()
         }
@@ -148,7 +145,11 @@ struct AdaptiveRootShell: View {
 
     private var accountDisplays: [AccountDisplay] {
         guard let budgetID = appState.settings.selectedBudgetID else { return [] }
-        return appState.accountRepository.accountDisplays(budgetID: budgetID)
+        return AccountListLayout.sections(
+            displays: appState.accountRepository.accountDisplays(budgetID: budgetID),
+            groups: appState.accountRepository.accountGroups(budgetID: budgetID),
+            preferredIDs: appState.settings.accountOrderByBudgetID[budgetID] ?? []
+        ).flatMap(\.accounts)
     }
 
     private var openAccountDisplays: [AccountDisplay] {
@@ -168,29 +169,16 @@ struct AdaptiveRootShell: View {
         selection = AdaptiveRootTransition.selection(
             for: .sidebar,
             appTab: appState.selectedTab,
-            preserving: selection == .settings && !preservingSettings ? nil : selection
+            preserving: selection == .settings && !preservingSettings ? nil : selection,
+            accountPath: appState.accountNavigationPath
         )
     }
 
     private func consumeShortcutRoute() {
-        guard let route = appState.routeCoordinator.pendingRoute else { return }
-        switch route {
-        case .tab(let tab):
-            selection = AdaptiveRootDestination(tab: tab)
-            _ = appState.routeCoordinator.consume()
-        case .account(let id):
-            if let account = accountDisplays.map(\.account).first(where: { $0.id == id }) {
-                selection = .account(account)
-                _ = appState.routeCoordinator.consume()
-            }
-        case .newTransaction:
-            _ = transactionPresenter.consumeNewTransaction(from: appState.routeCoordinator)
-        case .settings:
-            selection = .settings
-            _ = appState.routeCoordinator.consume()
-        default:
-            break
+        if let destination = AdaptiveRootRouting.applyPending(using: appState, accounts: accountDisplays.map(\.account), mode: .sidebar) {
+            selection = destination
         }
+        _ = transactionPresenter.consumeNewTransaction(using: appState)
     }
 
 }

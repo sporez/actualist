@@ -93,6 +93,7 @@ struct AccountsView: View {
             }
             .navigationDestination(for: ActualAccount.self) { account in
                 AccountTransactionsView(account: account)
+                    .id(account.id)
             }
             .task {
                 await loadLocal()

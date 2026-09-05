@@ -23,7 +23,8 @@ struct BudgetWorkspaceView: View {
                     rootWidth: rootWidth,
                     budgetDetailWidth: geometry.size.width,
                     dynamicTypeScale: dynamicTypeSize.budgetLayoutScale,
-                    preference: appState.settings.monthDisplayPreference
+                    preference: appState.settings.monthDisplayPreference,
+                    density: appState.settings.displayDensity
                 ))
                 let display = BudgetGridPresentation(
                     visibleMonths: viewport.visibleMonths,
@@ -62,14 +63,15 @@ struct BudgetWorkspaceView: View {
                 .navigationTitle(display.rangeTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { navigationToolbar(display) }
-                .task(id: LoadID(budgetID: appState.settings.selectedBudgetID, count: metrics.visibleMonthCount)) {
-                    if let budgetID = appState.settings.selectedBudgetID {
-                        await viewport.activate(budgetID: budgetID, compactModel: compactModel, monthCount: metrics.visibleMonthCount)
-                    }
+                .task(id: LoadID(budgetID: appState.settings.selectedBudgetID, count: metrics.visibleMonthCount, route: appState.routeCoordinator.pendingRoute)) {
+                    await actions.activate(using: appState, compactModel: compactModel, monthCount: metrics.visibleMonthCount)
                 }
             }
             .background(ActualistTheme.background)
             .refreshable { await actions.refresh(using: appState) }
+            .onChange(of: viewport.assignmentWorkflow.completionRevision) {
+                Task { await viewport.refreshVisibleMonths() }
+            }
             .onChange(of: appState.localDataRevision) {
                 Task { await viewport.refreshVisibleMonths() }
             }
@@ -78,10 +80,6 @@ struct BudgetWorkspaceView: View {
             }
             .onChange(of: appState.settings.includeCarryoverCategoriesInOverspentAlerts, initial: true) { _, enabled in
                 actions.updateIncludeCarryover(enabled)
-            }
-            .task { await actions.applyRoute(using: appState) }
-            .onChange(of: appState.routeCoordinator.pendingRoute) {
-                Task { await actions.applyRoute(using: appState) }
             }
             .modifier(BudgetWorkspaceSheets(actions: actions, viewport: viewport))
         }
@@ -175,5 +173,6 @@ struct BudgetWorkspaceView: View {
     private struct LoadID: Equatable {
         let budgetID: String?
         let count: Int
+        let route: AppRoute?
     }
 }

@@ -1,35 +1,50 @@
 import Observation
 
-enum RootTransactionEditorPresentation: Identifiable, Equatable {
-    case new(ShortcutEditorPrefill?)
-
-    var id: String { "new-transaction" }
-
-    var prefill: ShortcutEditorPrefill? {
-        switch self { case .new(let prefill): prefill }
-    }
-
-    func prefilledAccount(from displays: [AccountDisplay]) -> ActualAccount? {
-        guard let accountID = prefill?.accountID else { return nil }
-        return displays.first { $0.account.id == accountID }?.account
-    }
-}
-
 @MainActor
 @Observable
 final class RootTransactionEditorPresenter {
-    var presentation: RootTransactionEditorPresentation?
+    var presentation: TransactionEditorSession?
 
-    func present(prefill: ShortcutEditorPrefill? = nil) {
-        presentation = .new(prefill)
+    @discardableResult
+    func present(
+        using appState: AppState,
+        request: TransactionEditorPresentation = .create,
+        account: ActualAccount? = nil,
+        categoryName: String? = nil,
+        prefill: ShortcutEditorPrefill? = nil
+    ) -> Bool {
+        guard let context = TransactionEditorSession.Context(appState: appState) else { return false }
+        return present(context: context, request: request, account: account, categoryName: categoryName, prefill: prefill)
     }
 
     @discardableResult
-    func consumeNewTransaction(from coordinator: AppRouteCoordinator) -> Bool {
-        guard case .newTransaction(let prefill) = coordinator.pendingRoute else { return false }
-        presentation = .new(prefill)
-        _ = coordinator.consume()
+    func present(
+        context: TransactionEditorSession.Context,
+        request: TransactionEditorPresentation = .create,
+        account: ActualAccount? = nil,
+        categoryName: String? = nil,
+        prefill: ShortcutEditorPrefill? = nil
+    ) -> Bool {
+        guard presentation == nil else { return false }
+        presentation = TransactionEditorSession(
+            context: context, request: request, account: account,
+            categoryName: categoryName, prefill: prefill
+        )
         return true
     }
 
+    func reconcile(using appState: AppState) {
+        guard presentation?.context != TransactionEditorSession.Context(appState: appState) else { return }
+        presentation?.invalidate()
+        presentation = nil
+    }
+
+    @discardableResult
+    func consumeNewTransaction(using appState: AppState) -> Bool {
+        let coordinator = appState.routeCoordinator
+        guard case .newTransaction(let prefill) = coordinator.pendingRoute,
+              present(using: appState, prefill: prefill) else { return false }
+        _ = coordinator.consume()
+        return true
+    }
 }

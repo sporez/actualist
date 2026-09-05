@@ -510,15 +510,6 @@ final class TransactionEditorViewModel {
         return true
     }
 
-    func submit(using appState: AppState) async -> Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return false
-        }
-        let repository = appState.transactionRepository
-
-        return await submit(budgetID: budgetID, repository: repository)
-    }
-
     func previewRules(
         budgetID: String,
         repository: any TransactionRepositoryProtocol,

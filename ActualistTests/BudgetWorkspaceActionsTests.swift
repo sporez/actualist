@@ -35,4 +35,45 @@ struct BudgetWorkspaceActionsTests {
         #expect(recorded.month == "2026-06")
         #expect(viewport.snapshot(for: "2026-06") != nil)
     }
+    @Test @MainActor func activationOpensCategoryRouteAfterLoadingAndConsumesOnce() async throws {
+        let support = LocalFirstActualStoreTests()
+        let bundle = try await support.makeOpenedWritableStoreBundle()
+        let state = try support.makeAppState(for: bundle)
+        let repository = BudgetViewportTestRepository()
+        await repository.set(BudgetViewportFixtures.loaded("2026-07"))
+        let compact = BudgetViewModel()
+        await compact.selectMonth("2026-07", budgetID: "group-1", repository: repository)
+        let viewport = BudgetViewportModel(repository: repository)
+        let actions = BudgetWorkspaceActions(viewport: viewport)
+        state.routeCoordinator.enqueue(.category(id: "groceries", month: "2026-07"))
+        await actions.activate(using: state, compactModel: compact, monthCount: 1)
+        #expect(viewport.selectedCategoryDetails?.category.id == "groceries")
+        #expect(state.routeCoordinator.pendingRoute == nil)
+        viewport.closeInspector()
+        await actions.activate(using: state, compactModel: compact, monthCount: 1)
+        #expect(viewport.selectedCategoryDetails == nil)
+    }
+
+    @Test @MainActor func olderCategoryLoadDoesNotConsumeNewerRoute() async throws {
+        let support = LocalFirstActualStoreTests()
+        let bundle = try await support.makeOpenedWritableStoreBundle()
+        let state = try support.makeAppState(for: bundle)
+        let repository = BudgetViewportTestRepository()
+        await repository.set(BudgetViewportFixtures.loaded("2026-07"))
+        await repository.block("2026-07")
+        let viewport = BudgetViewportModel(repository: repository)
+        let actions = BudgetWorkspaceActions(viewport: viewport)
+        state.routeCoordinator.enqueue(.category(id: "groceries", month: "2026-07"))
+        let old = Task { await actions.applyRoute(using: state) }
+        await repository.waitUntilReadBlocked("2026-07")
+        state.routeCoordinator.enqueue(.history)
+        await repository.release("2026-07")
+        await old.value
+        #expect(state.routeCoordinator.pendingRoute == .history)
+        #expect(viewport.selectedCategoryDetails == nil)
+        await actions.applyRoute(using: state)
+        #expect(actions.sheet == .history)
+        #expect(state.routeCoordinator.pendingRoute == nil)
+    }
+
 }

@@ -17,7 +17,7 @@ final class BudgetViewModel {
     /// Envelope (false) vs tracking (true). Drives the overspent hidden rule.
     private(set) var isTrackingBudget = false
 
-    let assignmentWorkflow = BudgetAssignmentWorkflow()
+    let assignmentWorkflow: BudgetAssignmentWorkflow
     let moveMoneyWorkflow = BudgetMoveMoneyWorkflow()
     let templateWorkflow = BudgetTemplateWorkflow()
     let overspentCoverSelection = OverspentCoverSelectionWorkflow()
@@ -30,7 +30,8 @@ final class BudgetViewModel {
         moveMoneyWorkflow.isSubmitting
     }
 
-    init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
+    init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil, assignmentWorkflow: BudgetAssignmentWorkflow? = nil) {
+        self.assignmentWorkflow = assignmentWorkflow ?? BudgetAssignmentWorkflow()
         loadedBudgetID = initialBudgetID
         guard let initialMonth else {
             return
@@ -333,6 +334,7 @@ final class BudgetViewModel {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async {
+        assignmentWorkflow.reconcile(budgetID: budgetID, month: month)
         isLoading = true
         errorMessage = nil
 
@@ -495,7 +497,7 @@ final class BudgetViewModel {
     }
 
     func beginAssignmentEditing(for category: BudgetMonthCategory) {
-        assignmentWorkflow.begin(for: category)
+        assignmentWorkflow.begin(for: category, budgetID: loadedBudgetID, month: selectedMonth)
     }
 
     func cancelAssignmentEditing() {
@@ -611,6 +613,7 @@ final class BudgetViewModel {
             return false
         }
 
+        guard loadedBudgetID == budgetID, selectedMonth == loadedMonth.month.month else { return false }
         apply(loadedMonth, budgetID: budgetID)
         return true
     }
@@ -639,11 +642,6 @@ final class BudgetViewModel {
         }
 
         errorMessage = nil
-        // Capture the request identity so a refresh returning after the user
-        // navigated to a different month/budget (or after a newer request) is
-        // detected as stale. The write still targets the captured month and
-        // syncs normally; only the returned refresh is dropped. See
-        // `BudgetTemplateWorkflow.beginRequest`/`isCurrent`.
         let request = templateWorkflow.beginRequest(budgetID: budgetID, month: selectedMonth)
         switch await templateWorkflow.apply(
             command: command,
@@ -701,6 +699,7 @@ final class BudgetViewModel {
             return false
         }
 
+        guard loadedBudgetID == budgetID, selectedMonth == loadedMonth.month.month else { return false }
         apply(loadedMonth, budgetID: budgetID)
         errorMessage = nil
         return true
@@ -752,9 +751,9 @@ final class BudgetViewModel {
     }
 
     private func apply(_ loadedMonth: LoadedBudgetMonth, budgetID: String? = nil) {
-        // Any selection/state change supersedes an in-flight template request:
-        // tell the template workflow so a stale refresh returning later is
-        // detected by `isCurrent` and discarded instead of overwriting the UI.
+        if let budgetID {
+            assignmentWorkflow.reconcile(budgetID: budgetID, categoryIDs: Set(loadedMonth.month.categoryGroups.flatMap(\.categories).map(\.id)))
+        }
         templateWorkflow.noteSelectionChange()
         let currentMonth = budgetMonth?.month ?? selectedMonth
         let isSameMonth = currentMonth == loadedMonth.month.month
@@ -777,7 +776,7 @@ final class BudgetViewModel {
         } else {
             expandedGroupIDs = Set(
                 loadedMonth.month.categoryGroups
-                    .filter { !$0.isIncome }
+                    .filter { !$0.isIncome && $0.hidden != true }
                     .map(\.id)
             )
         }

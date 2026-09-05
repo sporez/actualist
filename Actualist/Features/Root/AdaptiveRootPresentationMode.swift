@@ -29,15 +29,14 @@ enum AdaptiveRootTransition {
     static func selection(
         for mode: AdaptiveRootPresentationMode,
         appTab: AppTab,
-        preserving current: AdaptiveRootDestination?
+        preserving current: AdaptiveRootDestination?,
+        accountPath: [ActualAccount] = []
     ) -> AdaptiveRootDestination {
         guard mode == .sidebar else {
             return AdaptiveRootDestination(tab: appTab)
         }
         if current == .settings { return .settings }
-        if case .account = current, appTab == .accounts {
-            return current ?? .accounts
-        }
+        if appTab == .accounts, let account = accountPath.last { return .account(account) }
         return AdaptiveRootDestination(tab: appTab)
     }
 }

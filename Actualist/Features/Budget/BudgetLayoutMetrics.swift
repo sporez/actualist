@@ -20,6 +20,7 @@ struct BudgetLayoutInputs: Equatable {
     var dynamicTypeScale: CGFloat = 1
     var horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins
     var preference: MonthDisplayPreference = .automatic
+    var density: ActualistDisplayDensity = .compact
 
     init(
         rootWidth: CGFloat,
@@ -28,7 +29,8 @@ struct BudgetLayoutInputs: Equatable {
         inspectorWidth: CGFloat = 0,
         dynamicTypeScale: CGFloat = 1,
         horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins,
-        preference: MonthDisplayPreference = .automatic
+        preference: MonthDisplayPreference = .automatic,
+        density: ActualistDisplayDensity = .compact
     ) {
         self.rootWidth = rootWidth
         self.budgetDetailWidth = budgetDetailWidth
@@ -37,6 +39,7 @@ struct BudgetLayoutInputs: Equatable {
         self.dynamicTypeScale = dynamicTypeScale
         self.horizontalMargins = horizontalMargins
         self.preference = preference
+        self.density = density
     }
 }
 
@@ -66,19 +69,22 @@ struct BudgetLayoutMetrics: Equatable {
     static func resolve(_ inputs: BudgetLayoutInputs) -> Self {
         let rootWidth = finiteNonnegative(inputs.rootWidth)
         let scale = min(max(finitePositive(inputs.dynamicTypeScale), 1), 3)
+        let density = BudgetGridDensityMetrics(density: inputs.density)
+        let moneyScale = scale * density.moneyWidthScale
+        let categoryScale = scale * density.categoryWidthScale
         let margins = finiteNonnegative(inputs.horizontalMargins)
         let sidebar = finiteNonnegative(inputs.sidebarWidth)
         let inspector = finiteNonnegative(inputs.inspectorWidth)
         let preferredCategoryWidth = min(
-            max(preferredCategoryColumnWidth * scale, minimumCategoryColumnWidth * scale),
-            maximumCategoryColumnWidth * scale
+            max(preferredCategoryColumnWidth * categoryScale, minimumCategoryColumnWidth * categoryScale),
+            maximumCategoryColumnWidth * categoryScale
         )
         let measuredDetail = inputs.budgetDetailWidth.map(finiteNonnegative)
         let detailWidth = measuredDetail.map { max($0 - margins, 0) }
             ?? max(rootWidth - sidebar - inspector - margins, 0)
         let categoryWidth = min(
             preferredCategoryWidth,
-            max(detailWidth - minimumMoneyColumnWidth * 2 * scale, 0)
+            max(detailWidth - minimumMoneyColumnWidth * 2 * moneyScale, 0)
         )
         let sidebarFits = rootWidth >= sidebar + singleMonthMinimumWidth * scale + margins
         guard sidebarFits else {
@@ -92,7 +98,7 @@ struct BudgetLayoutMetrics: Equatable {
         }
 
         let availableForMonths = max(detailWidth - categoryWidth, 0)
-        let minimumGroupWidth = max(minimumMonthGroupWidth, minimumMoneyColumnWidth * 2) * scale
+        let minimumGroupWidth = max(minimumMonthGroupWidth, minimumMoneyColumnWidth * 2) * moneyScale
         let physicallyPossible = max(1, min(supportedMonthRange.upperBound, Int(floor(availableForMonths / minimumGroupWidth))))
         let requested = inputs.preference.resolvedCount
         let visibleCount = min(max(requested, supportedMonthRange.lowerBound), physicallyPossible)
@@ -100,7 +106,7 @@ struct BudgetLayoutMetrics: Equatable {
         let maximumTableWidth = maximumSingleMonthTableWidth * scale
         let tableWidth = visibleCount == 1 ? min(detailWidth, maximumTableWidth) : detailWidth
         let tableCategoryWidth = visibleCount == 1
-            ? min(categoryWidth, max(tableWidth - minimumMoneyColumnWidth * 2 * scale, 0))
+            ? min(categoryWidth, max(tableWidth - minimumMoneyColumnWidth * 2 * moneyScale, 0))
             : categoryWidth
         let tableMonthWidth = max(tableWidth - tableCategoryWidth, 0)
         let naturalMonthWidth = visibleCount == 1
@@ -109,9 +115,9 @@ struct BudgetLayoutMetrics: Equatable {
         // A narrow inspector can leave less than the readable baseline. Keep
         // the single-month fallback within the measured container rather than
         // allowing its minimum width to overlap the category column.
-        let monthWidth = visibleCount == 1 && naturalMonthWidth < minimumMoneyColumnWidth * 2 * scale
+        let monthWidth = visibleCount == 1 && naturalMonthWidth < minimumMoneyColumnWidth * 2 * moneyScale
             ? max(naturalMonthWidth, 0)
-            : max(naturalMonthWidth, minimumMoneyColumnWidth * 2 * scale)
+            : max(naturalMonthWidth, minimumMoneyColumnWidth * 2 * moneyScale)
         return Self(
             presentationMode: mode,
             visibleMonthCount: visibleCount,

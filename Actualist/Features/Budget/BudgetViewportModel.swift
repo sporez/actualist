@@ -3,7 +3,7 @@ import Observation
 
 /// Window-local state for the wide budget presentation.
 ///
-/// A viewport owns one repository and one assignment workflow.  Month values
+/// The viewport shares its window's assignment workflow with compact Budget. Month values
 /// remain `LoadedBudgetMonth` snapshots from that repository; the optional
 /// privacy projection is applied only when the view asks for display data.
 @MainActor
@@ -15,7 +15,7 @@ final class BudgetViewportModel {
     }
 
     let repository: any BudgetRepositoryProtocol
-    private(set) var assignmentWorkflow = BudgetAssignmentWorkflow()
+    let assignmentWorkflow: BudgetAssignmentWorkflow
 
     private(set) var budgetID: String?
     private(set) var anchorMonth: String?
@@ -31,7 +31,9 @@ final class BudgetViewportModel {
     var resolvedMonthCount: Int = 1
     var showHidden = false
     var expandedGroupIDs: Set<String> = []
-    private(set) var selectedCell: SelectedCell?
+    var selectedCell: SelectedCell? {
+        assignmentWorkflow.context.map { SelectedCell(categoryID: $0.categoryID, month: $0.month) }
+    }
     private(set) var inspectedCell: SelectedCell?
     var selectedCategoryMonth: String? { inspectedCell?.month }
 
@@ -57,8 +59,9 @@ final class BudgetViewportModel {
         return CategoryMonthDetails(category: category, month: inspectedCell.month)
     }
 
-    init(repository: any BudgetRepositoryProtocol) {
+    init(repository: any BudgetRepositoryProtocol, assignmentWorkflow: BudgetAssignmentWorkflow? = nil) {
         self.repository = repository
+        self.assignmentWorkflow = assignmentWorkflow ?? BudgetAssignmentWorkflow()
     }
 
     var visibleMonths: [String] {
@@ -96,7 +99,11 @@ final class BudgetViewportModel {
         }
     }
 
-    func load(budgetID: String, anchorMonth: String? = nil) async {
+    func load(budgetID: String, anchorMonth: String? = nil, preservingAssignment: Bool = false) async {
+        if !preservingAssignment, self.anchorMonth != anchorMonth {
+            assignmentWorkflow.invalidate()
+        }
+        assignmentWorkflow.reconcile(budgetID: budgetID)
         generation += 1
         let requestGeneration = generation
         let previousBudgetID = self.budgetID
@@ -106,12 +113,8 @@ final class BudgetViewportModel {
             budgetGeneration += 1
             monthSnapshots = [:]
             expandedGroupIDs = []
-            selectedCell = nil
             inspectedCell = nil
             expansionInitializedBudgetID = nil
-            // An old budget's in-flight write may finish, but cannot alter a
-            // new budget's draft or selection.
-            assignmentWorkflow = BudgetAssignmentWorkflow()
             hardwareInputText = ""
         }
         errorMessage = nil
@@ -183,16 +186,20 @@ final class BudgetViewportModel {
             ? (compactModel.selectedMonth ?? compactModel.budgetMonth?.month)
             : nil
         let expansion = belongsToBudget ? compactModel.expandedGroupIDs : nil
-        await load(budgetID: budgetID, anchorMonth: month)
-        if let expansion { expandedGroupIDs.formIntersection(expansion) }
-        assignmentWorkflow.cancel()
+        let anchor = assignmentWorkflow.isPresented && self.budgetID == budgetID ? anchorMonth : month
+        await load(budgetID: budgetID, anchorMonth: anchor, preservingAssignment: true)
+        if let expansion {
+            let validIDs = Set(visibleSnapshots.first?.month.categoryGroups.filter { !$0.isIncome }.map(\.id) ?? [])
+            expandedGroupIDs = expansion.intersection(validIDs)
+        }
+        synchronizeHardwareBuffer()
     }
 
     func prepareCompactState(_ compactModel: BudgetViewModel) async {
         guard let budgetID, let anchorMonth else { return }
         closeInspector()
-        assignmentWorkflow.cancel()
-        await compactModel.selectMonth(anchorMonth, budgetID: budgetID, repository: repository)
+        let editingMonth = assignmentWorkflow.context?.month ?? anchorMonth
+        await compactModel.selectMonth(editingMonth, budgetID: budgetID, repository: repository)
         compactModel.expandedGroupIDs = expandedGroupIDs
     }
 
@@ -200,8 +207,7 @@ final class BudgetViewportModel {
         let cell = SelectedCell(categoryID: categoryID, month: month)
         guard !assignmentWorkflow.isSubmitting, visibleMonths.contains(month),
               let category = category(at: cell), !category.isIncome else { return }
-        selectedCell = cell
-        assignmentWorkflow.begin(for: category)
+        assignmentWorkflow.begin(for: category, budgetID: budgetID, month: month)
         hardwareInputText = ""
     }
 
@@ -243,7 +249,6 @@ final class BudgetViewportModel {
     func traverseAssignment(backward: Bool) async -> Bool {
         guard let selectedCell else { return false }
         let context = budgetGeneration
-        let workflow = assignmentWorkflow
         let cells = editableCells()
         guard let index = cells.firstIndex(of: selectedCell), cells.count > 1 else { return false }
         let nextIndex = (index + (backward ? -1 : 1) + cells.count) % cells.count
@@ -252,7 +257,7 @@ final class BudgetViewportModel {
         } else {
             assignmentWorkflow.cancel()
         }
-        guard context == budgetGeneration, assignmentWorkflow === workflow else { return false }
+        guard context == budgetGeneration else { return false }
         beginAssignmentEditing(categoryID: cells[nextIndex].categoryID, month: cells[nextIndex].month)
         return true
     }
@@ -261,14 +266,12 @@ final class BudgetViewportModel {
         guard let budgetID, let selectedCell,
               !assignmentWorkflow.isSubmitting else { return false }
         let context = budgetGeneration
-        let workflow = assignmentWorkflow
-        guard await workflow.submit(
+        guard await assignmentWorkflow.submit(
                   selectedMonth: selectedCell.month,
                   budgetID: budgetID,
                   repository: repository
               ) != nil else { return false }
-        guard context == budgetGeneration, assignmentWorkflow === workflow else { return false }
-        self.selectedCell = nil
+        guard context == budgetGeneration else { return false }
         hardwareInputText = ""
         // Publish all displayed months together, including balances carried
         // forward by the assignment, without changing the navigation anchor.
@@ -279,7 +282,6 @@ final class BudgetViewportModel {
     func cancelAssignmentEditing() {
         assignmentWorkflow.cancel()
         if !assignmentWorkflow.isPresented {
-            selectedCell = nil
             hardwareInputText = ""
         }
     }
@@ -428,8 +430,7 @@ final class BudgetViewportModel {
             expansionInitializedBudgetID = budgetID
         }
         if let selectedCell, category(at: selectedCell) == nil {
-            self.selectedCell = nil
-            assignmentWorkflow = BudgetAssignmentWorkflow()
+            assignmentWorkflow.invalidate()
             hardwareInputText = ""
         }
         if let inspectedCell, category(at: inspectedCell) == nil {

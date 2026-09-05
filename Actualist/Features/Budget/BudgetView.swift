@@ -5,7 +5,7 @@ struct BudgetView: View {
     @Environment(\.actualistDensity) private var density
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel: BudgetViewModel
-    @State private var isTransactionEditorPresented = false
+    @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
     @State private var isHistoryPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
@@ -127,7 +127,7 @@ struct BudgetView: View {
                         HStack {
                             Spacer(minLength: 0)
                             BudgetAddTransactionButton(isExpanded: addTransactionExpansion.isExpanded) {
-                                isTransactionEditorPresented = true
+                                transactionPresenter.present(using: appState)
                             }
                         }
                         .padding(.horizontal, BudgetLayout.screenHorizontalPadding)
@@ -249,6 +249,9 @@ struct BudgetView: View {
                     if loadsOnAppear { await viewModel.load(using: appState) }
                 }
                 .refreshable { await viewModel.refresh(using: appState) }
+                .onChange(of: viewModel.assignmentWorkflow.completionRevision) {
+                    Task { await viewModel.refreshSelectedMonth(using: appState) }
+                }
                 .onChange(of: appState.localDataRevision) {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
                 }
@@ -277,12 +280,6 @@ struct BudgetView: View {
                 }
                 .onChange(of: appState.settings.selectedBudgetID) {
                     noteTarget = nil
-                }
-                .sheet(isPresented: $isTransactionEditorPresented) {
-                    TransactionEditorView(prefilledAccount: nil) {
-                        Task { await viewModel.refreshSelectedMonth(using: appState) }
-                    }
-                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(isPresented: $isHistoryPresented) {
                     HistoryView()

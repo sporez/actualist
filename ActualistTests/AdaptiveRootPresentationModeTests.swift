@@ -22,7 +22,7 @@ final class AdaptiveRootPresentationModeTests: XCTestCase {
     func testResizeTransitionPreservesAccountAndMapsSettingsToBudget() {
         let account = ActualAccount(id: "account", name: "Checking", offbudget: false, closed: false)
         XCTAssertEqual(
-            AdaptiveRootTransition.selection(for: .sidebar, appTab: .accounts, preserving: .account(account)),
+            AdaptiveRootTransition.selection(for: .sidebar, appTab: .accounts, preserving: .account(account), accountPath: [account]),
             .account(account)
         )
         XCTAssertEqual(
@@ -32,6 +32,14 @@ final class AdaptiveRootPresentationModeTests: XCTestCase {
         XCTAssertEqual(
             AdaptiveRootTransition.selection(for: .sidebar, appTab: .budget, preserving: .settings),
             .settings
+        )
+    }
+
+    func testClearedAccountPathOverridesStaleSidebarSelection() {
+        let account = ActualAccount(id: "account", name: "Checking", offbudget: false, closed: false)
+        XCTAssertEqual(
+            AdaptiveRootTransition.selection(for: .sidebar, appTab: .accounts, preserving: .account(account), accountPath: []),
+            .accounts
         )
     }
 
@@ -54,7 +62,7 @@ final class AdaptiveRootPresentationModeTests: XCTestCase {
     func testTransitionSelectionKeepsAccountWhenReturningToSidebar() {
         let account = ActualAccount(id: "account", name: "Checking", offbudget: false, closed: false)
         XCTAssertEqual(
-            AdaptiveRootTransition.selection(for: .sidebar, appTab: .accounts, preserving: .account(account)),
+            AdaptiveRootTransition.selection(for: .sidebar, appTab: .accounts, preserving: .account(account), accountPath: [account]),
             .account(account)
         )
         XCTAssertEqual(

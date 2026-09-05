@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct BudgetGridMonthHeaders: View {
+    @Environment(\.actualistDensity) private var density
+    private var sizing: BudgetGridDensityMetrics { .init(density: density) }
     let presentation: BudgetGridPresentation
     let metrics: BudgetLayoutMetrics
     let actions: BudgetWorkspaceActions
@@ -8,12 +10,12 @@ struct BudgetGridMonthHeaders: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
             Text("Category")
-                .font(.subheadline.weight(.semibold))
+                .font(ActualistTypography.rowTitle(for: density))
                 .frame(width: metrics.categoryColumnWidth, alignment: .leading)
-                .padding(.bottom, 10)
+                .padding(.bottom, sizing.headerPadding)
 
             ForEach(presentation.months) { month in
-                VStack(spacing: 8) {
+                VStack(spacing: sizing.headerSpacing) {
                     Menu {
                         Button("Notes", systemImage: "note.text") { actions.openMonthNote(month.id) }
                         if BudgetTemplateActionAvailability.hasMonthActions(in: month.snapshot?.month, isTrackingBudget: month.snapshot?.isTrackingBudget ?? false) {
@@ -26,7 +28,7 @@ struct BudgetGridMonthHeaders: View {
                         }
                     } label: {
                         HStack(spacing: 5) {
-                            Text(month.title).font(.headline)
+                            Text(month.title).font(ActualistTypography.sectionTitle(for: density))
                             Image(systemName: "ellipsis").font(.caption)
                         }
                         .frame(maxWidth: .infinity, minHeight: 32)
@@ -36,7 +38,7 @@ struct BudgetGridMonthHeaders: View {
 
                     VStack(spacing: 2) {
                         Text(month.toBudgetText)
-                            .font(metrics.visibleMonthCount == 1 ? .title2.weight(.bold) : .headline)
+                            .font(ActualistTypography.rowTitle(for: density).bold())
                             .monospacedDigit()
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
@@ -78,8 +80,8 @@ struct BudgetGridMonthHeaders: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .padding(.top, 4)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 10)
+                .padding(.horizontal, sizing.cellPadding)
+                .padding(.vertical, sizing.headerPadding)
                 .frame(width: metrics.monthColumnWidth)
             }
         }

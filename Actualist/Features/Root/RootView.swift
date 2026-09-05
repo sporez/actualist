@@ -57,6 +57,9 @@ struct RootView: View {
                         }
                         .onChange(of: mode) { _, newMode in
                             if newMode == .compact {
+                                if let adaptiveSelection, adaptiveSelection.isAccount {
+                                    AdaptiveRootRouting.activate(adaptiveSelection, using: appState)
+                                }
                                 adaptiveSelection = AdaptiveRootDestination(tab: appState.selectedTab)
                             }
                             budgetSession?.update(
@@ -81,6 +84,10 @@ struct RootView: View {
                             )
                         }
                     }
+                    .sheet(item: $transactionPresenter.presentation) { presentation in
+                        RootTransactionEditorContent(presentation: presentation)
+                            .appSwitcherPrivacyProtected(using: appState)
+                    }
                 } else if appState.hasSyncCredentials {
                     BudgetPickerView()
                 } else {
@@ -93,12 +100,14 @@ struct RootView: View {
         .tint(theme.chromeForeground)
         .environment(\.actualistDensity, appState.settings.displayDensity)
         .environment(transactionPresenter)
-        .sheet(item: $transactionPresenter.presentation) { presentation in
-            RootTransactionEditorContent(presentation: presentation)
-                .appSwitcherPrivacyProtected(using: appState)
-        }
         .onChange(of: appState.settings.selectedBudgetID) {
-            transactionPresenter.presentation = nil
+            transactionPresenter.reconcile(using: appState)
+        }
+        .onChange(of: appState.settings.localFirstServerURLString) {
+            transactionPresenter.reconcile(using: appState)
+        }
+        .onChange(of: transactionPresenter.presentation?.id) { _, id in
+            if id == nil { transactionPresenter.consumeNewTransaction(using: appState) }
         }
         .task {
             if budgetSession == nil {

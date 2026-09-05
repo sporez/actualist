@@ -62,7 +62,7 @@ struct MainTabView: View {
             if case .tab = $0 { return true }
             return false
         }
-        _ = transactionPresenter.consumeNewTransaction(from: appState.routeCoordinator)
+        _ = transactionPresenter.consumeNewTransaction(using: appState)
     }
 
     private var selectedTab: Binding<AppTab> {

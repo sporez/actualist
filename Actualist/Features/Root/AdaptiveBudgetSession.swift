@@ -10,7 +10,7 @@ final class AdaptiveBudgetSession {
         let budgetID: String?
     }
 
-    private(set) var compactModel = BudgetViewModel()
+    private(set) var compactModel: BudgetViewModel
     let viewport: BudgetViewportModel
     private(set) var presentedContext: Context?
     private var requestedContext: Context?
@@ -18,7 +18,9 @@ final class AdaptiveBudgetSession {
     private var transitionTask: Task<Void, Never>?
 
     init(repository: any BudgetRepositoryProtocol) {
-        viewport = BudgetViewportModel(repository: repository)
+        let assignment = BudgetAssignmentWorkflow()
+        compactModel = BudgetViewModel(assignmentWorkflow: assignment)
+        viewport = BudgetViewportModel(repository: repository, assignmentWorkflow: assignment)
     }
 
     @discardableResult
@@ -44,11 +46,15 @@ final class AdaptiveBudgetSession {
     private func prepare(_ context: Context, appState: AppState) async {
         guard let budgetID = context.budgetID else { return }
         if compactModel.loadedBudgetID != budgetID {
-            compactModel = BudgetViewModel()
+            viewport.assignmentWorkflow.invalidate()
+            compactModel = BudgetViewModel(assignmentWorkflow: viewport.assignmentWorkflow)
             compactModel.includeCarryoverCategoriesInOverspentAlerts =
                 appState.settings.includeCarryoverCategoriesInOverspentAlerts
             await compactModel.load(budgetID: budgetID, repository: viewport.repository)
         }
+        compactModel.includeCarryoverCategoriesInOverspentAlerts =
+            appState.settings.includeCarryoverCategoriesInOverspentAlerts
+        viewport.setShowHidden(appState.settings.showHiddenCategories)
         guard !Task.isCancelled else { return }
         switch context.mode {
         case .compact:

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct BudgetGridView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
+    private var sizing: BudgetGridDensityMetrics { .init(density: density) }
     @Bindable var viewport: BudgetViewportModel
     let actions: BudgetWorkspaceActions
     let presentation: BudgetGridPresentation
@@ -52,13 +54,13 @@ struct BudgetGridView: View {
                         .rotationEffect(.degrees(viewport.expandedGroupIDs.contains(group.id) ? 90 : 0))
                         .font(.caption.weight(.bold))
                     Text(group.title)
-                        .font(.subheadline.weight(.bold))
+                        .font(ActualistTypography.sectionTitle(for: density))
                         .lineLimit(2)
                     if group.source.hasUserNote {
                         Image(systemName: "note.text").font(.caption)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: sizing.groupHeight, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -81,17 +83,17 @@ struct BudgetGridView: View {
                     total(values.map { month.currency.formatted($0.budgeted) }, label: "Assigned", group: group, month: month)
                     total(values.map { month.currency.formatted($0.balance) }, label: "Available", group: group, month: month)
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, sizing.cellPadding)
                 .frame(width: metrics.monthColumnWidth)
             }
         }
         .foregroundStyle(ActualistTheme.primaryText)
-        .padding(.top, 8)
+        .padding(.top, sizing.headerSpacing)
     }
 
     private func total(_ value: String?, label: String, group: BudgetGridPresentation.Group, month: BudgetGridPresentation.Month) -> some View {
         Text(value ?? "—")
-            .font(.subheadline.weight(.semibold))
+            .font(ActualistTypography.rowValue(for: density))
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.85)
@@ -111,7 +113,7 @@ struct BudgetGridView: View {
                         Text(emoji).accessibilityHidden(true)
                     }
                     Text(category.title)
-                        .font(.subheadline)
+                        .font(ActualistTypography.rowTitle(for: density))
                         .lineLimit(2)
                     if category.source.hasUserNote {
                         Image(systemName: "note.text").font(.caption2)
@@ -119,7 +121,7 @@ struct BudgetGridView: View {
                 }
                 .padding(.leading, 10)
                 .padding(.trailing, 8)
-                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: sizing.rowHeight, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -149,7 +151,7 @@ struct BudgetGridView: View {
                     )
                 } else {
                     Text("—").foregroundStyle(ActualistTheme.secondaryText)
-                        .frame(width: metrics.monthColumnWidth, height: 48)
+                        .frame(width: metrics.monthColumnWidth, height: sizing.rowHeight)
                 }
             }
         }
@@ -164,6 +166,8 @@ struct BudgetGridView: View {
 
 private struct BudgetGridMonthCells: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.actualistDensity) private var density
+    private var sizing: BudgetGridDensityMetrics { .init(density: density) }
     let category: BudgetGridPresentation.Category
     let value: BudgetMonthCategory
     let month: BudgetGridPresentation.Month
@@ -183,7 +187,7 @@ private struct BudgetGridMonthCells: View {
             } label: {
                 Text(month.currency.formatted(value.budgeted))
                     .foregroundStyle(isEditing ? ActualistTheme.accent : ActualistTheme.primaryText)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .trailing)
+                    .frame(maxWidth: .infinity, minHeight: sizing.rowHeight, alignment: .trailing)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -210,7 +214,7 @@ private struct BudgetGridMonthCells: View {
                                 .offset(x: 3, y: -3)
                         }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .trailing)
+                    .frame(maxWidth: .infinity, minHeight: sizing.rowHeight, alignment: .trailing)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -218,11 +222,11 @@ private struct BudgetGridMonthCells: View {
             .accessibilityLabel("\(category.title), \(month.title), Available, \(month.currency.formatted(value.balance))")
             .accessibilityIdentifier("available-\(month.id)-\(category.id)")
         }
-        .font(.subheadline.weight(.semibold))
+        .font(ActualistTypography.rowValue(for: density))
         .monospacedDigit()
         .lineLimit(1)
         .minimumScaleFactor(0.85)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, sizing.cellPadding)
         .frame(width: width)
         .background(isEditing ? ActualistTheme.control : Color.clear)
     }

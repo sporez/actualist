@@ -54,6 +54,13 @@ final class BudgetWorkspaceActions {
         actionModel?.includeCarryoverCategoriesInOverspentAlerts = enabled
     }
 
+    func activate(using appState: AppState, compactModel: BudgetViewModel, monthCount: Int) async {
+        guard let budgetID = appState.settings.selectedBudgetID else { return }
+        await viewport.activate(budgetID: budgetID, compactModel: compactModel, monthCount: monthCount)
+        guard !Task.isCancelled, appState.settings.selectedBudgetID == budgetID else { return }
+        await applyRoute(using: appState)
+    }
+
     func refresh(using appState: AppState) async {
         guard let budgetID = viewport.budgetID,
               budgetID == appState.settings.selectedBudgetID else { return }

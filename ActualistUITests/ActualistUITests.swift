@@ -230,6 +230,71 @@ final class ActualistUITests: XCTestCase {
     }
 
     @MainActor
+    func testWideSidebarSwitchesAccountsAndAccountEditorRemainsInteractive() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launchDemo()
+        try requireWide(app)
+
+        let sidebar = app.collectionViews["Sidebar"]
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 15))
+        let checking = sidebar.staticTexts["Everyday Checking"]
+        XCTAssertTrue(checking.waitForExistence(timeout: 15))
+        checking.tap()
+        XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 5))
+
+        let savings = sidebar.staticTexts["High-Yield Savings"]
+        XCTAssertTrue(savings.waitForExistence(timeout: 5))
+        savings.tap()
+        XCTAssertTrue(app.navigationBars["High-Yield Savings"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.navigationBars["Everyday Checking"].exists)
+
+        let addTransaction = app.buttons["Add Transaction"]
+        XCTAssertTrue(addTransaction.waitForExistence(timeout: 5))
+        XCTAssertTrue(addTransaction.isHittable)
+        addTransaction.tap()
+
+        let editor = app.navigationBars["Add Transaction"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        app.typeText("1234")
+        let amount = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '12.34'")).firstMatch
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        attachScreenshot(named: "wide-sidebar-savings-editor", app: app)
+        let close = editor.buttons.firstMatch
+        XCTAssertTrue(close.isHittable)
+        close.tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["High-Yield Savings"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testWideAccountsOverviewTransactionEditorRemainsInteractive() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launchDemo(screen: "accounts")
+        try requireWide(app)
+
+        XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 15))
+        let addAccount = app.buttons["Add Account"]
+        let addTransaction = app.buttons["Add Transaction"]
+        XCTAssertTrue(addAccount.waitForExistence(timeout: 5))
+        XCTAssertTrue(addTransaction.waitForExistence(timeout: 5))
+        XCTAssertTrue(addTransaction.isHittable)
+        addTransaction.tap()
+
+        let editor = app.navigationBars["Add Transaction"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        app.typeText("1234")
+        let amount = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '12.34'")).firstMatch
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        attachScreenshot(named: "wide-accounts-overview-transaction-editor", app: app)
+
+        let close = editor.buttons.firstMatch
+        XCTAssertTrue(close.isHittable)
+        close.tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testWideBudgetMonthNavigationAndNamedMonthPickerShiftAssignedCells() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launchDemo()
