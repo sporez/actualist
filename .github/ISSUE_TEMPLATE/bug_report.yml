@@ -15,7 +15,7 @@ body:
     id: actualist_version
     attributes:
       label: Actualist version and build
-      placeholder: "0.8.1 (14)"
+      placeholder: "Version and build shown in Settings"
     validations:
       required: true
 
@@ -84,7 +84,7 @@ body:
     id: diagnostics
     attributes:
       label: Redacted diagnostic report
-      description: Attach the report from Actualist Settings → Support when available.
+      description: Attach the report from Actualist Settings → Support → Share Diagnostic Report when available.
 
   - type: checkboxes
     id: safety

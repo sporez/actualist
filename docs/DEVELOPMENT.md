@@ -40,7 +40,8 @@ scripts/check.sh
 ```
 
 That covers `git diff --check`, Liquid Glass lint, TestFlight-note lint when
-trailers are present, synchronized-group integrity (auto file registration), and
+trailers are present, split and template fixture provenance,
+synchronized-group integrity (auto file registration), and
 file-size warnings for touched sources.
 
 ## Tests
@@ -48,16 +49,28 @@ file-size warnings for touched sources.
 Run the unit tests against the pinned iOS 26 simulator:
 
 ```sh
+source scripts/lib/destinations.sh
 xcodebuild \
   -project Actualist.xcodeproj \
   -scheme Actualist \
-  -destination 'platform=iOS Simulator,id=C5B2326B-19F7-4CB8-A2CA-E33C7EDBABA6' \
+  -destination "platform=iOS Simulator,id=${ACTUALIST_SIMULATOR_ID}" \
   -derivedDataPath .derivedData \
   test
 ```
 
-Do not use `name=iPhone 17 Pro`. A second simulator with that name can hang
-`xcodebuild`. Override the id with `ACTUALIST_SIMULATOR_ID` if needed.
+Pin by UDID rather than display name so duplicate simulator names cannot select
+the wrong device. Configure the ID in `scripts/lib/destinations.sh` as above.
+
+For production changes, run focused tests followed by the full suite and a
+normal build with zero warnings. Also build with
+`SWIFT_STRICT_CONCURRENCY=complete` and ensure changed code adds no warnings.
+This is a command-line verification option, not a project-wide Swift 6 migration.
+
+The TestFlight gate runs the full suite with Xcode's default parallel execution.
+For test reliability changes, verify both that invocation and a full run with
+`-parallel-testing-enabled NO`. Async tests should wait for observable completion
+rather than race short sleep deadlines. Database query-scaling tests should
+count queries instead of treating shared-machine elapsed time as app performance.
 
 ## TestFlight
 
@@ -86,7 +99,14 @@ warning when they appear in the upcoming build. Newer notes take priority when
 trimming to App Store Connect's 4,000-character limit. At review, keep the
 notes, add a focus item, or edit the complete text in `$VISUAL`/`$EDITOR`.
 The reviewed file is used for both TestFlight metadata and the GitHub
-prerelease body.
+prerelease body. The template contains only standing testing guidance and current
+limitations; keep build-specific highlights in trailers. Review for plain
+language, accurate Settings paths, and stale limitations before each release.
+For an already prepared build, edit its existing
+`.release/testflight/<version>-<build>/what-to-test.txt` directly. Use
+`--keep-test-notes` with subsequent helper commands that would regenerate notes
+to preserve that reviewed copy. Do not prepare or bump a release just to check
+documentation.
 
 Write trailers as the What to Test changelog, not QA scripts. Decide in this
 order:

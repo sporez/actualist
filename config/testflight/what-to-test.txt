@@ -1,22 +1,19 @@
-Actualist {{VERSION}} ({{BUILD}}) — Initial Beta
+Actualist {{VERSION}} ({{BUILD}}) — Beta
 
 Before testing, export a backup of your Actual budget.
 
-Please test:
-- Connect to your Actual server, select a budget, and complete the initial import.
-- Compare Budget, Spending, Accounts, and Reports with the official Actual client.
+What to test:
+- Connect to your server, import a budget, and compare Budget, Spending, Accounts, and Reports with Actual.
 - Create, edit, categorize, split, transfer, and delete test transactions.
-- Assign and move budget money, then confirm changes sync back to Actual.
-- Launch offline, review cached data, make a small change, reconnect, and confirm it syncs without duplicates or missing data.
-- Try the app icon, display density, theme, refresh, and background-sync settings.
+- Assign and move budget money, then check that changes appear in Actual.
+- Make a small change offline, reconnect, and check that it syncs without missing or duplicate transactions.
+- Explore this build's changes, your preferred theme and display density, and widgets.
 
-Report problems through Settings → Support → Share Diagnostic Report. Include reproduction steps and redacted screenshots.
+Report problems through Settings → Support → Share Diagnostic Report. Include what happened, what you expected, and the steps to reproduce it. Remove personal information from screenshots before sharing.
 
 Known limitations:
-- Bank Sync supports SimpleFIN only. Other providers still need another Actual client or the server.
-- Account reconciliation is not available.
-- Creating, renaming, closing, and deleting accounts is incomplete.
-- Budget templates support creating and editing the current Fixed Amount, Save
-  by Date, Percentage, Balance Limit, Refill, Copy, Average, Schedule, Remainder,
-  and Goal catalog. Category-note templates and unsupported newer shapes remain
-  view-only.
+- Bank Sync supports SimpleFIN only. Other providers require another Actual client or your server. Background Bank Sync is experimental and off by default; enabling it saves downloaded changes automatically.
+- Account reconciliation is not available. You can add accounts, but renaming, closing, reopening, and deleting accounts are not yet supported.
+- Creating, renaming, deleting, and reordering categories still require another Actual client.
+- Some imported rules, including split rules, cannot be edited here.
+- Templates written in category notes remain read-only. Some advanced template types and options cannot be edited here.

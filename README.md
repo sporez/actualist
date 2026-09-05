@@ -47,15 +47,19 @@ Liquid Glass controls.
 - Supports core budget writes such as category assignment, move money, and
   category rollover.
 - Shows on-budget, off-budget, and closed accounts, with local account ordering
-  and account notes. Account groups appear when the Actual server supports them.
+  and account notes. Add accounts directly in the app. Manage account groups
+  and move accounts between them when the Actual server supports groups.
 - Includes native reports for net worth, cash flow, monthly comparisons, budget
   overview, spending averages, and transaction activity.
 - Can download SimpleFIN transactions through Bank Sync and import Apple Wallet
   activity you choose, both under Settings → Budget & Data, with review before
   save.
-- Keeps payee rules in sync with Actual, including imported split rules. Split
-  rules stay read-only in the editor; unsupported shapes stay visible so their
-  JSON is never rewritten.
+- Provides searchable rule management with match previews under Settings →
+  Budget & Data. Create, edit, and delete supported rules. Imported split rules
+  apply to transactions but remain read-only in the editor.
+- Shows the last 25 changes made on this device in Budget → ⋯ → History. Review
+  and undo the most recent eligible budget assignment, money move, template
+  application, or transaction change.
 - Includes widgets for category and account balances, Needs Attention, Month
   Overview, Recent Transactions, Net Worth, and four Quick Actions.
   Choose from a searchable action catalog and reorder the buttons with native
@@ -110,7 +114,7 @@ credentials exposed by plain HTTP before connecting.
 After the first successful import, Actualist keeps a local budget copy for fast
 launches and offline use. Connection, budget selection, sync, display, and data
 management controls are available from **Settings**, opened from the Budget
-screen's gear or overflow menu.
+screen's gear button.
 
 ### If Connection Fails
 
@@ -157,10 +161,11 @@ Actualist can add and edit the current UI-managed template catalog: Fixed Amount
 with day/week/month/year cadence, Save by Date, Percentage, Balance Limit,
 Refill, Copy Previous Month, Average, Cover Schedule, Remainder, and Goal. Each
 template can include an optional Note. Templates open from Budget category
-long-press, Category Details, and Settings → Templates. Apply Template shows how
-much each category would receive before it assigns the money. Applying or
-overwriting a template can change many assignments at once, so keep a current
-backup and review the result.
+long-press, Category Details, and Settings → Templates. Saving
+a template updates its setup without assigning money. Apply Template shows how
+much each category would receive before it assigns the money. Applying templates
+can change many assignments at once, so keep a current backup and review the
+result.
 
 Templates written in a category note stay view-only. Resetting leftover money
 with a cleanup template is not available.
@@ -168,8 +173,10 @@ with a cleanup template is not available.
 ### Experimental Features
 
 Experimental features are opt-in and disabled by default. **Background Bank
-Sync** remains experimental under Settings → Advanced. The Bank Sync page is
-always available under Settings → Budget & Data.
+Sync** remains experimental under Settings → Advanced. When enabled, it uses
+your server to download and save bank changes automatically after a background
+budget sync. The manual Bank Sync page is always available under Settings →
+Budget & Data and lets you review changes before saving.
 
 ## Current Limitations
 
@@ -177,11 +184,12 @@ always available under Settings → Budget & Data.
   device token. Other bank providers still arrive only after another Actual
   client or the server imports them.
 - Account reconciliation is not yet available.
-- Account lifecycle actions beyond adding an account are incomplete.
-- Payee rules support Actual's common conditions, field-setting and note
-  actions, delete-transaction, and fixed/percent/remainder splits. Formula
-  actions, some date and recurrence shapes, and schedule-owned rules stay
-  visible but read-only so their JSON is never rewritten or lost.
+- You can add accounts. Renaming, closing, reopening, and deleting accounts are
+  not yet supported.
+- Category creation, renaming, deletion, and reordering still require another
+  Actual client. Actualist supports hiding and showing categories and groups.
+- Imported split rules run but cannot be edited here. Formula actions, some date
+  and recurrence options, and rules managed by schedules also remain read-only.
 - Template definitions written in a category note stay view-only. Unsupported
   newer fields, schedule formulas or splits, and cleanup templates are not
   available for editing here, so their stored definition is not rewritten.
@@ -218,7 +226,8 @@ follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 ## Privacy
 
 Actualist has no advertising, tracking, analytics SDK, or developer-operated
-backend. It connects directly to the Actual Budget server selected by the user.
+backend. It connects to your chosen Actual Budget server and, if you configure a
+SimpleFIN device token, directly to SimpleFIN.
 See the full [Privacy Policy](PRIVACY.md) for its local storage, TestFlight, and
 bug-reporting disclosures.
 
@@ -239,22 +248,24 @@ The repository also includes a simulator helper:
 scripts/run-ios-simulator.sh --boot
 ```
 
-Run the test suite with an installed iOS 26 simulator:
+Configure your simulator first: copy `scripts/lib/destinations.example.sh` to
+`scripts/lib/destinations.sh` and set `ACTUALIST_SIMULATOR_ID` to an installed
+simulator ID from `xcrun simctl list devices available`. Then run:
 
 ```sh
+source scripts/lib/destinations.sh
 scripts/check.sh
 
 xcodebuild \
   -project Actualist.xcodeproj \
   -scheme Actualist \
-  -destination 'platform=iOS Simulator,id=C5B2326B-19F7-4CB8-A2CA-E33C7EDBABA6' \
+  -destination "platform=iOS Simulator,id=${ACTUALIST_SIMULATOR_ID}" \
   -derivedDataPath .derivedData \
   test
 ```
 
-Pin the simulator by UDID, not display name. The id above is this repo's
-known-good iOS 26.3.1 iPhone 17 Pro. List yours with
-`xcrun simctl list devices available`.
+Pin the simulator by UDID, not display name. Keep the machine-specific
+`destinations.sh` file out of version control.
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full development and
 release workflow.
@@ -270,8 +281,9 @@ Actualist is a SwiftUI app with a local-first data path:
 5. Store pending messages in a durable outbox and opportunistically sync them.
 
 The app stores sync tokens and unlocked budget keys in the iOS Keychain. Budget
-data remains in the app's private local container and on the Actual server you
-choose.
+data remains on your device and on the Actual server you choose. A local
+snapshot shared with the widget extension supplies widget names and balances;
+widgets do not read credentials or contact the server.
 
 Actualist is an independent community project and is not affiliated with or
 endorsed by the Actual Budget project.

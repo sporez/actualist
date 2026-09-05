@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective September 4, 2026.
+Effective September 5, 2026.
 
 Actualist is an independent, open-source iPhone client for Actual Budget. This
 policy describes the data handling performed by Actualist itself.
@@ -61,12 +61,26 @@ submit is handled by GitHub and will be visible according to the reporting
 method you select. Review attachments before submitting them and do not include
 credentials or unredacted financial information.
 
+## Device Backups
+
+The imported budget directory, including pending sync changes and recovery
+copies, is excluded from iPhone and iCloud device backups. The financial widget
+snapshot is also excluded. Changes that have finished syncing can be restored
+from your Actual server. Pending changes cannot be recovered from a device
+backup if the device is lost or local data is removed.
+
 ## Retention and Deletion
 
-Actualist keeps its local budget copy and connection information until you use
-**Settings -> Disconnect & Erase Local Data** or remove the app. Deleting local
-data does not delete information from your Actual Budget server; manage that
-data with the server or its official clients.
+Use **Settings → Connection & Sync → Disconnect & Erase Local Data** to remove
+the imported budgets and saved authentication credentials from Actualist. This
+also clears the selected budget and its widget snapshot. Removing the app
+removes its private local files; use the in-app erase action before uninstalling
+to explicitly clear credentials stored in Keychain.
+
+Deleting local data does not delete information from your Actual Budget server
+or revoke access at SimpleFIN or your identity provider. Manage those services
+separately. Before erasing local data, let pending changes finish syncing if you
+want to keep them.
 
 ## Changes and Contact
 
