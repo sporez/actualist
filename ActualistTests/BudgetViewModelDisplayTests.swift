@@ -422,20 +422,20 @@ struct BudgetMonthSummaryPresentationTests {
             includeCarryoverInOverspent: true
         )
         #expect(inserted.map(\.kind) == [.toBudget])
-        #expect(inserted.first?.valueText == 0.actualMoney.formatted())
+        #expect(inserted.first?.valueText == 0.actualMoney.formatted(using: .usd))
         #expect(inserted.first?.severity == .positive)
 
         let existing = BudgetAlert(
             kind: .toBudget,
             title: "To Budget",
-            valueText: 200_83.actualMoney.formatted(),
+            valueText: 200_83.actualMoney.formatted(using: .usd),
             actionTitle: nil,
             severity: .positive
         )
         let rebuiltZero = BudgetAlert(
             kind: .toBudget,
             title: "To Budget",
-            valueText: 0.actualMoney.formatted(),
+            valueText: 0.actualMoney.formatted(using: .usd),
             actionTitle: nil,
             severity: .positive
         )
@@ -455,7 +455,7 @@ struct BudgetMonthSummaryPresentationTests {
         let alert = BudgetAlert(
             kind: .toBudget,
             title: "To Budget",
-            valueText: july.toBudget.actualMoney.formatted(),
+            valueText: july.toBudget.actualMoney.formatted(using: .usd),
             actionTitle: nil,
             severity: .positive
         )
@@ -465,14 +465,14 @@ struct BudgetMonthSummaryPresentationTests {
                 for: alert,
                 month: july,
                 showTotalAssigned: true
-            ) == 12_847_42.actualMoney.formatted()
+            ) == 12_847_42.actualMoney.formatted(using: .usd)
         )
         #expect(
             BudgetMonthSummaryPresentation.assignedValueText(
                 for: alert,
                 month: august,
                 showTotalAssigned: true
-            ) == 32_000.actualMoney.formatted()
+            ) == 32_000.actualMoney.formatted(using: .usd)
         )
     }
 
@@ -488,7 +488,7 @@ struct BudgetMonthSummaryPresentationTests {
         let stale = BudgetAlert(
             kind: .toBudget,
             title: "To Budget",
-            valueText: 9_999.actualMoney.formatted(),
+            valueText: 9_999.actualMoney.formatted(using: .usd),
             actionTitle: nil,
             severity: .positive
         )
@@ -500,7 +500,7 @@ struct BudgetMonthSummaryPresentationTests {
             includeCarryoverInOverspent: true
         )
         #expect(alerts.map(\.kind) == [.toBudget])
-        #expect(alerts.first?.valueText == (-12_500).actualMoney.formatted())
+        #expect(alerts.first?.valueText == (-12_500).actualMoney.formatted(using: .usd))
         #expect(alerts.first?.severity == .warning)
     }
 
@@ -598,7 +598,7 @@ struct BudgetMonthSummaryPresentationTests {
         let alert = BudgetAlert(
             kind: .toBudget,
             title: "To Budget",
-            valueText: projected.toBudget.actualMoney.formatted(),
+            valueText: projected.toBudget.actualMoney.formatted(using: .usd),
             actionTitle: nil,
             severity: .positive
         )
@@ -608,7 +608,7 @@ struct BudgetMonthSummaryPresentationTests {
                 for: alert,
                 month: projected,
                 showTotalAssigned: true
-            ) == projected.totalBudgeted.actualMoney.formatted()
+            ) == projected.totalBudgeted.actualMoney.formatted(using: .usd)
         )
         #expect(
             BudgetMonthSummaryPresentation.alerts(
@@ -616,7 +616,7 @@ struct BudgetMonthSummaryPresentationTests {
                 month: projected,
                 showTotalAssigned: true,
                 includeCarryoverInOverspent: true
-            ).first { $0.kind == .toBudget }?.valueText == projected.toBudget.actualMoney.formatted()
+            ).first { $0.kind == .toBudget }?.valueText == projected.toBudget.actualMoney.formatted(using: .usd)
         )
     }
 

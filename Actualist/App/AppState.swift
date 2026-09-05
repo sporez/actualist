@@ -500,17 +500,6 @@ final class AppState {
         }
     }
 
-    func clearSelectionForBudgetChange() {
-        appSyncCoordinator.cancelRefresh()
-        localFirstStore.reset()
-        accountNavigationPath = []
-        selectedBudget = nil
-        settings.selectedBudgetID = nil
-        settings.selectedBudgetName = nil
-        settingsStore.save(settings)
-        setupPhase = hasSyncCredentials ? .selectingBudget : .needsConnection
-    }
-
     func beginReauthentication() {
         lastErrorMessage = nil
         setupPhase = .needsConnection
@@ -641,13 +630,6 @@ final class AppState {
         ActualistTheme.activate(theme)
         themeRevision += 1
         settingsStore.save(settings)
-    }
-
-    func orderedAccountDisplays(_ displays: [AccountDisplay], budgetID: String) -> [AccountDisplay] {
-        AccountOrderPreference.ordered(
-            displays,
-            preferredIDs: settings.accountOrderByBudgetID[budgetID] ?? []
-        )
     }
 
     func orderedAccounts(_ accounts: [ActualAccount], budgetID: String) -> [ActualAccount] {
@@ -948,5 +930,4 @@ final class AppState {
     func recordLocalDataMutation() {
         localDataRevision &+= 1
     }
-
 }

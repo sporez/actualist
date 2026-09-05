@@ -1,15 +1,5 @@
 import Foundation
 
-struct AccountReconciliationResult: Hashable, Sendable {
-    let accountID: String
-    let cutoffDate: String
-    let statementBalance: Int
-    let clearedBalance: Int
-    let difference: Int
-    let reconciled: Bool
-    let updated: [String]
-}
-
 struct ActualBudget: Codable, Identifiable, Hashable, Sendable {
     let budgetID: String?
     let cloudFileId: String?

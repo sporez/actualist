@@ -230,18 +230,6 @@ struct TransactionRowSemantics: Equatable, Hashable, Sendable {
     }
 }
 
-enum TransactionPayeePresentation {
-    static func name(
-        for transaction: ActualTransaction,
-        payeeNames: [String: String]
-    ) -> String {
-        TransactionRowSemantics.project(
-            transaction,
-            lookup: TransactionRowLookup(payeeNames: payeeNames)
-        ).payeeText
-    }
-}
-
 enum TransactionCategoryPresentation {
     static func names(
         for transaction: ActualTransaction,

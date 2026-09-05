@@ -38,7 +38,7 @@ extension BudgetDatabase {
                 """
         )
         for row in rows where canonicalMonthID(flexibleString(row["raw_month"])) == month {
-            return actualAmountToMinorUnits(row["buffered"] ?? 0)
+            return row["buffered"] ?? 0
         }
         return 0
     }

@@ -233,14 +233,6 @@ extension LocalFirstActualStore {
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 
-    func reconcileAccountAndRefresh(
-        budgetID: String,
-        accountID: String,
-        statementBalance: Int
-    ) async throws -> AccountReconciliationResult {
-        throw LocalFirstError.unsupportedWrite
-    }
-
     func setCategoryCarryoverAndRefresh(
         categoryID: String,
         carryover: Bool,

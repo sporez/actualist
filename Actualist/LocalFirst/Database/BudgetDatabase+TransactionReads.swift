@@ -1,18 +1,6 @@
 import Foundation
 import GRDB
 
-enum GroupedTransactionPagePlan: Equatable, Sendable {
-    case assembledLiveRows
-    case familyLookup
-
-    static func make(limit: Int?, hasQueryFilter: Bool) -> Self {
-        if limit == nil && !hasQueryFilter {
-            return .assembledLiveRows
-        }
-        return .familyLookup
-    }
-}
-
 enum TransactionGroupedOrdering {
     static func transactions(
         _ assembled: [ActualTransaction],
@@ -277,7 +265,7 @@ extension BudgetDatabase {
             id: row["id"],
             account: row["account_id"] ?? "",
             date: row["date"] ?? "",
-            amount: amount.map { actualAmountToMinorUnits($0) },
+            amount: amount,
             payee: row["payee_id"],
             payeeName: payeeName,
             importedPayee: row["imported_payee"],
@@ -442,7 +430,7 @@ private extension BudgetDatabase {
         rowLimit: Int?,
         rowOffset: Int
     ) throws -> TransactionFetchResult {
-        if GroupedTransactionPagePlan.make(limit: rowLimit, hasQueryFilter: hasQueryFilter) == .assembledLiveRows {
+        if rowLimit == nil && !hasQueryFilter {
             return try fetchAssembledGroupedTransactions(
                 db: db,
                 split: split,

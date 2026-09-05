@@ -151,7 +151,7 @@ struct TransactionRulePreviewCoordinatorTests {
                 cleared: false,
                 isTransfer: false
             ),
-            categorySelection: .single(.init(id: nil, name: nil))
+            categorySelection: .init()
         )
     }
 }

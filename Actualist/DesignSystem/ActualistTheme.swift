@@ -274,17 +274,6 @@ extension EnvironmentValues {
 }
 
 extension View {
-    func actualistScreenBackground() -> some View {
-        background(ActualistTheme.background.ignoresSafeArea())
-    }
-
-    func glassControlCapsule() -> some View {
-        self
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .glassEffect(.regular.tint(ActualistTheme.control.opacity(0.34)), in: Capsule())
-    }
-
     func actualistToolbarGlassButton() -> some View {
         self
             .font(.body.weight(.semibold))

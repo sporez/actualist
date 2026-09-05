@@ -50,6 +50,17 @@ struct TransactionEditorPayeeOptions {
         .filter { !$0.options.isEmpty }
     }
 
+    var pickerItems: [PayeePickerItem] {
+        sections.flatMap { section in
+            section.options.map { option in
+                PayeePickerItem(
+                    id: option.id, title: option.title, isTransfer: option.isTransfer,
+                    searchAliases: [option.payee.name, option.transferAccountName].compactMap { $0 }
+                )
+            }
+        }
+    }
+
     func displayName(for payee: ActualPayee) -> String {
         transferAccountName(for: payee) ?? payee.name
     }

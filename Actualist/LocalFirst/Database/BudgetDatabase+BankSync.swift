@@ -167,23 +167,6 @@ extension BudgetDatabase {
         }
     }
 
-    /// Whether the account has any live transaction at all (not window
-    /// bounded). Drives the first-apply opening-balance decision.
-    func bankSyncAccountHasLiveTransactions(accountID: String) throws -> Bool {
-        try queue.read { db in
-            guard try tableExists("transactions", db: db) else { return false }
-            let columns = try columnSet(for: "transactions", db: db)
-            return try Int.fetchOne(
-                db,
-                sql: """
-                    SELECT COUNT(*) FROM transactions
-                    WHERE acct = ? AND \(predicateForLiveRows(columns: columns))
-                    """,
-                arguments: [accountID]
-            ) != 0
-        }
-    }
-
     /// Oldest live transaction day for the account (`YYYYMMDD`), for the
     /// sync lookback start. `nil` when the account has no live rows.
     func bankSyncOldestLiveTransactionDayID(accountID: String) throws -> String? {
@@ -264,16 +247,6 @@ extension BudgetDatabase {
                 )
             }
         }
-    }
-
-    /// Resolve an existing payee by name, case-insensitive, without creating
-    /// one (matching-phase contract). Transfer payees are never candidates.
-    func bankSyncResolvedPayeeID(name: String) throws -> String? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return try fetchPayees().first(where: {
-            $0.transferAccount == nil && $0.name.caseInsensitiveCompare(trimmed) == .orderedSame
-        })?.id
     }
 
     /// Income category for a starting-balance row. `nil` when the budget has

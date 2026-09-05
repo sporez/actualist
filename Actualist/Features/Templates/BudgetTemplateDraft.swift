@@ -391,15 +391,6 @@ enum BudgetTemplateDraft: Equatable, Sendable {
         return next.updatingDescription(description)
     }
 
-    var showsPriority: Bool {
-        switch self {
-        case .monthlyFixed, .dateTarget, .percentage, .refill, .copy, .average, .schedule:
-            true
-        case .balanceLimit, .remainder, .goal:
-            false
-        }
-    }
-
     var showsContribution: Bool {
         if case .goal = self { return false }
         if case .balanceLimit = self { return false }
@@ -483,7 +474,6 @@ enum BudgetTemplateDraft: Equatable, Sendable {
             return value.value > -100 && value.value <= 1_000
         }
     }
-
 }
 
 private func defaultDateTargetMonth(now: Date) -> String {

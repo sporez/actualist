@@ -280,10 +280,6 @@ struct TransactionSplitEditorState: Equatable, Sendable {
         pendingMismatch = nil
     }
 
-    mutating func clearPayee(id: String) {
-        setPayee(id: id, payeeID: nil, name: nil, isTransfer: false)
-    }
-
     mutating func setNotes(id: String, notes: String) {
         guard let index = children.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -424,10 +420,6 @@ struct TransactionSplitEditorState: Equatable, Sendable {
 
     mutating func clearMismatch() {
         pendingMismatch = nil
-    }
-
-    func containsSplitCategory(id: String) -> Bool {
-        children.contains { $0.categoryID == id }
     }
 
     private static func sanitizedAmountDigits(_ value: String) -> String {

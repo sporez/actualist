@@ -48,10 +48,6 @@ struct TransactionSplitDraft: Hashable, Sendable, Identifiable {
     var payeeID: SplitOptionalField<String> = .omitted
     var notes: SplitOptionalField<String> = .omitted
     var sortOrder: SplitOptionalField<Double> = .omitted
-
-    var stableID: String {
-        id ?? categoryID ?? categoryName ?? "\(amountMinorUnits)"
-    }
 }
 
 struct TransactionMutationResult: Hashable, Sendable {

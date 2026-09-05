@@ -555,7 +555,7 @@ extension LocalFirstActualStore {
     ) {
         let accounts = try await database.fetchAccounts()
         let categories = try await database.fetchCategories()
-        let payees = try await database.fetchPayees()
+        let payees = try await database.fetchPayees(orderedForPicker: false)
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
         let categoryNames = Dictionary(uniqueKeysWithValues: categories.compactMap { category in
             category.id.map { ($0, category.name) }
@@ -603,7 +603,6 @@ extension LocalFirstActualStore {
         monthsByBudget[budgetID] = months
         return months
     }
-
 }
 
 extension BudgetMonth {

@@ -26,7 +26,7 @@ enum TransactionDraftBuilder {
         let reconciled: Bool
         let originalIsParent: Bool
         let date: Date
-        /// Pre-signed split drafts from `TransactionEditorCategoryState.splitDrafts(sign:)`.
+        /// Pre-signed split drafts from `TransactionSplitEditorState.splitDrafts()`.
         /// Emptied by the builder when the submission is a transfer or the
         /// category is read-only, matching the prior in-line behavior.
         let splitDrafts: [TransactionSplitDraft]
@@ -49,7 +49,7 @@ enum TransactionDraftBuilder {
         let originalIsParent: Bool
         let date: Date
         let budgetID: String
-        let categorySelection: TransactionEditorCategoryState.Selection
+        let categorySelection: TransactionEditorCategoryState
     }
 
     /// Builds the saved create/update draft. Returns nil when the account is

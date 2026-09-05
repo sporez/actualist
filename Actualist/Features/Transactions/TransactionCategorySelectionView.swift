@@ -49,27 +49,7 @@ struct TransactionCategorySelectionView: View {
             return viewModel.categorySelectionGroups(matching: searchText)
         }
 
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedSearch.isEmpty else {
-            return providedCategoryGroups
-        }
-
-        return providedCategoryGroups.compactMap { group in
-            let options = group.options.filter { option in
-                option.title.localizedCaseInsensitiveContains(trimmedSearch)
-                    || group.name.localizedCaseInsensitiveContains(trimmedSearch)
-            }
-
-            guard !options.isEmpty else {
-                return nil
-            }
-
-            return TransactionEditorCategoryGroup(
-                id: group.id,
-                name: group.name,
-                options: options
-            )
-        }
+        return TransactionEditorCategoryOptions.matching(providedCategoryGroups, query: searchText)
     }
 
     private var selectedCategoryID: String? {
@@ -124,7 +104,6 @@ struct TransactionCategorySelectionView: View {
                     }
                     .actualistToolbarGlassButton()
                 }
-
             }
         }
         .presentationDetents([.medium, .large])

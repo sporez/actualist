@@ -108,7 +108,7 @@ extension BudgetDatabase {
                 guard let accountID = row["account_id"] as String? else {
                     return nil
                 }
-                return (accountID, actualAmountToMinorUnits(row["balance"] ?? 0))
+                return (accountID, row["balance"] ?? 0)
             })
         }
     }
@@ -134,7 +134,7 @@ extension BudgetDatabase {
                 """,
             arguments: [month]
         )
-        return actualAmountToMinorUnits(row?["balance"] ?? 0)
+        return row?["balance"] ?? 0
     }
 
     func uncategorizedOnBudgetActivity(through month: String, db: Database) throws -> Int {
@@ -159,7 +159,7 @@ extension BudgetDatabase {
                 """,
             arguments: [month]
         )
-        return actualAmountToMinorUnits(row?["amount"] ?? 0)
+        return row?["amount"] ?? 0
     }
 
     func fetchCategoryGroups(
@@ -185,15 +185,15 @@ extension BudgetDatabase {
                 """
         )
 
+        let categoriesByGroup = try fetchBudgetCategoriesByGroup(
+            categoryValues: categoryValues,
+            userNoteIDs: userNoteIDs,
+            db: db
+        )
         var result: [BudgetMonthCategoryGroup] = []
         for groupRow in groupRows {
             let groupID: String = groupRow["id"] ?? ""
-            let categories = try fetchBudgetCategories(
-                groupID: groupID,
-                categoryValues: categoryValues,
-                userNoteIDs: userNoteIDs,
-                db: db
-            )
+            let categories = categoriesByGroup[groupID] ?? []
             result.append(BudgetMonthCategoryGroup(
                 id: groupID,
                 name: groupRow["name"] ?? "",
@@ -209,14 +209,13 @@ extension BudgetDatabase {
         return result
     }
 
-    func fetchBudgetCategories(
-        groupID: String,
+    private func fetchBudgetCategoriesByGroup(
         categoryValues: [String: EnvelopeCategoryValue],
         userNoteIDs: Set<String> = [],
         db: Database
-    ) throws -> [BudgetMonthCategory] {
+    ) throws -> [String: [BudgetMonthCategory]] {
         guard try tableExists("categories", db: db) else {
-            return []
+            return [:]
         }
 
         let categoryColumns = try columnSet(for: "categories", db: db)
@@ -231,16 +230,17 @@ extension BudgetDatabase {
                 SELECT id, name, \(categoryIncome) AS is_income, \(categoryHidden) AS hidden,
                        \(groupColumn) AS group_id, \(goalDefinition) AS goal_def
                 FROM categories
-                WHERE \(predicateForLiveRows(columns: categoryColumns)) AND \(groupColumn) = ?
+                WHERE \(predicateForLiveRows(columns: categoryColumns))
                 ORDER BY \(categoryOrder)
-                """,
-            arguments: [groupID]
+                """
         )
 
-        return rows.map { row in
+        var result: [String: [BudgetMonthCategory]] = [:]
+        for row in rows {
+            guard let groupID: String = row["group_id"] else { continue }
             let id: String = row["id"] ?? ""
             let values = categoryValues[id] ?? EnvelopeCategoryValue()
-            return BudgetMonthCategory(
+            result[groupID, default: []].append(BudgetMonthCategory(
                 id: id,
                 name: row["name"] ?? "",
                 isIncome: flexibleBool(row["is_income"]),
@@ -252,8 +252,9 @@ extension BudgetDatabase {
                 carryover: values.carryover,
                 hasTemplateDefinition: hasStoredTemplateDefinition(row["goal_def"]),
                 hasUserNote: userNoteIDs.contains(id)
-            )
+            ))
         }
+        return result
     }
 
     func hasStoredTemplateDefinition(_ rawValue: String?) -> Bool {
@@ -350,7 +351,7 @@ extension BudgetDatabase {
             return (
                 categoryID,
                 (
-                    budgeted: actualAmountToMinorUnits(row["amount"] ?? 0),
+                    budgeted: row["amount"] ?? 0,
                     carryover: flexibleBool(row["carryover"])
                 )
             )
@@ -381,7 +382,7 @@ extension BudgetDatabase {
                 return
             }
             result[month, default: [:]][categoryID] = (
-                budgeted: actualAmountToMinorUnits(row["amount"] ?? 0),
+                budgeted: row["amount"] ?? 0,
                 carryover: flexibleBool(row["carryover"])
             )
         }
@@ -420,7 +421,7 @@ extension BudgetDatabase {
             guard let categoryID = row["category_id"] as String? else {
                 return nil
             }
-            return (categoryID, actualAmountToMinorUnits(row["amount"] ?? 0))
+            return (categoryID, row["amount"] ?? 0)
         })
     }
 
@@ -458,45 +459,7 @@ extension BudgetDatabase {
             else {
                 return
             }
-            result[month, default: [:]][categoryID] = actualAmountToMinorUnits(row["amount"] ?? 0)
+            result[month, default: [:]][categoryID] = row["amount"] ?? 0
         }
-    }
-
-    func transactionBudgetSource(db: Database) throws -> TransactionBudgetSource {
-        if try tableExists("v_transactions_internal_alive", db: db) {
-            return TransactionBudgetSource(
-                tableExists: true,
-                table: "v_transactions_internal_alive",
-                account: "account",
-                category: "t.category",
-                amount: "t.amount",
-                month: normalizedMonthExpression("t.date"),
-                livePredicate: "1 = 1"
-            )
-        }
-
-        guard try tableExists("transactions", db: db) else {
-            return TransactionBudgetSource(
-                tableExists: false,
-                table: "transactions",
-                account: "acct",
-                category: "category",
-                amount: "amount",
-                month: normalizedMonthExpression("date"),
-                livePredicate: "1 = 0"
-            )
-        }
-
-        let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
-        return TransactionBudgetSource(
-            tableExists: true,
-            table: "transactions",
-            account: split.account,
-            category: split.qualifiedCategory,
-            amount: split.qualifiedAmount,
-            month: normalizedMonthExpression(split.qualifiedDate),
-            livePredicate: split.liveInlinePredicate()
-        )
     }
 }

@@ -73,14 +73,6 @@ struct TransactionEditorView: View {
         .task {
             await viewModel.load(using: appState, prefilledAccount: prefilledAccount)
             if !viewModel.isEditing {
-                if let budgetID = appState.settings.selectedBudgetID,
-                   !viewModel.selectedPayeeName.isEmpty {
-                    await viewModel.previewRules(
-                        budgetID: budgetID,
-                        repository: appState.transactionRepository,
-                        currentBudgetID: { appState.settings.selectedBudgetID }
-                    )
-                }
                 isAmountFocused = true
             }
         }
@@ -375,29 +367,13 @@ struct TransactionEditorView: View {
     private func childPayeePicker(for row: TransactionSplitEditorRow) -> some View {
         PayeePickerView(
             title: "Payee",
-            items: viewModel.payeeSections.flatMap { section in
-                section.options.map { option in
-                    PayeePickerItem(
-                        id: option.id,
-                        title: option.title,
-                        isTransfer: option.isTransfer,
-                        searchAliases: [option.payee.name, option.transferAccountName].compactMap { $0 }
-                    )
-                }
-            },
+            items: viewModel.payeePickerItems,
             selectedIDs: Set(row.payeeID.map { [$0] } ?? []),
             allowsMultipleSelection: false,
             isLoading: viewModel.isLoading,
             searchPrompt: "Search or enter custom payee",
             onSelect: { id in
-                guard let payee = viewModel.payees.first(where: { $0.id == id }) else { return }
-                viewModel.splitState.setPayee(
-                    id: row.id,
-                    payeeID: payee.id,
-                    name: viewModel.payeeSections.flatMap(\.options).first(where: { $0.id == payee.id })?.title
-                        ?? payee.name,
-                    isTransfer: payee.transferAccount != nil
-                )
+                viewModel.selectSplitPayee(rowID: row.id, payeeID: id)
                 childPayeePickerRowID = nil
             },
             onCustomSelect: { name in
@@ -478,32 +454,6 @@ struct TransactionEditorView: View {
         .padding(.vertical, density.editorRowVerticalPadding)
     }
 
-    private func editorTextFieldRow(
-        title: String,
-        systemImage: String,
-        text: Binding<String>,
-        prompt: String
-    ) -> some View {
-        HStack(alignment: .top, spacing: 16) {
-            Image(systemName: systemImage)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(ActualistTheme.secondaryText)
-                .frame(width: density.iconSize)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(ActualistTypography.body(for: density))
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                TextField(prompt, text: text)
-                    .font(ActualistTypography.rowTitle(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .textInputAutocapitalization(.words)
-            }
-        }
-        .padding(.horizontal, density.rowHorizontalPadding)
-        .padding(.vertical, density.editorRowVerticalPadding)
-    }
-
     private func editorPickerRow<MenuContent: View>(
         title: String,
         systemImage: String,
@@ -551,45 +501,18 @@ private struct PayeeSelectionView: View {
     var body: some View {
         PayeePickerView(
             title: "Payee",
-            items: pickerItems,
+            items: viewModel.payeePickerItems,
             selectedIDs: Set(viewModel.selectedPayeeID.map { [$0] } ?? []),
             allowsMultipleSelection: false,
             isLoading: viewModel.isLoading,
             searchPrompt: "Search or enter custom payee",
             onSelect: { id in
-                guard let payee = viewModel.payees.first(where: { $0.id == id }) else { return }
-                viewModel.selectPayee(payee)
-                previewRulesForSelection()
+                Task { await viewModel.selectPayee(id: id, using: appState) }
             },
             onCustomSelect: { name in
-                viewModel.useCustomPayee(name)
-                previewRulesForSelection()
+                Task { await viewModel.useCustomPayee(name, using: appState) }
             }
         )
-    }
-
-    private var pickerItems: [PayeePickerItem] {
-        viewModel.payeeSections.flatMap { section in
-            section.options.map { option in
-                PayeePickerItem(
-                    id: option.id,
-                    title: option.title,
-                    isTransfer: option.isTransfer,
-                    searchAliases: [option.payee.name, option.transferAccountName].compactMap { $0 }
-                )
-            }
-        }
-    }
-
-    private func previewRulesForSelection() {
-        guard let budgetID = appState.settings.selectedBudgetID else { return }
-        Task {
-            await viewModel.previewRules(
-                budgetID: budgetID,
-                repository: appState.transactionRepository,
-                currentBudgetID: { appState.settings.selectedBudgetID }
-            )
-        }
     }
 }
 

@@ -196,13 +196,6 @@ final class BudgetPickerViewModel {
         }
     }
 
-    /// Called when the user starts a fresh open after seeing a failure banner.
-    func clearFailure() {
-        if case .failed = openState {
-            openState = .idle
-        }
-    }
-
     private func startOpen(_ budget: ActualBudget, password: String?, using appState: AppState) {
         openTask?.cancel()
         openGeneration += 1

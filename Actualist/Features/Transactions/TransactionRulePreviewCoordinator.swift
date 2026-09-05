@@ -4,7 +4,7 @@ import Observation
 struct TransactionRulePreviewRequest: Equatable, Sendable {
     let budgetID: String
     let draft: TransactionDraft
-    let categorySelection: TransactionEditorCategoryState.Selection
+    let categorySelection: TransactionEditorCategoryState
 }
 
 enum TransactionRulePreviewOutcome: Equatable, Sendable {

@@ -216,7 +216,6 @@ extension LocalFirstActualStoreTests {
             pendingLocalMessageFlushRetryDelays: [.zero, .milliseconds(50)]
         )
         try bundle.keychain.saveActualSyncToken("token")
-        bundle.store.openedServerURLString = "https://sync.example"
 
         _ = try await bundle.store.assignCategoryBudgetAndRefresh(
             categoryID: "groceries",
@@ -226,7 +225,10 @@ extension LocalFirstActualStoreTests {
         ) {}
         let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
-        try await Task.sleep(for: .milliseconds(150))
+        let database = try #require(bundle.store.database)
+        bundle.store.openedServerURLString = "https://sync.example"
+        await bundle.store.schedulePendingLocalMessageFlush(database: database, budgetID: "group-1")
+        await bundle.store.pendingLocalMessageFlushTask?.value
 
         #expect(pendingCount > 0)
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)

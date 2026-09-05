@@ -57,10 +57,6 @@ enum BankSyncReview {
         /// Monotonic token captured when this plan was downloaded. A stale
         /// plan (a newer download happened since) is refused at apply time.
         let generation: Int
-
-        var hasWrites: Bool {
-            !inserts.isEmpty || !updates.isEmpty || openingBalance != nil
-        }
     }
 
     struct ApplyResult: Equatable, Sendable {

@@ -13,10 +13,6 @@ extension BudgetDatabase {
         return String(format: "%04d-%02d", year, monthNumber)
     }
 
-    func compareDayID(_ lhs: String, _ rhs: String) -> ComparisonResult {
-        lhs.compare(rhs)
-    }
-
     func shiftedMonth(_ month: Int, by offset: Int) -> Int {
         let year = month / 100
         let monthNumber = month % 100
@@ -45,16 +41,6 @@ extension BudgetDatabase {
         }
         return Calendar(identifier: .gregorian).date(
             from: DateComponents(year: year, month: month, day: day)
-        )
-    }
-
-    func dayIDString(from date: Date) -> String {
-        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0
         )
     }
 
@@ -292,10 +278,6 @@ extension BudgetDatabase {
             return ["1", "true", "yes"].contains(value.lowercased())
         }
         return false
-    }
-
-    func actualAmountToMinorUnits(_ amount: Int) -> Int {
-        amount
     }
 
     static func actualDateValue(_ date: Date) throws -> Int {

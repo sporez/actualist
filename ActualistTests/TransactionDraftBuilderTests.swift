@@ -60,9 +60,7 @@ struct TransactionDraftBuilderTests {
         reconciled: Bool = false,
         originalIsParent: Bool = false,
         budgetID: String = "budget",
-        categorySelection: TransactionEditorCategoryState.Selection = .single(
-            TransactionEditorCategoryState.Category(id: "income", name: "Income")
-        )
+        categorySelection: TransactionEditorCategoryState = .init(categoryID: "income", fallbackName: "Income")
     ) -> TransactionDraftBuilder.RulePreviewInput {
         TransactionDraftBuilder.RulePreviewInput(
             accountID: accountID,
@@ -216,9 +214,7 @@ struct TransactionDraftBuilderTests {
     }
 
     @Test func previewRequestCarriesCategorySelection() throws {
-        let selection: TransactionEditorCategoryState.Selection = .single(
-            TransactionEditorCategoryState.Category(id: "income", name: "Income")
-        )
+        let selection: TransactionEditorCategoryState = .init(categoryID: "income", fallbackName: "Income")
         let request = try #require(TransactionDraftBuilder.makeRulePreviewRequest(from: basePreviewInput(categorySelection: selection)))
         #expect(request.categorySelection == selection)
     }

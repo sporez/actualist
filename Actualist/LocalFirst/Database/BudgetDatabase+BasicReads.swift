@@ -87,7 +87,7 @@ extension BudgetDatabase {
         }
     }
 
-    func fetchPayees() throws -> [ActualPayee] {
+    func fetchPayees(orderedForPicker: Bool = true) throws -> [ActualPayee] {
         try queue.read { db in
             guard try tableExists("payees", db: db) else {
                 return []
@@ -103,8 +103,7 @@ extension BudgetDatabase {
                 FROM payees
                 WHERE \(predicateForLiveRows(columns: columns))
                 """
-            let recentRanks = try recentCommonPayeeRanks(db: db)
-            return try Row.fetchAll(db, sql: sql).map { row in
+            let payees = try Row.fetchAll(db, sql: sql).map { row in
                 (
                     payee: ActualPayee(
                     id: row["id"],
@@ -115,7 +114,9 @@ extension BudgetDatabase {
                     favorite: flexibleBool(row["favorite"])
                 )
             }
-            .sorted { lhs, rhs in
+            guard orderedForPicker else { return payees.map(\.payee) }
+            let recentRanks = try recentCommonPayeeRanks(db: db)
+            return payees.sorted { lhs, rhs in
                 if lhs.payee.transferAccount != nil || rhs.payee.transferAccount != nil {
                     if (lhs.payee.transferAccount != nil) != (rhs.payee.transferAccount != nil) {
                         return lhs.payee.transferAccount == nil

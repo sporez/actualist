@@ -94,7 +94,7 @@ extension BudgetDatabase {
             guard let dayID = flexibleString(row["day"]) else { return nil }
             return RawNetWorthDay(
                 dayID: dayID,
-                amount: actualAmountToMinorUnits(row["amount"] ?? 0)
+                amount: row["amount"] ?? 0
             )
         }
     }
@@ -224,7 +224,7 @@ extension BudgetDatabase {
                 isIncome: flexibleBool(row["is_income"]),
                 isTransfer: flexibleBool(row["is_transfer"]),
                 isInflow: flexibleBool(row["is_inflow"]),
-                amount: actualAmountToMinorUnits(row["amount"] ?? 0)
+                amount: row["amount"] ?? 0
             )
         }
     }
@@ -282,7 +282,7 @@ extension BudgetDatabase {
             return RawCalendarActivityDay(
                 dayID: dayID,
                 isInflow: flexibleBool(row["is_inflow"]),
-                amount: actualAmountToMinorUnits(row["amount"] ?? 0)
+                amount: row["amount"] ?? 0
             )
         }
     }
@@ -340,7 +340,7 @@ extension BudgetDatabase {
                 """,
             arguments: [month]
         )
-        return actualAmountToMinorUnits(row?["amount"] ?? 0)
+        return row?["amount"] ?? 0
     }
 
     private func buildReportsDashboard(

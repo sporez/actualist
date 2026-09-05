@@ -14,16 +14,6 @@ struct EnvelopeCategoryValue {
     var carryover: Bool = false
 }
 
-struct TransactionBudgetSource {
-    let tableExists: Bool
-    let table: String
-    let account: String
-    let category: String
-    let amount: String
-    let month: String
-    let livePredicate: String
-}
-
 struct ActualSyncDecodedMessage: Equatable, Sendable {
     let timestamp: String
     let dataset: String

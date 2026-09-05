@@ -4,6 +4,31 @@ import Testing
 
 @MainActor
 struct OverspentCoverSelectionViewModelTests {
+    @Test func refreshingEnvelopeMonthKeepsSelectedHiddenOverspending() async throws {
+        var month = try Self.decodeBudgetMonth(
+            firstOverspentBalance: -2_500,
+            secondOverspentBalance: -1_000,
+            lastMonthOverspent: 0
+        )
+        let data = try JSONEncoder().encode(month)
+        let hiddenJSON = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "\"hidden\":false", with: "\"hidden\":true")
+        month = try JSONDecoder().decode(BudgetMonth.self, from: Data(hiddenJSON.utf8))
+        let loaded = LoadedBudgetMonth(
+            availableMonths: [month.month], selectedMonth: month.month,
+            month: month, alerts: [], isTrackingBudget: false
+        )
+        let model = BudgetViewModel(initialMonth: loaded, initialBudgetID: "budget")
+        model.beginOverspentCoverSelection()
+        let option = try #require(model.overspentCategoryOptions.first)
+        model.toggleOverspentCoverSelection(option)
+
+        await model.selectMonth(month.month, budgetID: "budget", repository: RecordingBudgetRepository(loadedMonth: loaded))
+
+        #expect(model.selectedOverspentCategoryIDs == [option.id])
+        #expect(model.overspentCoverCommands(source: .toBudget).first?.toCategoryID == option.id)
+    }
+
     @Test func selectionTogglesAndRequiresAtLeastTwoOverspentCategoriesToBegin() throws {
         let model = BudgetViewModel()
         model.budgetMonth = try Self.decodeBudgetMonth(

@@ -38,13 +38,6 @@ protocol AccountRepositoryProtocol: Sendable {
         groupID: String,
         beforeGroupID: String?
     ) async throws
-
-    @MainActor
-    func reconcileAccountAndRefresh(
-        budgetID: String,
-        accountID: String,
-        statementBalance: Int
-    ) async throws -> AccountReconciliationResult
 }
 
 struct BackgroundAccountRefreshResult: Hashable, Sendable {

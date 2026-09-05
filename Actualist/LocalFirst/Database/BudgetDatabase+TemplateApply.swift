@@ -119,7 +119,7 @@ extension BudgetDatabase {
             guard let categoryID = row["category_id"] as String? else {
                 return nil
             }
-            return (categoryID, actualAmountToMinorUnits(row["goal"] ?? 0))
+            return (categoryID, row["goal"] ?? 0)
         })
     }
 

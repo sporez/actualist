@@ -3,15 +3,6 @@ import Observation
 enum BudgetOverspentCoverSource: Equatable, Sendable {
     case toBudget
     case category(id: String, name: String)
-
-    var toMoveMoneyDestination: BudgetMoveMoneyDestination {
-        switch self {
-        case .toBudget:
-            .toBudget
-        case .category(let id, let name):
-            .category(id: id, name: name)
-        }
-    }
 }
 
 @MainActor

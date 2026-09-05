@@ -336,10 +336,6 @@ struct ActualSyncRemoteFile: Decodable, Identifiable, Hashable, Sendable {
         case encryptMeta
     }
 
-    private enum EncryptMetaCodingKeys: String, CodingKey {
-        case keyID = "keyId"
-    }
-
     init(
         fileID: String,
         groupID: String?,
@@ -489,10 +485,6 @@ struct ActualLoginMethodsResponse: Decodable, Hashable, Sendable {
 
     var methods: [String] {
         loginMethods.filter(\.isActive).map(\.identifier)
-    }
-
-    var activeLoginMethods: [ActualLoginMethod] {
-        loginMethods.filter(\.isActive)
     }
 
     // Actual may advertise usable fallback methods as inactive rows.

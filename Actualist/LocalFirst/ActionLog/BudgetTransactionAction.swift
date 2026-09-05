@@ -22,17 +22,6 @@ extension BudgetTransactionGraph {
         case .split: .split
         }
     }
-
-    var relatedIDs: [String] {
-        switch self {
-        case .simple:
-            []
-        case .transfer(let pairedID):
-            [pairedID]
-        case .split(let childIDs):
-            childIDs
-        }
-    }
 }
 
 /// Display-ready create / delete facts. Amounts are Actual minor units.

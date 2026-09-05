@@ -243,13 +243,6 @@ struct TransactionSplitQueryTests {
         #expect(ordered[0].subtransactions.map(\.id) == ["a-1", "a-2"])
     }
 
-    @Test func unlimitedGroupedReadsUseAssembledLiveRowsPlan() {
-        #expect(GroupedTransactionPagePlan.make(limit: nil, hasQueryFilter: false) == .assembledLiveRows)
-        #expect(GroupedTransactionPagePlan.make(limit: 1, hasQueryFilter: false) == .familyLookup)
-        #expect(GroupedTransactionPagePlan.make(limit: nil, hasQueryFilter: true) == .familyLookup)
-        #expect(GroupedTransactionPagePlan.make(limit: 50, hasQueryFilter: true) == .familyLookup)
-    }
-
     @Test func unlimitedGroupedReadReturnsCompleteFamiliesWithoutLeakingChildren() async throws {
         let database = try exactSchemaDatabase(extraSQL: """
             INSERT INTO transactions (

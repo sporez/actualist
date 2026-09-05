@@ -26,10 +26,6 @@ final class BudgetViewModel {
         overspentCoverSelection.isSubmitting
     }
 
-    var isMoveMoneySubmitting: Bool {
-        moveMoneyWorkflow.isSubmitting
-    }
-
     init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
         loadedBudgetID = initialBudgetID
         guard let initialMonth else {
@@ -476,24 +472,6 @@ final class BudgetViewModel {
         return .category(id: option.id, name: option.title)
     }
 
-    func fundingSourceOptions() -> [BudgetMoveMoneyDestinationGroup] {
-        moveMoneyWorkflow.destinationGroups(
-            matching: "",
-            visibleGroups: visibleGroups.filter { group in
-                group.visibleCategories.contains { category in
-                    !overspentCoverSelection.selectedCategoryIDs.contains(category.id)
-                }
-            },
-            currency: currency
-        ).map { group in
-            var filtered = group
-            filtered.options = group.options.filter { option in
-                !overspentCoverSelection.selectedCategoryIDs.contains(option.id)
-            }
-            return filtered
-        }.filter { !$0.options.isEmpty }
-    }
-
     func beginAssignmentEditing(for category: BudgetMonthCategory) {
         assignmentWorkflow.begin(for: category)
     }
@@ -781,12 +759,7 @@ final class BudgetViewModel {
                     .map(\.id)
             )
         }
-        overspentCoverSelection.intersectSelection(with: Set(
-            OverspentCoverSelectionViewModel.overspentOptions(
-                for: loadedMonth.month,
-                includeCarryover: includeCarryoverCategoriesInOverspentAlerts
-            ).map(\.id)
-        ))
+        overspentCoverSelection.intersectSelection(with: Set(overspentCategoryOptions.map(\.id)))
     }
 
     private func category(for categoryID: String) -> BudgetMonthCategory? {

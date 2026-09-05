@@ -32,10 +32,6 @@ final class AccountsViewModel {
     var groupEditor: GroupEditor?
     var groupEditorName = ""
     var deleteReview: DeleteReview?
-    var movingAccount: AccountDisplay?
-    var isMovePresented = false
-    var addingToGroup: ActualAccountGroup?
-    var isAddToGroupPresented = false
 
     private var budgetID: String?
     private var submitGeneration = 0
@@ -58,8 +54,6 @@ final class AccountsViewModel {
         }
     }
 
-
-
     func loadLocal(
         budgetID: String?,
         hasCachedAccounts: Bool,
@@ -71,10 +65,6 @@ final class AccountsViewModel {
             groupEditor = nil
             groupEditorName = ""
             deleteReview = nil
-            movingAccount = nil
-            isMovePresented = false
-            addingToGroup = nil
-            isAddToGroupPresented = false
             errorMessage = nil
         }
 
@@ -136,18 +126,6 @@ final class AccountsViewModel {
 
     func cancelDelete() {
         deleteReview = nil
-    }
-
-    func presentMove(_ account: AccountDisplay) {
-        movingAccount = account
-        isMovePresented = true
-        errorMessage = nil
-    }
-
-    func presentAddToGroup(_ group: ActualAccountGroup) {
-        addingToGroup = group
-        isAddToGroupPresented = true
-        errorMessage = nil
     }
 
     func submitGroupEditor(
@@ -246,8 +224,6 @@ final class AccountsViewModel {
         guard let budgetID, !isSubmitting else {
             return
         }
-        isMovePresented = false
-        isAddToGroupPresented = false
         isSubmitting = true
         submitGeneration += 1
         let generation = submitGeneration
@@ -265,8 +241,6 @@ final class AccountsViewModel {
             guard generation == submitGeneration else {
                 return
             }
-            movingAccount = nil
-            addingToGroup = nil
             noteContentChange()
         } catch {
             guard generation == submitGeneration else {

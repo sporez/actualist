@@ -122,11 +122,4 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
         groupID: String,
         beforeGroupID: String?
     ) async throws {}
-    func reconcileAccountAndRefresh(
-        budgetID: String,
-        accountID: String,
-        statementBalance: Int
-    ) async throws -> AccountReconciliationResult {
-        throw LocalFirstError.unsupportedWrite
-    }
 }

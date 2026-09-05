@@ -250,29 +250,34 @@ final class TransactionEditorViewModel {
     }
 
     func categorySelectionGroups(matching searchText: String) -> [TransactionEditorCategoryGroup] {
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let groups = categoryGroups.isEmpty ? fallbackCategorySelectionGroups() : categoryGroups
+        let groups = categoryGroups.isEmpty
+            ? TransactionEditorCategoryOptions.fallbackGroups(categories: categories) : categoryGroups
+        return TransactionEditorCategoryOptions.matching(groups, query: searchText)
+    }
 
-        guard !trimmedSearch.isEmpty else {
-            return groups
-        }
+    var payeePickerItems: [PayeePickerItem] { payeeOptions.pickerItems }
 
-        return groups.compactMap { group in
-            let options = group.options.filter { option in
-                option.title.localizedCaseInsensitiveContains(trimmedSearch)
-                    || group.name.localizedCaseInsensitiveContains(trimmedSearch)
-            }
+    func selectSplitPayee(rowID: String, payeeID: String) {
+        guard let payee = payees.first(where: { $0.id == payeeID }) else { return }
+        splitState.setPayee(id: rowID, payeeID: payee.id,
+                            name: payeeOptions.displayName(for: payee), isTransfer: payee.transferAccount != nil)
+    }
 
-            guard !options.isEmpty else {
-                return nil
-            }
+    func selectPayee(id: String, using appState: AppState) async {
+        guard let payee = payees.first(where: { $0.id == id }) else { return }
+        selectPayee(payee)
+        await previewRules(using: appState)
+    }
 
-            return TransactionEditorCategoryGroup(
-                id: group.id,
-                name: group.name,
-                options: options
-            )
-        }
+    func useCustomPayee(_ name: String, using appState: AppState) async {
+        useCustomPayee(name)
+        await previewRules(using: appState)
+    }
+
+    private func previewRules(using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID else { return }
+        await previewRules(budgetID: budgetID, repository: appState.transactionRepository,
+                           currentBudgetID: { appState.settings.selectedBudgetID })
     }
 
     func selectPayee(_ payee: ActualPayee) {
@@ -453,6 +458,7 @@ final class TransactionEditorViewModel {
         }
 
         isLoading = false
+        if !isEditing { await previewRules(using: appState) }
     }
 
     func refreshCategoryBalancesIfNeeded(using appState: AppState) async {
@@ -572,7 +578,7 @@ final class TransactionEditorViewModel {
         )
         switch submissionCoordinator.preflight(
             validation: validation,
-            draft: makeDraft(),
+            draft: TransactionDraftBuilder.makeSubmissionDraft(from: makeSubmissionInput()),
             editingIdentity: makeEditingIdentity()
         ) {
         case .proceed(let identity, let draft):
@@ -598,10 +604,6 @@ final class TransactionEditorViewModel {
              .rejectedInvalidEditingIdentity:
             return false
         }
-    }
-
-    private func makeDraft() -> TransactionDraft? {
-        TransactionDraftBuilder.makeSubmissionDraft(from: makeSubmissionInput())
     }
 
     private func makeRulePreviewRequest(budgetID: String) -> TransactionRulePreviewRequest? {
@@ -662,7 +664,7 @@ final class TransactionEditorViewModel {
             originalIsParent: originalIsParent,
             date: date,
             budgetID: budgetID,
-            categorySelection: categoryState.selection
+            categorySelection: categoryState
         )
     }
 
@@ -708,9 +710,6 @@ final class TransactionEditorViewModel {
         splitState.load(from: transaction)
         if transaction.isParent {
             categoryState.clear()
-        }
-
-        if transaction.isParent {
             payeeName = transaction.payeeName ?? ""
             return
         }
@@ -791,51 +790,6 @@ final class TransactionEditorViewModel {
             clearCategory()
             splitState.discard()
         }
-    }
-
-    private func fallbackCategorySelectionGroups() -> [TransactionEditorCategoryGroup] {
-        let incomeCategories = categories.filter { ($0.isIncome ?? false) }
-        let expenseCategories = categories.filter { !($0.isIncome ?? false) }
-
-        var result: [TransactionEditorCategoryGroup] = []
-
-        if let incomeID = incomeCategories.first(where: { $0.id != nil })?.id {
-            result.append(TransactionEditorCategoryGroup(
-                id: "to-budget",
-                name: "To Budget",
-                options: [
-                    TransactionEditorCategoryOption(
-                        id: incomeID,
-                        title: "To Budget",
-                        amount: nil,
-                        valueText: nil
-                    )
-                ]
-            ))
-        }
-
-        let expenseOptions = expenseCategories.compactMap { category -> TransactionEditorCategoryOption? in
-            guard let categoryID = category.id else {
-                return nil
-            }
-
-            return TransactionEditorCategoryOption(
-                id: categoryID,
-                title: category.name.actualistCategoryNameParts.name,
-                amount: nil,
-                valueText: nil
-            )
-        }
-
-        if !expenseOptions.isEmpty {
-            result.append(TransactionEditorCategoryGroup(
-                id: "categories",
-                name: "Categories",
-                options: expenseOptions
-            ))
-        }
-
-        return result
     }
 
     private static func sanitizedAmountDigits(_ value: String) -> String {
