@@ -55,6 +55,7 @@ struct AppSettings: Codable, Equatable {
     var selectedLocalFirstGroupID: String?
     var theme: ActualistThemeOption = .actualPurple
     var displayDensity: ActualistDisplayDensity = .compact
+    var monthDisplayPreference: MonthDisplayPreference = .automatic
     var greenIncomeTransactionAmountsEnabled: Bool = false
     var includeCarryoverCategoriesInOverspentAlerts: Bool = false
     var showTotalAssigned: Bool = false
@@ -89,6 +90,7 @@ struct AppSettings: Codable, Equatable {
         selectedLocalFirstGroupID: String? = nil,
         theme: ActualistThemeOption = .actualPurple,
         displayDensity: ActualistDisplayDensity = .compact,
+        monthDisplayPreference: MonthDisplayPreference = .automatic,
         greenIncomeTransactionAmountsEnabled: Bool = false,
         includeCarryoverCategoriesInOverspentAlerts: Bool = false,
         showTotalAssigned: Bool = false,
@@ -116,6 +118,7 @@ struct AppSettings: Codable, Equatable {
         self.selectedLocalFirstGroupID = selectedLocalFirstGroupID
         self.theme = theme
         self.displayDensity = displayDensity
+        self.monthDisplayPreference = monthDisplayPreference
         self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
         self.includeCarryoverCategoriesInOverspentAlerts = includeCarryoverCategoriesInOverspentAlerts
         self.showTotalAssigned = showTotalAssigned
@@ -146,6 +149,7 @@ struct AppSettings: Codable, Equatable {
         selectedLocalFirstGroupID = try container.decodeIfPresent(String.self, forKey: .selectedLocalFirstGroupID)
         theme = try container.decodeIfPresent(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
         displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
+        monthDisplayPreference = try container.decodeIfPresent(MonthDisplayPreference.self, forKey: .monthDisplayPreference) ?? .automatic
         greenIncomeTransactionAmountsEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .greenIncomeTransactionAmountsEnabled

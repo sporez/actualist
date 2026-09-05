@@ -230,7 +230,7 @@ struct PayeesView: View {
         .sheet(isPresented: $isCreatePresented) {
             PayeeNameEntrySheet(viewModel: viewModel)
             .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isMergeTargetPresented) {
             PayeeMergeTargetSheet(payees: viewModel.selectedPayees) { payee in
@@ -238,7 +238,7 @@ struct PayeesView: View {
                 Task { _ = await viewModel.merge(into: payee.id, using: appState) }
             }
             .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

@@ -37,8 +37,7 @@ struct ActualistApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .appSwitcherPrivacyProtected()
-                .environment(appState)
+                .appSwitcherPrivacyProtected(using: appState)
                 .preferredColorScheme(appState.settings.theme.colorScheme)
                 .onAppear {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
@@ -109,8 +108,9 @@ private struct AppSwitcherPrivacyAwareDragIndicatorModifier: ViewModifier {
 
 extension View {
     // Presented views have separate hosting layers.
-    func appSwitcherPrivacyProtected() -> some View {
+    func appSwitcherPrivacyProtected(using appState: AppState) -> some View {
         modifier(AppSwitcherPrivacyProtectionModifier())
+            .environment(appState)
     }
 
     // The system-owned grabber sits above the presented content.

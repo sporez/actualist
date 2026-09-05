@@ -93,6 +93,7 @@ struct AccountsView: View {
             }
             .navigationDestination(for: ActualAccount.self) { account in
                 AccountTransactionsView(account: account)
+                    .id(account.id)
             }
             .task {
                 await loadLocal()
@@ -121,14 +122,14 @@ struct AccountsView: View {
                             Task { await loadLocal() }
                         }
                     )
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
             }
             .sheet(isPresented: $viewModel.isAddAccountPresented) {
                 AddAccountSheet(viewModel: viewModel.addAccountViewModel)
                     .presentationDetents([.medium, .large])
                     .appSwitcherPrivacyAwareDragIndicator()
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
             }
             .sheet(isPresented: $viewModel.isGroupEditorPresented) {
                 AccountGroupEditorSheet(
@@ -149,7 +150,7 @@ struct AccountsView: View {
                 )
                 .presentationDetents([.medium])
                 .appSwitcherPrivacyAwareDragIndicator()
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
             }
         }
     }

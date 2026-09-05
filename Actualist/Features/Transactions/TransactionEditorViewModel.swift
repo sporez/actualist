@@ -458,7 +458,6 @@ final class TransactionEditorViewModel {
         }
 
         isLoading = false
-        if !isEditing { await previewRules(using: appState) }
     }
 
     func refreshCategoryBalancesIfNeeded(using appState: AppState) async {
@@ -514,15 +513,6 @@ final class TransactionEditorViewModel {
             return false
         }
         return true
-    }
-
-    func submit(using appState: AppState) async -> Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return false
-        }
-        let repository = appState.transactionRepository
-
-        return await submit(budgetID: budgetID, repository: repository)
     }
 
     func previewRules(

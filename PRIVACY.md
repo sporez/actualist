@@ -2,8 +2,8 @@
 
 Effective September 5, 2026.
 
-Actualist is an independent, open-source iPhone client for Actual Budget. This
-policy describes the data handling performed by Actualist itself.
+Actualist is an independent, open-source iPhone and iPad client for Actual Budget.
+This policy describes the data handling performed by Actualist itself.
 
 ## Data Actualist Handles
 
@@ -64,7 +64,7 @@ credentials or unredacted financial information.
 ## Device Backups
 
 The imported budget directory, including pending sync changes and recovery
-copies, is excluded from iPhone and iCloud device backups. The financial widget
+copies, is excluded from local and iCloud device backups. The financial widget
 snapshot is also excluded. Changes that have finished syncing can be restored
 from your Actual server. Pending changes cannot be recovered from a device
 backup if the device is lost or local data is removed.

@@ -65,8 +65,7 @@ struct BudgetMoveMoneyView: View {
         .presentationDragIndicator(.hidden)
         .sheet(isPresented: $isDestinationPickerPresented) {
             BudgetMoveMoneyDestinationPicker(viewModel: viewModel)
-                .environment(appState)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .task(id: viewModel.moveMoneyDraft?.focusedCategoryID) {
             guard !didAutoPresentDestinationPicker else {

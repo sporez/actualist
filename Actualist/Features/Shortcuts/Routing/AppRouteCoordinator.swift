@@ -47,6 +47,17 @@ final class AppRouteCoordinator {
         navigate?()
     }
 
+    /// A width handoff removes the compact cover host; no UIKit dismissal
+    /// callback remains to release a queued widget navigation.
+    func settingsHostRemoved() {
+        if case .dismissing(let navigate) = settingsPresentation {
+            settingsPresentation = .hidden
+            navigate?()
+        } else {
+            settingsPresentation = .hidden
+        }
+    }
+
     func enqueue(_ route: AppRoute) {
         pendingRoute = route
     }

@@ -9,6 +9,7 @@ import SwiftUI
 /// payee selection) is delegated to ``RuleEditorDraftState`` so the view never
 /// computes a payload value in a binding setter.
 struct RuleValueEditor: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.budgetCurrency) private var currency
     @Environment(\.locale) private var locale
     @Binding var value: RuleJSONValue
@@ -59,7 +60,7 @@ struct RuleValueEditor: View {
             ) { id in
                 value = RuleEditorDraftState.payeeValue(afterSelecting: id, current: value, isMultiValue: isMultiValue)
             }
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

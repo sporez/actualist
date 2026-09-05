@@ -72,7 +72,7 @@ struct WalletImportView: View {
             }
         }
         .appSwitcherPrivacyAwareDragIndicator()
-        .appSwitcherPrivacyProtected()
+        .appSwitcherPrivacyProtected(using: appState)
     }
 
     private var accountSection: some View {

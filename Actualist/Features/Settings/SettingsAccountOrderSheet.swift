@@ -70,7 +70,7 @@ struct SettingsAccountOrderSheet: View {
                 await refreshAccounts()
             }
         }
-        .appSwitcherPrivacyProtected()
+        .appSwitcherPrivacyProtected(using: appState)
     }
 
     private var hasCustomOrder: Bool {

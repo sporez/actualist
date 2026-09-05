@@ -1,6 +1,6 @@
 # Actualist
 
-**A native, local-first iPhone client for [Actual Budget](https://actualbudget.org/).**
+**A native, local-first iPhone and iPad client for [Actual Budget](https://actualbudget.org/).**
 
 ![Status: Beta](https://img.shields.io/badge/status-beta-E4A258)
 ![Platform: iOS 26+](https://img.shields.io/badge/iOS-26%2B-624183)
@@ -13,8 +13,8 @@
 
 Actualist connects directly to a normal Actual sync server, imports your budget
 to a local SQLite database, and renders from that local copy. It is designed for
-quick, repeated budget review on iPhone, with native SwiftUI navigation and iOS
-Liquid Glass controls.
+quick, repeated budget review on iPhone and iPad, with native SwiftUI navigation
+and iOS Liquid Glass controls.
 
 > [!CAUTION]
 > **Actualist is beta software and can modify real financial data.** Before using
@@ -40,6 +40,8 @@ Liquid Glass controls.
   uncategorized transactions, and overspending alerts. Hide or show categories,
   add or edit budget templates, preview Apply Template, and add notes on months,
   groups, and categories.
+- Adapts to iPad window sizes with a sidebar, category inspector, and up to five
+  budget months side by side. Narrow windows keep the compact tab layout.
 - Provides an all-account Spending feed plus searchable transaction histories for
   individual accounts.
 - Supports common transaction flows, including create, edit, delete, categorize,
@@ -79,14 +81,17 @@ server or web app. It does not use or require an `actual-http-api` REST wrapper.
 
 ## Requirements
 
-- An iPhone running iOS 26 or later.
+- An iPhone or iPad running iOS/iPadOS 26 or later.
 - A running [Actual Budget server](https://actualbudget.org/docs/install/) with at
   least one budget already uploaded for sync.
-- Network access from the iPhone to that server. If the server is available only
-  through a VPN, Tailscale, or another private network, connect the iPhone to that
+- Network access from the device to that server. If the server is available only
+  through a VPN, Tailscale, or another private network, connect the device to that
   network first.
 - Your Actual server password, or OpenID if the server is configured for it.
 - For an encrypted budget, the separate budget encryption password.
+
+The adaptive iPad layout is available in the main source branch; published
+TestFlight builds follow their tagged source versions.
 
 Install the beta from [TestFlight](https://testflight.apple.com/join/HDG6PcGX).
 Developers can also [build from source](#building-from-source). Public
@@ -114,12 +119,12 @@ credentials exposed by plain HTTP before connecting.
 After the first successful import, Actualist keeps a local budget copy for fast
 launches and offline use. Connection, budget selection, sync, display, and data
 management controls are available from **Settings**, opened from the Budget
-screen's gear button.
+screen's gear button or the sidebar in wide iPad windows.
 
 ### If Connection Fails
 
-- Open the server URL in Safari on the same iPhone to confirm it is reachable.
-- Check that the phone is connected to the required Wi-Fi, VPN, or tailnet.
+- Open the server URL in Safari on the same device to confirm it is reachable.
+- Check that the device is connected to the required Wi-Fi, VPN, or tailnet.
 - Use HTTPS for any server that is not on the local network.
 - Confirm that you entered the server password, not the budget encryption
   password. If the server uses OpenID, complete the browser sign-in instead.
@@ -142,13 +147,13 @@ screen's gear button.
 
 ### Local Data and Device Backups
 
-Actualist intentionally excludes its imported budget directory from iPhone and
+Actualist intentionally excludes its imported budget directory from local and
 iCloud device backups. This includes the local SQLite budget, its sidecar files,
 metadata, reimport recovery copy, and the durable sync outbox. The Actual server
 is the authoritative recovery source for changes that have finished syncing.
 
 An outbox change is not on the server until its upload is confirmed. If the
-iPhone is lost, the app is deleted, or local data is erased while changes are
+device is lost, the app is deleted, or local data is erased while changes are
 still pending, those changes are lost and cannot be recovered from a device
 backup. This is an explicit privacy tradeoff: Actualist does not place a second
 plaintext copy of the budget in the device-backup path. Before replacing or
@@ -209,7 +214,7 @@ financial amounts.
 Include:
 
 - Actualist version and build number.
-- iOS version and iPhone model.
+- iOS/iPadOS version and device model.
 - Actual server version and hosting method.
 - Whether the budget uses end-to-end encryption.
 - Whether the problem happened online, offline, or while reconnecting.

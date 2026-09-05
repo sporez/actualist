@@ -1,6 +1,6 @@
 # Development
 
-Actualist is an iPhone SwiftUI app targeting iOS 26+. Use Xcode 26 or later.
+Actualist is an iPhone and iPad SwiftUI app targeting iOS 26+. Use Xcode 26 or later.
 
 ## Build And Run
 

@@ -74,7 +74,7 @@ struct BudgetRulesView: View {
                 )
             }
             .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

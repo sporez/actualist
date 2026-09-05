@@ -3,8 +3,9 @@ import SwiftUI
 struct BudgetView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel: BudgetViewModel
-    @State private var isTransactionEditorPresented = false
+    @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
     @State private var isHistoryPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
@@ -20,6 +21,12 @@ struct BudgetView: View {
     @State private var noteTarget: ActualNoteTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
     @State private var addTransactionExpansion = ScrollDirectedExpansion()
+    let loadsOnAppear: Bool
+
+    init(viewModel: BudgetViewModel, loadsOnAppear: Bool = true) {
+        _viewModel = State(initialValue: viewModel)
+        self.loadsOnAppear = loadsOnAppear
+    }
 
     init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil) {
         _viewModel = State(
@@ -28,6 +35,7 @@ struct BudgetView: View {
                 initialBudgetID: initialBudgetID
             )
         )
+        self.loadsOnAppear = true
     }
 
     var body: some View {
@@ -50,6 +58,7 @@ struct BudgetView: View {
                     .padding(.bottom, scrollBottomPadding)
                 }
                 .scrollIndicators(.hidden)
+                .accessibilityIdentifier("budget-compact-scroll")
                 .background(ActualistTheme.background)
                 .onScrollGeometryChange(for: ScrollDirectedExpansionSample.self) { geometry in
                     ScrollDirectedExpansionSample(
@@ -114,6 +123,21 @@ struct BudgetView: View {
                             }
                         }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else {
+                        HStack {
+                            Spacer(minLength: 0)
+                            BudgetAddTransactionButton(isExpanded: addTransactionExpansion.isExpanded) {
+                                transactionPresenter.present(using: appState)
+                            }
+                        }
+                        .padding(.horizontal, BudgetLayout.screenHorizontalPadding)
+                        .padding(.bottom, BudgetLayout.addTransactionFloatingPadding)
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            if dynamicTypeSize.isAccessibilitySize {
+                                ActualistTheme.background
+                            }
+                        }
                     }
                 }
                 .onPreferenceChange(BudgetAssignmentKeypadHeightKey.self) { height in
@@ -124,15 +148,6 @@ struct BudgetView: View {
                     }
                 }
                 .animation(BudgetLayout.assignmentKeypadAnimation, value: viewModel.isAssignmentKeypadPresented)
-                .overlay(alignment: .bottomTrailing) {
-                    if !viewModel.isAssignmentKeypadPresented {
-                        BudgetAddTransactionButton(isExpanded: addTransactionExpansion.isExpanded) {
-                            isTransactionEditorPresented = true
-                        }
-                        .padding(.trailing, BudgetLayout.screenHorizontalPadding)
-                        .padding(.bottom, BudgetLayout.addTransactionFloatingPadding)
-                    }
-                }
                 .navigationTitle(viewModel.navigationTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -176,7 +191,7 @@ struct BudgetView: View {
                                 Task { await viewModel.selectMonth(month, using: appState) }
                             }
                             .presentationCompactAdaptation(.popover)
-                            .appSwitcherPrivacyProtected()
+                            .appSwitcherPrivacyProtected(using: appState)
                         }
                     }
 
@@ -230,8 +245,13 @@ struct BudgetView: View {
                         .accessibilityLabel("Budget Actions")
                     }
                 }
-                .task { await viewModel.load(using: appState) }
+                .task {
+                    if loadsOnAppear { await viewModel.load(using: appState) }
+                }
                 .refreshable { await viewModel.refresh(using: appState) }
+                .onChange(of: viewModel.assignmentWorkflow.completionRevision) {
+                    Task { await viewModel.refreshSelectedMonth(using: appState) }
+                }
                 .onChange(of: appState.localDataRevision) {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
                 }
@@ -261,17 +281,9 @@ struct BudgetView: View {
                 .onChange(of: appState.settings.selectedBudgetID) {
                     noteTarget = nil
                 }
-                .sheet(isPresented: $isTransactionEditorPresented) {
-                    TransactionEditorView(prefilledAccount: nil) {
-                        Task { await viewModel.refreshSelectedMonth(using: appState) }
-                    }
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
-                }
                 .sheet(isPresented: $isHistoryPresented) {
                     HistoryView()
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .fullScreenCover(
                     isPresented: Binding(
@@ -281,8 +293,7 @@ struct BudgetView: View {
                     onDismiss: appState.routeCoordinator.settingsDidDismiss
                 ) {
                     SettingsView(showsDismissButton: true)
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(isPresented: $isUncategorizedTransactionsPresented) {
                     UncategorizedTransactionsView(
@@ -295,15 +306,13 @@ struct BudgetView: View {
                             isUncategorizedTransactionsPresented = false
                         }
                     )
-                    .environment(appState)
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(item: $categoryDetailsPresentation, onDismiss: {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
                 }) { details in
                     CategoryMonthDetailsView(details: details)
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(item: $templateEditorTarget, onDismiss: {
                     Task { await viewModel.refreshSelectedMonth(using: appState) }
@@ -311,8 +320,7 @@ struct BudgetView: View {
                     BudgetTemplateEditorView(target: target) {
                         Task { await viewModel.refreshSelectedMonth(using: appState) }
                     }
-                    .environment(appState)
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(item: $noteTarget) { target in
                     if let budgetID = appState.settings.selectedBudgetID {
@@ -325,7 +333,7 @@ struct BudgetView: View {
                                 Task { await viewModel.refreshSelectedMonth(using: appState) }
                             }
                         )
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                     }
                 }
                 .sheet(isPresented: $isOverspentCategoriesPresented) {
@@ -333,16 +341,14 @@ struct BudgetView: View {
                         viewModel: viewModel,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
                     )
-                    .environment(appState)
-                    .appSwitcherPrivacyProtected()
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
                 .sheet(isPresented: moveMoneyPresentationBinding) {
                     BudgetMoveMoneyView(
                         viewModel: viewModel,
                         onSaved: {}
                     )
-                        .environment(appState)
-                        .appSwitcherPrivacyProtected()
+                        .appSwitcherPrivacyProtected(using: appState)
                 }
                 .modifier(
                     BudgetTemplateConfirmationModifier(
@@ -423,7 +429,7 @@ struct BudgetView: View {
 
     private var scrollBottomPadding: CGFloat {
         guard viewModel.isAssignmentKeypadPresented else {
-            return 28
+            return BudgetLayout.sectionSpacing
         }
 
         return max(assignmentKeypadHeight + BudgetLayout.assignmentScrollBottomClearance, 360)
@@ -491,6 +497,7 @@ struct BudgetView: View {
                     budgetAlertLabel(alert)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("budget-alert-\(alert.id)")
             } else {
                 budgetAlertLabel(alert)
             }

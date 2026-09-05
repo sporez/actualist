@@ -4,35 +4,18 @@ struct TransactionEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
-    @State private var viewModel: TransactionEditorViewModel
+    @Bindable private var viewModel: TransactionEditorViewModel
     @State private var isPayeePickerPresented = false
     @State private var isCategoryPickerPresented = false
     @State private var childPayeePickerRowID: String?
     @State private var childCategoryPickerRowID: String?
     @FocusState private var isAmountFocused: Bool
 
-    let prefilledAccount: ActualAccount?
-    let onSaved: (() -> Void)?
+    let session: TransactionEditorSession
 
-    init(
-        prefilledAccount: ActualAccount?,
-        editingTransaction: ActualTransaction? = nil,
-        prefilledPayeeName: String? = nil,
-        prefilledCategoryName: String? = nil,
-        shortcutPrefill: ShortcutEditorPrefill? = nil,
-        onSaved: (() -> Void)? = nil
-    ) {
-        let model = TransactionEditorViewModel(
-            editing: editingTransaction,
-            payeeName: shortcutPrefill?.payeeName ?? prefilledPayeeName,
-            categoryName: shortcutPrefill?.categoryName ?? prefilledCategoryName
-        )
-        if let shortcutPrefill {
-            model.applyShortcutPrefill(shortcutPrefill)
-        }
-        _viewModel = State(initialValue: model)
-        self.prefilledAccount = prefilledAccount
-        self.onSaved = onSaved
+    init(session: TransactionEditorSession) {
+        self.session = session
+        self.viewModel = session.model
     }
 
     var body: some View {
@@ -53,7 +36,8 @@ struct TransactionEditorView: View {
                     .padding(.top, 18)
                     .padding(.bottom, 32)
                 }
-                .scrollDismissesKeyboard(.immediately)
+                .scrollDismissesKeyboard(.never)
+                .accessibilityIdentifier("transaction-editor-scroll")
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -71,26 +55,24 @@ struct TransactionEditorView: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
-            await viewModel.load(using: appState, prefilledAccount: prefilledAccount)
-            if !viewModel.isEditing {
-                isAmountFocused = true
-            }
+            await session.prepare(using: appState)
+            if !viewModel.isEditing { isAmountFocused = true }
         }
         .sheet(isPresented: $isPayeePickerPresented) {
             PayeeSelectionView(viewModel: viewModel)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isCategoryPickerPresented) {
             TransactionCategorySelectionView(viewModel: viewModel)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(item: childPayeePickerItem) { row in
             childPayeePicker(for: row)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(item: childCategoryPickerItem) { row in
             childCategoryPicker(for: row)
-                .appSwitcherPrivacyProtected()
+                .appSwitcherPrivacyProtected(using: appState)
         }
     }
 
@@ -218,6 +200,7 @@ struct TransactionEditorView: View {
                         .lineLimit(2...4)
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
+                        .accessibilityIdentifier("transaction-notes-field")
                 }
             }
             .padding(.horizontal, density.rowHorizontalPadding)
@@ -292,8 +275,7 @@ struct TransactionEditorView: View {
             if viewModel.isEditing {
                 Button("Delete Transaction", role: .destructive) {
                     Task {
-                        if await viewModel.confirmRuleDelete(using: appState) {
-                            onSaved?()
+                        if await session.confirmRuleDelete(using: appState) {
                             dismiss()
                         }
                     }
@@ -310,11 +292,11 @@ struct TransactionEditorView: View {
             )
         }
         .padding(.top, 4)
+        .accessibilityIdentifier("transaction-save-button")
     }
 
     private func submitAndDismissIfSaved() async {
-        if await viewModel.submit(using: appState) {
-            onSaved?()
+        if await session.submit(using: appState) {
             dismiss()
         }
     }

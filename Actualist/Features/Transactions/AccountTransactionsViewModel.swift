@@ -12,7 +12,6 @@ final class AccountTransactionsViewModel {
     private(set) var isSearching = false
     private(set) var searchErrorMessage: String?
     var errorMessage: String?
-    var transactionEditorPresentation: TransactionEditorPresentation?
     var deletePresentation: TransactionDeletePresentation?
     private(set) var deletingTransactionID: String?
     private(set) var deleteIntentFeedback = 0
@@ -55,19 +54,16 @@ final class AccountTransactionsViewModel {
         ).displayState
     }
 
-    func showCreateEditor() {
-        transactionEditorPresentation = .create
+    func showCreateEditor(using appState: AppState, presenter: RootTransactionEditorPresenter) {
+        presenter.present(using: appState, account: scope.account, categoryName: scope.prefilledCategoryName)
     }
 
-    func showEditor(
-        for transaction: ActualTransaction,
-        budgetID: String?,
-        repository: any TransactionRepositoryProtocol
-    ) {
-        transactionEditorPresentation = projection(
-            budgetID: budgetID,
-            repository: repository
+    func showEditor(for transaction: ActualTransaction, using appState: AppState, presenter: RootTransactionEditorPresenter) {
+        let request = projection(
+            budgetID: appState.settings.selectedBudgetID,
+            repository: appState.transactionRepository
         ).editorPresentation(for: transaction)
+        presenter.present(using: appState, request: request, account: scope.account, categoryName: scope.prefilledCategoryName)
     }
 
     func requestDelete(

@@ -101,9 +101,10 @@ struct SettingsBudgetPickerSheet: View {
                         Task { await unlockBudget(budget) }
                     }
                 )
+                .environment(appState)
             }
         }
-        .appSwitcherPrivacyProtected()
+        .appSwitcherPrivacyProtected(using: appState)
     }
 
     private var encryptedBudgetUnlockErrorMessage: String? {

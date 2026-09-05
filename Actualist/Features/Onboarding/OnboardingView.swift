@@ -341,6 +341,7 @@ struct BudgetPickerView: View {
                         viewModel.unlockBudget(budget, password: encryptionPassword, using: appState)
                     }
                 )
+                .environment(appState)
             }
         }
     }

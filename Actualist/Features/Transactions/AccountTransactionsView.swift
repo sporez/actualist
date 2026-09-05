@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
     @Environment(\.actualistDensity) private var density
     @Environment(\.dismiss) private var dismiss
     let scope: TransactionFeedScope
@@ -166,7 +167,7 @@ struct AccountTransactionsView: View {
                 .accessibilityLabel("Search Transactions")
 
                 Button {
-                    viewModel.showCreateEditor()
+                    viewModel.showCreateEditor(using: appState, presenter: transactionPresenter)
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -208,27 +209,6 @@ struct AccountTransactionsView: View {
         }
         .sensoryFeedback(.selection, trigger: viewModel.deleteIntentFeedback)
         .sensoryFeedback(.success, trigger: viewModel.deleteSuccessFeedback)
-        .sheet(item: editorPresentationBinding) { presentation in
-            TransactionEditorView(
-                prefilledAccount: scope.account,
-                editingTransaction: presentation.transaction,
-                prefilledPayeeName: presentation.payeeName,
-                prefilledCategoryName: presentation.categoryName ?? scope.prefilledCategoryName
-            ) {
-                Task {
-                    await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository)
-                }
-            }
-                .environment(appState)
-                .appSwitcherPrivacyProtected()
-        }
-    }
-
-    private var editorPresentationBinding: Binding<TransactionEditorPresentation?> {
-        Binding(
-            get: { viewModel.transactionEditorPresentation },
-            set: { viewModel.transactionEditorPresentation = $0 }
-        )
     }
 
     private var deletePresentationBinding: Binding<TransactionDeletePresentation?> {
@@ -398,8 +378,8 @@ struct AccountTransactionsView: View {
         Button {
             viewModel.showEditor(
                 for: row.transaction,
-                budgetID: budgetID,
-                repository: transactionRepository
+                using: appState,
+                presenter: transactionPresenter
             )
         } label: {
             TransactionRow(

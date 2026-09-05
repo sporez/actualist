@@ -102,8 +102,7 @@ struct BudgetTemplatesBrowserView: View {
             BudgetTemplateEditorView(target: target) {
                 Task { await load() }
             }
-            .environment(appState)
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isPickerPresented, onDismiss: {
             presentPendingPickerCategory()
@@ -114,8 +113,7 @@ struct BudgetTemplatesBrowserView: View {
             ) { categoryID in
                 pendingPickerCategoryID = categoryID
             }
-            .environment(appState)
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 

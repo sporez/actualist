@@ -1,9 +1,36 @@
+import Foundation
 import Observation
 
 @MainActor
 @Observable
 final class BudgetAssignmentWorkflow {
-    static let maxInputDigits = 9
+    nonisolated static let maxInputDigits = 9
+
+    struct Context: Equatable {
+        let id = UUID()
+        let budgetID: String
+        let categoryID: String
+        let month: String
+    }
+
+    private(set) var completionRevision = 0
+    private var capturedContext: Context?
+    var context: Context? { draft == nil ? nil : capturedContext }
+
+    /// Invalidating detaches an old command; it cannot cancel a committed write.
+    func invalidate() {
+        capturedContext = nil
+        draft = nil
+    }
+
+    func reconcile(budgetID: String, month: String? = nil, categoryIDs: Set<String>? = nil) {
+        guard let context else { return }
+        if context.budgetID != budgetID || categoryIDs?.contains(context.categoryID) == false {
+            invalidate()
+        } else if let month, context.month != month {
+            invalidate()
+        }
+    }
 
     private(set) var draft: BudgetAssignmentDraft?
 
@@ -44,11 +71,14 @@ final class BudgetAssignmentWorkflow {
         return !draft.isSubmitting
     }
 
-    func begin(for category: BudgetMonthCategory) {
+    func begin(for category: BudgetMonthCategory, budgetID: String?, month: String?) {
         guard draft?.isSubmitting != true else {
             return
         }
 
+        capturedContext = budgetID.flatMap { budget in
+            month.map { Context(budgetID: budget, categoryID: category.id, month: $0) }
+        }
         draft = BudgetAssignmentDraft(
             categoryID: category.id,
             originalBudgeted: category.budgeted,
@@ -91,6 +121,16 @@ final class BudgetAssignmentWorkflow {
         }
 
         draft.inputDigits.removeLast()
+        self.draft = draft
+    }
+
+    /// Replaces only the typed operand. Calculation and overflow validation
+    /// remain owned by `BudgetAssignmentDraft`.
+    func replaceInputDigits(_ digits: String) {
+        guard var draft = editableDraft,
+              digits.allSatisfy(\.isNumber),
+              digits.count <= Self.maxInputDigits else { return }
+        draft.inputDigits = digits
         self.draft = draft
     }
 
@@ -162,7 +202,8 @@ final class BudgetAssignmentWorkflow {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
-        guard var draft,
+        guard let context, context.budgetID == budgetID, context.month == selectedMonth,
+              var draft,
               !draft.inputDigits.isEmpty,
               !draft.isSubmitting else {
             return nil
@@ -181,12 +222,12 @@ final class BudgetAssignmentWorkflow {
             let loadedMonth = try await repository.assignCategoryBudgetAndRefresh(
                 categoryID: draft.categoryID,
                 budgeted: finalBudgeted,
-                budgetID: budgetID,
-                month: selectedMonth
+                budgetID: context.budgetID,
+                month: context.month
             ) { [weak self] in
                 await MainActor.run {
                     guard var currentDraft = self?.draft,
-                          currentDraft.categoryID == draft.categoryID else {
+                          self?.context == context else {
                         return
                     }
 
@@ -194,9 +235,12 @@ final class BudgetAssignmentWorkflow {
                     self?.draft = currentDraft
                 }
             }
+            completionRevision += 1
+            guard self.context == context else { return nil }
             self.draft = nil
             return loadedMonth
         } catch {
+            guard self.context == context else { return nil }
             draft.submissionState = .failed(error.localizedDescription)
             self.draft = draft
             return nil
@@ -208,7 +252,8 @@ final class BudgetAssignmentWorkflow {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
-        guard var draft,
+        guard let context, context.budgetID == budgetID, context.month == selectedMonth,
+              var draft,
               !draft.isSubmitting else {
             return nil
         }
@@ -219,12 +264,12 @@ final class BudgetAssignmentWorkflow {
         do {
             let loadedMonth = try await repository.applyBudgetTemplateAndRefresh(
                 command: .category(draft.categoryID),
-                budgetID: budgetID,
-                month: selectedMonth
+                budgetID: context.budgetID,
+                month: context.month
             ) { [weak self] in
                 await MainActor.run {
                     guard var currentDraft = self?.draft,
-                          currentDraft.categoryID == draft.categoryID else {
+                          self?.context == context else {
                         return
                     }
 
@@ -232,9 +277,12 @@ final class BudgetAssignmentWorkflow {
                     self?.draft = currentDraft
                 }
             }
+            completionRevision += 1
+            guard self.context == context else { return nil }
             self.draft = nil
             return loadedMonth
         } catch {
+            guard self.context == context else { return nil }
             draft.submissionState = .failed(error.localizedDescription)
             self.draft = draft
             return nil

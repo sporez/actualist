@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct BudgetViewModelAssignmentWorkflowTests {
     @Test func exposesActiveCategoryMonthDetailsForTheAssignmentSheet() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.selectedMonth = "2026-06"
         model.budgetMonth = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: 37_655,
@@ -91,7 +91,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func directAssignmentInputReplacesOriginalAmount() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
 
         model.beginAssignmentEditing(for: try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283))
         model.appendAssignmentDigit(5)
@@ -103,7 +103,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func directZeroAssignmentClearsOriginalAmount() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let category = try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283)
 
         model.beginAssignmentEditing(for: category)
@@ -116,7 +116,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func plusAndMinusAssignmentInputApplyDeltasToOriginalAmount() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let category = try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283)
 
         model.beginAssignmentEditing(for: category)
@@ -142,7 +142,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func assignmentInputIsCappedToMaxDigits() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.beginAssignmentEditing(for: try BudgetViewModelFixtures.decodeCategory(budgeted: 0))
 
         for _ in 0..<(BudgetViewModel.maxAssignmentDigits + 5) {
@@ -184,7 +184,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func assignmentInputSupportsBackspaceClearCancelAndNegativeFinalAmounts() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let category = try BudgetViewModelFixtures.decodeCategory(budgeted: 200)
 
         model.beginAssignmentEditing(for: category)
@@ -210,7 +210,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func successfulAssignmentSubmitsFinalAmountAndPreservesExpandedGroupsAfterRefetch() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let category = try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283)
         let repository = RecordingBudgetRepository(
             loadedMonth: LoadedBudgetMonth(
@@ -248,7 +248,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func failedAssignmentKeepsDraftOpenWithInlineError() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let category = try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283)
         let repository = RecordingBudgetRepository(assignError: TestError("refetch failed"))
 
@@ -267,7 +267,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func successfulMonthTemplateApplySubmitsCommandAndPreservesExpansion() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let loadedMonth = LoadedBudgetMonth(
             availableMonths: ["2026-06"],
             selectedMonth: "2026-06",
@@ -302,7 +302,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
     }
 
     @Test func successfulCategoryTemplateApplyTargetsActiveCategoryAndClosesKeypad() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let loadedMonth = LoadedBudgetMonth(
             availableMonths: ["2026-06"],
             selectedMonth: "2026-06",

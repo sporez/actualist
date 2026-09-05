@@ -111,7 +111,7 @@ struct BudgetOverspentCategoriesView: View {
                     }
                 }
             }
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(
             isPresented: Binding(
@@ -123,8 +123,7 @@ struct BudgetOverspentCategoriesView: View {
                 viewModel: viewModel,
                 onSaved: {}
             )
-            .environment(appState)
-            .appSwitcherPrivacyProtected()
+            .appSwitcherPrivacyProtected(using: appState)
             .onDisappear {
                 if viewModel.overspentCategoryOptions.isEmpty {
                     dismiss()
