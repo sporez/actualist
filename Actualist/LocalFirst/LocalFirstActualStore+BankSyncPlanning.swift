@@ -162,9 +162,6 @@ extension LocalFirstActualStore {
         var ruleDrafts: [TransactionDraft] = []
         var projectedCandidates: [BankSyncReconciliation.Candidate] = []
         var problems: [BankSyncReview.Problem] = []
-        var candidateAmounts: [Int] = []
-        var dayIDs: [String] = []
-        var earliestDayID: String?
 
         init(download: SimpleFINAccountDownload) {
             self.download = download
@@ -252,11 +249,6 @@ extension LocalFirstActualStore {
                 accountID: accountID,
                 dayID: dayID
             ))
-            prepared.candidateAmounts.append(amount)
-            prepared.dayIDs.append(dayID)
-            if prepared.earliestDayID == nil || dayID < prepared.earliestDayID! {
-                prepared.earliestDayID = dayID
-            }
         }
         return prepared
     }
@@ -271,6 +263,18 @@ extension LocalFirstActualStore {
         accountHadLiveTransactions: Bool,
         database: BudgetDatabase
     ) async throws -> BankSyncReview.AccountPlan {
+        let candidateDayIDs = prepared.candidates.map(\.dayID)
+        let existing = try await database.bankSyncExistingRows(
+            accountID: account.id,
+            window: Self.monthWidenedWindow(candidateDayIDs: candidateDayIDs)
+        )
+        let reconciliation = BankSyncReconciliation.plan(
+            candidates: prepared.projectedCandidates,
+            existing: existing,
+            suppressedFinancialIDs: try await database.bankSyncSuppressedFinancialIDs(accountID: account.id)
+        )
+
+        let inserts = reconciliation.inserts
         let openingBalance: BankSyncReconciliation.OpeningBalance?
         if prepared.problems.isEmpty && !prepared.download.hasError {
             let currentBalance = BankSyncAmounts.minorUnits(
@@ -280,8 +284,8 @@ extension LocalFirstActualStore {
             if let currentBalance {
                 openingBalance = BankSyncReconciliation.openingBalance(
                     currentBalanceMinorUnits: currentBalance,
-                    candidateAmounts: prepared.candidateAmounts,
-                    earliestDayID: prepared.earliestDayID,
+                    inserts: inserts,
+                    earliestDayID: candidateDayIDs.min(),
                     accountHadLiveTransactions: accountHadLiveTransactions
                 )
             } else {
@@ -291,14 +295,6 @@ extension LocalFirstActualStore {
             openingBalance = nil
         }
 
-        let existing = try await database.bankSyncExistingRows(
-            accountID: account.id,
-            window: Self.monthWidenedWindow(candidateDayIDs: prepared.dayIDs)
-        )
-        let reconciliation = BankSyncReconciliation.plan(
-            candidates: prepared.projectedCandidates,
-            existing: existing
-        )
         let updates = reconciliation.entries.compactMap { entry in
             if case .update(let update) = entry { return update }
             return nil
@@ -322,12 +318,14 @@ extension LocalFirstActualStore {
             durableStatus: ActualBankSyncDurableStatus.from(
                 errorCode: prepared.download.errorCode
             ),
-            inserts: reconciliation.inserts,
+            inserts: inserts,
             updates: updates,
             matchDetails: matchDetails,
             unchangedCount: reconciliation.entries.reduce(0) { count, entry in
-                if case .unchanged = entry { return count + 1 }
-                return count
+                switch entry {
+                case .unchanged, .skippedDeleted: return count + 1
+                case .insert, .update: return count
+                }
             },
             problems: prepared.problems,
             openingBalance: openingBalance,

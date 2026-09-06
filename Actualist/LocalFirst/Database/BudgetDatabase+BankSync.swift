@@ -249,6 +249,29 @@ extension BudgetDatabase {
         }
     }
 
+    /// Actual 26.9.0 matchTransactions defaults a missing preference to true.
+    /// Deleted IDs are account-wide dedupe keys, never mutable match rows.
+    func bankSyncSuppressedFinancialIDs(accountID: String) throws -> Set<String> {
+        try queue.read { db in
+            let reimportDeleted = try preferenceValue("sync-reimport-deleted-\(accountID)", db: db) ?? "true"
+            guard reimportDeleted != "true",
+                  try tableExists("transactions", db: db) else { return [] }
+            let columns = try columnSet(for: "transactions", db: db)
+            let split = transactionSplitQueryExpressions(columns: columns)
+            guard split.tombstone != nil,
+                  let financialID = ["financial_id", "imported_id"].first(where: columns.contains) else {
+                return []
+            }
+            return try Set(String.fetchAll(db, sql: """
+                SELECT DISTINCT t.\(financialID) FROM transactions t
+                WHERE \(split.qualifiedAccount) = ?
+                  AND \(split.internalViewPredicate)
+                  AND NOT \(split.liveRowPredicate)
+                  AND t.\(financialID) IS NOT NULL AND t.\(financialID) != ''
+                """, arguments: [accountID]))
+        }
+    }
+
     /// Income category for a starting-balance row. `nil` when the budget has
     /// no live income category; the opening balance then lands uncategorized.
     func bankSyncIncomeCategoryID() throws -> String? {

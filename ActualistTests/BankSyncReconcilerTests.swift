@@ -97,6 +97,36 @@ struct BankSyncReconcilerTests {
         #expect(insertIDs(plan).count == 2)
     }
 
+    @Test func deletedIDSkipsBeforeClaimingLiveRows() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "deleted"), candidate(id: "new")],
+            existing: [existing(id: "manual")],
+            suppressedFinancialIDs: ["deleted"]
+        )
+        #expect(plan.entries.contains(.skippedDeleted(financialID: "deleted")))
+        #expect(update(for: "manual", plan)?.financialID == "new")
+        #expect(plan.inserts.isEmpty)
+    }
+
+    @Test func liveExactMatchWinsOverOlderDeletedCopy() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "bank-id")],
+            existing: [existing(id: "live", financialID: "bank-id", cleared: false)],
+            suppressedFinancialIDs: ["bank-id"]
+        )
+        #expect(update(for: "live", plan)?.cleared == true)
+        #expect(!plan.entries.contains(.skippedDeleted(financialID: "bank-id")))
+    }
+
+    @Test func deletedIDsNeverSuppressMissingOrDifferentIDs() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: nil), candidate(id: ""), candidate(id: "new")],
+            existing: [],
+            suppressedFinancialIDs: ["deleted", ""]
+        )
+        #expect(plan.inserts.count == 3)
+    }
+
     @Test func idMatchWinsOverCloserDate() {
         // The id match is at the edge of the window; an amount-only neighbor
         // is on the exact day. Pass 1 still wins.
@@ -545,19 +575,17 @@ struct BankSyncReconcilerTests {
         #expect(
             BankSyncReconciliation.openingBalance(
                 currentBalanceMinorUnits: 10_000,
-                candidateAmounts: [-1_000, -2_000],
+                inserts: [candidate(amount: -1_000), candidate(amount: -2_000)],
                 earliestDayID: "20240301",
                 accountHadLiveTransactions: true
             ) == nil
         )
     }
 
-    @Test func openingBalanceIsBalanceMinusAllDownloaded() {
-        // Uses every normalized provider candidate in the window, before
-        // reconciliation and rule-driven suppression — not just the inserts.
+    @Test func openingBalanceIsBalanceMinusPlannedInserts() {
         let opening = BankSyncReconciliation.openingBalance(
             currentBalanceMinorUnits: 7_000,
-            candidateAmounts: [-1_000, -2_000, 500],
+            inserts: [candidate(amount: -1_000), candidate(amount: -2_000), candidate(amount: 500)],
             earliestDayID: "20240220",
             accountHadLiveTransactions: false
         )
@@ -569,7 +597,7 @@ struct BankSyncReconcilerTests {
         #expect(
             BankSyncReconciliation.openingBalance(
                 currentBalanceMinorUnits: -3_000,
-                candidateAmounts: [-1_000, -2_000],
+                inserts: [candidate(amount: -1_000), candidate(amount: -2_000)],
                 earliestDayID: "20240301",
                 accountHadLiveTransactions: false
             ) == nil
@@ -579,7 +607,7 @@ struct BankSyncReconcilerTests {
     @Test func openingBalanceWithNoCandidatesIsToday() {
         let opening = BankSyncReconciliation.openingBalance(
             currentBalanceMinorUnits: 4_200,
-            candidateAmounts: [],
+            inserts: [],
             earliestDayID: nil,
             accountHadLiveTransactions: false
         )

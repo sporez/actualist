@@ -96,6 +96,8 @@ enum BankSyncReconciliation {
         case update(MatchedUpdate)
         /// Matched but either reconciled (locked) or already identical.
         case unchanged(existingID: String)
+        /// Exact bank ID was previously deleted; no local row may be written.
+        case skippedDeleted(financialID: String)
     }
 
     struct Plan: Equatable, Sendable {
@@ -112,7 +114,11 @@ enum BankSyncReconciliation {
     /// (2) same payee within ±7 days and the same amount across every
     /// candidate, (3) nearest remaining same-amount row in the window.
     /// A local row is claimed by at most one download.
-    static func plan(candidates: [Candidate], existing: [Existing]) -> Plan {
+    static func plan(
+        candidates: [Candidate],
+        existing: [Existing],
+        suppressedFinancialIDs: Set<String> = []
+    ) -> Plan {
         var claimed = Set<String>()
 
         // Pass 1 + fuzzy dataset construction (loot-core transactionsStep1).
@@ -122,6 +128,7 @@ enum BankSyncReconciliation {
             var fuzzy: [Existing]?
         }
         var stepOne: [StepOne] = []
+        var entries: [Entry] = []
         for candidate in candidates {
             var idMatch: Existing?
             if let financialID = candidate.financialID, !financialID.isEmpty {
@@ -130,6 +137,9 @@ enum BankSyncReconciliation {
                 }
                 if let idMatch {
                     claimed.insert(idMatch.id)
+                } else if suppressedFinancialIDs.contains(financialID) {
+                    entries.append(.skippedDeleted(financialID: financialID))
+                    continue
                 }
             }
             let fuzzy: [Existing]? = idMatch == nil
@@ -158,7 +168,6 @@ enum BankSyncReconciliation {
         }
 
         let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
-        var entries: [Entry] = []
         for (index, step) in stepOne.enumerated() {
             let candidate = step.candidate
             guard let matchID = step.matchedID ?? matches[index],
@@ -331,21 +340,17 @@ enum BankSyncReconciliation {
         let dayID: String
     }
 
-    /// First-apply opening balance for an account that had no live
-    /// transactions before this run:
-    /// `currentBalance − sum(all normalized provider candidates in the
-    /// initial downloaded window)`. Deliberately sums every candidate —
-    /// including ones a delete rule suppresses or a match adopts — because
-    /// the bank balance reflects all of them. A zero opening balance is
-    /// skipped. Returns nil when the account already had transactions.
+    /// First-apply balance subtracts only final planned inserts. Rule-suppressed
+    /// and deleted downloads never affect the resulting account balance;
+    /// a split contributes its parent amount once.
     static func openingBalance(
         currentBalanceMinorUnits: Int,
-        candidateAmounts: [Int],
+        inserts: [Candidate],
         earliestDayID: String?,
         accountHadLiveTransactions: Bool
     ) -> OpeningBalance? {
         guard !accountHadLiveTransactions else { return nil }
-        let amount = currentBalanceMinorUnits - candidateAmounts.reduce(0, +)
+        let amount = currentBalanceMinorUnits - inserts.reduce(0) { $0 + $1.amountMinorUnits }
         guard amount != 0 else { return nil }
         return OpeningBalance(
             amountMinorUnits: amount,
