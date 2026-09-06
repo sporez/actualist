@@ -97,7 +97,7 @@ struct SettingsView: View {
     }
 
     private func directory(isSplit: Bool) -> some View {
-        List(selection: isSplit ? selectedPage : .constant(nil)) {
+        List(selection: isSplit ? selectedPage : nil) {
             Section {
                 NavigationLink(value: SettingsPage.connection) {
                     SettingsCategoryRow(

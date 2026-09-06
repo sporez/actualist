@@ -31,7 +31,7 @@ struct CustomHeadersSettingsView: View {
                                 get: { header.name },
                                 set: { viewModel.updateHeader(header.id, role: endpoint.id, name: $0) }
                             ))
-                            SecureField("Value", text: Binding(
+                            CustomHeaderValueField(value: Binding(
                                 get: { header.value },
                                 set: { viewModel.updateHeader(header.id, role: endpoint.id, value: $0) }
                             ))
@@ -92,5 +92,41 @@ struct CustomHeadersSettingsView: View {
             }
         }
         .onDisappear { viewModel.cancelTesting() }
+    }
+}
+
+private struct CustomHeaderValueField: View {
+    private enum Field: Hashable { case hidden, revealed }
+
+    @Binding var value: String
+    @State private var isRevealed = false
+    @FocusState private var focusedField: Field?
+
+    var body: some View {
+        HStack {
+            // Removing or hiding SecureField triggers iOS's Save Password prompt; keep it mounted.
+            ZStack {
+                SecureField("Value", text: $value)
+                    .foregroundStyle(isRevealed ? Color.clear : ActualistTheme.primaryText)
+                    .focused($focusedField, equals: .hidden)
+                    .allowsHitTesting(!isRevealed)
+                    .accessibilityHidden(isRevealed)
+                    .zIndex(isRevealed ? 0 : 1)
+                if isRevealed {
+                    TextField("Value", text: $value)
+                        .focused($focusedField, equals: .revealed)
+                }
+            }
+            .privacySensitive()
+            Button(isRevealed ? "Hide Header Value" : "Show Header Value",
+                   systemImage: isRevealed ? "eye.slash" : "eye") {
+                let wasFocused = focusedField != nil
+                isRevealed.toggle()
+                if wasFocused { focusedField = isRevealed ? .revealed : .hidden }
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.borderless)
+            .frame(minWidth: 44, minHeight: 44)
+        }
     }
 }

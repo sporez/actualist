@@ -4,6 +4,28 @@ final class AdaptiveSettingsUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     @MainActor
+    func testCompactSettingsCategoriesOpenByTappingRows() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings"]
+        app.launch()
+        guard app.frame.width < 700 else { throw XCTSkip("Requires compact navigation") }
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
+        for title in ["Connection & Sync", "Budget & Data", "Appearance"] {
+            let row = app.cells.containing(.staticText, identifier: title).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+            app.navigationBars[title].buttons.firstMatch.tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        }
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "iphone-settings-tappable-categories"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testWideSettingsKeepsMenuWhileSwitchingDetail() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
