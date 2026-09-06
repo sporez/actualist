@@ -129,11 +129,19 @@ For a reverse proxy such as Cloudflare Access, open **Custom Headers** during
 onboarding or **Settings → Connection & Sync → Custom Headers**. Primary and
 fallback servers have separate header lists. Values are masked and kept only in
 the device Keychain. **Test Connection** uses your unsaved draft; **Save** commits
-it. An origin change requires explicit review before saved headers can be reused.
+it. You can test either endpoint while signed in; logging out is not required.
+An origin change requires explicit review before saved headers can be reused.
 
 Tests contact only your Actual server. If the server also accepts a request
 without headers, Actualist reports connection success without claiming the
-headers were independently verified. Custom headers also cover the initial
+headers were independently verified. To demonstrate delivery, configure the proxy
+to require a distinct header value for each endpoint on `/account/login-methods`,
+then test each endpoint separately. **Headers verified** means the request with
+headers succeeded and the request without them failed. This connection test does
+not exercise automatic failover or sync. Remove temporary proxy rules and test
+headers after testing.
+
+Custom headers also cover the initial
 OpenID browser request when it uses the Actual server's origin. They are not
 forwarded to another origin or the direct SimpleFIN bridge. Actual's separate
 header-only login method is not supported; use password or OpenID sign-in.
