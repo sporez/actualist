@@ -15,7 +15,7 @@ struct SettingsCategoryRow: View {
         Label {
             HStack(spacing: 8) {
                 Text(title)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Spacer(minLength: 8)
                 if let subtitle {
                     Text(subtitle)

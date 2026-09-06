@@ -554,7 +554,12 @@ extension LocalFirstActualStore {
         guard !token.isEmpty else {
             throw LocalFirstError.missingSyncToken
         }
-        return (simpleFINTransport(for: url), token)
+        let endpoints = failoverEndpoints(for: urlString)
+        if let primary = endpoints.primary, let fallback = endpoints.fallback,
+           shouldSkipPrimary(primary: primary, fallback: fallback) {
+            return (try simpleFINTransport(for: fallback, role: .fallback), token)
+        }
+        return (try simpleFINTransport(for: url, role: .primary), token)
     }
 
     private func rememberBankSyncSupport(_ support: SimpleFINServerSupport) {

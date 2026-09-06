@@ -5,6 +5,7 @@ import UIKit
 @MainActor
 @Observable
 final class SettingsViewModel {
+    private var hasHydratedConnection = false
     var serverURLString = ""
     var fallbackServerURLString = ""
     var actualPassword = ""
@@ -21,6 +22,24 @@ final class SettingsViewModel {
         serverURLString = appState.settings.localFirstServerURLString
         fallbackServerURLString = appState.settings.fallbackServerURLString
         selectedAppIcon = AppIcon.current()
+    }
+
+    func hydrateConnectionIfNeeded(from appState: AppState) {
+        guard !hasHydratedConnection else { return }
+        hydrate(from: appState)
+        hasHydratedConnection = true
+    }
+
+    func customHeadersSummary(using store: LocalFirstActualStore) -> String {
+        _ = store.customHeadersRevision
+        guard let configuration = try? store.keychain.readCustomHTTPHeaders() else { return "Unavailable" }
+        let urls = [serverURLString, fallbackServerURLString]
+        let count = zip(ActualServerEndpointRole.allCases, urls).reduce(0) { count, pair in
+            guard let url = URL(string: ActualServerURLNormalizer.normalize(pair.1)),
+                  let endpoint = configuration[pair.0], endpoint.applies(to: url) else { return count }
+            return count + endpoint.headers.count
+        }
+        return "\(count) Configured"
     }
 
     func setAppIcon(_ icon: AppIcon) async {

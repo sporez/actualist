@@ -121,10 +121,14 @@ struct SimpleFINTransactionsResponse: Equatable, Sendable {
 
 actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     let baseURL: URL
+    private let customHeaders: HTTPHeaderFields
+    private let redirectDelegate: CustomHTTPHeaderRedirectDelegate
     private let session: URLSession
 
-    init(baseURL: URL, session: URLSession? = nil) {
+    init(baseURL: URL, customHeaders: HTTPHeaderFields = .empty, session: URLSession? = nil) {
         self.baseURL = baseURL
+        self.customHeaders = customHeaders
+        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(fields: customHeaders)
         self.session = session ?? URLSession(
             configuration: ActualServerSyncClient.secureSessionConfiguration()
         )
@@ -144,11 +148,11 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
         let response = try Self.decode(SimpleFINAccountsResponse.self, from: data)
         if let errorCode = response.data?.errorCode {
-            throw ActualAPIError.serverRejected(
+            throw customHeaders.sanitized(ActualAPIError.serverRejected(
                 status: nil,
                 reason: errorCode,
                 details: response.data?.errorType
-            )
+            ))
         }
         return (response.data?.accounts ?? []).map { account in
             SimpleFINRemoteAccount(
@@ -179,7 +183,13 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         ) else {
             return nil
         }
-        return try Self.decodeTransactionsResponse(from: data)
+        let response = try Self.decodeTransactionsResponse(from: data)
+        let errors = [response.errorCode, response.errorType]
+            + response.downloads.values.flatMap { [$0.errorCode, $0.errorType] }
+        guard !errors.contains(where: customHeaders.containsCredential(in:)) else {
+            throw ActualAPIError.invalidResponse
+        }
+        return response
     }
 
     // MARK: - HTTP
@@ -377,6 +387,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
 
     private func post(path: String, token: String, body: some Encodable) async throws -> Data? {
         var request = try Self.endpointURL(baseURL: baseURL, path: path)
+        customHeaders.apply(to: &request)
         request.httpMethod = "POST"
         request.timeoutInterval = 60
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -387,7 +398,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await session.data(for: request, delegate: redirectDelegate)
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {

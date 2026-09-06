@@ -7,10 +7,10 @@ import Observation
 final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, EntityNotesRepositoryProtocol, PayeeRepositoryProtocol, RuleRepositoryProtocol, @preconcurrency TransactionRepositoryProtocol, ReportsRepositoryProtocol {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
-    let syncTransportFactory: @Sendable (URL) -> any ActualSyncTransport
-    let connectionTransportFactory: @Sendable (URL) -> any ActualServerConnectionTransport
+    let syncTransportFactory: (@Sendable (URL) -> any ActualSyncTransport)?
+    let connectionTransportFactory: (@Sendable (URL) -> any ActualServerConnectionTransport)?
     /// SimpleFIN bank-sync transport seam; a stub in tests.
-    let simpleFINTransportFactory: @Sendable (URL) -> any SimpleFINServerTransport
+    let simpleFINTransportFactory: (@Sendable (URL) -> any SimpleFINServerTransport)?
     let openIDAuthenticationCoordinator = ActualOpenIDAuthenticationCoordinator()
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
@@ -91,48 +91,66 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     /// Prepared Developer-sheet snapshot of the primary-unreachable cache.
     private(set) var endpointHealthDisplay = ServerEndpointHealthDisplay.empty
 
-    func syncTransport(for url: URL) -> any ActualSyncTransport {
-        if let cached = cachedSyncTransportsByURL[url.absoluteString] {
-            return cached
-        }
-        let transport = syncTransportFactory(url)
-        cachedSyncTransportsByURL[url.absoluteString] = transport
+    // Session injection exercises the production endpoint/header construction in tests.
+    let transportSession: URLSession?
+    private(set) var customHeadersRevision = 0
+
+    func saveCustomHTTPHeaders(_ configuration: CustomHTTPHeaderConfiguration) throws {
+        try keychain.saveCustomHTTPHeaders(configuration)
+        invalidateNetworkTransports()
+        bankSyncSessionCache.clear()
+        customHeadersRevision &+= 1
+    }
+
+    func invalidateNetworkTransports() {
+        cachedSyncTransportsByURL = [:]
+        cachedConnectionTransportsByURL = [:]
+        cachedSimpleFINTransportsByURL = [:]
+    }
+
+    func syncTransport(for url: URL, role: ActualServerEndpointRole = .primary) throws -> any ActualSyncTransport {
+        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
+        let key = role.rawValue + ":" + url.absoluteString
+        if let cached = cachedSyncTransportsByURL[key] { return cached }
+        let transport = syncTransportFactory?(url)
+            ?? ActualServerSyncClient(baseURL: url, customHeaders: fields, session: transportSession)
+        cachedSyncTransportsByURL[key] = transport
         return transport
     }
 
-    func connectionTransport(for url: URL) -> any ActualServerConnectionTransport {
-        if let cached = cachedConnectionTransportsByURL[url.absoluteString] {
-            return cached
-        }
-        let transport = connectionTransportFactory(url)
-        cachedConnectionTransportsByURL[url.absoluteString] = transport
+    func connectionTransport(for url: URL, role: ActualServerEndpointRole = .primary) throws -> any ActualServerConnectionTransport {
+        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
+        let key = role.rawValue + ":" + url.absoluteString
+        if let cached = cachedConnectionTransportsByURL[key] { return cached }
+        let transport = connectionTransportFactory?(url)
+            ?? ActualServerSyncClient(baseURL: url, customHeaders: fields, session: transportSession)
+        cachedConnectionTransportsByURL[key] = transport
         return transport
     }
 
-    func simpleFINTransport(for url: URL) -> any SimpleFINServerTransport {
-        if let cached = cachedSimpleFINTransportsByURL[url.absoluteString] {
-            return cached
-        }
-        let transport = simpleFINTransportFactory(url)
-        cachedSimpleFINTransportsByURL[url.absoluteString] = transport
+    func simpleFINTransport(for url: URL, role: ActualServerEndpointRole = .primary) throws -> any SimpleFINServerTransport {
+        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
+        let key = role.rawValue + ":" + url.absoluteString
+        if let cached = cachedSimpleFINTransportsByURL[key] { return cached }
+        let transport = simpleFINTransportFactory?(url)
+            ?? ActualServerSimpleFINClient(baseURL: url, customHeaders: fields, session: transportSession)
+        cachedSimpleFINTransportsByURL[key] = transport
         return transport
     }
 
     init(
         keychain: KeychainStore = .actualist,
         fileManager: BudgetFileManager = BudgetFileManager(),
-        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
-        connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {
-            ActualServerSyncClient(baseURL: $0)
-        },
-        simpleFINTransportFactory: @escaping @Sendable (URL) -> any SimpleFINServerTransport = {
-            ActualServerSimpleFINClient(baseURL: $0)
-        },
+        syncTransportFactory: (@Sendable (URL) -> any ActualSyncTransport)? = nil,
+        connectionTransportFactory: (@Sendable (URL) -> any ActualServerConnectionTransport)? = nil,
+        simpleFINTransportFactory: (@Sendable (URL) -> any SimpleFINServerTransport)? = nil,
+        transportSession: URLSession? = nil,
         syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
         endpointHealth: ServerEndpointHealth? = nil
     ) {
         self.keychain = keychain
+        self.transportSession = transportSession
         self.fileManager = fileManager
         self.syncTransportFactory = syncTransportFactory
         self.connectionTransportFactory = connectionTransportFactory
@@ -167,9 +185,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         closeOpenBudget()
         cachedBudgets = []
         remoteFilesByFileID = [:]
-        cachedSyncTransportsByURL = [:]
-        cachedConnectionTransportsByURL = [:]
-        cachedSimpleFINTransportsByURL = [:]
+        invalidateNetworkTransports()
         bankSyncSessionCache.clear()
     }
 
@@ -214,6 +230,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         try keychain.removeActualSyncToken()
         try keychain.removeAllLocalFirstEncryptionKeys()
         try keychain.removeSimpleFINAccessURL()
+        try keychain.removeCustomHTTPHeaders()
+        customHeadersRevision &+= 1
         try fileManager.deleteAllImportedBudgets()
     }
 

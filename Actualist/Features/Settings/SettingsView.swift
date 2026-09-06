@@ -4,6 +4,7 @@ import SwiftUI
 /// `settings/privacy`). Unique slugs also work as `-actualist-screen` shorthand.
 enum SettingsPage: String, CaseIterable, Hashable, Sendable {
     case connection
+    case customHeaders = "custom-headers"
     case budgetData = "budget-data"
     case templates
     case payees
@@ -29,158 +30,219 @@ enum SettingsPage: String, CaseIterable, Hashable, Sendable {
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    enum Presentation {
+        case adaptive, directory, detail
+    }
+
+    let presentation: Presentation
     let showsDismissButton: Bool
     @State private var developerUnlockToastTask: Task<Void, Never>?
 
-    init(showsDismissButton: Bool = false) {
+    init(showsDismissButton: Bool = false, presentation: Presentation = .adaptive) {
+        self.presentation = presentation
         self.showsDismissButton = showsDismissButton
     }
 
     var body: some View {
-        @Bindable var routes = appState.routeCoordinator
-        NavigationStack(path: $routes.settingsPath) {
-            List {
-                Section {
-                    NavigationLink(value: SettingsPage.connection) {
-                        SettingsCategoryRow(
-                            systemImage: "antenna.radiowaves.left.and.right",
-                            title: "Connection & Sync",
-                            subtitle: connectionSubtitle,
-                            subtitleColor: connectionSubtitleColor
-                        )
-                    }
-
-                    NavigationLink(value: SettingsPage.budgetData) {
-                        SettingsCategoryRow(
-                            systemImage: "banknote",
-                            title: "Budget & Data",
-                            subtitle: budgetSubtitle
-                        )
-                    }
-                }
-                .settingsSectionChrome()
-
-                Section {
-                    NavigationLink(value: SettingsPage.templates) {
-                        SettingsCategoryRow(
-                            systemImage: "sparkles",
-                            title: "Templates",
-                            subtitle: templatesSubtitle
-                        )
-                    }
-                }
-                .settingsSectionChrome()
-
-                Section {
-                    NavigationLink(value: SettingsPage.appearance) {
-                        SettingsCategoryRow(
-                            systemImage: "paintbrush",
-                            title: "Appearance",
-                            subtitle: appearanceSubtitle
-                        )
-                    }
-
-                    NavigationLink(value: SettingsPage.privacy) {
-                        SettingsCategoryRow(
-                            systemImage: "hand.raised.fill",
-                            title: "Privacy & Notifications",
-                            subtitle: privacySubtitle
-                        )
-                    }
-
-                    NavigationLink(value: SettingsPage.reports) {
-                        SettingsCategoryRow(
-                            systemImage: "chart.xyaxis.line",
-                            title: "Reports",
-                            subtitle: reportsSubtitle
-                        )
-                    }
-                }
-                .settingsSectionChrome()
-
-                Section {
-                    NavigationLink(value: SettingsPage.advanced) {
-                        SettingsCategoryRow(
-                            systemImage: "wrench.and.screwdriver",
-                            title: "Advanced",
-                            subtitle: advancedSubtitle
-                        )
-                    }
-
-                    NavigationLink(value: SettingsPage.support) {
-                        SettingsCategoryRow(
-                            systemImage: "questionmark.circle",
-                            title: "Support",
-                            subtitle: supportSubtitle
-                        )
-                    }
-                } footer: {
-                    Text(appVersionText)
-                        .font(.caption2)
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 8)
-                }
-                .settingsSectionChrome()
-            }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: SettingsPage.self) { page in
-                switch page {
-                case .connection:
-                    ConnectionSyncSettingsView()
-                case .budgetData:
-                    BudgetDataSettingsView()
-                case .templates:
-                    BudgetTemplatesBrowserView()
-                case .payees:
-                    PayeesView()
-                case .rules:
-                    BudgetRulesView()
-                case .bankSync:
-                    BankSyncView()
-                case .appearance:
-                    AppearanceSettingsView()
-                case .privacy:
-                    PrivacySettingsView()
-                case .reports:
-                    ReportsSettingsView()
-                case .advanced:
-                    AdvancedSettingsView()
-                case .support:
-                    SupportSettingsView()
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Button {
-                        recordDeveloperUnlockTap()
-                    } label: {
-                        Text("Settings")
-                            .font(.headline)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(.isHeader)
-                }
-
-                if showsDismissButton {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
+        Group {
+            switch presentation {
+            case .directory:
+                directory(isSplit: true)
+            case .detail:
+                detail
+            case .adaptive:
+                GeometryReader { geometry in
+                    if geometry.size.width >= 700 {
+                        NavigationSplitView {
+                            directory(isSplit: true)
+                                .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 340)
+                        } detail: {
+                            detail
                         }
-                        .accessibilityLabel("Close Settings")
+                        .navigationSplitViewStyle(.balanced)
+                    } else {
+                        @Bindable var routes = appState.routeCoordinator
+                        NavigationStack(path: $routes.settingsPath) {
+                            directory(isSplit: false)
+                                .navigationDestination(for: SettingsPage.self) { destination($0) }
+                        }
                     }
                 }
             }
         }
         .overlay(alignment: .bottom) {
-            developerUnlockToast
+            if presentation != .detail { developerUnlockToast }
+        }
+    }
+
+    private var detail: some View {
+        NavigationStack(path: detailPath) {
+            destination(appState.routeCoordinator.settingsPath.first ?? .connection)
+                .navigationDestination(for: SettingsPage.self) { destination($0) }
+        }
+    }
+
+    private var selectedPage: Binding<SettingsPage?> {
+        Binding(
+            get: { appState.routeCoordinator.settingsPath.first ?? .connection },
+            set: { if let page = $0 { appState.routeCoordinator.settingsPath = [page] } }
+        )
+    }
+
+    private var detailPath: Binding<[SettingsPage]> {
+        Binding(
+            get: { Array(appState.routeCoordinator.settingsPath.dropFirst()) },
+            set: { appState.routeCoordinator.settingsPath = [selectedPage.wrappedValue ?? .connection] + $0 }
+        )
+    }
+
+    private func directory(isSplit: Bool) -> some View {
+        List(selection: isSplit ? selectedPage : .constant(nil)) {
+            Section {
+                NavigationLink(value: SettingsPage.connection) {
+                    SettingsCategoryRow(
+                        systemImage: "antenna.radiowaves.left.and.right",
+                        title: "Connection & Sync",
+                        subtitle: isSplit ? nil : connectionSubtitle,
+                        subtitleColor: connectionSubtitleColor
+                    )
+                }
+
+                NavigationLink(value: SettingsPage.budgetData) {
+                    SettingsCategoryRow(
+                        systemImage: "banknote",
+                        title: "Budget & Data",
+                        subtitle: isSplit ? nil : budgetSubtitle
+                    )
+                }
+            }
+            .settingsSectionChrome(isSidebar: isSplit)
+
+            Section {
+                NavigationLink(value: SettingsPage.templates) {
+                    SettingsCategoryRow(
+                        systemImage: "sparkles",
+                        title: "Templates",
+                        subtitle: isSplit ? nil : templatesSubtitle
+                    )
+                }
+            }
+            .settingsSectionChrome(isSidebar: isSplit)
+
+            Section {
+                NavigationLink(value: SettingsPage.appearance) {
+                    SettingsCategoryRow(
+                        systemImage: "paintbrush",
+                        title: "Appearance",
+                        subtitle: isSplit ? nil : appearanceSubtitle
+                    )
+                }
+
+                NavigationLink(value: SettingsPage.privacy) {
+                    SettingsCategoryRow(
+                        systemImage: "hand.raised.fill",
+                        title: "Privacy & Notifications",
+                        subtitle: isSplit ? nil : privacySubtitle
+                    )
+                }
+
+                NavigationLink(value: SettingsPage.reports) {
+                    SettingsCategoryRow(
+                        systemImage: "chart.xyaxis.line",
+                        title: "Reports",
+                        subtitle: isSplit ? nil : reportsSubtitle
+                    )
+                }
+            }
+            .settingsSectionChrome(isSidebar: isSplit)
+
+            Section {
+                NavigationLink(value: SettingsPage.advanced) {
+                    SettingsCategoryRow(
+                        systemImage: "wrench.and.screwdriver",
+                        title: "Advanced",
+                        subtitle: isSplit ? nil : advancedSubtitle
+                    )
+                }
+
+                NavigationLink(value: SettingsPage.support) {
+                    SettingsCategoryRow(
+                        systemImage: "questionmark.circle",
+                        title: "Support",
+                        subtitle: isSplit ? nil : supportSubtitle
+                    )
+                }
+            } footer: {
+                Text(appVersionText)
+                    .font(.caption2)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 8)
+            }
+            .settingsSectionChrome(isSidebar: isSplit)
+        }
+        .scrollContentBackground(.hidden)
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .tint(ActualistTheme.accent)
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Button {
+                    recordDeveloperUnlockTap()
+                } label: {
+                    Text("Settings")
+                        .font(.headline)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(.isHeader)
+            }
+
+            if showsDismissButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("Close Settings")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func destination(_ page: SettingsPage) -> some View {
+        switch page {
+        case .connection:
+            ConnectionSyncSettingsView()
+        case .customHeaders:
+            CustomHeadersSettingsView(
+                store: appState.localFirstStore,
+                primaryURLString: appState.settings.localFirstServerURLString,
+                fallbackURLString: appState.settings.fallbackServerURLString
+            )
+        case .budgetData:
+            BudgetDataSettingsView()
+        case .templates:
+            BudgetTemplatesBrowserView()
+        case .payees:
+            PayeesView()
+        case .rules:
+            BudgetRulesView()
+        case .bankSync:
+            BankSyncView()
+        case .appearance:
+            AppearanceSettingsView()
+        case .privacy:
+            PrivacySettingsView()
+        case .reports:
+            ReportsSettingsView()
+        case .advanced:
+            AdvancedSettingsView()
+        case .support:
+            SupportSettingsView()
         }
     }
 

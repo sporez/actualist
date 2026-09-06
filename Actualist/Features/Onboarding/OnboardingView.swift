@@ -9,6 +9,7 @@ struct OnboardingView: View {
     @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @State private var viewModel = OnboardingViewModel()
     @State private var showDemoConfirmation = false
+    @State private var showCustomHeaders = false
 
     var body: some View {
         ZStack {
@@ -216,6 +217,10 @@ struct OnboardingView: View {
                         }
                     }
 
+                    Button("Custom Headers") { showCustomHeaders = true }
+                        .buttonStyle(.glass)
+                        .disabled(viewModel.isConnecting || viewModel.isLoadingLoginMethods)
+
                     if appState.canCancelReauthentication {
                         Button {
                             appState.cancelReauthentication()
@@ -233,6 +238,15 @@ struct OnboardingView: View {
             .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             .scrollDismissesKeyboard(.interactively)
         }
+        .sheet(isPresented: $showCustomHeaders) {
+            NavigationStack {
+                CustomHeadersSettingsView(
+                    store: appState.localFirstStore,
+                    primaryURLString: viewModel.serverURLString,
+                    fallbackURLString: appState.settings.fallbackServerURLString
+                )
+            }
+        }
         .onAppear {
             viewModel.hydrate(from: appState)
         }
@@ -243,12 +257,12 @@ struct OnboardingView: View {
         }
     }
 
-    private func authenticate(using authorizationURL: URL) async throws -> URL {
+    private func authenticate(using request: ActualOpenIDBrowserRequest) async throws -> URL {
         try await webAuthenticationSession.authenticate(
-            using: authorizationURL,
+            using: request.url,
             callback: .customScheme(ActualOpenIDAuthenticationCoordinator.callbackScheme),
             preferredBrowserSession: nil,
-            additionalHeaderFields: [:]
+            additionalHeaderFields: request.additionalHeaderFields
         )
     }
 }

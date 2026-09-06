@@ -74,6 +74,8 @@ and iOS Liquid Glass controls.
 - Queues offline changes locally and uploads them when the Actual server is
   reachable again.
 - Supports Actual budgets with optional end-to-end encryption.
+- Supports custom request headers for reverse proxies, with separate securely
+  stored credentials for primary and fallback server addresses.
 - Includes display density, theme, privacy, and background-refresh settings.
 
 Actualist is a companion to Actual Budget, not a replacement for the Actual
@@ -120,6 +122,21 @@ After the first successful import, Actualist keeps a local budget copy for fast
 launches and offline use. Connection, budget selection, sync, display, and data
 management controls are available from **Settings**, opened from the Budget
 screen's gear button or the sidebar in wide iPad windows.
+
+### Custom Headers
+
+For a reverse proxy such as Cloudflare Access, open **Custom Headers** during
+onboarding or **Settings → Connection & Sync → Custom Headers**. Primary and
+fallback servers have separate header lists. Values are masked and kept only in
+the device Keychain. **Test Connection** uses your unsaved draft; **Save** commits
+it. An origin change requires explicit review before saved headers can be reused.
+
+Tests contact only your Actual server. If the server also accepts a request
+without headers, Actualist reports connection success without claiming the
+headers were independently verified. Custom headers also cover the initial
+OpenID browser request when it uses the Actual server's origin. They are not
+forwarded to another origin or the direct SimpleFIN bridge. Actual's separate
+header-only login method is not supported; use password or OpenID sign-in.
 
 ### If Connection Fails
 

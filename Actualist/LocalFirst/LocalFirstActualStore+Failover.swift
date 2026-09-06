@@ -82,7 +82,7 @@ extension LocalFirstActualStore {
     ) async throws -> T {
         try await withFailover(
             serverURLString: serverURLString,
-            resolveTransport: syncTransport(for:),
+            resolveTransport: syncTransport(for:role:),
             operation: operation
         )
     }
@@ -95,14 +95,14 @@ extension LocalFirstActualStore {
     ) async throws -> T {
         try await withFailover(
             serverURLString: serverURLString,
-            resolveTransport: connectionTransport(for:),
+            resolveTransport: connectionTransport(for:role:),
             operation: operation
         )
     }
 
     private func withFailover<Transport, T>(
         serverURLString: String,
-        resolveTransport: (URL) -> Transport,
+        resolveTransport: (URL, ActualServerEndpointRole) throws -> Transport,
         operation: (Transport) async throws -> T
     ) async throws -> T {
         let endpoints = failoverEndpoints(for: serverURLString)
@@ -114,7 +114,7 @@ extension LocalFirstActualStore {
            shouldSkipPrimary(primary: primaryURL, fallback: fallbackURL) {
             lastSyncEndpoint = .fallback
             do {
-                return try await operation(resolveTransport(fallbackURL))
+                return try await operation(resolveTransport(fallbackURL, .fallback))
             } catch {
                 if Self.isFailoverEligible(error) {
                     notePrimarySucceeded(primary: primaryURL, fallback: fallbackURL)
@@ -125,7 +125,7 @@ extension LocalFirstActualStore {
 
         lastSyncEndpoint = .primary
         do {
-            let result = try await operation(resolveTransport(primaryURL))
+            let result = try await operation(resolveTransport(primaryURL, .primary))
             if let fallbackURL = endpoints.fallback {
                 notePrimarySucceeded(primary: primaryURL, fallback: fallbackURL)
             }
@@ -136,7 +136,7 @@ extension LocalFirstActualStore {
                 throw error
             }
             lastSyncEndpoint = .fallback
-            let result = try await operation(resolveTransport(fallbackURL))
+            let result = try await operation(resolveTransport(fallbackURL, .fallback))
             notePrimaryUnreachable(primary: primaryURL, fallback: fallbackURL)
             return result
         }

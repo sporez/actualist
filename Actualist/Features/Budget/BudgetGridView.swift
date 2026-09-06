@@ -12,32 +12,31 @@ struct BudgetGridView: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                Section {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(presentation.groups) { group in
-                            groupRow(group)
-                                .id(group.id)
-                            if viewport.expandedGroupIDs.contains(group.id) {
-                                ForEach(group.categories) { category in
-                                    categoryRow(category, group: group)
-                                        .id(category.id)
-                                }
-                            }
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(presentation.groups) { group in
+                    groupRow(group)
+                        .id(group.id)
+                    if viewport.expandedGroupIDs.contains(group.id) {
+                        ForEach(group.categories) { category in
+                            categoryRow(category, group: group)
+                                .id(category.id)
                         }
                     }
-                    .scrollTargetLayout()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } header: {
-                    BudgetGridMonthHeaders(
-                        presentation: presentation,
-                        metrics: metrics,
-                        actions: actions
-                    )
                 }
             }
+            .scrollTargetLayout()
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, BudgetLayoutMetrics.defaultHorizontalMargins / 2)
             .padding(.bottom, 24)
+        }
+        .safeAreaBar(edge: .top, spacing: 0) {
+            BudgetGridMonthHeaders(
+                presentation: presentation,
+                metrics: metrics,
+                actions: actions
+            )
+            .padding(.horizontal, BudgetLayoutMetrics.defaultHorizontalMargins / 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollPosition(id: $scrollPosition, anchor: .top)
         .background(ActualistTheme.background)

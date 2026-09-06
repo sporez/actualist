@@ -28,7 +28,14 @@ enum ActualistDiagnosticReportBuilder {
         let settings = appState.settings
         let store = appState.localFirstStore
         let syncStatus = appState.localFirstSyncStatus
-        let redactor = DiagnosticReportRedactor(sensitiveValues: sensitiveValues(appState: appState))
+        let headers = try? store.keychain.readCustomHTTPHeaders()
+        let headerCredentials = ActualServerEndpointRole.allCases.flatMap { role in
+            (headers?[role]?.headers ?? []).flatMap { [$0.name, $0.value] }
+        }
+        let redactor = DiagnosticReportRedactor(
+            sensitiveValues: sensitiveValues(appState: appState),
+            credentials: headerCredentials
+        )
         let processInfo = ProcessInfo.processInfo
         let application = UIApplication.shared
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
@@ -392,12 +399,13 @@ enum ActualistDiagnosticReportBuilder {
 struct DiagnosticReportRedactor {
     private let sensitiveValues: [String]
 
-    init(sensitiveValues: [String]) {
+    init(sensitiveValues: [String], credentials: [String] = []) {
         self.sensitiveValues = Array(
             Set(
                 sensitiveValues
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { $0.count >= 4 }
+                    + credentials.filter { !$0.isEmpty }
             )
         )
         .sorted { $0.count > $1.count }

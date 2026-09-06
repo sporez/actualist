@@ -70,7 +70,7 @@ struct ConnectionSyncSettingsView: View {
         .navigationTitle("Connection & Sync")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            viewModel.hydrate(from: appState)
+            viewModel.hydrateConnectionIfNeeded(from: appState)
         }
         .onDisappear {
             viewModel.commitFallbackServerURL(using: appState)
@@ -168,6 +168,16 @@ struct ConnectionSyncSettingsView: View {
             Text("The fallback server is tried automatically when the primary server can't be reached — for example, a Tailscale URL when you're away from home Wi-Fi.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
+
+            NavigationLink {
+                CustomHeadersSettingsView(
+                    store: appState.localFirstStore,
+                    primaryURLString: viewModel.serverURLString,
+                    fallbackURLString: viewModel.fallbackServerURLString
+                )
+            } label: {
+                LabeledContent("Custom Headers", value: viewModel.customHeadersSummary(using: appState.localFirstStore))
+            }
 
             LabeledContent("Password") {
                 SecureField(passwordPrompt, text: $viewModel.actualPassword)

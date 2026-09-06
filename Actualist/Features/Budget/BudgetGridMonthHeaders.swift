@@ -86,7 +86,6 @@ struct BudgetGridMonthHeaders: View {
             }
         }
         .foregroundStyle(ActualistTheme.primaryText)
-        .background(ActualistTheme.background)
         .overlay(alignment: .bottom) {
             Rectangle().fill(ActualistTheme.separator).frame(height: 1)
         }

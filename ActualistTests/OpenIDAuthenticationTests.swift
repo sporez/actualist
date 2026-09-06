@@ -75,7 +75,7 @@ extension LocalFirstActualStoreTests {
         let coordinator = ActualOpenIDAuthenticationCoordinator()
 
         let token = try await coordinator.authenticate(client: transport) { authorizationURL in
-            #expect(authorizationURL == URL(string: "https://identity.example/authorize"))
+            #expect(authorizationURL.url == URL(string: "https://identity.example/authorize"))
             var callback = try #require(await transport.capturedOpenIDReturnURL)
             callback.append(path: "openid-cb")
             callback.append(queryItems: [URLQueryItem(name: "token", value: "actual-token")])

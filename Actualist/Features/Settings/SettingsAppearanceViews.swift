@@ -147,9 +147,9 @@ struct AppIconThumbnail: View {
 }
 
 extension View {
-    func settingsSectionChrome() -> some View {
+    func settingsSectionChrome(isSidebar: Bool = false) -> some View {
         self
-            .listRowBackground(ActualistTheme.surface)
+            .listRowBackground(isSidebar ? nil : ActualistTheme.surface)
             .listRowSeparatorTint(ActualistTheme.separator)
     }
 

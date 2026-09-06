@@ -5,6 +5,7 @@ protocol ActualSyncTransport: Sendable {
 }
 
 protocol ActualServerConnectionTransport: Sendable {
+    var customHeaders: HTTPHeaderFields { get }
     func loginMethods() async throws -> ActualLoginMethodsResponse
     func loginWithPassword(password: String) async throws -> ActualLoginResponse
     func beginOpenIDLogin(
@@ -17,8 +18,14 @@ protocol ActualServerConnectionTransport: Sendable {
     func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse
 }
 
+extension ActualServerConnectionTransport {
+    var customHeaders: HTTPHeaderFields { .empty }
+}
+
 actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTransport {
     let baseURL: URL
+    nonisolated let customHeaders: HTTPHeaderFields
+    private let redirectDelegate: CustomHTTPHeaderRedirectDelegate
     private let session: URLSession
     private let resourceLimits: LocalFirstResourceLimits
 
@@ -29,11 +36,14 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
     init(
         baseURL: URL,
+        customHeaders: HTTPHeaderFields = .empty,
         session: URLSession? = nil,
         resourceLimits: LocalFirstResourceLimits = .standard,
         firstConnectionRetryDelays: [Duration] = ActualServerSyncClient.defaultFirstConnectionRetryDelays
     ) {
         self.baseURL = baseURL
+        self.customHeaders = customHeaders
+        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(fields: customHeaders)
         self.session = session ?? URLSession(configuration: Self.secureSessionConfiguration())
         self.resourceLimits = resourceLimits
         self.firstConnectionRetryDelays = firstConnectionRetryDelays
@@ -113,6 +123,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
     func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws {
         var request = try URLRequest(url: endpointURL(path: "/sync/download-user-file"))
+        customHeaders.apply(to: &request)
         request.httpMethod = "GET"
         request.timeoutInterval = 30
         request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
@@ -156,7 +167,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             body: body
         )
         if let serverError = Self.structuredAPIError(from: data) {
-            throw serverError
+            throw customHeaders.sanitized(serverError)
         }
         do {
             return try JSONDecoder.actual.decode(Value.self, from: data)
@@ -174,6 +185,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         body: (any Encodable)? = nil
     ) async throws -> Data {
         var request = try URLRequest(url: endpointURL(path: path, queryItems: queryItems))
+        customHeaders.apply(to: &request)
         request.httpMethod = method
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -200,6 +212,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         body: Data
     ) async throws -> Data {
         var request = try URLRequest(url: endpointURL(path: path))
+        customHeaders.apply(to: &request)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.httpBody = body
@@ -255,7 +268,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
                     maximumBytes: responseByteLimit
                 )
             } else {
-                (data, response) = try await session.data(for: request)
+                (data, response) = try await session.data(for: request, delegate: redirectDelegate)
             }
         } catch let error as LocalFirstError {
             throw error
@@ -270,7 +283,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         }
         Self.debugLogResponse(httpResponse, data: data)
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw Self.apiError(statusCode: httpResponse.statusCode, data: data)
+            throw customHeaders.sanitized(Self.apiError(statusCode: httpResponse.statusCode, data: data))
         }
         return data
     }
@@ -309,7 +322,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     }
 
     private func limitedData(for request: URLRequest, maximumBytes: Int) async throws -> (Data, URLResponse) {
-        let (bytes, response) = try await session.bytes(for: request)
+        let (bytes, response) = try await session.bytes(for: request, delegate: redirectDelegate)
         if response.expectedContentLength > Int64(maximumBytes) {
             throw LocalFirstError.remoteDataLimitExceeded
         }
@@ -350,7 +363,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
         do {
             try handle.truncate(atOffset: 0)
-            let (bytes, response) = try await session.bytes(for: request)
+            let (bytes, response) = try await session.bytes(for: request, delegate: redirectDelegate)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ActualAPIError.invalidResponse
             }
@@ -360,7 +373,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
                     guard errorData.count < 64 * 1_024 else { break }
                     errorData.append(byte)
                 }
-                throw Self.apiError(statusCode: httpResponse.statusCode, data: errorData)
+                throw customHeaders.sanitized(Self.apiError(statusCode: httpResponse.statusCode, data: errorData))
             }
             guard httpResponse.expectedContentLength <= 0
                     || httpResponse.expectedContentLength <= Int64(resourceLimits.maximumCompressedBudgetBytes) else {

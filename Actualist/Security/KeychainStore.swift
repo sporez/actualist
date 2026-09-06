@@ -53,6 +53,48 @@ struct KeychainStore: Sendable {
         self.backend = backend
     }
 
+    // One item makes a multi-endpoint editor Save atomic, while each endpoint
+    // retains its own origin and fields. Accessibility follows the same service.
+    private var customHeadersItem: KeychainStore {
+        scoped(account: "custom-http-headers")
+    }
+
+    func readCustomHTTPHeaders() throws -> CustomHTTPHeaderConfiguration {
+        guard let data = try customHeadersItem.readRequiredData() else { return .init() }
+        guard let configuration = try? JSONDecoder().decode(CustomHTTPHeaderConfiguration.self, from: data) else {
+            throw CustomHTTPHeaderError.unreadableConfiguration
+        }
+        return configuration
+    }
+
+    func saveCustomHTTPHeaders(_ configuration: CustomHTTPHeaderConfiguration) throws {
+        for role in ActualServerEndpointRole.allCases {
+            if let endpoint = configuration[role] { _ = try HTTPHeaderFields(endpoint: endpoint) }
+        }
+        if configuration.primary == nil && configuration.fallback == nil {
+            try removeCustomHTTPHeaders()
+        } else {
+            try customHeadersItem.saveData(JSONEncoder().encode(configuration))
+        }
+    }
+
+    func removeCustomHTTPHeaders() throws {
+        try customHeadersItem.deleteData(operation: "remove custom headers")
+    }
+
+    private func readRequiredData() throws -> Data? {
+        var query = baseQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: AnyObject?
+        let status = backend.copyMatching(query as CFDictionary, result: &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data else {
+            throw CustomHTTPHeaderError.unreadableConfiguration
+        }
+        return data
+    }
+
     func readActualSyncToken() -> String {
         guard let data = readData(),
               let value = String(data: data, encoding: .utf8) else {

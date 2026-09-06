@@ -13,9 +13,17 @@ budget, and send changes you make in the app.
 
 Your budget data is stored in Actualist's private app container on your device
 and on the Actual Budget server you choose. Sync tokens, unlocked budget
-encryption keys, and any SimpleFIN device access URL you claim are stored in
-the iOS Keychain. Your Actual server password is used to authenticate and is
-not retained by Actualist.
+encryption keys, custom HTTP headers, and any SimpleFIN device access URL you
+claim are stored in the iOS Keychain. The password entered in the sign-in form
+is used to authenticate and is not retained by Actualist. A password or other
+credential you explicitly enter as a custom header is saved in Keychain.
+
+Custom headers are bound separately to the primary and fallback server origins
+(scheme, host, and port). They are not sent to unrelated origins or the direct
+SimpleFIN bridge. For OpenID, they may accompany the initial browser request
+only when it has the Actual server's origin. Connection tests use the configured
+Actual server; no external header-testing service receives the values.
+Disconnect & Erase Local Data removes all saved custom headers.
 
 To display widgets, Actualist also keeps a local snapshot in an App Group
 container shared with its widget extension. This includes budget, category and

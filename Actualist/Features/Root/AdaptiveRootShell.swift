@@ -43,23 +43,37 @@ struct AdaptiveRootShell: View {
     @State private var isClosedAccountsExpanded = false
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-        } detail: {
-            detailView
-                .toolbar {
-                    if selection?.isAccount != true && !(selection == .budget && viewport.selectedCategoryDetails != nil) {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button {
-                                transactionPresenter.present(using: appState)
-                            } label: {
-                                Label("Add Transaction", systemImage: "plus")
-                            }
-                            .accessibilityLabel("Add Transaction")
-                            .keyboardShortcut("n", modifiers: [.command])
-                        }
-                    }
+        Group {
+            if selection == .settings {
+                NavigationSplitView {
+                    sidebar
+                } content: {
+                    SettingsView(presentation: .directory)
+                        .navigationSplitViewColumnWidth(min: 280, ideal: 300, max: 340)
+                } detail: {
+                    SettingsView(presentation: .detail)
                 }
+                .navigationSplitViewStyle(.balanced)
+            } else {
+                NavigationSplitView {
+                    sidebar
+                } detail: {
+                    detailView
+                        .toolbar {
+                            if selection?.isAccount != true && !(selection == .budget && viewport.selectedCategoryDetails != nil) {
+                                ToolbarItem(placement: .primaryAction) {
+                                    Button {
+                                        transactionPresenter.present(using: appState)
+                                    } label: {
+                                        Label("Add Transaction", systemImage: "plus")
+                                    }
+                                    .accessibilityLabel("Add Transaction")
+                                    .keyboardShortcut("n", modifiers: [.command])
+                                }
+                            }
+                        }
+                }
+            }
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 320)
         .environment(\.budgetCurrency, displayedBudgetCurrency)

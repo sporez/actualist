@@ -2,7 +2,14 @@ import AuthenticationServices
 import Foundation
 import Security
 
-typealias ActualOpenIDBrowserSession = @MainActor @Sendable (URL) async throws -> URL
+struct ActualOpenIDBrowserRequest: Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    let url: URL
+    let additionalHeaderFields: [String: String]
+    var description: String { "ActualOpenIDBrowserRequest(<redacted>)" }
+    var debugDescription: String { description }
+}
+
+typealias ActualOpenIDBrowserSession = @MainActor @Sendable (ActualOpenIDBrowserRequest) async throws -> URL
 
 enum ActualOpenIDAuthenticationError: LocalizedError, Equatable {
     case alreadyInProgress
@@ -86,7 +93,10 @@ actor ActualOpenIDAuthenticationCoordinator {
 
         let returnedURL: URL
         do {
-            returnedURL = try await browserSession(response.returnURL)
+            returnedURL = try await browserSession(ActualOpenIDBrowserRequest(
+                url: response.returnURL,
+                additionalHeaderFields: client.customHeaders.initialBrowserHeaders(for: response.returnURL)
+            ))
         } catch {
             if Self.isCancellation(error) {
                 throw ActualOpenIDAuthenticationError.cancelled
