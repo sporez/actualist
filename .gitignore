@@ -63,6 +63,7 @@ scripts/*
 !scripts/lint-liquid-glass.sh
 !scripts/lint-testflight-notes.sh
 !scripts/run-ios-simulator.sh
+!scripts/test.sh
 !scripts/template-parity/
 !scripts/template-parity/*.mjs
 !scripts/split-parity/

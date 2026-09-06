@@ -346,7 +346,7 @@ diff smaller.
 - This Xcode project uses file system synchronized groups: any Swift file under
   `Actualist/` or `ActualistTests/` is compiled automatically with no pbxproj
   edit. Run an early simulator build immediately after structural moves, then
-  run relevant tests and the full suite. Files that must be excluded from
+  run tests at the scope defined below. Files that must be excluded from
   target membership (e.g. `Info.plist`, entitlements) are listed in the
   synchronized group's `membershipExceptions`.
 - File splitting must preserve or improve access control. Do not expose private
@@ -422,6 +422,49 @@ Do not waste a first attempt inside the filesystem/network sandbox for commands
 that are already known to require Xcode, CoreDevice, signing, socket binding,
 or public network access. Request/run them outside the sandbox immediately.
 
+## Testing Scope And Reuse
+
+Choose validation from the changed behavior and its callers before running tests.
+Do not treat commit, push, or handoff as a reason to repeat successful validation.
+
+| Change | Required validation beyond `scripts/check.sh` and diff review |
+| --- | --- |
+| Already validated work being committed or pushed | Reuse passing results when the tested source, tests, project configuration, and relevant toolchain are unchanged. |
+| Documentation or comments only | No app build or tests. |
+| Test-only changes | Changed test suites. |
+| Scripts or developer tooling | Syntax checks and focused behavior checks for the changed tooling. |
+| Contained production logic | Affected unit suites, including relevant caller/regression coverage. |
+| UI layout or interaction | Compile, inspect the affected screen, and run relevant UI regressions for changed interactions; include unit tests when view-model/domain behavior changes. No unrelated UI suites. |
+| Shared database, sync, money logic, broad refactors, or project/target configuration | Full unit suite and relevant integration coverage; affected UI tests only if UI behavior is at risk. |
+| TestFlight release | Full unit and UI suites, plus the strict-concurrency build. |
+
+- Use `scripts/test.sh unit <Suite>...` for focused unit tests, `unit` for all
+  unit tests, `ui <Suite[/testMethod]>...` for selected UI tests, and `all` for
+  the complete unit and UI suites. Unfiltered `xcodebuild test` on the shared
+  scheme includes UI tests; never call it a unit-only run.
+- Full UI coverage is required for releases and broad UI/navigation changes.
+  Routine backend changes do not require it. Verify affected iPad layouts when
+  changing adaptive UI; do not repeat the whole device/theme matrix for a
+  localized change.
+- A successful normal test build satisfies compilation for the targets it
+  built. Do not add a separate identical build. Build other affected targets
+  if the selected test run did not compile them. Keep the early build after
+  structural moves, then avoid repeating it without a reason.
+- Run the strict-concurrency overlay for changes to async tasks, actor isolation,
+  Sendable boundaries, shared mutable state, or concurrency/build settings, and
+  for releases. It is not required for ordinary layout or synchronous logic.
+- When a full suite is required, run it once after the final relevant edit;
+  focused runs are useful while iterating but need not precede an already
+  sufficient full run. Do not run both parallel and serial suites unless
+  investigating test scheduling/reliability.
+- Reuse results only with evidence of what ran and passed against which source
+  state. A commit that only records that state does not invalidate results.
+  Relevant edits, merges, toolchain changes, failures, or incomplete evidence
+  require fresh affected checks. Do not add a validation-cache framework.
+- Report what ran or was reused, its scope, and any outstanding required check.
+  A deliberately focused run is complete validation under this policy; do not
+  label it incomplete merely because unrelated suites were omitted.
+
 ## Mandatory Pre-Handoff Verification Gate
 
 Builds and tests are necessary but not sufficient. Before handing off any
@@ -443,7 +486,8 @@ and report the result. At minimum:
 - Audit every `AppState` change and confirm it is strictly app-wide
   session/settings/routing coordination. Move feature behavior to a focused
   owner before handoff.
-- Build with complete concurrency diagnostics enabled, pinning the simulator
+- When required by Testing Scope And Reuse, build with complete concurrency
+  diagnostics enabled, pinning the simulator
   from `scripts/lib/destinations.sh`:
 
   ```sh
@@ -460,12 +504,11 @@ and report the result. At minimum:
   `SWIFT_VERSION = 6` or project-wide `SWIFT_STRICT_CONCURRENCY=complete` until
   that overlay is clean. Do not silence diagnostics with `@unchecked Sendable`
   or `@preconcurrency` without a documented invariant and focused tests.
-- Run the relevant focused unit tests, followed by the full test suite for every
-  production-code change. Documentation-only and test-only changes are exempt
-  from the full suite when no production source or project configuration moved.
-- Require zero warnings from the normal project build. Investigate new warnings
-  instead of accepting or filtering them out.
-- Run `scripts/lint-liquid-glass.sh` after UI/design-system work.
+- Run or reuse the tests required by Testing Scope And Reuse above.
+- Require zero warnings from the normal project build (including the build
+  performed by tests). Investigate new warnings instead of filtering them out.
+- `scripts/check.sh` includes Liquid Glass lint; do not rerun that lint separately
+  unless relevant UI/design-system code changed after the check.
 - If any new commit includes a `TestFlight-Note` trailer, run
   `scripts/lint-testflight-notes.sh --range <base>..HEAD` and fix violations
   before handoff.

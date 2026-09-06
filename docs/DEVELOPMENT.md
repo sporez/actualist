@@ -46,31 +46,58 @@ file-size warnings for touched sources.
 
 ## Tests
 
-Run the unit tests against the pinned iOS 26 simulator:
+Use the smallest test scope that covers the changed behavior and its callers.
+The authoritative requirements are in [AGENTS.md](../AGENTS.md#testing-scope-and-reuse).
 
 ```sh
-source scripts/lib/destinations.sh
-xcodebuild \
-  -project Actualist.xcodeproj \
-  -scheme Actualist \
-  -destination "platform=iOS Simulator,id=${ACTUALIST_SIMULATOR_ID}" \
-  -derivedDataPath .derivedData \
-  test
+# Focused unit suites (multiple suites or Suite/testMethod selectors allowed)
+scripts/test.sh unit BankSyncReconcilerTests BankSyncDeletedTransactionsTests
+
+# All unit tests, excluding UI tests
+scripts/test.sh unit
+
+# Affected UI interactions only
+scripts/test.sh ui AdaptiveSettingsUITests/testCompactSettingsCategoriesOpenByTappingRows
+
+# Full unit and UI suites for releases or broad UI changes
+scripts/test.sh all
 ```
 
-Pin by UDID rather than display name so duplicate simulator names cannot select
-the wrong device. Configure the ID in `scripts/lib/destinations.sh` as above.
+The helper uses the pinned UDID from `scripts/lib/destinations.sh` (or
+`ACTUALIST_SIMULATOR_ID` in the environment) and `.derivedData`. Set
+`DERIVED_DATA_PATH` to use a different build directory. `--dry-run` before the
+mode prints the command without building or testing.
 
-For production changes, run focused tests followed by the full suite and a
-normal build with zero warnings. Also build with
-`SWIFT_STRICT_CONCURRENCY=complete` and ensure changed code adds no warnings.
-This is a command-line verification option, not a project-wide Swift 6 migration.
+Contained logic changes need affected unit suites. Shared database, sync, money
+logic, broad refactors, and project/target changes need the full unit suite.
+UI work needs inspection of affected screens and relevant interaction tests;
+backend-only work does not need UI automation. Docs/comments need no app tests;
+tooling needs syntax and focused behavior checks.
 
-The TestFlight gate runs the full suite with Xcode's default parallel execution.
-For test reliability changes, verify both that invocation and a full run with
-`-parallel-testing-enabled NO`. Async tests should wait for observable completion
-rather than race short sleep deadlines. Database query-scaling tests should
-count queries instead of treating shared-machine elapsed time as app performance.
+A successful test build counts as compilation for the targets it builds; do not
+add an identical standalone build. Normal builds must have zero warnings. Run
+`SWIFT_STRICT_CONCURRENCY=complete` for concurrency-related changes and releases,
+with no new diagnostics in changed code. This remains a command-line overlay,
+not a project-wide Swift 6 migration.
+
+For a commit or push, reuse passing results for unchanged source, tests, project
+configuration, and relevant toolchain. Report the reused evidence. Rerun affected
+checks after relevant edits or merges, or when prior evidence is missing. Keep
+`scripts/check.sh` and diff review; do not restart a full validation cycle simply
+because the user asks to push.
+
+The TestFlight helper retains the full shared-scheme unit and UI gate (its
+current log/help calls these “unit tests”). An unfiltered `xcodebuild test`
+includes both targets. Release validation also requires the strict-concurrency
+build described in AGENTS.md. Do not run a separate full suite immediately
+before the release helper repeats it.
+
+For test scheduling/reliability changes, check the affected tests with Xcode's
+default parallel execution and `-parallel-testing-enabled NO`; expand to the
+full unit suite in both modes only for suite-wide scheduling problems. Async
+tests should wait for observable completion rather than race short sleep
+deadlines. Query-scaling tests should count queries instead of using
+shared-machine elapsed time as app performance.
 
 ## TestFlight
 
@@ -177,13 +204,8 @@ navigation, sheets, menus, and alerts should own their chrome. Do not fake glass
 with `Material`, blur, or custom translucent capsules, and do not stack glass
 surfaces.
 
-After UI or design-system work:
-
-```sh
-scripts/lint-liquid-glass.sh
-```
-
-Also verify:
+Liquid Glass lint runs within `scripts/check.sh`; no separate repeat is needed.
+Inspect the affected screen and states, selecting relevant checks below:
 
 - An iPhone-sized simulator or preview.
 - Dark mode and any affected light themes.
