@@ -48,17 +48,19 @@ struct AccountTransactionsSummaryView: View {
 
             summaryRow(label: "Budgeted", value: presentation.budgetedText)
             Divider().overlay(ActualistTheme.separator)
-            summaryRow(label: "Spent", value: presentation.spentText)
-            Divider().overlay(ActualistTheme.separator)
-            summaryRow(
-                label: "Remaining",
-                value: presentation.remainingText,
-                foreground: remainingForeground(presentation.remainingTone)
-            )
+            summaryRow(label: details.semantics.activityLabel, value: presentation.spentText)
+            if details.semantics.showsBalance {
+                Divider().overlay(ActualistTheme.separator)
+                summaryRow(
+                    label: details.semantics.isTracking ? "Balance" : "Remaining",
+                    value: presentation.remainingText,
+                    foreground: remainingForeground(presentation.remainingTone)
+                )
+            }
 
             if let categoryCarryoverIsEnabled {
                 Divider().overlay(ActualistTheme.separator)
-                categoryCarryoverRow(isEnabled: categoryCarryoverIsEnabled)
+                categoryCarryoverRow(isEnabled: categoryCarryoverIsEnabled, semantics: details.semantics)
             }
 
             if let templateDoor {
@@ -84,14 +86,14 @@ struct AccountTransactionsSummaryView: View {
         .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private func categoryCarryoverRow(isEnabled: Bool) -> some View {
+    private func categoryCarryoverRow(isEnabled: Bool, semantics: BudgetModePresentation) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Rollover Overspending")
+                Text(semantics.rolloverTitle)
                     .font(ActualistTypography.body(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
 
-                Text("Carry this category’s negative balance into following months.")
+                Text(semantics.rolloverExplanation)
                     .font(ActualistTypography.rowLabel(for: density))
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -106,7 +108,7 @@ struct AccountTransactionsSummaryView: View {
             }
 
             Toggle(
-                "Rollover Overspending",
+                semantics.rolloverTitle,
                 isOn: Binding(
                     get: { isEnabled },
                     set: onCategoryCarryoverChanged

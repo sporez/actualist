@@ -27,7 +27,7 @@ struct CategoryMonthDetailsContent: View {
             onChanged: {
                 Task { await viewModel.refresh(using: appState) }
             },
-            categoryCarryoverIsEnabled: viewModel.isCarryoverEnabled,
+            categoryCarryoverIsEnabled: viewModel.details.semantics.showsBalance ? viewModel.isCarryoverEnabled : nil,
             categoryNotePresentation: appState.settings.randomizedDisplayValuesEnabled
                 ? nil
                 : viewModel.categoryNotePresentation,

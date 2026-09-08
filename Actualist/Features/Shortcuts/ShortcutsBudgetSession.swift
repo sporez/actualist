@@ -158,7 +158,7 @@ final class ShortcutsBudgetSession {
 
     func categories(
         includeHidden: Bool,
-        includeIncome: Bool = false,
+        includeIncome: Bool? = nil,
         matching query: String? = nil,
         month preferredMonth: String? = nil
     ) async throws -> [CategoryEntity] {
@@ -173,7 +173,7 @@ final class ShortcutsBudgetSession {
             if !includeHidden, isHidden {
                 return nil
             }
-            if !includeIncome, category.isIncome {
+            if !(includeIncome ?? month.isTrackingBudget), category.isIncome {
                 return nil
             }
             if let query, !ShortcutEntityMatching.name(category.name, matches: query) {
@@ -183,7 +183,8 @@ final class ShortcutsBudgetSession {
                 from: category,
                 groupName: groupNames[category.groupID] ?? "",
                 currency: month.currency,
-                isHidden: isHidden
+                isHidden: isHidden,
+                isTrackingBudget: month.isTrackingBudget
             )
         }
     }
@@ -222,27 +223,9 @@ final class ShortcutsBudgetSession {
 
     func loadedMonth(preferred: String? = nil) async throws -> LoadedBudgetMonth {
         let prepared = try await prepare()
-        if let cached = prepared.store.cachedBudgetMonth(budgetID: prepared.budgetID) {
-            if let preferred, preferred != cached.selectedMonth {
-                return try await prepared.store.budgetMonth(
-                    budgetID: prepared.budgetID,
-                    selectedMonth: preferred
-                )
-            }
-            return cached
-        }
-        if let preferred {
-            return try await prepared.store.budgetMonth(
-                budgetID: prepared.budgetID,
-                selectedMonth: preferred
-            )
-        }
-        let available = try await prepared.store.availableMonths(budgetID: prepared.budgetID)
-        let selected = available.last ?? YearMonth(date: Date()).rawValue
-        return try await prepared.store.currentBudgetMonth(
-            budgetID: prepared.budgetID,
-            preferredMonth: selected
-        )
+        let selected = preferred ?? prepared.store.cachedBudgetMonth(budgetID: prepared.budgetID)?.selectedMonth
+            ?? WidgetMonthID.current()
+        return try await prepared.store.readBudgetMonth(budgetID: prepared.budgetID, month: selected)
     }
 
     private func preparedBudget(

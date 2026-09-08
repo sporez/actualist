@@ -30,6 +30,7 @@ struct ActualistApp: App {
         _appState = State(initialValue: appState)
         BackgroundTransactionRefreshCoordinator.shared.configure(appState: appState)
         WidgetSnapshotCoordinator.shared.configure(appState: appState)
+        BudgetCalendarCoordinator.shared.configure(appState: appState)
         let session = ShortcutsBudgetSession(appState: appState)
         AppDependencyManager.shared.add { session }
     }
@@ -47,6 +48,7 @@ struct ActualistApp: App {
                 }
                 .task {
                     await appState.prepareBackgroundTransactionNotifications()
+                    BudgetCalendarCoordinator.shared.beginForeground()
                     await appState.beginForegroundSession()
                     if let command = SimulatorLaunchCommand.fromProcessInfo() {
                         await SimulatorLaunchApplier.apply(command, to: appState)
@@ -54,11 +56,13 @@ struct ActualistApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
+                        BudgetCalendarCoordinator.shared.beginForeground()
                         appState.clearAppInitiatedSystemUIPresentationSuppression()
                         Task {
                             await appState.beginForegroundSession()
                         }
                     } else if phase == .background {
+                        BudgetCalendarCoordinator.shared.endForeground()
                         appState.endForegroundSession()
                         BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                     }

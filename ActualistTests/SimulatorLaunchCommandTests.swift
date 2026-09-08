@@ -3,6 +3,13 @@ import Testing
 @testable import Actualist
 
 struct SimulatorLaunchCommandTests {
+    @Test func trackingDemoFlagUsesExistingOnboardingRoute() {
+        let command = SimulatorLaunchCommand.parse(arguments: ["/Actualist", "-actualist-tracking-demo"])
+        #expect(command?.enterDemo == true)
+        #expect(command?.trackingDemo == true)
+        #expect(command?.route == .tab(.budget))
+    }
+
     @Test func absentFlagsAreIgnored() {
         #expect(SimulatorLaunchCommand.parse(arguments: ["/Actualist"]) == nil)
         #expect(SimulatorLaunchCommand.parse(arguments: ["/Actualist", "-AppleLanguages", "(en)"]) == nil)
@@ -149,7 +156,7 @@ struct SimulatorLaunchApplierTests {
         state.settings.selectedLocalFirstFileID = "real-file"
 
         await SimulatorLaunchApplier.apply(
-            SimulatorLaunchCommand(enterDemo: true, screenPath: ["spending"]),
+            SimulatorLaunchCommand(enterDemo: true, trackingDemo: true, screenPath: ["spending"]),
             to: state
         )
 

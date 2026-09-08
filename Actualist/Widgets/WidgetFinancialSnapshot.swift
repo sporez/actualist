@@ -27,9 +27,33 @@ struct WidgetAttentionSnapshot: Codable, Equatable, Sendable {
 struct WidgetMonthOverviewSnapshot: Codable, Equatable, Sendable {
     let income: WidgetMoney
     let spent: WidgetMoney
-    let toBudget: WidgetMoney
+    let toBudget: WidgetMoney?
     let budgeted: WidgetMoney
     let available: WidgetMoney
+    var summary: WidgetSummaryMetric?
+
+    // Version 2 envelope snapshots predate typed summaries.
+    var displayedSummary: WidgetSummaryMetric? {
+        summary ?? toBudget.map { WidgetSummaryMetric(kind: .toBudget, amount: $0) }
+    }
+    var balanceLabel: String { toBudget == nil ? "Balance" : "Available" }
+}
+
+struct WidgetSummaryMetric: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable {
+        case toBudget, projectedSavings, saved, overspent
+
+        var title: String {
+            switch self {
+            case .toBudget: "To Budget"
+            case .projectedSavings: "Projected Savings"
+            case .saved: "Saved"
+            case .overspent: "Overspent"
+            }
+        }
+    }
+    let kind: Kind
+    let amount: WidgetMoney
 }
 
 struct WidgetTransactionSnapshot: Codable, Equatable, Sendable, Identifiable {

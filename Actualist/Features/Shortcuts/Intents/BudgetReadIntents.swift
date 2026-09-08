@@ -5,12 +5,16 @@ enum CategoryBalanceMetric: String, AppEnum {
     case available
     case budgeted
     case spent
+    case balance
+    case received
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Category Metric")
     static let caseDisplayRepresentations: [CategoryBalanceMetric: DisplayRepresentation] = [
         .available: "Available",
         .budgeted: "Budgeted",
-        .spent: "Spent"
+        .spent: "Spent",
+        .balance: "Balance",
+        .received: "Received"
     ]
 }
 
@@ -72,8 +76,7 @@ struct GetCategoryIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<CategoryEntity> & ProvidesDialog {
         let resolved = try await session.category(id: category.id, month: month?.id)
-        let spoken = ShortcutMoney.spoken(resolved.available)
-        return .result(value: resolved, dialog: IntentDialog("\(resolved.name) has \(spoken) available."))
+        return .result(value: resolved, dialog: IntentDialog("\(resolved.spokenSummary)"))
     }
 }
 
@@ -117,8 +120,14 @@ struct GetCategoryBalanceIntent: AppIntent {
         case .spent:
             amount = resolved.spent
             label = "spent"
+        case .balance:
+            amount = resolved.balance
+            label = "balance"
+        case .received:
+            amount = resolved.received
+            label = "received"
         }
-        let value = amount ?? ShortcutMoney.intentAmount(minorUnits: 0)
+        guard let value = amount else { throw ShortcutsError.metricUnavailable }
         let spoken = ShortcutMoney.spoken(value)
         return .result(value: value, dialog: IntentDialog("\(resolved.name) has \(spoken) \(label)."))
     }
@@ -172,7 +181,7 @@ struct GetReadyToAssignIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<IntentCurrencyAmount> & ProvidesDialog {
         let summary = try await session.budgetSummary(month: month?.id)
-        let amount = summary.readyToAssign ?? ShortcutMoney.intentAmount(minorUnits: 0)
+        guard let amount = summary.readyToAssign else { throw ShortcutsError.trackingActionUnsupported }
         let spoken = ShortcutMoney.spoken(amount)
         return .result(value: amount, dialog: IntentDialog("You have \(spoken) ready to assign."))
     }
@@ -200,8 +209,7 @@ struct GetBudgetSummaryIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<BudgetSummaryEntity> & ProvidesDialog {
         let summary = try await session.budgetSummary(month: month?.id)
-        let spoken = ShortcutMoney.spoken(summary.readyToAssign)
-        return .result(value: summary, dialog: IntentDialog("You have \(spoken) ready to assign."))
+        return .result(value: summary, dialog: IntentDialog("\(summary.spokenSummary)"))
     }
 }
 

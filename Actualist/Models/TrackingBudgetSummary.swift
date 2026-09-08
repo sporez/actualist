@@ -14,6 +14,14 @@ struct TrackingBudgetSummary: Codable, Hashable, Sendable {
         case projectedSavings
         case saved
         case overspent
+
+        var title: String {
+            switch self {
+            case .projectedSavings: "Projected Savings"
+            case .saved: "Saved"
+            case .overspent: "Overspent"
+            }
+        }
     }
 
     struct Headline: Equatable, Sendable {

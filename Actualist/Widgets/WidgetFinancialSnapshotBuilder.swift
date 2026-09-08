@@ -23,10 +23,24 @@ enum WidgetFinancialSnapshotBuilder {
                     : $0)
             }
         }
+        let headline = month.trackingSummary?.headline(month: month.month, currentMonth: WidgetMonthID.current(now: now))
+        let summary: WidgetSummaryMetric
+        if let headline {
+            let kind: WidgetSummaryMetric.Kind
+            switch headline.kind {
+            case .projectedSavings: kind = .projectedSavings
+            case .saved: kind = .saved
+            case .overspent: kind = .overspent
+            }
+            summary = WidgetSummaryMetric(kind: kind, amount: money(headline.amount))
+        } else {
+            summary = WidgetSummaryMetric(kind: .toBudget, amount: money(month.toBudget))
+        }
+        snapshot.isTrackingBudget = headline != nil
         snapshot.overview = WidgetMonthOverviewSnapshot(
             income: money(month.totalIncome), spent: money(-month.totalSpent),
-            toBudget: money(month.toBudget), budgeted: money(month.totalBudgeted),
-            available: money(month.totalBalance)
+            toBudget: headline == nil ? money(month.toBudget) : nil, budgeted: money(month.totalBudgeted),
+            available: money(month.totalBalance), summary: summary
         )
         snapshot.accounts = source.accounts?.map { display in
             WidgetAccountSnapshot(
@@ -40,7 +54,7 @@ enum WidgetFinancialSnapshotBuilder {
         snapshot.attention = source.attention.map { attention in
             // Counts follow the projected categories in sample-values mode.
             let overspent = privacyEnabled
-                ? snapshot.categories.filter { $0.availableMinorUnits < 0 }.map(\.id)
+                ? snapshot.categories.filter { $0.availableMinorUnits < 0 && (month.trackingSummary == nil || !$0.isHidden) }.map(\.id)
                 : attention.overspentCategoryIDs
             return WidgetAttentionSnapshot(
                 uncategorizedCount: privacyEnabled ? (attention.uncategorizedCount == 0 ? 0 : 3) : attention.uncategorizedCount,

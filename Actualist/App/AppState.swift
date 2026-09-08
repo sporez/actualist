@@ -99,12 +99,12 @@ final class AppState {
     /// Install and open the bundled demo budget, then route straight to the
     /// main app shell. Only valid from `.needsConnection` (onboarding). Never
     /// writes a sync token or encryption key, never contacts a server.
-    func enterDemoMode() async {
+    func enterDemoMode(tracking: Bool = false) async {
         guard setupPhase == .needsConnection else {
             return
         }
         do {
-            try await localFirstStore.openDemoBudget()
+            try await localFirstStore.openDemoBudget(tracking: tracking)
             let budget = DemoBudget.budget
             guard localFirstStore.isOpen(budgetID: budget.syncID) else {
                 throw LocalFirstError.budgetNotOpened

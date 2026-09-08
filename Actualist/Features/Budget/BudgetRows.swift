@@ -12,6 +12,7 @@ struct BudgetGroupSection: View {
     let isEditingAssignment: (BudgetMonthCategory) -> Bool
     let beginAssignmentEditing: (BudgetMonthCategory, CGRect) -> Void
     let toggle: () -> Void
+    var isTrackingBudget = false
     var showHidden = false
     var hidesCarryoverArrows = false
     var canChangeVisibility = true
@@ -68,6 +69,7 @@ struct BudgetGroupSection: View {
                             isEditing: isEditingAssignment(category),
                             isPrivacyModeEnabled: isPrivacyModeEnabled,
                             showsBottomSeparator: index < displayedCategories.count - 1,
+                            isTrackingBudget: isTrackingBudget,
                             isDimmed: BudgetCategoryVisibility.isEffectivelyHidden(
                                 category: category,
                                 group: group
@@ -119,7 +121,18 @@ struct BudgetGroupSection: View {
 
     @ViewBuilder
     private var groupRowLabel: some View {
-        if dynamicTypeSize.isAccessibilitySize {
+        if isTrackingBudget {
+            VStack(alignment: .leading, spacing: 8) {
+                groupHeading
+                BudgetTrackingAmounts(
+                    semantics: BudgetModePresentation(isTracking: true, isIncome: group.isIncome),
+                    budgeted: groupBudgetedText,
+                    activity: currency.formatted(BudgetModePresentation(isIncome: group.isIncome).activityAmount(group.spent)),
+                    balance: groupBalanceText,
+                    balanceAmount: group.balance
+                )
+            }
+        } else if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 10) {
                 groupHeading
                 VStack(spacing: 6) {
@@ -205,6 +218,7 @@ struct BudgetCategoryRow: View {
     let isEditing: Bool
     let isPrivacyModeEnabled: Bool
     let showsBottomSeparator: Bool
+    var isTrackingBudget = false
     var isDimmed = false
     var hidesCarryoverArrows = false
     var canChangeVisibility = false
@@ -381,7 +395,21 @@ struct BudgetCategoryRow: View {
 
     @ViewBuilder
     private var categoryRowLabel: some View {
-        if dynamicTypeSize.isAccessibilitySize {
+        if isTrackingBudget {
+            VStack(alignment: .leading, spacing: 8) {
+                categoryLabel
+                BudgetTrackingAmounts(
+                    semantics: BudgetModePresentation(isTracking: true, isIncome: category.isIncome),
+                    budgeted: assignedDisplay.primaryText,
+                    activity: currency.formatted(BudgetModePresentation(isIncome: category.isIncome).activityAmount(category.spent)),
+                    balance: availableText,
+                    balanceAmount: category.balance,
+                    carryover: category.carryover && !hidesCarryoverArrows,
+                    editing: assignedDisplay.isEditing,
+                    secondaryBudgeted: assignedDisplay.secondaryText
+                )
+            }
+        } else if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 8) {
                 categoryLabel
                 VStack(spacing: 6) {

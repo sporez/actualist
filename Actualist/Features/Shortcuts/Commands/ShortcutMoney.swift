@@ -48,7 +48,7 @@ enum ShortcutMoney {
         _ amount: IntentCurrencyAmount?,
         currency: BudgetCurrency? = nil
     ) -> String {
-        let resolved = currency ?? fallback
+        let resolved = currency ?? amount.map { BudgetCurrency.catalog(code: $0.currencyCode) } ?? fallback
         guard let amount else {
             return resolved.formatted(0)
         }

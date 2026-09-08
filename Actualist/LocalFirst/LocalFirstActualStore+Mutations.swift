@@ -163,6 +163,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String
     ) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         invalidateReports(budgetID: budgetID)
@@ -192,8 +193,6 @@ extension LocalFirstActualStore {
                 )
             )
         }
-        categoryTransactionsByKey = categoryTransactionsByKey.filter { !$0.key.hasPrefix(prefix) }
-        uncategorizedTransactionsByKey = uncategorizedTransactionsByKey.filter { !$0.key.hasPrefix(prefix) }
         await refreshActionLogDiagnosticSnapshot(database: database)
     }
 
@@ -433,8 +432,8 @@ extension LocalFirstActualStore {
         accountIDs: [String],
         monthIDs: [String]
     ) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
-        monthsByBudget[budgetID] = nil
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         if let currentSpending = spendingTransactionsByBudget[budgetID] {
             let limit = max(currentSpending.nextOffset, transactionPageSize)
@@ -469,9 +468,8 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String
     ) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
-        monthsByBudget[budgetID] = nil
-        templateBrowserByBudget[budgetID] = nil
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         if let currentSpending = spendingTransactionsByBudget[budgetID] {
             let limit = max(currentSpending.nextOffset, transactionPageSize)
@@ -492,6 +490,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String
     ) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         await refreshActionLogDiagnosticSnapshot(database: database)

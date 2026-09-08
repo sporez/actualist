@@ -10,7 +10,7 @@ struct WidgetFinancialSnapshotTests {
         let overview = try #require(snapshot.overview)
         #expect(overview.income.minorUnits == 400000)
         #expect(overview.spent.minorUnits == 12500)
-        #expect(overview.toBudget.minorUnits == 15000)
+        #expect(overview.toBudget?.minorUnits == 15000)
         #expect(overview.available.minorUnits == -2500)
         #expect(overview.income.formatted == currency.formatted(400000))
         #expect(snapshot.accounts?.first?.balance?.formatted == currency.formatted(123456))

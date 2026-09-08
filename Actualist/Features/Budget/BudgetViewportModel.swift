@@ -37,10 +37,12 @@ final class BudgetViewportModel {
     private(set) var inspectedCell: SelectedCell?
     var selectedCategoryMonth: String? { inspectedCell?.month }
 
-    var assignmentAmountDisplay: BudgetAssignedAmountDisplay? {
+    func assignmentAmountDisplay(randomized: Bool) -> BudgetAssignedAmountDisplay? {
         guard let selectedCell, let category = category(at: selectedCell),
               let currency = currencyForSelectedCell else { return nil }
-        return assignmentWorkflow.amountDisplay(for: category, currency: currency)
+        let displayCategory = randomized ? BudgetMonthPrivacyProjection.project(category: category,
+            month: selectedCell.month, currency: currency, table: isTrackingBudget ? .tracking : .envelope) : category
+        return assignmentWorkflow.amountDisplay(for: displayCategory, currency: currency, randomized: randomized)
     }
 
     var assignmentHasTemplate: Bool {
@@ -201,7 +203,7 @@ final class BudgetViewportModel {
         let anchor = assignmentWorkflow.isPresented && self.budgetID == budgetID ? anchorMonth : month
         await load(budgetID: budgetID, anchorMonth: anchor, preservingAssignment: true)
         if let expansion {
-            let validIDs = Set(visibleSnapshots.first?.month.categoryGroups.filter { !$0.isIncome }.map(\.id) ?? [])
+            let validIDs = Set(visibleSnapshots.first?.month.categoryGroups.filter { !$0.isIncome || isTrackingBudget }.map(\.id) ?? [])
             expandedGroupIDs = expansion.intersection(validIDs)
         }
         synchronizeHardwareBuffer()
@@ -218,7 +220,7 @@ final class BudgetViewportModel {
     func beginAssignmentEditing(categoryID: String, month: String) {
         let cell = SelectedCell(categoryID: categoryID, month: month)
         guard !assignmentWorkflow.isSubmitting, visibleMonths.contains(month),
-              let category = category(at: cell), !category.isIncome else { return }
+              let category = category(at: cell), (!category.isIncome || monthSnapshots[month]?.isTrackingBudget == true) else { return }
         assignmentWorkflow.begin(
             for: category,
             budgetID: budgetID,
@@ -368,7 +370,7 @@ final class BudgetViewportModel {
         visibleMonths.flatMap { month -> [SelectedCell] in
             guard let snapshot = monthSnapshots[month] else { return [] }
             return snapshot.month.categoryGroups
-                .filter { !$0.isIncome && expandedGroupIDs.contains($0.id) }
+                .filter { (!$0.isIncome || snapshot.isTrackingBudget) && expandedGroupIDs.contains($0.id) }
                 .flatMap { group in
                     BudgetCategoryVisibility.displayedCategories(in: group, showHidden: showHidden)
                         .map { SelectedCell(categoryID: $0.id, month: month) }
@@ -411,6 +413,7 @@ final class BudgetViewportModel {
         var staged: [String: LoadedBudgetMonth] = [:]
         var stagedErrors: [String: String] = [:]
         let months = retainedMonths
+        var latestIdentity: BudgetModeIdentity?
         for month in months {
             try Task.checkCancellation()
             do {
@@ -421,11 +424,7 @@ final class BudgetViewportModel {
                     loaded = try await repository.budgetMonth(budgetID: id, selectedMonth: month)
                 }
                 staged[month] = loaded
-                if let previous = monthSnapshots[month]?.modeIdentity,
-                   previous != loaded.modeIdentity {
-                    assignmentWorkflow.invalidate()
-                    inspectedCell = nil
-                }
+                latestIdentity = loaded.modeIdentity
                 stagedErrors.removeValue(forKey: month)
             } catch is CancellationError {
                 throw CancellationError()
@@ -435,6 +434,21 @@ final class BudgetViewportModel {
             guard requestGeneration == generation, self.budgetID == id else { return }
         }
         guard requestGeneration == generation, self.budgetID == id else { return }
+        let currentIdentity = try await repository.budgetModeIdentity(budgetID: id) ?? latestIdentity
+        guard requestGeneration == generation, self.budgetID == id else { return }
+        let staleMonths = Set(monthSnapshots.keys.filter { monthSnapshots[$0]?.modeIdentity != currentIdentity })
+            .union(staged.keys.filter { staged[$0]?.modeIdentity != currentIdentity })
+        if !staleMonths.isEmpty {
+            assignmentWorkflow.invalidate()
+            inspectedCell = nil
+            expansionInitializedBudgetID = nil
+        }
+        // A failed month may retain its prior data only in the same conversion.
+        monthSnapshots = monthSnapshots.filter { $0.value.modeIdentity == currentIdentity }
+        staged = staged.filter { $0.value.modeIdentity == currentIdentity }
+        for month in staleMonths where staged[month] == nil {
+            stagedErrors[month] = stagedErrors[month] ?? "Budget changed. Refresh this month."
+        }
         monthSnapshots.merge(staged) { _, replacement in replacement }
         for month in staged.keys { monthErrors.removeValue(forKey: month) }
         monthErrors.merge(stagedErrors) { _, replacement in replacement }
@@ -444,11 +458,11 @@ final class BudgetViewportModel {
 
     private func normalizeState(using month: BudgetMonth?) {
         guard let month else { return }
-        let groups = Set(month.categoryGroups.filter { !$0.isIncome }.map(\.id))
+        let groups = Set(month.categoryGroups.filter { !$0.isIncome || isTrackingBudget }.map(\.id))
         if expansionInitializedBudgetID == budgetID {
             expandedGroupIDs.formIntersection(groups)
         } else {
-            expandedGroupIDs = Set(month.categoryGroups.filter { !$0.isIncome && $0.hidden != true }.map(\.id))
+            expandedGroupIDs = Set(month.categoryGroups.filter { (!$0.isIncome || isTrackingBudget) && $0.hidden != true }.map(\.id))
             expansionInitializedBudgetID = budgetID
         }
         if let selectedCell, category(at: selectedCell) == nil {

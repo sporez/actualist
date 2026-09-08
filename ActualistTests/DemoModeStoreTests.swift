@@ -38,6 +38,24 @@ struct DemoModeStoreTests {
         return try #require(components.date)
     }
 
+    @Test func trackingDemoImportsOfflineAndIncomeAssignmentSurvivesReopen() async throws {
+        let transport = RecordingSyncTransport()
+        let (store, _) = makeDemoStore(transport: transport)
+        try await store.openDemoBudget(tracking: true)
+        let loaded = try await store.budgetMonth(budgetID: DemoBudget.groupID, selectedMonth: "2026-08")
+        #expect(loaded.isTrackingBudget)
+        #expect(loaded.month.trackingSummary != nil)
+        let assigned = try await store.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
+            categoryID: "paycheck", budgeted: 12345, budgetID: DemoBudget.groupID, month: "2026-08") {}
+        #expect(assigned.month.categoryGroups.flatMap(\.categories).first { $0.id == "paycheck" }?.budgeted == 12345)
+        store.closeOpenBudget()
+        try await store.openDemoBudget()
+        let reopened = try await store.budgetMonth(budgetID: DemoBudget.groupID, selectedMonth: "2026-08")
+        #expect(reopened.isTrackingBudget)
+        #expect(reopened.month.categoryGroups.flatMap(\.categories).first { $0.id == "paycheck" }?.budgeted == 12345)
+        #expect(await transport.messageCounts().isEmpty)
+    }
+
     @Test func openDemoBudgetInstallsAndOpensDemoBudget() async throws {
         let transport = RecordingSyncTransport()
         let (store, fileManager) = makeDemoStore(transport: transport)

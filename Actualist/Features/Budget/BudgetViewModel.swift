@@ -14,7 +14,6 @@ final class BudgetViewModel {
     var errorMessage: String?
     var currency: BudgetCurrency = .usd
     var includeCarryoverCategoriesInOverspentAlerts = false
-    /// Envelope (false) vs tracking (true). Drives the overspent hidden rule.
     private(set) var isTrackingBudget = false
     private(set) var modeIdentity: BudgetModeIdentity?
 
@@ -72,7 +71,7 @@ final class BudgetViewModel {
     }
 
     var visibleGroups: [BudgetMonthCategoryGroup] {
-        budgetMonth?.categoryGroups.filter { !$0.isIncome } ?? []
+        budgetMonth?.categoryGroups.filter { !$0.isIncome || isTrackingBudget } ?? []
     }
 
     var hasMonthTemplateActions: Bool {
@@ -83,24 +82,14 @@ final class BudgetViewModel {
     }
 
     var overspentCategoryOptions: [BudgetOverspentCategoryOption] {
-        visibleGroups.flatMap { group -> [BudgetOverspentCategoryOption] in
-            let categories = BudgetCategoryVisibility.overspentCategories(
-                in: group,
-                isTrackingBudget: isTrackingBudget
-            )
-            return categories.compactMap { category -> BudgetOverspentCategoryOption? in
-                guard category.balance < 0,
-                      includeCarryoverCategoriesInOverspentAlerts || !category.carryover else {
-                    return nil
-                }
+        BudgetOverspendingPresentation.options(in: budgetMonth, isTrackingBudget: isTrackingBudget,
+            includeCarryover: includeCarryoverCategoriesInOverspentAlerts)
+    }
 
-                return BudgetOverspentCategoryOption(
-                    id: category.id,
-                    groupName: group.name,
-                    category: category
-                )
-            }
-        }
+    func categoryDetails(for categoryID: String) -> CategoryMonthDetails? {
+        guard let selectedMonth,
+              let category = budgetMonth?.categoryGroups.flatMap(\.categories).first(where: { $0.id == categoryID }) else { return nil }
+        return CategoryMonthDetails(category: category, month: selectedMonth, modeIdentity: modeIdentity)
     }
 
     var budgetAlerts: [BudgetAlert] {
@@ -594,8 +583,8 @@ final class BudgetViewModel {
         assignmentWorkflow.setInputMode(mode)
     }
 
-    func assignedAmountDisplay(for category: BudgetMonthCategory) -> BudgetAssignedAmountDisplay {
-        assignmentWorkflow.amountDisplay(for: category, currency: currency)
+    func assignedAmountDisplay(for category: BudgetMonthCategory, randomized: Bool = false) -> BudgetAssignedAmountDisplay {
+        assignmentWorkflow.amountDisplay(for: category, currency: currency, randomized: randomized)
     }
 
     func isEditingAssignment(for category: BudgetMonthCategory) -> Bool {
@@ -791,10 +780,10 @@ final class BudgetViewModel {
             assignmentWorkflow.reconcile(budgetID: budgetID, categoryIDs: Set(loadedMonth.month.categoryGroups.flatMap(\.categories).map(\.id)))
         }
         templateWorkflow.noteSelectionChange()
+        let modeChanged = isTrackingBudget != loadedMonth.isTrackingBudget
         let currentMonth = budgetMonth?.month ?? selectedMonth
         let isSameMonth = currentMonth == loadedMonth.month.month
         let isSameBudget = loadedBudgetID == nil || budgetID == nil || loadedBudgetID == budgetID
-        let previousExpandedGroupIDs = expandedGroupIDs
         if let budgetID {
             loadedBudgetID = budgetID
         }
@@ -807,13 +796,13 @@ final class BudgetViewModel {
         loadedBudgetAlerts = loadedMonth.alerts.compactMap {
             BudgetAlert(alert: $0, currency: loadedMonth.currency)
         }
-        if isSameBudget && isSameMonth {
+        if isSameBudget && isSameMonth && !modeChanged {
             let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
-            expandedGroupIDs = previousExpandedGroupIDs.intersection(loadedGroupIDs)
+            expandedGroupIDs = expandedGroupIDs.intersection(loadedGroupIDs)
         } else {
             expandedGroupIDs = Set(
                 loadedMonth.month.categoryGroups
-                    .filter { !$0.isIncome && $0.hidden != true }
+                    .filter { (!$0.isIncome || isTrackingBudget) && $0.hidden != true }
                     .map(\.id)
             )
         }

@@ -9,12 +9,12 @@ extension LocalFirstActualStore {
     /// on-disk fileID differs from the current `DemoBudget.fileID`, so an app
     /// update that bumps the demo version replaces a stale dataset. Never
     /// touches a sync or connection transport.
-    func openDemoBudget() async throws {
+    func openDemoBudget(tracking: Bool = false) async throws {
         let fileID = DemoBudget.fileID
         let needsInstall = try demoBudgetNeedsInstall(fileID: fileID)
-        if needsInstall {
+        if needsInstall || tracking {
             try fileManager.deleteImportedBudget(fileID: fileID)
-            let archiveData = try DemoBudget.bundledArchiveData()
+            let archiveData = try DemoBudget.bundledArchiveData(tracking: tracking)
             let stagingURL = try fileManager.prepareDownloadStaging(fileID: fileID)
             defer { fileManager.cleanupDownloadStaging(at: stagingURL) }
             try fileManager.replaceStagedDownload(at: stagingURL, with: archiveData)

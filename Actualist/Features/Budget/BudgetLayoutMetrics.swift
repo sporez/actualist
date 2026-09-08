@@ -21,6 +21,7 @@ struct BudgetLayoutInputs: Equatable {
     var horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins
     var preference: MonthDisplayPreference = .automatic
     var density: ActualistDisplayDensity = .compact
+    var isTrackingBudget = false
 
     init(
         rootWidth: CGFloat,
@@ -30,7 +31,8 @@ struct BudgetLayoutInputs: Equatable {
         dynamicTypeScale: CGFloat = 1,
         horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins,
         preference: MonthDisplayPreference = .automatic,
-        density: ActualistDisplayDensity = .compact
+        density: ActualistDisplayDensity = .compact,
+        isTrackingBudget: Bool = false
     ) {
         self.rootWidth = rootWidth
         self.budgetDetailWidth = budgetDetailWidth
@@ -40,6 +42,7 @@ struct BudgetLayoutInputs: Equatable {
         self.horizontalMargins = horizontalMargins
         self.preference = preference
         self.density = density
+        self.isTrackingBudget = isTrackingBudget
     }
 }
 
@@ -82,23 +85,24 @@ struct BudgetLayoutMetrics: Equatable {
         let measuredDetail = inputs.budgetDetailWidth.map(finiteNonnegative)
         let detailWidth = measuredDetail.map { max($0 - margins, 0) }
             ?? max(rootWidth - sidebar - inspector - margins, 0)
+        let moneyColumns: CGFloat = inputs.isTrackingBudget ? 3 : 2
         let categoryWidth = min(
             preferredCategoryWidth,
-            max(detailWidth - minimumMoneyColumnWidth * 2 * moneyScale, 0)
+            max(detailWidth - minimumMoneyColumnWidth * moneyColumns * moneyScale, 0)
         )
         let sidebarFits = rootWidth >= sidebar + singleMonthMinimumWidth * scale + margins
         guard sidebarFits else {
             return Self(
                 presentationMode: .compact,
                 visibleMonthCount: 1,
-                categoryColumnWidth: min(categoryWidth, max(detailWidth - minimumMoneyColumnWidth * 2, 0)),
+                categoryColumnWidth: min(categoryWidth, max(detailWidth - minimumMoneyColumnWidth * moneyColumns, 0)),
                 monthColumnWidth: max(detailWidth, 0),
                 inspectorAvailable: false
             )
         }
 
         let availableForMonths = max(detailWidth - categoryWidth, 0)
-        let minimumGroupWidth = max(minimumMonthGroupWidth, minimumMoneyColumnWidth * 2) * moneyScale
+        let minimumGroupWidth = max(minimumMonthGroupWidth, minimumMoneyColumnWidth * moneyColumns) * moneyScale
         let physicallyPossible = max(1, min(supportedMonthRange.upperBound, Int(floor(availableForMonths / minimumGroupWidth))))
         let requested = inputs.preference.resolvedCount
         let visibleCount = min(max(requested, supportedMonthRange.lowerBound), physicallyPossible)
@@ -106,7 +110,7 @@ struct BudgetLayoutMetrics: Equatable {
         let maximumTableWidth = maximumSingleMonthTableWidth * scale
         let tableWidth = visibleCount == 1 ? min(detailWidth, maximumTableWidth) : detailWidth
         let tableCategoryWidth = visibleCount == 1
-            ? min(categoryWidth, max(tableWidth - minimumMoneyColumnWidth * 2 * moneyScale, 0))
+            ? min(categoryWidth, max(tableWidth - minimumMoneyColumnWidth * moneyColumns * moneyScale, 0))
             : categoryWidth
         let tableMonthWidth = max(tableWidth - tableCategoryWidth, 0)
         let naturalMonthWidth = visibleCount == 1
@@ -115,9 +119,9 @@ struct BudgetLayoutMetrics: Equatable {
         // A narrow inspector can leave less than the readable baseline. Keep
         // the single-month fallback within the measured container rather than
         // allowing its minimum width to overlap the category column.
-        let monthWidth = visibleCount == 1 && naturalMonthWidth < minimumMoneyColumnWidth * 2 * moneyScale
+        let monthWidth = visibleCount == 1 && naturalMonthWidth < minimumMoneyColumnWidth * moneyColumns * moneyScale
             ? max(naturalMonthWidth, 0)
-            : max(naturalMonthWidth, minimumMoneyColumnWidth * 2 * moneyScale)
+            : max(naturalMonthWidth, minimumMoneyColumnWidth * moneyColumns * moneyScale)
         return Self(
             presentationMode: mode,
             visibleMonthCount: visibleCount,

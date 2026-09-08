@@ -77,7 +77,6 @@ final class BudgetWorkspaceActions {
         case .uncategorizedTransactions:
             sheet = .uncategorized(month)
         case .overspending:
-            guard !viewport.isTrackingBudget else { return }
             prepareActionModel(for: month)
             sheet = .overspent
         }

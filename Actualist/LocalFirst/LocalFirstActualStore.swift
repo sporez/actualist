@@ -33,6 +33,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var lastPayeeUndoMessagesByBudget: [String: [ActualSyncDecodedMessage]] = [:]
     var actionLogDiagnosticSnapshot = ActionLogDiagnosticSnapshot.empty
     var rulesByBudget: [String: [ManagedRule]] = [:]
+    var budgetReadGeneration = 0
     var monthsByBudget: [String: [String]] = [:]
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
     var templateBrowserByBudget: [String: BudgetTemplateBrowserSnapshot] = [:]
@@ -191,6 +192,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
+        budgetReadGeneration &+= 1
         pendingLocalMessageFlushTask?.cancel()
         pendingLocalMessageFlushTask = nil
         openedBudgetID = nil

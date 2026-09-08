@@ -338,8 +338,8 @@ extension LocalFirstActualStore {
     }
 
     func reloadAfterRemoteSync(database: BudgetDatabase, budgetID: String) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
-        monthsByBudget[budgetID] = nil
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)

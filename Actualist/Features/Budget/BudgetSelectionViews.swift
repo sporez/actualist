@@ -8,6 +8,7 @@ struct BudgetOverspentCategoriesView: View {
     @Bindable var viewModel: BudgetViewModel
 
     @State private var isCoverSourcePickerPresented = false
+    @State private var inspectedCategory: CategoryMonthDetails?
     @State private var selectedDetent: PresentationDetent = .medium
 
     let isPrivacyModeEnabled: Bool
@@ -23,6 +24,13 @@ struct BudgetOverspentCategoriesView: View {
         )
     }
 
+    private var displayedOptions: [BudgetOverspentCategoryOption] {
+        guard viewModel.isTrackingBudget, isPrivacyModeEnabled else { return viewModel.overspentCategoryOptions }
+        return BudgetOverspendingPresentation.options(
+            in: BudgetMonthPrivacyProjection.displayMonth(viewModel.budgetMonth, isEnabled: true, currency: viewModel.currency),
+            isTrackingBudget: true, includeCarryover: viewModel.includeCarryoverCategoriesInOverspentAlerts)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -36,7 +44,7 @@ struct BudgetOverspentCategoriesView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("Cover Overspending")
+            .navigationTitle(viewModel.isTrackingBudget ? "Overspent Categories" : "Cover Overspending")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -85,13 +93,17 @@ struct BudgetOverspentCategoriesView: View {
         }
         .presentationDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
-        .onChange(of: viewModel.overspentCategoryOptions.count) { _, count in
+        .onChange(of: displayedOptions.count) { _, count in
             if count >= 4 {
                 selectedDetent = .large
             }
             if count == 0 {
                 dismiss()
             }
+        }
+        .sheet(item: $inspectedCategory) { details in
+            CategoryMonthDetailsView(details: details)
+                .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isCoverSourcePickerPresented) {
             TransactionCategorySelectionView(
@@ -106,7 +118,7 @@ struct BudgetOverspentCategoriesView: View {
                         source: viewModel.coverSource(for: option),
                         using: appState
                     )
-                    if covered, viewModel.overspentCategoryOptions.isEmpty {
+                    if covered, displayedOptions.isEmpty {
                         dismiss()
                     }
                 }
@@ -125,7 +137,7 @@ struct BudgetOverspentCategoriesView: View {
             )
             .appSwitcherPrivacyProtected(using: appState)
             .onDisappear {
-                if viewModel.overspentCategoryOptions.isEmpty {
+                if displayedOptions.isEmpty {
                     dismiss()
                 }
             }
@@ -134,7 +146,7 @@ struct BudgetOverspentCategoriesView: View {
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.overspentCategoryOptions.isEmpty {
+        if displayedOptions.isEmpty {
             GlassPanel {
                 VStack(spacing: 12) {
                     Image(systemName: "checkmark.circle.fill")
@@ -148,10 +160,10 @@ struct BudgetOverspentCategoriesView: View {
             }
         } else {
             VStack(spacing: 0) {
-                ForEach(viewModel.overspentCategoryOptions) { category in
+                ForEach(displayedOptions) { category in
                     overspentButton(for: category)
 
-                    if category.id != viewModel.overspentCategoryOptions.last?.id {
+                    if category.id != displayedOptions.last?.id {
                         Divider()
                             .overlay(ActualistTheme.separator)
                             .padding(.leading, 18)
@@ -166,7 +178,9 @@ struct BudgetOverspentCategoriesView: View {
         for category: BudgetOverspentCategoryOption
     ) -> some View {
         Button {
-            if viewModel.isOverspentCoverSelecting {
+            if viewModel.isTrackingBudget {
+                inspectedCategory = viewModel.categoryDetails(for: category.id)
+            } else if viewModel.isOverspentCoverSelecting {
                 guard !viewModel.isCoveringOverspentSelection else {
                     return
                 }
@@ -243,13 +257,14 @@ struct BudgetOverspentCategoriesView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("budget-overspent-\(category.id)")
         .disabled(viewModel.isCoveringOverspentSelection)
         .animation(.snappy, value: viewModel.isOverspentCoverSelecting)
     }
 
     private var totalCoveredAmountText: String {
         let selectedIDs = viewModel.selectedOverspentCategoryIDs
-        let total = viewModel.overspentCategoryOptions.reduce(0) { partial, option in
+        let total = displayedOptions.reduce(0) { partial, option in
             guard selectedIDs.contains(option.id) else {
                 return partial
             }
@@ -275,7 +290,7 @@ struct BudgetOverspentCategoriesView: View {
     }
 
     private func amountText(_ category: BudgetOverspentCategoryOption) -> String {
-        guard isPrivacyModeEnabled else {
+        guard isPrivacyModeEnabled && !viewModel.isTrackingBudget else {
             return category.amountText(using: viewModel.currency)
         }
 

@@ -225,3 +225,23 @@ For local-first changes:
   data are redacted.
 - Compare financial behavior with a throwaway budget in Actual before enabling a
   new write for normal use.
+
+### Tracking Budget Demo
+
+Use the same offline onboarding flow with the synthetic tracking fixture:
+
+```sh
+scripts/run-ios-simulator.sh --boot --reset --tracking-demo --screen budget --screenshot
+```
+
+The fixture contains July–September 2026 assignments, income categories,
+expense deficits and rollover examples. Use the month picker to open August
+2026 for completed-month Saved and activity, or September 2026 for planned
+amounts (Projected Savings while that month is current/future). The ordinary
+`--demo` fixture remains envelope-based. Neither launch flag replaces a selected
+real budget; `--reset` uninstalls the simulator app first.
+
+Regenerate the tracking archive from the committed synthetic envelope archive
+with `python3 scripts/generate-demo-budget/generate_tracking_demo.py`. This
+imports a prepared tracking database; it does not add budget conversion to the
+app or contact a server.

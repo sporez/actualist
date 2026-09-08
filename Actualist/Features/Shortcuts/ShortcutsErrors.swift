@@ -23,6 +23,8 @@ enum ShortcutsError: LocalizedError, Equatable {
     case invalidName
     case writeFailed
     case templateUnsupported
+    case trackingActionUnsupported
+    case metricUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -68,6 +70,10 @@ enum ShortcutsError: LocalizedError, Equatable {
             "Enter a name."
         case .writeFailed:
             "Actualist could not apply that change."
+        case .trackingActionUnsupported:
+            "Tracking budgets do not support Move Money or Ready to Assign. Use budget assignment or Get Budget Summary."
+        case .metricUnavailable:
+            "That metric is unavailable for this category. Use Balance for tracking expenses or Received for income."
         case .templateUnsupported:
             "That budget template cannot be applied in Shortcuts. Open Actualist to apply it."
         }

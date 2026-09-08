@@ -61,7 +61,8 @@ extension ShortcutsBudgetSession {
                 return CategoryEntity.make(
                     from: category,
                     groupName: group.name,
-                    currency: loaded.currency
+                    currency: loaded.currency,
+                    isTrackingBudget: loaded.isTrackingBudget
                 )
             }
         }

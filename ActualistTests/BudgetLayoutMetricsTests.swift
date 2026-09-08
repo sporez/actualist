@@ -4,6 +4,14 @@ import Testing
 @testable import Actualist
 
 struct BudgetLayoutMetricsTests {
+    @Test func trackingReservesThreeReadableMoneyColumns() {
+        let envelope = BudgetLayoutMetrics.resolve(.init(rootWidth: 1400, budgetDetailWidth: 1100))
+        let tracking = BudgetLayoutMetrics.resolve(.init(rootWidth: 1400, budgetDetailWidth: 1100, isTrackingBudget: true))
+        #expect(tracking.visibleMonthCount < envelope.visibleMonthCount)
+        #expect(tracking.monthColumnWidth >= BudgetLayoutMetrics.minimumMoneyColumnWidth * 3)
+        #expect(tracking.tableWidth <= 1068)
+    }
+
     @Test func autoUsesMeasuredBudgetDetailWidthWithoutSubtractingSidebarAgain() {
         let metrics = BudgetLayoutMetrics.resolve(
             BudgetLayoutInputs(rootWidth: 1_400, budgetDetailWidth: 960, sidebarWidth: 300)

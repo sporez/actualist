@@ -42,29 +42,43 @@ extension LocalFirstActualStore {
         budgetID: String,
         selectedMonth: String
     ) async throws -> LoadedBudgetMonth {
-        let database = try requireDatabase(for: budgetID)
-        let monthID = selectedMonth
-        let snapshot = try await database.fetchBudgetSnapshot(month: monthID)
-        let month = snapshot.month
-        let isTracking = month.trackingSummary != nil
-        currencyByBudget[budgetID] = snapshot.currency
-        let loaded = LoadedBudgetMonth(
-            modeIdentity: snapshot.modeIdentity,
-            availableMonths: snapshot.availableMonths,
-            selectedMonth: monthID,
-            month: month,
-            alerts: try await nativeBudgetAlerts(
-                database: database,
-                budgetID: budgetID,
-                month: month,
-                monthID: monthID,
-                isTrackingBudget: isTracking
-            ),
-            currency: snapshot.currency,
-            isTrackingBudget: isTracking
-        )
+        let loaded = try await readBudgetMonth(budgetID: budgetID, month: selectedMonth)
         loadedBudgetMonthsByBudget[budgetID] = loaded
+        currencyByBudget[budgetID] = loaded.currency
         return loaded
+    }
+
+    /// External readers share the financial snapshot without moving the screen.
+    func readBudgetMonth(budgetID: String, month monthID: String, now: Date = Date()) async throws -> LoadedBudgetMonth {
+        let database = try requireDatabase(for: budgetID)
+        while true {
+            try Task.checkCancellation()
+            let generation = budgetReadGeneration
+            let snapshot = try await database.fetchBudgetSnapshot(month: monthID, now: now)
+            let month = snapshot.month
+            let isTracking = month.trackingSummary != nil
+            let alertSnapshot = try await budgetAlertSnapshot(
+                database: database, month: month, currency: snapshot.currency,
+                isTrackingBudget: isTracking
+            )
+            let loaded = LoadedBudgetMonth(
+                modeIdentity: snapshot.modeIdentity,
+                availableMonths: snapshot.availableMonths,
+                selectedMonth: monthID,
+                month: month,
+                alerts: alertSnapshot.alerts,
+                currency: snapshot.currency,
+                isTrackingBudget: isTracking
+            )
+            let currentIdentity = try await database.fetchBudgetModeIdentity()
+            try Task.checkCancellation()
+            guard self.database === database, openedBudgetID == budgetID else { throw CancellationError() }
+            // Another same-budget write may finish while alerts are read. Retry
+            // its snapshot rather than report a committed write as cancelled.
+            guard generation == budgetReadGeneration, currentIdentity == snapshot.modeIdentity else { continue }
+            uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, monthID)] = alertSnapshot.uncategorized
+            return loaded
+        }
     }
 
     func accountDisplays(budgetID: String) -> [AccountDisplay] {
@@ -391,13 +405,12 @@ extension LocalFirstActualStore {
         transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(transaction.importedPayee ?? "")"
     }
 
-    func nativeBudgetAlerts(
+    func budgetAlertSnapshot(
         database: BudgetDatabase,
-        budgetID: String,
         month: BudgetMonth,
-        monthID: String,
+        currency: BudgetCurrency,
         isTrackingBudget: Bool
-    ) async throws -> [BudgetMonthAlert] {
+    ) async throws -> (alerts: [BudgetMonthAlert], uncategorized: LoadedUncategorizedTransactions) {
         let maps = try await nameMaps(database)
         let uncategorized = try await database.fetchUncategorizedTransactions().filter { transaction in
             Self.isUncategorized(
@@ -406,8 +419,7 @@ extension LocalFirstActualStore {
                 offBudgetAccountIDs: maps.offBudgetAccountIDs
             )
         }
-        uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, monthID)] =
-            LoadedUncategorizedTransactions(
+        let loaded = LoadedUncategorizedTransactions(
                 transactions: uncategorized,
                 accountNames: maps.accountNames,
                 categoryNames: maps.categoryNames,
@@ -415,15 +427,15 @@ extension LocalFirstActualStore {
                 transferPayeeIDs: maps.transferPayeeIDs,
                 transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
                 offBudgetAccountIDs: maps.offBudgetAccountIDs,
-                categoryGroups: editorCategoryGroups(from: month, budgetID: budgetID)
+                categoryGroups: month.editorCategoryGroups(currency: currency)
             )
-        return Self.budgetAlerts(
+        return (Self.budgetAlerts(
             month: month,
             transactions: uncategorized,
             transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             isTrackingBudget: isTrackingBudget
-        )
+        ), loaded)
     }
 
     static func budgetAlerts(
@@ -434,7 +446,7 @@ extension LocalFirstActualStore {
         isTrackingBudget: Bool
     ) -> [BudgetMonthAlert] {
         var alerts: [BudgetMonthAlert] = []
-        if let toBudget = toBudgetAlert(month: month) {
+        if !isTrackingBudget, let toBudget = toBudgetAlert(month: month) {
             alerts.append(toBudget)
         }
         if let overspending = overspendingAlert(month: month, isTrackingBudget: isTrackingBudget) {
@@ -478,7 +490,7 @@ extension LocalFirstActualStore {
             title: "Overspent categories",
             amount: nil,
             count: overspentCount,
-            actionTitle: "Cover"
+            actionTitle: isTrackingBudget ? "Review" : "Cover"
         )
     }
 
@@ -617,7 +629,7 @@ extension BudgetMonth {
 
         var result: [TransactionEditorCategoryGroup] = []
 
-        if let firstIncomeCategory = incomeGroups.flatMap({ group in
+        if trackingSummary == nil, let firstIncomeCategory = incomeGroups.flatMap({ group in
             BudgetCategoryVisibility.visibleCategories(in: group)
         }).first {
             result.append(TransactionEditorCategoryGroup(
@@ -634,15 +646,17 @@ extension BudgetMonth {
             ))
         }
 
-        let expenseCategoryGroups = expenseGroups.compactMap { group -> TransactionEditorCategoryGroup? in
+        let displayedGroups = trackingSummary == nil ? expenseGroups : categoryGroups
+        let pickerGroups = displayedGroups.compactMap { group -> TransactionEditorCategoryGroup? in
             let options = BudgetCategoryVisibility.visibleCategories(in: group)
-                .filter { !$0.isIncome }
+                .filter { trackingSummary != nil || !$0.isIncome }
                 .map { category in
-                    TransactionEditorCategoryOption(
+                    let amount = category.isIncome ? nil : Optional(category.balance)
+                    return TransactionEditorCategoryOption(
                         id: category.id,
                         title: category.name.actualistCategoryNameParts.name,
-                        amount: category.balance,
-                        valueText: currency.formatted(category.balance)
+                        amount: amount,
+                        valueText: amount.map(currency.formatted)
                     )
                 }
             guard !options.isEmpty else {
@@ -651,7 +665,7 @@ extension BudgetMonth {
             return TransactionEditorCategoryGroup(id: group.id, name: group.name, options: options)
         }
 
-        result.append(contentsOf: expenseCategoryGroups)
+        result.append(contentsOf: pickerGroups)
         return result
     }
 }

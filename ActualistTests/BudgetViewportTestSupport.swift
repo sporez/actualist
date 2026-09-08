@@ -2,6 +2,7 @@ import Foundation
 @testable import Actualist
 
 actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
+    var currentModeIdentity: BudgetModeIdentity?
     var responses: [String: LoadedBudgetMonth] = [:]
     var readErrors: [String: Error] = [:]
     var blockedMonths: Set<String> = []
@@ -12,6 +13,9 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     var assignmentBlocked = false
     var pendingAssignments: [CheckedContinuation<Void, Never>] = []
     private var assignmentSignals: [CheckedContinuation<Void, Never>] = []
+
+    func setModeIdentity(_ identity: BudgetModeIdentity?) { currentModeIdentity = identity }
+    func budgetModeIdentity(budgetID: String) -> BudgetModeIdentity? { currentModeIdentity }
 
     func set(_ response: LoadedBudgetMonth) { responses[response.month.month] = response }
     func setError(_ error: Error?, for month: String) {

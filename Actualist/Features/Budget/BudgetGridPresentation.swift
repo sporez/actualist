@@ -1,6 +1,13 @@
 import Foundation
 
 struct BudgetGridPresentation {
+    struct Summary {
+        let title: String
+        let text: String
+        let amount: Int
+        let isTracking: Bool
+    }
+
     struct Month: Identifiable {
         let id: String
         let title: String
@@ -10,9 +17,16 @@ struct BudgetGridPresentation {
         let toBudgetText: String
         let assignedText: String?
         let error: String?
+        let savings: BudgetSavingsPresentation?
+        var semantics: BudgetModePresentation { .init(isTracking: snapshot?.isTrackingBudget == true) }
 
         var currency: BudgetCurrency { snapshot?.currency ?? .usd }
-        var toBudgetAmount: Int { display?.toBudget ?? 0 }
+        var summary: Summary {
+            if let savings {
+                return Summary(title: savings.title, text: savings.amountText, amount: savings.amount, isTracking: true)
+            }
+            return Summary(title: "To Budget", text: toBudgetText, amount: display?.toBudget ?? 0, isTracking: false)
+        }
     }
 
     struct Group: Identifiable {
@@ -40,7 +54,8 @@ struct BudgetGridPresentation {
         privacyEnabled: Bool,
         showHidden: Bool,
         showTotalAssigned: Bool,
-        includeCarryover: Bool
+        includeCarryover: Bool,
+        currentMonth: String = WidgetMonthID.current()
     ) {
         months = visibleMonths.map { id in
             let snapshot = snapshots[id]
@@ -63,12 +78,13 @@ struct BudgetGridPresentation {
                 display: display,
                 alerts: alerts,
                 toBudgetText: display.map { currency.formatted($0.toBudget) } ?? "—",
-                assignedText: showTotalAssigned ? display.map { currency.formatted($0.totalBudgeted) } : nil,
-                error: errors[id]
+                assignedText: showTotalAssigned && snapshot?.isTrackingBudget != true ? display.map { currency.formatted($0.totalBudgeted) } : nil,
+                error: errors[id],
+                savings: BudgetSavingsPresentation(month: display, currency: currency, currentMonth: currentMonth)
             )
         }
-        let hierarchy = months.compactMap(\.snapshot).first?.month.categoryGroups ?? []
-        groups = BudgetCategoryVisibility.displayedGroups(from: hierarchy, showHidden: showHidden).map { group in
+        let hierarchy = months.compactMap(\.snapshot).first
+        groups = BudgetCategoryVisibility.displayedGroups(from: hierarchy?.month.categoryGroups ?? [], showHidden: showHidden, isTrackingBudget: hierarchy?.isTrackingBudget == true).map { group in
             Group(
                 source: group,
                 title: privacyEnabled ? PrivacyDisplay.name(for: .categoryGroup, seed: group.id) : group.name,

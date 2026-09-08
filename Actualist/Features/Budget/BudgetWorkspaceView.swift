@@ -24,7 +24,8 @@ struct BudgetWorkspaceView: View {
                     budgetDetailWidth: geometry.size.width,
                     dynamicTypeScale: dynamicTypeSize.budgetLayoutScale,
                     preference: appState.settings.monthDisplayPreference,
-                    density: appState.settings.displayDensity
+                    density: appState.settings.displayDensity,
+                    isTrackingBudget: viewport.isTrackingBudget
                 ))
                 let display = BudgetGridPresentation(
                     visibleMonths: viewport.visibleMonths,

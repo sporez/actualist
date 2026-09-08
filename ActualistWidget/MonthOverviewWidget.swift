@@ -8,7 +8,7 @@ struct MonthOverviewWidget: Widget {
             MonthOverviewWidgetView(entry: $0).widgetTheme($0.theme)
         }
         .configurationDisplayName("Month Overview")
-        .description("Income, spending, and money left to budget this month.")
+        .description("Income, spending, and your budget summary this month.")
         .supportedFamilies(WidgetSizeSupport.home + [.accessoryInline, .accessoryRectangular])
     }
 }
@@ -21,18 +21,18 @@ struct MonthOverviewWidgetView: View {
 
     var body: some View {
         WidgetSummaryShell(title: "Month Overview", snapshot: entry.snapshot, destination: WidgetDeepLink.url(.quickAction(.budget))) { snapshot in
-            if let overview = snapshot.overview {
+            if let overview = snapshot.overview, let summary = overview.displayedSummary {
                 if family == .accessoryInline {
-                    Text("To budget: \(overview.toBudget.formatted)")
+                    Text("\(summary.kind.title): \(summary.amount.formatted)")
                 } else if family == .accessoryRectangular {
-                    metric("To Budget", overview.toBudget)
+                    metric(summary.kind.title, summary.amount)
                 } else if family == .systemSmall && typeSize.isAccessibilitySize {
-                    metric("To Budget", overview.toBudget)
+                    metric(summary.kind.title, summary.amount)
                 } else if family == .systemSmall {
                     VStack(alignment: .leading, spacing: 6) {
                         compactMetric("Income", overview.income)
                         compactMetric("Spent", overview.spent)
-                        compactMetric("To Budget", overview.toBudget)
+                        compactMetric(summary.kind.title, summary.amount)
                     }
                 } else {
                     HStack(alignment: .top) {
@@ -40,14 +40,14 @@ struct MonthOverviewWidgetView: View {
                         Spacer(minLength: 8)
                         metric("Spent", overview.spent)
                         Spacer(minLength: 8)
-                        metric("To Budget", overview.toBudget)
+                        metric(summary.kind.title, summary.amount)
                     }
                     if family != .systemMedium {
                         Divider().padding(.vertical, 8)
                         HStack {
                             metric("Budgeted", overview.budgeted)
                             Spacer()
-                            metric("Available", overview.available)
+                            metric(overview.balanceLabel, overview.available)
                         }
                         Chart {
                             BarMark(x: .value("Flow", "Income"), y: .value("Amount", overview.income.minorUnits))
@@ -60,7 +60,7 @@ struct MonthOverviewWidgetView: View {
                         .widgetAccentable()
                         Text("\(snapshot.month) · \(snapshot.budgetName)")
                             .font(.caption).foregroundStyle(palette.secondaryText).lineLimit(2)
-                        if !typeSize.isAccessibilitySize {
+                        if !typeSize.isAccessibilitySize && snapshot.isTrackingBudget != true {
                             Text("Available includes money carried over from previous months.")
                                 .font(.caption).foregroundStyle(palette.secondaryText)
                         }

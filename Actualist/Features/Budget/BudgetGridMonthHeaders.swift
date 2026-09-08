@@ -15,6 +15,7 @@ struct BudgetGridMonthHeaders: View {
                 .padding(.bottom, sizing.headerPadding)
 
             ForEach(presentation.months) { month in
+                let summary = month.summary
                 VStack(spacing: sizing.headerSpacing) {
                     Menu {
                         Button("Notes", systemImage: "note.text") { actions.openMonthNote(month.id) }
@@ -37,17 +38,21 @@ struct BudgetGridMonthHeaders: View {
                     .accessibilityLabel("\(month.title), month actions")
 
                     VStack(spacing: 2) {
-                        Text(month.toBudgetText)
+                        Text(summary.text)
                             .font(ActualistTypography.rowTitle(for: density).bold())
                             .monospacedDigit()
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
-                        Text("To Budget").font(.caption)
+                        Text(summary.title).font(.caption)
                     }
-                    .foregroundStyle(month.toBudgetAmount < 0 ? ActualistTheme.warning : month.toBudgetAmount == 0 ? ActualistTheme.secondaryText : ActualistTheme.positive)
+                    .foregroundStyle(summary.amount < 0 ? (summary.isTracking ? ActualistTheme.danger : ActualistTheme.warning) : summary.amount == 0 ? ActualistTheme.secondaryText : ActualistTheme.positive)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(month.title), To Budget, \(month.toBudgetText)")
+                    .accessibilityLabel("\(month.title), \(summary.title), \(summary.text)")
 
+                    if let savings = month.savings {
+                        Text(savings.incomeText).font(.caption)
+                        Text(savings.expensesText).font(.caption)
+                    }
                     if let assigned = month.assignedText {
                         Text("Assigned \(assigned)")
                             .font(.caption)
@@ -73,8 +78,11 @@ struct BudgetGridMonthHeaders: View {
                         ProgressView().accessibilityLabel("Loading \(month.title)")
                     }
                     HStack(spacing: 8) {
-                        Text("Assigned").frame(maxWidth: .infinity, alignment: .trailing)
-                        Text("Available").frame(maxWidth: .infinity, alignment: .trailing)
+                        Text(month.semantics.budgetedLabel).frame(maxWidth: .infinity, alignment: .trailing)
+                        if month.semantics.showsActivity {
+                            Text("Spent / Received").frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        Text(month.semantics.balanceLabel).frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)

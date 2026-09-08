@@ -96,7 +96,7 @@ enum BudgetMonthSummaryPresentation {
     ) -> [BudgetAlert] {
         let remainder = loaded.filter { $0.kind != .toBudget && $0.kind != .overspending }
         var result: [BudgetAlert] = []
-        if let toBudget = toBudgetAlert(from: month, includeZero: showTotalAssigned, currency: currency) {
+        if !isTrackingBudget, let toBudget = toBudgetAlert(from: month, includeZero: showTotalAssigned, currency: currency) {
             result.append(toBudget)
         }
         if let overspent = overspentAlert(
@@ -128,13 +128,8 @@ enum BudgetMonthSummaryPresentation {
         includeCarryover: Bool,
         isTrackingBudget: Bool = false
     ) -> Int {
-        month.categoryGroups
-            .filter { !$0.isIncome }
-            .flatMap { BudgetCategoryVisibility.overspentCategories(in: $0, isTrackingBudget: isTrackingBudget) }
-            .filter { category in
-                category.balance < 0 && (includeCarryover || !category.carryover)
-            }
-            .count
+        BudgetOverspendingPresentation.options(in: month, isTrackingBudget: isTrackingBudget,
+            includeCarryover: includeCarryover).count
     }
 
     private static func overspentAlert(
@@ -154,14 +149,14 @@ enum BudgetMonthSummaryPresentation {
         guard count > 0 else {
             return nil
         }
-        if let template {
+        if let template, !isTrackingBudget {
             return template.replacingCount(with: count)
         }
         return BudgetAlert(
             kind: .overspending,
             title: "Overspent categories",
             count: count,
-            actionTitle: "Cover",
+            actionTitle: isTrackingBudget ? "Review" : "Cover",
             severity: .danger
         )
     }

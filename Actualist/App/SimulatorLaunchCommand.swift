@@ -13,6 +13,7 @@ import Foundation
 /// shorthand (`appearance`). Unknown paths are kept but do not change routing.
 struct SimulatorLaunchCommand: Equatable, Sendable {
     var enterDemo = false
+    var trackingDemo = false
     var screenPath: [String] = []
 
     var isEmpty: Bool {
@@ -24,7 +25,10 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
         var index = arguments.startIndex
         while index < arguments.endIndex {
             let argument = arguments[index]
-            if argument == "-actualist-demo" {
+            if argument == "-actualist-tracking-demo" {
+                command.enterDemo = true
+                command.trackingDemo = true
+            } else if argument == "-actualist-demo" {
                 command.enterDemo = true
             } else if argument == "-actualist-screen" {
                 let next = arguments.index(after: index)
@@ -80,7 +84,7 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
 enum SimulatorLaunchApplier {
     static func apply(_ command: SimulatorLaunchCommand, to appState: AppState) async {
         if command.enterDemo, appState.setupPhase == .needsConnection {
-            await appState.enterDemoMode()
+            await appState.enterDemoMode(tracking: command.trackingDemo)
         }
 
         guard let route = command.route else {

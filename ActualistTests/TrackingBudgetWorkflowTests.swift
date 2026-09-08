@@ -58,7 +58,7 @@ struct TrackingBudgetWorkflowTests {
             ),
             initialBudgetID: "budget"
         )
-        let category = try #require(model.visibleGroups.first?.visibleCategories.first)
+        let category = try #require(model.visibleGroups.first { !$0.isIncome }?.visibleCategories.first)
 
         model.beginMoveMoney(for: category.id)
         #expect(!model.isMoveMoneyPresented)

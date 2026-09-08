@@ -56,10 +56,11 @@ enum BudgetCategoryVisibility {
 
     static func displayedGroups(
         from groups: [BudgetMonthCategoryGroup],
-        showHidden: Bool
+        showHidden: Bool,
+        isTrackingBudget: Bool = false
     ) -> [BudgetMonthCategoryGroup] {
         groups.filter { group in
-            guard !group.isIncome else {
+            guard !group.isIncome || isTrackingBudget else {
                 return false
             }
             return showHidden || !isHidden(group.hidden)

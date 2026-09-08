@@ -468,7 +468,8 @@ struct BudgetView: View {
     private var displayedGroups: [BudgetMonthCategoryGroup] {
         BudgetCategoryVisibility.displayedGroups(
             from: displayedBudgetMonth?.categoryGroups ?? [],
-            showHidden: appState.settings.showHiddenCategories
+            showHidden: appState.settings.showHiddenCategories,
+            isTrackingBudget: viewModel.isTrackingBudget
         )
     }
 
@@ -490,7 +491,11 @@ struct BudgetView: View {
         )
     }
 
+    @ViewBuilder
     private var budgetAlertBanners: some View {
+        if let savings = BudgetSavingsPresentation(month: displayedBudgetMonth, currency: viewModel.currency) {
+            BudgetSavingsBanner(presentation: savings)
+        }
         ForEach(displayedBudgetAlerts) { alert in
             if alert.isActionable {
                 Button {
@@ -557,9 +562,8 @@ struct BudgetView: View {
         )
     }
 
-    private func realExpenseCategory(id: String) -> BudgetMonthCategory? {
+    private func realCategory(id: String) -> BudgetMonthCategory? {
         viewModel.budgetMonth?.categoryGroups
-            .filter { !$0.isIncome }
             .flatMap(\.categories)
             .first { $0.id == id }
     }
@@ -573,7 +577,6 @@ struct BudgetView: View {
         case .uncategorizedTransactions:
             isUncategorizedTransactionsPresented = true
         case .overspending:
-            guard viewModel.canOpenOverspentCover else { return }
             isOverspentCategoriesPresented = true
         case .toBudget:
             break
@@ -599,13 +602,13 @@ struct BudgetView: View {
                     isExpanded: viewModel.isExpanded(group),
                     isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                     assignedDisplay: { category in
-                        viewModel.assignedAmountDisplay(for: category)
+                        viewModel.assignedAmountDisplay(for: category, randomized: appState.settings.randomizedDisplayValuesEnabled)
                     },
                     isEditingAssignment: { category in
                         viewModel.isEditingAssignment(for: category)
                     },
                     beginAssignmentEditing: { category, categoryFrame in
-                        guard let realCategory = realExpenseCategory(id: category.id) else {
+                        guard let realCategory = realCategory(id: category.id) else {
                             return
                         }
                         assignmentEditingCategoryFrame = categoryFrame
@@ -618,6 +621,7 @@ struct BudgetView: View {
                             viewModel.toggle(group)
                         }
                     },
+                    isTrackingBudget: viewModel.isTrackingBudget,
                     showHidden: appState.settings.showHiddenCategories,
                     hidesCarryoverArrows: appState.settings.hideCarryoverArrows,
                     canChangeVisibility: !visibilityWorkflow.isSubmitting,

@@ -57,6 +57,7 @@ enum ShortcutBudgetCommand {
         }
         return try await session.withExclusiveWrite { prepared in
             let loaded = try await session.loadedMonth(preferred: month)
+            guard !loaded.isTrackingBudget else { throw ShortcutsError.trackingActionUnsupported }
             let monthID = loaded.selectedMonth
             _ = try await prepared.store.moveMoneyAndRefresh(expectedMode: loaded.modeIdentity,
                 command: BudgetMoveMoneyCommand(

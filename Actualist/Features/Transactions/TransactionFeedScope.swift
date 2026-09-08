@@ -18,7 +18,8 @@ struct CategoryMonthDetails: Identifiable, Hashable {
 
     var id: String { "\(month)|\(category.id)" }
     var budgetedAmount: Int { category.budgeted }
-    var spentAmount: Int { -category.spent }
+    var spentAmount: Int { semantics.activityAmount(category.spent) }
+    var semantics: BudgetModePresentation { .init(isTracking: modeIdentity?.table == .tracking, isIncome: category.isIncome) }
     var remainingAmount: Int { category.balance }
 
     var monthTitle: String {
@@ -54,6 +55,7 @@ final class CategoryMonthDetailsViewModel {
     init(details: CategoryMonthDetails) {
         self.details = details
         self.isCarryoverEnabled = details.category.carryover
+        self.isTrackingBudget = details.modeIdentity?.table == .tracking
     }
 
     func refresh(using appState: AppState) async {

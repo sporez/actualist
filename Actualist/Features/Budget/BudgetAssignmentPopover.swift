@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct BudgetAssignmentPopover: View {
+    @Environment(AppState.self) private var appState
     @Bindable var viewport: BudgetViewportModel
     let actions: BudgetWorkspaceActions
     let categoryName: String
@@ -12,7 +13,7 @@ struct BudgetAssignmentPopover: View {
                 Text(categoryName).font(.headline).lineLimit(2)
                 Text(BudgetMonthNavigationPresentation.title(for: viewport.selectedCell?.month))
                     .font(.subheadline).foregroundStyle(ActualistTheme.secondaryText)
-                if let display = viewport.assignmentAmountDisplay {
+                if let display = viewport.assignmentAmountDisplay(randomized: appState.settings.randomizedDisplayValuesEnabled) {
                     Text(display.primaryText).font(.title2.weight(.bold)).monospacedDigit()
                     if let secondary = display.secondaryText {
                         Text(secondary).font(.headline).foregroundStyle(ActualistTheme.accent)

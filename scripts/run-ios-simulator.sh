@@ -18,6 +18,7 @@ CAPTURE_SCREENSHOT="${CAPTURE_SCREENSHOT:-0}"
 LAUNCH_APP="${LAUNCH_APP:-1}"
 RESET_APP="${RESET_APP:-0}"
 ENTER_DEMO="${ENTER_DEMO:-0}"
+TRACKING_DEMO=0
 SCREEN_NAME="${SCREEN_NAME:-}"
 LAUNCH_WAIT_SECONDS="${LAUNCH_WAIT_SECONDS:-}"
 
@@ -32,6 +33,7 @@ Build, install into the UDID-pinned simulator, and launch the app.
 
 Options:
   --boot              Boot the pinned simulator if none is booted.
+  --tracking-demo     Launch the synthetic tracking demo (onboarding only).
   --demo              Launch into the bundled demo budget (onboarding only).
   --screen PATH       Open a screen after launch. Slash paths are allowed
                       (settings/appearance). Unique settings pages also work
@@ -52,6 +54,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --boot)
       BOOT_IF_NEEDED=1
+      ;;
+    --tracking-demo)
+      ENTER_DEMO=1
+      TRACKING_DEMO=1
       ;;
     --demo)
       ENTER_DEMO=1
@@ -133,7 +139,11 @@ if [[ "${LAUNCH_APP}" == "1" ]]; then
   xcrun simctl terminate "${SIMULATOR_ID}" "${BUNDLE_ID}" >/dev/null 2>&1 || true
   launch_args=()
   if [[ "${ENTER_DEMO}" == "1" ]]; then
-    launch_args+=(-actualist-demo)
+    if [[ "$TRACKING_DEMO" == "1" ]]; then
+      launch_args+=(-actualist-tracking-demo)
+    else
+      launch_args+=(-actualist-demo)
+    fi
   fi
   if [[ -n "${SCREEN_NAME}" ]]; then
     launch_args+=(-actualist-screen "${SCREEN_NAME}")

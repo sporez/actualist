@@ -31,6 +31,25 @@ struct CategoryEntity: AppEntity {
     @Property(title: "Hidden")
     var isHidden: Bool
 
+    @Property(title: "Budget Type")
+    var budgetType: String
+
+    @Property(title: "Balance")
+    var balance: IntentCurrencyAmount?
+
+    @Property(title: "Received")
+    var received: IntentCurrencyAmount?
+
+    var spokenSummary: String {
+        let metric: (amount: IntentCurrencyAmount?, label: String)
+        if budgetType == "Tracking" {
+            metric = isIncome ? (received, "received") : (balance, "balance")
+        } else {
+            metric = (available, "available")
+        }
+        return "\(name) has \(ShortcutMoney.spoken(metric.amount)) \(metric.label)."
+    }
+
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(
             title: "\(name)",
@@ -47,7 +66,10 @@ struct CategoryEntity: AppEntity {
         spent: IntentCurrencyAmount?,
         carryover: Bool,
         isIncome: Bool,
-        isHidden: Bool
+        isHidden: Bool,
+        budgetType: String = "Envelope",
+        balance: IntentCurrencyAmount? = nil,
+        received: IntentCurrencyAmount? = nil
     ) {
         self.id = id
         self.name = name
@@ -58,24 +80,33 @@ struct CategoryEntity: AppEntity {
         self.carryover = carryover
         self.isIncome = isIncome
         self.isHidden = isHidden
+        self.budgetType = budgetType
+        self.balance = balance
+        self.received = received
     }
 
     static func make(
         from category: BudgetMonthCategory,
         groupName: String,
         currency: BudgetCurrency? = nil,
-        isHidden: Bool? = nil
+        isHidden: Bool? = nil,
+        isTrackingBudget: Bool = false
     ) -> CategoryEntity {
         CategoryEntity(
             id: category.id,
             name: category.name,
             group: groupName,
-            available: ShortcutMoney.intentAmount(minorUnits: category.balance, currency: currency),
+            available: isTrackingBudget ? nil : ShortcutMoney.intentAmount(minorUnits: category.balance, currency: currency),
             budgeted: ShortcutMoney.intentAmount(minorUnits: category.budgeted, currency: currency),
-            spent: ShortcutMoney.intentAmount(minorUnits: category.spent, currency: currency),
+            spent: isTrackingBudget && category.isIncome ? nil : ShortcutMoney.intentAmount(minorUnits: category.spent, currency: currency),
             carryover: category.carryover,
             isIncome: category.isIncome,
-            isHidden: isHidden ?? (category.hidden ?? false)
+            isHidden: isHidden ?? (category.hidden ?? false),
+            budgetType: isTrackingBudget ? "Tracking" : "Envelope",
+            balance: isTrackingBudget && !category.isIncome
+                ? ShortcutMoney.intentAmount(minorUnits: category.balance, currency: currency) : nil,
+            received: isTrackingBudget && category.isIncome
+                ? ShortcutMoney.intentAmount(minorUnits: category.spent, currency: currency) : nil
         )
     }
 }

@@ -176,6 +176,14 @@ struct AccountTransactionFeedProjection {
 
     private var categorySummary: AccountTransactionCategorySummaryPresentation? {
         guard let details = scope.categoryDetails else { return nil }
+        if privacyModeEnabled, details.semantics.isTracking {
+            let sample = BudgetMonthPrivacyProjection.project(category: details.category,
+                month: details.month, currency: currency, table: .tracking)
+            return AccountTransactionCategorySummaryPresentation(
+                budgetedText: currency.formatted(sample.budgeted),
+                spentText: currency.formatted(details.semantics.activityAmount(sample.spent)),
+                remainingText: currency.formatted(sample.balance), remainingTone: balanceTone(sample.balance))
+        }
         return AccountTransactionCategorySummaryPresentation(
             budgetedText: summaryAmountText(details.budgetedAmount, label: "Budgeted"),
             spentText: summaryAmountText(details.spentAmount, label: "Spent"),

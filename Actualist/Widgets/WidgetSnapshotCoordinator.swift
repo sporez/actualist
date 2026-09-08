@@ -48,7 +48,7 @@ final class WidgetSnapshotCoordinator {
         isArmed = true
         armTheme()
         arm()
-        enqueuePublish()
+        refresh()
     }
 
     private func armTheme() {
@@ -77,13 +77,13 @@ final class WidgetSnapshotCoordinator {
             _ = appState.localFirstStore.loadedBudgetMonthsByBudget
         } onChange: { [weak self] in
             Task { @MainActor in
-                self?.enqueuePublish()
+                self?.refresh()
                 self?.arm()
             }
         }
     }
 
-    private func enqueuePublish() {
+    func refresh() {
         let generation = publicationGeneration.begin()
         publishTask?.cancel()
         publishTask = Task { @MainActor [weak self] in

@@ -63,10 +63,10 @@ enum DemoBudget {
 
     /// The bundled demo budget archive, or `nil` if the resource is missing
     /// (e.g. a build that did not copy `DemoBudget.zip` into the app bundle).
-    static func bundledArchiveData() throws -> Data {
+    static func bundledArchiveData(tracking: Bool = false) throws -> Data {
         guard
             let url = Bundle.main.url(
-                forResource: archiveResourceName,
+                forResource: tracking ? "TrackingDemoBudget" : archiveResourceName,
                 withExtension: archiveResourceExtension
             )
         else {

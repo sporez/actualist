@@ -10,9 +10,9 @@ enum WidgetMonthID {
         return String(format: "%04d-%02d", year, month)
     }
 
-    static func nextBoundary(after date: Date) -> Date {
+    static func nextBoundary(after date: Date, graceInterval: TimeInterval = 60) -> Date {
         gregorianCalendar().dateInterval(of: .month, for: date)?.end
-            .addingTimeInterval(60) ?? date.addingTimeInterval(6 * 60 * 60)
+            .addingTimeInterval(graceInterval) ?? date.addingTimeInterval(6 * 60 * 60)
     }
 
     static func isCanonical(_ value: String) -> Bool {

@@ -172,7 +172,8 @@ final class BudgetAssignmentWorkflow {
 
     func amountDisplay(
         for category: BudgetMonthCategory,
-        currency: BudgetCurrency
+        currency: BudgetCurrency,
+        randomized: Bool = false
     ) -> BudgetAssignedAmountDisplay {
         guard let draft,
               draft.categoryID == category.id else {
@@ -184,17 +185,21 @@ final class BudgetAssignmentWorkflow {
             )
         }
 
-        switch draft.inputMode {
+        let displayDraft = randomized ? BudgetAssignmentDraft(
+            categoryID: draft.categoryID, originalBudgeted: category.budgeted,
+            inputDigits: draft.inputDigits, inputMode: draft.inputMode
+        ) : draft
+        switch displayDraft.inputMode {
         case .direct:
             return BudgetAssignedAmountDisplay(
-                primaryText: currency.formatted(draft.finalBudgeted),
+                primaryText: currency.formatted(displayDraft.finalBudgeted),
                 secondaryText: nil,
                 isEditing: true,
                 isDeltaMode: false
             )
         case .addition, .subtraction:
             return BudgetAssignedAmountDisplay(
-                primaryText: currency.formatted(draft.originalBudgeted),
+                primaryText: currency.formatted(displayDraft.originalBudgeted),
                 secondaryText: Self.deltaText(
                     for: draft.inputAmount,
                     mode: draft.inputMode,

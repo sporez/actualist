@@ -14,6 +14,7 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
     var overview: WidgetMonthOverviewSnapshot?
     var recentTransactions: [WidgetTransactionSnapshot]?
     var netWorth: WidgetNetWorthSnapshot?
+    var isTrackingBudget: Bool?
 
     static let currentSchemaVersion = 2
 
@@ -29,6 +30,7 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
             && overview == other.overview
             && recentTransactions == other.recentTransactions
             && netWorth == other.netWorth
+            && isTrackingBudget == other.isTrackingBudget
     }
 }
 
