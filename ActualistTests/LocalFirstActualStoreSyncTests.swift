@@ -155,7 +155,7 @@ extension LocalFirstActualStoreTests {
             for index in 0..<mutationCount {
                 group.addTask {
                     await Task.yield()
-                    _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+                    _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
                         categoryID: "groceries",
                         budgeted: 60_000 + index,
                         budgetID: "group-1",

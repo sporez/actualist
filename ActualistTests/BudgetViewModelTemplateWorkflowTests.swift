@@ -216,7 +216,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         Self.makeLoadedMonth(selectedMonth, toBudget: Self.freshMarker)
     }
 
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -263,7 +263,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
 
     // MARK: Unused protocol members
 
-    func assignCategoryBudgetAndRefresh(
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
@@ -273,7 +273,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         throw TestError("not used")
     }
 
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
@@ -283,7 +283,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         throw TestError("not used")
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         carryover: Bool,
         budgetID: String,
         startMonth: String
@@ -311,7 +311,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         throw TestError("not used")
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
@@ -320,7 +320,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         throw TestError("not used")
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,

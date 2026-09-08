@@ -5,6 +5,7 @@ struct BudgetAssignmentKeypad: View {
 
     let canSubmit: Bool
     let showsApplyTemplate: Bool
+    let showsMoveMoney: Bool
     let canApplyTemplate: Bool
     let isSubmitting: Bool
     let errorMessage: String?
@@ -28,8 +29,10 @@ struct BudgetAssignmentKeypad: View {
                         applyTemplate()
                     }
                 }
-                keypadToolbarButton(title: "Move Money", systemImage: "arrow.right", isEnabled: true) {
-                    moveMoney()
+                if showsMoveMoney {
+                    keypadToolbarButton(title: "Move Money", systemImage: "arrow.right", isEnabled: true) {
+                        moveMoney()
+                    }
                 }
                 keypadToolbarButton(title: "Details", systemImage: "ellipsis", isEnabled: true, action: details)
 

@@ -1,6 +1,11 @@
 import Foundation
 
 extension LocalFirstActualStore {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.fetchBudgetModeIdentity()
+    }
+
     /// Newest-first local money-flow gestures for the open budget. The rows
     /// live inside that budget's SQLite, so a budget switch or reimport never
     /// leaks another budget's history.

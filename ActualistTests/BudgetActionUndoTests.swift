@@ -10,7 +10,10 @@ import Testing
         inverse: BudgetActionInverse,
         summary: BudgetActionSummary,
         affectedCategoryIDs: [String],
-        status: BudgetActionStatus = .applied
+        status: BudgetActionStatus = .applied,
+        modeIdentity: BudgetModeIdentity? = BudgetModeIdentity(
+            storageID: "db-1", table: .envelope, revision: "r1"
+        )
     ) -> BudgetActionRecord {
         BudgetActionRecord(
             id: "action-1",
@@ -23,21 +26,26 @@ import Testing
             affectedCategoryIDs: affectedCategoryIDs,
             forwardTimestampStart: nil,
             forwardTimestampEnd: nil,
-            source: .ui
+            source: .ui,
+            modeIdentity: modeIdentity
         )
     }
 
     private func assignRecord(
         before: Int = 50_000,
         after: Int = 62_500,
-        status: BudgetActionStatus = .applied
+        status: BudgetActionStatus = .applied,
+        modeIdentity: BudgetModeIdentity? = BudgetModeIdentity(
+            storageID: "db-1", table: .envelope, revision: "r1"
+        )
     ) -> BudgetActionRecord {
         let assign = AssignBudgetAction(month: "2026-07", categoryID: "groceries", before: before, after: after)
         return makeRecord(
             inverse: .assign(assign),
             summary: .assign(assign),
             affectedCategoryIDs: ["groceries"],
-            status: status
+            status: status,
+            modeIdentity: modeIdentity
         )
     }
 
@@ -45,16 +53,70 @@ import Testing
         let record = assignRecord()
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": 62_500]
+            liveBudgeted: ["groceries": 62_500],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(evaluation == .clean(.assignments(targets: ["groceries": 50_000])))
+    }
+
+    @Test func budgetUndoRequiresTheExactModeIdentity() {
+        var record = assignRecord()
+        record.modeIdentity = BudgetModeIdentity(storageID: "db-1", table: .envelope, revision: "r1")
+
+        #expect(BudgetActionUndo.evaluate(
+            record: record, liveBudgeted: ["groceries": 62_500], currentModeIdentity: nil
+        ) == .blocked(.budgetModeChanged))
+
+        let converted = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: ["groceries": 62_500],
+            currentModeIdentity: BudgetModeIdentity(storageID: "db-1", table: .tracking, revision: "r2")
+        )
+        #expect(converted == .blocked(.budgetModeChanged))
+
+        let legacy = BudgetActionUndo.evaluate(
+            record: assignRecord(modeIdentity: nil),
+            liveBudgeted: ["groceries": 62_500],
+            currentModeIdentity: BudgetModeIdentity(storageID: "db-1", table: .envelope, revision: "r1")
+        )
+        #expect(legacy == .blocked(.budgetModeChanged))
+    }
+
+    @Test func transactionUndoDoesNotRequireBudgetModeIdentity() {
+        let inverse = CreateTransactionInverse(
+            month: "2026-07", primaryTransactionID: "txn-1", transactionIDs: ["txn-1"],
+            graph: .simple, createdPayeeID: nil, learning: .empty
+        )
+        let summary = TransactionBudgetAction(
+            month: "2026-07", amount: -450, payeeName: "Coffee", categoryID: "groceries",
+            graph: .simple, transactionCount: 1
+        )
+        let record = makeRecord(
+            inverse: .createTransaction(inverse), summary: .createTransaction(summary),
+            affectedCategoryIDs: []
+        )
+        let live = TransactionUndoSnapshot(
+            id: "txn-1", accountID: "checking", dateValue: 20260708, amount: -450,
+            payeeID: "coffee", categoryID: "groceries", notes: nil, cleared: false,
+            tombstone: false, transferID: nil, isParent: false, isChild: false, parentID: nil
+        )
+        let evaluation = BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            currentModeIdentity: BudgetModeIdentity(storageID: "db-1", table: .tracking, revision: "r2"),
+            liveTransactions: ["txn-1": live]
+        )
+        #expect(evaluation == .clean(.tombstoneTransactions(
+            transactionIDs: ["txn-1"], createdPayeeID: nil, learning: .empty
+        )))
     }
 
     @Test func assignWithNewerCellChangeIsBlocked() {
         let record = assignRecord()
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": 65_000]
+            liveBudgeted: ["groceries": 65_000],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(evaluation == .blocked(.changedSinceApplied))
     }
@@ -63,7 +125,8 @@ import Testing
         let record = assignRecord()
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": nil]
+            liveBudgeted: ["groceries": nil],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(evaluation == .blocked(.categoryMissing))
     }
@@ -72,7 +135,8 @@ import Testing
         let record = assignRecord(status: .undone)
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": 62_500]
+            liveBudgeted: ["groceries": 62_500],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(evaluation == .blocked(.alreadyUndone))
     }
@@ -96,13 +160,15 @@ import Testing
         // Expected after: groceries 45_000, dining 10_500.
         let clean = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": 45_000, "dining": 10_500]
+            liveBudgeted: ["groceries": 45_000, "dining": 10_500],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(clean == .clean(.assignments(targets: ["groceries": 50_000, "dining": 5_000])))
 
         let changed = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": 44_000, "dining": 10_500]
+            liveBudgeted: ["groceries": 44_000, "dining": 10_500],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(changed == .blocked(.changedSinceApplied))
     }
@@ -121,7 +187,8 @@ import Testing
         )
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": 45_000, "dining": nil]
+            liveBudgeted: ["groceries": 45_000, "dining": nil],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(evaluation == .blocked(.categoryMissing))
     }
@@ -140,14 +207,16 @@ import Testing
 
         let clean = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["utilities": 30_000, "subscriptions": 4_500]
+            liveBudgeted: ["utilities": 30_000, "subscriptions": 4_500],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(clean == .clean(.assignments(targets: ["utilities": 0, "subscriptions": 2_000])))
 
         // One category later assigned by hand blocks the whole gesture.
         let changed = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["utilities": 30_000, "subscriptions": 6_000]
+            liveBudgeted: ["utilities": 30_000, "subscriptions": 6_000],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(changed == .blocked(.changedSinceApplied))
     }
@@ -192,6 +261,7 @@ import Testing
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: ["txn-1": live]
         )
         #expect(evaluation == .clean(.tombstoneTransactions(
@@ -241,6 +311,7 @@ import Testing
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: ["txn-1": live]
         )
         #expect(evaluation == .blocked(.alreadyTombstoned))
@@ -249,6 +320,7 @@ import Testing
         let rewritten = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: ["txn-1": live]
         )
         #expect(rewritten == .blocked(.graphRewritten))
@@ -291,6 +363,7 @@ import Testing
         let clean = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: ["txn-1": live]
         )
         #expect(clean == .clean(.unTombstoneTransactions(transactionIDs: ["txn-1"])))
@@ -299,6 +372,7 @@ import Testing
         let blocked = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: ["txn-1": restored]
         )
         #expect(blocked == .blocked(.alreadyLive))
@@ -335,6 +409,7 @@ import Testing
         let mixed = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: [
                 "txn-1": snapshot("txn-1", category: "groceries"),
                 "txn-2": snapshot("txn-2", category: "dining")
@@ -347,6 +422,7 @@ import Testing
         let allChanged = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: [
                 "txn-1": snapshot("txn-1", category: "dining"),
                 "txn-2": snapshot("txn-2", category: "dining")
@@ -396,6 +472,7 @@ import Testing
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: [:],
+            currentModeIdentity: record.modeIdentity,
             liveTransactions: ["txn-1": snapshot]
         )
         #expect(evaluation == .blocked(.graphRewritten))
@@ -405,7 +482,8 @@ import Testing
         let record = assignRecord(before: Money.maximumUserAmountMinorUnits + 1, after: 0)
         let evaluation = BudgetActionUndo.evaluate(
             record: record,
-            liveBudgeted: ["groceries": 0]
+            liveBudgeted: ["groceries": 0],
+            currentModeIdentity: record.modeIdentity
         )
         #expect(evaluation == .blocked(.amountOutOfRange))
     }

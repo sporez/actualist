@@ -10,21 +10,21 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         selectedMonth: String
     ) async throws -> LoadedBudgetMonth
-    func assignCategoryBudgetAndRefresh(
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
         month: String,
         didAssign: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
         startMonth: String,
         didSetCarryover: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?,
         carryover: Bool,
         budgetID: String,
         startMonth: String
@@ -43,7 +43,7 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity?,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -73,19 +73,20 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         month: String
     ) async throws -> BudgetTemplateApplyPreview
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
         didMove: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
         didMove: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth
     // History: local money-flow gesture log and LIFO undo.
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity?
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord]
     func budgetActionCategoryNames(budgetID: String) async throws -> [String: String]
     func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview
@@ -93,6 +94,10 @@ protocol BudgetRepositoryProtocol: Sendable {
 }
 
 extension BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
+        nil
+    }
+
     func setCategoryTemplatesAndRefresh(
         categoryID: String,
         drafts: [BudgetTemplateDraft],
@@ -134,6 +139,7 @@ extension BudgetRepositoryProtocol {
 }
 
 struct LoadedBudgetMonth: Equatable {
+    var modeIdentity: BudgetModeIdentity? = nil
     let availableMonths: [String]
     let selectedMonth: String
     let month: BudgetMonth

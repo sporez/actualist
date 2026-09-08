@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct BudgetViewModelMoveMoneyWorkflowTests {
     @Test func moveMoneyForPositiveCategoryAllowsAmountsPastAvailableBalance() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: 11_220,
             hiddenCategoryBalance: 0,
@@ -33,7 +33,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func moveMoneyForOverspentCategoryDefaultsToCoverAmountIntoFocusedCategory() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: -7_693,
             hiddenCategoryBalance: 0,
@@ -69,7 +69,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func overspentAlertCategoryTapStartsCoverMoveMoneyDraft() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: -7_693,
             hiddenCategoryBalance: 0,
@@ -92,7 +92,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func moveMoneyCoverAmountDoesNotClampToSelectedSourceAvailability() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: -7_693,
             hiddenCategoryBalance: 0,
@@ -116,7 +116,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func moveMoneyDestinationOptionsUseToBudgetAndExcludeSourceCategory() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: 11_220,
             hiddenCategoryBalance: 0,
@@ -133,7 +133,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func moveMoneyCounterpartyBalanceUsesSelectedCategoryAmount() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: 11_220,
             hiddenCategoryBalance: 0,
@@ -153,7 +153,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func successfulMoveMoneyToBudgetSubmitsNilDestinationAndClearsEditingState() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let loadedMonth = LoadedBudgetMonth(
             availableMonths: ["2026-06"],
             selectedMonth: "2026-06",
@@ -198,7 +198,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func moveMoneyDirectionToggleMovesFromSelectedCategoryIntoFocusedCategory() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let repository = RecordingBudgetRepository()
 
         model.selectedMonth = "2026-06"
@@ -237,7 +237,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func multiDestinationMoveMoneyBuildsOneCommandPerAllocation() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let repository = RecordingBudgetRepository()
 
         model.selectedMonth = "2026-06"
@@ -272,7 +272,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func moveMoneyKeypadDigitsApplyToFocusedAllocation() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.selectedMonth = "2026-06"
         model.budgetMonth = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: 10_000,
@@ -303,7 +303,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     @Test func failedMoveMoneyKeepsDraftOpenWithInlineError() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let repository = RecordingBudgetRepository(moveError: TestError("transfer failed"))
 
         model.selectedMonth = "2026-06"
@@ -470,7 +470,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     }
 
     private func makeMoveMoneyModel(visibleCategoryBalance: Int) throws -> BudgetViewModel {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: visibleCategoryBalance,
             hiddenCategoryBalance: 0,

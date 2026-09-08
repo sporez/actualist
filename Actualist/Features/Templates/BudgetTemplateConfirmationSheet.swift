@@ -5,8 +5,9 @@ struct BudgetTemplateConfirmationSheet: View {
     let confirmation: BudgetTemplateConfirmation
     let categoryID: String?
     let month: String
+    let modeIdentity: BudgetModeIdentity?
     let cancel: () -> Void
-    let apply: () -> Void
+    let apply: (BudgetModeIdentity?) -> Void
 
     @State private var viewModel = BudgetTemplateApplyPreviewViewModel()
 
@@ -49,7 +50,7 @@ struct BudgetTemplateConfirmationSheet: View {
 
             VStack(spacing: 10) {
                 Button(role: confirmation.buttonRole) {
-                    apply()
+                    apply(viewModel.modeIdentity)
                 } label: {
                     Text(confirmation.actionTitle)
                         .font(.body.weight(.semibold))
@@ -74,7 +75,7 @@ struct BudgetTemplateConfirmationSheet: View {
             .background(ActualistTheme.background)
         }
         .background(ActualistTheme.background)
-        .task(id: "\(confirmation.id)|\(categoryID ?? "")|\(month)") {
+        .task(id: "\(confirmation.id)|\(categoryID ?? "")|\(month)|\(String(describing: modeIdentity))") {
             await load()
         }
         .onDisappear {
@@ -146,6 +147,7 @@ struct BudgetTemplateConfirmationSheet: View {
             categoryID: categoryID,
             month: month,
             budgetID: appState.settings.selectedBudgetID,
+            modeIdentity: modeIdentity,
             randomized: appState.settings.randomizedDisplayValuesEnabled,
             repository: appState.budgetRepository
         )

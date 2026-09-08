@@ -30,7 +30,7 @@ struct OverspentCoverSelectionViewModelTests {
     }
 
     @Test func selectionTogglesAndRequiresAtLeastTwoOverspentCategoriesToBegin() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonth(
             firstOverspentBalance: -2_500,
             secondOverspentBalance: nil,
@@ -68,7 +68,7 @@ struct OverspentCoverSelectionViewModelTests {
     }
 
     @Test func coverCommandsUseSharedSourceForEverySelectedOverspentCategory() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonth(
             firstOverspentBalance: -2_500,
             secondOverspentBalance: -1_000,
@@ -98,7 +98,7 @@ struct OverspentCoverSelectionViewModelTests {
     }
 
     @Test func coverSelectionUsesOneRepositoryMutationAndClearsSelection() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonth(
             firstOverspentBalance: -2_500,
             secondOverspentBalance: -1_000,
@@ -141,7 +141,7 @@ struct OverspentCoverSelectionViewModelTests {
     }
 
     @Test func failedCoverSelectionPreservesSelectionAndEntries() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonth(
             firstOverspentBalance: -2_500,
             secondOverspentBalance: -1_000,
@@ -180,7 +180,7 @@ struct OverspentCoverSelectionViewModelTests {
     }
 
     @Test func reloadedMonthDropsCategoriesNoLongerOverspentFromSelection() async throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonth(
             firstOverspentBalance: -2_500,
             secondOverspentBalance: -1_000,
@@ -249,7 +249,7 @@ struct OverspentCoverSelectionViewModelTests {
     }
 
     @Test func coverSourcePickerExcludesSelectedAndOverspentCategories() throws {
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonth(
             firstOverspentBalance: -2_500,
             secondOverspentBalance: -1_000,
@@ -281,7 +281,7 @@ struct OverspentCoverSelectionViewModelTests {
     @Test func coverSourcePickerIncludesToBudgetOptionFromIncome() throws {
         // A visible income category makes the synthetic "To Budget" source
         // available so overspent categories can be covered from available income.
-        let model = BudgetViewModel()
+        let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonthWithIncome(
             overspentBalance: -2_500,
             toBudget: 3_000

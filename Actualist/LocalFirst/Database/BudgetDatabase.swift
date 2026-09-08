@@ -14,6 +14,7 @@ actor BudgetDatabase {
         try Self.prepareBankSyncStatusCompatibility(in: queue)
         try Self.prepareBankSyncSchemaCompatibility(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
+        try Self.prepareBudgetIdentity(in: queue)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in
                 let hasMessagesTable = try Bool.fetchOne(

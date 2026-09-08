@@ -29,7 +29,8 @@ extension BudgetDatabase {
         source: BudgetActionSource,
         learningTransactionIDs: Set<String> = [],
         actionID: String = UUID().uuidString,
-        now: Date = Date()
+        now: Date = Date(),
+        expectedMode: BudgetModeIdentity? = nil
     ) throws -> Int {
         try commitLocalSyncMessagesAndEnqueue(
             drafts,
@@ -39,7 +40,8 @@ extension BudgetDatabase {
                 source: source,
                 actionID: actionID,
                 learningTransactionIDs: learningTransactionIDs
-            )
+            ),
+            expectedMode: expectedMode
         )
     }
 
@@ -51,6 +53,7 @@ extension BudgetDatabase {
         var summary: BudgetActionSummary
         var inverse: BudgetActionInverse
         var affectedCategoryIDs: [String]
+        var modeIdentity: BudgetModeIdentity? = nil
 
         func record(
             id: String,
@@ -70,7 +73,8 @@ extension BudgetDatabase {
                 affectedCategoryIDs: affectedCategoryIDs,
                 forwardTimestampStart: forwardTimestampStart,
                 forwardTimestampEnd: forwardTimestampEnd,
-                source: source
+                source: source,
+                modeIdentity: modeIdentity
             )
         }
 
@@ -129,6 +133,10 @@ extension BudgetDatabase {
             }
         }
         if let actionLogFacts {
+            var actionLogFacts = actionLogFacts
+            // Capture the authoritative identity inside the same transaction
+            // as the forward write and History row. Legacy rows remain nil.
+            actionLogFacts.modeIdentity = try budgetModeIdentity(db: db)
             try ensureActionLog(db)
             try insertActionLogRecord(
                 actionLogFacts.record(
@@ -229,9 +237,16 @@ extension BudgetDatabase {
                 forward_ts_end TEXT,
                 undone_at TEXT,
                 undone_by_action_id TEXT,
-                source TEXT NOT NULL
+                source TEXT NOT NULL,
+                mode_identity_json TEXT
             )
             """)
+        columnSetCache["actualist_action_log"] = nil
+        let columns = try columnSet(for: "actualist_action_log", db: db)
+        if !columns.contains("mode_identity_json") {
+            try db.execute(sql: "ALTER TABLE actualist_action_log ADD COLUMN mode_identity_json TEXT")
+            columnSetCache["actualist_action_log"] = nil
+        }
         try db.execute(sql: """
             CREATE INDEX IF NOT EXISTS actualist_action_log_created_at
                 ON actualist_action_log(created_at DESC)
@@ -242,13 +257,16 @@ extension BudgetDatabase {
 
     func insertActionLogRecord(_ record: BudgetActionRecord, db: Database) throws {
         let encoder = JSONEncoder()
+        let modeIdentityJSON = try record.modeIdentity.map {
+            String(decoding: try encoder.encode($0), as: UTF8.self)
+        }
         try db.execute(
             sql: """
                 INSERT INTO actualist_action_log
                     (id, created_at, kind, status, month, summary_json, inverse_json,
                      affected_json, forward_ts_start, forward_ts_end, undone_at,
-                     undone_by_action_id, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+                     undone_by_action_id, source, mode_identity_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
                 """,
             arguments: [
                 record.id,
@@ -261,7 +279,8 @@ extension BudgetDatabase {
                 String(decoding: try encoder.encode(record.affectedCategoryIDs), as: UTF8.self),
                 record.forwardTimestampStart,
                 record.forwardTimestampEnd,
-                record.source.rawValue
+                record.source.rawValue,
+                modeIdentityJSON
             ]
         )
     }
@@ -277,11 +296,14 @@ extension BudgetDatabase {
             guard try tableExists("actualist_action_log", db: db) else {
                 return []
             }
+            let modeColumn = try columnSet(for: "actualist_action_log", db: db).contains("mode_identity_json")
+                ? ", mode_identity_json"
+                : ""
             let rows = try Row.fetchAll(
                 db,
                 sql: """
                     SELECT id, created_at, kind, status, month, summary_json, inverse_json,
-                           affected_json, forward_ts_start, forward_ts_end, source
+                           affected_json, forward_ts_start, forward_ts_end, source\(modeColumn)
                     FROM actualist_action_log
                     ORDER BY created_at DESC, id DESC
                     LIMIT ?
@@ -312,6 +334,12 @@ extension BudgetDatabase {
               let source = BudgetActionSource(rawValue: sourceValue) else {
             throw LocalFirstError.invalidLocalWrite("invalid action log row")
         }
+        let modeIdentity: BudgetModeIdentity?
+        if let identityJSON = row["mode_identity_json"] as String? {
+            modeIdentity = try decoder.decode(BudgetModeIdentity.self, from: Data(identityJSON.utf8))
+        } else {
+            modeIdentity = nil
+        }
         return BudgetActionRecord(
             id: id,
             createdAt: createdAt,
@@ -323,7 +351,8 @@ extension BudgetDatabase {
             affectedCategoryIDs: try decoder.decode([String].self, from: Data(affectedString.utf8)),
             forwardTimestampStart: row["forward_ts_start"] as String?,
             forwardTimestampEnd: row["forward_ts_end"] as String?,
-            source: source
+            source: source,
+            modeIdentity: modeIdentity
         )
     }
 
@@ -332,11 +361,14 @@ extension BudgetDatabase {
             guard try tableExists("actualist_action_log", db: db) else {
                 return nil
             }
+            let modeColumn = try columnSet(for: "actualist_action_log", db: db).contains("mode_identity_json")
+                ? ", mode_identity_json"
+                : ""
             guard let row = try Row.fetchOne(
                 db,
                 sql: """
                     SELECT id, created_at, kind, status, month, summary_json, inverse_json,
-                           affected_json, forward_ts_start, forward_ts_end, source
+                           affected_json, forward_ts_start, forward_ts_end, source\(modeColumn)
                     FROM actualist_action_log
                     WHERE id = ?
                     """,
@@ -445,6 +477,7 @@ extension BudgetDatabase {
         return BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: liveBudgeted,
+            currentModeIdentity: try budgetModeIdentity(db: db),
             liveTransactions: liveTransactions,
             liveRuleActions: liveRules
         )

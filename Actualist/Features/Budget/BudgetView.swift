@@ -73,6 +73,7 @@ struct BudgetView: View {
                         BudgetAssignmentKeypad(
                             canSubmit: viewModel.canSubmitAssignment,
                             showsApplyTemplate: viewModel.activeCategoryHasTemplate,
+                            showsMoveMoney: !viewModel.isTrackingBudget,
                             canApplyTemplate: viewModel.canApplyCategoryTemplate,
                             isSubmitting: viewModel.isSubmittingAssignment,
                             errorMessage: viewModel.activeAssignmentErrorMessage,
@@ -355,6 +356,7 @@ struct BudgetView: View {
                         confirmation: $pendingTemplateConfirmation,
                         categoryID: viewModel.activeAssignmentCategoryID,
                         month: viewModel.selectedMonth,
+                        modeIdentity: viewModel.modeIdentity,
                         apply: applyTemplate
                     )
                 )
@@ -372,14 +374,14 @@ struct BudgetView: View {
         }
     }
 
-    private func applyTemplate(_ confirmation: BudgetTemplateConfirmation) {
+    private func applyTemplate(_ confirmation: BudgetTemplateConfirmation, reviewedMode: BudgetModeIdentity?) {
         switch confirmation {
         case .monthFillEmpty:
-            Task { await viewModel.applyMonthTemplate(.fillEmpty, using: appState) }
+            Task { await viewModel.applyMonthTemplate(.fillEmpty, expectedMode: reviewedMode, using: appState) }
         case .monthOverwrite:
-            Task { await viewModel.applyMonthTemplate(.overwrite, using: appState) }
+            Task { await viewModel.applyMonthTemplate(.overwrite, expectedMode: reviewedMode, using: appState) }
         case .category:
-            Task { await viewModel.applyCategoryTemplate(using: appState) }
+            Task { await viewModel.applyCategoryTemplate(expectedMode: reviewedMode, using: appState) }
         }
     }
 
@@ -550,7 +552,8 @@ struct BudgetView: View {
         }
         categoryDetailsPresentation = CategoryMonthDetails(
             category: applied.category,
-            month: applied.month
+            month: applied.month,
+            modeIdentity: viewModel.modeIdentity
         )
     }
 
@@ -570,6 +573,7 @@ struct BudgetView: View {
         case .uncategorizedTransactions:
             isUncategorizedTransactionsPresented = true
         case .overspending:
+            guard viewModel.canOpenOverspentCover else { return }
             isOverspentCategoriesPresented = true
         case .toBudget:
             break

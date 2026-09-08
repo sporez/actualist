@@ -33,6 +33,7 @@ final class HistoryViewModel {
     private var records: [BudgetActionRecord] = []
     private var categoryNames: [String: String] = [:]
     private var currency: BudgetCurrency = .usd
+    private var currentModeIdentity: BudgetModeIdentity?
     private var privacyEnabled = false
     private var preparationGeneration = 0
 
@@ -91,8 +92,25 @@ final class HistoryViewModel {
         do {
             async let fetchedRecords = repository.recentBudgetActions(budgetID: budgetID)
             async let fetchedNames = repository.budgetActionCategoryNames(budgetID: budgetID)
+            async let fetchedModeIdentity = repository.budgetModeIdentity(budgetID: budgetID)
             records = try await fetchedRecords
             categoryNames = try await fetchedNames
+            let identity = try await fetchedModeIdentity
+            if let previousModeIdentity = currentModeIdentity,
+               previousModeIdentity != identity {
+                // A conversion invalidates every open budget undo review. The
+                // database remains authoritative, but this prevents a stale
+                // sheet or delayed prepare/commit from acting on old mode
+                // context.
+                preparationGeneration += 1
+                switch undoState {
+                case .preparing, .reviewing, .committing:
+                    undoState = .idle
+                case .idle, .failed:
+                    break
+                }
+            }
+            currentModeIdentity = identity
             rebuildRows()
             loadState = .loaded
         } catch {
@@ -108,6 +126,7 @@ final class HistoryViewModel {
             from: records,
             categoryNames: categoryNames,
             undoableActionID: undoableActionID,
+            currentModeIdentity: currentModeIdentity,
             currency: currency,
             privacyEnabled: privacyEnabled
         )
@@ -158,15 +177,24 @@ final class HistoryViewModel {
               let budgetID = appState.settings.selectedBudgetID else {
             return
         }
+        let generation = preparationGeneration
         undoState = .committing(presentation)
         do {
             try await appState.budgetRepository.undoBudgetActionAndRefresh(
                 actionID: presentation.actionID,
                 budgetID: budgetID
             )
+            guard generation == preparationGeneration,
+                  undoState == .committing(presentation) else {
+                return
+            }
             undoState = .idle
             await load(budgetID: budgetID, repository: appState.budgetRepository)
         } catch {
+            guard generation == preparationGeneration,
+                  undoState == .committing(presentation) else {
+                return
+            }
             undoState = .failed(
                 actionID: presentation.actionID,
                 message: Self.undoFailureMessage(for: error)

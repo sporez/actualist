@@ -13,7 +13,7 @@ extension BudgetDatabase {
             let discovered = try fetchAvailableMonths(db: db)
             let months = value.trackingSummary == nil ? discovered
                 : Array(Set(discovered + [month, YearMonth(date: now).rawValue])).sorted()
-            return BudgetFinancialSnapshot(month: value, currency: try budgetCurrency(db: db),
+            return BudgetFinancialSnapshot(modeIdentity: try budgetModeIdentity(db: db), month: value, currency: try budgetCurrency(db: db),
                 availableMonths: months)
         }
     }

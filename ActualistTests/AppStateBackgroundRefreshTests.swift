@@ -35,7 +35,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
         try bundle.keychain.saveActualSyncToken("token")
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",

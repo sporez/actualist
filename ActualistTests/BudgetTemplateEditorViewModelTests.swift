@@ -622,7 +622,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func assignCategoryBudgetAndRefresh(
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
@@ -632,7 +632,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
@@ -642,7 +642,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         carryover: Bool,
         budgetID: String,
         startMonth: String
@@ -670,7 +670,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -679,7 +679,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
@@ -688,7 +688,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,

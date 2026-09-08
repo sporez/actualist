@@ -17,8 +17,9 @@ struct BudgetWorkspaceSheets: ViewModifier {
                 confirmation: Binding(get: { actions.confirmation }, set: { actions.setConfirmation($0) }),
                 categoryID: actions.actionCategoryID,
                 month: actions.actionMonth,
-                apply: { confirmation in
-                    Task { await actions.applyConfirmation(confirmation, using: appState) }
+                modeIdentity: viewport.modeIdentity,
+                apply: { confirmation, reviewedMode in
+                    Task { await actions.applyConfirmation(confirmation, reviewedMode: reviewedMode, using: appState) }
                 }
             ))
     }

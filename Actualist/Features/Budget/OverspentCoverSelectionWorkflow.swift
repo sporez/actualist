@@ -11,6 +11,7 @@ final class OverspentCoverSelectionWorkflow {
     private(set) var selectedCategoryIDs: Set<String> = []
     private(set) var isSelecting = false
     private(set) var isSubmitting = false
+    private var submissionGeneration = 0
 
     var canSubmitSelection: Bool {
         !selectedCategoryIDs.isEmpty && !isSubmitting
@@ -26,6 +27,8 @@ final class OverspentCoverSelectionWorkflow {
     }
 
     func endSelection() {
+        submissionGeneration += 1
+        isSubmitting = false
         isSelecting = false
         selectedCategoryIDs = []
     }
@@ -85,13 +88,19 @@ final class OverspentCoverSelectionWorkflow {
     }
 
     func markSubmitting() {
+        submissionGeneration += 1
         isSubmitting = true
     }
+
+    var currentSubmissionGeneration: Int { submissionGeneration }
 
     // A successfully submitted selection is resolved by definition: the batch
     // covered every selected option in one repository mutation.
     @discardableResult
-    func finishSubmission(success: Bool) -> Bool {
+    func finishSubmission(success: Bool, expectedGeneration: Int? = nil) -> Bool {
+        if let expectedGeneration, expectedGeneration != submissionGeneration {
+            return false
+        }
         isSubmitting = false
         if success {
             endSelection()

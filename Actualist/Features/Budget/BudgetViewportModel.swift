@@ -56,7 +56,11 @@ final class BudgetViewportModel {
               let category = category(at: inspectedCell) else {
             return nil
         }
-        return CategoryMonthDetails(category: category, month: inspectedCell.month)
+        return CategoryMonthDetails(
+            category: category,
+            month: inspectedCell.month,
+            modeIdentity: monthSnapshots[inspectedCell.month]?.modeIdentity
+        )
     }
 
     init(repository: any BudgetRepositoryProtocol, assignmentWorkflow: BudgetAssignmentWorkflow? = nil) {
@@ -73,6 +77,14 @@ final class BudgetViewportModel {
 
     var visibleSnapshots: [LoadedBudgetMonth] {
         visibleMonths.compactMap { monthSnapshots[$0] }
+    }
+
+    var isTrackingBudget: Bool {
+        visibleSnapshots.first?.isTrackingBudget == true
+    }
+
+    var modeIdentity: BudgetModeIdentity? {
+        visibleSnapshots.first?.modeIdentity
     }
 
     func snapshot(for month: String) -> LoadedBudgetMonth? { monthSnapshots[month] }
@@ -207,7 +219,12 @@ final class BudgetViewportModel {
         let cell = SelectedCell(categoryID: categoryID, month: month)
         guard !assignmentWorkflow.isSubmitting, visibleMonths.contains(month),
               let category = category(at: cell), !category.isIncome else { return }
-        assignmentWorkflow.begin(for: category, budgetID: budgetID, month: month)
+        assignmentWorkflow.begin(
+            for: category,
+            budgetID: budgetID,
+            month: month,
+            modeIdentity: monthSnapshots[month]?.modeIdentity
+        )
         hardwareInputText = ""
     }
 
@@ -404,6 +421,11 @@ final class BudgetViewportModel {
                     loaded = try await repository.budgetMonth(budgetID: id, selectedMonth: month)
                 }
                 staged[month] = loaded
+                if let previous = monthSnapshots[month]?.modeIdentity,
+                   previous != loaded.modeIdentity {
+                    assignmentWorkflow.invalidate()
+                    inspectedCell = nil
+                }
                 stagedErrors.removeValue(forKey: month)
             } catch is CancellationError {
                 throw CancellationError()

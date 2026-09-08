@@ -34,9 +34,13 @@ struct BulkCategoryCarryoverViewModelTests {
     }
 
     @Test func loadThenEnableAllUsesTheLoadedMonthAndAppliesReturnedState() async throws {
+        var loaded = makeLoadedMonth(expenseCarryover: [false, true])
+        loaded.modeIdentity = BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1")
+        var updated = makeLoadedMonth(expenseCarryover: [true, true])
+        updated.modeIdentity = loaded.modeIdentity
         let repository = BulkCarryoverRepository(
-            loaded: makeLoadedMonth(expenseCarryover: [false, true]),
-            updated: makeLoadedMonth(expenseCarryover: [true, true])
+            loaded: loaded,
+            updated: updated
         )
         let model = BulkCategoryCarryoverViewModel()
 
@@ -56,6 +60,7 @@ struct BulkCategoryCarryoverViewModelTests {
         #expect(!model.isApplying)
         let command = try await repository.onlyCommand()
         #expect(command.carryover)
+        #expect(command.expectedMode == BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1"))
         #expect(command.budgetID == "budget")
         #expect(command.startMonth == "2026-07")
     }
@@ -82,6 +87,25 @@ struct BulkCategoryCarryoverViewModelTests {
         #expect(model.status?.allEnabled == true)
         #expect(model.errorMessage == "Bulk rollover failed")
         #expect(!model.isApplying)
+    }
+
+    @Test func modeChangedResultIsRejectedWithoutReplacingTheCurrentStatus() async {
+        var loaded = makeLoadedMonth(expenseCarryover: [false, true])
+        loaded.modeIdentity = BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1")
+        var converted = makeLoadedMonth(expenseCarryover: [true, true])
+        converted.modeIdentity = BudgetModeIdentity(storageID: "store", table: .envelope, revision: "rev-2")
+        let repository = BulkCarryoverRepository(loaded: loaded, updated: converted)
+        let model = BulkCategoryCarryoverViewModel()
+
+        await model.load(budgetID: "budget", preferredMonth: "2026-07", repository: repository)
+        await model.setAll(carryover: true, budgetID: "budget", repository: repository)
+
+        guard case .failed(let previous, let message) = model.state else {
+            Issue.record("expected a mode-change failure")
+            return
+        }
+        #expect(previous == BulkCategoryCarryoverStatus(loadedMonth: loaded))
+        #expect(message == BudgetModeWriteError.budgetChanged.localizedDescription)
     }
 
     @Test func resetDropsAStaleMutationResult() async {
@@ -199,6 +223,7 @@ struct BulkCategoryCarryoverViewModelTests {
 
 private struct BulkCarryoverCommand: Equatable, Sendable {
     let carryover: Bool
+    let expectedMode: BudgetModeIdentity?
     let budgetID: String
     let startMonth: String
 }
@@ -261,13 +286,14 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         loaded
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         carryover: Bool,
         budgetID: String,
         startMonth: String
     ) async throws -> LoadedBudgetMonth {
         commands.append(BulkCarryoverCommand(
             carryover: carryover,
+            expectedMode: expectedMode,
             budgetID: budgetID,
             startMonth: startMonth
         ))
@@ -281,7 +307,7 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         return updated
     }
 
-    func assignCategoryBudgetAndRefresh(
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
@@ -289,7 +315,7 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         didAssign: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
@@ -313,21 +339,21 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         didUpdate: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
         didApply: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
         didMove: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,

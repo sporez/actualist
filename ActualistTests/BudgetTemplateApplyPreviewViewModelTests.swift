@@ -70,6 +70,37 @@ struct BudgetTemplateApplyPreviewViewModelTests {
         #expect(!viewModel.canApply)
         #expect(await repository.previewCallCount() == 0)
     }
+
+    @Test func convertedPreviewFailsInsteadOfRemainingLoading() async {
+        let reviewed = BudgetModeIdentity(storageID: "fixture", table: .envelope, revision: "before")
+        let converted = BudgetModeIdentity(storageID: "fixture", table: .tracking, revision: "after")
+        var preview = BudgetTemplateApplyPreview.empty
+        preview.modeIdentity = converted
+        let viewModel = BudgetTemplateApplyPreviewViewModel()
+        await viewModel.load(
+            confirmation: .monthOverwrite, categoryID: nil, month: "2026-07",
+            budgetID: "budget-1", modeIdentity: reviewed, randomized: false,
+            repository: ApplyPreviewRepository(preview: preview)
+        )
+        #expect(viewModel.phase == .failed)
+        #expect(!viewModel.canApply)
+        #expect(viewModel.errorMessage == BudgetModeWriteError.budgetChanged.localizedDescription)
+    }
+
+    @Test func readyPreviewKeepsItsReviewedIdentity() async {
+        let reviewed = BudgetModeIdentity(storageID: "fixture", table: .tracking, revision: "review")
+        var preview = BudgetTemplateApplyPreview.empty
+        preview.modeIdentity = reviewed
+        let viewModel = BudgetTemplateApplyPreviewViewModel()
+        await viewModel.load(
+            confirmation: .monthOverwrite, categoryID: nil, month: "2026-07",
+            budgetID: "budget-1", modeIdentity: reviewed, randomized: false,
+            repository: ApplyPreviewRepository(preview: preview)
+        )
+        #expect(viewModel.canApply)
+        #expect(viewModel.modeIdentity == reviewed)
+    }
+
 }
 
 private extension BudgetTemplateApplyPreview {
@@ -122,7 +153,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func assignCategoryBudgetAndRefresh(
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
@@ -132,7 +163,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
@@ -142,7 +173,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         carryover: Bool,
         budgetID: String,
         startMonth: String
@@ -170,7 +201,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -179,7 +210,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
@@ -188,7 +219,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         Self.dummyMonth
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,

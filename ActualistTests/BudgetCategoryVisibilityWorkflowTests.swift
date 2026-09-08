@@ -120,7 +120,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         emptyLoadedMonth
     }
 
-    func assignCategoryBudgetAndRefresh(
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
@@ -130,7 +130,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         emptyLoadedMonth
     }
 
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
@@ -140,7 +140,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         emptyLoadedMonth
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         carryover: Bool,
         budgetID: String,
         startMonth: String
@@ -148,7 +148,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         emptyLoadedMonth
     }
 
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -157,7 +157,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         emptyLoadedMonth
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
@@ -166,7 +166,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         emptyLoadedMonth
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,

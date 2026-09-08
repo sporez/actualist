@@ -2,11 +2,13 @@ import Foundation
 import Observation
 
 struct BulkCategoryCarryoverStatus: Equatable, Sendable {
+    let modeIdentity: BudgetModeIdentity?
     let month: String
     let categoryCount: Int
     let enabledCount: Int
 
     init(loadedMonth: LoadedBudgetMonth) {
+        modeIdentity = loadedMonth.modeIdentity
         let categories = loadedMonth.month.categoryGroups
             .flatMap(\.categories)
             .filter { !$0.isIncome }
@@ -136,12 +138,19 @@ final class BulkCategoryCarryoverViewModel {
         state = .applying(currentStatus, carryover: carryover)
 
         do {
-            let loaded = try await repository.setAllExpenseCategoryCarryoverAndRefresh(
+            let loaded = try await repository.setAllExpenseCategoryCarryoverAndRefresh(expectedMode: currentStatus.modeIdentity,
                 carryover: carryover,
                 budgetID: budgetID,
                 startMonth: currentStatus.month
             )
             guard requestGeneration == generation else { return }
+            guard loaded.modeIdentity == currentStatus.modeIdentity else {
+                state = .failed(
+                    previous: currentStatus,
+                    message: BudgetModeWriteError.budgetChanged.localizedDescription
+                )
+                return
+            }
             state = .ready(BulkCategoryCarryoverStatus(loadedMonth: loaded))
         } catch {
             guard requestGeneration == generation else { return }

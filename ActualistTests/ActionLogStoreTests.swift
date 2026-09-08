@@ -6,7 +6,7 @@ extension LocalFirstActualStoreTests {
     @Test func assignRecordsOneActionLogRowWithInverseFacts() async throws {
         let store = try await makeOpenedWritableStore()
 
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -18,6 +18,7 @@ extension LocalFirstActualStoreTests {
         #expect(row.kind == .assign)
         #expect(row.status == .applied)
         #expect(row.source == .ui)
+        #expect(row.modeIdentity != nil)
         #expect(row.month == "2026-07")
         #expect(row.affectedCategoryIDs == ["groceries"])
         #expect(row.summary == .assign(AssignBudgetAction(
@@ -40,7 +41,7 @@ extension LocalFirstActualStoreTests {
     @Test func moveRecordsOneRowWithLegsAndPreviousBudgeted() async throws {
         let store = try await makeOpenedWritableStore()
 
-        _ = try await store.moveMoneyAndRefresh(
+        _ = try await store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "dining",
@@ -67,7 +68,7 @@ extension LocalFirstActualStoreTests {
     @Test func multiCommandMoveIsOneLogRow() async throws {
         let store = try await makeOpenedWritableStore()
 
-        _ = try await store.moveMoneyAndRefresh(
+        _ = try await store.moveMoneyAndRefresh(expectedMode: nil,
             commands: [
                 BudgetMoveMoneyCommand(fromCategoryID: "groceries", toCategoryID: "dining", amount: 500),
                 BudgetMoveMoneyCommand(fromCategoryID: "utilities", toCategoryID: "dining", amount: 250)
@@ -95,7 +96,7 @@ extension LocalFirstActualStoreTests {
     @Test func shortcutWritesRecordShortcutsSource() async throws {
         let store = try await makeOpenedWritableStore()
 
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 61_000,
             budgetID: "group-1",
@@ -190,7 +191,7 @@ extension LocalFirstActualStoreTests {
     @Test func emptyMoveWritesNoLogRow() async throws {
         let store = try await makeOpenedWritableStore()
 
-        _ = try await store.moveMoneyAndRefresh(
+        _ = try await store.moveMoneyAndRefresh(expectedMode: nil,
             commands: [],
             budgetID: "group-1",
             month: "2026-07"
@@ -202,7 +203,7 @@ extension LocalFirstActualStoreTests {
     @Test func templateApplyRecordsOneRowWithBeforeAndAfter() async throws {
         let store = try await makeOpenedWritableStore()
 
-        _ = try await store.applyBudgetTemplateAndRefresh(
+        _ = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .category("utilities"),
             budgetID: "group-1",
             month: "2026-07"
@@ -226,7 +227,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoAssignRestoresBeforeAndMarksRowUndoneWithoutANewRow() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -250,9 +251,60 @@ extension LocalFirstActualStoreTests {
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > pendingBefore)
     }
 
+    @Test func legacyBudgetHistoryRowIsVisibleButCannotUndo() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries", budgeted: 62_500, budgetID: "group-1", month: "2026-07"
+        ) {}
+        let database = try store.requireDatabase(for: "group-1")
+        try await database.queue.write { db in
+            try db.execute(
+                sql: "UPDATE actualist_action_log SET mode_identity_json = NULL"
+            )
+        }
+        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
+        #expect(preview.block == .budgetModeChanged)
+        await #expect(throws: LocalFirstError.actionUndoBlocked(
+            "This budget changed after the action. Budget Undo is unavailable for this older action."
+        )) {
+            try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        }
+    }
+
+    @Test func conversionBackBlocksOldBudgetUndoButAllowsNewBudgetUndo() async throws {
+        let store = try await makeOpenedWritableStore()
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries", budgeted: 62_500, budgetID: "group-1", month: "2026-07"
+        ) {}
+        let database = try store.requireDatabase(for: "group-1")
+        let old = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        _ = try await database.applyRemoteSyncMessages([
+            ActualSyncDecodedMessage(
+                timestamp: "2099-01-01T00:00:00.000Z-0000-0000000000000001",
+                dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:tracking"
+            ),
+            ActualSyncDecodedMessage(
+                timestamp: "2099-01-02T00:00:00.000Z-0000-0000000000000001",
+                dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:envelope"
+            )
+        ])
+        let oldPreview = try await store.budgetActionUndoPreview(actionID: old.id, budgetID: "group-1")
+        #expect(oldPreview.block == .budgetModeChanged)
+
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            categoryID: "groceries", budgeted: 63_500, budgetID: "group-1", month: "2026-07"
+        ) {}
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let fresh = try #require(rows.first)
+        #expect(fresh.modeIdentity != nil)
+        try await store.undoBudgetActionAndRefresh(actionID: fresh.id, budgetID: "group-1")
+        #expect(try await store.recentBudgetActions(budgetID: "group-1").first?.status == .undone)
+    }
+
     @Test func undoMoveRestoresEveryLegAtomically() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.moveMoneyAndRefresh(
+        _ = try await store.moveMoneyAndRefresh(expectedMode: nil,
             commands: [
                 BudgetMoveMoneyCommand(fromCategoryID: "groceries", toCategoryID: "dining", amount: 5_000),
                 BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "dining", amount: 500)
@@ -275,13 +327,13 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoOfAnOlderAppliedRowIsRefusedLIFO() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 61_000,
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 63_000,
             budgetID: "group-1",
@@ -305,13 +357,13 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoNewestThenPreviousRestoresInReverseOrder() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 61_000,
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 63_000,
             budgetID: "group-1",
@@ -333,7 +385,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoIsBlockedWhenAnUntrackedChangeOwnsTheCell() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -369,7 +421,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoTemplateRestoresEveryAssignedCategory() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.applyBudgetTemplateAndRefresh(
+        _ = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .category("utilities"),
             budgetID: "group-1",
             month: "2026-07"
@@ -388,7 +440,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoPreviewShowsCurrentAndProposedAmounts() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -406,7 +458,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoOfAnAlreadyUndoneRowIsRefused() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -668,7 +720,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func payeeCreateRecordsWithoutStealingMoneyFlowLIFO() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -720,7 +772,7 @@ extension LocalFirstActualStoreTests {
         #expect(before.count == 0)
         #expect(before.newestAgeSeconds == nil)
 
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",

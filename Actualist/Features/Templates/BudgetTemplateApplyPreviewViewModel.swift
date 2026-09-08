@@ -15,6 +15,9 @@ final class BudgetTemplateApplyPreviewViewModel {
     var errorMessage: String?
 
     private var loadGeneration = 0
+    private var expectedMode: BudgetModeIdentity?
+
+    var modeIdentity: BudgetModeIdentity? { expectedMode }
 
     var canApply: Bool {
         phase == .ready && errorMessage == nil
@@ -22,6 +25,7 @@ final class BudgetTemplateApplyPreviewViewModel {
 
     func cancel() {
         loadGeneration += 1
+        expectedMode = nil
     }
 
     func load(
@@ -29,11 +33,13 @@ final class BudgetTemplateApplyPreviewViewModel {
         categoryID: String?,
         month: String,
         budgetID: String?,
+        modeIdentity: BudgetModeIdentity? = nil,
         randomized: Bool,
         repository: any BudgetRepositoryProtocol
     ) async {
         loadGeneration += 1
         let requestGeneration = loadGeneration
+        expectedMode = modeIdentity
         display = nil
         errorMessage = nil
         phase = .loading
@@ -59,6 +65,10 @@ final class BudgetTemplateApplyPreviewViewModel {
                 month: trimmedMonth
             )
             guard requestGeneration == loadGeneration else {
+                return
+            }
+            guard preview.modeIdentity == modeIdentity else {
+                fail(BudgetModeWriteError.budgetChanged.localizedDescription, generation: requestGeneration)
                 return
             }
             display = BudgetTemplateApplyPreviewDisplay.make(

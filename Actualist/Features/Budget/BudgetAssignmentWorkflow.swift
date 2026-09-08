@@ -11,6 +11,7 @@ final class BudgetAssignmentWorkflow {
         let budgetID: String
         let categoryID: String
         let month: String
+        let modeIdentity: BudgetModeIdentity?
     }
 
     private(set) var completionRevision = 0
@@ -71,13 +72,25 @@ final class BudgetAssignmentWorkflow {
         return !draft.isSubmitting
     }
 
-    func begin(for category: BudgetMonthCategory, budgetID: String?, month: String?) {
+    func begin(
+        for category: BudgetMonthCategory,
+        budgetID: String?,
+        month: String?,
+        modeIdentity: BudgetModeIdentity? = nil
+    ) {
         guard draft?.isSubmitting != true else {
             return
         }
 
         capturedContext = budgetID.flatMap { budget in
-            month.map { Context(budgetID: budget, categoryID: category.id, month: $0) }
+            month.map {
+                Context(
+                    budgetID: budget,
+                    categoryID: category.id,
+                    month: $0,
+                    modeIdentity: modeIdentity
+                )
+            }
         }
         draft = BudgetAssignmentDraft(
             categoryID: category.id,
@@ -219,7 +232,7 @@ final class BudgetAssignmentWorkflow {
         self.draft = draft
 
         do {
-            let loadedMonth = try await repository.assignCategoryBudgetAndRefresh(
+            let loadedMonth = try await repository.assignCategoryBudgetAndRefresh(expectedMode: context.modeIdentity,
                 categoryID: draft.categoryID,
                 budgeted: finalBudgeted,
                 budgetID: context.budgetID,
@@ -237,10 +250,18 @@ final class BudgetAssignmentWorkflow {
             }
             completionRevision += 1
             guard self.context == context else { return nil }
+            guard loadedMonth.modeIdentity == context.modeIdentity else {
+                invalidate()
+                return nil
+            }
             self.draft = nil
             return loadedMonth
         } catch {
             guard self.context == context else { return nil }
+            if case BudgetModeWriteError.budgetChanged = error {
+                invalidate()
+                return nil
+            }
             draft.submissionState = .failed(error.localizedDescription)
             self.draft = draft
             return nil
@@ -250,6 +271,7 @@ final class BudgetAssignmentWorkflow {
     func applyCategoryTemplate(
         selectedMonth: String,
         budgetID: String,
+        expectedMode: BudgetModeIdentity? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard let context, context.budgetID == budgetID, context.month == selectedMonth,
@@ -262,7 +284,7 @@ final class BudgetAssignmentWorkflow {
         self.draft = draft
 
         do {
-            let loadedMonth = try await repository.applyBudgetTemplateAndRefresh(
+            let loadedMonth = try await repository.applyBudgetTemplateAndRefresh(expectedMode: expectedMode ?? context.modeIdentity,
                 command: .category(draft.categoryID),
                 budgetID: context.budgetID,
                 month: context.month
@@ -279,10 +301,18 @@ final class BudgetAssignmentWorkflow {
             }
             completionRevision += 1
             guard self.context == context else { return nil }
+            guard loadedMonth.modeIdentity == context.modeIdentity else {
+                invalidate()
+                return nil
+            }
             self.draft = nil
             return loadedMonth
         } catch {
             guard self.context == context else { return nil }
+            if case BudgetModeWriteError.budgetChanged = error {
+                invalidate()
+                return nil
+            }
             draft.submissionState = .failed(error.localizedDescription)
             self.draft = draft
             return nil

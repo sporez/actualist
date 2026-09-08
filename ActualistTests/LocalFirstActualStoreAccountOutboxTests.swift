@@ -116,7 +116,7 @@ extension LocalFirstActualStoreTests {
     @Test func localWriteOutboxSurvivesReopeningCachedBudget() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -142,7 +142,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
         try bundle.keychain.saveActualSyncToken("token")
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -164,7 +164,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
         try bundle.keychain.saveActualSyncToken("token")
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -187,7 +187,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
         try bundle.keychain.saveActualSyncToken("token")
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -217,7 +217,7 @@ extension LocalFirstActualStoreTests {
         )
         try bundle.keychain.saveActualSyncToken("token")
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -242,13 +242,13 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
         try bundle.keychain.saveActualSyncToken("token")
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        _ = try await bundle.store.moveMoneyAndRefresh(
+        _ = try await bundle.store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "utilities",

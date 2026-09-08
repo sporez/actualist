@@ -109,6 +109,7 @@ extension BudgetDatabase {
                 )
             }
             return BudgetTemplateApplyPreview(
+                modeIdentity: try budgetModeIdentity(db: db),
                 assigned: categories.reduce(0) { $0 + $1.proposed },
                 leftover: prepared.compute.leftover,
                 isTrackingBudget: prepared.isTracking,

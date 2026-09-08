@@ -77,6 +77,7 @@ final class BudgetWorkspaceActions {
         case .uncategorizedTransactions:
             sheet = .uncategorized(month)
         case .overspending:
+            guard !viewport.isTrackingBudget else { return }
             prepareActionModel(for: month)
             sheet = .overspent
         }
@@ -156,6 +157,7 @@ final class BudgetWorkspaceActions {
     }
 
     func beginMoveMoney(_ cell: BudgetViewportModel.SelectedCell) {
+        guard !viewport.isTrackingBudget else { return }
         viewport.cancelAssignmentEditing()
         actionMonth = cell.month
         actionCategoryID = cell.categoryID
@@ -168,7 +170,11 @@ final class BudgetWorkspaceActions {
         self.confirmation = confirmation
     }
 
-    func applyConfirmation(_ confirmation: BudgetTemplateConfirmation, using appState: AppState) async {
+    func applyConfirmation(
+        _ confirmation: BudgetTemplateConfirmation,
+        reviewedMode: BudgetModeIdentity? = nil,
+        using appState: AppState
+    ) async {
         guard let actionModel, let actionBudgetID, let actionMonth else {
             self.confirmation = nil
             return
@@ -181,17 +187,20 @@ final class BudgetWorkspaceActions {
             succeeded = await actionModel.applyMonthTemplate(
                 .fillEmpty,
                 budgetID: actionBudgetID,
+                expectedMode: reviewedMode,
                 repository: viewport.repository
             )
         case .monthOverwrite:
             succeeded = await actionModel.applyMonthTemplate(
                 .overwrite,
                 budgetID: actionBudgetID,
+                expectedMode: reviewedMode,
                 repository: viewport.repository
             )
         case .category:
             succeeded = await actionModel.applyCategoryTemplate(
                 budgetID: actionBudgetID,
+                expectedMode: reviewedMode,
                 repository: viewport.repository
             )
         }

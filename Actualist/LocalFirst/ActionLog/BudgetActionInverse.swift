@@ -32,6 +32,24 @@ enum BudgetActionInverse: Equatable, Sendable {
 }
 
 extension BudgetActionInverse {
+    /// Budget-table writes must retain the exact mode identity that was active
+    /// when they were committed. Transaction inverses intentionally remain
+    /// usable across budget conversion.
+    var requiresBudgetModeIdentity: Bool {
+        switch self {
+        case .assign, .move, .template:
+            true
+        case .carryover:
+            // Carryover is currently metadata-only in History, but it writes
+            // the budget table and must retain identity if undo is enabled.
+            true
+        case .createTransaction, .editTransaction, .deleteTransaction,
+                .categorize, .payee, .rule, .account, .learningPref,
+                .transactionMetadata:
+            false
+        }
+    }
+
     /// The budget month the gesture wrote into. All v1 kinds are month-scoped.
     var month: String {
         switch self {

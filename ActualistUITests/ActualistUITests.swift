@@ -1,4 +1,5 @@
 import XCTest
+import AppIntents
 
 final class ActualistUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
@@ -133,6 +134,7 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(assigned.firstMatch.waitForExistence(timeout: 5))
         assigned.firstMatch.tap()
         XCTAssertTrue(assignmentPopover(in: app).waitForExistence(timeout: 5))
+        attachScreenshot(named: "wide-assignment-review", app: app)
         app.buttons["Dismiss keypad"].tap()
         XCTAssertFalse(assignmentPopover(in: app).exists)
     }

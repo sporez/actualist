@@ -26,6 +26,7 @@ struct BudgetAssignmentPopover: View {
             BudgetAssignmentKeypad(
                 canSubmit: viewport.assignmentWorkflow.canSubmit,
                 showsApplyTemplate: viewport.assignmentHasTemplate,
+                showsMoveMoney: !viewport.isTrackingBudget,
                 canApplyTemplate: viewport.assignmentWorkflow.canApplyCategoryTemplate,
                 isSubmitting: viewport.assignmentWorkflow.isSubmitting,
                 errorMessage: viewport.assignmentWorkflow.errorMessage,

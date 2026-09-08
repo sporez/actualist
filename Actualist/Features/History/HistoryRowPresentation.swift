@@ -61,15 +61,21 @@ enum HistoryRowPresentation {
         from records: [BudgetActionRecord],
         categoryNames: [String: String],
         undoableActionID: String?,
+        currentModeIdentity: BudgetModeIdentity? = nil,
         currency: BudgetCurrency,
         privacyEnabled: Bool,
         now: Date = Date()
     ) -> [HistoryRowModel] {
         records.map { record in
-            row(
+            let isCandidate = record.id == undoableActionID && record.status == .applied
+            let modeIsUnavailable = record.inverse.requiresBudgetModeIdentity
+                && (record.modeIdentity == nil || record.modeIdentity != currentModeIdentity)
+            return row(
                 for: record,
                 categoryNames: categoryNames,
-                canUndo: record.id == undoableActionID && record.status == .applied,
+                canUndo: isCandidate && !modeIsUnavailable,
+                undoUnavailableReason: isCandidate && modeIsUnavailable
+                    ? BudgetActionUndoBlock.budgetModeChanged.userFacingReason : nil,
                 currency: currency,
                 privacyEnabled: privacyEnabled,
                 now: now
@@ -257,6 +263,7 @@ enum HistoryRowPresentation {
         for record: BudgetActionRecord,
         categoryNames: [String: String],
         canUndo: Bool,
+        undoUnavailableReason: String?,
         currency: BudgetCurrency,
         privacyEnabled: Bool,
         now: Date
@@ -368,7 +375,7 @@ enum HistoryRowPresentation {
             visual = .metadata
         }
 
-        let detail = ([isUndone ? "Undone" : nil, actionDetail, occurrence].compactMap { $0 })
+        let detail = ([isUndone ? "Undone" : nil, actionDetail, occurrence, undoUnavailableReason].compactMap { $0 })
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
 

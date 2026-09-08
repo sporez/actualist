@@ -233,7 +233,7 @@ extension LocalFirstActualStore {
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
@@ -241,6 +241,7 @@ extension LocalFirstActualStore {
         didSetCarryover: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
+        let mode = try await database.requireBudgetMode(expectedMode)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.categoryCarryoverMessages(
             categoryID: categoryID,
@@ -257,7 +258,8 @@ extension LocalFirstActualStore {
                 after: carryover,
                 categoryCount: 1
             )),
-            source: .ui
+            source: .ui,
+            expectedMode: mode
         )
         await didSetCarryover()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
@@ -265,12 +267,13 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         carryover: Bool,
         budgetID: String,
         startMonth: String
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
+        let mode = try await database.requireBudgetMode(expectedMode)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.allExpenseCategoryCarryoverMessages(
             carryover: carryover,
@@ -287,7 +290,8 @@ extension LocalFirstActualStore {
                     after: carryover,
                     categoryCount: 0
                 )),
-                source: .ui
+                source: .ui,
+                expectedMode: mode
             )
         }
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
@@ -352,13 +356,13 @@ extension LocalFirstActualStore {
     }
 
     // BudgetRepositoryProtocol witness; records the gesture with a UI source.
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
         didApply: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        try await applyBudgetTemplateAndRefresh(
+        try await applyBudgetTemplateAndRefresh(expectedMode: expectedMode,
             command: command,
             budgetID: budgetID,
             month: month,
@@ -367,7 +371,7 @@ extension LocalFirstActualStore {
         )
     }
 
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -375,6 +379,7 @@ extension LocalFirstActualStore {
         didApply: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
+        let mode = try await database.requireBudgetMode(expectedMode)
         var builder = LocalFirstSyncMessageBuilder()
         let result = try await database.budgetTemplateApply(
             command: command,
@@ -385,12 +390,13 @@ extension LocalFirstActualStore {
         if result.assignments.isEmpty {
             // A goal-only or orphan-cleanup write moved no money; History
             // records money-flow gestures only.
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(result.messages)
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(result.messages, expectedMode: mode)
         } else {
             _ = try await database.commitUserAction(
                 result.messages,
                 descriptor: .template(month: month, mode: command.mode, assignments: result.assignments),
-                source: actionSource
+                source: actionSource,
+                expectedMode: mode
             )
         }
         await didApply()

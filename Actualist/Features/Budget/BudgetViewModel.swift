@@ -16,6 +16,7 @@ final class BudgetViewModel {
     var includeCarryoverCategoriesInOverspentAlerts = false
     /// Envelope (false) vs tracking (true). Drives the overspent hidden rule.
     private(set) var isTrackingBudget = false
+    private(set) var modeIdentity: BudgetModeIdentity?
 
     let assignmentWorkflow: BudgetAssignmentWorkflow
     let moveMoneyWorkflow = BudgetMoveMoneyWorkflow()
@@ -49,8 +50,10 @@ final class BudgetViewModel {
     }
 
     var canBeginOverspentCoverSelection: Bool {
-        overspentCategoryOptions.count >= 2 && !overspentCoverSelection.isSubmitting
+        !isTrackingBudget && overspentCategoryOptions.count >= 2 && !overspentCoverSelection.isSubmitting
     }
+
+    var canOpenOverspentCover: Bool { !isTrackingBudget }
 
     var isOverspentCoverSelecting: Bool {
         overspentCoverSelection.isSelecting
@@ -151,7 +154,11 @@ final class BudgetViewModel {
               let category = category(for: categoryID) else {
             return nil
         }
-        return CategoryMonthDetails(category: category, month: selectedMonth)
+        return CategoryMonthDetails(
+            category: category,
+            month: selectedMonth,
+            modeIdentity: modeIdentity
+        )
     }
 
     var canSubmitAssignment: Bool {
@@ -405,7 +412,7 @@ final class BudgetViewModel {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
-        guard let selectedMonth else {
+        guard !isTrackingBudget, let selectedMonth else {
             return false
         }
 
@@ -417,19 +424,28 @@ final class BudgetViewModel {
         }
 
         overspentCoverSelection.markSubmitting()
+        let coverGeneration = overspentCoverSelection.currentSubmissionGeneration
         errorMessage = nil
 
         do {
-            let loadedMonth = try await repository.moveMoneyAndRefresh(
+            let loadedMonth = try await repository.moveMoneyAndRefresh(expectedMode: modeIdentity,
                 commands: commands,
                 budgetID: budgetID,
                 month: selectedMonth
             ) {}
-            overspentCoverSelection.finishSubmission(success: true)
+            guard coverGeneration == overspentCoverSelection.currentSubmissionGeneration else { return false }
+            guard loadedBudgetID == budgetID,
+                  self.selectedMonth == loadedMonth.month.month,
+                  loadedMonth.modeIdentity == modeIdentity else {
+                _ = overspentCoverSelection.finishSubmission(success: false, expectedGeneration: coverGeneration)
+                return false
+            }
+            _ = overspentCoverSelection.finishSubmission(success: true, expectedGeneration: coverGeneration)
             apply(loadedMonth, budgetID: budgetID)
             return true
         } catch {
-            overspentCoverSelection.finishSubmission(success: false)
+            guard coverGeneration == overspentCoverSelection.currentSubmissionGeneration else { return false }
+            _ = overspentCoverSelection.finishSubmission(success: false, expectedGeneration: coverGeneration)
             errorMessage = error.localizedDescription
             return false
         }
@@ -475,7 +491,12 @@ final class BudgetViewModel {
     }
 
     func beginAssignmentEditing(for category: BudgetMonthCategory) {
-        assignmentWorkflow.begin(for: category, budgetID: loadedBudgetID, month: selectedMonth)
+        assignmentWorkflow.begin(
+            for: category,
+            budgetID: loadedBudgetID,
+            month: selectedMonth,
+            modeIdentity: modeIdentity
+        )
     }
 
     func cancelAssignmentEditing() {
@@ -483,22 +504,34 @@ final class BudgetViewModel {
     }
 
     func beginMoveMoney() {
+        guard !isTrackingBudget else { return }
         guard let categoryID = assignmentWorkflow.activeCategoryID,
               !assignmentWorkflow.isSubmitting,
               let category = category(for: categoryID) else {
             return
         }
 
-        moveMoneyWorkflow.begin(for: category)
+        moveMoneyWorkflow.begin(
+            for: category,
+            budgetID: loadedBudgetID,
+            month: selectedMonth,
+            modeIdentity: modeIdentity
+        )
     }
 
     func beginMoveMoney(for categoryID: String) {
+        guard !isTrackingBudget else { return }
         guard let category = category(for: categoryID) else {
             return
         }
 
         assignmentWorkflow.cancel()
-        moveMoneyWorkflow.begin(for: category)
+        moveMoneyWorkflow.begin(
+            for: category,
+            budgetID: loadedBudgetID,
+            month: selectedMonth,
+            modeIdentity: modeIdentity
+        )
     }
 
     func cancelMoveMoney() {
@@ -591,13 +624,18 @@ final class BudgetViewModel {
             return false
         }
 
-        guard loadedBudgetID == budgetID, selectedMonth == loadedMonth.month.month else { return false }
+        guard loadedBudgetID == budgetID,
+              selectedMonth == loadedMonth.month.month,
+              loadedMonth.modeIdentity == modeIdentity else {
+            return false
+        }
         apply(loadedMonth, budgetID: budgetID)
         return true
     }
 
     func applyMonthTemplate(
         _ mode: BudgetTemplateApplicationMode,
+        expectedMode: BudgetModeIdentity? = nil,
         using appState: AppState
     ) async -> Bool {
         guard let budgetID = appState.settings.selectedBudgetID else {
@@ -606,34 +644,45 @@ final class BudgetViewModel {
         let repository = appState.budgetRepository
 
         let command: BudgetTemplateCommand = mode == .overwrite ? .overwrite : .fillEmpty
-        return await applyMonthTemplate(command, budgetID: budgetID, repository: repository)
+        return await applyMonthTemplate(command, budgetID: budgetID, expectedMode: expectedMode, repository: repository)
     }
 
     func applyMonthTemplate(
         _ command: BudgetTemplateCommand,
         budgetID: String,
+        expectedMode: BudgetModeIdentity? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
+        if let expectedMode, expectedMode != modeIdentity {
+            errorMessage = BudgetModeWriteError.budgetChanged.localizedDescription
+            return false
+        }
         guard let selectedMonth,
               !templateWorkflow.isApplying else {
             return false
         }
 
+        let reviewedMode = expectedMode ?? modeIdentity
         errorMessage = nil
-        let request = templateWorkflow.beginRequest(budgetID: budgetID, month: selectedMonth)
+        let request = templateWorkflow.beginRequest(
+            budgetID: budgetID,
+            month: selectedMonth,
+            modeIdentity: reviewedMode
+        )
         switch await templateWorkflow.apply(
             command: command,
             selectedMonth: selectedMonth,
             budgetID: budgetID,
+            expectedMode: reviewedMode,
             repository: repository
         ) {
         case .success(let loadedMonth):
             guard templateWorkflow.isCurrent(
                 request,
                 currentBudgetID: loadedBudgetID,
-                currentMonth: selectedMonth
-            ) else {
-                templateWorkflow.discardStaleResult()
+                currentMonth: selectedMonth,
+                currentModeIdentity: modeIdentity
+            ), loadedMonth.modeIdentity == request.modeIdentity else {
                 return false
             }
             apply(loadedMonth, budgetID: budgetID)
@@ -643,11 +692,11 @@ final class BudgetViewModel {
             guard templateWorkflow.isCurrent(
                 request,
                 currentBudgetID: loadedBudgetID,
-                currentMonth: selectedMonth
+                currentMonth: selectedMonth,
+                currentModeIdentity: modeIdentity
             ) else {
                 // A stale failure must not surface as an error for the current
                 // context.
-                templateWorkflow.discardStaleResult()
                 return false
             }
             errorMessage = error.localizedDescription
@@ -655,23 +704,32 @@ final class BudgetViewModel {
         }
     }
 
-    func applyCategoryTemplate(using appState: AppState) async -> Bool {
+    func applyCategoryTemplate(
+        expectedMode: BudgetModeIdentity? = nil,
+        using appState: AppState
+    ) async -> Bool {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return false
         }
         let repository = appState.budgetRepository
 
-        return await applyCategoryTemplate(budgetID: budgetID, repository: repository)
+        return await applyCategoryTemplate(budgetID: budgetID, expectedMode: expectedMode, repository: repository)
     }
 
     func applyCategoryTemplate(
         budgetID: String,
+        expectedMode: BudgetModeIdentity? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
+        if let expectedMode, expectedMode != modeIdentity {
+            errorMessage = BudgetModeWriteError.budgetChanged.localizedDescription
+            return false
+        }
         guard let selectedMonth,
               let loadedMonth = await assignmentWorkflow.applyCategoryTemplate(
                 selectedMonth: selectedMonth,
                 budgetID: budgetID,
+                expectedMode: expectedMode,
                 repository: repository
               ) else {
             return false
@@ -684,12 +742,8 @@ final class BudgetViewModel {
     }
 
     func submitMoveMoney(using appState: AppState) async -> Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return false
-        }
-        let repository = appState.budgetRepository
-
-        return await submitMoveMoney(budgetID: budgetID, repository: repository)
+        guard let budgetID = appState.settings.selectedBudgetID else { return false }
+        return await submitMoveMoney(budgetID: budgetID, repository: appState.budgetRepository)
     }
 
     func submitMoveMoney(
@@ -698,13 +752,12 @@ final class BudgetViewModel {
     ) async -> Bool {
         guard let selectedMonth,
               let loadedMonth = await moveMoneyWorkflow.submit(
-                selectedMonth: selectedMonth,
-                budgetID: budgetID,
-                repository: repository
-              ) else {
+                selectedMonth: selectedMonth, budgetID: budgetID, repository: repository
+              ), loadedBudgetID == budgetID,
+              loadedMonth.month.month == selectedMonth,
+              loadedMonth.modeIdentity == modeIdentity else {
             return false
         }
-
         apply(loadedMonth, budgetID: budgetID)
         assignmentWorkflow.resetAfterRelatedWorkflow()
         return true
@@ -729,6 +782,11 @@ final class BudgetViewModel {
     }
 
     private func apply(_ loadedMonth: LoadedBudgetMonth, budgetID: String? = nil) {
+        if budgetMonth != nil, modeIdentity != loadedMonth.modeIdentity {
+            assignmentWorkflow.invalidate()
+            moveMoneyWorkflow.invalidate()
+            overspentCoverSelection.endSelection()
+        }
         if let budgetID {
             assignmentWorkflow.reconcile(budgetID: budgetID, categoryIDs: Set(loadedMonth.month.categoryGroups.flatMap(\.categories).map(\.id)))
         }
@@ -745,6 +803,7 @@ final class BudgetViewModel {
         selectedMonth = loadedMonth.month.month
         currency = loadedMonth.currency
         isTrackingBudget = loadedMonth.isTrackingBudget
+        modeIdentity = loadedMonth.modeIdentity
         loadedBudgetAlerts = loadedMonth.alerts.compactMap {
             BudgetAlert(alert: $0, currency: loadedMonth.currency)
         }

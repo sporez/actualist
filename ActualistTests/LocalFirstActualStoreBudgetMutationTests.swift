@@ -11,7 +11,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
         var didAssign = false
 
-        let loaded = try await store.assignCategoryBudgetAndRefresh(
+        let loaded = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
@@ -38,7 +38,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
         var didSetCarryover = false
 
-        let loaded = try await store.setCategoryCarryoverAndRefresh(
+        let loaded = try await store.setCategoryCarryoverAndRefresh(expectedMode: nil,
             categoryID: "utilities",
             carryover: true,
             budgetID: "group-1",
@@ -62,7 +62,7 @@ extension LocalFirstActualStoreTests {
         #expect(julyUtilities.carryover)
         #expect(augustUtilities.carryover)
 
-        _ = try await store.setCategoryCarryoverAndRefresh(
+        _ = try await store.setCategoryCarryoverAndRefresh(expectedMode: nil,
             categoryID: "utilities",
             carryover: false,
             budgetID: "group-1",
@@ -98,7 +98,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO category_mapping VALUES ('salary', 'salary');
             INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 0);
             """)
-        let july = try await store.setAllExpenseCategoryCarryoverAndRefresh(
+        let july = try await store.setAllExpenseCategoryCarryoverAndRefresh(expectedMode: nil,
             carryover: true,
             budgetID: "group-1",
             startMonth: "2026-07"
@@ -113,7 +113,7 @@ extension LocalFirstActualStoreTests {
         #expect(julyCategories["utilities"]?.carryover == true)
         #expect(julyCategories["salary"]?.carryover == false)
 
-        _ = try await store.setAllExpenseCategoryCarryoverAndRefresh(
+        _ = try await store.setAllExpenseCategoryCarryoverAndRefresh(expectedMode: nil,
             carryover: false,
             budgetID: "group-1",
             startMonth: "2026-08"
@@ -160,7 +160,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO reflect_budgets VALUES ('202607-groceries', 202607, 'groceries', 50000, 0, NULL, NULL);
             """)
 
-        let loaded = try await store.setAllExpenseCategoryCarryoverAndRefresh(
+        let loaded = try await store.setAllExpenseCategoryCarryoverAndRefresh(expectedMode: nil,
             carryover: true,
             budgetID: "group-1",
             startMonth: "2026-07"
@@ -181,7 +181,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
         var didMove = false
 
-        let loaded = try await store.moveMoneyAndRefresh(
+        let loaded = try await store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "utilities",
@@ -209,7 +209,7 @@ extension LocalFirstActualStoreTests {
     @Test func moveMoneyLocallyMovesBudgetBackToToBudget() async throws {
         let store = try await makeOpenedWritableStore()
 
-        let loaded = try await store.moveMoneyAndRefresh(
+        let loaded = try await store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: nil,
@@ -244,7 +244,7 @@ extension LocalFirstActualStoreTests {
         let before = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let beforeUtilities = try #require(before.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
 
-        let loaded = try await store.moveMoneyAndRefresh(
+        let loaded = try await store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "utilities",
@@ -265,7 +265,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func applyCategoryTemplateSetsFixedSimpleAmount() async throws {
         let store = try await makeOpenedWritableStore()
-        let loaded = try await store.applyBudgetTemplateAndRefresh(
+        let loaded = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .category("utilities"),
             budgetID: "group-1",
             month: "2026-07"
@@ -284,7 +284,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func applyCategoryTemplateSetsPeriodicAmount() async throws {
         let store = try await makeOpenedWritableStore()
-        let loaded = try await store.applyBudgetTemplateAndRefresh(
+        let loaded = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .category("subscriptions"),
             budgetID: "group-1",
             month: "2026-07"
@@ -296,13 +296,13 @@ extension LocalFirstActualStoreTests {
 
     @Test func applyCategoryTemplateCopiesPreviousMonthBudget() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "copycat",
             budgeted: 2_500,
             budgetID: "group-1",
             month: "2026-06"
         ) {}
-        let loaded = try await store.applyBudgetTemplateAndRefresh(
+        let loaded = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .category("copycat"),
             budgetID: "group-1",
             month: "2026-07"
@@ -315,13 +315,13 @@ extension LocalFirstActualStoreTests {
     @Test func applyMonthTemplateFillEmptyOnlyFillsUnbudgetedAndSkipsUnsupported() async throws {
         let store = try await makeOpenedWritableStore()
         // Budgeted categories are skipped, even when their template is unsupported.
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "dining",
             budgeted: 5_000,
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let loaded = try await store.applyBudgetTemplateAndRefresh(
+        let loaded = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .fillEmpty,
             budgetID: "group-1",
             month: "2026-07"
@@ -340,7 +340,7 @@ extension LocalFirstActualStoreTests {
     @Test func applyMonthTemplateOverwriteRefusesUnsupportedTemplate() async throws {
         let store = try await makeOpenedWritableStore()
         await #expect(throws: LocalFirstError.self) {
-            _ = try await store.applyBudgetTemplateAndRefresh(
+            _ = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
                 command: .overwrite,
                 budgetID: "group-1",
                 month: "2026-07"
@@ -354,7 +354,7 @@ extension LocalFirstActualStoreTests {
     @Test func applyCategoryTemplateRefusesUnsupportedTargetedCategory() async throws {
         let store = try await makeOpenedWritableStore()
         await #expect(throws: LocalFirstError.self) {
-            _ = try await store.applyBudgetTemplateAndRefresh(
+            _ = try await store.applyBudgetTemplateAndRefresh(expectedMode: nil,
                 command: .category("dining"),
                 budgetID: "group-1",
                 month: "2026-07"

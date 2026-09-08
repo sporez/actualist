@@ -7,7 +7,7 @@ extension LocalFirstActualStoreTests {
         _ store: LocalFirstActualStore,
         budgeted: Int
     ) async throws {
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: budgeted,
             budgetID: "group-1",
@@ -36,7 +36,7 @@ extension LocalFirstActualStoreTests {
     @Test func moveRowDescribesFromAndTo() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        _ = try await bundle.store.moveMoneyAndRefresh(
+        _ = try await bundle.store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "dining",
@@ -58,7 +58,7 @@ extension LocalFirstActualStoreTests {
     @Test func templateRowUsesTheModeName() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        _ = try await bundle.store.applyBudgetTemplateAndRefresh(
+        _ = try await bundle.store.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .category("utilities"),
             budgetID: "group-1",
             month: "2026-07"
@@ -165,6 +165,34 @@ extension LocalFirstActualStoreTests {
         viewModel.dismissUndoFailure()
         #expect(viewModel.undoFailureMessage == nil)
         #expect(viewModel.rows.first?.isUndone == false)
+    }
+
+    @Test func conversionRefreshInvalidatesOpenUndoReview() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('budgetType', 'envelope');
+            """)
+        let appState = try makeAppState(for: bundle)
+        try await assignGroceries(bundle.store, budgeted: 62_500)
+
+        let viewModel = HistoryViewModel()
+        await viewModel.load(using: appState)
+        let row = try #require(viewModel.rows.first)
+        await viewModel.beginUndo(row, using: appState)
+        #expect(viewModel.activeReview != nil)
+
+        let database = try bundle.store.requireDatabase(for: "group-1")
+        _ = try await database.applyRemoteSyncMessages([
+            ActualSyncDecodedMessage(
+                timestamp: "2099-02-01T00:00:00.000Z-0000-0000000000000001",
+                dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:tracking"
+            )
+        ])
+        await viewModel.refresh(using: appState)
+
+        #expect(viewModel.activeReview == nil)
+        #expect(viewModel.isPreparingUndoForRowID == nil)
+        #expect(viewModel.committingActionID == nil)
     }
 
     @Test func privacyModeRandomizesRowAmountsAndNames() async throws {

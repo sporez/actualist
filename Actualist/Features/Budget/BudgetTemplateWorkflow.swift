@@ -22,6 +22,7 @@ final class BudgetTemplateWorkflow {
     struct Request: Equatable {
         let budgetID: String
         let month: String
+        let modeIdentity: BudgetModeIdentity?
         let generation: Int
     }
 
@@ -30,14 +31,24 @@ final class BudgetTemplateWorkflow {
     /// in-flight template request is superseded by the new selection.
     func noteSelectionChange() {
         selectionGeneration += 1
+        submissionState = .draft
     }
 
     /// Capture the request identity before the async repository call. The
     /// repository write targets this captured month regardless of later
     /// navigation; `isCurrent` later decides whether the returned refresh may
     /// replace the current UI.
-    func beginRequest(budgetID: String, month: String) -> Request {
-        Request(budgetID: budgetID, month: month, generation: selectionGeneration)
+    func beginRequest(
+        budgetID: String,
+        month: String,
+        modeIdentity: BudgetModeIdentity? = nil
+    ) -> Request {
+        Request(
+            budgetID: budgetID,
+            month: month,
+            modeIdentity: modeIdentity,
+            generation: selectionGeneration
+        )
     }
 
     /// True when the view model is still on the same budget + month and no
@@ -48,11 +59,13 @@ final class BudgetTemplateWorkflow {
     func isCurrent(
         _ request: Request,
         currentBudgetID: String?,
-        currentMonth: String?
+        currentMonth: String?,
+        currentModeIdentity: BudgetModeIdentity? = nil
     ) -> Bool {
         let isSameBudget = currentBudgetID == nil || currentBudgetID == request.budgetID
         return isSameBudget
             && currentMonth == request.month
+            && currentModeIdentity == request.modeIdentity
             && selectionGeneration == request.generation
     }
 
@@ -60,44 +73,36 @@ final class BudgetTemplateWorkflow {
         command: BudgetTemplateCommand,
         selectedMonth: String,
         budgetID: String,
+        expectedMode: BudgetModeIdentity? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> Result<LoadedBudgetMonth, Error> {
         guard !submissionState.isSubmitting else {
             return .failure(BudgetTemplateWorkflowError.alreadyApplying)
         }
 
+        let generation = selectionGeneration
         submissionState = .submitting
 
         do {
-            let loadedMonth = try await repository.applyBudgetTemplateAndRefresh(
+            let loadedMonth = try await repository.applyBudgetTemplateAndRefresh(expectedMode: expectedMode,
                 command: command,
                 budgetID: budgetID,
                 month: selectedMonth
             ) { [weak self] in
                 await MainActor.run {
+                    guard self?.selectionGeneration == generation else { return }
                     self?.submissionState = .refetching
                 }
             }
-            submissionState = .draft
+            if selectionGeneration == generation { submissionState = .draft }
             return .success(loadedMonth)
         } catch {
-            submissionState = .failed(error.localizedDescription)
+            if selectionGeneration == generation { submissionState = .failed(error.localizedDescription) }
             return .failure(error)
         }
     }
 
-    /// Drop a result that is stale relative to the view model's current
-    /// month/budget context (the user navigated while the async apply was in
-    /// flight, or a newer request superseded it). The write already targeted
-    /// the captured month and synced normally; only the returned refresh is
-    /// discarded. Reset the submission display state so a stale failure does
-    /// not linger on the apply button for the current context. A newer
-    /// in-flight request owns `.submitting`/`.refetching` and is left alone.
-    func discardStaleResult() {
-        if case .failed = submissionState {
-            submissionState = .draft
-        }
-    }
+
 }
 
 private enum BudgetTemplateWorkflowError: Error {

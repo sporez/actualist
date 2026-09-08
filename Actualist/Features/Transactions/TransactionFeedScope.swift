@@ -4,6 +4,17 @@ import Observation
 struct CategoryMonthDetails: Identifiable, Hashable {
     let category: BudgetMonthCategory
     let month: String
+    let modeIdentity: BudgetModeIdentity?
+
+    init(
+        category: BudgetMonthCategory,
+        month: String,
+        modeIdentity: BudgetModeIdentity? = nil
+    ) {
+        self.category = category
+        self.month = month
+        self.modeIdentity = modeIdentity
+    }
 
     var id: String { "\(month)|\(category.id)" }
     var budgetedAmount: Int { category.budgeted }
@@ -35,6 +46,8 @@ final class CategoryMonthDetailsViewModel {
     private(set) var templateDoor: BudgetTemplateDoorRow?
     private(set) var isTrackingBudget = false
 
+    private var detailsRefreshGeneration = 0
+    private var carryoverGeneration = 0
     private var noteLoadGeneration = 0
     private var templateDoorGeneration = 0
 
@@ -153,11 +166,14 @@ final class CategoryMonthDetailsViewModel {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async {
+        detailsRefreshGeneration += 1
+        let requestGeneration = detailsRefreshGeneration
         do {
             let loaded = try await repository.budgetMonth(
                 budgetID: budgetID,
                 selectedMonth: details.month
             )
+            guard requestGeneration == detailsRefreshGeneration else { return }
             apply(loaded)
         } catch {
             // Keep showing the cached summary.
@@ -182,25 +198,45 @@ final class CategoryMonthDetailsViewModel {
             return
         }
 
+        let table = details.modeIdentity?.table ?? (isTrackingBudget ? .tracking : .envelope)
+        if details.category.isIncome,
+           !BudgetActionEligibility.allows(.carryover(isIncome: true), in: table) {
+            carryoverErrorMessage = "Income rollover is unavailable for tracking budgets."
+            return
+        }
+
         let previousValue = isCarryoverEnabled
+        carryoverGeneration += 1
+        let requestGeneration = carryoverGeneration
+        let expectedMode = details.modeIdentity
         isCarryoverEnabled = enabled
         isUpdatingCarryover = true
+        defer { isUpdatingCarryover = false }
         carryoverErrorMessage = nil
 
         do {
-            let loaded = try await repository.setCategoryCarryoverAndRefresh(
+            let loaded = try await repository.setCategoryCarryoverAndRefresh(expectedMode: expectedMode,
                 categoryID: details.category.id,
                 carryover: enabled,
                 budgetID: budgetID,
                 startMonth: details.month
             ) {}
+            guard requestGeneration == carryoverGeneration,
+                  details.modeIdentity == expectedMode else { return }
+            guard loaded.modeIdentity == expectedMode else {
+                isCarryoverEnabled = previousValue
+                carryoverErrorMessage = BudgetModeWriteError.budgetChanged.localizedDescription
+                return
+            }
             apply(loaded)
         } catch {
+            guard requestGeneration == carryoverGeneration,
+                  details.modeIdentity == expectedMode else {
+                return
+            }
             isCarryoverEnabled = previousValue
             carryoverErrorMessage = error.localizedDescription
         }
-
-        isUpdatingCarryover = false
     }
 
     private func apply(_ loaded: LoadedBudgetMonth) {
@@ -210,7 +246,11 @@ final class CategoryMonthDetailsViewModel {
             return
         }
 
-        details = CategoryMonthDetails(category: category, month: details.month)
+        details = CategoryMonthDetails(
+            category: category,
+            month: details.month,
+            modeIdentity: loaded.modeIdentity
+        )
         isCarryoverEnabled = category.carryover
         isTrackingBudget = loaded.isTrackingBudget
     }

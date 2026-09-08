@@ -96,6 +96,10 @@ extension BudgetDatabase {
 
         return try queue.read { db in
             let table = try budgetTable(db: db)
+            let isIncome = try templateCategoryIsIncomeByID(db: db)[trimmedCategoryID] ?? false
+            guard BudgetActionEligibility.allows(.directAssignment(isIncome: isIncome), in: table) else {
+                throw BudgetModeWriteError.unsupportedAction
+            }
             let columns = try requiredColumns(
                 table: table.rawValue,
                 required: ["month", "category", "amount"],
@@ -138,6 +142,10 @@ extension BudgetDatabase {
 
         return try queue.read { db in
             let table = try budgetTable(db: db)
+            let isIncome = try templateCategoryIsIncomeByID(db: db)[trimmedCategoryID] ?? false
+            guard BudgetActionEligibility.allows(.carryover(isIncome: isIncome), in: table) else {
+                throw BudgetModeWriteError.unsupportedAction
+            }
             let columns = try requiredColumns(
                 table: table.rawValue,
                 required: ["month", "category", "carryover"],
@@ -171,6 +179,9 @@ extension BudgetDatabase {
 
         return try queue.read { db in
             let table = try budgetTable(db: db)
+            guard BudgetActionEligibility.allows(.carryover(isIncome: false), in: table) else {
+                throw BudgetModeWriteError.unsupportedAction
+            }
             let columns = try requiredColumns(
                 table: table.rawValue,
                 required: ["month", "category", "carryover"],
@@ -205,9 +216,13 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         var messages: [ActualSyncDecodedMessage] = []
+        let effectiveThroughMonthValue = max(
+            throughMonthValue,
+            try maxActiveBudgetMonth(table: table, columns: columns, db: db)
+        )
         for categoryID in categoryIDs {
             var monthValue = startMonthValue
-            while monthValue <= throughMonthValue {
+            while monthValue <= effectiveThroughMonthValue {
                 let existingRowID = try budgetRowID(
                     table: table,
                     monthValue: monthValue,
@@ -527,6 +542,9 @@ extension BudgetDatabase {
 
         return try queue.read { db in
             let table = try budgetTable(db: db)
+            guard BudgetActionEligibility.allows(.moveMoney, in: table) else {
+                throw BudgetModeWriteError.unsupportedAction
+            }
             let columns = try requiredColumns(
                 table: table.rawValue,
                 required: ["month", "category", "amount"],
@@ -637,6 +655,22 @@ extension BudgetDatabase {
             )
         )
         return messages
+    }
+
+    private func maxActiveBudgetMonth(
+        table: BudgetTable,
+        columns: Set<String>,
+        db: Database
+    ) throws -> Int {
+        guard columns.contains("month") else { return 0 }
+        let predicate = predicateForLiveRows(columns: columns)
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT month FROM \(quotedIdentifier(table.rawValue)) WHERE \(predicate)"
+        )
+        return rows.compactMap { row in
+            canonicalMonthID(flexibleString(row["month"])).map(monthInt)
+        }.max() ?? 0
     }
 
     func budgetRowID(

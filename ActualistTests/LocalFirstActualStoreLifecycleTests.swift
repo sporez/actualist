@@ -114,7 +114,7 @@ extension LocalFirstActualStoreTests {
             connectionTransportFactory: { _ in connectionTransport }
         )
         try bundle.keychain.saveActualSyncToken("reimport-token")
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",

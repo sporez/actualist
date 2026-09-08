@@ -56,8 +56,9 @@ enum ShortcutBudgetCommand {
             throw ShortcutsError.categoryNotFound
         }
         return try await session.withExclusiveWrite { prepared in
-            let monthID = try await session.loadedMonth(preferred: month).selectedMonth
-            _ = try await prepared.store.moveMoneyAndRefresh(
+            let loaded = try await session.loadedMonth(preferred: month)
+            let monthID = loaded.selectedMonth
+            _ = try await prepared.store.moveMoneyAndRefresh(expectedMode: loaded.modeIdentity,
                 command: BudgetMoveMoneyCommand(
                     fromCategoryID: fromCategoryID,
                     toCategoryID: toCategoryID,
@@ -84,12 +85,13 @@ enum ShortcutBudgetCommand {
         session: ShortcutsBudgetSession
     ) async throws -> BudgetSummaryEntity {
         return try await session.withExclusiveWrite { prepared in
-            let monthID = try await session.loadedMonth(preferred: month).selectedMonth
+            let loaded = try await session.loadedMonth(preferred: month)
+            let monthID = loaded.selectedMonth
             let command = BudgetTemplateCommand(
                 mode: mode,
                 categoryIDs: categoryID.map { [$0] } ?? []
             )
-            _ = try await prepared.store.applyBudgetTemplateAndRefresh(
+            _ = try await prepared.store.applyBudgetTemplateAndRefresh(expectedMode: loaded.modeIdentity,
                 command: command,
                 budgetID: prepared.budgetID,
                 month: monthID,
@@ -109,8 +111,9 @@ enum ShortcutBudgetCommand {
         session: ShortcutsBudgetSession
     ) async throws -> CategoryEntity {
         return try await session.withExclusiveWrite { prepared in
-            let monthID = try await session.loadedMonth(preferred: startMonth).selectedMonth
-            _ = try await prepared.store.setCategoryCarryoverAndRefresh(
+            let loaded = try await session.loadedMonth(preferred: startMonth)
+            let monthID = loaded.selectedMonth
+            _ = try await prepared.store.setCategoryCarryoverAndRefresh(expectedMode: loaded.modeIdentity,
                 categoryID: categoryID,
                 carryover: enabled,
                 budgetID: prepared.budgetID,
@@ -175,16 +178,16 @@ enum ShortcutBudgetCommand {
         prepared: PreparedBudget,
         session: ShortcutsBudgetSession
     ) async throws -> CategoryEntity {
-        let monthID = try await session.loadedMonth(preferred: month).selectedMonth
-        _ = try await prepared.store.assignCategoryBudgetAndRefresh(
+        let loaded = try await session.loadedMonth(preferred: month)
+        _ = try await prepared.store.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
             categoryID: categoryID,
             budgeted: amountMinorUnits,
             budgetID: prepared.budgetID,
-            month: monthID,
+            month: loaded.selectedMonth,
             actionSource: .shortcuts,
             didAssign: {}
         )
         session.recordSuccessfulWrite()
-        return try await session.category(id: categoryID, month: monthID)
+        return try await session.category(id: categoryID, month: loaded.selectedMonth)
     }
 }

@@ -12,7 +12,7 @@ extension LocalFirstActualStoreTests {
         bundle.store.openedEncryptionContext = context
         await bundle.store.syncClient.configure(uploadConfirmationConfiguration(context: context))
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",

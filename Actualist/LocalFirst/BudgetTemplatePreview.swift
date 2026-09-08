@@ -8,6 +8,7 @@ struct BudgetTemplateCategoryDryRun: Equatable, Sendable {
 
 /// Apply confirmation preview: clamped like the write path. No budget writes.
 struct BudgetTemplateApplyPreview: Equatable, Sendable {
+    var modeIdentity: BudgetModeIdentity? = nil
     var assigned: Int
     var leftover: Int
     var isTrackingBudget: Bool

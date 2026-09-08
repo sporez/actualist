@@ -7,9 +7,33 @@ final class BudgetMoveMoneyWorkflow {
     private static let maximumUserAmountMinorUnits = Money.maximumUserAmountMinorUnits
 
     private(set) var draft: BudgetMoveMoneyDraft?
+    struct Context: Equatable {
+        let id = UUID()
+        let budgetID: String
+        let month: String
+        let modeIdentity: BudgetModeIdentity?
+        let categoryID: String
+    }
+    private var capturedContext: Context?
     private var sliderDetent = BudgetMoveMoneySliderDetent()
     private var coverIntroTarget: Int?
     private var coverIntroGeneration = 0
+
+    var context: Context? { draft == nil ? nil : capturedContext }
+    func invalidate() {
+        cancelCoverIntro()
+        capturedContext = nil
+        draft = nil
+    }
+    func reconcile(budgetID: String, month: String? = nil, modeIdentity: BudgetModeIdentity? = nil) {
+        guard let context else { return }
+        guard context.budgetID == budgetID,
+              month == nil || context.month == month,
+              modeIdentity == nil || context.modeIdentity == modeIdentity else {
+            invalidate()
+            return
+        }
+    }
 
     var isPresented: Bool {
         draft != nil
@@ -69,7 +93,12 @@ final class BudgetMoveMoneyWorkflow {
         coverIntroTarget != nil
     }
 
-    func begin(for category: BudgetMonthCategory) {
+    func begin(
+        for category: BudgetMonthCategory,
+        budgetID: String? = nil,
+        month: String? = nil,
+        modeIdentity: BudgetModeIdentity? = nil
+    ) {
         guard draft?.isSubmitting != true else {
             return
         }
@@ -86,6 +115,16 @@ final class BudgetMoveMoneyWorkflow {
         }
 
         sliderDetent = BudgetMoveMoneySliderDetent()
+        capturedContext = budgetID.flatMap { budget in
+            month.map {
+                Context(
+                    budgetID: budget,
+                    month: $0,
+                    modeIdentity: modeIdentity,
+                    categoryID: category.id
+                )
+            }
+        }
         draft = newDraft
     }
 
@@ -96,6 +135,7 @@ final class BudgetMoveMoneyWorkflow {
 
         cancelCoverIntro()
         sliderDetent = BudgetMoveMoneySliderDetent()
+        capturedContext = nil
         draft = nil
     }
 
@@ -511,7 +551,10 @@ final class BudgetMoveMoneyWorkflow {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
-        guard var draft,
+        guard let context,
+              context.budgetID == budgetID,
+              context.month == selectedMonth,
+              var draft,
               !draft.isSubmitting else {
             return nil
         }
@@ -525,14 +568,14 @@ final class BudgetMoveMoneyWorkflow {
         self.draft = draft
 
         do {
-            let loadedMonth = try await repository.moveMoneyAndRefresh(
+            let loadedMonth = try await repository.moveMoneyAndRefresh(expectedMode: context.modeIdentity,
                 commands: commands,
                 budgetID: budgetID,
                 month: selectedMonth
             ) { [weak self] in
                 await MainActor.run {
                     guard var currentDraft = self?.draft,
-                          currentDraft.focusedCategoryID == draft.focusedCategoryID else {
+                          self?.context == context else {
                         return
                     }
 
@@ -540,9 +583,19 @@ final class BudgetMoveMoneyWorkflow {
                     self?.draft = currentDraft
                 }
             }
+            guard self.context == context else { return nil }
+            guard loadedMonth.modeIdentity == context.modeIdentity else {
+                invalidate()
+                return nil
+            }
             self.draft = nil
             return loadedMonth
         } catch {
+            guard self.context == context else { return nil }
+            if case BudgetModeWriteError.budgetChanged = error {
+                invalidate()
+                return nil
+            }
             draft.submissionState = .failed(error.localizedDescription)
             self.draft = draft
             return nil

@@ -110,6 +110,10 @@ struct BudgetActionRecord: Equatable, Sendable {
     var forwardTimestampStart: String?
     var forwardTimestampEnd: String?
     var source: BudgetActionSource
+    /// Identity of the budget table and conversion revision when this action
+    /// was committed. Nil is retained for legacy rows and is never sufficient
+    /// to undo a budget-table action.
+    var modeIdentity: BudgetModeIdentity? = nil
 }
 
 extension BudgetActionSummary: Codable {

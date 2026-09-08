@@ -43,10 +43,15 @@ struct BudgetViewModelAssignmentWorkflowTests {
             initialMonth.categoryGroups.flatMap(\.categories).first { $0.id == "mortgage" }
         )
         let model = CategoryMonthDetailsViewModel(
-            details: CategoryMonthDetails(category: initialCategory, month: "2026-06")
+            details: CategoryMonthDetails(
+                category: initialCategory,
+                month: "2026-06",
+                modeIdentity: BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1")
+            )
         )
         let repository = RecordingBudgetRepository(
             loadedMonth: LoadedBudgetMonth(
+                modeIdentity: BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1"),
                 availableMonths: ["2026-06"],
                 selectedMonth: "2026-06",
                 month: updatedMonth,
@@ -66,6 +71,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
         #expect(update.carryover)
         #expect(update.budgetID == "budget")
         #expect(update.startMonth == "2026-06")
+        #expect(update.expectedMode == BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1"))
     }
 
     @Test func categoryDetailsRestoresCarryoverWhenTheWriteFails() async throws {
@@ -88,6 +94,78 @@ struct BudgetViewModelAssignmentWorkflowTests {
         #expect(!model.isCarryoverEnabled)
         #expect(!model.isUpdatingCarryover)
         #expect(model.carryoverErrorMessage == "rollover failed")
+    }
+
+    @Test func trackingIncomeCarryoverIsBlockedForBothDirections() async throws {
+        let repository = RecordingBudgetRepository()
+        let mode = BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1")
+        let income = BudgetMonthCategory(
+            id: "income",
+            name: "Income",
+            isIncome: true,
+            hidden: false,
+            groupID: "income",
+            budgeted: 0,
+            spent: 0,
+            balance: 0,
+            carryover: false
+        )
+        let model = CategoryMonthDetailsViewModel(
+            details: CategoryMonthDetails(category: income, month: "2026-06", modeIdentity: mode)
+        )
+
+        await model.setCarryover(true, budgetID: "budget", repository: repository)
+        #expect(model.carryoverErrorMessage == "Income rollover is unavailable for tracking budgets.")
+        #expect(!model.isCarryoverEnabled)
+
+        model.isCarryoverEnabled = true
+        model.carryoverErrorMessage = nil
+        await model.setCarryover(false, budgetID: "budget", repository: repository)
+        #expect(model.carryoverErrorMessage == "Income rollover is unavailable for tracking budgets.")
+        #expect(model.isCarryoverEnabled)
+    }
+
+    @Test func lateCarryoverResultCannotOverwriteReloadedDetails() async throws {
+        let mode = BudgetModeIdentity(storageID: "store", table: .tracking, revision: "rev-1")
+        let convertedMode = BudgetModeIdentity(storageID: "store", table: .envelope, revision: "rev-2")
+        let initialCategory = BudgetMonthCategory(
+            id: "mortgage", name: "Mortgage", isIncome: false, hidden: false,
+            groupID: "bills", budgeted: 0, spent: 0, balance: 0, carryover: false
+        )
+        let reloadedCategory = BudgetMonthCategory(
+            id: "mortgage", name: "Mortgage", isIncome: false, hidden: false,
+            groupID: "bills", budgeted: 0, spent: 0, balance: 0, carryover: false
+        )
+        let model = CategoryMonthDetailsViewModel(
+            details: CategoryMonthDetails(category: initialCategory, month: "2026-06", modeIdentity: mode)
+        )
+        let repository = RecordingBudgetRepository(
+            loadedMonth: LoadedBudgetMonth(
+                modeIdentity: mode,
+                availableMonths: ["2026-06"], selectedMonth: "2026-06",
+                month: BudgetMonth(
+                    month: "2026-06", incomeAvailable: 0, lastMonthOverspent: 0,
+                    forNextMonth: 0, totalBudgeted: 0, toBudget: 0,
+                    fromLastMonth: 0, totalIncome: 0, totalSpent: 0, totalBalance: 0,
+                    categoryGroups: []
+                ), alerts: []
+            ),
+            suspendsCarryover: true
+        )
+
+        let task = Task {
+            await model.setCarryover(true, budgetID: "budget", repository: repository)
+        }
+        await repository.waitUntilCarryoverStarted()
+        model.details = CategoryMonthDetails(category: reloadedCategory, month: "2026-06", modeIdentity: convertedMode)
+        model.isCarryoverEnabled = false
+        await repository.resumeCarryover()
+        await task.value
+
+        #expect(model.details.modeIdentity == convertedMode)
+        #expect(!model.isCarryoverEnabled)
+        #expect(!model.isUpdatingCarryover)
+        #expect(model.carryoverErrorMessage == nil)
     }
 
     @Test func directAssignmentInputReplacesOriginalAmount() throws {

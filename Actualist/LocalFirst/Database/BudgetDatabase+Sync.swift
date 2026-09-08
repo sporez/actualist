@@ -163,9 +163,14 @@ extension BudgetDatabase {
     func commitLocalSyncMessagesAndEnqueue(
         _ drafts: [ActualSyncDecodedMessage],
         now: Date = Date(),
-        actionLogCommit: ActionLogCommit? = nil
+        actionLogCommit: ActionLogCommit? = nil,
+        expectedMode: BudgetModeIdentity? = nil
     ) throws -> Int {
         guard !drafts.isEmpty else {
+            try queue.read { db in
+                try validateBudgetWrite(drafts, expectedMode: expectedMode,
+                    descriptor: actionLogCommit?.descriptor, db: db)
+            }
             return 0
         }
         guard var clock = localClock else {
@@ -178,6 +183,8 @@ extension BudgetDatabase {
                 guard try tableExists("messages_crdt", db: db) else {
                     throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
                 }
+                try validateBudgetWrite(drafts, expectedMode: expectedMode,
+                    descriptor: actionLogCommit?.descriptor, db: db)
                 try ensureLocalSyncOutbox(db)
                 let baseTimestamp = try String.fetchOne(
                     db,
@@ -208,6 +215,8 @@ extension BudgetDatabase {
                 }
                 return applied.appliedCount
             }
+        } catch let error as BudgetModeWriteError {
+            throw error
         } catch let error as LocalFirstError {
             throw error
         } catch {

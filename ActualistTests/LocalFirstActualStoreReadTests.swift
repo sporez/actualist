@@ -493,7 +493,7 @@ extension LocalFirstActualStoreTests {
         )
 
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            _ = try await store.assignCategoryBudgetAndRefresh(
+            _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
                 categoryID: "groceries",
                 budgeted: 10_000,
                 budgetID: "group-2",

@@ -24,6 +24,9 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
     case graphRewritten
     /// A category-learning rule that rode along with this gesture changed later.
     case sideEffectChanged
+    /// The action predates a budget conversion, or its legacy row has no
+    /// trustworthy identity. Undo must never write into the active table.
+    case budgetModeChanged
     /// Phase 4 metadata is visible in History but v1 LIFO undo is money-flow only.
     case notOfferedFromHistory
 
@@ -51,6 +54,8 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
             "This transaction was split, transferred, or rewritten after this action. Undo would not be safe."
         case .sideEffectChanged:
             "A category-learning rule from this action changed later. Undo would not be safe."
+        case .budgetModeChanged:
+            "This budget changed after the action. Budget Undo is unavailable for this older action."
         case .notOfferedFromHistory:
             "This change isn't undone from History."
         }
@@ -131,11 +136,20 @@ enum BudgetActionUndo {
     static func evaluate(
         record: BudgetActionRecord,
         liveBudgeted: [String: Int?],
+        currentModeIdentity: BudgetModeIdentity? = nil,
         liveTransactions: [String: TransactionUndoSnapshot?] = [:],
         liveRuleActions: [String: String?] = [:]
     ) -> BudgetActionUndoEvaluation {
         guard record.status == .applied else {
             return .blocked(.alreadyUndone)
+        }
+
+        // Transaction undo is independent of envelope/tracking conversion.
+        // Budget-table inverses require an exact identity match, including the
+        // conversion revision, so converting back cannot revive an old undo.
+        if record.inverse.requiresBudgetModeIdentity,
+           record.modeIdentity == nil || record.modeIdentity != currentModeIdentity {
+            return .blocked(.budgetModeChanged)
         }
 
         switch record.inverse {

@@ -49,6 +49,7 @@ extension LocalFirstActualStore {
         let isTracking = month.trackingSummary != nil
         currencyByBudget[budgetID] = snapshot.currency
         let loaded = LoadedBudgetMonth(
+            modeIdentity: snapshot.modeIdentity,
             availableMonths: snapshot.availableMonths,
             selectedMonth: monthID,
             month: month,

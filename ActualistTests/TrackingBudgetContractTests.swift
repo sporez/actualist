@@ -153,4 +153,17 @@ struct TrackingBudgetDatabaseContractTests {
         let queue = try DatabaseQueue(path: url.path)
         #expect(try await queue.read { try Int.fetchOne($0, sql: "SELECT carryover FROM reflect_budgets WHERE id = '202912-groceries'") } == 1)
     }
+
+    @Test func trackingRolloverHorizonIncludesExistingFutureRowsBeyondSuppliedEnd() async throws {
+        let url = try makeTrackingContractFixture()
+        let database = try BudgetDatabase(databaseURL: url)
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.categoryCarryoverMessages(
+            categoryID: "groceries", carryover: true,
+            startMonth: "2026-07", throughMonth: "2026-08", builder: &builder
+        )
+        #expect(messages.contains {
+            $0.dataset == "reflect_budgets" && $0.row == "202912-groceries" && $0.column == "carryover"
+        })
+    }
 }

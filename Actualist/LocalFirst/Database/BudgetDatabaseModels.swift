@@ -2,7 +2,7 @@ import Foundation
 
 /// Actual stores envelope amounts in `zero_budgets` and tracking amounts in
 /// `reflect_budgets`. Match `getBudgetTable()` rather than hard-coding either name.
-enum BudgetTable: String {
+enum BudgetTable: String, Codable, Hashable, Sendable {
     case envelope = "zero_budgets"
     case tracking = "reflect_budgets"
 }
@@ -39,6 +39,7 @@ enum ActualSyncSQLiteValue {
 /// Financial data, mode (through the typed summary), currency and discovered
 /// months come from the same SQLite read transaction.
 struct BudgetFinancialSnapshot: Sendable {
+    let modeIdentity: BudgetModeIdentity
     let month: BudgetMonth
     let currency: BudgetCurrency
     let availableMonths: [String]

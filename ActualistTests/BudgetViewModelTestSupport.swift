@@ -118,6 +118,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private let loadedMonth: LoadedBudgetMonth
     private let assignError: Error?
     private let carryoverError: Error?
+    private let suspendsCarryover: Bool
     private let moveError: Error?
     private let templateError: Error?
     private var assignments: [RecordedBudgetAssignment] = []
@@ -129,6 +130,9 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private var didAssignCallbackFinished = false
     private var didMoveCallbackFinished = false
     private var didApplyCallbackFinished = false
+    private var carryoverContinuation: CheckedContinuation<Void, Never>?
+    private var carryoverStarted = false
+    private var carryoverStartedWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(
         loadedMonth: LoadedBudgetMonth = LoadedBudgetMonth(
@@ -153,12 +157,14 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         ),
         assignError: Error? = nil,
         carryoverError: Error? = nil,
+        suspendsCarryover: Bool = false,
         moveError: Error? = nil,
         templateError: Error? = nil
     ) {
         self.loadedMonth = loadedMonth
         self.assignError = assignError
         self.carryoverError = carryoverError
+        self.suspendsCarryover = suspendsCarryover
         self.moveError = moveError
         self.templateError = templateError
     }
@@ -181,7 +187,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         loadedMonth
     }
 
-    func assignCategoryBudgetAndRefresh(
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
@@ -206,7 +212,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
-    func setCategoryCarryoverAndRefresh(
+    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
@@ -217,10 +223,18 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
             RecordedBudgetCarryoverUpdate(
                 categoryID: categoryID,
                 carryover: carryover,
+                expectedMode: expectedMode,
                 budgetID: budgetID,
                 startMonth: startMonth
             )
         )
+
+        carryoverStarted = true
+        carryoverStartedWaiters.forEach { $0.resume() }
+        carryoverStartedWaiters = []
+        if suspendsCarryover {
+            await withCheckedContinuation { carryoverContinuation = $0 }
+        }
 
         if let carryoverError {
             throw carryoverError
@@ -230,7 +244,17 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(
+    func waitUntilCarryoverStarted() async {
+        if carryoverStarted { return }
+        await withCheckedContinuation { carryoverStartedWaiters.append($0) }
+    }
+
+    func resumeCarryover() {
+        carryoverContinuation?.resume()
+        carryoverContinuation = nil
+    }
+
+    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         carryover: Bool,
         budgetID: String,
         startMonth: String
@@ -241,13 +265,13 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
         didMove: @escaping () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        try await moveMoneyAndRefresh(
+        try await moveMoneyAndRefresh(expectedMode: nil,
             commands: [command],
             budgetID: budgetID,
             month: month,
@@ -255,7 +279,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         )
     }
 
-    func moveMoneyAndRefresh(
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
@@ -280,7 +304,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
-    func applyBudgetTemplateAndRefresh(
+    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -406,6 +430,7 @@ struct RecordedBudgetAssignment: Sendable {
 struct RecordedBudgetCarryoverUpdate: Sendable {
     let categoryID: String
     let carryover: Bool
+    let expectedMode: BudgetModeIdentity?
     let budgetID: String
     let startMonth: String
 }
