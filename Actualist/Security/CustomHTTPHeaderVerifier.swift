@@ -1,13 +1,18 @@
 import Foundation
 
-struct CustomHTTPHeaderVerification: Equatable, Sendable {
-    let requiresHeaders: Bool
+enum CustomHTTPHeaderVerification: Equatable, Sendable {
+    case noHeaders, acceptsWithAndWithoutHeaders, comparisonFailed
 
-    var title: String { requiresHeaders ? "Headers verified" : "Connection successful" }
+    var title: String { "Connection successful" }
     var message: String {
-        requiresHeaders
-            ? "This server requires the configured custom headers."
-            : "This server also accepts requests without these headers, so their presence cannot be independently verified."
+        switch self {
+        case .noHeaders:
+            "The server is reachable. No custom headers were included."
+        case .acceptsWithAndWithoutHeaders:
+            "The server accepted requests with and without these headers. This test cannot confirm whether it used them."
+        case .comparisonFailed:
+            "The request with headers succeeded. The request without them failed, so these headers may be required."
+        }
     }
 }
 
@@ -23,14 +28,15 @@ struct CustomHTTPHeaderVerifier: Sendable {
         let withHeaders = ActualServerSyncClient(baseURL: url, customHeaders: fields, session: session)
         _ = try await withHeaders.loginMethods()
         try Task.checkCancellation()
+        guard !headers.isEmpty else { return .noHeaders }
         let withoutHeaders = ActualServerSyncClient(baseURL: url, session: session)
         do {
             _ = try await withoutHeaders.loginMethods()
             try Task.checkCancellation()
-            return CustomHTTPHeaderVerification(requiresHeaders: false)
+            return .acceptsWithAndWithoutHeaders
         } catch {
             try Task.checkCancellation()
-            return CustomHTTPHeaderVerification(requiresHeaders: !headers.isEmpty)
+            return .comparisonFailed
         }
     }
 }

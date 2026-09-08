@@ -1,14 +1,28 @@
 import Foundation
 import Observation
 
+enum CustomHeadersEditorContext {
+    case onboarding, settings
+
+    var roles: [ActualServerEndpointRole] {
+        self == .onboarding ? [.primary] : ActualServerEndpointRole.allCases
+    }
+}
+
 struct CustomHeadersEndpointDraft: Identifiable, Equatable {
     let id: ActualServerEndpointRole
     let url: URL?
     var headers: [CustomHTTPHeader]
     var needsOriginReview: Bool
 
-    var title: String { id.title }
+    let title: String
     var serverLabel: String { url?.host ?? "No server configured" }
+    var addressGuidance: String? {
+        guard url == nil else { return nil }
+        return id == .fallback
+            ? "Enter a fallback server address in Connection settings to add headers."
+            : "Enter a valid server address to add headers."
+    }
     var securityWarning: String? {
         url.flatMap { ActualServerConnectionSecurity.warningMessage(for: $0.absoluteString) }
     }
@@ -33,22 +47,22 @@ final class CustomHeadersSettingsViewModel {
     private var generation = 0
     private var testTask: Task<Void, Never>?
 
-    init(store: LocalFirstActualStore, primaryURLString: String, fallbackURLString: String, verifier: CustomHTTPHeaderVerifier = .init()) {
+    init(store: LocalFirstActualStore, primaryURLString: String, fallbackURLString: String, context: CustomHeadersEditorContext = .settings, verifier: CustomHTTPHeaderVerifier = .init()) {
         self.store = store
         self.verifier = verifier
         do {
             let configuration = try store.keychain.readCustomHTTPHeaders()
             loadedConfiguration = configuration
-            endpoints = ActualServerEndpointRole.allCases.map { role in
+            endpoints = context.roles.map { role in
                 let text = role == .primary ? primaryURLString : fallbackURLString
-                let url = URL(string: ActualServerURLNormalizer.normalize(text))
-                    .flatMap { (try? HTTPOrigin(url: $0)) == nil ? nil : $0 }
+                let url = HTTPOrigin.validatedURL(from: text)
                 let saved = configuration[role]
                 return CustomHeadersEndpointDraft(
                     id: role, url: url, headers: saved?.headers ?? [],
                     needsOriginReview: saved.map { endpoint in
                         url.map { !endpoint.applies(to: $0) } ?? true
-                    } ?? false
+                    } ?? false,
+                    title: context == .onboarding ? "Server" : role.title
                 )
             }
         } catch {
@@ -107,12 +121,11 @@ final class CustomHeadersSettingsViewModel {
     }
 
     func save() -> Bool {
-        guard canSave else { return false }
+        guard canSave, var configuration = loadedConfiguration else { return false }
         do {
             // Detect an erase or another editor's Save rather than restoring an
             // obsolete draft over the new persisted state.
             guard try store.keychain.readCustomHTTPHeaders() == loadedConfiguration else { throw DraftError.changed }
-            var configuration = CustomHTTPHeaderConfiguration()
             for endpoint in endpoints { configuration[endpoint.id] = try validated(endpoint) }
             try store.saveCustomHTTPHeaders(configuration)
             loadedConfiguration = configuration

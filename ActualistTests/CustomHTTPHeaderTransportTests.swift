@@ -133,9 +133,12 @@ struct CustomHTTPHeaderTransportTests {
         let verifier = CustomHTTPHeaderVerifier(session: session)
         let url = URL(string: "https://primary.example")!
         let headers = [CustomHTTPHeader(name: "X-Primary", value: "primary-secret")]
-        #expect(try await !verifier.verify(url: url, headers: headers).requiresHeaders)
+        #expect(try await verifier.verify(url: url, headers: headers) == .acceptsWithAndWithoutHeaders)
+        let countBeforeEmptyTest = HeaderTransportURLProtocol.requests.count
+        #expect(try await verifier.verify(url: url, headers: []) == .noHeaders)
+        #expect(HeaderTransportURLProtocol.requests.count == countBeforeEmptyTest + 1)
         HeaderTransportURLProtocol.mode = .requireHeaders
-        #expect(try await verifier.verify(url: url, headers: headers).requiresHeaders)
+        #expect(try await verifier.verify(url: url, headers: headers) == .comparisonFailed)
         HeaderTransportURLProtocol.mode = .echoFailure
         do {
             _ = try await verifier.verify(url: url, headers: headers)

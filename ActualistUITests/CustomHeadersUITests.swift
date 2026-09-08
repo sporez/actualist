@@ -31,13 +31,22 @@ final class CustomHeadersUITests: XCTestCase {
         confirm.tap()
         let server = app.textFields.firstMatch
         XCTAssertTrue(server.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Custom Headers"].isEnabled)
         server.tap()
         server.typeText("https://headers.example")
+        let loginAttachment = XCTAttachment(screenshot: app.screenshot())
+        loginAttachment.name = "onboarding-server-\(suffix)"
+        loginAttachment.lifetime = .keepAlways
+        add(loginAttachment)
         app.swipeUp()
         let headers = app.buttons["Custom Headers"]
         XCTAssertTrue(headers.waitForExistence(timeout: 5))
+        XCTAssertTrue(headers.isEnabled)
         headers.tap()
         XCTAssertTrue(app.navigationBars["Custom Headers"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Fallback Server"].exists)
+        XCTAssertFalse(app.staticTexts["Primary Server"].exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "Add Header").count, 1)
         app.buttons["Add Header"].firstMatch.tap()
         let name = app.textFields["Header Name"].firstMatch
         name.tap()

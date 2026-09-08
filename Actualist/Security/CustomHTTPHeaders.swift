@@ -5,6 +5,11 @@ struct HTTPOrigin: Codable, Equatable, Sendable {
     let host: String
     let port: Int
 
+    static func validatedURL(from input: String) -> URL? {
+        URL(string: ActualServerURLNormalizer.normalize(input))
+            .flatMap { (try? HTTPOrigin(url: $0)) == nil ? nil : $0 }
+    }
+
     init(url: URL) throws {
         guard let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
               let host = url.host?.lowercased(), !host.isEmpty,

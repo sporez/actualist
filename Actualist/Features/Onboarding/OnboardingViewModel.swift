@@ -80,6 +80,11 @@ final class OnboardingViewModel {
         isConnecting = false
     }
 
+    var canEditCustomHeaders: Bool {
+        HTTPOrigin.validatedURL(from: serverURLString) != nil
+            && !isLoadingLoginMethods && !isConnecting && !isEnteringDemo
+    }
+
     var canLoadLoginMethods: Bool {
         !serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !isLoadingLoginMethods

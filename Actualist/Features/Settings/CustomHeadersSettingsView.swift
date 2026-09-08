@@ -4,9 +4,9 @@ struct CustomHeadersSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: CustomHeadersSettingsViewModel
 
-    init(store: LocalFirstActualStore, primaryURLString: String, fallbackURLString: String) {
+    init(store: LocalFirstActualStore, primaryURLString: String, fallbackURLString: String, context: CustomHeadersEditorContext = .settings) {
         _viewModel = State(initialValue: CustomHeadersSettingsViewModel(
-            store: store, primaryURLString: primaryURLString, fallbackURLString: fallbackURLString
+            store: store, primaryURLString: primaryURLString, fallbackURLString: fallbackURLString, context: context
         ))
     }
 
@@ -64,7 +64,10 @@ struct CustomHeadersSettingsView: View {
                     Text(endpoint.title)
                 } footer: {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Custom headers are sent only to the selected Actual server. Values are stored securely on this device.")
+                        Text("Headers are sent with requests to this server. Values are stored securely on this device.")
+                        if let guidance = endpoint.addressGuidance {
+                            Text(guidance)
+                        }
                         if let warning = endpoint.securityWarning {
                             Text(warning).foregroundStyle(ActualistTheme.warning)
                         }

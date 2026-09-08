@@ -4,6 +4,55 @@ import Testing
 @testable import Actualist
 
 extension CustomHTTPHeaderTransportTests {
+    @Test @MainActor func onboardingHeaderEligibility() {
+        let model = OnboardingViewModel()
+        for address in ["", "  ", "https://", "https://user:password@example.com", "ftp://example.com"] {
+            model.serverURLString = address
+            #expect(!model.canEditCustomHeaders)
+        }
+        for address in ["https://primary.example", "primary.example", "http://localhost:5006"] {
+            model.serverURLString = address
+            #expect(model.canEditCustomHeaders)
+        }
+        model.isConnecting = true
+        #expect(!model.canEditCustomHeaders)
+        model.isConnecting = false
+        model.isLoadingLoginMethods = true
+        #expect(!model.canEditCustomHeaders)
+        model.isLoadingLoginMethods = false
+        model.isEnteringDemo = true
+        #expect(!model.canEditCustomHeaders)
+    }
+
+    @Test @MainActor func onboardingSavesOnlyPrimaryAndPreservesHiddenFallback() throws {
+        let keychain = KeychainStore(service: UUID().uuidString, account: "token", backend: FakeKeychainBackend())
+        let store = LocalFirstActualStore(keychain: keychain)
+        let saved = try configuration()
+        try store.saveCustomHTTPHeaders(saved)
+        let model = CustomHeadersSettingsViewModel(
+            store: store, primaryURLString: "primary.example", fallbackURLString: "", context: .onboarding
+        )
+        #expect(model.endpoints.map(\.id) == [.primary])
+        #expect(model.endpoints[0].title == "Server")
+        model.updateHeader(model.endpoints[0].headers[0].id, role: .primary, value: "updated")
+        #expect(model.save())
+        #expect(try keychain.readCustomHTTPHeaders().primary?.headers[0].value == "updated")
+        #expect(try keychain.readCustomHTTPHeaders().fallback == saved.fallback)
+        model.removeHeaders(at: IndexSet(integer: 0), role: .primary)
+        #expect(model.save())
+        #expect(try keychain.readCustomHTTPHeaders().primary == nil)
+        #expect(try keychain.readCustomHTTPHeaders().fallback == saved.fallback)
+        try store.saveCustomHTTPHeaders(.init())
+        #expect(!model.save())
+        #expect(try keychain.readCustomHTTPHeaders() == .init())
+
+        let settings = CustomHeadersSettingsViewModel(store: store, primaryURLString: "primary.example", fallbackURLString: "")
+        #expect(settings.endpoints.map(\.id) == [.primary, .fallback])
+        #expect(settings.endpoints[0].title == "Primary Server")
+        #expect(settings.endpoints[1].title == "Fallback Server")
+        #expect(settings.endpoints[1].addressGuidance == "Enter a fallback server address in Connection settings to add headers.")
+    }
+
     @Test @MainActor func draftsPreserveSavedValuesRequireReviewAndRejectConcurrentReplacement() throws {
         let backend = FakeKeychainBackend()
         let keychain = KeychainStore(service: UUID().uuidString, account: "token", backend: backend)
@@ -49,7 +98,7 @@ extension CustomHTTPHeaderTransportTests {
             if !model.isTesting { break }
             try await Task.sleep(for: .milliseconds(10))
         }
-        #expect(model.phase == .result(.primary, .init(requiresHeaders: false)))
+        #expect(model.phase == .result(.primary, .acceptsWithAndWithoutHeaders))
         #expect(HeaderTransportURLProtocol.requests.first?.value(forHTTPHeaderField: "X-Primary") == "draft-secret")
         #expect(try keychain.readCustomHTTPHeaders().primary?.headers[0].value == "primary-secret")
         let obsolete = model.testConnection(for: .primary)

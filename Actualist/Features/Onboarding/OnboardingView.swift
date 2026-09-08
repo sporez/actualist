@@ -44,11 +44,11 @@ struct OnboardingView: View {
                                     "",
                                     text: $viewModel.serverURLString,
                                     prompt: Text("https://actual.example.com")
-                                        .foregroundStyle(.white.opacity(0.4))
+                                        .foregroundStyle(ActualistTheme.secondaryText)
                                 )
                                 .font(ActualistTypography.rowTitle(for: density))
-                                .foregroundStyle(.white)
-                                .tint(.white)
+                                .foregroundStyle(ActualistTheme.primaryText)
+                                .tint(ActualistTheme.primaryText)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .keyboardType(.URL)
@@ -219,7 +219,7 @@ struct OnboardingView: View {
 
                     Button("Custom Headers") { showCustomHeaders = true }
                         .buttonStyle(.glass)
-                        .disabled(viewModel.isConnecting || viewModel.isLoadingLoginMethods)
+                        .disabled(!viewModel.canEditCustomHeaders)
 
                     if appState.canCancelReauthentication {
                         Button {
@@ -243,7 +243,8 @@ struct OnboardingView: View {
                 CustomHeadersSettingsView(
                     store: appState.localFirstStore,
                     primaryURLString: viewModel.serverURLString,
-                    fallbackURLString: appState.settings.fallbackServerURLString
+                    fallbackURLString: appState.settings.fallbackServerURLString,
+                    context: .onboarding
                 )
             }
         }
