@@ -109,7 +109,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func failedLogInsertRollsBackTheWholeCommit() async throws {
         let store = try await makeOpenedWritableStore()
-        let database = try await store.requireDatabase(for: "group-1")
+        let database = try store.requireDatabase(for: "group-1")
 
         var firstBuilder = LocalFirstSyncMessageBuilder()
         let first = try await database.assignCategoryBudgetMessages(
@@ -156,7 +156,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func retentionKeepsNewest25MoneyFlowGestures() async throws {
         let store = try await makeOpenedWritableStore()
-        let database = try await store.requireDatabase(for: "group-1")
+        let database = try store.requireDatabase(for: "group-1")
 
         for index in 1...30 {
             let month = index.isMultiple(of: 2) ? "2026-07" : "2026-08"
@@ -343,7 +343,7 @@ extension LocalFirstActualStoreTests {
 
         // A remote-style or peer write that History never grouped: the live
         // cell no longer matches the recorded after-state.
-        let database = try await store.requireDatabase(for: "group-1")
+        let database = try store.requireDatabase(for: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
         let untracked = try await database.assignCategoryBudgetMessages(
             categoryID: "groceries",
@@ -361,7 +361,7 @@ extension LocalFirstActualStoreTests {
 
         let rows = try await store.recentBudgetActions(budgetID: "group-1")
         #expect(rows.only?.status == .applied)
-        let database2 = try await store.requireDatabase(for: "group-1")
+        let database2 = try store.requireDatabase(for: "group-1")
         let preview = try await database2.actionUndoPreview(record: row)
         #expect(preview.block == .changedSinceApplied)
         #expect(preview.entries.isEmpty)
@@ -690,7 +690,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func metadataDoesNotConsumeMoneyFlowRetentionSlots() async throws {
         let store = try await makeOpenedWritableStore()
-        let database = try await store.requireDatabase(for: "group-1")
+        let database = try store.requireDatabase(for: "group-1")
         for index in 1...25 {
             var builder = LocalFirstSyncMessageBuilder()
             let messages = try await database.assignCategoryBudgetMessages(

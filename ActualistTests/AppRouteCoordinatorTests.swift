@@ -37,7 +37,7 @@ struct AppRouteCoordinatorTests {
     }
 
     @Test func notificationSpendingRouteUsesCoordinator() async {
-        let defaults = try? UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")
+        let defaults = UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")
         let state = AppState(settingsStore: AppSettingsStore(defaults: defaults ?? .standard))
         state.selectedTab = .accounts
         state.accountNavigationPath = [

@@ -419,7 +419,7 @@ extension LocalFirstActualStoreTests {
             try LocalFirstSyncMessageBuilder.envelope(for: plaintextMessage)
         ]
         let recorder = PlaintextEnvelopeAuditRecorder()
-        let client = SyncClient(plaintextEnvelopeAuditRecorder: recorder.record)
+        let client = SyncClient(plaintextEnvelopeAuditRecorder: { recorder.record($0) })
         await client.configure(
             LocalFirstSyncConfiguration(
                 fileID: "private-budget-id",
@@ -486,7 +486,7 @@ extension LocalFirstActualStoreTests {
         let recorder = PlaintextEnvelopeAuditRecorder()
         let client = SyncClient(
             enforcesAuthenticatedEncryptedEnvelopes: true,
-            plaintextEnvelopeAuditRecorder: recorder.record
+            plaintextEnvelopeAuditRecorder: { recorder.record($0) }
         )
         await client.configure(
             LocalFirstSyncConfiguration(

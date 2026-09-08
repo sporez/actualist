@@ -88,7 +88,7 @@ extension LocalFirstActualStoreTests {
         financialID: String
     ) async throws -> Row? {
         let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
-        return try await queue.read { db in
+        return try queue.read { db in
             try Row.fetchOne(
                 db,
                 sql: """

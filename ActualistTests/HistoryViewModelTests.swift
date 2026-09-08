@@ -111,7 +111,7 @@ extension LocalFirstActualStoreTests {
         try await assignGroceries(bundle.store, budgeted: 62_500)
 
         // A peer-style write that History never grouped.
-        let database = try await bundle.store.requireDatabase(for: "group-1")
+        let database = try bundle.store.requireDatabase(for: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
         let untracked = try await database.assignCategoryBudgetMessages(
             categoryID: "groceries",
@@ -148,7 +148,7 @@ extension LocalFirstActualStoreTests {
         #expect(viewModel.activeReview != nil)
 
         // The cell moves after the review opened; the commit re-checks.
-        let database = try await bundle.store.requireDatabase(for: "group-1")
+        let database = try bundle.store.requireDatabase(for: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
         let racing = try await database.assignCategoryBudgetMessages(
             categoryID: "groceries",

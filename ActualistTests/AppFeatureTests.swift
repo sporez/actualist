@@ -97,7 +97,7 @@ struct AppFeatureTests {
 
     @Test func clearingBudgetPendingNewTransactionsClearsEveryAccountInBudgetOnlyAndUpdatesBadge() {
         var badgeCounts: [Int] = []
-        let state = makeAppState { badgeCounts.append($0) }
+        let state = makeAppState(applicationBadgeUpdater: { badgeCounts.append($0) })
         state.settings.pendingNewTransactionIDsByAccount = [
             "budget|checking": ["txn-1"],
             "budget|credit": ["txn-2"],
@@ -114,7 +114,7 @@ struct AppFeatureTests {
 
     @Test func clearingLastAccountHighlightClearsApplicationBadge() {
         var badgeCounts: [Int] = []
-        let state = makeAppState { badgeCounts.append($0) }
+        let state = makeAppState(applicationBadgeUpdater: { badgeCounts.append($0) })
         state.settings.pendingNewTransactionIDsByAccount = [
             "budget|checking": ["txn-1", "txn-2"]
         ]

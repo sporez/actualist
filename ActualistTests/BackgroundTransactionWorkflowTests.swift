@@ -91,7 +91,7 @@ struct BackgroundTransactionWorkflowTests {
             },
             badgeUpdater: { badgeCounts.append($0) }
         )
-        var settings = AppSettings(backgroundTransactionRefreshEnabled: false)
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: false)
 
         await workflow.prepare(isEnabled: settings.backgroundTransactionRefreshEnabled, settings: settings)
 

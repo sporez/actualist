@@ -246,7 +246,8 @@ private final class SensitiveResponseURLProtocol: URLProtocol {
                     .cannotConnectToHost,
                     userInfo: [
                         NSURLErrorFailingURLErrorKey: url,
-                        NSURLErrorFailingURLStringErrorKey: url.absoluteString
+                        // Keep coverage for errors carrying the legacy string key.
+                        "NSErrorFailingURLStringKey": url.absoluteString
                     ]
                 )
             )
