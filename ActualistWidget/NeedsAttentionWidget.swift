@@ -32,7 +32,8 @@ struct NeedsAttentionWidgetView: View {
                     WidgetEmptyView(title: "All caught up", detail: "No overspent categories or uncategorized transactions.", symbol: "checkmark.circle")
                 } else {
                     counts(attention)
-                    if WidgetSizeSupport.size(family) == .large || WidgetSizeSupport.size(family) == .extraLarge {
+                    if !attention.overspentCategoryIDs.isEmpty,
+                       WidgetSizeSupport.size(family) == .large || WidgetSizeSupport.size(family) == .extraLarge {
                         Text("Overspent categories").font(.caption).foregroundStyle(palette.secondaryText)
                         WidgetBalanceListView(title: "Overspent", items: overspentItems(snapshot, attention: attention))
                     }
@@ -45,14 +46,18 @@ struct NeedsAttentionWidgetView: View {
 
     private func counts(_ attention: WidgetAttentionSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Link(destination: WidgetDeepLink.url(.quickAction(.budget))) {
-                Label("\(attention.overspentCategoryIDs.count) overspent", systemImage: "exclamationmark.circle.fill")
-                    .foregroundStyle(palette.danger)
-            }.buttonStyle(.plain)
-            Link(destination: WidgetDeepLink.url(.quickAction(.uncategorized))) {
-                Label("\(attention.uncategorizedCount) uncategorized", systemImage: "tray.fill")
-                    .foregroundStyle(palette.primaryText)
-            }.buttonStyle(.plain)
+            if !attention.overspentCategoryIDs.isEmpty {
+                Link(destination: WidgetDeepLink.url(.quickAction(.budget))) {
+                    Label("\(attention.overspentCategoryIDs.count) overspent", systemImage: "exclamationmark.circle.fill")
+                        .foregroundStyle(palette.danger)
+                }.buttonStyle(.plain)
+            }
+            if attention.uncategorizedCount > 0 {
+                Link(destination: WidgetDeepLink.url(.quickAction(.uncategorized))) {
+                    Label("\(attention.uncategorizedCount) uncategorized", systemImage: "tray.fill")
+                        .foregroundStyle(palette.primaryText)
+                }.buttonStyle(.plain)
+            }
         }.font(.subheadline.weight(.semibold)).widgetAccentable()
     }
 
