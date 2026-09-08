@@ -1,0 +1,303 @@
+{
+  "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+  "source": "packages/loot-core/src/server/budget/tracking.ts",
+  "sha256": "630feb46acc09301759216838389dd8eb6af53fba22e454d1ef9c6c14e323ad9",
+  "cases": [
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": -700,
+      "previousCarryover": false,
+      "balance": 200
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": -700,
+      "previousCarryover": false,
+      "balance": 500
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": -700,
+      "previousCarryover": false,
+      "balance": 900
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": -700,
+      "previousCarryover": true,
+      "balance": -500
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": -700,
+      "previousCarryover": true,
+      "balance": -200
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": -700,
+      "previousCarryover": true,
+      "balance": 200
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 0,
+      "previousCarryover": false,
+      "balance": 200
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 0,
+      "previousCarryover": false,
+      "balance": 500
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 0,
+      "previousCarryover": false,
+      "balance": 900
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 0,
+      "previousCarryover": true,
+      "balance": 200
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 0,
+      "previousCarryover": true,
+      "balance": 500
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 0,
+      "previousCarryover": true,
+      "balance": 900
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 900,
+      "previousCarryover": false,
+      "balance": 200
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 900,
+      "previousCarryover": false,
+      "balance": 500
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 900,
+      "previousCarryover": false,
+      "balance": 900
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 900,
+      "previousCarryover": true,
+      "balance": 1100
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 900,
+      "previousCarryover": true,
+      "balance": 1400
+    },
+    {
+      "isIncome": false,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 900,
+      "previousCarryover": true,
+      "balance": 1800
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": -700,
+      "previousCarryover": false,
+      "balance": 800
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": -700,
+      "previousCarryover": false,
+      "balance": 500
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": -700,
+      "previousCarryover": false,
+      "balance": 100
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": -700,
+      "previousCarryover": true,
+      "balance": 100
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": -700,
+      "previousCarryover": true,
+      "balance": -200
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": -700,
+      "previousCarryover": true,
+      "balance": -600
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 0,
+      "previousCarryover": false,
+      "balance": 800
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 0,
+      "previousCarryover": false,
+      "balance": 500
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 0,
+      "previousCarryover": false,
+      "balance": 100
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 0,
+      "previousCarryover": true,
+      "balance": 800
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 0,
+      "previousCarryover": true,
+      "balance": 500
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 0,
+      "previousCarryover": true,
+      "balance": 100
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 900,
+      "previousCarryover": false,
+      "balance": 800
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 900,
+      "previousCarryover": false,
+      "balance": 500
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 900,
+      "previousCarryover": false,
+      "balance": 100
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": -300,
+      "previousBalance": 900,
+      "previousCarryover": true,
+      "balance": 1700
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 0,
+      "previousBalance": 900,
+      "previousCarryover": true,
+      "balance": 1400
+    },
+    {
+      "isIncome": true,
+      "budgeted": 500,
+      "activity": 400,
+      "previousBalance": 900,
+      "previousCarryover": true,
+      "balance": 1000
+    }
+  ],
+  "groupDependencies": [
+    "budget-visible"
+  ],
+  "expenseDependencies": [
+    "group-budget-expense"
+  ],
+  "projectedSavings": 1000,
+  "actualSavings": 900
+}
