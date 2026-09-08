@@ -10,8 +10,11 @@ signs, and previous carryover. Hidden dependencies and both savings totals are
 also captured. It does not simulate the entire Actual server.
 
 Run `scripts/test.sh unit TrackingBudgetContractTests TrackingBudgetDatabaseContractTests`.
-The Phase 0 checkpoint records existing read defects as known issues; Phase 1
-must remove those markers as it fixes the production path.
+The Phase 0 checkpoint (`535f034`) records existing read defects as known issues.
+Phase 1 removes those markers and adds TrackingBudgetReadTests for aggregates,
+missing-month recurrence, past edits, split/mapped/refund activity, currency,
+month discovery, summary selection, invalid metadata and coherent snapshots.
+Run `scripts/test.sh unit` for shared-calculation caller coverage.
 
 Conversion contract: the effective `preferences.budgetType` value alone cannot
 identify an editing epoch. Persisted CRDT metadata retains the newer preference

@@ -333,8 +333,8 @@ extension BudgetDatabase {
             lookBack: 1
         )
         let previousMonth = monthID(previousMonthValue)
-        let previousValues = try envelopeCategoryValues(through: previousMonth, db: db)[categoryID]
-            ?? EnvelopeCategoryValue()
+        let previousValues = try categoryValues(through: previousMonth, db: db)[categoryID]
+            ?? BudgetCategoryValue()
         // Actual: leftover < 0 && !carryover || is_income || tracking && !carryover
         if isIncome {
             return 0

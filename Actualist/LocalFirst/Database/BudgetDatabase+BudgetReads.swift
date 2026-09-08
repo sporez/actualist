@@ -4,43 +4,48 @@ import GRDB
 extension BudgetDatabase {
 
     func fetchBudgetMonth(month: String) throws -> BudgetMonth {
-        try queue.read { db in
-            let categoryValues = try envelopeCategoryValues(through: month, db: db)
-            let userNoteIDs = try allUserNoteIDs(db: db)
-            let groups = try fetchCategoryGroups(
-                categoryValues: categoryValues,
-                userNoteIDs: userNoteIDs,
-                db: db
-            )
-            let expenseGroups = groups.filter { !$0.isIncome }
-            let incomeGroups = groups.filter { $0.isIncome }
-            let totalBudgeted = expenseGroups.reduce(0) { $0 + $1.budgeted }
-            let totalSpent = expenseGroups.reduce(0) { $0 + $1.spent }
-            let totalBalance = expenseGroups.reduce(0) { $0 + $1.balance }
-            let totalIncome = incomeGroups.reduce(0) { $0 + $1.spent }
-            // Actual excludes uncategorized rows from To Budget until they are categorized.
-            // A hold for next month (explicit or inferred) also comes out of this month.
-            let availability = try envelopeAvailability(
-                month: month,
-                totalBalance: totalBalance,
-                db: db
-            )
+        try queue.read { db in try fetchBudgetMonth(month: month, db: db) }
+    }
 
-            return BudgetMonth(
-                month: month,
-                incomeAvailable: availability.toBudget,
-                lastMonthOverspent: 0,
-                forNextMonth: availability.holdForNextMonth,
-                totalBudgeted: totalBudgeted,
-                toBudget: availability.toBudget,
-                fromLastMonth: 0,
-                totalIncome: totalIncome,
-                totalSpent: totalSpent,
-                totalBalance: totalBalance,
-                categoryGroups: groups,
-                hasUserNote: userNoteIDs.contains("budget-\(month)")
-            )
+    func fetchBudgetSnapshot(month: String, now: Date = Date()) throws -> BudgetFinancialSnapshot {
+        try queue.read { db in
+            let value = try fetchBudgetMonth(month: month, db: db)
+            let discovered = try fetchAvailableMonths(db: db)
+            let months = value.trackingSummary == nil ? discovered
+                : Array(Set(discovered + [month, YearMonth(date: now).rawValue])).sorted()
+            return BudgetFinancialSnapshot(month: value, currency: try budgetCurrency(db: db),
+                availableMonths: months)
         }
+    }
+
+    private func fetchBudgetMonth(month: String, db: Database) throws -> BudgetMonth {
+        let table = try budgetTable(db: db)
+        let categoryValues = try categoryValues(through: month, db: db)
+        let userNoteIDs = try allUserNoteIDs(db: db)
+        let groups = try fetchCategoryGroups(
+            categoryValues: categoryValues,
+            userNoteIDs: userNoteIDs,
+            db: db
+        )
+        let totals = try BudgetFinancialCalculation.totals(groups: groups, table: table)
+        let availability = table == .tracking ? (toBudget: 0, holdForNextMonth: 0)
+            : try envelopeAvailability(month: month, totalBalance: totals.balance, db: db)
+
+        return BudgetMonth(
+            month: month,
+            incomeAvailable: availability.toBudget,
+            lastMonthOverspent: 0,
+            forNextMonth: availability.holdForNextMonth,
+            totalBudgeted: totals.budgeted,
+            toBudget: availability.toBudget,
+            fromLastMonth: 0,
+            totalIncome: totals.income,
+            totalSpent: totals.spent,
+            totalBalance: totals.balance,
+            categoryGroups: groups,
+            hasUserNote: userNoteIDs.contains("budget-\(month)"),
+            trackingSummary: totals.tracking
+        )
     }
 
     /// Envelope spreadsheet `to-budget`: on-budget funds minus leftover minus this month's hold.
@@ -57,7 +62,7 @@ extension BudgetDatabase {
     }
 
     func envelopeToBudget(month: String, db: Database) throws -> Int {
-        let categoryValues = try envelopeCategoryValues(through: month, db: db)
+        let categoryValues = try categoryValues(through: month, db: db)
         let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
         let totalBalance = groups.filter { !$0.isIncome }.reduce(0) { $0 + $1.balance }
         return try envelopeAvailability(
@@ -71,21 +76,10 @@ extension BudgetDatabase {
     /// Hidden expense groups and hidden categories are omitted, matching Actual's
     /// tracking sheet (`createSummary` / `group-budget`).
     func trackingTotalSaved(month: String, db: Database) throws -> Int {
-        let categoryValues = try envelopeCategoryValues(through: month, db: db)
+        let categoryValues = try categoryValues(through: month, db: db)
         let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
-        var incomeBudgeted = 0
-        if let incomeGroup = groups.first(where: { $0.isIncome }) {
-            for category in incomeGroup.categories where !(category.hidden ?? false) {
-                incomeBudgeted += category.budgeted
-            }
-        }
-        var expenseBudgeted = 0
-        for group in groups where !group.isIncome && !(group.hidden ?? false) {
-            for category in group.categories where !(category.hidden ?? false) {
-                expenseBudgeted += category.budgeted
-            }
-        }
-        return incomeBudgeted - expenseBudgeted
+        return try BudgetFinancialCalculation.totals(groups: groups, table: .tracking)
+            .tracking?.plannedSavings ?? 0
     }
 
     func accountBalances() throws -> [String: Int] {
@@ -163,7 +157,7 @@ extension BudgetDatabase {
     }
 
     func fetchCategoryGroups(
-        categoryValues: [String: EnvelopeCategoryValue],
+        categoryValues: [String: BudgetCategoryValue],
         userNoteIDs: Set<String> = [],
         db: Database
     ) throws -> [BudgetMonthCategoryGroup] {
@@ -171,6 +165,7 @@ extension BudgetDatabase {
             return []
         }
 
+        let table = try budgetTable(db: db)
         let groupColumns = try columnSet(for: "category_groups", db: db)
         let groupHidden = column("hidden", fallback: "0", columns: groupColumns)
         let groupIncome = column("is_income", fallback: "0", columns: groupColumns)
@@ -194,14 +189,15 @@ extension BudgetDatabase {
         for groupRow in groupRows {
             let groupID: String = groupRow["id"] ?? ""
             let categories = categoriesByGroup[groupID] ?? []
+            let included = BudgetFinancialCalculation.includedCategories(categories, table: table)
             result.append(BudgetMonthCategoryGroup(
                 id: groupID,
                 name: groupRow["name"] ?? "",
                 isIncome: flexibleBool(groupRow["is_income"]),
                 hidden: flexibleBool(groupRow["hidden"]),
-                budgeted: categories.reduce(0) { $0 + $1.budgeted },
-                spent: categories.reduce(0) { $0 + $1.spent },
-                balance: categories.reduce(0) { $0 + $1.balance },
+                budgeted: try BudgetFinancialCalculation.sum(included.map(\.budgeted), table: table),
+                spent: try BudgetFinancialCalculation.sum(included.map(\.spent), table: table),
+                balance: try BudgetFinancialCalculation.sum(included.map(\.balance), table: table),
                 categories: categories,
                 hasUserNote: userNoteIDs.contains(groupID)
             ))
@@ -210,7 +206,7 @@ extension BudgetDatabase {
     }
 
     private func fetchBudgetCategoriesByGroup(
-        categoryValues: [String: EnvelopeCategoryValue],
+        categoryValues: [String: BudgetCategoryValue],
         userNoteIDs: Set<String> = [],
         db: Database
     ) throws -> [String: [BudgetMonthCategory]] {
@@ -239,7 +235,7 @@ extension BudgetDatabase {
         for row in rows {
             guard let groupID: String = row["group_id"] else { continue }
             let id: String = row["id"] ?? ""
-            let values = categoryValues[id] ?? EnvelopeCategoryValue()
+            let values = categoryValues[id] ?? BudgetCategoryValue()
             result[groupID, default: []].append(BudgetMonthCategory(
                 id: id,
                 name: row["name"] ?? "",
@@ -268,55 +264,46 @@ extension BudgetDatabase {
         }
     }
 
-    func envelopeCategoryValues(through month: String, db: Database) throws -> [String: EnvelopeCategoryValue] {
+    func categoryValues(through month: String, db: Database) throws -> [String: BudgetCategoryValue] {
+        let table = try budgetTable(db: db)
+        let incomeByCategory = table == .tracking ? try templateCategoryIsIncomeByID(db: db) : [:]
         let budgetedByMonth = try categoryBudgetsByMonth(db: db)
         let spentByMonth = try categorySpendingByMonth(db: db)
+        guard canonicalMonthID(month) == month else {
+            throw LocalFirstError.invalidLocalWrite("invalid budget month")
+        }
         let targetMonthInt = monthInt(month)
         let earliestMonthInt = Array(Set(budgetedByMonth.keys).union(spentByMonth.keys))
-            .compactMap(monthInt)
+            .compactMap { canonicalMonthID($0).map(monthInt) }
             .filter { $0 <= targetMonthInt }
             .min() ?? targetMonthInt
 
-        var previousBalanceByCategory: [String: Int] = [:]
-        var previousCarryoverByCategory: [String: Bool] = [:]
-        var targetValues: [String: EnvelopeCategoryValue] = [:]
+        var valuesByCategory: [String: BudgetCategoryValue] = [:]
 
         var monthCursor = earliestMonthInt
         while monthCursor <= targetMonthInt {
             let budgetMonth = monthID(monthCursor)
             let budgeted = budgetedByMonth[budgetMonth] ?? [:]
             let spent = spentByMonth[budgetMonth] ?? [:]
-            let categoryIDs = Set(budgeted.keys).union(spent.keys).union(previousBalanceByCategory.keys)
-            var nextBalanceByCategory: [String: Int] = [:]
-            var nextCarryoverByCategory: [String: Bool] = [:]
+            let categoryIDs = Set(budgeted.keys).union(spent.keys).union(valuesByCategory.keys)
+            var nextValues: [String: BudgetCategoryValue] = [:]
 
             for categoryID in categoryIDs {
                 let budget = budgeted[categoryID] ?? (budgeted: 0, carryover: false)
                 let spentAmount = spent[categoryID] ?? 0
-                let previousBalance = previousBalanceByCategory[categoryID] ?? 0
-                let previousContribution = previousCarryoverByCategory[categoryID] == true
-                    ? previousBalance
-                    : max(0, previousBalance)
-                let balance = budget.budgeted + spentAmount + previousContribution
-                nextBalanceByCategory[categoryID] = balance
-                nextCarryoverByCategory[categoryID] = budget.carryover
-
-                if budgetMonth == month {
-                    targetValues[categoryID] = EnvelopeCategoryValue(
-                        budgeted: budget.budgeted,
-                        spent: spentAmount,
-                        balance: balance,
-                        carryover: budget.carryover
-                    )
-                }
+                let value = try BudgetFinancialCalculation.category(
+                    table: table, isIncome: incomeByCategory[categoryID] ?? false,
+                    budgeted: budget.budgeted, activity: spentAmount, carryover: budget.carryover,
+                    previous: valuesByCategory[categoryID] ?? BudgetCategoryValue()
+                )
+                nextValues[categoryID] = value
             }
 
-            previousBalanceByCategory = nextBalanceByCategory
-            previousCarryoverByCategory = nextCarryoverByCategory
+            valuesByCategory = nextValues
             monthCursor = nextMonth(after: monthCursor)
         }
 
-        return targetValues
+        return valuesByCategory
     }
 
     func categoryBudgetSource(db: Database) throws -> (table: BudgetTable, columns: Set<String>)? {

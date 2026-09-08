@@ -79,9 +79,7 @@ struct TrackingBudgetDatabaseContractTests {
             let database = try BudgetDatabase(databaseURL: url)
             let month = try await database.fetchBudgetMonth(month: "2026-08")
             let category = try #require(month.categoryGroups.first?.categories.first)
-            withKnownIssue("Phase 1: tracking recurrence differs from envelope", isIntermittent: true) {
-                #expect(category.balance == testCase.balance)
-            }
+            #expect(category.balance == testCase.balance)
         }
     }
 
@@ -90,13 +88,9 @@ struct TrackingBudgetDatabaseContractTests {
         let database = try BudgetDatabase(databaseURL: url)
         let august = try await database.fetchBudgetMonth(month: "2026-08")
         let category = try #require(august.categoryGroups.first?.categories.first)
-        withKnownIssue("Phase 1: tracking resets positive balance without previous carryover") {
-            #expect(category.balance == 0)
-        }
+        #expect(category.balance == 0)
         let months = try await database.fetchAvailableMonths()
-        withKnownIssue("Phase 1: active tracking table supplies future months") {
-            #expect(months.contains("2029-12"))
-        }
+        #expect(months.contains("2029-12"))
     }
 
     @Test func trackingConversionRoundTripRetainsMetadataRevisionAcrossReopen() async throws {

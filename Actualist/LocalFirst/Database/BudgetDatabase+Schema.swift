@@ -62,7 +62,7 @@ extension BudgetDatabase {
         }
         let columns = try columnSet(for: "preferences", db: db)
         guard columns.contains("id"), columns.contains("value") else {
-            return false
+            throw LocalFirstError.invalidDownloadedBudget
         }
         let budgetType = try String.fetchOne(
             db,

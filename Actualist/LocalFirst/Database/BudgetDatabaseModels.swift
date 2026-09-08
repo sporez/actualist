@@ -7,7 +7,7 @@ enum BudgetTable: String {
     case tracking = "reflect_budgets"
 }
 
-struct EnvelopeCategoryValue {
+struct BudgetCategoryValue {
     var budgeted: Int = 0
     var spent: Int = 0
     var balance: Int = 0
@@ -34,4 +34,12 @@ enum ActualSyncSQLiteValue {
     case int(Int64)
     case double(Double)
     case string(String)
+}
+
+/// Financial data, mode (through the typed summary), currency and discovered
+/// months come from the same SQLite read transaction.
+struct BudgetFinancialSnapshot: Sendable {
+    let month: BudgetMonth
+    let currency: BudgetCurrency
+    let availableMonths: [String]
 }

@@ -214,18 +214,23 @@ extension BudgetDatabase {
     }
 
     func fetchAvailableMonths() throws -> [String] {
-        try queue.read { db in
-            var months = Set<String>()
-            if try tableExists("zero_budgets", db: db), try columnSet(for: "zero_budgets", db: db).contains("month") {
-                let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT month FROM zero_budgets WHERE month IS NOT NULL")
-                months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["month"])) })
-            }
-            if try tableExists("transactions", db: db), try columnSet(for: "transactions", db: db).contains("date") {
-                let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT date FROM transactions WHERE date IS NOT NULL")
-                months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["date"])) })
-            }
-            return months.sorted()
+        try queue.read { db in try fetchAvailableMonths(db: db) }
+    }
+
+    func fetchAvailableMonths(db: Database) throws -> [String] {
+        var months = Set<String>()
+        let table = try budgetTable(db: db).rawValue
+        if try tableExists(table, db: db), try columnSet(for: table, db: db).contains("month") {
+            let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT month FROM \(quotedIdentifier(table)) WHERE month IS NOT NULL")
+            months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["month"])) })
         }
+        if try tableExists("transactions", db: db), try columnSet(for: "transactions", db: db).contains("date") {
+            let columns = try columnSet(for: "transactions", db: db)
+            let live = table == BudgetTable.tracking.rawValue ? predicateForLiveRows(columns: columns) : "1 = 1"
+            let rows = try Row.fetchAll(db, sql: "SELECT DISTINCT date FROM transactions WHERE date IS NOT NULL AND \(live)")
+            months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["date"])) })
+        }
+        return months.sorted()
     }
 
     func fetchAccountDisplays() throws -> [AccountDisplay] {

@@ -118,6 +118,7 @@ struct BudgetMonth: Codable, Hashable, Sendable {
     let totalSpent: Int
     let totalBalance: Int
     let categoryGroups: [BudgetMonthCategoryGroup]
+    let trackingSummary: TrackingBudgetSummary?
     let hasUserNote: Bool
 
     init(
@@ -132,7 +133,8 @@ struct BudgetMonth: Codable, Hashable, Sendable {
         totalSpent: Int,
         totalBalance: Int,
         categoryGroups: [BudgetMonthCategoryGroup],
-        hasUserNote: Bool = false
+        hasUserNote: Bool = false,
+        trackingSummary: TrackingBudgetSummary? = nil
     ) {
         self.month = month
         self.incomeAvailable = incomeAvailable
@@ -146,12 +148,13 @@ struct BudgetMonth: Codable, Hashable, Sendable {
         self.totalBalance = totalBalance
         self.categoryGroups = categoryGroups
         self.hasUserNote = hasUserNote
+        self.trackingSummary = trackingSummary
     }
 
     enum CodingKeys: String, CodingKey {
         case month, incomeAvailable, lastMonthOverspent, forNextMonth
         case totalBudgeted, toBudget, fromLastMonth, totalIncome, totalSpent
-        case totalBalance, categoryGroups, hasUserNote
+        case totalBalance, categoryGroups, hasUserNote, trackingSummary
     }
 
     init(from decoder: Decoder) throws {
@@ -167,6 +170,7 @@ struct BudgetMonth: Codable, Hashable, Sendable {
         totalSpent = try container.decode(Int.self, forKey: .totalSpent)
         totalBalance = try container.decode(Int.self, forKey: .totalBalance)
         categoryGroups = try container.decode([BudgetMonthCategoryGroup].self, forKey: .categoryGroups)
+        trackingSummary = try container.decodeIfPresent(TrackingBudgetSummary.self, forKey: .trackingSummary)
         hasUserNote = try container.decodeIfPresent(Bool.self, forKey: .hasUserNote) ?? false
     }
 }

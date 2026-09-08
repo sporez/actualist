@@ -379,7 +379,7 @@ extension BudgetDatabase {
             let month = monthID(cursor)
             budgetedByMonth[cursor] = try categoryBudgets(month: month, db: db)[categoryID]?.budgeted ?? 0
             spentByMonthValue[cursor] = spentByMonth[month]?[categoryID] ?? 0
-            leftoverByMonth[cursor] = try envelopeCategoryValues(
+            leftoverByMonth[cursor] = try categoryValues(
                 through: month,
                 db: db
             )[categoryID]?.balance ?? 0

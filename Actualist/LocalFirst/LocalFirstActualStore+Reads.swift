@@ -22,7 +22,8 @@ extension LocalFirstActualStore {
         preferredMonth: String
     ) async throws -> LoadedBudgetMonth {
         let months = try await availableMonths(budgetID: budgetID)
-        let selected = months.contains(preferredMonth) ? preferredMonth : (months.last ?? preferredMonth)
+        let tracking = try await requireDatabase(for: budgetID).isTrackingBudget()
+        let selected = tracking || months.contains(preferredMonth) ? preferredMonth : (months.last ?? preferredMonth)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: selected)
     }
 
@@ -33,9 +34,8 @@ extension LocalFirstActualStore {
         month: String
     ) async throws -> (month: BudgetMonth, currency: BudgetCurrency) {
         let database = try requireDatabase(for: budgetID)
-        let budgetMonth = try await database.fetchBudgetMonth(month: month)
-        let currency = (try? await database.fetchBudgetCurrency()) ?? budgetCurrency(budgetID: budgetID)
-        return (budgetMonth, currency)
+        let snapshot = try await database.fetchBudgetSnapshot(month: month)
+        return (snapshot.month, snapshot.currency)
     }
 
     func budgetMonth(
@@ -43,13 +43,13 @@ extension LocalFirstActualStore {
         selectedMonth: String
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
-        let months = try await availableMonths(budgetID: budgetID)
         let monthID = selectedMonth
-        let month = try await database.fetchBudgetMonth(month: monthID)
-        await reloadBudgetCurrency(database: database, budgetID: budgetID)
-        let isTracking = (try? await database.isTrackingBudget()) ?? false
+        let snapshot = try await database.fetchBudgetSnapshot(month: monthID)
+        let month = snapshot.month
+        let isTracking = month.trackingSummary != nil
+        currencyByBudget[budgetID] = snapshot.currency
         let loaded = LoadedBudgetMonth(
-            availableMonths: months,
+            availableMonths: snapshot.availableMonths,
             selectedMonth: monthID,
             month: month,
             alerts: try await nativeBudgetAlerts(
@@ -59,7 +59,7 @@ extension LocalFirstActualStore {
                 monthID: monthID,
                 isTrackingBudget: isTracking
             ),
-            currency: budgetCurrency(budgetID: budgetID),
+            currency: snapshot.currency,
             isTrackingBudget: isTracking
         )
         loadedBudgetMonthsByBudget[budgetID] = loaded
