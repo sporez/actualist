@@ -4,12 +4,11 @@ import Testing
 @testable import Actualist
 
 struct BudgetLayoutMetricsTests {
-    @Test func trackingReservesThreeReadableMoneyColumns() {
-        let envelope = BudgetLayoutMetrics.resolve(.init(rootWidth: 1400, budgetDetailWidth: 1100))
-        let tracking = BudgetLayoutMetrics.resolve(.init(rootWidth: 1400, budgetDetailWidth: 1100, isTrackingBudget: true))
-        #expect(tracking.visibleMonthCount < envelope.visibleMonthCount)
-        #expect(tracking.monthColumnWidth >= BudgetLayoutMetrics.minimumMoneyColumnWidth * 3)
-        #expect(tracking.tableWidth <= 1068)
+    @Test func sharedLayoutFitsThreeTwoValueMonths() {
+        let metrics = BudgetLayoutMetrics.resolve(.init(rootWidth: 1400, budgetDetailWidth: 1100))
+        #expect(metrics.visibleMonthCount == 3)
+        #expect(metrics.monthColumnWidth >= BudgetLayoutMetrics.minimumMoneyColumnWidth * 2)
+        #expect(metrics.tableWidth <= 1068)
     }
 
     @Test func autoUsesMeasuredBudgetDetailWidthWithoutSubtractingSidebarAgain() {

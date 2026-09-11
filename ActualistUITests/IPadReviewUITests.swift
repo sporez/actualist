@@ -97,6 +97,7 @@ final class IPadReviewUITests: XCTestCase {
         let editor = app.navigationBars["Add Transaction"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         app.typeText("1234")
+        dismissNumberPadPopover(in: app, editor: editor)
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Category'")).firstMatch.tap()
         let picker = app.navigationBars["Category"]
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
@@ -162,6 +163,7 @@ final class IPadReviewUITests: XCTestCase {
         let editor = app.navigationBars["Add Transaction"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         app.typeText("1234")
+        dismissNumberPadPopover(in: app, editor: editor)
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Category'")).firstMatch.tap()
         let picker = app.navigationBars["Category"]
         XCTAssertTrue(picker.waitForExistence(timeout: 5))

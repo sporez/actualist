@@ -8,7 +8,6 @@ struct BudgetGridView: View {
     let actions: BudgetWorkspaceActions
     let presentation: BudgetGridPresentation
     let metrics: BudgetLayoutMetrics
-    @Binding var scrollPosition: String?
 
     var body: some View {
         ScrollView(.vertical) {
@@ -24,7 +23,6 @@ struct BudgetGridView: View {
                     }
                 }
             }
-            .scrollTargetLayout()
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, BudgetLayoutMetrics.defaultHorizontalMargins / 2)
             .padding(.bottom, 24)
@@ -38,7 +36,6 @@ struct BudgetGridView: View {
             .padding(.horizontal, BudgetLayoutMetrics.defaultHorizontalMargins / 2)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollPosition(id: $scrollPosition, anchor: .top)
         .background(ActualistTheme.background)
         .accessibilityIdentifier("budget-grid")
     }
@@ -78,16 +75,10 @@ struct BudgetGridView: View {
 
             ForEach(presentation.months) { month in
                 let values = presentation.group(group.id, month: month)
+                let semantics = BudgetModePresentation(isTracking: month.semantics.isTracking, isIncome: group.source.isIncome)
                 HStack(spacing: 8) {
-                    total(values.map { month.currency.formatted($0.budgeted) }, label: month.semantics.budgetedLabel, group: group, month: month)
-                    if month.semantics.showsActivity {
-                        total(values.map { month.currency.formatted(BudgetModePresentation(isIncome: group.source.isIncome).activityAmount($0.spent)) }, label: group.source.isIncome ? "Received" : "Spent", group: group, month: month)
-                    }
-                    if !month.semantics.isTracking || !group.source.isIncome {
-                        total(values.map { month.currency.formatted($0.balance) }, label: month.semantics.balanceLabel, group: group, month: month)
-                    } else {
-                        Color.clear.frame(maxWidth: .infinity).accessibilityHidden(true)
-                    }
+                    total(values.map { month.currency.formatted($0.budgeted) }, label: semantics.budgetedLabel, group: group, month: month)
+                    total(values.map { semantics.secondValue(balance: $0.balance, activity: $0.spent, currency: month.currency).text }, label: semantics.secondValueLabel, group: group, month: month)
                 }
                 .padding(.horizontal, sizing.cellPadding)
                 .frame(width: metrics.monthColumnWidth)
@@ -98,12 +89,18 @@ struct BudgetGridView: View {
     }
 
     private func total(_ value: String?, label: String, group: BudgetGridPresentation.Group, month: BudgetGridPresentation.Month) -> some View {
-        Text(value ?? "—")
+        VStack(alignment: .trailing, spacing: 3) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ActualistTheme.secondaryText)
+            Text(value ?? "—")
+        }
             .font(ActualistTypography.rowValue(for: density))
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.85)
             .frame(maxWidth: .infinity, alignment: .trailing)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(group.title), \(month.title), \(label), \(value ?? "Unavailable")")
     }
 
@@ -210,43 +207,17 @@ private struct BudgetGridMonthCells: View {
                     .appSwitcherPrivacyProtected(using: appState)
             }
 
-            if semantics.showsActivity {
-                Button {
-                    viewport.selectCategory(categoryID: category.id, month: month.id)
-                } label: {
-                    Text(month.currency.formatted(semantics.activityAmount(value.spent)))
-                        .frame(maxWidth: .infinity, minHeight: sizing.rowHeight, alignment: .trailing)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(category.title), \(month.title), \(semantics.activityLabel), \(month.currency.formatted(semantics.activityAmount(value.spent)))")
-                .accessibilityIdentifier("activity-\(month.id)-\(category.id)")
+            Button {
+                viewport.selectCategory(categoryID: category.id, month: month.id)
+            } label: {
+                BudgetAmountPill(value: secondValue, hidesCarryoverArrow: appState.settings.hideCarryoverArrows)
+                    .frame(maxWidth: .infinity, minHeight: sizing.rowHeight, alignment: .trailing)
+                    .contentShape(Rectangle())
             }
-            if semantics.showsBalance {
-                Button {
-                    viewport.selectCategory(categoryID: category.id, month: month.id)
-                } label: {
-                    Text(month.currency.formatted(value.balance))
-                        .foregroundStyle(availableForeground)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 5)
-                        .background(availableBackground, in: Capsule())
-                        .overlay(alignment: .topTrailing) {
-                            if value.carryover && !appState.settings.hideCarryoverArrows {
-                                BudgetCarryoverBadge(fill: availableBackground, foreground: availableForeground)
-                                    .offset(x: 3, y: -3)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, minHeight: sizing.rowHeight, alignment: .trailing)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .hoverEffect(.highlight)
-                .accessibilityLabel("\(category.title), \(month.title), \(semantics.balanceLabel), \(month.currency.formatted(value.balance))")
-                .accessibilityIdentifier("available-\(month.id)-\(category.id)")
-            } else {
-                Color.clear.frame(maxWidth: .infinity).accessibilityHidden(true)
-            }
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            .accessibilityLabel("\(category.title), \(month.title), \(secondValue.accessibilityText)")
+            .accessibilityIdentifier("available-\(month.id)-\(category.id)")
         }
         .font(ActualistTypography.rowValue(for: density))
         .monospacedDigit()
@@ -257,11 +228,8 @@ private struct BudgetGridMonthCells: View {
         .background(isEditing ? ActualistTheme.control : Color.clear)
     }
 
-    private var availableBackground: Color {
-        value.balance < 0 ? ActualistTheme.danger : value.balance == 0 ? ActualistTheme.neutral : ActualistTheme.positive
-    }
-
-    private var availableForeground: Color {
-        value.balance < 0 ? ActualistTheme.dangerForeground : value.balance == 0 ? ActualistTheme.neutralForeground : ActualistTheme.positiveForeground
+    private var secondValue: BudgetSecondValuePresentation {
+        semantics.secondValue(balance: value.balance, activity: value.spent,
+            carryover: value.carryover, currency: month.currency)
     }
 }

@@ -20,7 +20,7 @@ final class TrackingBudgetUITests: XCTestCase {
         XCTAssertTrue(income.waitForExistence(timeout: 5))
         capture("tracking-income-saved", app)
         if wide {
-            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity-' AND identifier ENDSWITH '-paycheck'")).firstMatch.tap()
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'available-' AND identifier ENDSWITH '-paycheck'")).firstMatch.tap()
         } else {
             income.tap()
             app.buttons["Details"].tap()
@@ -83,7 +83,7 @@ final class TrackingBudgetUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Saved'")).firstMatch.waitForExistence(timeout: 5))
         capture("tracking-past-month-dark", app)
         let wide = app.frame.width >= 792
-        let expense = wide ? app.buttons["activity-2026-08-groceries"] : app.buttons["budget-category-groceries"]
+        let expense = wide ? app.buttons["available-2026-08-groceries"] : app.buttons["budget-category-groceries"]
         if !expense.isHittable { app.swipeUp() }
         XCTAssertTrue(expense.waitForExistence(timeout: 5))
         expense.tap()
@@ -184,6 +184,66 @@ final class TrackingBudgetUITests: XCTestCase {
     }
 
     @MainActor
+    func testWideSharedColumnsAndPortrait() throws {
+        let app = launch()
+        guard app.frame.width >= 792 else { throw XCTSkip("Requires the pinned wide iPad") }
+        let grid = app.scrollViews["budget-grid"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 15))
+        let assigned = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'assigned-'"))
+        let second = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'available-'"))
+        XCTAssertEqual(assigned.count, second.count)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'activity-'" )).firstMatch.exists)
+        let income = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'available-' AND identifier ENDSWITH '-paycheck'")).firstMatch
+        XCTAssertTrue(income.label.contains("Received"))
+        XCTAssertFalse(income.label.contains("rollover"))
+        capture("tracking-shared-grid-landscape", app)
+
+        let first = assigned.firstMatch
+        let before = first.label
+        first.tap()
+        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        app.buttons["7"].tap()
+        XCTAssertTrue(app.buttons["Save assignment"].isEnabled)
+        app.buttons["Dismiss keypad"].tap()
+        XCTAssertEqual(first.label, before)
+
+        app.buttons["Budget Actions"].tap()
+        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Months Shown'")).firstMatch
+        picker.tap()
+        app.buttons["1"].tap()
+        XCTAssertTrue(grid.waitForExistence(timeout: 5))
+        XCTAssertEqual(Set(assigned.allElementsBoundByIndex.map { String($0.identifier.dropFirst(9).prefix(7)) }).count, 1)
+        capture("tracking-shared-grid-one-month", app)
+        app.buttons["Budget Actions"].tap()
+        picker.tap()
+        app.buttons["Auto"].tap()
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.buttons["Add Transaction"].waitForExistence(timeout: 5))
+        capture("tracking-shared-grid-portrait", app)
+        XCUIDevice.shared.orientation = .landscapeLeft
+    }
+
+    @MainActor
+    func testWideHardwareKeyboardInputAndEscape() throws {
+        let app = launch()
+        guard app.frame.width >= 792 else { throw XCTSkip("Requires the pinned wide iPad") }
+        let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'assigned-' ")).firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        let before = first.label
+        first.tap()
+        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        app.typeKey("7", modifierFlags: [])
+        XCTAssertTrue(app.staticTexts.matching(identifier: "assignment-popover").matching(NSPredicate(format: "label == '7.00'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save assignment"].isEnabled)
+        app.typeKey("8", modifierFlags: [])
+        XCTAssertTrue(app.staticTexts.matching(identifier: "assignment-popover").matching(NSPredicate(format: "label == '78.00'")).firstMatch.waitForExistence(timeout: 5))
+        app.typeKey(XCUIKeyboardKey.escape, modifierFlags: [])
+        XCTAssertTrue(app.buttons["Save assignment"].waitForNonExistence(timeout: 5))
+        XCTAssertEqual(first.label, before)
+
+    }
+
+    @MainActor
     private func launch(dynamicType: String? = nil, screen: String = "budget") -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
@@ -198,7 +258,7 @@ final class TrackingBudgetUITests: XCTestCase {
 
     @MainActor
     private func capture(_ name: String, _ app: XCUIApplication) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

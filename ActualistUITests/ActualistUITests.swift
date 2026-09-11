@@ -215,6 +215,7 @@ final class ActualistUITests: XCTestCase {
         let editor = app.navigationBars["Add Transaction"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
 
+        dismissNumberPadPopover(in: app, editor: editor)
         let categoryRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Category'")).firstMatch
         XCTAssertTrue(categoryRow.waitForExistence(timeout: 5))
         categoryRow.tap()
@@ -261,6 +262,7 @@ final class ActualistUITests: XCTestCase {
         let amount = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '12.34'")).firstMatch
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         attachScreenshot(named: "wide-sidebar-savings-editor", app: app)
+        dismissNumberPadPopover(in: app, editor: editor)
         let close = editor.buttons.firstMatch
         XCTAssertTrue(close.isHittable)
         close.tap()
@@ -289,6 +291,7 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         attachScreenshot(named: "wide-accounts-overview-transaction-editor", app: app)
 
+        dismissNumberPadPopover(in: app, editor: editor)
         let close = editor.buttons.firstMatch
         XCTAssertTrue(close.isHittable)
         close.tap()
@@ -383,6 +386,7 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(vacation.waitForExistence(timeout: 5))
         XCTAssertTrue(vacation.isHittable)
         let month = vacation.label.components(separatedBy: ", ")[1]
+        let beforeX = vacation.frame.minX
         let beforeY = vacation.frame.minY
         attachScreenshot(named: "inspector-scroll-before", app: app)
 
@@ -408,6 +412,7 @@ final class ActualistUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [returnedExpectation], timeout: 5), .completed,
                        "Vacation row moved from \(beforeY) to \(vacation.frame.minY)")
+        XCTAssertEqual(vacation.frame.minX, beforeX, accuracy: 1)
     }
 
     @MainActor

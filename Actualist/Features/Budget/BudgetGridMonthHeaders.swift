@@ -77,16 +77,7 @@ struct BudgetGridMonthHeaders: View {
                     } else if month.snapshot == nil {
                         ProgressView().accessibilityLabel("Loading \(month.title)")
                     }
-                    HStack(spacing: 8) {
-                        Text(month.semantics.budgetedLabel).frame(maxWidth: .infinity, alignment: .trailing)
-                        if month.semantics.showsActivity {
-                            Text("Spent / Received").frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                        Text(month.semantics.balanceLabel).frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                    .padding(.top, 4)
+
                 }
                 .padding(.horizontal, sizing.cellPadding)
                 .padding(.vertical, sizing.headerPadding)

@@ -21,7 +21,6 @@ struct BudgetLayoutInputs: Equatable {
     var horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins
     var preference: MonthDisplayPreference = .automatic
     var density: ActualistDisplayDensity = .compact
-    var isTrackingBudget = false
 
     init(
         rootWidth: CGFloat,
@@ -31,8 +30,7 @@ struct BudgetLayoutInputs: Equatable {
         dynamicTypeScale: CGFloat = 1,
         horizontalMargins: CGFloat = BudgetLayoutMetrics.defaultHorizontalMargins,
         preference: MonthDisplayPreference = .automatic,
-        density: ActualistDisplayDensity = .compact,
-        isTrackingBudget: Bool = false
+        density: ActualistDisplayDensity = .compact
     ) {
         self.rootWidth = rootWidth
         self.budgetDetailWidth = budgetDetailWidth
@@ -42,7 +40,6 @@ struct BudgetLayoutInputs: Equatable {
         self.horizontalMargins = horizontalMargins
         self.preference = preference
         self.density = density
-        self.isTrackingBudget = isTrackingBudget
     }
 }
 
@@ -85,7 +82,7 @@ struct BudgetLayoutMetrics: Equatable {
         let measuredDetail = inputs.budgetDetailWidth.map(finiteNonnegative)
         let detailWidth = measuredDetail.map { max($0 - margins, 0) }
             ?? max(rootWidth - sidebar - inspector - margins, 0)
-        let moneyColumns: CGFloat = inputs.isTrackingBudget ? 3 : 2
+        let moneyColumns: CGFloat = 2
         let categoryWidth = min(
             preferredCategoryWidth,
             max(detailWidth - minimumMoneyColumnWidth * moneyColumns * moneyScale, 0)

@@ -8,7 +8,6 @@ struct BudgetWorkspaceView: View {
     let compactModel: BudgetViewModel
     @State private var actions: BudgetWorkspaceActions
     @State private var isMonthPickerPresented = false
-    @State private var gridScrollPosition: String?
 
     init(viewport: BudgetViewportModel, compactModel: BudgetViewModel) {
         self.viewport = viewport
@@ -24,8 +23,7 @@ struct BudgetWorkspaceView: View {
                     budgetDetailWidth: geometry.size.width,
                     dynamicTypeScale: dynamicTypeSize.budgetLayoutScale,
                     preference: appState.settings.monthDisplayPreference,
-                    density: appState.settings.displayDensity,
-                    isTrackingBudget: viewport.isTrackingBudget
+                    density: appState.settings.displayDensity
                 ))
                 let display = BudgetGridPresentation(
                     visibleMonths: viewport.visibleMonths,
@@ -51,8 +49,7 @@ struct BudgetWorkspaceView: View {
                             viewport: viewport,
                             actions: actions,
                             presentation: display,
-                            metrics: metrics,
-                            scrollPosition: $gridScrollPosition
+                            metrics: metrics
                         )
                             .overlay {
                                 if display.groups.isEmpty && !viewport.isLoading {

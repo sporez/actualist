@@ -128,6 +128,5 @@ struct TrackingBudgetPresentationTests {
         #expect(grid.months[0].alerts[0].actionTitle == "Review")
         #expect(grid.months[0].alerts[0].count == 1)
         #expect(!BudgetModePresentation(isTracking: true, isIncome: true).showsBalance)
-        #expect(BudgetModePresentation(isTracking: true).showsActivity)
     }
 }

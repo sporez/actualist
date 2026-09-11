@@ -115,37 +115,30 @@ struct BudgetGroupSection: View {
         currency.formatted(group.budgeted)
     }
 
-    private var groupBalanceText: String {
-        currency.formatted(group.balance)
+    private var semantics: BudgetModePresentation {
+        .init(isTracking: isTrackingBudget, isIncome: group.isIncome)
+    }
+
+    private var groupSecondValue: BudgetSecondValuePresentation {
+        semantics.secondValue(balance: group.balance, activity: group.spent, currency: currency)
     }
 
     @ViewBuilder
     private var groupRowLabel: some View {
-        if isTrackingBudget {
-            VStack(alignment: .leading, spacing: 8) {
-                groupHeading
-                BudgetTrackingAmounts(
-                    semantics: BudgetModePresentation(isTracking: true, isIncome: group.isIncome),
-                    budgeted: groupBudgetedText,
-                    activity: currency.formatted(BudgetModePresentation(isIncome: group.isIncome).activityAmount(group.spent)),
-                    balance: groupBalanceText,
-                    balanceAmount: group.balance
-                )
-            }
-        } else if dynamicTypeSize.isAccessibilitySize {
+        if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 10) {
                 groupHeading
                 VStack(spacing: 6) {
-                    groupTotalRow(label: "Assigned", value: groupBudgetedText)
-                    groupTotalRow(label: "Available", value: groupBalanceText)
+                    groupTotalRow(label: semantics.budgetedLabel, value: groupBudgetedText)
+                    groupTotalRow(label: groupSecondValue.label, value: groupSecondValue.text)
                 }
             }
         } else {
             HStack(alignment: .center, spacing: BudgetLayout.rowSpacing) {
                 groupHeading
                 Spacer()
-                groupTotal(label: "Assigned", value: groupBudgetedText, width: BudgetLayout.assignedWidth)
-                groupTotal(label: "Available", value: groupBalanceText, width: BudgetLayout.availableWidth)
+                groupTotal(label: semantics.budgetedLabel, value: groupBudgetedText, width: BudgetLayout.assignedWidth)
+                groupTotal(label: groupSecondValue.label, value: groupSecondValue.text, width: BudgetLayout.availableWidth)
             }
         }
     }
@@ -320,61 +313,24 @@ struct BudgetCategoryRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var availableBackground: Color {
-        if category.balance < 0 {
-            return ActualistTheme.danger
-        }
-        if category.balance == 0 {
-            return ActualistTheme.neutral
-        }
-        return ActualistTheme.positive
+    private var semantics: BudgetModePresentation {
+        .init(isTracking: isTrackingBudget, isIncome: category.isIncome)
     }
 
-    private var availableForeground: Color {
-        if category.balance < 0 {
-            return ActualistTheme.dangerForeground
-        }
-        if category.balance == 0 {
-            return ActualistTheme.neutralForeground
-        }
-        return ActualistTheme.positiveForeground
-    }
-
-    private var showsCarryoverBadge: Bool {
-        category.carryover && !hidesCarryoverArrows
+    private var secondValue: BudgetSecondValuePresentation {
+        semantics.secondValue(balance: category.balance, activity: category.spent,
+            carryover: category.carryover, currency: currency)
     }
 
     private var availablePill: some View {
-        Text(availableText)
-            .font(ActualistTypography.rowValue(for: density))
-            .foregroundStyle(availableForeground)
-            .lineLimit(1)
-            .minimumScaleFactor(0.78)
-            .padding(.horizontal, BudgetLayout.availablePillHorizontalPadding)
-            .padding(.vertical, 5)
-            .background(availableBackground, in: Capsule())
-            .overlay(alignment: .topTrailing) {
-                if showsCarryoverBadge {
-                    BudgetCarryoverBadge(
-                        fill: availableBackground,
-                        foreground: availableForeground
-                    )
-                    .offset(
-                        x: BudgetLayout.rolloverBadgeOffset,
-                        y: -BudgetLayout.rolloverBadgeOffset
-                    )
-                }
-            }
+        BudgetAmountPill(value: secondValue, hidesCarryoverArrow: hidesCarryoverArrows,
+            horizontalPadding: BudgetLayout.availablePillHorizontalPadding,
+            rolloverOffset: BudgetLayout.rolloverBadgeOffset)
             .frame(
                 width: dynamicTypeSize.isAccessibilitySize ? nil : BudgetLayout.availableWidth,
                 alignment: .trailing
             )
             .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : nil, alignment: .trailing)
-            .accessibilityLabel(
-                category.carryover
-                    ? "\(availableText), rollover enabled"
-                    : availableText
-            )
     }
 
     private var nameParts: CategoryNameParts {
@@ -389,39 +345,21 @@ struct BudgetCategoryRow: View {
         return PrivacyDisplay.name(for: .category, seed: category.id)
     }
 
-    private var availableText: String {
-        currency.formatted(category.balance)
-    }
-
     @ViewBuilder
     private var categoryRowLabel: some View {
-        if isTrackingBudget {
-            VStack(alignment: .leading, spacing: 8) {
-                categoryLabel
-                BudgetTrackingAmounts(
-                    semantics: BudgetModePresentation(isTracking: true, isIncome: category.isIncome),
-                    budgeted: assignedDisplay.primaryText,
-                    activity: currency.formatted(BudgetModePresentation(isIncome: category.isIncome).activityAmount(category.spent)),
-                    balance: availableText,
-                    balanceAmount: category.balance,
-                    carryover: category.carryover && !hidesCarryoverArrows,
-                    editing: assignedDisplay.isEditing,
-                    secondaryBudgeted: assignedDisplay.secondaryText
-                )
-            }
-        } else if dynamicTypeSize.isAccessibilitySize {
+        if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 8) {
                 categoryLabel
                 VStack(spacing: 6) {
                     HStack {
-                        Text("Assigned")
+                        Text(semantics.budgetedLabel)
                             .font(ActualistTypography.rowLabel(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                         Spacer(minLength: 12)
                         assignedAmount
                     }
                     HStack {
-                        Text("Available")
+                        Text(secondValue.label)
                             .font(ActualistTypography.rowLabel(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                         Spacer(minLength: 12)
