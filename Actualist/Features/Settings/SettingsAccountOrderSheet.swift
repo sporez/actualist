@@ -5,19 +5,19 @@ struct SettingsAccountOrderSheet: View {
     @Environment(\.actualistDensity) private var density
     @Environment(\.dismiss) private var dismiss
 
-    @State private var accounts: [ActualAccount] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    @State private var model = SettingsAccountOrderViewModel()
+
+    private var accounts: [ActualAccount] { model.accounts(using: appState) }
 
     var body: some View {
         NavigationStack {
             List {
-                if isLoading {
+                if model.isLoading {
                     ProgressView("Loading accounts")
                         .settingsRowChrome()
                 }
 
-                if let errorMessage {
+                if let errorMessage = model.errorMessage {
                     Text(errorMessage)
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.danger)
@@ -29,7 +29,7 @@ struct SettingsAccountOrderSheet: View {
                         Text("Select a budget before setting account order.")
                             .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
-                    } else if accounts.isEmpty && !isLoading {
+                    } else if accounts.isEmpty && !model.isLoading {
                         Text("No accounts loaded.")
                             .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
@@ -37,7 +37,7 @@ struct SettingsAccountOrderSheet: View {
                         ForEach(accounts) { account in
                             SettingsAccountOrderRow(account: account)
                         }
-                        .onMove(perform: moveAccounts)
+                        .onMove { model.move(from: $0, to: $1, using: appState) }
                     }
                 }
                 .settingsSectionChrome()
@@ -52,9 +52,9 @@ struct SettingsAccountOrderSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Reset") {
-                        resetOrder()
+                        model.reset(using: appState)
                     }
-                    .disabled(!hasCustomOrder)
+                    .disabled(!model.hasCustomOrder(using: appState))
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -64,76 +64,15 @@ struct SettingsAccountOrderSheet: View {
                 }
             }
             .task {
-                await loadAccounts()
+                await model.load(using: appState)
             }
             .refreshable {
-                await refreshAccounts()
+                await model.refresh(using: appState)
             }
         }
         .appSwitcherPrivacyProtected(using: appState)
     }
 
-    private var hasCustomOrder: Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return false
-        }
-        return appState.settings.accountOrderByBudgetID[budgetID] != nil
-    }
-
-    private func loadAccounts() async {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            accounts = []
-            errorMessage = nil
-            return
-        }
-
-        let repository = appState.accountRepository
-        let cachedAccounts = repository.accountDisplays(budgetID: budgetID).map(\.account)
-        accounts = appState.orderedAccounts(cachedAccounts, budgetID: budgetID)
-        isLoading = accounts.isEmpty
-        errorMessage = nil
-        do {
-            try await repository.refreshAccountsWithBalances(budgetID: budgetID)
-        } catch {
-            errorMessage = repository.accountDisplays(budgetID: budgetID).isEmpty == false
-                ? "Could not refresh accounts. Showing cached accounts."
-                : error.localizedDescription
-        }
-
-        let loadedAccounts = repository.accountDisplays(budgetID: budgetID).map(\.account)
-        accounts = appState.orderedAccounts(loadedAccounts, budgetID: budgetID)
-        isLoading = false
-    }
-
-    private func refreshAccounts() async {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return
-        }
-        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
-        await loadAccounts()
-    }
-
-    private func moveAccounts(from source: IndexSet, to destination: Int) {
-        accounts.move(fromOffsets: source, toOffset: destination)
-        persistOrder()
-    }
-
-    private func persistOrder() {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return
-        }
-
-        appState.updateAccountOrder(accounts.map(\.id), budgetID: budgetID)
-    }
-
-    private func resetOrder() {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return
-        }
-
-        appState.resetAccountOrder(budgetID: budgetID)
-        accounts = appState.accountRepository.accountDisplays(budgetID: budgetID).map(\.account)
-    }
 }
 
 private struct SettingsAccountOrderRow: View {

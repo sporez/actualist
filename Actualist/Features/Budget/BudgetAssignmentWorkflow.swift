@@ -267,7 +267,7 @@ final class BudgetAssignmentWorkflow {
                 invalidate()
                 return nil
             }
-            draft.submissionState = .failed(error.localizedDescription)
+            draft.submissionState = error.userFacingMessage.map(BudgetAssignmentSubmissionState.failed) ?? .draft
             self.draft = draft
             return nil
         }
@@ -318,7 +318,7 @@ final class BudgetAssignmentWorkflow {
                 invalidate()
                 return nil
             }
-            draft.submissionState = .failed(error.localizedDescription)
+            draft.submissionState = error.userFacingMessage.map(BudgetAssignmentSubmissionState.failed) ?? .draft
             self.draft = draft
             return nil
         }

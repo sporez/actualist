@@ -61,6 +61,7 @@ final class TransactionEditorSubmissionCoordinator {
     enum Outcome: Equatable {
         case succeeded(TransactionMutationResult?)
         case failed(message: String)
+        case cancelled
     }
 
     /// Validates the category-split result, the in-flight duplicate guard, the
@@ -136,10 +137,15 @@ final class TransactionEditorSubmissionCoordinator {
                     }
                 }
             }
+            guard token == generation else { return .cancelled }
             complete(token: token)
             return .succeeded(result)
         } catch {
-            let message = error.localizedDescription
+            guard token == generation else { return .cancelled }
+            guard let message = error.userFacingMessage else {
+                submissionState = .draft
+                return .cancelled
+            }
             fail(token: token, message: message)
             return .failed(message: message)
         }

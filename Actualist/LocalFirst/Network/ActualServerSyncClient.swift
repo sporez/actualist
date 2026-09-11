@@ -270,6 +270,8 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             } else {
                 (data, response) = try await session.data(for: request, delegate: redirectDelegate)
             }
+        } catch where error.isCancellation {
+            throw CancellationError()
         } catch let error as LocalFirstError {
             throw error
         } catch let error as URLError {
@@ -401,6 +403,9 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             }
             try handle.synchronize()
             Self.debugLogResponse(httpResponse, byteCount: byteCount)
+        } catch where error.isCancellation {
+            try? fileManager.removeItem(at: destinationURL)
+            throw CancellationError()
         } catch let error as LocalFirstError {
             try? fileManager.removeItem(at: destinationURL)
             throw error
@@ -466,6 +471,8 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             let result = try await operation()
             hasConnected = true
             return result
+        } catch where error.isCancellation {
+            throw CancellationError()
         } catch let error as LocalFirstError {
             throw error
         } catch let error as ActualAPIError {
@@ -476,12 +483,14 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
                 do {
                     try await Task.sleep(for: delay)
                 } catch {
-                    throw ActualAPIError.transport(.cancelled)
+                    throw CancellationError()
                 }
                 do {
                     let result = try await operation()
                     hasConnected = true
                     return result
+                } catch where error.isCancellation {
+                    throw CancellationError()
                 } catch let error as LocalFirstError {
                     throw error
                 } catch let error as ActualAPIError {

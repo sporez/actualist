@@ -77,7 +77,7 @@ final class PayeesViewModel {
             try await context.repository.refreshPayeeManagementSnapshot(budgetID: context.budgetID)
             snapshot = context.repository.cachedPayeeManagementSnapshot(budgetID: context.budgetID) ?? snapshot
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
         isLoading = false
     }
@@ -92,7 +92,7 @@ final class PayeesViewModel {
             try await context.repository.refreshPayeeManagementSnapshot(budgetID: context.budgetID)
             snapshot = context.repository.cachedPayeeManagementSnapshot(budgetID: context.budgetID) ?? snapshot
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 
@@ -251,7 +251,7 @@ final class PayeesViewModel {
             isSubmitting = false
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             isSubmitting = false
             return false
         }

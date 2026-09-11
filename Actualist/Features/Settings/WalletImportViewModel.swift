@@ -81,8 +81,9 @@ final class WalletImportViewModel {
                 accountID: accountID
             )
         } catch {
+            guard !error.isCancellation else { return }
             existingImportedIDs = []
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 
@@ -119,7 +120,7 @@ final class WalletImportViewModel {
                 accountID: accountID
             )
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 

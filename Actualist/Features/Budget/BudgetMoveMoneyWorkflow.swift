@@ -596,7 +596,7 @@ final class BudgetMoveMoneyWorkflow {
                 invalidate()
                 return nil
             }
-            draft.submissionState = .failed(error.localizedDescription)
+            draft.submissionState = error.userFacingMessage.map(BudgetAssignmentSubmissionState.failed) ?? .draft
             self.draft = draft
             return nil
         }

@@ -454,7 +454,7 @@ final class TransactionEditorViewModel {
                 }
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
 
         isLoading = false
@@ -495,13 +495,13 @@ final class TransactionEditorViewModel {
             )
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 
     func confirmRuleDelete(using appState: AppState) async -> Bool {
         guard let budgetID = appState.settings.selectedBudgetID else { return false }
-        if let message = await deleteReview.confirmDeletion(
+        switch await deleteReview.confirmDeletion(
             transactionID: editingTransactionID,
             accountID: originalAccountID,
             date: date,
@@ -509,10 +509,11 @@ final class TransactionEditorViewModel {
             repository: appState.transactionRepository,
             didDelete: { appState.recordLocalDataMutation() }
         ) {
-            errorMessage = message
+        case .success: return true
+        case .failure(let error):
+            errorMessage = error.userFacingMessage
             return false
         }
-        return true
     }
 
     func previewRules(
@@ -581,6 +582,8 @@ final class TransactionEditorViewModel {
             ) {
             case .succeeded:
                 return true
+            case .cancelled:
+                return false
             case .failed(let message):
                 errorMessage = message
                 return false

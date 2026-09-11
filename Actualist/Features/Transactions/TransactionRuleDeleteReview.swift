@@ -41,11 +41,11 @@ final class TransactionRuleDeleteReview {
         budgetID: String,
         repository: any TransactionRepositoryProtocol,
         didDelete: @escaping () async -> Void
-    ) async -> String? {
-        guard presentation != .none else { return nil }
+    ) async -> Result<Void, Error> {
+        guard presentation != .none else { return .success(()) }
         presentation = .none
         guard let transactionID, let accountID else {
-            return nil
+            return .success(())
         }
         let snapshot = ActualTransaction(
             id: transactionID,
@@ -65,9 +65,10 @@ final class TransactionRuleDeleteReview {
                 budgetID: budgetID,
                 didDelete: didDelete
             )
-            return nil
+            return .success(())
         } catch {
-            return error.localizedDescription
+            presentation = .review
+            return .failure(error)
         }
     }
 }

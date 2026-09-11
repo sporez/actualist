@@ -116,7 +116,7 @@ final class AccountTransactionsViewModel {
             }
             deleteSuccessFeedback += 1
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 
@@ -137,7 +137,7 @@ final class AccountTransactionsViewModel {
             try await refreshSnapshot(budgetID: budgetID, repository: repository)
         } catch {
             if cachedSnapshot(budgetID: budgetID, repository: repository) == nil {
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
         }
         isLoading = false
@@ -183,7 +183,7 @@ final class AccountTransactionsViewModel {
                 return
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 
@@ -293,7 +293,7 @@ final class AccountTransactionsViewModel {
             isSearching = false
         } catch {
             guard isCurrent(request), !Task.isCancelled else { return }
-            searchErrorMessage = error.localizedDescription
+            searchErrorMessage = error.userFacingMessage
             isSearching = false
         }
     }

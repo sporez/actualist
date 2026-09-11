@@ -59,6 +59,24 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
+    @Test func bankCancellationLeavesLoadsAndDownloadsRetryable() async throws {
+        let transport = StubSimpleFINTransport(accountsFailure: .transport(.cancelled))
+        let (model, bundle) = try await makeViewModel(transport: transport, linkSavings: true)
+        await model.ensureRemoteAccounts()
+        #expect(model.remoteAccountsStatus == .idle)
+        await transport.setFailure(.transport(.cancelled))
+        await model.syncAll()
+        #expect(model.phase == .ready)
+        #expect(!model.isReviewPresented)
+        #expect(model.canSyncAll)
+        try bundle.keychain.saveSimpleFINAccessURL("https://test:test@bridge.example/user")
+        do {
+            _ = try await bundle.store.bankSyncProvider(budgetID: "group-1")
+            Issue.record("Cancellation must not fall back to the device provider")
+        } catch { #expect(error.isCancellation) }
+    }
+
+    @MainActor
     @Test func loadShowsLinkedAndUnlinkedRowsWithServerSupport() async throws {
         let transport = stubbedTransport(
             transactions: [],

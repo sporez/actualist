@@ -10,6 +10,7 @@ final class BudgetViewModel {
     private(set) var loadedBudgetID: String?
     private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
+    private var loadGeneration = 0
     var isLoading = true
     var errorMessage: String?
     var currency: BudgetCurrency = .usd
@@ -287,20 +288,10 @@ final class BudgetViewModel {
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async {
-        isLoading = budgetMonth == nil
-        errorMessage = nil
-
-        do {
-            let loadedMonth = try await repository.currentBudgetMonth(
-                budgetID: budgetID,
-                preferredMonth: loadedBudgetID == budgetID ? selectedMonth ?? preferredMonth : preferredMonth
-            )
-            apply(loadedMonth, budgetID: budgetID)
-        } catch {
-            errorMessage = error.localizedDescription
+        let preferred = loadedBudgetID == budgetID ? selectedMonth ?? preferredMonth : preferredMonth
+        await loadMonth(budgetID: budgetID, showsLoading: budgetMonth == nil) {
+            try await repository.currentBudgetMonth(budgetID: budgetID, preferredMonth: preferred)
         }
-
-        isLoading = false
     }
 
     func selectMonth(_ month: String, using appState: AppState) async {
@@ -327,20 +318,29 @@ final class BudgetViewModel {
         repository: any BudgetRepositoryProtocol
     ) async {
         assignmentWorkflow.reconcile(budgetID: budgetID, month: month)
-        isLoading = true
-        errorMessage = nil
-
-        do {
-            let loadedMonth = try await repository.budgetMonth(
-                budgetID: budgetID,
-                selectedMonth: month
-            )
-            apply(loadedMonth, budgetID: budgetID)
-        } catch {
-            errorMessage = error.localizedDescription
+        await loadMonth(budgetID: budgetID, showsLoading: true) {
+            try await repository.budgetMonth(budgetID: budgetID, selectedMonth: month)
         }
+    }
 
-        isLoading = false
+    private func loadMonth(
+        budgetID: String, showsLoading: Bool,
+        read: () async throws -> LoadedBudgetMonth
+    ) async {
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = showsLoading
+        errorMessage = nil
+        defer { if generation == loadGeneration { isLoading = false } }
+        do {
+            let loaded = try await read()
+            try Task.checkCancellation()
+            guard generation == loadGeneration else { return }
+            apply(loaded, budgetID: budgetID)
+        } catch {
+            guard generation == loadGeneration else { return }
+            errorMessage = error.userFacingMessage
+        }
     }
 
     func isExpanded(_ group: BudgetMonthCategoryGroup) -> Bool {
@@ -435,7 +435,7 @@ final class BudgetViewModel {
         } catch {
             guard coverGeneration == overspentCoverSelection.currentSubmissionGeneration else { return false }
             _ = overspentCoverSelection.finishSubmission(success: false, expectedGeneration: coverGeneration)
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return false
         }
     }
@@ -688,7 +688,7 @@ final class BudgetViewModel {
                 // context.
                 return false
             }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return false
         }
     }

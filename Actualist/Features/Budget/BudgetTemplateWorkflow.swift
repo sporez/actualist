@@ -97,7 +97,7 @@ final class BudgetTemplateWorkflow {
             if selectionGeneration == generation { submissionState = .draft }
             return .success(loadedMonth)
         } catch {
-            if selectionGeneration == generation { submissionState = .failed(error.localizedDescription) }
+            if selectionGeneration == generation { submissionState = error.userFacingMessage.map(BudgetAssignmentSubmissionState.failed) ?? .draft }
             return .failure(error)
         }
     }

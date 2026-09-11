@@ -123,6 +123,27 @@ struct ActualNoteValueTests {
 
 @MainActor
 struct EntityNotesViewModelTests {
+    @Test(arguments: CancellationTestCase.allCases)
+    func cancellationLeavesNotesSafeToReloadOrRetry(_ kind: CancellationTestCase) async throws {
+        let target = try #require(ActualNoteTarget.category(id: "cat", title: "Category"))
+        let repository = FakeEntityNotesRepository(note: ActualNoteBody(storedNote: "Original"))
+        repository.error = kind.error
+        let model = EntityNotesViewModel(target: target, budgetID: "budget", isPrivacyModeEnabled: false)
+        await model.load(repository: repository)
+        #expect(model.phase == .idle)
+        #expect(!model.canSave)
+        #expect(model.errorMessage == nil)
+        repository.error = nil
+        await model.load(repository: repository)
+        #expect(model.text == "Original")
+        model.text = "Draft"
+        repository.error = kind.error
+        #expect(await model.save(repository: repository) == false)
+        #expect(model.phase == .editing(errorMessage: nil))
+        #expect(model.text == "Draft")
+        #expect(repository.savedBodies.isEmpty)
+    }
+
     @Test func privacyModeNeverLoadsOrSavesNoteText() async throws {
         let target = try #require(ActualNoteTarget.category(id: "cat-1", title: "Groceries"))
         let repository = FakeEntityNotesRepository(note: ActualNoteBody(storedNote: "Secret"))
@@ -232,6 +253,7 @@ private final class FakeEntityNotesRepository: EntityNotesRepositoryProtocol {
     let note: ActualNoteBody
     var loadCount = 0
     var savedBodies: [String] = []
+    var error: Error?
     var suspendLoad = false
     var resumeLoad: CheckedContinuation<Void, Never>?
 
@@ -240,6 +262,7 @@ private final class FakeEntityNotesRepository: EntityNotesRepositoryProtocol {
     }
 
     func entityNote(target: ActualNoteTarget, budgetID: String) async throws -> ActualNoteBody {
+        if let error { throw error }
         loadCount += 1
         if suspendLoad {
             await withCheckedContinuation { continuation in
@@ -254,6 +277,7 @@ private final class FakeEntityNotesRepository: EntityNotesRepositoryProtocol {
         userBody: String,
         budgetID: String
     ) async throws {
+        if let error { throw error }
         savedBodies.append(userBody)
     }
 

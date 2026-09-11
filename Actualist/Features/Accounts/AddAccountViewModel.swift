@@ -83,7 +83,7 @@ final class AddAccountViewModel {
             reset()
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return false
         }
     }

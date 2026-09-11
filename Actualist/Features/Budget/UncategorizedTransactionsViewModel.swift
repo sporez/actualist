@@ -146,7 +146,7 @@ final class UncategorizedTransactionsViewModel {
             apply(try await repository.uncategorizedTransactions(budgetID: budgetID, month: month))
             hasLoadedSnapshot = true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
 
         isLoading = false
@@ -269,7 +269,7 @@ final class UncategorizedTransactionsViewModel {
                 isLoading = false
             } catch {
                 isLoading = false
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
                 endSelection()
                 return .categorized(hasRemainingTransactions: true)
             }
@@ -277,7 +277,7 @@ final class UncategorizedTransactionsViewModel {
             endSelection()
             return .categorized(hasRemainingTransactions: !transactions.isEmpty)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return .failed
         }
     }
@@ -331,14 +331,14 @@ final class UncategorizedTransactionsViewModel {
                     isLoading = false
                 } catch {
                     isLoading = false
-                    errorMessage = error.localizedDescription
+                    errorMessage = error.userFacingMessage
                     return .categorized(hasRemainingTransactions: true)
                 }
             }
 
             return .categorized(hasRemainingTransactions: !transactions.isEmpty)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return .failed
         }
     }

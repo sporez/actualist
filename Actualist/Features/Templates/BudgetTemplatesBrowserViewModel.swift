@@ -119,7 +119,7 @@ final class BudgetTemplatesBrowserViewModel {
             guard requestGeneration == loadGeneration else {
                 return
             }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
         isLoading = false
     }

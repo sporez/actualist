@@ -4,6 +4,30 @@ import Testing
 
 @MainActor
 struct AccountsViewModelTests {
+    @Test(arguments: CancellationTestCase.allCases)
+    func cancelledAccountLoadsAndEditsEndWithoutErrors(_ kind: CancellationTestCase) async {
+        let repository = FakeAccountRepository()
+        repository.loadError = kind.error
+        repository.createError = kind.error
+        let model = AccountsViewModel()
+        await model.loadLocal(budgetID: "budget", hasCachedAccounts: false, repository: repository)
+        #expect(!model.isLoading)
+        #expect(model.errorMessage == nil)
+        model.presentCreateGroup()
+        model.groupEditorName = "Cash"
+        #expect(await model.submitGroupEditor(budgetID: "budget", repository: repository) == false)
+        #expect(!model.isSubmitting)
+        #expect(model.errorMessage == nil)
+        #expect(model.groupEditor == .create)
+        let order = SettingsAccountOrderViewModel()
+        await order.load(budgetID: "budget", repository: repository)
+        #expect(!order.isLoading)
+        #expect(order.errorMessage == nil)
+        repository.loadError = LocalFirstError.invalidLocalWrite("Cannot load accounts.")
+        await order.load(budgetID: "budget", repository: repository)
+        #expect(order.errorMessage == repository.loadError?.localizedDescription)
+    }
+
     @Test func submitCreateGroupClearsEditorAndRecordsTheName() async throws {
         let repository = FakeAccountRepository()
         let viewModel = AccountsViewModel()
@@ -95,12 +119,13 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
     var managementEnabled = true
     var createdNames: [String] = []
     var deletedIDs: [String] = []
+    var loadError: Error?
     var createError: Error?
 
     func accountDisplays(budgetID: String) -> [AccountDisplay] { displays }
     func accountGroups(budgetID: String) -> [ActualAccountGroup] { groups }
     func accountGroupManagementEnabled(budgetID: String) -> Bool { managementEnabled }
-    func refreshAccountsWithBalances(budgetID: String) async throws {}
+    func refreshAccountsWithBalances(budgetID: String) async throws { if let loadError { throw loadError } }
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {}
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {
         if let createError {

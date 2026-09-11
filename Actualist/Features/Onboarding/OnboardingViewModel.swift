@@ -180,8 +180,8 @@ final class BudgetPickerViewModel {
                 openState = .idle
             }
         } catch {
-            appState.lastErrorMessage = error.localizedDescription
-            openState = .failed(message: error.localizedDescription)
+            appState.lastErrorMessage = error.userFacingMessage
+            openState = error.userFacingMessage.map { .failed(message: $0) } ?? .idle
         }
         isLoading = false
     }

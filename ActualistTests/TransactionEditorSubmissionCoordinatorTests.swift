@@ -251,7 +251,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         // generation token no longer matches, so state stays `.draft`.
         await repository.resumeBeforeDidCreate()
         let outcome = await task.value
-        #expect(isSuccess(outcome))
+        #expect(outcome == .cancelled)
         #expect(coordinator.submissionState == .draft)
     }
 

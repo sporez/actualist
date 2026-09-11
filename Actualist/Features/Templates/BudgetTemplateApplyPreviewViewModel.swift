@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class BudgetTemplateApplyPreviewViewModel {
     enum Phase: Equatable {
+        case idle
         case loading
         case ready
         case failed
@@ -78,7 +79,12 @@ final class BudgetTemplateApplyPreviewViewModel {
             )
             phase = .ready
         } catch {
-            fail(error.localizedDescription, generation: requestGeneration)
+            guard requestGeneration == loadGeneration else { return }
+            if let message = error.userFacingMessage {
+                fail(message, generation: requestGeneration)
+            } else {
+                phase = .idle
+            }
         }
     }
 

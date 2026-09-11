@@ -143,6 +143,7 @@ private final class LegacyUnauthorizedURLProtocol: ActualErrorURLProtocol {
 /// configurable so tests can cover the iOS 26 case where the first socket fails
 /// with a code other than `.cannotConnectToHost`.
 final class FirstConnectionRetryURLProtocol: URLProtocol {
+    static var cancellationAttempt: Int?
     static var failuresRemaining = 0
     static var attemptCount = 0
     static var errorCode: URLError.Code = .cannotConnectToHost
@@ -152,6 +153,10 @@ final class FirstConnectionRetryURLProtocol: URLProtocol {
 
     override func startLoading() {
         Self.attemptCount += 1
+        if Self.attemptCount == Self.cancellationAttempt {
+            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
+            return
+        }
         if Self.failuresRemaining > 0 {
             Self.failuresRemaining -= 1
             client?.urlProtocol(self, didFailWithError: URLError(Self.errorCode))
@@ -256,6 +261,51 @@ struct FirstConnectionRetryTests {
         let response = try await client.loginMethods()
 
         #expect(response.methods == ["password"])
+        #expect(FirstConnectionRetryURLProtocol.attemptCount == 3)
+    }
+
+    @Test(arguments: [1, 2])
+    func cancellationStopsFirstConnectionRetries(attempt: Int) async {
+        FirstConnectionRetryURLProtocol.attemptCount = 0
+        FirstConnectionRetryURLProtocol.failuresRemaining = 100
+        FirstConnectionRetryURLProtocol.errorCode = .cannotConnectToHost
+        FirstConnectionRetryURLProtocol.cancellationAttempt = attempt
+        defer { FirstConnectionRetryURLProtocol.cancellationAttempt = nil }
+        let client = makeRetryClient()
+        await #expect(throws: CancellationError.self) { _ = try await client.loginMethods() }
+        #expect(FirstConnectionRetryURLProtocol.attemptCount == attempt)
+    }
+
+    @Test func cancelledDownloadRemovesPartialFileWithoutRetry() async throws {
+        FirstConnectionRetryURLProtocol.attemptCount = 0
+        FirstConnectionRetryURLProtocol.cancellationAttempt = 1
+        defer { FirstConnectionRetryURLProtocol.cancellationAttempt = nil }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data("partial".utf8).write(to: destination)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        let client = makeRetryClient()
+        await #expect(throws: CancellationError.self) {
+            try await client.downloadUserFile(fileID: "fixture", token: "test", to: destination)
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+        #expect(FirstConnectionRetryURLProtocol.attemptCount == 1)
+    }
+
+    @Test func simpleFINTransportsPreserveCancellation() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [FirstConnectionRetryURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let url = URL(string: "https://bank.example")!
+        FirstConnectionRetryURLProtocol.attemptCount = 0
+        FirstConnectionRetryURLProtocol.failuresRemaining = 100
+        FirstConnectionRetryURLProtocol.errorCode = .cancelled
+        defer { FirstConnectionRetryURLProtocol.errorCode = .cannotConnectToHost }
+        let server = ActualServerSimpleFINClient(baseURL: url, session: session)
+        await #expect(throws: CancellationError.self) { _ = try await server.simpleFINStatus(token: "test") }
+        let bridge = SimpleFINBridgeClient(baseURL: url, username: "test", password: "test", session: session)
+        await #expect(throws: CancellationError.self) { _ = try await bridge.remoteAccounts() }
+        let setupToken = Data("https://bank.example/claim".utf8).base64EncodedString()
+        await #expect(throws: CancellationError.self) { _ = try await SimpleFINBridgeClient.claim(setupToken: setupToken, session: session) }
         #expect(FirstConnectionRetryURLProtocol.attemptCount == 3)
     }
 

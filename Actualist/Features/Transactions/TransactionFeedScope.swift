@@ -237,7 +237,7 @@ final class CategoryMonthDetailsViewModel {
                 return
             }
             isCarryoverEnabled = previousValue
-            carryoverErrorMessage = error.localizedDescription
+            carryoverErrorMessage = error.userFacingMessage
         }
     }
 

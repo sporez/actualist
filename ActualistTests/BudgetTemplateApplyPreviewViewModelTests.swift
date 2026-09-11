@@ -5,6 +5,17 @@ import Testing
 @Suite("Budget template apply preview view model")
 @MainActor
 struct BudgetTemplateApplyPreviewViewModelTests {
+    @Test(arguments: CancellationTestCase.allCases)
+    func cancelledPreviewCannotEnableApply(_ kind: CancellationTestCase) async {
+        let model = BudgetTemplateApplyPreviewViewModel()
+        await model.load(confirmation: .monthOverwrite, categoryID: nil, month: "2026-07",
+                         budgetID: "budget", randomized: false,
+                         repository: ApplyPreviewRepository(error: kind.error))
+        #expect(model.phase == .idle)
+        #expect(model.errorMessage == nil)
+        #expect(!model.canApply)
+    }
+
     @Test func readyPreviewCanApply() async {
         let repository = ApplyPreviewRepository(
             preview: BudgetTemplateApplyPreview(

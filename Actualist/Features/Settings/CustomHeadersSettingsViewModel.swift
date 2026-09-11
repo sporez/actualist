@@ -154,7 +154,7 @@ final class CustomHeadersSettingsViewModel {
                     self.testTask = nil
                 } catch {
                     guard let self, self.generation == attempt, !Task.isCancelled else { return }
-                    self.phase = .failed(self.safeMessage(error))
+                    self.phase = error.isCancellation ? .editing : .failed(self.safeMessage(error))
                     self.testTask = nil
                 }
             }

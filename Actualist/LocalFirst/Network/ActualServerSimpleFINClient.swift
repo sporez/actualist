@@ -399,6 +399,8 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request, delegate: redirectDelegate)
+        } catch where error.isCancellation {
+            throw CancellationError()
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {

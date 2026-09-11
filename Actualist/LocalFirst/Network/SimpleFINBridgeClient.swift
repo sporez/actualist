@@ -51,6 +51,8 @@ actor SimpleFINBridgeClient {
         let response: URLResponse
         do {
             (data, response) = try await usedSession.data(for: request)
+        } catch where error.isCancellation {
+            throw CancellationError()
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {
@@ -180,6 +182,8 @@ actor SimpleFINBridgeClient {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch where error.isCancellation {
+            throw CancellationError()
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {

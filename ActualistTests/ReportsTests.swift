@@ -107,6 +107,16 @@ struct ReportsTests {
         #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
     }
 
+    @Test(arguments: CancellationTestCase.allCases)
+    func cancelledInitialReportLoadDoesNotShowAnError(_ kind: CancellationTestCase) async throws {
+        let model = ReportsViewModel()
+        await model.load(budgetID: "budget", repository: FakeReportsRepository(cached: nil, error: kind.error),
+                         privacyModeEnabled: false, now: try reportNow())
+        #expect(!model.isLoading)
+        #expect(model.errorMessage == nil)
+        #expect(model.snapshot == nil)
+    }
+
     @Test func viewModelUsesCacheThenReadsSQLiteOnceWithoutRemoteWork() async throws {
         let cached = makeSnapshot(netWorth: 100_000)
         let local = makeSnapshot(netWorth: 110_000)

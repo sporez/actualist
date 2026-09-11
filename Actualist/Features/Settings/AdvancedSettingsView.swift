@@ -7,8 +7,7 @@ struct AdvancedSettingsView: View {
     @State private var isDeveloperDiagnosticsPresented = false
     @State private var hideDeveloperModeTask: Task<Void, Never>?
     #if DEBUG
-    @State private var isPostingDebugNotification = false
-    @State private var debugNotificationMessage: String?
+    @State private var debugNotification = DebugNotificationViewModel()
     #endif
 
     var body: some View {
@@ -69,9 +68,9 @@ struct AdvancedSettingsView: View {
                 syncDebug: appState.settings.localFirstSyncDebug,
                 endpointHealth: appState.localFirstStore.endpointHealthDisplay,
                 retryPendingSync: appState.retryPendingLocalFirstSync,
-                isPostingDebugNotification: $isPostingDebugNotification,
-                debugNotificationMessage: $debugNotificationMessage,
-                postDebugNotification: postDebugNotification
+                isPostingDebugNotification: $debugNotification.isPosting,
+                debugNotificationMessage: $debugNotification.message,
+                postDebugNotification: { await debugNotification.post(using: appState) }
             )
             .environment(appState)
             #else
@@ -106,18 +105,4 @@ struct AdvancedSettingsView: View {
         )
     }
 
-    #if DEBUG
-    private func postDebugNotification() async {
-        isPostingDebugNotification = true
-        debugNotificationMessage = nil
-        defer { isPostingDebugNotification = false }
-
-        do {
-            try await appState.postDebugNewTransactionNotification()
-            debugNotificationMessage = "Test alert will post in 5 seconds. Send Actualist to the background, then tap the notification."
-        } catch {
-            debugNotificationMessage = error.localizedDescription
-        }
-    }
-    #endif
 }

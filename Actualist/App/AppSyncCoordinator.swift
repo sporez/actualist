@@ -85,7 +85,7 @@ final class AppSyncCoordinator {
                     return .cancelledOrStale
                 }
                 return .succeeded
-            } catch is CancellationError {
+            } catch where error.isCancellation {
                 return .cancelledOrStale
             } catch {
                 guard isBudgetCurrent() else {

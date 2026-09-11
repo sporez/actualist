@@ -60,6 +60,7 @@ struct BulkCategoryCarryoverStatus: Equatable, Sendable {
 @Observable
 final class BulkCategoryCarryoverViewModel {
     enum State: Equatable {
+        case idle
         case loading(previous: BulkCategoryCarryoverStatus?)
         case ready(BulkCategoryCarryoverStatus)
         case applying(BulkCategoryCarryoverStatus, carryover: Bool)
@@ -67,6 +68,7 @@ final class BulkCategoryCarryoverViewModel {
 
         var status: BulkCategoryCarryoverStatus? {
             switch self {
+            case .idle: nil
             case let .loading(previous), let .failed(previous, _):
                 previous
             case let .ready(status), let .applying(status, _):
@@ -118,7 +120,8 @@ final class BulkCategoryCarryoverViewModel {
             state = .ready(BulkCategoryCarryoverStatus(loadedMonth: loaded))
         } catch {
             guard requestGeneration == generation else { return }
-            state = .failed(previous: state.status, message: error.localizedDescription)
+            state = error.userFacingMessage.map { .failed(previous: state.status, message: $0) }
+                ?? state.status.map(State.ready) ?? .idle
         }
     }
 
@@ -154,7 +157,7 @@ final class BulkCategoryCarryoverViewModel {
             state = .ready(BulkCategoryCarryoverStatus(loadedMonth: loaded))
         } catch {
             guard requestGeneration == generation else { return }
-            state = .failed(previous: currentStatus, message: error.localizedDescription)
+            state = error.userFacingMessage.map { .failed(previous: currentStatus, message: $0) } ?? .ready(currentStatus)
         }
     }
 }

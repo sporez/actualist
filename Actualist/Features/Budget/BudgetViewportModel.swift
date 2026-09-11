@@ -155,7 +155,7 @@ final class BudgetViewportModel {
                 generation: requestGeneration,
                 seed: first
             )
-        } catch is CancellationError {
+        } catch where error.isCancellation {
             if requestGeneration == generation { isLoading = false }
             return
         } catch {
@@ -393,7 +393,7 @@ final class BudgetViewportModel {
         defer { if requestGeneration == generation { isLoading = false } }
         do {
             try await loadVisibleMonths(generation: requestGeneration, budgetID: budgetID)
-        } catch is CancellationError {
+        } catch where error.isCancellation {
             if requestGeneration == generation { isLoading = false }
             return false
         } catch {
@@ -426,7 +426,7 @@ final class BudgetViewportModel {
                 staged[month] = loaded
                 latestIdentity = loaded.modeIdentity
                 stagedErrors.removeValue(forKey: month)
-            } catch is CancellationError {
+            } catch where error.isCancellation {
                 throw CancellationError()
             } catch {
                 stagedErrors[month] = error.localizedDescription

@@ -298,8 +298,8 @@ final class BudgetTemplateEditorViewModel {
             guard requestGeneration == loadGeneration else {
                 return
             }
-            errorMessage = error.localizedDescription
-            previewState = .failed("Templates could not be loaded.")
+            errorMessage = error.userFacingMessage
+            previewState = error.isCancellation ? .idle : .failed("Templates could not be loaded.")
             phase = .ready
         }
     }
@@ -330,7 +330,7 @@ final class BudgetTemplateEditorViewModel {
             guard requestGeneration == loadGeneration else {
                 return false
             }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             phase = .ready
             scheduleDryRun()
             return false
@@ -373,7 +373,7 @@ final class BudgetTemplateEditorViewModel {
                 case .success(let preview):
                     self.previewState = preview.map(PreviewState.ready) ?? .empty
                 case .failure(let error):
-                    self.previewState = .failed(error.localizedDescription)
+                    self.previewState = error.userFacingMessage.map(PreviewState.failed) ?? .idle
                 }
             }
         )

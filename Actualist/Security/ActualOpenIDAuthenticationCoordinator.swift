@@ -98,7 +98,7 @@ actor ActualOpenIDAuthenticationCoordinator {
                 additionalHeaderFields: client.customHeaders.initialBrowserHeaders(for: response.returnURL)
             ))
         } catch {
-            if Self.isCancellation(error) {
+            if error.isCancellation {
                 throw ActualOpenIDAuthenticationError.cancelled
             }
             throw error
@@ -133,12 +133,4 @@ actor ActualOpenIDAuthenticationCoordinator {
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func isCancellation(_ error: any Error) -> Bool {
-        if error is CancellationError {
-            return true
-        }
-        let error = error as NSError
-        return error.domain == ASWebAuthenticationSessionErrorDomain
-            && error.code == ASWebAuthenticationSessionError.Code.canceledLogin.rawValue
-    }
 }

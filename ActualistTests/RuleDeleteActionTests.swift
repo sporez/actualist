@@ -98,10 +98,27 @@ struct RuleDeleteActionTests {
         #expect(!review.blocksSave)
     }
 
+    @Test(arguments: CancellationTestCase.allCases)
+    @MainActor func cancelledDeleteKeepsReviewWithoutReportingSuccess(_ kind: CancellationTestCase) async {
+        let review = TransactionRuleDeleteReview()
+        review.consider(TransactionRulePreview(categoryID: nil, notes: nil, deletesTransaction: true))
+        let repository = RecordingTransactionRepository(createError: kind.error)
+        var didDelete = false
+        let result = await review.confirmDeletion(transactionID: "transaction", accountID: "checking",
+            date: Date(), budgetID: "group-1", repository: repository, didDelete: { didDelete = true })
+        switch result {
+        case .success: Issue.record("Cancelled deletion must not succeed")
+        case .failure(let error): #expect(error.userFacingMessage == nil)
+        }
+        #expect(review.isReviewPresented)
+        #expect(review.blocksSave)
+        #expect(!didDelete)
+    }
+
     @Test @MainActor func createAcknowledgesDeleteWithoutTombstoning() async {
         let review = TransactionRuleDeleteReview()
         review.consider(TransactionRulePreview(categoryID: nil, notes: nil, deletesTransaction: true))
-        let message = await review.confirmDeletion(
+        let result = await review.confirmDeletion(
             transactionID: nil,
             accountID: nil,
             date: Date(),
@@ -109,7 +126,7 @@ struct RuleDeleteActionTests {
             repository: RecordingTransactionRepository(),
             didDelete: {}
         )
-        #expect(message == nil)
+        if case .failure(let error) = result { Issue.record(error) }
         #expect(!review.blocksSave)
     }
 }

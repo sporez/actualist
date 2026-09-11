@@ -125,7 +125,7 @@ final class AppState {
             localDataRevision &+= 1
             settingsStore.save(settings)
         } catch {
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = error.userFacingMessage
             connectionStatus = .offline
         }
     }
@@ -160,7 +160,7 @@ final class AppState {
             lastErrorMessage = nil
             return response
         } catch {
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = error.userFacingMessage
             return nil
         }
     }
@@ -255,11 +255,11 @@ final class AppState {
             connectionStatus = .online
             lastErrorMessage = nil
             return true
-        } catch ActualOpenIDAuthenticationError.cancelled {
+        } catch where error.isCancellation {
             lastErrorMessage = nil
             return false
         } catch {
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = error.userFacingMessage
             if previousServerURLString.isEmpty && !hasSyncCredentials {
                 connectionStatus = .offline
                 setupPhase = .needsConnection
@@ -293,7 +293,7 @@ final class AppState {
             localDataRevision &+= 1
             BackgroundTransactionRefreshCoordinator.shared.cancel()
         } catch {
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = error.userFacingMessage
             connectionStatus = .offline
         }
     }
@@ -433,7 +433,7 @@ final class AppState {
             lastErrorMessage = nil
             localDataRevision &+= 1
         } catch {
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = error.userFacingMessage
             connectionStatus = localFirstStore.isOpen(budgetID: budget.syncID) ? .online : .offline
         }
     }
@@ -489,7 +489,7 @@ final class AppState {
                 localFirstStore.closeOpenBudget()
                 restoredPreviousBudget = (try? await localFirstStore.openCachedBudget(previousBudget)) == true
             }
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = error.userFacingMessage
             connectionStatus = .offline
             if restoredPreviousBudget {
                 selectedBudget = previousBudget
@@ -697,7 +697,7 @@ final class AppState {
             do {
                 try keychain.promoteAllItemsForBackgroundRefresh()
             } catch {
-                lastErrorMessage = error.localizedDescription
+                lastErrorMessage = error.userFacingMessage
                 settings.simplefinBackgroundSyncEnabled = false
                 settingsStore.save(settings)
                 BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
@@ -913,7 +913,7 @@ final class AppState {
             connectionStatus = .online
             setupPhase = .selectingBudget
         } catch {
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = error.userFacingMessage
             connectionStatus = .offline
             if (error as? ActualAPIError)?.isAuthenticationFailure == true {
                 requiresReauthentication = true

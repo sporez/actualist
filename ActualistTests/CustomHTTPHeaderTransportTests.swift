@@ -127,6 +127,18 @@ struct CustomHTTPHeaderTransportTests {
         })
     }
 
+    @Test func cancelledComparisonCannotReportHeaderVerificationSuccess() async throws {
+        let session = session()
+        defer { session.invalidateAndCancel() }
+        HeaderTransportURLProtocol.mode = .cancelComparison
+        let verifier = CustomHTTPHeaderVerifier(session: session)
+        await #expect(throws: CancellationError.self) {
+            try await verifier.verify(url: URL(string: "https://primary.example")!,
+                headers: [.init(name: "X-Primary", value: "primary-secret")])
+        }
+        #expect(HeaderTransportURLProtocol.requests.count == 2)
+    }
+
     @Test func verificationAndSanitizedError() async throws {
         let session = session()
         defer { session.invalidateAndCancel() }
@@ -167,7 +179,7 @@ struct CustomHTTPHeaderTransportTests {
 }
 
 final class HeaderTransportURLProtocol: URLProtocol {
-    enum Mode { case normal, failPrimary, requireHeaders, echoFailure, crossOriginOIDC, echoBankFailure }
+    enum Mode { case normal, failPrimary, requireHeaders, echoFailure, crossOriginOIDC, echoBankFailure, cancelComparison }
     nonisolated(unsafe) static var callbackURL: URL?
     nonisolated(unsafe) static var requests: [URLRequest] = []
     nonisolated(unsafe) static var mode = Mode.normal
@@ -175,6 +187,10 @@ final class HeaderTransportURLProtocol: URLProtocol {
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.requests.append(request)
+        if Self.mode == .cancelComparison && request.value(forHTTPHeaderField: "X-Primary") == nil {
+            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
+            return
+        }
         if let stream = request.httpBodyStream {
             stream.open()
             defer { stream.close() }

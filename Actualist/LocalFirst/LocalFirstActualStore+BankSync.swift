@@ -115,7 +115,7 @@ extension LocalFirstActualStore {
                 deviceFallback: deviceFallback
             )
         } catch let error as ActualAPIError {
-            if deviceFallback, case .transport = error, let device = try? bankSyncDeviceClient() {
+            if deviceFallback, !error.isCancellation, case .transport = error, let device = try? bankSyncDeviceClient() {
                 return .device(device)
             }
             throw error

@@ -59,7 +59,7 @@ final class RulesListViewModel {
             rules = appState.ruleRepository.cachedRules(budgetID: budgetID) ?? rules
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
         isLoading = false
     }
@@ -83,7 +83,7 @@ final class RulesListViewModel {
             errorMessage = nil
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return false
         }
     }
@@ -104,7 +104,7 @@ final class RulesListViewModel {
             errorMessage = nil
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return false
         }
     }

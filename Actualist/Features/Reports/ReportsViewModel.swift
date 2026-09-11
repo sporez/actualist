@@ -69,7 +69,7 @@ final class ReportsViewModel {
             apply(try await repository.refreshReportsDashboard(budgetID: budgetID, range: requestedRange))
         } catch {
             if snapshot == nil {
-                errorMessage = error.localizedDescription
+                errorMessage = error.userFacingMessage
             }
             isLoading = false
             return

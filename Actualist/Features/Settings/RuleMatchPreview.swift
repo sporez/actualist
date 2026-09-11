@@ -66,7 +66,7 @@ final class RuleEditorViewModel {
             matchErrorMessage = nil
         } catch {
             guard draft == requestedDraft else { return }
-            matchErrorMessage = error.localizedDescription
+            matchErrorMessage = error.userFacingMessage
         }
         if draft == requestedDraft {
             isLoadingMatches = false

@@ -92,7 +92,7 @@ final class BudgetCategoryVisibilityWorkflow {
                 return nil
             }
             isSubmitting = false
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return nil
         }
     }

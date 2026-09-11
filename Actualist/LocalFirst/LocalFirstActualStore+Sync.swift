@@ -1,6 +1,10 @@
 import Foundation
 
 extension LocalFirstActualStore {
+    enum PendingLocalMessageFlushOutcome {
+        case succeeded, failed, cancelled
+    }
+
     func syncAndFindNewTransactions(
         budget: ActualBudget,
         serverURLString: String
@@ -110,7 +114,7 @@ extension LocalFirstActualStore {
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
-            ) {
+            ) != .failed {
                 break
             }
         }
@@ -121,7 +125,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         serverURLString: String
-    ) async -> Bool {
+    ) async -> PendingLocalMessageFlushOutcome {
         do {
             let result = try await flushPendingLocalMessagesSerialized(
                 database: database,
@@ -139,15 +143,16 @@ extension LocalFirstActualStore {
                     error: nil
                 )
             }
-            return true
+            return .succeeded
         } catch {
+            guard !error.isCancellation else { return .cancelled }
             await recordSyncStatus(
                 budgetID: budgetID,
                 uploadedCount: nil,
                 appliedCount: nil,
                 error: error
             )
-            return false
+            return .failed
         }
     }
 
@@ -239,6 +244,7 @@ extension LocalFirstActualStore {
             )
             return result
         } catch {
+            guard !error.isCancellation else { throw error }
             try? await database.markPendingLocalSyncMessagesFailed(pending, error: error)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? pending.count
             recordSyncDebugEvent(
@@ -411,7 +417,7 @@ extension LocalFirstActualStore {
                     #endif
                 }
             }
-        } else if let error {
+        } else if let error, !error.isCancellation {
             status.lastError = error.localizedDescription
         }
         syncStatus = status

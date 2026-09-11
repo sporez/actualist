@@ -79,7 +79,7 @@ final class AccountsViewModel {
         do {
             try await repository.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
-            errorMessage = hasCachedAccounts ? nil : error.localizedDescription
+            errorMessage = hasCachedAccounts ? nil : error.userFacingMessage
         }
         isLoading = false
         noteContentChange()
@@ -177,7 +177,7 @@ final class AccountsViewModel {
             guard generation == submitGeneration else {
                 return false
             }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
             return false
         }
     }
@@ -211,7 +211,7 @@ final class AccountsViewModel {
             guard generation == submitGeneration else {
                 return
             }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 
@@ -246,7 +246,7 @@ final class AccountsViewModel {
             guard generation == submitGeneration else {
                 return
             }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 
@@ -281,7 +281,7 @@ final class AccountsViewModel {
             guard generation == submitGeneration else {
                 return
             }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
     }
 

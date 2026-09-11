@@ -181,11 +181,11 @@ final class BankSyncViewModel {
                 } else if store.cachedBankSyncSupport() != nil {
                     phase = .ready
                 } else {
-                    phase = .failed(BankSyncCopy.failureMessage(error))
+                    phase = error.userFacingMessage.map(Phase.failed) ?? .ready
                 }
             }
         } catch {
-            phase = .failed(BankSyncCopy.failureMessage(error))
+            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
 
@@ -210,12 +210,12 @@ final class BankSyncViewModel {
             try Task.checkCancellation()
             remoteAccounts = accounts
             remoteAccountsStatus = .ready
-        } catch is CancellationError {
+        } catch where error.isCancellation {
             if case .loading = remoteAccountsStatus {
                 remoteAccountsStatus = .idle
             }
         } catch {
-            remoteAccountsStatus = .failed(BankSyncCopy.failureMessage(error))
+            remoteAccountsStatus = .failed(error.localizedDescription)
         }
     }
 
@@ -255,7 +255,7 @@ final class BankSyncViewModel {
                 budgetID: budgetID
             )
         } catch {
-            phase = .failed(BankSyncCopy.failureMessage(error))
+            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
             return
         }
         guard !collected.isEmpty else {
@@ -305,7 +305,7 @@ final class BankSyncViewModel {
             )
             await load()
         } catch {
-            phase = .failed(BankSyncCopy.failureMessage(error))
+            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
 
@@ -324,7 +324,7 @@ final class BankSyncViewModel {
             draftSetupToken = ""
             await load()
         } catch {
-            phase = .failed(BankSyncCopy.failureMessage(error))
+            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
 
@@ -335,7 +335,7 @@ final class BankSyncViewModel {
             hasDeviceKey = store.hasBankSyncDeviceKey()
             await load()
         } catch {
-            phase = .failed(BankSyncCopy.failureMessage(error))
+            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
 
@@ -389,7 +389,7 @@ final class BankSyncViewModel {
             selectedAccountID = nil
             await load()
         } catch {
-            phase = .failed(BankSyncCopy.failureMessage(error))
+            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
 
@@ -409,7 +409,7 @@ final class BankSyncViewModel {
             selectedAccountID = nil
             await load()
         } catch {
-            phase = .failed(BankSyncCopy.failureMessage(error))
+            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
 
@@ -660,7 +660,4 @@ enum BankSyncCopy {
         return parts.isEmpty ? "Everything already matches." : parts.joined(separator: " · ")
     }
 
-    static func failureMessage(_ error: Error) -> String {
-        error.localizedDescription
-    }
 }

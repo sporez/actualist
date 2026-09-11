@@ -46,7 +46,7 @@ final class TransactionRulePreviewCoordinator {
             }
             return .applied(preview)
         } catch {
-            guard !Task.isCancelled,
+            guard !error.isCancellation, !Task.isCancelled,
                   generation == requestGeneration,
                   currentRequest() == request else {
                 return .stale

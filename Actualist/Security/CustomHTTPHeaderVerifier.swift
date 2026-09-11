@@ -35,6 +35,7 @@ struct CustomHTTPHeaderVerifier: Sendable {
             try Task.checkCancellation()
             return .acceptsWithAndWithoutHeaders
         } catch {
+            guard !error.isCancellation else { throw error }
             try Task.checkCancellation()
             return .comparisonFailed
         }

@@ -54,7 +54,7 @@ final class SettingsViewModel {
             try await UIApplication.shared.setAlternateIconName(icon.alternateIconName)
         } catch {
             selectedAppIcon = previous
-            appIconError = error.localizedDescription
+            appIconError = error.userFacingMessage
         }
     }
 
@@ -82,7 +82,7 @@ final class SettingsViewModel {
         do {
             try await appState.loadBudgets()
         } catch {
-            appState.lastErrorMessage = error.localizedDescription
+            appState.lastErrorMessage = error.userFacingMessage
         }
         isLoadingBudgets = false
     }

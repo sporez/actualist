@@ -66,7 +66,7 @@ final class EntityNotesViewModel {
             guard requestGeneration == generation else {
                 return
             }
-            phase = .editing(errorMessage: error.localizedDescription)
+            phase = error.isCancellation ? .idle : .editing(errorMessage: error.userFacingMessage)
         }
     }
 
@@ -92,7 +92,7 @@ final class EntityNotesViewModel {
             guard requestGeneration == generation else {
                 return false
             }
-            phase = .editing(errorMessage: error.localizedDescription)
+            phase = .editing(errorMessage: error.userFacingMessage)
             return false
         }
     }

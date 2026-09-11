@@ -114,7 +114,7 @@ final class HistoryViewModel {
             rebuildRows()
             loadState = .loaded
         } catch {
-            loadState = .failed(Self.loadFailureMessage(for: error))
+            loadState = error.isCancellation ? (rows.isEmpty ? .idle : .loaded) : .failed(Self.loadFailureMessage(for: error))
         }
     }
 
@@ -155,7 +155,7 @@ final class HistoryViewModel {
             guard generation == preparationGeneration else {
                 return
             }
-            undoState = .failed(actionID: row.id, message: Self.undoFailureMessage(for: error))
+            undoState = error.isCancellation ? .idle : .failed(actionID: row.id, message: Self.undoFailureMessage(for: error))
         }
     }
 
@@ -195,7 +195,7 @@ final class HistoryViewModel {
                   undoState == .committing(presentation) else {
                 return
             }
-            undoState = .failed(
+            undoState = error.isCancellation ? .idle : .failed(
                 actionID: presentation.actionID,
                 message: Self.undoFailureMessage(for: error)
             )

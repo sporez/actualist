@@ -109,7 +109,7 @@ final class BackgroundTransactionWorkflow {
             }
             try keychain.promoteAllItemsForBackgroundRefresh()
         } catch {
-            return .credentialPromotionFailed(error.localizedDescription)
+            return error.userFacingMessage.map(EnableOutcome.credentialPromotionFailed) ?? .disabled
         }
         return .enabled
     }
@@ -258,7 +258,7 @@ final class BackgroundTransactionWorkflow {
                 in: &local
             )
             return (.success, local)
-        } catch is CancellationError {
+        } catch where error.isCancellation {
             debugRecorder.completeRun(
                 debugRunID,
                 succeeded: false,
@@ -310,7 +310,7 @@ final class BackgroundTransactionWorkflow {
                 + (insertedCount > 0 ? ", \(insertedCount) added" : "")
                 + " in \(Self.elapsedText(since: startedAt))"
             return (pending, suffix)
-        } catch is CancellationError {
+        } catch where error.isCancellation {
             // BGTask expiration must cancel the parent workflow rather than be
             // downgraded to an optional bank-step failure.
             throw CancellationError()
