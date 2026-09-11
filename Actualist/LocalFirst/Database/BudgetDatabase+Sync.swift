@@ -164,10 +164,12 @@ extension BudgetDatabase {
         _ drafts: [ActualSyncDecodedMessage],
         now: Date = Date(),
         actionLogCommit: ActionLogCommit? = nil,
-        expectedMode: BudgetModeIdentity? = nil
+        expectedMode: BudgetModeIdentity? = nil,
+        expectedBankLink: BankSyncLinkIdentity? = nil
     ) throws -> Int {
         guard !drafts.isEmpty else {
             try queue.read { db in
+                try validateBankSyncLink(expectedBankLink, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
             }
@@ -183,6 +185,7 @@ extension BudgetDatabase {
                 guard try tableExists("messages_crdt", db: db) else {
                     throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
                 }
+                try validateBankSyncLink(expectedBankLink, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
                 try ensureLocalSyncOutbox(db)

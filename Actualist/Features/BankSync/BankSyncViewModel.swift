@@ -445,8 +445,8 @@ private extension BankSyncReview.AccountPlan {
         currency: BudgetCurrency
     ) -> BankSyncViewModel.ReviewLine {
         BankSyncViewModel.ReviewLine(
-            id: accountID,
-            accountName: accountNames[accountID] ?? "Account",
+            id: link.accountID,
+            accountName: accountNames[link.accountID] ?? "Account",
             addedCount: inserts.count + (openingBalance != nil ? 1 : 0),
             updatedCount: updates.count,
             matchLines: matchDetails.map { detail in

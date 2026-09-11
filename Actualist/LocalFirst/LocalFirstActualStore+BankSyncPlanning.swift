@@ -29,10 +29,13 @@ extension LocalFirstActualStore {
         try Task.checkCancellation()
 
         let database = try requireDatabase(for: budgetID)
-        let provider = try await bankSyncProvider(
-            budgetID: budgetID,
-            deviceFallback: deviceFallback
-        )
+        var seen = Set<String>()
+        let accountIDs = accountIDs.filter { seen.insert($0).inserted }
+        let generations = Dictionary(uniqueKeysWithValues: accountIDs.map { id in
+            let generation = UUID()
+            bankSyncGenerationByAccount[id] = generation
+            return (id, generation)
+        })
         let linkedByID = Dictionary(uniqueKeysWithValues: try await database
             .bankSyncLinkedAccounts()
             .map { ($0.id, $0) })
@@ -44,6 +47,21 @@ extension LocalFirstActualStore {
                 throw BankSyncStoreError.notSimpleFINLinked
             }
             return account
+        }
+
+        let storageID = try await database.fetchBudgetModeIdentity().storageID
+        let links = linked.map { BankSyncLinkIdentity(storageID: storageID, accountID: $0.id,
+            remoteAccountID: $0.remoteAccountID, syncSource: $0.syncSource) }
+        guard self.database === database else {
+            throw BankSyncStoreError.staleGeneration
+        }
+        let provider: BankSyncProvider
+        do {
+            provider = try await bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
+        } catch {
+            await recordBankSyncFailure(error, links: links, generations: generations,
+                database: database, budgetID: budgetID)
+            throw error
         }
 
         let currency = try await bankSyncCurrency(database: database, budgetID: budgetID)
@@ -91,7 +109,14 @@ extension LocalFirstActualStore {
         async let accountsRequest: [SimpleFINRemoteAccount]? = needsBalanceMetadata
             ? (try? await provider.remoteAccounts())
             : []
-        let response = try await responseRequest
+        let response: SimpleFINTransactionsResponse
+        do {
+            response = try await responseRequest
+        } catch {
+            await recordBankSyncFailure(error, links: links, generations: generations,
+                database: database, budgetID: budgetID)
+            throw error
+        }
         let remoteAccounts = await accountsRequest ?? []
         let remoteByID = remoteAccounts.reduce(into: [String: SimpleFINRemoteAccount]()) { result, remote in
             if result[remote.accountID] == nil {
@@ -142,8 +167,14 @@ extension LocalFirstActualStore {
         plans.reserveCapacity(linked.count)
         for (index, account) in linked.enumerated() {
             try Task.checkCancellation()
+            guard let generation = generations[account.id], self.database === database,
+                  bankSyncGenerationByAccount[account.id] == generation else {
+                throw BankSyncStoreError.staleGeneration
+            }
             plans.append(try await makeBankSyncPlan(
                 account: account,
+                link: links[index],
+                generation: generation,
                 prepared: prepared[index],
                 remote: remoteByID[account.remoteAccountID],
                 currency: currency,
@@ -154,6 +185,41 @@ extension LocalFirstActualStore {
             ))
         }
         return plans
+    }
+
+    /// Provider failures are shared status, but local setup and cancellation
+    /// are not. Keep the original provider error if best-effort status recording fails.
+    private func recordBankSyncFailure(
+        _ error: Error,
+        links: [BankSyncLinkIdentity],
+        generations: [String: UUID],
+        database: BudgetDatabase,
+        budgetID: String
+    ) async {
+        guard !error.isCancellation, !Task.isCancelled,
+              error is ActualAPIError || error is SimpleFINBridgeError else { return }
+        if case ActualAPIError.invalidURL = error { return }
+        if case ActualAPIError.localNetworkDenied = error { return }
+        let status: ActualBankSyncDurableStatus
+        if case ActualAPIError.transport(.timedOut) = error { status = .timedOut }
+        else if case SimpleFINBridgeError.accessRevoked = error { status = .reauthRequired }
+        else { status = .failed }
+        for link in links {
+            guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
+            var builder = LocalFirstSyncMessageBuilder()
+            do {
+                let messages = try await database.makeBankSyncStampMessages(accountID: link.accountID,
+                    lastSyncEpochMilliseconds: nil, status: status, builder: &builder)
+                guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
+                bankSyncGenerationByAccount[link.accountID] = nil
+                _ = try await database.commitBankSyncMessages(messages, expectedLink: link)
+                try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
+                await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+            } catch {
+                // Stale links and rolled-back status writes have no durable effects.
+                // The caller still reports the original provider failure.
+            }
+        }
     }
 
     private struct PreparedDownload {
@@ -255,6 +321,8 @@ extension LocalFirstActualStore {
 
     private func makeBankSyncPlan(
         account: BudgetDatabase.BankSyncLinkedAccount,
+        link: BankSyncLinkIdentity,
+        generation: UUID,
         prepared: PreparedDownload,
         remote: SimpleFINRemoteAccount?,
         currency: BudgetCurrency,
@@ -310,11 +378,8 @@ extension LocalFirstActualStore {
             throw LocalFirstError.invalidLocalWrite("missing bank sync match review detail")
         }
 
-        let generation = (bankSyncGenerationByAccount[account.id] ?? 0) + 1
-        bankSyncGenerationByAccount[account.id] = generation
         return BankSyncReview.AccountPlan(
-            accountID: account.id,
-            remoteAccountID: account.remoteAccountID,
+            link: link,
             durableStatus: ActualBankSyncDurableStatus.from(
                 errorCode: prepared.download.errorCode
             ),

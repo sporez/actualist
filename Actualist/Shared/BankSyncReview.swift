@@ -1,5 +1,13 @@
 import Foundation
 
+/// Persisted ownership captured before requesting a bank download.
+struct BankSyncLinkIdentity: Equatable, Sendable {
+    let storageID: String
+    let accountID: String
+    let remoteAccountID: String
+    let syncSource: String
+}
+
 /// Review DTO between a confirmed SimpleFIN download and the apply step
 /// (plan Phase 3). Pure: assembled by the store from the reconciler plan,
 /// shown by the Phase 4 review sheet, and written only after an explicit
@@ -44,8 +52,7 @@ enum BankSyncReview {
     /// One linked account's planned writes. `openingBalance` counts as an
     /// added row on the review sheet.
     struct AccountPlan: Equatable, Sendable {
-        let accountID: String
-        let remoteAccountID: String
+        let link: BankSyncLinkIdentity
         let durableStatus: ActualBankSyncDurableStatus
         let inserts: [BankSyncReconciliation.Candidate]
         let updates: [BankSyncReconciliation.MatchedUpdate]
@@ -54,9 +61,9 @@ enum BankSyncReview {
         let problems: [Problem]
         let openingBalance: BankSyncReconciliation.OpeningBalance?
 
-        /// Monotonic token captured when this plan was downloaded. A stale
+        /// Unique token captured before this download starts. A stale
         /// plan (a newer download happened since) is refused at apply time.
-        let generation: Int
+        let generation: UUID
     }
 
     struct ApplyResult: Equatable, Sendable {

@@ -464,6 +464,11 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
                 errorType = errorType ?? firstError.errorType
                 errorCode = errorCode ?? firstError.errorCode
             }
+            // Actual rejects a missing collection; [] is a successful empty download.
+            if errorCode == nil, entry.transactions?.all == nil {
+                errorType = "ACCOUNT_MISSING"
+                errorCode = "ACCOUNT_MISSING"
+            }
             let transactions = (entry.transactions?.all ?? []).map { transaction in
                 SimpleFINRemoteTransaction(
                     id: transaction.id,

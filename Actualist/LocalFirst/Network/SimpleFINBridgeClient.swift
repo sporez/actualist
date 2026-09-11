@@ -119,6 +119,13 @@ actor SimpleFINBridgeClient {
                 )
                 continue
             }
+            let accountError = set.errlist?.first { $0.accountID == accountID && $0.code != nil }
+            let needsAttention = account.org?.name.map { name in
+                set.errors?.contains { $0.hasPrefix("Connection to \(name) may need attention") } == true
+            } ?? false
+            let errorCode = accountError?.code
+                ?? (needsAttention ? "ACCOUNT_NEEDS_ATTENTION" : nil)
+                ?? (account.transactions == nil ? "ACCOUNT_MISSING" : nil)
             var seenTransactionIDs = Set<String>()
             let accountStart = startsByAccount[accountID] ?? requestStart
             let transactions = ((account.transactions ?? []) + (account.pending ?? []))
@@ -138,8 +145,8 @@ actor SimpleFINBridgeClient {
             downloads[accountID] = SimpleFINAccountDownload(
                 transactions: transactions,
                 startingBalance: nil,
-                errorType: nil,
-                errorCode: nil
+                errorType: errorCode,
+                errorCode: errorCode
             )
         }
         return SimpleFINTransactionsResponse(

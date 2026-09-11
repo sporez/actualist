@@ -251,7 +251,10 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1"
         )
 
-        #expect(plans.map(\.accountID) == ["savings", "credit"])
+        #expect(plans.map(\.link.accountID) == ["savings", "credit"])
+        for plan in plans {
+            _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        }
         #expect(await transport.statusRequests == 1)
         #expect(await transport.accountsRequests == 1)
         let requests = await transport.transactionsRequests
@@ -725,7 +728,7 @@ extension LocalFirstActualStoreTests {
 
         let stale = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         let fresh = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        #expect(fresh.generation == stale.generation + 1)
+        #expect(fresh.generation != stale.generation)
 
         await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) {
             try await store.applyBankSyncPlan(stale, budgetID: "group-1")

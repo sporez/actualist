@@ -12,6 +12,7 @@ extension LocalFirstActualStore {
         case notLinked
         case notSimpleFINLinked
         case serverCannotBankSync
+        case notConfigured
 
         var errorDescription: String? {
             switch self {
@@ -23,6 +24,8 @@ extension LocalFirstActualStore {
                 return "This account is not linked to a bank."
             case .notSimpleFINLinked:
                 return "Only SimpleFIN-linked accounts can sync here."
+            case .notConfigured:
+                return "Connect SimpleFIN on your server or add a setup token on this device."
             case .serverCannotBankSync:
                 return "Your server does not provide SimpleFIN, so background bank sync cannot run."
             }
@@ -80,13 +83,12 @@ extension LocalFirstActualStore {
         ) async throws -> SimpleFINTransactionsResponse {
             switch self {
             case .server(let transport, let token):
-                // nil = routes unsupported; an empty answer drives the
-                // existing account-missing handling downstream.
-                return try await transport.simpleFINTransactions(
+                guard let response = try await transport.simpleFINTransactions(
                     token: token,
                     accountIDs: accountIDs,
                     startDates: startDates
-                ) ?? SimpleFINTransactionsResponse(downloads: [:], errorType: nil, errorCode: nil)
+                ) else { throw BankSyncStoreError.notConfigured }
+                return response
             case .device(let client):
                 return try await client.transactions(accountIDs: accountIDs, startDates: startDates)
             }
@@ -94,8 +96,7 @@ extension LocalFirstActualStore {
     }
 
     /// `makeBankSyncProvider`: server `configured == true` wins; otherwise a
-    /// device-claimed bridge key; otherwise the server transport so its
-    /// status classification surfaces as before. An unreachable server (a
+    /// device-claimed bridge key; otherwise a device-local configuration error. An unreachable server (a
     /// connection-level transport failure on the status probe) falls back to
     /// the device key when one exists and rethrows otherwise. The
     /// background path passes `deviceFallback: false` — the Phase 5 device
@@ -138,7 +139,7 @@ extension LocalFirstActualStore {
         if let device = try? bankSyncDeviceClient() {
             return .device(device)
         }
-        return .server(transport: context.transport, token: context.token)
+        throw BankSyncStoreError.notConfigured
     }
 
     /// Whether a device-claimed SimpleFIN access key is stored. Device-wide:
@@ -217,6 +218,7 @@ extension LocalFirstActualStore {
             builder: &builder
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        bankSyncGenerationByAccount[localAccountID] = nil
         try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
@@ -254,7 +256,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws -> BankSyncReview.ApplyResult {
         let database = try requireDatabase(for: budgetID)
-        guard bankSyncGenerationByAccount[plan.accountID] == plan.generation else {
+        guard bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
             throw BankSyncStoreError.staleGeneration
         }
         guard plan.problems.isEmpty else {
@@ -273,12 +275,12 @@ extension LocalFirstActualStore {
 
         if let openingBalance = plan.openingBalance {
             let onBudget = !(try await database.bankSyncLinkedAccounts()
-                .first { $0.id == plan.accountID }?.offbudget ?? false)
+                .first { $0.id == plan.link.accountID }?.offbudget ?? false)
             let openingBalanceID = UUID().uuidString
             collectedInsertedIDs.append(openingBalanceID)
             messages.append(contentsOf: try await database.makeBankSyncOpeningBalanceMessages(
                 transactionID: openingBalanceID,
-                accountID: plan.accountID,
+                accountID: plan.link.accountID,
                 openingBalance: openingBalance,
                 onBudget: onBudget,
                 sortOrder: sortOrderBase,
@@ -288,7 +290,7 @@ extension LocalFirstActualStore {
 
         let existingByID = Dictionary(
             uniqueKeysWithValues: try await database.bankSyncExistingRows(
-                accountID: plan.accountID,
+                accountID: plan.link.accountID,
                 window: 0...99_999_999
             ).map { ($0.id, $0) }
         )
@@ -317,7 +319,7 @@ extension LocalFirstActualStore {
             )
             let draft = try bankSyncInsertDraft(
                 candidate: candidate,
-                accountID: plan.accountID,
+                accountID: plan.link.accountID,
                 payeeID: payeeResolution.payeeID,
                 sortOrder: sortOrderBase + Double(index + 1)
             )
@@ -350,22 +352,27 @@ extension LocalFirstActualStore {
             ? Int64(Date().timeIntervalSince1970 * 1_000)
             : nil
         messages.append(contentsOf: try await database.makeBankSyncStampMessages(
-            accountID: plan.accountID,
+            accountID: plan.link.accountID,
             lastSyncEpochMilliseconds: stampEpoch,
             status: plan.durableStatus,
             builder: &builder
         ))
 
         try Task.checkCancellation()
-        if !messages.isEmpty {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        guard self.database === database,
+              bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
+            throw BankSyncStoreError.staleGeneration
         }
+        // Consume before awaiting the commit so overlapping confirmations cannot
+        // both apply the same prepared inserts. A failed apply requires a new review.
+        bankSyncGenerationByAccount[plan.link.accountID] = nil
+        _ = try await database.commitBankSyncMessages(messages, expectedLink: plan.link)
         let learningMessages = try await database.categoryLearningRuleMessages(
             changedTransactionIDs: categorizedIDs,
             builder: &builder
         )
         if !learningMessages.isEmpty {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
+            _ = try await database.commitBankSyncMessages(learningMessages, expectedLink: plan.link)
             rulesByBudget[budgetID] = try await database.fetchRules()
             payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
                 .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
@@ -374,7 +381,7 @@ extension LocalFirstActualStore {
         try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
-            accountIDs: [plan.accountID],
+            accountIDs: [plan.link.accountID],
             monthIDs: Array(monthIDs)
         )
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -498,7 +505,7 @@ extension LocalFirstActualStore {
             try Task.checkCancellation()
             let result = try await applyBankSyncPlan(plan, budgetID: budgetID)
             if !result.insertedTransactionIDs.isEmpty {
-                insertedTransactionIDsByAccount[plan.accountID] = result.insertedTransactionIDs
+                insertedTransactionIDsByAccount[plan.link.accountID] = result.insertedTransactionIDs
             }
         }
         return BankSyncBackgroundApplyResult(

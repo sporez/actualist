@@ -2,6 +2,40 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
+    /// Closing/reimporting waits only for a synchronous bank commit already in
+    /// progress. Retained handles cannot commit another result after close.
+    nonisolated func invalidateBankSyncWrites() {
+        bankSyncWritesAllowed.withLock { $0 = false }
+    }
+
+    func commitBankSyncMessages(
+        _ messages: [ActualSyncDecodedMessage],
+        expectedLink: BankSyncLinkIdentity
+    ) throws -> Int {
+        try bankSyncWritesAllowed.withLock { allowed in
+            guard allowed else { throw LocalFirstError.budgetNotOpened }
+            try Task.checkCancellation()
+            return try commitLocalSyncMessagesAndEnqueue(messages, expectedBankLink: expectedLink)
+        }
+    }
+
+    /// Called inside the same transaction as the import, status and outbox.
+    func validateBankSyncLink(_ expected: BankSyncLinkIdentity?, db: Database) throws {
+        guard let expected else { return }
+        let storageID = try String.fetchOne(db,
+            sql: "SELECT storage_id FROM actualist_budget_identity WHERE id = 1")
+        let columns = try columnSet(for: "accounts", db: db)
+        let closed = column("closed", fallback: "0", columns: columns)
+        let matches = try Bool.fetchOne(db, sql: """
+            SELECT EXISTS(SELECT 1 FROM accounts
+            WHERE id = ? AND account_id = ? AND account_sync_source = ?
+              AND \(predicateForLiveRows(columns: columns)) AND COALESCE(\(closed), 0) = 0)
+            """, arguments: [expected.accountID, expected.remoteAccountID, expected.syncSource]) ?? false
+        guard storageID == expected.storageID, matches else {
+            throw LocalFirstError.invalidLocalWrite("the bank link changed; download again")
+        }
+    }
+
     /// Open-time backfill for SimpleFIN bank sync. Imported budgets may lack
     /// the `banks` table and the account link columns that Actual's
     /// `linkSimpleFinAccount` writes. Creating them here keeps local CRDT

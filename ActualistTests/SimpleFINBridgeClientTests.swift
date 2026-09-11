@@ -338,12 +338,13 @@ extension LocalFirstActualStoreTests {
         #expect(provider.isDevice)
     }
 
-    @Test func serverWithoutSimpleFINAndNoDeviceKeyStaysOnServerTransport() async throws {
+    @Test func serverWithoutSimpleFINAndNoDeviceKeyRefusesLocally() async throws {
         let bundle = try await makeBankSyncStore(
             transport: StubSimpleFINTransport(support: .unsupported)
         )
-        let provider = try await bundle.store.bankSyncProvider(budgetID: "group-1")
-        #expect(!provider.isDevice)
+        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.notConfigured) {
+            try await bundle.store.bankSyncProvider(budgetID: "group-1")
+        }
     }
 
     @Test func unreachableServerWithDeviceKeyFallsBackToBridge() async throws {

@@ -43,10 +43,10 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     var currencyByBudget: [String: BudgetCurrency] = [:]
-    /// Bank-sync download generation per local account. Bumped on every
+    /// Bank-sync download token per local account. Replaced before every
     /// download; apply refuses a plan whose generation is no longer current,
     /// so a stale review can never write.
-    var bankSyncGenerationByAccount: [String: Int] = [:]
+    var bankSyncGenerationByAccount: [String: UUID] = [:]
     /// Optional fallback server URL used when the primary server is unreachable.
     /// Set by `AppState` from `AppSettings.fallbackServerURLString`. When non-nil
     /// and distinct from the primary URL, sync and connection operations retry
@@ -192,6 +192,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
+        database?.invalidateBankSyncWrites()
         budgetReadGeneration &+= 1
         pendingLocalMessageFlushTask?.cancel()
         pendingLocalMessageFlushTask = nil
