@@ -34,52 +34,30 @@ and iOS Liquid Glass controls.
 
 <p align="center"><sub>Budget · Spending · Accounts · Reports<br>Screenshots use randomized display values.</sub></p>
 
-## What Actualist Does
+## Features
 
-- Shows monthly category groups, assigned amounts, available balances, To Budget,
-  uncategorized transactions, and overspending alerts. Hide or show categories,
-  add or edit budget templates, preview Apply Template, and add notes on months,
-  groups, and categories.
-- Adapts to iPad window sizes with a sidebar, category inspector, and up to five
-  budget months side by side. Narrow windows keep the compact tab layout.
-- Provides an all-account Spending feed plus searchable transaction histories for
-  individual accounts.
-- Supports common transaction flows, including create, edit, delete, categorize,
-  split, and transfer.
-- Supports core budget writes such as category assignment, move money, and
-  category rollover.
-- Shows on-budget, off-budget, and closed accounts, with local account ordering
-  and account notes. Add accounts directly in the app. Manage account groups
-  and move accounts between them when the Actual server supports groups.
-- Includes native reports for net worth, cash flow, monthly comparisons, budget
-  overview, spending averages, and transaction activity.
-- Can download SimpleFIN transactions through Bank Sync and import Apple Wallet
-  activity you choose, both under Settings → Budget & Data, with review before
-  save.
-- Provides searchable rule management with match previews under Settings →
-  Budget & Data. Create, edit, and delete supported rules. Imported split rules
-  apply to transactions but remain read-only in the editor.
-- Shows the last 25 changes made on this device in Budget → ⋯ → History. Review
-  and undo the most recent eligible budget assignment, money move, template
-  application, or transaction change.
-- Includes widgets for category and account balances, Needs Attention, Month
-  Overview, Recent Transactions, Net Worth, and four Quick Actions.
-  Choose from a searchable action catalog and reorder the buttons with native
-  Edit Widget. Each widget keeps its own selection and follows the app's chosen
-  color theme.
-- Includes Shortcuts and Siri for logging transactions, assigning budget money,
-  opening screens, and reading balances.
-- Opens an imported budget from local storage first, then syncs Actual CRDT
-  messages in the background.
-- Queues offline changes locally and uploads them when the Actual server is
-  reachable again.
-- Supports Actual budgets with optional end-to-end encryption.
-- Supports custom request headers for reverse proxies, with separate securely
-  stored credentials for primary and fallback server addresses.
-- Includes display density, theme, privacy, and background-refresh settings.
+- Envelope and tracking budgets, category assignments, rollover, templates,
+  notes, and overspending review. Move Money is available for envelope budgets.
+- Searchable transaction feeds, with create, edit, delete, categorize,
+  split, transfer, and eligible undo actions.
+- iPad sidebar, category inspector, and up to five budget months side by side.
+- Reports for net worth, cash flow, spending, and budget comparisons.
+- SimpleFIN Bank Sync and selected Apple Wallet imports, with review before save.
+- Payee and rule management under Settings → Budget & Data.
+- Widgets for balances, budget overview, recent activity, net worth, and quick
+  actions. Configure them through Apple's **Edit Widget** controls.
+- Shortcuts and Siri, themes, sample-value privacy, and background refresh.
+- Offline changes that sync when your server is reachable, optional budget
+  encryption, OpenID sign-in, and custom request headers.
 
-Actualist is a companion to Actual Budget, not a replacement for the Actual
-server or web app. It does not use or require an `actual-http-api` REST wrapper.
+Envelope budgets show **Assigned / Available** and **To Budget**. Tracking
+budgets show **Budgeted / Balance** for expenses and **Budgeted / Received** for
+income, with **Projected Savings** for current/future months and **Saved** or
+**Overspent** for past months. Tracking expense balances reset monthly unless
+rollover is enabled.
+
+Add or edit templates from a category or Settings → Templates. Saving a template
+changes its setup; **Apply Template** previews and assigns the money separately.
 
 ## Requirements
 
@@ -92,121 +70,38 @@ server or web app. It does not use or require an `actual-http-api` REST wrapper.
 - Your Actual server password, or OpenID if the server is configured for it.
 - For an encrypted budget, the separate budget encryption password.
 
-The adaptive iPad layout is available in the main source branch; published
-TestFlight builds follow their tagged source versions.
-
-Install the beta from [TestFlight](https://testflight.apple.com/join/HDG6PcGX).
-Developers can also [build from source](#building-from-source). Public
-TestFlight builds are tied to `testflight/v<version>-b<build>` tags so the
-corresponding source remains identifiable.
+Public TestFlight builds correspond to `testflight/v<version>-b<build>` source
+tags. Features described here reflect the current source.
 
 ## Connecting to Your Server
 
-1. Launch Actualist.
-2. Enter the full URL of your Actual server, for example
-   `https://budget.example.com`.
-3. Sign in with the **server password**, or **OpenID** if the server uses it,
-   then tap **Connect**.
-4. Choose a budget from the server.
-5. If the budget uses end-to-end encryption, enter its separate encryption
-   password when prompted.
-6. Leave Actualist open while the initial budget download and import completes.
+1. Enter your Actual server URL and sign in with its password or OpenID.
+2. Choose a synced budget and enter its separate encryption password if needed.
+3. Keep Actualist open until the initial import finishes.
 
-Actualist prefers HTTPS and blocks plain HTTP for remote servers. Local HTTP URLs
-such as `http://192.168.1.20:5006`, private and link-local IPv6 addresses, and
-Tailscale `100.64.0.0/10` or `*.ts.net` hosts are allowed for trusted local
-networks, but the connection is not encrypted. The inline warning names the
-credentials exposed by plain HTTP before connecting.
+Use HTTPS for remote servers. Trusted local HTTP connections are allowed but
+unencrypted. If you use a VPN or Tailscale, connect the device first. If sign-in
+fails, check that the server opens in Safari and that you are using the server
+password rather than the budget encryption password.
 
-After the first successful import, Actualist keeps a local budget copy for fast
-launches and offline use. Connection, budget selection, sync, display, and data
-management controls are available from **Settings**, opened from the Budget
-screen's gear button or the sidebar in wide iPad windows.
+Settings opens from the Budget gear button or the iPad sidebar. Proxy headers
+can be configured during onboarding or under **Connection & Sync → Custom
+Headers**, with separate Keychain-stored values for primary and fallback servers.
+Header-only login is not supported; use password or OpenID.
 
-### Custom Headers
+## Data Safety
 
-For a reverse proxy such as Cloudflare Access, open **Custom Headers** during
-onboarding or **Settings → Connection & Sync → Custom Headers**. Primary and
-fallback servers have separate header lists. Values are masked and kept only in
-the device Keychain. **Test Connection** uses your unsaved draft; **Save** commits
-it. You can test either endpoint while signed in; logging out is not required.
-An origin change requires explicit review before saved headers can be reused.
+Keep Actual exports and compare important totals with the official client while
+using the beta. Read recovery confirmations before reimporting or erasing data.
 
-Tests contact only your Actual server. If the server also accepts a request
-without headers, Actualist reports connection success without claiming the
-headers were independently verified. To demonstrate delivery, configure the proxy
-to require a distinct header value for each endpoint on `/account/login-methods`,
-then test each endpoint separately. **Headers verified** means the request with
-headers succeeded and the request without them failed. This connection test does
-not exercise automatic failover or sync. Remove temporary proxy rules and test
-headers after testing.
+Local budgets and pending changes are excluded from device backups. **Unsynced
+changes are lost if the app or local data is removed, or the device is lost.**
+Before erasing or replacing a device, connect and confirm **Pending Sync: None**
+in Settings. Synced changes can be restored from your Actual server.
 
-Custom headers also cover the initial
-OpenID browser request when it uses the Actual server's origin. They are not
-forwarded to another origin or the direct SimpleFIN bridge. Actual's separate
-header-only login method is not supported; use password or OpenID sign-in.
-
-### If Connection Fails
-
-- Open the server URL in Safari on the same device to confirm it is reachable.
-- Check that the device is connected to the required Wi-Fi, VPN, or tailnet.
-- Use HTTPS for any server that is not on the local network.
-- Confirm that you entered the server password, not the budget encryption
-  password. If the server uses OpenID, complete the browser sign-in instead.
-- If the budget is encrypted, confirm the second password when selecting it.
-- Update the Actual server and retry before reporting a sync-version problem.
-
-## Beta Safety
-
-- Keep regular Actual exports and make a new
-  [backup](https://actualbudget.org/docs/backup-restore/backup/) before each beta
-  update. Know how to [restore it](https://actualbudget.org/docs/backup-restore/restore/).
-- Verify important totals and recent changes in the official Actual client during
-  testing.
-- Let a pending offline change finish syncing before deleting the app or erasing
-  its local data.
-- Treat **Reimport Budget** and **Erase Local Data** as recovery tools; read their
-  confirmations carefully.
-- Do not post real server URLs, passwords, sync tokens, encryption keys, budget
-  IDs, or unredacted financial data in issues or screenshots.
-
-### Local Data and Device Backups
-
-Actualist intentionally excludes its imported budget directory from local and
-iCloud device backups. This includes the local SQLite budget, its sidecar files,
-metadata, reimport recovery copy, and the durable sync outbox. The Actual server
-is the authoritative recovery source for changes that have finished syncing.
-
-An outbox change is not on the server until its upload is confirmed. If the
-device is lost, the app is deleted, or local data is erased while changes are
-still pending, those changes are lost and cannot be recovered from a device
-backup. This is an explicit privacy tradeoff: Actualist does not place a second
-plaintext copy of the budget in the device-backup path. Before replacing or
-erasing a device, open Actualist while online and confirm Settings shows
-**Pending Sync: None**.
-
-### Budget Templates
-
-Actualist can add and edit the current UI-managed template catalog: Fixed Amount
-with day/week/month/year cadence, Save by Date, Percentage, Balance Limit,
-Refill, Copy Previous Month, Average, Cover Schedule, Remainder, and Goal. Each
-template can include an optional Note. Templates open from Budget category
-long-press, Category Details, and Settings → Templates. Saving
-a template updates its setup without assigning money. Apply Template shows how
-much each category would receive before it assigns the money. Applying templates
-can change many assignments at once, so keep a current backup and review the
-result.
-
-Templates written in a category note stay view-only. Resetting leftover money
-with a cleanup template is not available.
-
-### Experimental Features
-
-Experimental features are opt-in and disabled by default. **Background Bank
-Sync** remains experimental under Settings → Advanced. When enabled, it uses
-your server to download and save bank changes automatically after a background
-budget sync. The manual Bank Sync page is always available under Settings →
-Budget & Data and lets you review changes before saving.
+**Background Bank Sync** is experimental and off by default under Settings →
+Advanced. Enabling it automatically saves downloaded bank changes. Manual Bank
+Sync lets you review changes before saving.
 
 ## Current Limitations
 
@@ -226,32 +121,13 @@ Budget & Data and lets you review changes before saving.
 
 ## Reporting Bugs
 
-Found a problem? Please
-[open a GitHub issue](https://github.com/sporez/actualist/issues/new) rather than
-assuming a failed write or sync will repair itself.
+[Open an issue](https://github.com/sporez/actualist/issues/new) with your app/server
+versions, device, and steps to reproduce. Attach **Settings → Support → Share
+Diagnostic Report** when useful. Keep credentials and personal financial data
+out of reports and screenshots.
 
-In Actualist, open **Settings → Support → Share Diagnostic Report** and attach
-the generated text file. The report includes app, device, configuration,
-local-store, sync, and background-refresh state while excluding credentials,
-server addresses, identifiers, names, budget contents, transaction details, and
-financial amounts.
-
-Include:
-
-- Actualist version and build number.
-- iOS/iPadOS version and device model.
-- Actual server version and hosting method.
-- Whether the budget uses end-to-end encryption.
-- Whether the problem happened online, offline, or while reconnecting.
-- Exact steps to reproduce, expected behavior, and actual behavior.
-- A redacted screenshot or error message when useful.
-
-For a data-integrity problem, stop repeating the action, preserve your backup,
-and say clearly in the issue that the report may involve a wrong balance, missing
-transaction, duplicate transaction, or unexpected budget write.
-
-For suspected security vulnerabilities or reports containing sensitive details,
-follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+If an action appears to damage data, stop repeating it and preserve your backup.
+Report security issues privately as described in [SECURITY.md](SECURITY.md).
 
 ## Privacy
 
@@ -272,51 +148,19 @@ open Actualist.xcodeproj
 ```
 
 Resolve Swift packages in Xcode, select the `Actualist` scheme, and run the app.
-The repository also includes a simulator helper:
+
+For the simulator helper, first copy `scripts/lib/destinations.example.sh` to
+`scripts/lib/destinations.sh` and set `ACTUALIST_SIMULATOR_ID` to an installed
+simulator ID from `xcrun simctl list devices available`. Then run:
 
 ```sh
 scripts/run-ios-simulator.sh --boot
 ```
 
-Configure your simulator first: copy `scripts/lib/destinations.example.sh` to
-`scripts/lib/destinations.sh` and set `ACTUALIST_SIMULATOR_ID` to an installed
-simulator ID from `xcrun simctl list devices available`. Then run:
+See the [development guide](docs/DEVELOPMENT.md) for demo budgets and test commands.
 
-```sh
-source scripts/lib/destinations.sh
-scripts/check.sh
-
-xcodebuild \
-  -project Actualist.xcodeproj \
-  -scheme Actualist \
-  -destination "platform=iOS Simulator,id=${ACTUALIST_SIMULATOR_ID}" \
-  -derivedDataPath .derivedData \
-  test
-```
-
-Pin the simulator by UDID, not display name. Keep the machine-specific
-`destinations.sh` file out of version control.
-
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full development and
-release workflow.
-
-## Project Architecture
-
-Actualist is a SwiftUI app with a local-first data path:
-
-1. Authenticate with the normal Actual sync server.
-2. Download and import the selected Actual budget database.
-3. Render reads from local SQLite.
-4. Apply writes locally as Actual-compatible CRDT messages.
-5. Store pending messages in a durable outbox and opportunistically sync them.
-
-The app stores sync tokens and unlocked budget keys in the iOS Keychain. Budget
-data remains on your device and on the Actual server you choose. A local
-snapshot shared with the widget extension supplies widget names and balances;
-widgets do not read credentials or contact the server.
-
-Actualist is an independent community project and is not affiliated with or
-endorsed by the Actual Budget project.
+Actualist is an independent community project, not affiliated with or endorsed
+by Actual Budget.
 
 ## License
 

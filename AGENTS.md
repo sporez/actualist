@@ -48,22 +48,6 @@ Actualist is a native iOS 26+ local-first client for Actual Budget. It talks to 
 
 Toolbar buttons must be plain toolbar content. The toolbar supplies the glass.
 
-Wrong:
-
-```swift
-ToolbarItem(placement: .topBarTrailing) {
-    Button {
-        Task { await load() }
-    } label: {
-        Image(systemName: "arrow.clockwise")
-    }
-    .buttonStyle(.glass(.clear))
-    .glassEffect(.regular, in: Circle())
-}
-```
-
-Right:
-
 ```swift
 ToolbarItem(placement: .topBarTrailing) {
     Button {
@@ -78,53 +62,16 @@ ToolbarItem(placement: .topBarTrailing) {
 
 The main app tab bar must be native `TabView`, not a custom floating glass control.
 
-Wrong:
-
-```swift
-ZStack(alignment: .bottom) {
-    content
-
-    HStack {
-        Button("Budget") { selectedTab = .budget }
-            .buttonStyle(.glass(.regular))
-        Button("Accounts") { selectedTab = .accounts }
-            .buttonStyle(.glass(.regular))
-    }
-    .glassEffect(.regular, in: Capsule())
-}
-```
-
-Right:
-
 ```swift
 TabView(selection: $selectedTab) {
     BudgetView()
-        .tabItem {
-            Label("Budget", systemImage: "list.bullet.rectangle.portrait.fill")
-        }
+        .tabItem { Label("Budget", systemImage: "list.bullet.rectangle.portrait.fill") }
         .tag(AppTab.budget)
-
-    AccountsView()
-        .tabItem {
-            Label("Accounts", systemImage: "building.columns.fill")
-        }
-        .tag(AppTab.accounts)
+    // Add Spending, Accounts, and Reports with the same native structure.
 }
 ```
 
 Glass panels are allowed only for non-native, non-toolbar surfaces. Do not put glass buttons inside glass panels unless the design has been verified on a physical device and does not show nested glass.
-
-Wrong:
-
-```swift
-HStack {
-    Button("Settings") { showSettings = true }
-        .buttonStyle(.glass)
-}
-.glassEffect(.regular, in: Capsule())
-```
-
-Right:
 
 ```swift
 GlassPanel {
@@ -151,6 +98,9 @@ Button {
 ```
 
 Pre-handoff visual rule: if any control looks like a smaller rounded rectangle or capsule sitting inside a larger rounded rectangle or capsule, it is wrong. Remove one layer of glass before handing off.
+
+### State and data ownership
+
 - Keep sync transport, SQLite/CRDT models, domain/display models, view models, and views separated.
 - Keep SwiftUI views layout-focused. Do not put API composition, loading/error workflows, budget derivation, input interpretation/math, write orchestration, or screen state machines directly in views.
 - SwiftUI views may format layout, bind controls, show state already prepared for display, and call view-model intent methods. They must not compute final money amounts, decide API payload values, mutate model state beyond local presentation toggles, or contain business rules hidden in button actions/gestures.
@@ -227,20 +177,6 @@ Hard rules:
   or real financial amounts.
 - Omit layout-only and developer-only notes. If a tester would not notice it
   while using the app, it does not get a trailer.
-
-Wrong:
-
-```text
-TestFlight-Note: Try Import Transaction from Text with "spent 12.50 on coffee".
-TestFlight-Note: Added split rule actions.
-TestFlight-Note: [shortcuts-siri] Say “Open spending in Actualist” and confirm the Spending tab comes forward.
-```
-
-Right:
-
-```text
-TestFlight-Note: [shortcuts] Added Shortcuts and Siri support, grouped under Accounts, Budget, Transactions, and Reports. You can log or import transactions, assign or move budget money, open screens, and read balances.
-```
 
 Developer-voice notes are wrong even when every hard rule passes. Describe
 the outcome a tester sees, not the machinery:
@@ -330,7 +266,8 @@ diff smaller.
   builder, a reusable view, a repository/transport concern, or a test
   subsystem.
 - Do not split a cohesive type into arbitrary cross-file extensions solely to
-  lower line counts. A split should reduce coupling or make ownership clearer;
+  lower line counts. Preserve or improve access control. A split should reduce
+  coupling or make ownership clearer;
   it should not expose previously private state, create forwarding boilerplate,
   or make one workflow harder to follow.
 - Prefer composition when a view model or coordinator owns multiple independent
@@ -349,9 +286,6 @@ diff smaller.
   run tests at the scope defined below. Files that must be excluded from
   target membership (e.g. `Info.plist`, entitlements) are listed in the
   synchronized group's `membershipExceptions`.
-- File splitting must preserve or improve access control. Do not expose private
-  state, add forwarding boilerplate, or create arbitrary extensions solely to
-  manipulate line counts.
 
 ## Duplication And Complexity Discipline
 

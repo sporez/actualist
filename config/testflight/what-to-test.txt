@@ -5,7 +5,7 @@ Before testing, export a backup of your Actual budget.
 What to test:
 - Connect to your server, import a budget, and compare Budget, Spending, Accounts, and Reports with Actual.
 - Create, edit, categorize, split, transfer, and delete test transactions.
-- Assign and move budget money, then check that changes appear in Actual.
+- Edit your envelope or tracking budget and check that changes appear in Actual. For envelope budgets, also check Move Money.
 - Make a small change offline, reconnect, and check that it syncs without missing or duplicate transactions.
 - Explore this build's changes, your preferred theme and display density, and widgets.
 
