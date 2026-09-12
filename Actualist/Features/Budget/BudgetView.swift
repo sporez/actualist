@@ -68,6 +68,7 @@ struct BudgetView: View {
                 } action: { previous, current in
                     updateAddTransactionExpansion(previous: previous, current: current)
                 }
+                .modifier(BudgetMonthSwipeModifier(model: viewModel, presentationBlocked: monthSwipePresentationBlocked))
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if viewModel.isAssignmentKeypadPresented {
                         BudgetAssignmentKeypad(
@@ -372,6 +373,14 @@ struct BudgetView: View {
                 }
             }
         }
+    }
+
+    private var monthSwipePresentationBlocked: Bool {
+        isHistoryPresented || isMonthPickerPresented || isUncategorizedTransactionsPresented
+            || categoryDetailsPresentation != nil || isOverspentCategoriesPresented
+            || pendingTemplateConfirmation != nil || templateEditorTarget != nil || noteTarget != nil
+            || transactionPresenter.presentation != nil || appState.routeCoordinator.isSettingsPresented
+            || visibilityWorkflow.isSubmitting
     }
 
     private func applyTemplate(_ confirmation: BudgetTemplateConfirmation, reviewedMode: BudgetModeIdentity?) {
