@@ -25,6 +25,7 @@ final class TransactionEditorSession: Identifiable {
     let model: TransactionEditorViewModel
     private let account: ActualAccount?
     private var preparation: Task<Void, Never>?
+    private var hasPresentedFeedback = false
     private enum Lifecycle { case active, saved, invalidated }
     private var lifecycle: Lifecycle = .active
 
@@ -43,6 +44,13 @@ final class TransactionEditorSession: Identifiable {
             categoryName: prefill?.categoryName ?? request.categoryName ?? categoryName
         )
         if let prefill { model.applyShortcutPrefill(prefill) }
+    }
+
+    /// Host reconstruction and returning from nested pickers share this session.
+    func consumePresentationFeedback() -> Bool {
+        guard lifecycle == .active, !hasPresentedFeedback else { return false }
+        hasPresentedFeedback = true
+        return true
     }
 
     func invalidate() {

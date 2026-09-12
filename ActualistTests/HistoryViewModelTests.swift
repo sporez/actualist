@@ -90,8 +90,9 @@ extension LocalFirstActualStoreTests {
         #expect(review.entries.first?.currentText == "625.00")
         #expect(review.entries.first?.proposedText == "500.00")
 
-        await viewModel.confirmUndo(using: appState)
+        #expect(await viewModel.confirmUndo(using: appState))
 
+        #expect(await viewModel.confirmUndo(using: appState) == false)
         #expect(viewModel.activeReview == nil)
         #expect(viewModel.undoFailureMessage == nil)
         let undoneRow = try #require(viewModel.rows.first)
@@ -158,7 +159,7 @@ extension LocalFirstActualStoreTests {
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(racing)
 
-        await viewModel.confirmUndo(using: appState)
+        #expect(await viewModel.confirmUndo(using: appState) == false)
 
         #expect(viewModel.activeReview == nil)
         #expect(viewModel.undoFailureMessage?.contains("Undo would overwrite the newer change") == true)

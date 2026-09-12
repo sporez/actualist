@@ -23,6 +23,17 @@ struct RootTransactionEditorPresenterTests {
         #expect(presenter.presentation?.id != session.id)
     }
 
+    @Test func openingFeedbackIsConsumedOncePerActiveSession() {
+        let session = TransactionEditorSession(context: context)
+        #expect(session.consumePresentationFeedback())
+        #expect(!session.consumePresentationFeedback())
+        let next = TransactionEditorSession(context: context)
+        #expect(next.consumePresentationFeedback())
+        let invalidated = TransactionEditorSession(context: context)
+        invalidated.invalidate()
+        #expect(!invalidated.consumePresentationFeedback())
+    }
+
     @Test func invalidatedSessionCannotBecomeCurrentAgain() {
         let session = TransactionEditorSession(context: context)
         #expect(session.isCurrent(context))

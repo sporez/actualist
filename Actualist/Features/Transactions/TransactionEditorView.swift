@@ -52,6 +52,11 @@ struct TransactionEditorView: View {
             .navigationTitle(viewModel.title)
             .navigationBarTitleDisplayMode(.inline)
         }
+        .onAppear {
+            if session.consumePresentationFeedback() {
+                ActualistHaptics.editorOpened()
+            }
+        }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
@@ -297,6 +302,7 @@ struct TransactionEditorView: View {
 
     private func submitAndDismissIfSaved() async {
         if await session.submit(using: appState) {
+            ActualistHaptics.success()
             dismiss()
         }
     }

@@ -211,7 +211,11 @@ struct PayeesView: View {
                 if !viewModel.isSelecting && viewModel.snapshot.canUndo {
                     ToolbarItem(placement: .bottomBar) {
                         Button("Undo", systemImage: "arrow.uturn.backward") {
-                            Task { _ = await viewModel.undo(using: appState) }
+                            Task {
+                                if await viewModel.undo(using: appState) {
+                                    ActualistHaptics.success()
+                                }
+                            }
                         }
                         .disabled(viewModel.isSubmitting)
                     }

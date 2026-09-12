@@ -36,7 +36,11 @@ struct HistoryView: View {
                     review: review,
                     isCommitting: viewModel.committingActionID == review.actionID,
                     onConfirm: {
-                        Task { await viewModel.confirmUndo(using: appState) }
+                        Task {
+                            if await viewModel.confirmUndo(using: appState) {
+                                ActualistHaptics.success()
+                            }
+                        }
                     },
                     onCancel: {
                         viewModel.cancelUndo()
