@@ -57,9 +57,6 @@ struct ActualNoteTarget: Hashable, Identifiable, Sendable {
 }
 
 struct ActualNotePresentation: Equatable, Sendable {
-    /// Shown above the notes editor. Keep in sync with the parser subset.
-    static let editorSyntaxHint = "Supports **bold** and *italic*."
-
     let attributedText: AttributedString
 
     init?(userBody: String?) {

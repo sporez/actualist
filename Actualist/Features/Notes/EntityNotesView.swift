@@ -3,6 +3,8 @@ import SwiftUI
 struct EntityNotesView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isMarkdownHelpExpanded = false
     @State private var viewModel: EntityNotesViewModel
 
     let repository: any EntityNotesRepositoryProtocol
@@ -72,10 +74,26 @@ struct EntityNotesView: View {
                     .font(ActualistTypography.rowLabel(for: density))
                     .foregroundStyle(ActualistTheme.secondaryText)
 
-                Text(ActualNotePresentation.editorSyntaxHint)
+                DisclosureGroup(isExpanded: $isMarkdownHelpExpanded) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(verbatim: "**bold** → Bold")
+                            .bold()
+                        Text(verbatim: "*italic* → Italic")
+                            .italic()
+                    }
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+                    .accessibilityIdentifier("notes-markdown-examples")
+                } label: {
+                    Text("Supported Markdown")
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .tint(ActualistTheme.secondaryText)
+                .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isMarkdownHelpExpanded)
+                .accessibilityIdentifier("notes-markdown-help")
             }
 
             TextEditor(text: Binding(
@@ -84,6 +102,7 @@ struct EntityNotesView: View {
             ))
             .font(ActualistTypography.body(for: density))
             .foregroundStyle(ActualistTheme.primaryText)
+            .accessibilityIdentifier("entity-notes-editor")
             .scrollContentBackground(.hidden)
             .padding(12)
             .background(

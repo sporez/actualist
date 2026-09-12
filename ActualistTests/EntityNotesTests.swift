@@ -82,10 +82,6 @@ struct ActualNoteValueTests {
                 from: "Read [the guide](https://example.com)"
             ) == "Read the guide"
         )
-        #expect(
-            ActualNotePresentation.editorSyntaxHint
-                == "Supports **bold** and *italic*."
-        )
     }
 
     @Test func markdownPresentationAppliesBoldFontForStrongEmphasis() throws {
