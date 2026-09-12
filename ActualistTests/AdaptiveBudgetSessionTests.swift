@@ -3,6 +3,31 @@ import Testing
 
 extension LocalFirstActualStoreTests {
     @Test @MainActor
+    func resizeRetainsPresentedHostUntilReplacementIsReady() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let appState = try makeAppState(for: bundle)
+        let session = AdaptiveBudgetSession(repository: bundle.store)
+        await session.update(mode: .compact, budgetID: "group-1", appState: appState).value
+
+        let growing = session.update(mode: .sidebar, budgetID: "group-1", appState: appState)
+        #expect(session.presentedContext == .init(mode: .compact, budgetID: "group-1"))
+        await growing.value
+        #expect(session.presentedContext == .init(mode: .sidebar, budgetID: "group-1"))
+
+        let shrinking = session.update(mode: .compact, budgetID: "group-1", appState: appState)
+        #expect(session.presentedContext == .init(mode: .sidebar, budgetID: "group-1"))
+        let reversal = session.update(mode: .sidebar, budgetID: "group-1", appState: appState)
+        await shrinking.value
+        await reversal.value
+        #expect(session.presentedContext == .init(mode: .sidebar, budgetID: "group-1"))
+
+        let switching = session.update(mode: .sidebar, budgetID: "missing-budget", appState: appState)
+        #expect(session.presentedContext == nil)
+        await switching.value
+        #expect(session.presentedContext?.budgetID == "missing-budget")
+    }
+
+    @Test @MainActor
     func adaptiveSessionPreservesCompactMonthAcrossWideRoundTrip() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)

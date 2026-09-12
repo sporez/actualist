@@ -4,6 +4,55 @@ import Foundation
 
 @MainActor
 struct BudgetViewportModelStateTests {
+    @Test func resizeReversalKeepsExistingValuesAndDiscardsLateMonth() async {
+        let repository = BudgetViewportTestRepository()
+        for month in ["2026-07", "2026-08", "2026-09"] {
+            await repository.set(BudgetViewportFixtures.loaded(month))
+        }
+        let model = BudgetViewportModel(repository: repository)
+        await model.load(budgetID: "budget", anchorMonth: "2026-07")
+        await repository.block("2026-09")
+        model.setResolvedMonthCount(3)
+        let growth = Task { await model.refreshVisibleMonths() }
+        await repository.waitUntilReadBlocked("2026-09")
+        #expect(model.visibleMonths.count == 3)
+        #expect(model.snapshot(for: "2026-07")?.month.totalBudgeted == 100)
+        #expect(model.snapshot(for: "2026-09") == nil)
+        model.setResolvedMonthCount(1)
+        #expect(await model.refreshVisibleMonths())
+        await repository.release("2026-09")
+        #expect(await growth.value == false)
+        #expect(model.visibleMonths == ["2026-07"])
+        #expect(Set(model.monthSnapshots.keys) == ["2026-07"])
+        #expect(model.monthErrors.isEmpty)
+        #expect(!model.isLoading)
+    }
+
+    @Test func disappearingAssignmentAnchorRetainsDraftAndCapturedMonth() async {
+        let repository = BudgetViewportTestRepository()
+        for month in ["2026-07", "2026-08"] { await repository.set(BudgetViewportFixtures.loaded(month)) }
+        let model = BudgetViewportModel(repository: repository)
+        model.setResolvedMonthCount(2)
+        await model.load(budgetID: "budget", anchorMonth: "2026-07")
+        model.beginAssignmentEditing(categoryID: "groceries", month: "2026-08")
+        model.appendKeypadDigit(7)
+        model.setResolvedMonthCount(1)
+        #expect(model.assignmentPresentationCell?.month == "2026-07")
+        #expect(model.selectedCell?.month == "2026-08")
+        #expect(model.assignmentWorkflow.draft?.inputDigits == "7")
+        #expect(await model.refreshVisibleMonths())
+        #expect(model.snapshot(for: "2026-08") != nil)
+        model.setResolvedMonthCount(2)
+        #expect(model.assignmentPresentationCell == model.selectedCell)
+        model.setResolvedMonthCount(1)
+        #expect(await model.submitAssignment())
+        model.setResolvedMonthCount(2)
+        #expect(await model.refreshVisibleMonths())
+        #expect(model.snapshot(for: "2026-08")?.month.totalBudgeted == 7)
+        #expect(model.snapshot(for: "2026-07")?.month.totalBudgeted == 100)
+        #expect(model.assignmentPresentationCell == nil)
+    }
+
     @Test func newestNavigationWinsAndOldReadCannotReplaceIt() async {
         let repository = BudgetViewportTestRepository()
         await repository.set(BudgetViewportFixtures.loaded("2026-07"))

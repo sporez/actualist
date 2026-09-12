@@ -84,6 +84,41 @@ final class IPadReviewUITests: XCTestCase {
     }
 
     @MainActor
+    func testAssignmentDraftSurvivesItsMonthLeavingSidebarGrid() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launch()
+        try requireWide(app)
+        let window = app.windows.firstMatch
+        let originalWidth = window.frame.width
+        XCTAssertTrue(app.scrollViews["budget-grid"].waitForExistence(timeout: 10))
+        let cells = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'assigned-'"))
+            .allElementsBoundByIndex
+        let months = Set(cells.map { String($0.identifier.dropFirst(9).prefix(7)) }).sorted()
+        XCTAssertGreaterThan(months.count, 1)
+        let month = try XCTUnwrap(months.last)
+        let cell = try XCTUnwrap(cells.first { $0.identifier.contains(month) && $0.isHittable })
+        let identity = cell.identifier
+        cell.tap()
+        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        app.buttons["7"].tap()
+        defer { restore(window, width: originalWidth) }
+        var removed = false
+        for _ in 0..<8 where !removed {
+            XCTAssertTrue(resize(window, by: -60))
+            XCTAssertGreaterThanOrEqual(window.frame.width, 792)
+            XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+            removed = !app.buttons[identity].exists
+        }
+        XCTAssertTrue(removed)
+        screenshot("resize-departing-month-draft")
+        app.buttons["Save assignment"].tap()
+        XCTAssertTrue(app.buttons["Save assignment"].waitForNonExistence(timeout: 5))
+        restore(window, width: originalWidth)
+        XCTAssertTrue(app.buttons[identity].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons[identity].label.contains("0.07"))
+    }
+
+    @MainActor
     func testAccountEditorAndNestedPickerSurviveNativeResize() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launch()

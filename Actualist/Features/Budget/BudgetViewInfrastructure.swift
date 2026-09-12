@@ -24,6 +24,7 @@ enum BudgetLayout {
     static let assignmentScrollVisibilityMargin: CGFloat = 20
     static let addTransactionFloatingPadding: CGFloat = 12
     static let hiddenCategoryOpacity: Double = 0.5
+    static let monthResizeAnimation = Animation.easeInOut(duration: 0.2)
     static let assignmentKeypadAnimation = Animation.smooth(duration: 0.24)
     static let assignmentScrollAnimation = Animation.smooth(duration: 0.22)
     static let addTransactionExpansionAnimation = Animation.smooth(duration: 0.22)

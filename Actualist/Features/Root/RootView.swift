@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var budgetSession: AdaptiveBudgetSession?
     @State private var transactionPresenter = RootTransactionEditorPresenter()
@@ -30,31 +31,33 @@ struct RootView: View {
                             for: proxy.size.width,
                             dynamicTypeScale: dynamicTypeSize.budgetLayoutScale
                         )
-                        Group {
-                            switch mode {
-                            case .compact:
-                                Group {
-                                    if let budgetSession, budgetSession.presentedContext == .init(mode: mode, budgetID: appState.settings.selectedBudgetID) {
-                                        MainTabView(budgetViewModel: budgetSession.compactModel)
-                                    } else {
-                                        ProgressView()
-                                    }
-                                }
-                                    .environment(\.budgetRootWidth, proxy.size.width)
-                                    .environment(\.budgetSidebarLayoutActive, false)
-                            case .sidebar:
-                                if let budgetSession, budgetSession.presentedContext == .init(mode: mode, budgetID: appState.settings.selectedBudgetID) {
+                        ZStack {
+                            if let budgetSession,
+                               let context = budgetSession.presentedContext,
+                               context.budgetID == appState.settings.selectedBudgetID {
+                                switch context.mode {
+                                case .compact:
+                                    MainTabView(budgetViewModel: budgetSession.compactModel)
+                                        .environment(\.budgetRootWidth, proxy.size.width)
+                                        .environment(\.budgetSidebarLayoutActive, false)
+                                        .transition(.opacity)
+                                case .sidebar:
                                     AdaptiveRootShell(
                                         selection: $adaptiveSelection,
                                         viewport: budgetSession.viewport,
                                         budgetViewModel: budgetSession.compactModel,
                                         rootWidth: proxy.size.width
                                     )
-                                } else {
-                                    ProgressView()
+                                    .transition(.opacity)
                                 }
+                            } else {
+                                ProgressView()
                             }
                         }
+                        .animation(
+                            reduceMotion ? nil : .easeInOut(duration: 0.22),
+                            value: budgetSession?.presentedContext?.mode
+                        )
                         .onChange(of: mode) { _, newMode in
                             if newMode == .compact {
                                 if let adaptiveSelection, adaptiveSelection.isAccount {

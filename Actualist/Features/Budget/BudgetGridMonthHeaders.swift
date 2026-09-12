@@ -82,6 +82,7 @@ struct BudgetGridMonthHeaders: View {
                 .padding(.horizontal, sizing.cellPadding)
                 .padding(.vertical, sizing.headerPadding)
                 .frame(width: metrics.monthColumnWidth)
+                .transition(.opacity)
             }
         }
         .foregroundStyle(ActualistTheme.primaryText)

@@ -66,7 +66,9 @@ struct BudgetLayoutMetrics: Equatable {
         categoryColumnWidth + monthColumnWidth * CGFloat(visibleMonthCount)
     }
 
-    static func resolve(_ inputs: BudgetLayoutInputs) -> Self {
+    /// `renderedMonthCount` keeps geometry coherent while the viewport adopts a
+    /// new capacity. It does not change the user's month-count preference.
+    static func resolve(_ inputs: BudgetLayoutInputs, renderedMonthCount: Int? = nil) -> Self {
         let rootWidth = finiteNonnegative(inputs.rootWidth)
         let scale = min(max(finitePositive(inputs.dynamicTypeScale), 1), 3)
         let density = BudgetGridDensityMetrics(density: inputs.density)
@@ -102,7 +104,8 @@ struct BudgetLayoutMetrics: Equatable {
         let minimumGroupWidth = max(minimumMonthGroupWidth, minimumMoneyColumnWidth * moneyColumns) * moneyScale
         let physicallyPossible = max(1, min(supportedMonthRange.upperBound, Int(floor(availableForMonths / minimumGroupWidth))))
         let requested = inputs.preference.resolvedCount
-        let visibleCount = min(max(requested, supportedMonthRange.lowerBound), physicallyPossible)
+        let capacity = min(max(requested, supportedMonthRange.lowerBound), physicallyPossible)
+        let visibleCount = renderedMonthCount.map { min(max($0, 1), supportedMonthRange.upperBound) } ?? capacity
         let mode: BudgetPresentationMode = visibleCount > 1 ? .multiMonth : .splitSingleMonth
         let maximumTableWidth = maximumSingleMonthTableWidth * scale
         let tableWidth = visibleCount == 1 ? min(detailWidth, maximumTableWidth) : detailWidth
@@ -113,10 +116,10 @@ struct BudgetLayoutMetrics: Equatable {
         let naturalMonthWidth = visibleCount == 1
             ? tableMonthWidth
             : availableForMonths / CGFloat(visibleCount)
-        // A narrow inspector can leave less than the readable baseline. Keep
-        // the single-month fallback within the measured container rather than
-        // allowing its minimum width to overlap the category column.
-        let monthWidth = visibleCount == 1 && naturalMonthWidth < minimumMoneyColumnWidth * moneyColumns * moneyScale
+        // A narrow inspector or a pending range shrink can leave less than
+        // the readable baseline. Fit the rendered slots until capacity catches
+        // up rather than letting a minimum width overlap neighboring columns.
+        let monthWidth = visibleCount != capacity || (visibleCount == 1 && naturalMonthWidth < minimumMoneyColumnWidth * moneyColumns * moneyScale)
             ? max(naturalMonthWidth, 0)
             : max(naturalMonthWidth, minimumMoneyColumnWidth * moneyColumns * moneyScale)
         return Self(

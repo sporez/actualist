@@ -28,7 +28,9 @@ final class AdaptiveBudgetSession {
         let context = Context(mode: mode, budgetID: budgetID)
         if context == requestedContext, let transitionTask { return transitionTask }
         requestedContext = context
-        presentedContext = nil
+        // Keep the current host until a same-budget resize is ready to present.
+        // A budget switch must immediately stop presenting the previous budget.
+        if presentedContext?.budgetID != budgetID { presentedContext = nil }
         let previous = transitionTask
         previous?.cancel()
         let task = Task { [weak self] in

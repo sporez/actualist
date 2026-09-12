@@ -507,6 +507,76 @@ final class ActualistUITests: XCTestCase {
     }
 
     @MainActor
+    func testWideResizeRetainsAnchorInLightTheme() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let settings = launchDemo(screen: "settings/appearance")
+        try requireWide(settings)
+        let picker = settings.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 10))
+        picker.tap()
+        settings.buttons["Actual Purple (light)"].tap()
+        settings.terminate()
+        let app = launchDemo()
+        XCTAssertTrue(budgetGrid(in: app).waitForExistence(timeout: 15))
+        let window = app.windows.firstMatch
+        let initialWidth = window.frame.width
+        let anchor = try XCTUnwrap(assignedAnchorMonth(in: app))
+        defer {
+            app.terminate()
+            let restored = launchDemo(screen: "settings/appearance")
+            let theme = restored.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
+            if theme.waitForExistence(timeout: 10) {
+                theme.tap()
+                restored.buttons["Actual Purple (dark)"].tap()
+            }
+        }
+        for _ in 0..<3 {
+            XCTAssertTrue(resizeWindow(window, by: -60))
+            XCTAssertEqual(assignedAnchorMonth(in: app), anchor)
+            XCTAssertTrue(resizeWindow(window, by: 60))
+        }
+        XCTAssertEqual(window.frame.width, initialWidth, accuracy: 24)
+        XCTAssertEqual(assignedAnchorMonth(in: app), anchor)
+        attachScreenshot(named: "resize-light-reversals", app: app)
+        try testNativeWindowResizeTransitionsThroughWideSidebarAndCompactModes()
+    }
+
+    @MainActor
+    func testReduceMotionResize() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launch()
+        try requireWide(settings)
+        settings.buttons["com.apple.settings.accessibility"].tap()
+        settings.buttons["MOTION_TITLE"].tap()
+        let reduceMotion = settings.switches["REDUCE_MOTION"]
+        XCTAssertTrue(reduceMotion.waitForExistence(timeout: 5))
+        let original = reduceMotion.value as? String
+        if original != "1" { reduceMotion.switches.firstMatch.tap() }
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: reduceMotion)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 5), .completed)
+        defer {
+            settings.activate()
+            if reduceMotion.value as? String != original { reduceMotion.switches.firstMatch.tap() }
+        }
+        try testNativeWindowResizeTransitionsThroughWideSidebarAndCompactModes()
+    }
+
+    @MainActor
+    func testWideBudgetLargeTextKeepsColumnsAligned() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launchDemo(dynamicType: "UICTContentSizeCategoryXXXL")
+        try requireWide(app)
+        XCTAssertTrue(budgetGrid(in: app).waitForExistence(timeout: 15))
+        let assigned = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'assigned-' AND identifier ENDSWITH '-groceries'")).firstMatch
+        let available = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'available-' AND identifier ENDSWITH '-groceries'")).firstMatch
+        XCTAssertTrue(assigned.waitForExistence(timeout: 5))
+        XCTAssertEqual(assigned.frame.midY, available.frame.midY, accuracy: 2)
+        XCTAssertGreaterThanOrEqual(available.frame.minX, assigned.frame.maxX)
+        attachScreenshot(named: "resize-large-type", app: app)
+    }
+
+    @MainActor
     private func launchDemo(
         screen: String = "budget",
         dynamicType: String? = nil

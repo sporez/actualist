@@ -34,6 +34,15 @@ final class BudgetViewportModel {
     var selectedCell: SelectedCell? {
         assignmentWorkflow.context.map { SelectedCell(categoryID: $0.categoryID, month: $0.month) }
     }
+    /// Keep the editor anchored to a retained row when resizing removes its
+    /// month. The assignment context still owns the original destination.
+    var assignmentPresentationCell: SelectedCell? {
+        guard let selectedCell, let firstMonth = visibleMonths.first else { return nil }
+        return visibleMonths.contains(selectedCell.month)
+            ? selectedCell
+            : SelectedCell(categoryID: selectedCell.categoryID, month: firstMonth)
+    }
+
     private(set) var inspectedCell: SelectedCell?
     var selectedCategoryMonth: String? { inspectedCell?.month }
 

@@ -18,13 +18,15 @@ struct BudgetWorkspaceView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
-                let metrics = BudgetLayoutMetrics.resolve(.init(
+                let inputs = BudgetLayoutInputs(
                     rootWidth: rootWidth,
                     budgetDetailWidth: geometry.size.width,
                     dynamicTypeScale: dynamicTypeSize.budgetLayoutScale,
                     preference: appState.settings.monthDisplayPreference,
                     density: appState.settings.displayDensity
-                ))
+                )
+                let capacity = BudgetLayoutMetrics.resolve(inputs)
+                let metrics = BudgetLayoutMetrics.resolve(inputs, renderedMonthCount: viewport.resolvedMonthCount)
                 let display = BudgetGridPresentation(
                     visibleMonths: viewport.visibleMonths,
                     snapshots: viewport.monthSnapshots,
@@ -61,8 +63,8 @@ struct BudgetWorkspaceView: View {
                 .navigationTitle(display.rangeTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { navigationToolbar(display) }
-                .task(id: LoadID(budgetID: appState.settings.selectedBudgetID, count: metrics.visibleMonthCount, route: appState.routeCoordinator.pendingRoute)) {
-                    await actions.activate(using: appState, compactModel: compactModel, monthCount: metrics.visibleMonthCount)
+                .task(id: LoadID(budgetID: appState.settings.selectedBudgetID, count: capacity.visibleMonthCount, route: appState.routeCoordinator.pendingRoute)) {
+                    await actions.activate(using: appState, compactModel: compactModel, monthCount: capacity.visibleMonthCount)
                 }
             }
             .background(ActualistTheme.background)

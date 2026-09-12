@@ -3,6 +3,7 @@ import SwiftUI
 struct BudgetGridView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var sizing: BudgetGridDensityMetrics { .init(density: density) }
     @Bindable var viewport: BudgetViewportModel
     let actions: BudgetWorkspaceActions
@@ -38,6 +39,7 @@ struct BudgetGridView: View {
         }
         .background(ActualistTheme.background)
         .accessibilityIdentifier("budget-grid")
+        .animation(reduceMotion ? nil : BudgetLayout.monthResizeAnimation, value: presentation.months.count)
     }
 
     private func groupRow(_ group: BudgetGridPresentation.Group) -> some View {
@@ -82,6 +84,7 @@ struct BudgetGridView: View {
                 }
                 .padding(.horizontal, sizing.cellPadding)
                 .frame(width: metrics.monthColumnWidth)
+                .transition(.opacity)
             }
         }
         .foregroundStyle(ActualistTheme.primaryText)
@@ -143,19 +146,22 @@ struct BudgetGridView: View {
             }
 
             ForEach(presentation.months) { month in
-                if let value = presentation.category(category.id, month: month) {
-                    BudgetGridMonthCells(
-                        category: category,
-                        value: value,
-                        month: month,
-                        width: metrics.monthColumnWidth,
-                        viewport: viewport,
-                        actions: actions
-                    )
-                } else {
-                    Text("—").foregroundStyle(ActualistTheme.secondaryText)
-                        .frame(width: metrics.monthColumnWidth, height: sizing.rowHeight)
+                ZStack {
+                    if let value = presentation.category(category.id, month: month) {
+                        BudgetGridMonthCells(
+                            category: category,
+                            value: value,
+                            month: month,
+                            width: metrics.monthColumnWidth,
+                            viewport: viewport,
+                            actions: actions
+                        )
+                    } else {
+                        Text("—").foregroundStyle(ActualistTheme.secondaryText)
+                            .frame(width: metrics.monthColumnWidth, height: sizing.rowHeight)
+                    }
                 }
+                .transition(.opacity)
             }
         }
         .foregroundStyle(ActualistTheme.primaryText)
@@ -183,6 +189,11 @@ private struct BudgetGridMonthCells: View {
             && viewport.assignmentWorkflow.isPresented
     }
 
+    private var presentsAssignment: Bool {
+        viewport.assignmentPresentationCell == .init(categoryID: category.id, month: month.id)
+            && viewport.assignmentWorkflow.isPresented
+    }
+
     private var semantics: BudgetModePresentation {
         .init(isTracking: month.semantics.isTracking, isIncome: value.isIncome)
     }
@@ -201,7 +212,7 @@ private struct BudgetGridMonthCells: View {
             .hoverEffect(.highlight)
             .accessibilityLabel("\(category.title), \(month.title), \(semantics.budgetedLabel), \(month.currency.formatted(value.budgeted))")
             .accessibilityIdentifier("assigned-\(month.id)-\(category.id)")
-            .popover(isPresented: Binding(get: { isEditing }, set: { if !$0 && isEditing { viewport.cancelAssignmentEditing() } })) {
+            .popover(isPresented: Binding(get: { presentsAssignment }, set: { if !$0 && presentsAssignment { viewport.cancelAssignmentEditing() } })) {
                 BudgetAssignmentPopover(viewport: viewport, actions: actions, categoryName: category.title)
                     .presentationCompactAdaptation(.popover)
                     .appSwitcherPrivacyProtected(using: appState)

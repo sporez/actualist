@@ -50,8 +50,9 @@ if [[ "$mode" != "all" ]]; then
     for selector in "$@"; do
       [[ "$selector" =~ ^[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*(\(\))?)?$ ]] \
         || fail "invalid suite/method selector: $selector"
+      # ActualistUITests is also a suite name, so it is a valid selector.
       case "$selector" in
-        ActualistTests|ActualistTests/*|ActualistUITests|ActualistUITests/*)
+        ActualistTests|ActualistTests/*)
           fail "omit the target prefix: $selector" ;;
       esac
       selection+=("-only-testing:$target/$selector")

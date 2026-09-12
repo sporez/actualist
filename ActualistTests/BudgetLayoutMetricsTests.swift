@@ -11,6 +11,36 @@ struct BudgetLayoutMetricsTests {
         #expect(metrics.tableWidth <= 1068)
     }
 
+    @Test func pendingRangeChangeSizesTheMonthsActuallyRendered() {
+        for density in ActualistDisplayDensity.allCases {
+            for scale in [1.0, 1.45] {
+                for width in [700.0, 960, 1100] {
+                    let inputs = BudgetLayoutInputs(rootWidth: 2000, budgetDetailWidth: width,
+                                                   dynamicTypeScale: scale, density: density)
+                    for count in 1...5 {
+                        let rendered = BudgetLayoutMetrics.resolve(inputs, renderedMonthCount: count)
+                        #expect(rendered.visibleMonthCount == count)
+                        #expect(rendered.tableWidth <= width - inputs.horizontalMargins + 0.001)
+                        #expect(rendered.monthColumnWidth >= 0)
+                    }
+                    let target = BudgetLayoutMetrics.resolve(inputs)
+                    #expect(BudgetLayoutMetrics.resolve(inputs, renderedMonthCount: target.visibleMonthCount) == target)
+                }
+            }
+        }
+    }
+
+    @Test func sameCountGeometryFollowsWidthAndOverrideIsBounded() {
+        let smaller = BudgetLayoutInputs(rootWidth: 1400, budgetDetailWidth: 980)
+        let larger = BudgetLayoutInputs(rootWidth: 1400, budgetDetailWidth: 1000)
+        let first = BudgetLayoutMetrics.resolve(smaller, renderedMonthCount: 3)
+        let second = BudgetLayoutMetrics.resolve(larger, renderedMonthCount: 3)
+        #expect(second.tableWidth - first.tableWidth == 20)
+        #expect(second.monthColumnWidth > first.monthColumnWidth)
+        #expect(BudgetLayoutMetrics.resolve(larger, renderedMonthCount: 99).visibleMonthCount == 5)
+        #expect(BudgetLayoutMetrics.resolve(larger, renderedMonthCount: 0).visibleMonthCount == 1)
+    }
+
     @Test func autoUsesMeasuredBudgetDetailWidthWithoutSubtractingSidebarAgain() {
         let metrics = BudgetLayoutMetrics.resolve(
             BudgetLayoutInputs(rootWidth: 1_400, budgetDetailWidth: 960, sidebarWidth: 300)
