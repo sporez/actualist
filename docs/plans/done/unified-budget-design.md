@@ -1,10 +1,11 @@
 # Unified envelope and tracking budget design
 
-Approved design addendum, 2026-09-08. Implementation is present; verification is **in progress after Mac unlock** (2026-09-08).
+Approved design addendum, 2026-09-08. Implementation and acceptance are **completed 2026-09-11** (implementation `edb561c`).
 This addendum supersedes the original tracking presentation requirements for
 three expense columns, stacked tracking rows, and tracking-specific grid widths.
 It preserves tracking financial semantics and all completed backend work.
-Resolve the verification blockers below before final tracking acceptance.
+Tracking acceptance was completed on 2026-09-11 using existing evidence.
+The user confirmed iPad Escape is tested and working on 2026-09-11.
 
 ## Progress Tracker
 
@@ -12,10 +13,10 @@ Resolve the verification blockers below before final tracking acceptance.
   design on iPhone and iPad. Scope, ownership, verification and checkpoint
   strategy are recorded here; documentation review and mechanical gate passed.
   Recorded by the documentation commit introducing this file.
-- [ ] **Shared presentation — implemented, checkpoint authorized 2026-09-11; verification pending.** Replace mode-specific row/grid
+- [x] **Shared presentation — completed 2026-09-11 (`edb561c`).** Replace mode-specific row/grid
   layouts with the shared two-value design described below. Preserve native
   editing, navigation, selection, details and accessibility behavior.
-- [ ] **Verification and handoff — in progress, Escape-key investigation (2026-09-08).** Validate both budget modes on
+- [x] **Verification and handoff — completed 2026-09-11 (`edb561c`), with recorded automated evidence below and user-confirmed iPad Escape acceptance.** Validate both budget modes on
   iPhone and iPad, update affected tests and the governing tracker, and record
   implementation commits and evidence before marking complete.
 
@@ -256,3 +257,11 @@ This checkpoint reuses the unchanged-source evidence above and preserves the
 unresolved iPad Escape-key check. The fresh normal test build and signed iPhone
 archive/export passed without warnings; mechanical and structural review passed.
 No product code changed during this checkpoint. Final UI acceptance remains open.
+
+### Manual acceptance completed — 2026-09-11
+
+The user confirmed that iPad Escape is tested and working. This closes the final
+manual acceptance item for implementation `edb561c`; the automated and visual
+evidence above is reused. The historical synthesized Escape test failure is
+retained as evidence, not relabeled as a passing automated run. No production
+code changed or app tests were rerun for this documentation update.
