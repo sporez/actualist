@@ -59,6 +59,7 @@ struct AppSettings: Codable, Equatable {
     var greenIncomeTransactionAmountsEnabled: Bool = false
     var includeCarryoverCategoriesInOverspentAlerts: Bool = false
     var showTotalAssigned: Bool = false
+    var monthSwipingEnabled: Bool = false
     var hideCarryoverArrows: Bool = false
     var showHiddenCategories: Bool = false
     var randomizedDisplayValuesEnabled: Bool = false
@@ -94,6 +95,7 @@ struct AppSettings: Codable, Equatable {
         greenIncomeTransactionAmountsEnabled: Bool = false,
         includeCarryoverCategoriesInOverspentAlerts: Bool = false,
         showTotalAssigned: Bool = false,
+        monthSwipingEnabled: Bool = false,
         hideCarryoverArrows: Bool = false,
         showHiddenCategories: Bool = false,
         randomizedDisplayValuesEnabled: Bool = false,
@@ -122,6 +124,7 @@ struct AppSettings: Codable, Equatable {
         self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
         self.includeCarryoverCategoriesInOverspentAlerts = includeCarryoverCategoriesInOverspentAlerts
         self.showTotalAssigned = showTotalAssigned
+        self.monthSwipingEnabled = monthSwipingEnabled
         self.hideCarryoverArrows = hideCarryoverArrows
         self.showHiddenCategories = showHiddenCategories
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
@@ -162,6 +165,7 @@ struct AppSettings: Codable, Equatable {
             Bool.self,
             forKey: .showTotalAssigned
         ) ?? false
+        monthSwipingEnabled = try container.decodeIfPresent(Bool.self, forKey: .monthSwipingEnabled) ?? false
         hideCarryoverArrows = try container.decodeIfPresent(
             Bool.self,
             forKey: .hideCarryoverArrows

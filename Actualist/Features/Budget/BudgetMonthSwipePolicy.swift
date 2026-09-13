@@ -7,8 +7,8 @@ struct BudgetMonthSwipePolicy {
     var horizontalDominance: CGFloat = 1.5
     var commitFraction: CGFloat = 0.25
     var maximumCommitDistance: CGFloat = 110
-    var maximumPreviewOffset: CGFloat = 64
-    var settleDuration: Double = 0.22
+    var settleDuration: Double = 0.34
+    var springBounce: Double = 0.18
 
     enum Direction: Equatable {
         case previous, next
@@ -77,6 +77,6 @@ struct BudgetMonthSwipePolicy {
     func previewOffset(_ drag: Drag) -> CGFloat {
         guard case .horizontal(let direction) = drag.recognition else { return 0 }
         let inward = max(0, drag.translation * direction.translationSign)
-        return direction.translationSign * min(inward * 0.35, maximumPreviewOffset)
+        return direction.translationSign * min(inward, drag.viewport?.width ?? 0)
     }
 }

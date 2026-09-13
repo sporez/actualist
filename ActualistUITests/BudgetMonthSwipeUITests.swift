@@ -31,6 +31,81 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         capture("month-edge-scroll", app)
     }
 
+    @MainActor func testShortSwipesSpringBackAndCommittedSlideFinishes() {
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        settings.launch()
+        settings.buttons["com.apple.settings.accessibility"].tap()
+        settings.buttons["MOTION_TITLE"].tap()
+        let toggle = settings.switches["REDUCE_MOTION"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        let original = toggle.value as? String
+        if original == "1" { toggle.switches.firstMatch.tap() }
+        defer {
+            settings.activate()
+            if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
+        }
+        let app = launch()
+        let scroll = app.scrollViews["budget-compact-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        let row = app.buttons["budget-category-rent"]
+        let originalFrame = row.frame
+        let originalTitle = title(app)
+        for (start, end) in [(0.99, 0.81), (0.01, 0.19)] {
+            scroll.coordinate(withNormalizedOffset: .init(dx: start, dy: 0.5)).press(forDuration: 0.1,
+                thenDragTo: scroll.coordinate(withNormalizedOffset: .init(dx: end, dy: 0.5)),
+                withVelocity: XCUIGestureVelocity(rawValue: 180), thenHoldForDuration: 0.25)
+            XCTAssertTrue(waitForEnabled(row))
+            XCTAssertEqual(title(app), originalTitle)
+            XCTAssertEqual(row.frame.minX, originalFrame.minX, accuracy: 1)
+            XCTAssertEqual(row.frame.minY, originalFrame.minY, accuracy: 1)
+            XCTAssertFalse(app.buttons["Save assignment"].exists)
+        }
+        scroll.coordinate(withNormalizedOffset: .init(dx: 0.99, dy: 0.5)).press(forDuration: 0.1,
+            thenDragTo: scroll.coordinate(withNormalizedOffset: .init(dx: 0.64, dy: 0.5)),
+            withVelocity: XCUIGestureVelocity(rawValue: 180), thenHoldForDuration: 0)
+        XCTAssertTrue(waitForTitleChange(app, from: originalTitle))
+        XCTAssertTrue(waitForEnabled(row))
+        XCTAssertEqual(row.frame.minX, originalFrame.minX, accuracy: 1)
+        XCTAssertEqual(row.frame.minY, originalFrame.minY, accuracy: 1)
+        capture("month-full-slide-complete", app)
+    }
+
+    @MainActor func testSettledRowsKeepTheirBrightness() throws {
+        let app = launch()
+        let scroll = app.scrollViews["budget-compact-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        let identifiers = ["rent", "groceries", "utilities", "transportation", "insurance"]
+        let rows = identifiers.map { app.buttons["budget-category-\($0)"] }
+        let before = try rows.map { try brightness($0.screenshot()) }
+        let original = title(app)
+        for _ in 0..<2 {
+            drag(scroll, from: .init(dx: 0.99, dy: 0.5), to: .init(dx: 0.5, dy: 0.5))
+            XCTAssertTrue(waitForTitleChange(app, from: original))
+            drag(scroll, from: .init(dx: 0.01, dy: 0.5), to: .init(dx: 0.5, dy: 0.5))
+            XCTAssertTrue(waitForTitle(app, original))
+            drag(scroll, from: .init(dx: 0.99, dy: 0.5), to: .init(dx: 0.9, dy: 0.5))
+        }
+        for (index, row) in rows.enumerated() {
+            XCTAssertTrue(row.isEnabled)
+            XCTAssertEqual(try brightness(row.screenshot()) / before[index], 1, accuracy: 0.03, identifiers[index])
+        }
+        capture("settled-row-brightness", app)
+    }
+
+    private func brightness(_ screenshot: XCUIScreenshot) throws -> Double {
+        let image = try XCTUnwrap(screenshot.image.cgImage)
+        var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        try pixels.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(data: buffer.baseAddress, width: image.width, height: image.height,
+                bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        }
+        return stride(from: 0, to: pixels.count, by: 4).reduce(0.0) {
+            $0 + Double(pixels[$1]) + Double(pixels[$1 + 1]) + Double(pixels[$1 + 2])
+        } / Double(image.width * image.height)
+    }
+
     @MainActor func testScrolledMonthRoundTripRetainsPosition() throws {
         let app = launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
@@ -101,6 +176,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertTrue(theme.waitForExistence(timeout: 15))
         theme.tap()
         app.buttons["Actual Purple (light)"].tap()
+        setMonthSwiping(true, app: app)
+        capture("month-swipe-setting-light", app)
         app.terminate()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
         app.launch()
@@ -169,6 +246,10 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     @MainActor private func launch() -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launch()
+        setMonthSwiping(true, app: app)
+        app.terminate()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
         if UIDevice.current.userInterfaceIdiom == .pad {
             // The default demo fits a tall iPad. Large text makes scrolling observable.
@@ -176,6 +257,40 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         }
         app.launch()
         return app
+    }
+
+    @MainActor func testAppearanceToggleDisablesAndReenablesMonthSwiping() {
+        let app = launch()
+        for enabled in [false, true, false] {
+            app.terminate()
+            app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+            app.launch()
+            setMonthSwiping(enabled, app: app)
+            capture("month-swipe-setting-\(enabled)", app)
+            app.terminate()
+            app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
+            app.launch()
+            let scroll = app.scrollViews["budget-compact-scroll"]
+            XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+            let original = title(app)
+            drag(scroll, from: .init(dx: 0.99, dy: 0.5), to: .init(dx: 0.5, dy: 0.5))
+            if enabled {
+                XCTAssertTrue(waitForTitleChange(app, from: original))
+            } else {
+                XCTAssertEqual(title(app), original)
+                app.navigationBars.buttons.matching(NSPredicate(format: "label CONTAINS %@", original)).firstMatch.tap()
+                XCTAssertTrue(app.buttons["Jan"].waitForExistence(timeout: 5))
+            }
+        }
+    }
+
+    @MainActor private func setMonthSwiping(_ enabled: Bool, app: XCUIApplication) {
+        let toggle = app.switches["Swipe Between Months"]
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
+        for _ in 0..<4 where !toggle.isHittable { app.swipeUp() }
+        XCTAssertTrue(toggle.isHittable)
+        if toggle.value as? String != (enabled ? "1" : "0") { toggle.switches.firstMatch.tap() }
+        XCTAssertEqual(toggle.value as? String, enabled ? "1" : "0")
     }
 
     @MainActor private func title(_ app: XCUIApplication) -> String {
@@ -189,6 +304,14 @@ final class BudgetMonthSwipeUITests: XCTestCase {
 
     @MainActor private func waitForTitle(_ app: XCUIApplication, _ expected: String) -> Bool {
         app.navigationBars[expected].waitForExistence(timeout: 5)
+    }
+
+    @MainActor private func waitForEnabled(_ element: XCUIElement) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: 5) == .completed
     }
 
     @MainActor private func drag(_ element: XCUIElement, from: CGVector, to: CGVector) {

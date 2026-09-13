@@ -545,6 +545,11 @@ final class AppState {
         settingsStore.save(settings)
     }
 
+    func updateMonthSwipingEnabled(_ isEnabled: Bool) {
+        settings.monthSwipingEnabled = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateHideCarryoverArrows(_ isHidden: Bool) {
         settings.hideCarryoverArrows = isHidden
         settingsStore.save(settings)

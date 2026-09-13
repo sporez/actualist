@@ -45,8 +45,7 @@ struct BudgetView: View {
                     VStack(spacing: BudgetLayout.sectionSpacing) {
                         if viewModel.budgetMonth != nil {
                             operationErrorBanner
-                            budgetAlertBanners
-                            categoryGroups
+                            compactContent(viewModel)
                         } else if viewModel.isLoading {
                             loadingState
                         } else {
@@ -466,73 +465,10 @@ struct BudgetView: View {
         }
     }
 
-    private var displayedBudgetMonth: BudgetMonth? {
-        BudgetMonthPrivacyProjection.displayMonth(
-            viewModel.budgetMonth,
-            isEnabled: appState.settings.randomizedDisplayValuesEnabled,
-            currency: viewModel.currency
-        )
-    }
-
-    private var displayedGroups: [BudgetMonthCategoryGroup] {
-        BudgetCategoryVisibility.displayedGroups(
-            from: displayedBudgetMonth?.categoryGroups ?? [],
-            showHidden: appState.settings.showHiddenCategories,
-            isTrackingBudget: viewModel.isTrackingBudget
-        )
-    }
-
     private var showHiddenCategoriesBinding: Binding<Bool> {
         Binding(
             get: { appState.settings.showHiddenCategories },
             set: { appState.updateShowHiddenCategories($0) }
-        )
-    }
-
-    private var displayedBudgetAlerts: [BudgetAlert] {
-        BudgetMonthSummaryPresentation.alerts(
-            from: viewModel.budgetAlerts,
-            month: displayedBudgetMonth,
-            showTotalAssigned: appState.settings.showTotalAssigned,
-            includeCarryoverInOverspent: appState.settings.includeCarryoverCategoriesInOverspentAlerts,
-            isTrackingBudget: viewModel.isTrackingBudget,
-            currency: viewModel.currency
-        )
-    }
-
-    @ViewBuilder
-    private var budgetAlertBanners: some View {
-        if let savings = BudgetSavingsPresentation(month: displayedBudgetMonth, currency: viewModel.currency) {
-            BudgetSavingsBanner(presentation: savings)
-        }
-        ForEach(displayedBudgetAlerts) { alert in
-            if alert.isActionable {
-                Button {
-                    open(alert)
-                } label: {
-                    budgetAlertLabel(alert)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("budget-alert-\(alert.id)")
-            } else {
-                budgetAlertLabel(alert)
-            }
-        }
-    }
-
-    private func budgetAlertLabel(_ alert: BudgetAlert) -> some View {
-        BudgetAlertBanner(
-            alert: alert,
-            assignedText: assignedDisplayText(for: alert)
-        )
-    }
-
-    private func assignedDisplayText(for alert: BudgetAlert) -> String? {
-        BudgetMonthSummaryPresentation.assignedValueText(
-            for: alert,
-            month: displayedBudgetMonth,
-            showTotalAssigned: appState.settings.showTotalAssigned,
-            currency: viewModel.currency
         )
     }
 
@@ -603,62 +539,23 @@ struct BudgetView: View {
         )
     }
 
-    private var categoryGroups: some View {
-        LazyVStack(spacing: 0, pinnedViews: []) {
-            ForEach(displayedGroups) { group in
-                BudgetGroupSection(
-                    group: group,
-                    isExpanded: viewModel.isExpanded(group),
-                    isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                    assignedDisplay: { category in
-                        viewModel.assignedAmountDisplay(for: category, randomized: appState.settings.randomizedDisplayValuesEnabled)
-                    },
-                    isEditingAssignment: { category in
-                        viewModel.isEditingAssignment(for: category)
-                    },
-                    beginAssignmentEditing: { category, categoryFrame in
-                        guard let realCategory = realCategory(id: category.id) else {
-                            return
-                        }
-                        assignmentEditingCategoryFrame = categoryFrame
-                        withAnimation(.smooth(duration: 0.16)) {
-                            viewModel.beginAssignmentEditing(for: realCategory)
-                        }
-                    },
-                    toggle: {
-                        withAnimation(.smooth(duration: 0.2)) {
-                            viewModel.toggle(group)
-                        }
-                    },
-                    isTrackingBudget: viewModel.isTrackingBudget,
-                    showHidden: appState.settings.showHiddenCategories,
-                    hidesCarryoverArrows: appState.settings.hideCarryoverArrows,
-                    canChangeVisibility: !visibilityWorkflow.isSubmitting,
-                    onOpenCategoryNote: { category in
-                        noteTarget = ActualNoteTarget.category(
-                            id: category.id,
-                            title: category.name.actualistCategoryNameParts.name
-                        )
-                    },
-                    onOpenGroupNote: {
-                        noteTarget = ActualNoteTarget.categoryGroup(
-                            id: group.id,
-                            title: group.name
-                        )
-                    },
-                    onOpenTemplates: { category in
-                        presentTemplates(for: category)
-                    },
-                    templatesMenuTitle: { category in
-                        templatesMenuTitle(for: category)
-                    },
-                    onToggleCategoryHidden: { category in
-                        toggleCategoryHidden(category, in: group)
-                    },
-                    onToggleGroupHidden: {
-                        toggleGroupHidden(group)
-                    }
-                )
+    private func compactContent(_ model: BudgetViewModel) -> some View {
+        BudgetCompactMonthContent(viewModel: model, canChangeVisibility: !visibilityWorkflow.isSubmitting) { action in
+            switch action {
+            case .edit(let id, let frame):
+                guard let category = realCategory(id: id) else { return }
+                assignmentEditingCategoryFrame = frame
+                withAnimation(.smooth(duration: 0.16)) { viewModel.beginAssignmentEditing(for: category) }
+            case .toggle(let group):
+                withAnimation(.smooth(duration: 0.2)) { viewModel.toggle(group) }
+            case .alert(let alert): open(alert)
+            case .categoryNote(let category):
+                noteTarget = ActualNoteTarget.category(id: category.id, title: category.name.actualistCategoryNameParts.name)
+            case .groupNote(let group):
+                noteTarget = ActualNoteTarget.categoryGroup(id: group.id, title: group.name)
+            case .templates(let category): presentTemplates(for: category)
+            case .categoryVisibility(let category, let group): toggleCategoryHidden(category, in: group)
+            case .groupVisibility(let group): toggleGroupHidden(group)
             }
         }
     }
@@ -671,13 +568,6 @@ struct BudgetView: View {
             month: month,
             title: viewModel.navigationTitle
         )
-    }
-
-    private func templatesMenuTitle(for category: BudgetMonthCategory) -> String? {
-        guard canManageTemplates(category) else {
-            return nil
-        }
-        return BudgetTemplateDoorKind.kind(hasDefinition: category.hasTemplateDefinition).menuTitle
     }
 
     private func presentTemplates(for category: BudgetMonthCategory) {

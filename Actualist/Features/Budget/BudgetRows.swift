@@ -40,7 +40,7 @@ struct BudgetGroupSection: View {
                 .padding(.horizontal, BudgetLayout.rowHorizontalPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(BudgetRowButtonStyle())
             .accessibilityIdentifier("budget-group-\(group.id)")
             .opacity(isGroupHidden ? BudgetLayout.hiddenCategoryOpacity : 1)
             .contextMenu {
@@ -235,7 +235,7 @@ struct BudgetCategoryRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BudgetRowButtonStyle())
         .accessibilityIdentifier("budget-category-\(category.id)")
         .opacity(isDimmed ? BudgetLayout.hiddenCategoryOpacity : 1)
         .contextMenu {
@@ -392,5 +392,14 @@ struct BudgetCategoryRow: View {
             }
         }
         .foregroundStyle(assignedDisplay.isEditing ? ActualistTheme.accent : ActualistTheme.primaryText)
+    }
+}
+
+/// PlainButtonStyle can retain its dimmed press rendering when an edge drag
+/// disables a row mid-touch. Keep row colors stable; Button still owns activation
+/// and accessibility, and hidden-category opacity remains explicit on the row.
+private struct BudgetRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }

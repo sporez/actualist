@@ -78,6 +78,32 @@ extension LocalFirstActualStoreTests {
         #expect(AppSettingsStore(defaults: defaults).load().showTotalAssigned)
     }
 
+    @Test func monthSwipingEnabledPreferenceDefaultsOffAndPersists() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = AppSettingsStore(defaults: defaults)
+
+        #expect(!AppSettings().monthSwipingEnabled)
+        let decoded = try JSONDecoder.actual.decode(AppSettings.self, from: Data("{}".utf8))
+        #expect(!decoded.monthSwipingEnabled)
+
+        store.save(AppSettings(monthSwipingEnabled: true))
+
+        #expect(store.load().monthSwipingEnabled)
+    }
+
+    @Test func monthSwipingEnabledPreferenceUpdatesThroughAppState() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+
+        #expect(!state.settings.monthSwipingEnabled)
+        state.updateMonthSwipingEnabled(true)
+        #expect(state.settings.monthSwipingEnabled)
+        #expect(AppSettingsStore(defaults: defaults).load().monthSwipingEnabled)
+        state.updateMonthSwipingEnabled(false)
+        #expect(!state.settings.monthSwipingEnabled)
+        #expect(!AppSettingsStore(defaults: defaults).load().monthSwipingEnabled)
+    }
+
     @Test func hideCarryoverArrowsPreferenceDefaultsOffAndPersists() throws {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let store = AppSettingsStore(defaults: defaults)

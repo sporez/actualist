@@ -56,6 +56,12 @@ struct BudgetMonthSwipePolicyTests {
         #expect(policy.committedDirection(drag) == nil)
     }
 
+    @Test func rowsTrackFingerAcrossTheWholeViewport() {
+        #expect(policy.previewOffset(sample(startX: 0, x: 80)) == 80)
+        #expect(policy.previewOffset(sample(startX: 400, x: -250)) == -250)
+        #expect(policy.previewOffset(sample(startX: 0, x: 350)) == 350)
+    }
+
     @Test func resizeAndDisablingRejectTheWholeDrag() {
         for enabled in [true, false] {
             var drag = sample(startX: 0, x: 110)
@@ -63,7 +69,7 @@ struct BudgetMonthSwipePolicyTests {
                           viewport: enabled ? .init(width: 600, height: 700) : viewport, enabled: enabled)
             #expect(policy.committedDirection(drag) == nil)
         }
-        #expect(policy.previewOffset(sample(startX: 0, x: 1000)) == 64)
+        #expect(policy.previewOffset(sample(startX: 0, x: 1000)) == viewport.width)
     }
 }
 

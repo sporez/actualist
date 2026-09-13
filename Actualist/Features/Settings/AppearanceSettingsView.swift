@@ -115,6 +115,7 @@ struct AppearanceSettingsView: View {
                 )
                 Toggle("Show Total Assigned", isOn: showTotalAssignedSelection)
                 Toggle("Hide Carryover Arrows", isOn: hideCarryoverArrowsSelection)
+                Toggle("Swipe Between Months", isOn: monthSwipingSelection)
             } header: {
                 Text("Budget Options")
             } footer: {
@@ -186,6 +187,14 @@ struct AppearanceSettingsView: View {
             appState.settings.showTotalAssigned
         } set: { isEnabled in
             appState.updateShowTotalAssigned(isEnabled)
+        }
+    }
+
+    private var monthSwipingSelection: Binding<Bool> {
+        Binding {
+            appState.settings.monthSwipingEnabled
+        } set: { isEnabled in
+            appState.updateMonthSwipingEnabled(isEnabled)
         }
     }
 
