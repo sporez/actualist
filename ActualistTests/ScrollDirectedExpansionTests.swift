@@ -78,3 +78,42 @@ struct ScrollDirectedExpansionTests {
         #expect(expansion.isExpanded)
     }
 }
+
+struct BudgetAssignmentScrollRestorationTests {
+    @Test func validDismissalOffsetIsPreserved() {
+        var restoration = BudgetAssignmentScrollRestoration()
+        restoration.begin(using: .init(offset: 40, maxOffset: 100))
+
+        #expect(restoration.dismissalTarget(currentOffset: 80) == nil)
+    }
+
+    @Test func expandedClearanceOffsetClampsToCollapsedMaximum() {
+        var restoration = BudgetAssignmentScrollRestoration()
+        restoration.begin(using: .init(offset: 40, maxOffset: 100))
+
+        #expect(restoration.dismissalTarget(currentOffset: 420) == 100)
+    }
+
+    @Test func negativeDismissalOffsetClampsToTop() {
+        var restoration = BudgetAssignmentScrollRestoration()
+        restoration.begin(using: .init(offset: 0, maxOffset: 100))
+
+        #expect(restoration.dismissalTarget(currentOffset: -20) == 0)
+    }
+
+    @Test func dismissalConsumesTheCapturedRange() {
+        var restoration = BudgetAssignmentScrollRestoration()
+        restoration.begin(using: .init(offset: 40, maxOffset: 100))
+
+        #expect(restoration.dismissalTarget(currentOffset: 420) == 100)
+        #expect(restoration.dismissalTarget(currentOffset: 420) == nil)
+    }
+
+    @Test func categoryHandoffKeepsThePreKeypadRange() {
+        var restoration = BudgetAssignmentScrollRestoration()
+        restoration.begin(using: .init(offset: 40, maxOffset: 100))
+        restoration.begin(using: .init(offset: 20, maxOffset: 60))
+
+        #expect(restoration.dismissalTarget(currentOffset: 420) == 100)
+    }
+}

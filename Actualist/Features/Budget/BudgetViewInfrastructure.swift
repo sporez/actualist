@@ -94,6 +94,28 @@ enum BudgetScrollTarget {
     }
 }
 
+struct BudgetAssignmentScrollRestoration: Equatable {
+    private var collapsedMaximumOffset: CGFloat?
+
+    mutating func begin(using sample: ScrollDirectedExpansionSample) {
+        // Keep the range from before the keypad appeared even if editing moves
+        // directly to another category while the temporary clearance is live.
+        if collapsedMaximumOffset == nil {
+            collapsedMaximumOffset = max(0, sample.maxOffset)
+        }
+    }
+
+    mutating func dismissalTarget(currentOffset: CGFloat) -> CGFloat? {
+        guard let collapsedMaximumOffset else {
+            return nil
+        }
+        self.collapsedMaximumOffset = nil
+
+        let target = min(max(0, currentOffset), collapsedMaximumOffset)
+        return abs(target - currentOffset) > 0.5 ? target : nil
+    }
+}
+
 enum BudgetKeypadLayout {
     static let keyHeight: CGFloat = 46
     static let keyPressHighlightWidth: CGFloat = 74

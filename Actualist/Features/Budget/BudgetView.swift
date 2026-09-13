@@ -16,6 +16,9 @@ struct BudgetView: View {
     @State private var assignmentScrollTask: Task<Void, Never>?
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
     @State private var assignmentKeypadTopY: CGFloat = 0
+    @State private var compactScrollPosition = ScrollPosition(y: 0)
+    @State private var compactScrollSample = ScrollDirectedExpansionSample(offset: 0, maxOffset: 0)
+    @State private var assignmentScrollRestoration = BudgetAssignmentScrollRestoration()
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
     @State private var templateEditorTarget: BudgetTemplateEditorTarget?
     @State private var noteTarget: ActualNoteTarget?
@@ -56,6 +59,7 @@ struct BudgetView: View {
                     .padding(.top, 4)
                     .padding(.bottom, scrollBottomPadding)
                 }
+                .scrollPosition($compactScrollPosition)
                 .scrollIndicators(.hidden)
                 .accessibilityIdentifier("budget-compact-scroll")
                 .background(ActualistTheme.background)
@@ -65,9 +69,14 @@ struct BudgetView: View {
                         maxOffset: max(0, geometry.contentSize.height - geometry.visibleRect.height)
                     )
                 } action: { previous, current in
+                    compactScrollSample = current
                     updateAddTransactionExpansion(previous: previous, current: current)
                 }
-                .modifier(BudgetMonthSwipeModifier(model: viewModel, presentationBlocked: monthSwipePresentationBlocked))
+                .modifier(BudgetMonthSwipeModifier(
+                    model: viewModel,
+                    presentationBlocked: monthSwipePresentationBlocked,
+                    verticalOffset: compactScrollSample.offset
+                ))
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if viewModel.isAssignmentKeypadPresented {
                         BudgetAssignmentKeypad(
@@ -362,12 +371,20 @@ struct BudgetView: View {
                 )
                 .onChange(of: viewModel.activeAssignmentCategoryID) { _, categoryID in
                     if let categoryID {
+                        assignmentScrollRestoration.begin(using: compactScrollSample)
                         scheduleAssignmentCategoryScroll(categoryID, using: scrollProxy)
                     } else {
                         assignmentScrollTask?.cancel()
                         assignmentScrollTask = nil
                         assignmentKeypadTopY = 0
                         assignmentEditingCategoryFrame = .zero
+                        if let target = assignmentScrollRestoration.dismissalTarget(
+                            currentOffset: compactScrollSample.offset
+                        ) {
+                            withAnimation(BudgetLayout.assignmentScrollAnimation) {
+                                compactScrollPosition.scrollTo(y: target)
+                            }
+                        }
                     }
                 }
             }

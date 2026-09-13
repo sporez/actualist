@@ -89,7 +89,7 @@ final class BudgetViewModel {
 
     func categoryDetails(for categoryID: String) -> CategoryMonthDetails? {
         guard let selectedMonth,
-              let category = budgetMonth?.categoryGroups.flatMap(\.categories).first(where: { $0.id == categoryID }) else { return nil }
+              let category = actionCategory(for: categoryID) else { return nil }
         return CategoryMonthDetails(category: category, month: selectedMonth, modeIdentity: modeIdentity)
     }
 
@@ -141,7 +141,7 @@ final class BudgetViewModel {
     var activeCategoryMonthDetails: CategoryMonthDetails? {
         guard let categoryID = activeAssignmentCategoryID,
               let selectedMonth,
-              let category = category(for: categoryID) else {
+              let category = actionCategory(for: categoryID) else {
             return nil
         }
         return CategoryMonthDetails(
@@ -496,7 +496,7 @@ final class BudgetViewModel {
         guard !isTrackingBudget else { return }
         guard let categoryID = assignmentWorkflow.activeCategoryID,
               !assignmentWorkflow.isSubmitting,
-              let category = category(for: categoryID) else {
+              let category = actionCategory(for: categoryID) else {
             return
         }
 
@@ -510,7 +510,7 @@ final class BudgetViewModel {
 
     func beginMoveMoney(for categoryID: String) {
         guard !isTrackingBudget else { return }
-        guard let category = category(for: categoryID) else {
+        guard let category = actionCategory(for: categoryID) else {
             return
         }
 
@@ -809,9 +809,9 @@ final class BudgetViewModel {
         overspentCoverSelection.intersectSelection(with: Set(overspentCategoryOptions.map(\.id)))
     }
 
-    private func category(for categoryID: String) -> BudgetMonthCategory? {
+    private func actionCategory(for categoryID: String) -> BudgetMonthCategory? {
         visibleGroups
-            .flatMap(\.visibleCategories)
+            .flatMap(\.categories)
             .first { $0.id == categoryID }
     }
 

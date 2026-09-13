@@ -4,6 +4,26 @@ import Testing
 
 @MainActor
 struct BudgetViewModelMoveMoneyWorkflowTests {
+    @Test func shownHiddenCategoriesCanBeginMoveMoneyFromBothEntryPoints() throws {
+        let model = BudgetViewModel(initialBudgetID: "budget")
+        model.selectedMonth = "2026-06"
+        model.budgetMonth = BudgetViewModelFixtures.hiddenActionBudgetMonth()
+
+        let categories = model.budgetMonth?.categoryGroups.flatMap(\.categories) ?? []
+        #expect(categories.count == 2)
+        for category in categories {
+            model.beginAssignmentEditing(for: category)
+            model.beginMoveMoney()
+            #expect(model.moveMoneyDraft?.focusedCategoryID == category.id)
+            model.cancelMoveMoney()
+            model.cancelAssignmentEditing()
+
+            model.beginMoveMoney(for: category.id)
+            #expect(model.moveMoneyDraft?.focusedCategoryID == category.id)
+            model.cancelMoveMoney()
+        }
+    }
+
     @Test func moveMoneyForPositiveCategoryAllowsAmountsPastAvailableBalance() throws {
         let model = BudgetViewModel(initialBudgetID: "budget")
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(

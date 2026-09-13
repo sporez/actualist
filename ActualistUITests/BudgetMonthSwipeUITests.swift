@@ -168,6 +168,63 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         capture("month-row-context-menu", app)
     }
 
+    @MainActor func testAssignmentDismissalLeavesNoBlankScrollRegion() throws {
+        let app = launchFreshDemo()
+        let scroll = app.scrollViews["budget-compact-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        let row = app.buttons["budget-category-retirement"]
+        for _ in 0..<5 where !row.isHittable { scroll.swipeUp() }
+        XCTAssertTrue(row.isHittable)
+
+        row.tap()
+        XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
+        app.buttons["Dismiss keypad"].tap()
+        XCTAssertTrue(app.buttons["Dismiss keypad"].waitForNonExistence(timeout: 5))
+
+        let addTransaction = app.buttons["Add Transaction"]
+        XCTAssertTrue(addTransaction.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(row.frame.maxY, addTransaction.frame.minY - 90)
+        capture("assignment-dismissal-valid-scroll", app)
+    }
+
+    @MainActor func testShownHiddenCategoryDetailsAndMoveMoneyOpen() throws {
+        let app = launchFreshDemo()
+        let row = app.buttons["budget-category-rent"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+
+        app.buttons["Budget Actions"].tap()
+        let showHidden = app.buttons["Show Hidden Categories"]
+        XCTAssertTrue(showHidden.waitForExistence(timeout: 5))
+        if showHidden.value as? String == "1" || showHidden.isSelected {
+            showHidden.tap()
+        } else {
+            app.buttons["Budget Actions"].tap()
+        }
+
+        row.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["Hide"].waitForExistence(timeout: 5))
+        app.buttons["Hide"].tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+
+        app.buttons["Budget Actions"].tap()
+        XCTAssertTrue(showHidden.waitForExistence(timeout: 5))
+        showHidden.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+
+        row.tap()
+        XCTAssertTrue(app.buttons["Details"].waitForExistence(timeout: 5))
+        app.buttons["Details"].tap()
+        XCTAssertTrue(app.navigationBars["Rent"].waitForExistence(timeout: 5))
+        app.buttons["Close Category Details"].tap()
+        XCTAssertTrue(app.navigationBars["Rent"].waitForNonExistence(timeout: 5))
+
+        row.tap()
+        XCTAssertTrue(app.buttons["Move Money"].waitForExistence(timeout: 5))
+        app.buttons["Move Money"].tap()
+        XCTAssertTrue(app.navigationBars["Move to"].waitForExistence(timeout: 5))
+        capture("shown-hidden-category-actions", app)
+    }
+
     @MainActor func testLightThemeAndLargeTextSwipe() {
         let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
@@ -255,6 +312,18 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             // The default demo fits a tall iPad. Large text makes scrolling observable.
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
         }
+        app.launch()
+        return app
+    }
+
+    @MainActor private func launchFreshDemo() -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-actualist-demo",
+            "-actualist-replace-demo-for-ui-testing",
+            "-actualist-screen", "budget"
+        ]
         app.launch()
         return app
     }

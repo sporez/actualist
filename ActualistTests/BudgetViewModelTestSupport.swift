@@ -112,6 +112,37 @@ enum BudgetViewModelFixtures {
 
         return try JSONDecoder().decode(BudgetMonthCategory.self, from: json)
     }
+
+    static func hiddenActionBudgetMonth() -> BudgetMonth {
+        let individuallyHidden = BudgetMonthCategory(
+            id: "hidden-category", name: "Hidden Category", isIncome: false,
+            hidden: true, groupID: "visible-group", budgeted: 100,
+            spent: -20, balance: 80, carryover: false
+        )
+        let hiddenGroupChild = BudgetMonthCategory(
+            id: "hidden-group-child", name: "Hidden Group Child", isIncome: false,
+            hidden: false, groupID: "hidden-group", budgeted: 200,
+            spent: -30, balance: 170, carryover: false
+        )
+        return BudgetMonth(
+            month: "2026-06", incomeAvailable: 0, lastMonthOverspent: 0,
+            forNextMonth: 0, totalBudgeted: 300, toBudget: 0,
+            fromLastMonth: 0, totalIncome: 0, totalSpent: -50,
+            totalBalance: 250,
+            categoryGroups: [
+                BudgetMonthCategoryGroup(
+                    id: "visible-group", name: "Visible Group", isIncome: false,
+                    hidden: false, budgeted: 100, spent: -20, balance: 80,
+                    categories: [individuallyHidden]
+                ),
+                BudgetMonthCategoryGroup(
+                    id: "hidden-group", name: "Hidden Group", isIncome: false,
+                    hidden: true, budgeted: 200, spent: -30, balance: 170,
+                    categories: [hiddenGroupChild]
+                )
+            ]
+        )
+    }
 }
 
 actor RecordingBudgetRepository: BudgetRepositoryProtocol {

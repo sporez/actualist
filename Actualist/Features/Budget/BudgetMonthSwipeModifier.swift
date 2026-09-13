@@ -10,12 +10,12 @@ struct BudgetMonthSwipeModifier: ViewModifier {
     @State private var transition = BudgetMonthSwipeTransition()
     @State private var gestureRevision = 0
     @State private var viewport: CGRect = .zero
-    @State private var verticalOffset: CGFloat = 0
     @State private var previewPosition = ScrollPosition(y: 0)
     @State private var slideOffset: CGFloat = 0
     @GestureState private var drag = BudgetMonthSwipePolicy.Drag()
     let model: BudgetViewModel
     let presentationBlocked: Bool
+    let verticalOffset: CGFloat
     private let policy = BudgetMonthSwipePolicy()
 
     private var surfaceAvailable: Bool {
@@ -31,9 +31,6 @@ struct BudgetMonthSwipeModifier: ViewModifier {
     func body(content: Content) -> some View {
         let offset = reduceMotion || !surfaceAvailable ? 0 : slideOffset
         content
-            .onScrollGeometryChange(for: CGFloat.self) { $0.visibleRect.minY } action: { _, y in
-                if transition.request == nil { verticalOffset = y }
-            }
             // Native buttons must cancel their pending tap when a drag wins.
             .disabled((enabled && policy.suppressesControls(drag)) || transition.isReleased)
             .contentShape(Rectangle())

@@ -4,6 +4,22 @@ import Testing
 
 @MainActor
 struct BudgetViewModelAssignmentWorkflowTests {
+    @Test func shownHiddenCategoriesKeepAssignmentDetails() throws {
+        let model = BudgetViewModel(initialBudgetID: "budget")
+        model.selectedMonth = "2026-06"
+        model.budgetMonth = BudgetViewModelFixtures.hiddenActionBudgetMonth()
+
+        let categories = model.budgetMonth?.categoryGroups.flatMap(\.categories) ?? []
+        #expect(categories.count == 2)
+        for category in categories {
+            model.beginAssignmentEditing(for: category)
+
+            let details = try #require(model.activeCategoryMonthDetails)
+            #expect(details.category.id == category.id)
+            #expect(details.month == "2026-06")
+        }
+    }
+
     @Test func exposesActiveCategoryMonthDetailsForTheAssignmentSheet() throws {
         let model = BudgetViewModel(initialBudgetID: "budget")
         model.selectedMonth = "2026-06"
