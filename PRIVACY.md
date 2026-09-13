@@ -2,97 +2,47 @@
 
 Effective September 5, 2026.
 
-Actualist is an independent, open-source iPhone and iPad client for Actual Budget.
-This policy describes the data handling performed by Actualist itself.
+## We Collect Nothing
 
-## Data Actualist Handles
+The Actualist project and its developer do not collect, receive, keep, sell, or
+share your data. Actualist has no user accounts, cloud service, analytics,
+advertising, tracking, or developer-operated backend.
 
-Actualist connects directly to the Actual Budget server address you provide. It
-uses that connection to authenticate, download and synchronize your selected
-budget, and send changes you make in the app.
+The project website is static. It does not set cookies or collect analytics.
 
-Your budget data is stored in Actualist's private app container on your device
-and on the Actual Budget server you choose. Sync tokens, unlocked budget
-encryption keys, custom HTTP headers, and any SimpleFIN device access URL you
-claim are stored in the iOS Keychain. The password entered in the sign-in form
-is used to authenticate and is not retained by Actualist. A password or other
-credential you explicitly enter as a custom header is saved in Keychain.
+## Your Data Stays With You
 
-Custom headers are bound separately to the primary and fallback server origins
-(scheme, host, and port). They are not sent to unrelated origins or the direct
-SimpleFIN bridge. For OpenID, they may accompany the initial browser request
-only when it has the Actual server's origin. Connection tests use the configured
-Actual server; no external header-testing service receives the values.
-Disconnect & Erase Local Data removes all saved custom headers.
+Actualist keeps a local copy of your budget on your device and syncs directly
+with the Actual Budget server you choose. Saved connection and encryption
+secrets stay in the system Keychain.
 
-To display widgets, Actualist also keeps a local snapshot in an App Group
-container shared with its widget extension. This includes budget, category and
-account names, balances, recent transaction summaries, attention counts, and
-net-worth history. The sample-values privacy setting replaces names and amounts
-before this snapshot is saved. The extension does not receive server credentials,
-open the budget database, or contact your server. Financial widget views are
-marked as sensitive for Apple's system-controlled redaction. The selected color
-theme is also shared locally so widgets follow the app's appearance.
-
-If your server uses OpenID, sign-in happens with the identity provider that
-server is configured to use. Actualist receives a session token from the Actual
-server and does not operate the identity provider.
-
-If you import from Apple Wallet, Actualist uses Apple's on-device transaction
-picker. You choose which transactions to add. Those records stay on this device
-and on your Actual server after you save; the developer does not receive them.
-
-If you use Bank Sync, downloads go through your Actual server when it hosts
-SimpleFIN. If you paste a SimpleFIN setup token instead, Actualist claims a
-device access URL over HTTPS and downloads from SimpleFIN on this device.
-Background Bank Sync, when enabled, uses the server path only.
-
-New-transaction alerts are local notifications generated on your device.
-Actualist does not use a developer-operated push-notification service.
-
-## Developer Collection
-
-Actualist has no advertising, tracking, analytics SDK, or developer-operated
-backend. The developer does not receive or collect your budget contents,
-financial transactions, credentials, server address, or usage activity through
-the app. Personal data handled by the app is not sold.
+Optional connections run only when you choose them and contact only your server,
+a service you configure, or an Apple-provided system picker. The developer does
+not receive that data. App extensions use limited on-device data without server
+credentials, and notifications are generated locally.
 
 ## Services You Choose
 
-Your Actual Budget server is operated by you or by the hosting provider you
-select. Its operator and privacy practices are outside Actualist's control.
+Your server and any identity, financial-data, hosting, or other service you
+choose have their own privacy practices. Actualist does not operate them.
 
-If you install a beta through Apple TestFlight, Apple may collect beta usage,
-crash, and diagnostic information under Apple's own privacy terms. If you
-choose to report a bug or vulnerability through GitHub, the information you
-submit is handled by GitHub and will be visible according to the reporting
-method you select. Review attachments before submitting them and do not include
-credentials or unredacted financial information.
+Apple may collect beta usage, crash, and diagnostic information when you use
+TestFlight. Information you submit in a GitHub report is handled by GitHub.
+Review attachments and never include credentials or unredacted financial data.
 
-## Device Backups
+## Backups and Deletion
 
-The imported budget directory, including pending sync changes and recovery
-copies, is excluded from local and iCloud device backups. The financial widget
-snapshot is also excluded. Changes that have finished syncing can be restored
-from your Actual server. Pending changes cannot be recovered from a device
-backup if the device is lost or local data is removed.
+Local budget data, pending changes, recovery copies, and shared extension data
+are excluded from device backups. Synced changes can be restored from your
+Actual server; pending changes cannot.
 
-## Retention and Deletion
+Use **Disconnect & Erase Local Data** in Actualist to remove local budgets,
+saved credentials, and shared extension data. Use this action before uninstalling
+to clear credentials stored in Keychain. Erasing local data does not delete data
+from your server or revoke access at other services.
 
-Use **Settings → Connection & Sync → Disconnect & Erase Local Data** to remove
-the imported budgets and saved authentication credentials from Actualist. This
-also clears the selected budget and its widget snapshot. Removing the app
-removes its private local files; use the in-app erase action before uninstalling
-to explicitly clear credentials stored in Keychain.
+## Contact
 
-Deleting local data does not delete information from your Actual Budget server
-or revoke access at SimpleFIN or your identity provider. Manage those services
-separately. Before erasing local data, let pending changes finish syncing if you
-want to keep them.
-
-## Changes and Contact
-
-Material changes to this policy will be published in this repository with a new
-effective date. For a privacy question, open a GitHub issue that contains no
-sensitive information. For a security issue or a report containing sensitive
-details, follow [SECURITY.md](SECURITY.md).
+For a privacy question, open a GitHub issue that contains no sensitive
+information. For a security issue or a report containing sensitive details,
+follow [SECURITY.md](SECURITY.md).
