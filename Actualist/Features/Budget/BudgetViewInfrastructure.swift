@@ -28,12 +28,6 @@ enum BudgetLayout {
     static let assignmentKeypadAnimation = Animation.smooth(duration: 0.24)
     static let assignmentScrollAnimation = Animation.smooth(duration: 0.22)
     static let addTransactionExpansionAnimation = Animation.smooth(duration: 0.22)
-    static let assignmentScrollDelays: [UInt64] = [
-        0,
-        140_000_000,
-        280_000_000,
-        460_000_000
-    ]
 }
 
 struct BudgetCarryoverBadge: View {

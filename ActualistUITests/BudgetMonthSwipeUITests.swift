@@ -177,8 +177,11 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertTrue(row.isHittable)
 
         row.tap()
-        XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
-        app.buttons["Dismiss keypad"].tap()
+        let dismissKeypad = app.buttons["Dismiss keypad"]
+        XCTAssertTrue(dismissKeypad.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(row.frame.maxY, dismissKeypad.frame.minY - 16)
+        capture("assignment-opening-settled", app)
+        dismissKeypad.tap()
         XCTAssertTrue(app.buttons["Dismiss keypad"].waitForNonExistence(timeout: 5))
 
         let addTransaction = app.buttons["Add Transaction"]

@@ -13,7 +13,6 @@ struct BudgetView: View {
     @State private var categoryDetailsPresentation: CategoryMonthDetails?
     @State private var isOverspentCategoriesPresented = false
     @State private var assignmentKeypadHeight: CGFloat = 0
-    @State private var assignmentScrollTask: Task<Void, Never>?
     @State private var assignmentEditingCategoryFrame: CGRect = .zero
     @State private var assignmentKeypadTopY: CGFloat = 0
     @State private var compactScrollPosition = ScrollPosition(y: 0)
@@ -48,7 +47,7 @@ struct BudgetView: View {
                     VStack(spacing: BudgetLayout.sectionSpacing) {
                         if viewModel.budgetMonth != nil {
                             operationErrorBanner
-                            compactContent(viewModel)
+                            compactContent(viewModel, using: scrollProxy)
                         } else if viewModel.isLoading {
                             loadingState
                         } else {
@@ -152,10 +151,6 @@ struct BudgetView: View {
                 }
                 .onPreferenceChange(BudgetAssignmentKeypadHeightKey.self) { height in
                     assignmentKeypadHeight = height
-                    if height > 0,
-                       let categoryID = viewModel.activeAssignmentCategoryID {
-                        scheduleAssignmentCategoryScroll(categoryID, using: scrollProxy)
-                    }
                 }
                 .animation(BudgetLayout.assignmentKeypadAnimation, value: viewModel.isAssignmentKeypadPresented)
                 .navigationTitle(viewModel.navigationTitle)
@@ -370,12 +365,9 @@ struct BudgetView: View {
                     )
                 )
                 .onChange(of: viewModel.activeAssignmentCategoryID) { _, categoryID in
-                    if let categoryID {
+                    if categoryID != nil {
                         assignmentScrollRestoration.begin(using: compactScrollSample)
-                        scheduleAssignmentCategoryScroll(categoryID, using: scrollProxy)
                     } else {
-                        assignmentScrollTask?.cancel()
-                        assignmentScrollTask = nil
                         assignmentKeypadTopY = 0
                         assignmentEditingCategoryFrame = .zero
                         if let target = assignmentScrollRestoration.dismissalTarget(
@@ -556,13 +548,17 @@ struct BudgetView: View {
         )
     }
 
-    private func compactContent(_ model: BudgetViewModel) -> some View {
+    private func compactContent(_ model: BudgetViewModel, using scrollProxy: ScrollViewProxy) -> some View {
         BudgetCompactMonthContent(viewModel: model, canChangeVisibility: !visibilityWorkflow.isSubmitting) { action in
             switch action {
             case .edit(let id, let frame):
                 guard let category = realCategory(id: id) else { return }
                 assignmentEditingCategoryFrame = frame
-                withAnimation(.smooth(duration: 0.16)) { viewModel.beginAssignmentEditing(for: category) }
+                withAnimation(BudgetLayout.assignmentKeypadAnimation, completionCriteria: .removed) {
+                    viewModel.beginAssignmentEditing(for: category)
+                } completion: {
+                    scrollAssignmentCategoryIfNeeded(category.id, using: scrollProxy)
+                }
             case .toggle(let group):
                 withAnimation(.smooth(duration: 0.2)) { viewModel.toggle(group) }
             case .alert(let alert): open(alert)
@@ -623,40 +619,23 @@ struct BudgetView: View {
         }
     }
 
-    private func scheduleAssignmentCategoryScroll(
+    private func scrollAssignmentCategoryIfNeeded(
         _ categoryID: String,
         using scrollProxy: ScrollViewProxy
     ) {
-        assignmentScrollTask?.cancel()
-        assignmentScrollTask = Task { @MainActor in
-            for delay in BudgetLayout.assignmentScrollDelays {
-                if delay > 0 {
-                    try? await Task.sleep(nanoseconds: delay)
-                } else {
-                    await Task.yield()
-                }
+        guard viewModel.activeAssignmentCategoryID == categoryID,
+              viewModel.isAssignmentKeypadPresented,
+              assignmentKeypadTopY > 0 else {
+            return
+        }
 
-                guard !Task.isCancelled,
-                      viewModel.activeAssignmentCategoryID == categoryID,
-                      viewModel.isAssignmentKeypadPresented else {
-                    return
-                }
+        let occlusionLine = assignmentKeypadTopY - BudgetLayout.assignmentScrollVisibilityMargin
+        guard assignmentEditingCategoryFrame.maxY > occlusionLine else {
+            return
+        }
 
-                // Wait for the keypad's measured frame.
-                guard assignmentKeypadTopY > 0 else {
-                    continue
-                }
-
-                // Do not disturb rows already clear of the keypad.
-                let occlusionLine = assignmentKeypadTopY - BudgetLayout.assignmentScrollVisibilityMargin
-                guard assignmentEditingCategoryFrame.maxY > occlusionLine else {
-                    return
-                }
-
-                withAnimation(BudgetLayout.assignmentScrollAnimation) {
-                    scrollProxy.scrollTo(BudgetScrollTarget.assignmentAnchor(categoryID), anchor: .bottom)
-                }
-            }
+        withAnimation(BudgetLayout.assignmentScrollAnimation) {
+            scrollProxy.scrollTo(BudgetScrollTarget.assignmentAnchor(categoryID), anchor: .bottom)
         }
     }
 
