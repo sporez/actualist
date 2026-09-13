@@ -42,4 +42,5 @@ struct ScrollDirectedExpansion: Equatable {
 struct ScrollDirectedExpansionSample: Equatable {
     var offset: CGFloat
     var maxOffset: CGFloat
+    var topInset: CGFloat = 0
 }

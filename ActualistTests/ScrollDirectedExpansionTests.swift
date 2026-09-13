@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import Actualist
 
@@ -79,41 +80,60 @@ struct ScrollDirectedExpansionTests {
     }
 }
 
-struct BudgetAssignmentScrollRestorationTests {
-    @Test func validDismissalOffsetIsPreserved() {
-        var restoration = BudgetAssignmentScrollRestoration()
-        restoration.begin(using: .init(offset: 40, maxOffset: 100))
-
-        #expect(restoration.dismissalTarget(currentOffset: 80) == nil)
+struct BudgetAssignmentScrollGeometryTests {
+    @Test func initialKeypadHeightMatchesFixedLayout() {
+        #expect(BudgetKeypadLayout.initialHeight == 370)
     }
 
-    @Test func expandedClearanceOffsetClampsToCollapsedMaximum() {
-        var restoration = BudgetAssignmentScrollRestoration()
-        restoration.begin(using: .init(offset: 40, maxOffset: 100))
+    @Test func visibleRowDoesNotMove() {
+        let target = BudgetAssignmentScrollGeometry.openingTarget(
+            currentOffset: 40,
+            topInset: 100,
+            rowFrame: CGRect(x: 0, y: 100, width: 100, height: 40),
+            insetBottomY: 600,
+            keypadHeight: 300,
+            visibilityMargin: 20
+        )
 
-        #expect(restoration.dismissalTarget(currentOffset: 420) == 100)
+        #expect(target == nil)
     }
 
-    @Test func negativeDismissalOffsetClampsToTop() {
-        var restoration = BudgetAssignmentScrollRestoration()
-        restoration.begin(using: .init(offset: 0, maxOffset: 100))
+    @Test func occludedRowMovesByExactFinalOverlap() {
+        let target = BudgetAssignmentScrollGeometry.openingTarget(
+            currentOffset: 40,
+            topInset: 100,
+            rowFrame: CGRect(x: 0, y: 300, width: 100, height: 40),
+            insetBottomY: 600,
+            keypadHeight: 300,
+            visibilityMargin: 20
+        )
 
-        #expect(restoration.dismissalTarget(currentOffset: -20) == 0)
+        #expect(target == 200)
     }
 
-    @Test func dismissalConsumesTheCapturedRange() {
-        var restoration = BudgetAssignmentScrollRestoration()
-        restoration.begin(using: .init(offset: 40, maxOffset: 100))
+    @Test func rubberBandOffsetDoesNotCreateNegativeTarget() {
+        let target = BudgetAssignmentScrollGeometry.openingTarget(
+            currentOffset: -25,
+            topInset: 100,
+            rowFrame: CGRect(x: 0, y: 290, width: 100, height: 40),
+            insetBottomY: 600,
+            keypadHeight: 300,
+            visibilityMargin: 20
+        )
 
-        #expect(restoration.dismissalTarget(currentOffset: 420) == 100)
-        #expect(restoration.dismissalTarget(currentOffset: 420) == nil)
+        #expect(target == 150)
     }
 
-    @Test func categoryHandoffKeepsThePreKeypadRange() {
-        var restoration = BudgetAssignmentScrollRestoration()
-        restoration.begin(using: .init(offset: 40, maxOffset: 100))
-        restoration.begin(using: .init(offset: 20, maxOffset: 60))
+    @Test func missingInsetGeometryDoesNotMove() {
+        let target = BudgetAssignmentScrollGeometry.openingTarget(
+            currentOffset: 40,
+            topInset: 100,
+            rowFrame: CGRect(x: 0, y: 300, width: 100, height: 40),
+            insetBottomY: 0,
+            keypadHeight: 300,
+            visibilityMargin: 20
+        )
 
-        #expect(restoration.dismissalTarget(currentOffset: 420) == 100)
+        #expect(target == nil)
     }
 }

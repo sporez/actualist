@@ -91,11 +91,6 @@ struct BudgetGroupSection: View {
                             }
                         )
                         .id(BudgetScrollTarget.category(category.id))
-                        .overlay(alignment: .bottom) {
-                            Color.clear
-                                .frame(height: 1)
-                                .id(BudgetScrollTarget.assignmentAnchor(category.id))
-                        }
                     }
                 }
                 .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))

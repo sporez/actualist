@@ -172,22 +172,26 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let app = launchFreshDemo()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
-        let row = app.buttons["budget-category-retirement"]
-        for _ in 0..<5 where !row.isHittable { scroll.swipeUp() }
-        XCTAssertTrue(row.isHittable)
+        for categoryID in ["vacation", "retirement"] {
+            let row = app.buttons["budget-category-\(categoryID)"]
+            for _ in 0..<5 where !row.isHittable { scroll.swipeUp() }
+            XCTAssertTrue(row.isHittable)
 
-        row.tap()
-        let dismissKeypad = app.buttons["Dismiss keypad"]
-        XCTAssertTrue(dismissKeypad.waitForExistence(timeout: 5))
-        XCTAssertLessThanOrEqual(row.frame.maxY, dismissKeypad.frame.minY - 16)
-        capture("assignment-opening-settled", app)
-        dismissKeypad.tap()
-        XCTAssertTrue(app.buttons["Dismiss keypad"].waitForNonExistence(timeout: 5))
+            let originalRowMaxY = row.frame.maxY
+            row.tap()
+            let dismissKeypad = app.buttons["Dismiss keypad"]
+            XCTAssertTrue(dismissKeypad.waitForExistence(timeout: 5))
+            XCTAssertLessThan(row.frame.maxY, originalRowMaxY - 100)
+            XCTAssertLessThanOrEqual(row.frame.maxY, dismissKeypad.frame.minY - 16)
+            capture("assignment-\(categoryID)-opening-settled", app)
+            dismissKeypad.tap()
+            XCTAssertTrue(dismissKeypad.waitForNonExistence(timeout: 5))
 
-        let addTransaction = app.buttons["Add Transaction"]
-        XCTAssertTrue(addTransaction.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(row.frame.maxY, addTransaction.frame.minY - 90)
-        capture("assignment-dismissal-valid-scroll", app)
+            let addTransaction = app.buttons["Add Transaction"]
+            XCTAssertTrue(addTransaction.waitForExistence(timeout: 5))
+            XCTAssertGreaterThanOrEqual(row.frame.maxY, addTransaction.frame.minY - 90)
+            capture("assignment-\(categoryID)-dismissal-valid-scroll", app)
+        }
     }
 
     @MainActor func testShownHiddenCategoryDetailsAndMoveMoneyOpen() throws {
@@ -198,10 +202,12 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         app.buttons["Budget Actions"].tap()
         let showHidden = app.buttons["Show Hidden Categories"]
         XCTAssertTrue(showHidden.waitForExistence(timeout: 5))
-        if showHidden.value as? String == "1" || showHidden.isSelected {
-            showHidden.tap()
-        } else {
+        let initiallyShowsHidden = showHidden.value as? String == "1" || showHidden.isSelected
+        showHidden.tap()
+        if !initiallyShowsHidden {
             app.buttons["Budget Actions"].tap()
+            XCTAssertTrue(showHidden.waitForExistence(timeout: 5))
+            showHidden.tap()
         }
 
         row.press(forDuration: 1)

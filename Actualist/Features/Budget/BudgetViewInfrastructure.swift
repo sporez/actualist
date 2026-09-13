@@ -26,7 +26,6 @@ enum BudgetLayout {
     static let hiddenCategoryOpacity: Double = 0.5
     static let monthResizeAnimation = Animation.easeInOut(duration: 0.2)
     static let assignmentKeypadAnimation = Animation.smooth(duration: 0.24)
-    static let assignmentScrollAnimation = Animation.smooth(duration: 0.22)
     static let addTransactionExpansionAnimation = Animation.smooth(duration: 0.22)
 }
 
@@ -82,32 +81,34 @@ enum BudgetScrollTarget {
     static func category(_ categoryID: String) -> String {
         "budget-category-\(categoryID)"
     }
+}
 
-    static func assignmentAnchor(_ categoryID: String) -> String {
-        "budget-assignment-anchor-\(categoryID)"
+enum BudgetAssignmentScrollGeometry {
+    static func openingTarget(
+        currentOffset: CGFloat,
+        topInset: CGFloat,
+        rowFrame: CGRect,
+        insetBottomY: CGFloat,
+        keypadHeight: CGFloat,
+        visibilityMargin: CGFloat
+    ) -> CGFloat? {
+        guard insetBottomY > 0, keypadHeight > 0 else {
+            return nil
+        }
+
+        let finalVisibleBottom = insetBottomY - keypadHeight - visibilityMargin
+        let requiredMovement = rowFrame.maxY - finalVisibleBottom
+        guard requiredMovement > 0.5 else {
+            return nil
+        }
+
+        return max(0, currentOffset) + max(0, topInset) + requiredMovement
     }
 }
 
-struct BudgetAssignmentScrollRestoration: Equatable {
-    private var collapsedMaximumOffset: CGFloat?
-
-    mutating func begin(using sample: ScrollDirectedExpansionSample) {
-        // Keep the range from before the keypad appeared even if editing moves
-        // directly to another category while the temporary clearance is live.
-        if collapsedMaximumOffset == nil {
-            collapsedMaximumOffset = max(0, sample.maxOffset)
-        }
-    }
-
-    mutating func dismissalTarget(currentOffset: CGFloat) -> CGFloat? {
-        guard let collapsedMaximumOffset else {
-            return nil
-        }
-        self.collapsedMaximumOffset = nil
-
-        let target = min(max(0, currentOffset), collapsedMaximumOffset)
-        return abs(target - currentOffset) > 0.5 ? target : nil
-    }
+struct BudgetAssignmentOpeningRequest: Equatable {
+    let categoryID: String
+    let scrollTarget: CGFloat
 }
 
 enum BudgetKeypadLayout {
@@ -123,24 +124,11 @@ enum BudgetKeypadLayout {
     static let topPadding: CGFloat = 18
     static let bottomPadding: CGFloat = 22
     static let dismissButtonWidth: CGFloat = 52
-}
-
-struct BudgetAssignmentKeypadHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
-extension View {
-    func readHeight<Key: PreferenceKey>(into key: Key.Type) -> some View where Key.Value == CGFloat {
-        overlay {
-            GeometryReader { geometry in
-                Color.clear.preference(key: key, value: geometry.size.height)
-            }
-        }
-    }
+    // Native prominent glass adds layout around the label's fixed frame.
+    static let prominentActionChromeAllowance: CGFloat = 14
+    static let initialHeight = topPadding + toolbarButtonHeight + stackSpacing
+        + (keyHeight * 3) + actionHeight + prominentActionChromeAllowance
+        + (gridVerticalSpacing * 3) + bottomPadding
 }
 
 struct BudgetKeypadPressStyle: ButtonStyle {
