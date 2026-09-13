@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-@Suite("Template editor field interactions", .timeLimit(.minutes(2)))
+@Suite("Template editor field interactions", .serialized, .timeLimit(.minutes(2)))
 @MainActor
 struct BudgetTemplateEditorInteractionTests {
     private let now = BudgetTemplateCalendar.validatedDate("2026-09-04")!

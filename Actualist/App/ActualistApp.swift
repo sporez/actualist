@@ -24,10 +24,19 @@ enum AppSwitcherSnapshotPolicy {
 struct ActualistApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var appState: AppState
+    private let simulatorLaunchCommand: SimulatorLaunchCommand?
 
     init() {
         let appState = AppState()
+        let simulatorLaunchCommand = SimulatorLaunchCommand.fromProcessInfo()
+        if let simulatorLaunchCommand {
+            SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
+                simulatorLaunchCommand,
+                appState: appState
+            )
+        }
         _appState = State(initialValue: appState)
+        self.simulatorLaunchCommand = simulatorLaunchCommand
         BackgroundTransactionRefreshCoordinator.shared.configure(appState: appState)
         WidgetSnapshotCoordinator.shared.configure(appState: appState)
         BudgetCalendarCoordinator.shared.configure(appState: appState)
@@ -50,7 +59,7 @@ struct ActualistApp: App {
                     await appState.prepareBackgroundTransactionNotifications()
                     BudgetCalendarCoordinator.shared.beginForeground()
                     await appState.beginForegroundSession()
-                    if let command = SimulatorLaunchCommand.fromProcessInfo() {
+                    if let command = simulatorLaunchCommand {
                         await SimulatorLaunchApplier.apply(command, to: appState)
                     }
                 }

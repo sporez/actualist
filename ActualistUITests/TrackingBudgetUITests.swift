@@ -1,6 +1,8 @@
 import XCTest
 
 final class TrackingBudgetUITests: XCTestCase {
+    private var hasPreparedTrackingDemo = false
+
     override func setUpWithError() throws { continueAfterFailure = false }
 
     @MainActor
@@ -248,8 +250,12 @@ final class TrackingBudgetUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
         app.launchArguments = ["-actualist-tracking-demo", "-actualist-screen", screen]
+        if !hasPreparedTrackingDemo {
+            app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
+        }
         if let dynamicType { app.launchArguments += ["-UIPreferredContentSizeCategoryName", dynamicType] }
         app.launch()
+        hasPreparedTrackingDemo = true
         if app.frame.width >= 792 {
             XCUIDevice.shared.orientation = .landscapeLeft
         }

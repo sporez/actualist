@@ -4,9 +4,14 @@ import Testing
 
 struct SimulatorLaunchCommandTests {
     @Test func trackingDemoFlagUsesExistingOnboardingRoute() {
-        let command = SimulatorLaunchCommand.parse(arguments: ["/Actualist", "-actualist-tracking-demo"])
+        let command = SimulatorLaunchCommand.parse(arguments: [
+            "/Actualist",
+            "-actualist-tracking-demo",
+            "-actualist-replace-demo-for-ui-testing"
+        ])
         #expect(command?.enterDemo == true)
         #expect(command?.trackingDemo == true)
+        #expect(command?.replaceDemoForUITesting == true)
         #expect(command?.route == .tab(.budget))
     }
 
@@ -156,7 +161,12 @@ struct SimulatorLaunchApplierTests {
         state.settings.selectedLocalFirstFileID = "real-file"
 
         await SimulatorLaunchApplier.apply(
-            SimulatorLaunchCommand(enterDemo: true, trackingDemo: true, screenPath: ["spending"]),
+            SimulatorLaunchCommand(
+                enterDemo: true,
+                trackingDemo: true,
+                replaceDemoForUITesting: true,
+                screenPath: ["spending"]
+            ),
             to: state
         )
 
@@ -164,5 +174,54 @@ struct SimulatorLaunchApplierTests {
         #expect(state.settings.selectedBudgetID == "real-budget")
         #expect(state.selectedTab == .spending)
         #expect(state.routeCoordinator.pendingRoute == .tab(.spending))
+    }
+
+    @Test func replacementFlagReinstallsTrackingFixtureOverExistingDemo() async throws {
+        let transport = RecordingSyncTransport()
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistSimLaunch-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: root)
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString
+        )
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            fileManager: fileManager,
+            syncTransportFactory: { _ in transport },
+            connectionTransportFactory: { _ in StubConnectionTransport() }
+        )
+        let state = AppState(
+            settingsStore: AppSettingsStore(defaults: defaults),
+            keychain: keychain,
+            localFirstStore: store
+        )
+        await state.enterDemoMode()
+        let ordinary = try await store.budgetMonth(
+            budgetID: DemoBudget.groupID,
+            selectedMonth: DemoBudget.fixtureMonth
+        )
+        #expect(ordinary.isTrackingBudget == false)
+
+        await SimulatorLaunchApplier.apply(
+            SimulatorLaunchCommand(
+                enterDemo: true,
+                trackingDemo: true,
+                replaceDemoForUITesting: true,
+                screenPath: ["budget"]
+            ),
+            to: state
+        )
+
+        let tracking = try await store.budgetMonth(
+            budgetID: DemoBudget.groupID,
+            selectedMonth: "2026-08"
+        )
+        #expect(state.isDemoMode)
+        #expect(state.setupPhase == .ready)
+        #expect(tracking.isTrackingBudget)
+        #expect(tracking.month.categoryGroups.flatMap(\.categories).contains { $0.id == "paycheck" })
+        #expect(await transport.messageCounts().isEmpty)
     }
 }

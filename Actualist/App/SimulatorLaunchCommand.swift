@@ -4,8 +4,9 @@ import Foundation
 ///
 /// Parsed from `ProcessInfo` arguments. Absent flags mean a normal user launch.
 /// `-actualist-demo` installs the bundled demo budget only from onboarding; it
-/// never erases a real selected budget. Use the simulator helper `--reset` for
-/// a clean install.
+/// never erases a real selected budget. UI tests may additionally request that
+/// an already-selected bundled demo be replaced, but that flag is ignored for
+/// every real budget. Use the simulator helper `--reset` for a clean install.
 ///
 /// `-actualist-screen` takes a slash path, not a closed enum. Roots are tabs,
 /// `settings`, `history`, and `uncategorized`. Nested settings pages use the
@@ -14,10 +15,11 @@ import Foundation
 struct SimulatorLaunchCommand: Equatable, Sendable {
     var enterDemo = false
     var trackingDemo = false
+    var replaceDemoForUITesting = false
     var screenPath: [String] = []
 
     var isEmpty: Bool {
-        !enterDemo && screenPath.isEmpty
+        !enterDemo && !replaceDemoForUITesting && screenPath.isEmpty
     }
 
     static func parse(arguments: [String]) -> SimulatorLaunchCommand? {
@@ -30,6 +32,8 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
                 command.trackingDemo = true
             } else if argument == "-actualist-demo" {
                 command.enterDemo = true
+            } else if argument == "-actualist-replace-demo-for-ui-testing" {
+                command.replaceDemoForUITesting = true
             } else if argument == "-actualist-screen" {
                 let next = arguments.index(after: index)
                 guard next < arguments.endIndex else {
@@ -82,7 +86,17 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
 
 @MainActor
 enum SimulatorLaunchApplier {
+    static func prepareDemoReplacementIfNeeded(
+        _ command: SimulatorLaunchCommand,
+        appState: AppState
+    ) {
+        if command.replaceDemoForUITesting, appState.isDemoMode {
+            appState.disconnectAndEraseLocalData()
+        }
+    }
+
     static func apply(_ command: SimulatorLaunchCommand, to appState: AppState) async {
+        prepareDemoReplacementIfNeeded(command, appState: appState)
         if command.enterDemo, appState.setupPhase == .needsConnection {
             await appState.enterDemoMode(tracking: command.trackingDemo)
         }
