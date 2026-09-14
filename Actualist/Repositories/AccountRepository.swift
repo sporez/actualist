@@ -14,6 +14,12 @@ protocol AccountRepositoryProtocol: Sendable {
     func refreshAccountsWithBalances(budgetID: String) async throws
 
     @MainActor
+    func accountReconciliationSnapshot(
+        budgetID: String,
+        accountID: String
+    ) async throws -> AccountReconciliationSnapshot
+
+    @MainActor
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws
 
     @MainActor

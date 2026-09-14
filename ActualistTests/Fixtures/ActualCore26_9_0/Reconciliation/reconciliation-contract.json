@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "oracle": {
+    "tag": "v26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+    "packageVersion": "26.9.0"
+  },
+  "cases": [
+    {
+      "id": "cleared-balance",
+      "value": {
+        "balance": -8300,
+        "query": {
+          "state": {
+            "tableOptions": {
+              "splits": "none"
+            },
+            "filterExpressions": [
+              {
+                "cleared": true,
+                "account": "checking"
+              }
+            ],
+            "selectExpressions": [
+              {
+                "result": {
+                  "$sum": "$amount"
+                }
+              }
+            ],
+            "groupExpressions": [],
+            "orderExpressions": [],
+            "calculation": true,
+            "rawMode": false,
+            "withDead": false,
+            "validateRefs": true,
+            "limit": null,
+            "offset": null,
+            "table": "transactions"
+          }
+        }
+      }
+    },
+    {
+      "id": "finish",
+      "value": {
+        "zeroDifferenceLocks": 1,
+        "nonzeroDifferenceLocks": 0
+      }
+    },
+    {
+      "id": "adjustment-rule-projection",
+      "value": {
+        "realized": {
+          "id": "<generated>",
+          "account": "checking",
+          "date": "<current-day>",
+          "amount": 2500,
+          "category": null,
+          "payee": null,
+          "notes": "Reconciliation balance adjustment",
+          "cleared": true,
+          "reconciled": false,
+          "tombstone": false,
+          "isParent": false,
+          "isChild": false,
+          "parentID": null,
+          "children": []
+        },
+        "added": [
+          {
+            "id": "<generated>",
+            "account": "savings",
+            "date": "2026-09-01",
+            "amount": 1700,
+            "category": "fees",
+            "payee": "bank",
+            "notes": "rule changed",
+            "cleared": false,
+            "reconciled": false,
+            "tombstone": false,
+            "isParent": false,
+            "isChild": false,
+            "parentID": null,
+            "children": []
+          }
+        ],
+        "deleted": [],
+        "splitAdded": [
+          {
+            "id": "<generated>",
+            "account": "checking",
+            "date": "<current-day>",
+            "amount": 3000,
+            "category": null,
+            "payee": null,
+            "notes": "Reconciliation balance adjustment",
+            "cleared": true,
+            "reconciled": false,
+            "tombstone": false,
+            "isParent": true,
+            "isChild": false,
+            "parentID": null,
+            "children": [
+              {
+                "id": "child-a",
+                "account": "checking",
+                "date": "<current-day>",
+                "amount": 1000,
+                "category": null,
+                "payee": null,
+                "notes": null,
+                "cleared": true,
+                "reconciled": false,
+                "tombstone": false,
+                "isParent": false,
+                "isChild": true,
+                "parentID": "2e093394-8714-4a6b-8979-cb8fe42356e3",
+                "children": []
+              },
+              {
+                "id": "child-b",
+                "account": "checking",
+                "date": "<current-day>",
+                "amount": 2000,
+                "category": null,
+                "payee": null,
+                "notes": null,
+                "cleared": true,
+                "reconciled": false,
+                "tombstone": false,
+                "isParent": false,
+                "isChild": true,
+                "parentID": "2e093394-8714-4a6b-8979-cb8fe42356e3",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "adjustment-rule-delete",
+      "value": {
+        "addedCount": 0,
+        "deletedCount": 1,
+        "deleted": [
+          {
+            "id": "<generated>",
+            "account": "checking",
+            "date": "2017-01-01",
+            "amount": -900,
+            "category": null,
+            "payee": null,
+            "notes": "Reconciliation balance adjustment",
+            "cleared": true,
+            "reconciled": false,
+            "tombstone": true,
+            "isParent": false,
+            "isChild": false,
+            "parentID": null,
+            "children": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "lock",
+      "value": [
+        {
+          "id": "child-a",
+          "reconciled": true
+        },
+        {
+          "id": "child-b",
+          "reconciled": true
+        },
+        {
+          "id": "parent",
+          "reconciled": true
+        },
+        {
+          "id": "simple",
+          "reconciled": true
+        }
+      ]
+    },
+    {
+      "id": "unlock",
+      "value": [
+        {
+          "id": "simple",
+          "reconciled": false
+        }
+      ]
+    }
+  ]
+}

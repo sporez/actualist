@@ -52,6 +52,9 @@ section "Actual 26.8.1 split oracle"
 section "Actual 26.8.1 template editor oracle"
 node "$ROOT/scripts/template-parity/verify.mjs" || status=1
 
+section "Actual 26.9.0 reconciliation oracle"
+node "$ROOT/scripts/reconciliation-parity/verify.mjs" || status=1
+
 section "Xcode synchronized groups"
 # Sources are auto-registered: Actualist/, ActualistTests/, and
 # ActualistWidget/ are file system synchronized root groups, so any file on

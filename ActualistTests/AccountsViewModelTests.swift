@@ -126,6 +126,20 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
     func accountGroups(budgetID: String) -> [ActualAccountGroup] { groups }
     func accountGroupManagementEnabled(budgetID: String) -> Bool { managementEnabled }
     func refreshAccountsWithBalances(budgetID: String) async throws { if let loadError { throw loadError } }
+    func accountReconciliationSnapshot(
+        budgetID: String,
+        accountID: String
+    ) async throws -> AccountReconciliationSnapshot {
+        AccountReconciliationSnapshot(
+            accountID: accountID,
+            accountName: "Account",
+            workingBalance: 0,
+            clearedBalance: 0,
+            lastSyncedBalance: nil,
+            lastReconciledMilliseconds: nil,
+            capability: .unavailable(.missingLastReconciledColumn)
+        )
+    }
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {}
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {
         if let createError {

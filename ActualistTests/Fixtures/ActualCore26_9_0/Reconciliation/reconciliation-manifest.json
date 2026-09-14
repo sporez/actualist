@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+    "packageVersion": "26.9.0"
+  },
+  "generator": {
+    "command": "scripts/reconciliation-parity/generate.mjs --actual-checkout <actual-v26.9.0>",
+    "sha256": "2cd80fc9c8814110d8faf55fbf15e6067170f1a4a5163954409f161f4b4a0284"
+  },
+  "amountUnits": "integer minor units",
+  "lastReconciledStorage": "new Date().getTime().toString() milliseconds",
+  "sourceFiles": [
+    {
+      "path": "packages/desktop-client/src/accounts/reconciliation.ts",
+      "sha256": "da00774e458201d7e97aeeb51f7090fdceb52c47acb270fea4c923b767019c01"
+    },
+    {
+      "path": "packages/desktop-client/src/components/mobile/accounts/ReconcilingBanner.tsx",
+      "sha256": "11eaecea68443ecdcb35e471b8e4eeb538afa8d722e21f5064655620244d5fa4"
+    },
+    {
+      "path": "packages/desktop-client/src/components/mobile/accounts/AccountTransactions.tsx",
+      "sha256": "18d0ffb5b47856bf6b4fb13b40af527e55b85e31dc80c4dce29cd353beb5b45e"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/AccountReconcileModal.tsx",
+      "sha256": "aeee124da52302cde5317c154c394c5fccb9549c59dead5cc2ea759ae09a7db2"
+    },
+    {
+      "path": "packages/desktop-client/src/components/accounts/Reconcile.test.tsx",
+      "sha256": "3e11d7dda5758c9ab2645c29c3ed9687d33445c7848783d87b5d65d762842941"
+    },
+    {
+      "path": "packages/loot-core/migrations/1740506588539_add_last_reconciled_at.sql",
+      "sha256": "7e89870f84b4b56af97257448d2fb064ffcae6cbc4c44748b89ffca289a0f76a"
+    },
+    {
+      "path": "packages/loot-core/src/shared/transactions.ts",
+      "sha256": "99563d32b2fcefa4a33e512fbdb4c3d9c5ba804e9fc9acd50054f2b58addd5c9"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/index.ts",
+      "sha256": "0ca5282bb17655bbb27f876c5883a2af7f2fc2801e27ddae79606db833190366"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/executors.ts",
+      "sha256": "f8869a70b722beec361f1309e7a92f9b982b480314ae63c3b97ae161be93d375"
+    }
+  ],
+  "fixture": {
+    "path": "ActualistTests/Fixtures/ActualCore26_9_0/Reconciliation/reconciliation-contract.json",
+    "sha256": "56d21db439282bef0fc15ad257b513e2fa62f46fc47ddd444acc0ba44518a401",
+    "caseCount": 6
+  },
+  "contractSourceSha256": "da00774e458201d7e97aeeb51f7090fdceb52c47acb270fea4c923b767019c01"
+}
