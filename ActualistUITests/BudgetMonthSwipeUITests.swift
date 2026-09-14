@@ -182,7 +182,10 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             let dismissKeypad = app.buttons["Dismiss keypad"]
             XCTAssertTrue(dismissKeypad.waitForExistence(timeout: 5))
             XCTAssertLessThan(row.frame.maxY, originalRowMaxY - 100)
-            XCTAssertLessThanOrEqual(row.frame.maxY, dismissKeypad.frame.minY - 16)
+            // The dismiss control begins 18 points inside the keypad, after the
+            // selected row's 8-point surface gap.
+            let rowToDismissControlGap = dismissKeypad.frame.minY - row.frame.maxY
+            XCTAssertEqual(rowToDismissControlGap, 26, accuracy: 4)
             capture("assignment-\(categoryID)-opening-settled", app)
             dismissKeypad.tap()
             XCTAssertTrue(dismissKeypad.waitForNonExistence(timeout: 5))

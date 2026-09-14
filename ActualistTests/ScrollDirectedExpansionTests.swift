@@ -81,6 +81,10 @@ struct ScrollDirectedExpansionTests {
 }
 
 struct BudgetAssignmentScrollGeometryTests {
+    @Test func openingMarginMatchesCompactRowSpacing() {
+        #expect(BudgetLayout.assignmentScrollVisibilityMargin == BudgetLayout.rowSpacing)
+    }
+
     @Test func initialKeypadHeightMatchesFixedLayout() {
         #expect(BudgetKeypadLayout.initialHeight == 370)
     }
