@@ -83,26 +83,16 @@ struct TransactionEditorView: View {
 
     private var amountHeader: some View {
         VStack(spacing: 18) {
-            ZStack {
-                Text(viewModel.formattedAmount)
-                    .font(ActualistTypography.editorAmount(for: density))
-                    .foregroundStyle(viewModel.amountColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-
-                TextField("", text: amountDigitsBinding)
-                    .focused($isAmountFocused)
-                    .keyboardType(.numberPad)
-                    .textInputAutocapitalization(.never)
-                    .frame(width: 1, height: 1)
-                    .opacity(0.01)
-            }
-            .frame(maxWidth: .infinity)
+            MoneyAmountEntryField(
+                text: amountDigitsBinding,
+                displayText: viewModel.formattedAmount,
+                foreground: viewModel.amountColor,
+                keyboard: .digits,
+                focus: $isAmountFocused,
+                accessibilityLabel: "Transaction Amount",
+                accessibilityIdentifier: "transaction-amount-field"
+            )
             .padding(.top, 18)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                isAmountFocused = true
-            }
 
             Picker("Transaction Type", selection: $viewModel.kind) {
                 ForEach(TransactionFlowKind.allCases) { kind in

@@ -19,6 +19,7 @@ struct AccountTransactionsView: View {
     @FocusState private var isSearchFieldFocused: Bool
     @State private var isSearchFieldVisible = false
     @State private var viewModel: AccountTransactionsViewModel
+    @State private var reconciliationCoordinator = AccountReconciliationCoordinator()
 
     init(account: ActualAccount) {
         self.scope = .account(account)
@@ -72,6 +73,15 @@ struct AccountTransactionsView: View {
         appState.transactionRepository
     }
 
+    private var accountRepository: any AccountRepositoryProtocol {
+        appState.accountRepository
+    }
+
+    private var reconciliationIdentity: AccountReconciliationIdentity? {
+        guard let budgetID, let account = scope.account else { return nil }
+        return AccountReconciliationIdentity(budgetID: budgetID, accountID: account.id)
+    }
+
     private var pendingNewTransactionIDs: Set<String> {
         guard let budgetID else {
             return []
@@ -107,6 +117,17 @@ struct AccountTransactionsView: View {
             if scope.showsSummaryHeader {
                 Section {
                     header(displayState)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+            }
+
+            if let presentation = reconciliationCoordinator.panelPresentation(
+                privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
+            ) {
+                Section {
+                    reconciliationPanel(presentation)
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -158,6 +179,20 @@ struct AccountTransactionsView: View {
             }
 
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if scope.account != nil {
+                    Menu {
+                        Button {
+                            startReconciliation()
+                        } label: {
+                            Label("Reconcile", systemImage: "checkmark.seal")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .actualistToolbarGlassButton()
+                    .accessibilityLabel("Account Actions")
+                }
+
                 Button {
                     showSearch()
                 } label: {
@@ -192,13 +227,23 @@ struct AccountTransactionsView: View {
         .onChange(of: appState.localDataRevision) {
             Task {
                 await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository)
+                if let reconciliationIdentity {
+                    reconciliationCoordinator.refreshIfActive(
+                        identity: reconciliationIdentity,
+                        repository: accountRepository
+                    )
+                }
             }
+        }
+        .onChange(of: reconciliationIdentity) {
+            reconciliationCoordinator.reconcileContext(reconciliationIdentity)
         }
         .onChange(of: viewModel.searchText) {
             viewModel.scheduleSearch(budgetID: budgetID, repository: transactionRepository)
         }
         .onDisappear {
             viewModel.cancelSearch()
+            reconciliationCoordinator.cancel()
             viewModel.clearPendingNewTransactions(budgetID: budgetID) { budgetID, accountID in
                 if let accountID {
                     appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: accountID)
@@ -209,12 +254,31 @@ struct AccountTransactionsView: View {
         }
         .sensoryFeedback(.selection, trigger: viewModel.deleteIntentFeedback)
         .sensoryFeedback(.success, trigger: viewModel.deleteSuccessFeedback)
+        .sheet(isPresented: reconciliationSheetBinding) {
+            AccountReconciliationTargetSheet(
+                coordinator: reconciliationCoordinator,
+                privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                onRetry: retryReconciliationStart
+            )
+            .appSwitcherPrivacyProtected(using: appState)
+        }
     }
 
     private var deletePresentationBinding: Binding<TransactionDeletePresentation?> {
         Binding(
             get: { viewModel.deletePresentation },
             set: { viewModel.deletePresentation = $0 }
+        )
+    }
+
+    private var reconciliationSheetBinding: Binding<Bool> {
+        Binding(
+            get: { reconciliationCoordinator.presentsTargetSheet },
+            set: { isPresented in
+                if !isPresented {
+                    reconciliationCoordinator.targetSheetDismissed()
+                }
+            }
         )
     }
 
@@ -231,6 +295,41 @@ struct AccountTransactionsView: View {
             templateDoor: templateDoor,
             onOpenTemplates: onOpenTemplates
         )
+    }
+
+    private func reconciliationPanel(
+        _ presentation: AccountReconciliationPanelPresentation
+    ) -> some View {
+        AccountReconciliationPanel(
+            presentation: presentation,
+            onCreateAdjustment: {
+                reconciliationCoordinator.createAdjustment(
+                    repository: accountRepository,
+                    didMutate: reconciliationDidMutate
+                )
+            },
+            onLockTransactions: {
+                reconciliationCoordinator.lockTransactions(
+                    repository: accountRepository,
+                    didMutate: reconciliationDidMutate
+                )
+            },
+            onExit: {
+                reconciliationCoordinator.exit(
+                    repository: accountRepository,
+                    didMutate: reconciliationDidMutate
+                )
+            },
+            onRetryRefresh: {
+                guard let reconciliationIdentity else { return }
+                reconciliationCoordinator.refreshIfActive(
+                    identity: reconciliationIdentity,
+                    repository: accountRepository
+                )
+            }
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
     }
 
     private var searchBar: some View {
@@ -450,5 +549,24 @@ struct AccountTransactionsView: View {
         withAnimation(.snappy(duration: 0.2)) {
             isSearchFieldVisible = false
         }
+    }
+
+    private func startReconciliation() {
+        guard let reconciliationIdentity else { return }
+        reconciliationCoordinator.start(
+            identity: reconciliationIdentity,
+            currency: budgetCurrency,
+            repository: accountRepository
+        )
+    }
+
+    private func retryReconciliationStart() {
+        reconciliationCoordinator.cancel()
+        startReconciliation()
+    }
+
+    private func reconciliationDidMutate() {
+        appState.recordLocalDataMutation()
+        onChanged()
     }
 }

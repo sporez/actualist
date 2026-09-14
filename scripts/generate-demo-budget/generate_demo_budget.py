@@ -80,7 +80,7 @@ from pathlib import Path
 
 # --- Identity (must match DemoBudget.swift) ---------------------------------
 
-DEMO_FILE_ID = "actualist-demo-budget-v4"
+DEMO_FILE_ID = "actualist-demo-budget-v5"
 DEMO_GROUP_ID = "actualist-demo-group-v1"
 DEMO_NODE_ID = "demo-node-00000001"
 DEMO_BUDGET_NAME = "Demo Budget"
@@ -99,7 +99,8 @@ CREATE TABLE accounts (
     closed INTEGER NOT NULL DEFAULT 0,
     tombstone INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0,
-    bank_sync_status TEXT
+    bank_sync_status TEXT,
+    last_reconciled INTEGER
 );
 CREATE TABLE category_groups (
     id TEXT PRIMARY KEY,

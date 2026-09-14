@@ -93,7 +93,7 @@ final class AppState {
     /// the persisted selection so launch restore and erase work for demo with
     /// no new settings keys. Presentation and store guards key off this.
     var isDemoMode: Bool {
-        settings.selectedLocalFirstFileID == DemoBudget.fileID
+        DemoBudget.isReservedFileID(settings.selectedLocalFirstFileID)
     }
 
     /// Install and open the bundled demo budget, then route straight to the

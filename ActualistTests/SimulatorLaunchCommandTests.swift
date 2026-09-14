@@ -176,6 +176,24 @@ struct SimulatorLaunchApplierTests {
         #expect(state.routeCoordinator.pendingRoute == .tab(.spending))
     }
 
+    @Test func replacementFlagRecognizesAPreviousVersionedDemo() {
+        let defaults = UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults ?? .standard))
+        state.setupPhase = .ready
+        state.settings.selectedBudgetID = "actualist-demo-group-v1"
+        state.settings.selectedLocalFirstFileID = "actualist-demo-budget-v4"
+        state.settings.selectedLocalFirstGroupID = "actualist-demo-group-v1"
+
+        SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
+            SimulatorLaunchCommand(replaceDemoForUITesting: true),
+            appState: state
+        )
+
+        #expect(state.setupPhase == .needsConnection)
+        #expect(state.settings.selectedLocalFirstFileID == nil)
+        #expect(state.settings.selectedLocalFirstGroupID == nil)
+    }
+
     @Test func replacementFlagReinstallsTrackingFixtureOverExistingDemo() async throws {
         let transport = RecordingSyncTransport()
         let root = FileManager.default.temporaryDirectory

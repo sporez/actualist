@@ -12,8 +12,10 @@ import Foundation
 /// on-disk fileID differs from the current constant, so an app update replaces
 /// a stale demo dataset.
 enum DemoBudget {
+    private static let fileIDPrefix = "actualist-demo-budget-v"
+
     /// Reserved cloud file ID / local budget ID for the demo budget.
-    static let fileID = "actualist-demo-budget-v4"
+    static let fileID = "actualist-demo-budget-v5"
     /// Reserved group ID (and therefore sync ID) for the demo budget.
     static let groupID = "actualist-demo-group-v1"
     /// Deterministic node ID for the demo budget's local CRDT clock.
@@ -30,12 +32,20 @@ enum DemoBudget {
     /// `scripts/generate-demo-budget/generate_demo_budget.py` and update both
     /// this and `artifactByteCount` together.
     public static let artifactSHA256 =
-        "4b4d1b117bdb68ccdce15e4971d47dba435c73d55e07a2bac67bc21cbe862213"
+        "82b68a131d1f22eb4cc7d306b8c3bacfdfde123e9a2c47c89316c38883f4a27c"
     /// Byte size of the committed `DemoBudget.zip`.
-    public static let artifactByteCount = 9817
+    public static let artifactByteCount = 9825
     /// Budget month the committed zip was generated against. Month notes and
     /// the latest assignments live here. Tests must not use `Date()`.
     static let fixtureMonth = "2026-08"
+
+    /// Recognizes current and previous versioned demo IDs so an app update can
+    /// safely replace a stale bundled fixture without touching a real budget.
+    static func isReservedFileID(_ candidate: String?) -> Bool {
+        guard let candidate, candidate.hasPrefix(fileIDPrefix) else { return false }
+        let version = candidate.dropFirst(fileIDPrefix.count)
+        return !version.isEmpty && version.allSatisfy(\.isNumber)
+    }
 
     /// The demo budget as a domain value, for populating `AppState.budgets`.
     static var budget: ActualBudget {
