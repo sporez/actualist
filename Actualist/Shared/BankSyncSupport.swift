@@ -160,6 +160,40 @@ enum BankSyncAmounts {
     }
 }
 
+/// Pure conversion from provider evidence to the explicit account-balance
+/// effect carried by a Bank Sync review plan.
+enum BankSyncBalancePlanning {
+    static func disposition(
+        download: SimpleFINAccountDownload,
+        fallbackRemote: SimpleFINRemoteAccount?,
+        currency: BudgetCurrency
+    ) -> BankSyncReview.BalanceDisposition {
+        guard !download.hasError else { return .preserve }
+
+        let evidence = download.currentBalance ?? fallbackRemote?.balance.map {
+            SimpleFINBalanceAmount(amount: $0, currency: fallbackRemote?.currency)
+        }
+        if let evidence {
+            guard let balanceCurrency = BankSyncAmounts.normalizedCurrencyCode(
+                evidence.currency
+            ),
+            currency.accepts(balanceCurrency),
+            let minorUnits = BankSyncAmounts.minorUnits(
+                fromDecimal: evidence.amount,
+                currency: currency
+            ) else {
+                return .clear
+            }
+            return .set(minorUnits)
+        }
+
+        if currency.decimalPlaces == 2, let startingBalance = download.startingBalance {
+            return .set(startingBalance)
+        }
+        return .clear
+    }
+}
+
 /// Bank-sync initiate path. SimpleFIN is the only writable provider today;
 /// a later provider gets a new case so its open-path cache cannot overwrite
 /// SimpleFIN capability or remote accounts.

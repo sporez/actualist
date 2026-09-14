@@ -409,13 +409,14 @@ extension BudgetDatabase {
         }
     }
 
-    /// Post-apply stamping. `bank_sync_status` records the download outcome;
-    /// `last_sync` moves only when the download itself succeeded, so a
-    /// failed account keeps its previous sync time.
-    func makeBankSyncStampMessages(
+    /// Post-apply completion metadata. Successful downloads replace or clear
+    /// current bank-balance evidence and advance `last_sync`; failed downloads
+    /// preserve both while recording their status.
+    func makeBankSyncCompletionMessages(
         accountID: String,
         lastSyncEpochMilliseconds: Int64?,
         status: ActualBankSyncDurableStatus,
+        balanceDisposition: BankSyncReview.BalanceDisposition,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
@@ -436,6 +437,26 @@ extension BudgetDatabase {
                     column: "last_sync",
                     value: .string(String(lastSyncEpochMilliseconds))
                 ))
+            }
+            if columns.contains("balance_current") {
+                switch balanceDisposition {
+                case .set(let minorUnits):
+                    messages.append(try builder.makeMessage(
+                        dataset: "accounts",
+                        row: accountID,
+                        column: "balance_current",
+                        value: .int(Int64(minorUnits))
+                    ))
+                case .clear:
+                    messages.append(try builder.makeMessage(
+                        dataset: "accounts",
+                        row: accountID,
+                        column: "balance_current",
+                        value: .null
+                    ))
+                case .preserve:
+                    break
+                }
             }
             return messages
         }

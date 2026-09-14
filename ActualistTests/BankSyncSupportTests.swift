@@ -44,6 +44,77 @@ struct BankSyncSupportTests {
         #expect(BankSyncAmounts.minorUnits(fromDecimal: ".50", currency: usd) == nil)
     }
 
+    // MARK: - Download balance evidence
+
+    @Test func balanceDispositionConvertsProviderDecimalsAndPreservesDebtSign() {
+        let jpyDownload = download(balance: "1234.56", currency: "JPY")
+        let threeDownload = download(balance: "-1.235", currency: "XXX")
+
+        #expect(BankSyncBalancePlanning.disposition(
+            download: download(balance: "-7495.11", currency: "USD"),
+            fallbackRemote: nil,
+            currency: usd
+        ) == .set(-749_511))
+        #expect(BankSyncBalancePlanning.disposition(
+            download: jpyDownload,
+            fallbackRemote: nil,
+            currency: jpy
+        ) == .set(1_235))
+        #expect(BankSyncBalancePlanning.disposition(
+            download: threeDownload,
+            fallbackRemote: nil,
+            currency: three
+        ) == .set(-1_235))
+    }
+
+    @Test func balanceDispositionUsesOnlyLegacyTwoDecimalFallback() {
+        let legacy = SimpleFINAccountDownload(
+            transactions: [],
+            startingBalance: 12_345,
+            errorType: nil,
+            errorCode: nil
+        )
+
+        #expect(BankSyncBalancePlanning.disposition(
+            download: legacy,
+            fallbackRemote: nil,
+            currency: usd
+        ) == .set(12_345))
+        #expect(BankSyncBalancePlanning.disposition(
+            download: legacy,
+            fallbackRemote: nil,
+            currency: jpy
+        ) == .clear)
+    }
+
+    @Test func balanceDispositionClearsBadSuccessAndPreservesFailure() {
+        let invalid = download(balance: "not-money", currency: "USD")
+        let mismatch = download(balance: "12.34", currency: "EUR")
+        let failed = SimpleFINAccountDownload(
+            transactions: [],
+            currentBalance: SimpleFINBalanceAmount(amount: "12.34", currency: "USD"),
+            startingBalance: nil,
+            errorType: "provider_error",
+            errorCode: "TIMED_OUT"
+        )
+
+        #expect(BankSyncBalancePlanning.disposition(
+            download: invalid,
+            fallbackRemote: nil,
+            currency: usd
+        ) == .clear)
+        #expect(BankSyncBalancePlanning.disposition(
+            download: mismatch,
+            fallbackRemote: nil,
+            currency: usd
+        ) == .clear)
+        #expect(BankSyncBalancePlanning.disposition(
+            download: failed,
+            fallbackRemote: nil,
+            currency: usd
+        ) == .preserve)
+    }
+
     // MARK: - UTC day from UNIX seconds
 
     @Test func utcDayFromUnixSeconds() {
@@ -150,6 +221,16 @@ struct BankSyncSupportTests {
             Set(try Row.fetchAll(db, sql: "PRAGMA table_info(\(table))")
                 .compactMap { $0["name"] as String? })
         }
+    }
+
+    private func download(balance: String, currency: String) -> SimpleFINAccountDownload {
+        SimpleFINAccountDownload(
+            transactions: [],
+            currentBalance: SimpleFINBalanceAmount(amount: balance, currency: currency),
+            startingBalance: nil,
+            errorType: nil,
+            errorCode: nil
+        )
     }
 
     private func makeLegacyBudgetDatabase() throws -> (BudgetDatabase, URL, () -> Void) {

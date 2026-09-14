@@ -181,6 +181,10 @@ struct SimpleFINClientTests {
                    "transactionAmount": {"amount": "-12.34", "currency": "USD"},
                    "payeeName": "Coffee Shop", "notes": "latte", "booked": true}
               ]},
+              "balances": [{
+                "balanceAmount": {"amount": "-7495.11", "currency": "USD"},
+                "balanceType": "expected"
+              }],
               "startingBalance": 500
             },
             "errors": {"acct_2": [{"error_type": "SimplefinError",
@@ -193,6 +197,10 @@ struct SimpleFINClientTests {
         )
         #expect(response.downloads["acct_1"]?.transactions.count == 1)
         #expect(response.downloads["acct_1"]?.startingBalance == 500)
+        #expect(response.downloads["acct_1"]?.currentBalance == SimpleFINBalanceAmount(
+            amount: "-7495.11",
+            currency: "USD"
+        ))
         let transaction = try #require(response.downloads["acct_1"]?.transactions.first)
         #expect(transaction.id == "t1")
         #expect(transaction.amount == "-12.34")

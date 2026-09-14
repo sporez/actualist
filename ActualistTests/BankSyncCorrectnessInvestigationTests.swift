@@ -88,6 +88,7 @@ struct BankSyncCorrectnessInvestigationTests {
     private struct Snapshot: Equatable {
         let lastSync: String?
         let status: String?
+        let balance: Int?
         let messages: Int
         let outbox: Int
         let transactions: Int
@@ -99,6 +100,7 @@ struct BankSyncCorrectnessInvestigationTests {
             return Snapshot(
                 lastSync: try String.fetchOne(db, sql: "SELECT last_sync FROM accounts WHERE id = 'savings'"),
                 status: try String.fetchOne(db, sql: "SELECT bank_sync_status FROM accounts WHERE id = 'savings'"),
+                balance: try Int.fetchOne(db, sql: "SELECT balance_current FROM accounts WHERE id = 'savings'"),
                 messages: try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_crdt") ?? 0,
                 outbox: hasOutbox ? (try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM actualist_outbox") ?? 0) : 0,
                 transactions: try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM transactions") ?? 0)
@@ -115,8 +117,9 @@ struct BankSyncCorrectnessInvestigationTests {
         let after = try snapshot(bundle)
         #expect(after.lastSync != before.lastSync)
         #expect(after.status == "ok")
-        #expect(after.messages == before.messages + 2)
-        #expect(after.outbox == before.outbox + 2)
+        #expect(after.balance == nil)
+        #expect(after.messages == before.messages + 3)
+        #expect(after.outbox == before.outbox + 3)
     }
 
     @Test func warningPayloadAndErrorOnlyPreserveTimestampLikeActual() async throws {
@@ -207,8 +210,13 @@ struct BankSyncCorrectnessInvestigationTests {
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         let database = try #require(bundle.store.database)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.makeBankSyncStampMessages(accountID: "savings",
-            lastSyncEpochMilliseconds: nil, status: .failed, builder: &builder)
+        let messages = try await database.makeBankSyncCompletionMessages(
+            accountID: "savings",
+            lastSyncEpochMilliseconds: nil,
+            status: .failed,
+            balanceDisposition: .preserve,
+            builder: &builder
+        )
         if mutation == "storage" {
             try await queue(bundle).write { db in
                 try db.execute(sql: "UPDATE actualist_budget_identity SET storage_id = 'replacement'")

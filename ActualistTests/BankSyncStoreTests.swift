@@ -93,7 +93,7 @@ extension LocalFirstActualStoreTests {
         return bundle
     }
 
-    private func remoteAccount(id: String = "sfin-1", balance: String = "100.00") -> SimpleFINRemoteAccount {
+    func remoteAccount(id: String = "sfin-1", balance: String = "100.00") -> SimpleFINRemoteAccount {
         SimpleFINRemoteAccount(
             accountID: id,
             name: "Checking",
@@ -106,7 +106,7 @@ extension LocalFirstActualStoreTests {
         )
     }
 
-    private func remoteTransaction(
+    func remoteTransaction(
         id: String,
         amount: String,
         dayID: String,
@@ -135,169 +135,8 @@ extension LocalFirstActualStoreTests {
         )
     }
 
-    private func linkedMessages(_ messages: [ActualSyncDecodedMessage], row: String) -> [ActualSyncDecodedMessage] {
+    func linkedMessages(_ messages: [ActualSyncDecodedMessage], row: String) -> [ActualSyncDecodedMessage] {
         messages.filter { $0.dataset == "accounts" && $0.row == row }
-    }
-
-    // MARK: - First apply: downloads + opening balance + link columns
-
-    @Test func firstApplyInsertsBothDownloadsWithOpeningBalanceAndLinkStamping() async throws {
-        let transport = StubSimpleFINTransport(
-            remoteAccounts: [remoteAccount()],
-            response: SimpleFINTransactionsResponse(
-                downloads: [
-                    "sfin-1": SimpleFINAccountDownload(
-                        transactions: [
-                            remoteTransaction(id: "d1", amount: "-10.00", dayID: "20260701", payeeName: "Coffee Shop"),
-                            remoteTransaction(id: "d2", amount: "5.00", dayID: "20260705", payeeName: "Refund Source")
-                        ],
-                        startingBalance: 10_000,
-                        errorType: nil,
-                        errorCode: nil
-                    )
-                ],
-                errorType: nil,
-                errorCode: nil
-            )
-        )
-        let bundle = try await makeBankSyncStore(transport: transport)
-        let store = bundle.store
-
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
-
-        let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        #expect(plan.inserts.count == 2)
-        #expect(plan.updates.isEmpty)
-        #expect(plan.unchangedCount == 0)
-        #expect(plan.problems.isEmpty)
-        #expect(plan.durableStatus == .ok)
-        // Opening balance: 100.00 − (−10.00 + 5.00) = 105.00 in minor units,
-        // dated to the oldest downloaded day.
-        #expect(plan.openingBalance == BankSyncReconciliation.OpeningBalance(amountMinorUnits: 10_500, dayID: "20260701"))
-
-        let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
-        let before = try storedCRDTMessages(at: databaseURL).count
-
-        let result = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
-        #expect(result.insertedCount == 2)
-        #expect(result.updatedCount == 0)
-        #expect(result.openingBalanceInserted)
-        #expect(result.insertedTransactionIDs.count == 3)
-
-        let messages = try storedCRDTMessages(at: databaseURL)
-        // Link columns + bank row landed.
-        let accountMessages = linkedMessages(messages, row: "savings")
-        #expect(accountMessages.contains { $0.column == "account_id" && $0.serializedValue == "S:sfin-1" })
-        #expect(accountMessages.contains { $0.column == "account_sync_source" && $0.serializedValue == "S:simpleFin" })
-        #expect(accountMessages.contains { $0.column == "bank" && $0.serializedValue.hasPrefix("S:") })
-
-        // Both downloads carry financial_id CRDT messages.
-        for downloadID in ["d1", "d2"] {
-            #expect(messages.contains {
-                $0.dataset == "transactions" && $0.column == "financial_id" && $0.serializedValue == "S:\(downloadID)"
-            })
-        }
-        // Opening balance: Starting Balance payee, cleared, flagged.
-        #expect(messages.contains {
-            $0.dataset == "transactions" && $0.column == "starting_balance_flag" && $0.serializedValue == "N:1"
-        })
-        // Stamp: bank_sync_status ok + last_sync epoch-ms string.
-        let stamps = accountMessages.filter { $0.column == "last_sync" || $0.column == "bank_sync_status" }
-        #expect(stamps.contains { $0.column == "bank_sync_status" && $0.serializedValue == "S:ok" })
-        #expect(stamps.contains { $0.column == "last_sync" && !$0.serializedValue.isEmpty && $0.serializedValue != "0:" })
-
-        // Rows actually landed in SQLite: 3 live savings transactions.
-        let queue = try DatabaseQueue(path: databaseURL.path)
-        let liveCount = try await queue.read { db in
-            try Int.fetchOne(
-                db,
-                sql: "SELECT COUNT(*) FROM transactions WHERE acct = 'savings' AND (tombstone = 0 OR tombstone IS NULL)"
-            )
-        }
-        #expect(liveCount == 3)
-        _ = before
-    }
-
-    @Test func batchPlanningUsesOneProviderProbeDownloadAndMetadataRequest() async throws {
-        let firstRemote = remoteAccount(id: "sfin-1", balance: "0.00")
-        let secondRemote = remoteAccount(id: "sfin-2", balance: "0.00")
-        let transport = StubSimpleFINTransport(
-            remoteAccounts: [firstRemote, secondRemote],
-            response: SimpleFINTransactionsResponse(
-                downloads: [
-                    "sfin-1": SimpleFINAccountDownload(
-                        transactions: [],
-                        startingBalance: nil,
-                        errorType: nil,
-                        errorCode: nil
-                    ),
-                    "sfin-2": SimpleFINAccountDownload(
-                        transactions: [],
-                        startingBalance: nil,
-                        errorType: nil,
-                        errorCode: nil
-                    )
-                ],
-                errorType: nil,
-                errorCode: nil
-            )
-        )
-        let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: firstRemote, budgetID: "group-1")
-        try await bundle.store.linkBankAccount("credit", to: secondRemote, budgetID: "group-1")
-
-        let plans = try await bundle.store.downloadBankSyncPlans(
-            accountIDs: ["savings", "credit"],
-            budgetID: "group-1"
-        )
-
-        #expect(plans.map(\.link.accountID) == ["savings", "credit"])
-        for plan in plans {
-            _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
-        }
-        #expect(await transport.statusRequests == 1)
-        #expect(await transport.accountsRequests == 1)
-        let requests = await transport.transactionsRequests
-        #expect(requests.count == 1)
-        #expect(requests.first?.accountIDs == ["sfin-1", "sfin-2"])
-        #expect(requests.first?.startDates.count == 2)
-    }
-
-    @Test func optionalBalanceMetadataFailureDoesNotDiscardTransactionBatch() async throws {
-        let remote = remoteAccount(balance: "0.00")
-        let transport = StubSimpleFINTransport(
-            response: SimpleFINTransactionsResponse(
-                downloads: [
-                    "sfin-1": SimpleFINAccountDownload(
-                        transactions: [
-                            remoteTransaction(
-                                id: "still-valid",
-                                amount: "-10.00",
-                                dayID: "20260701",
-                                payeeName: "Coffee Shop"
-                            )
-                        ],
-                        startingBalance: nil,
-                        errorType: nil,
-                        errorCode: nil
-                    )
-                ],
-                errorType: nil,
-                errorCode: nil
-            ),
-            accountsFailure: .decoding
-        )
-        let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
-
-        let plan = try await bundle.store.downloadBankSyncPlan(
-            accountID: "savings",
-            budgetID: "group-1"
-        )
-
-        #expect(plan.inserts.count == 1)
-        #expect(plan.openingBalance == nil)
-        #expect(await transport.accountsRequests == 1)
     }
 
     // MARK: - Second apply is a no-op

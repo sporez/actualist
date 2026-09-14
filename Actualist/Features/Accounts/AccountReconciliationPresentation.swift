@@ -1,5 +1,12 @@
 import Foundation
 
+enum AccountReconciliationCopy {
+    static let balancePrompt = "Enter the current balance of your bank account that you want to reconcile with:"
+    static let lastBankBalance = "Last Balance from Bank"
+    static let useLastSyncedTotal = "Use last synced total"
+    static let reconcile = "Reconcile"
+}
+
 enum AccountReconciliationAction: Hashable, Sendable {
     case refresh
     case createAdjustment
@@ -184,6 +191,6 @@ enum AccountReconciliationPresentation {
     ) -> String {
         guard !privacyModeEnabled else { return "Hidden while Sample Values is on" }
         guard let date else { return "Not yet reconciled" }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        return "Reconciled \(date.formatted(date: .abbreviated, time: .shortened))"
     }
 }

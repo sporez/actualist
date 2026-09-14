@@ -79,9 +79,10 @@ struct AccountReconciliationTargetSheet: View {
                         )
                     }
 
-                    Text("Balance shown by your bank")
+                    Text(AccountReconciliationCopy.balancePrompt)
                         .font(ActualistTypography.body(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 20)
@@ -98,7 +99,14 @@ struct AccountReconciliationTargetSheet: View {
                         Button {
                             coordinator.useLastSyncedBalance()
                         } label: {
-                            detailRow(label: "Last synced balance", value: synced, showsChevron: true)
+                            VStack(spacing: 0) {
+                                detailRow(label: AccountReconciliationCopy.lastBankBalance, value: synced)
+                                Text(AccountReconciliationCopy.useLastSyncedTotal)
+                                    .font(ActualistTypography.control(for: density))
+                                    .foregroundStyle(ActualistTheme.accent)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.bottom, 12)
+                            }
                         }
                         .buttonStyle(.plain)
                         .disabled(presentation.isPrivacyProtected)
@@ -127,7 +135,7 @@ struct AccountReconciliationTargetSheet: View {
                 Button {
                     coordinator.confirmTarget()
                 } label: {
-                    Label("Start Reconciliation", systemImage: "checkmark.circle.fill")
+                    Label(AccountReconciliationCopy.reconcile, systemImage: "checkmark.circle.fill")
                         .font(ActualistTypography.control(for: density))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)

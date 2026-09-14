@@ -95,15 +95,37 @@ struct SimpleFINRemoteTransaction: Equatable, Sendable {
     }
 }
 
+/// Current balance evidence returned with an account download. The provider's
+/// decimal string and currency stay together until the budget-currency owner
+/// converts them to minor units.
+struct SimpleFINBalanceAmount: Equatable, Sendable {
+    let amount: String
+    let currency: String?
+}
+
 /// Per-account download from `/simplefin/transactions`.
 struct SimpleFINAccountDownload: Equatable, Sendable {
     let transactions: [SimpleFINRemoteTransaction]
+    let currentBalance: SimpleFINBalanceAmount?
     /// Server-computed opening balance in minor units. Only trust this for
-    /// zero-decimal confirmation per the plan; prefer the raw decimal
-    /// `balance` from `/simplefin/accounts` when available.
+    /// legacy two-decimal servers; prefer `currentBalance` when available.
     let startingBalance: Int?
     let errorType: String?
     let errorCode: String?
+
+    init(
+        transactions: [SimpleFINRemoteTransaction],
+        currentBalance: SimpleFINBalanceAmount? = nil,
+        startingBalance: Int?,
+        errorType: String?,
+        errorCode: String?
+    ) {
+        self.transactions = transactions
+        self.currentBalance = currentBalance
+        self.startingBalance = startingBalance
+        self.errorType = errorType
+        self.errorCode = errorCode
+    }
 
     var hasError: Bool { errorCode != nil }
 }
@@ -291,16 +313,27 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
 
     private struct FlexibleAccountEntry: Decodable {
         let transactions: TransactionEnvelope?
+        let balances: [FlexibleBalance]?
         let startingBalance: FlexibleNumber?
         let errorType: String?
         let errorCode: String?
 
         enum CodingKeys: String, CodingKey {
             case transactions
+            case balances
             case startingBalance
             case errorType = "error_type"
             case errorCode = "error_code"
         }
+    }
+
+    private struct FlexibleBalance: Decodable {
+        let balanceAmount: FlexibleBalanceAmount?
+    }
+
+    private struct FlexibleBalanceAmount: Decodable {
+        let amount: FlexibleString?
+        let currency: String?
     }
 
     /// Current sync-server normalizes bridge rows to `transactionId`, nested
@@ -483,6 +516,16 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             }
             downloads[accountID] = SimpleFINAccountDownload(
                 transactions: transactions,
+                currentBalance: entry.balances?
+                    .compactMap { balance in
+                        balance.balanceAmount?.amount?.text.map {
+                            SimpleFINBalanceAmount(
+                                amount: $0,
+                                currency: balance.balanceAmount?.currency
+                            )
+                        }
+                    }
+                    .first,
                 startingBalance: entry.startingBalance?.intValue,
                 errorType: errorType,
                 errorCode: errorCode
@@ -575,4 +618,3 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
     }
 }
-

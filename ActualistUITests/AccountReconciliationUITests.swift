@@ -14,6 +14,9 @@ final class AccountReconciliationUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Reconcile"].waitForExistence(timeout: 5))
         let targetField = app.descendants(matching: .any)["reconciliation-target-field"]
         XCTAssertTrue(targetField.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[
+            "Enter the current balance of your bank account that you want to reconcile with:"
+        ].exists)
         XCTAssertTrue(app.staticTexts["Cleared balance"].exists)
         XCTAssertTrue(app.staticTexts["Last reconciled"].exists)
 
@@ -24,6 +27,7 @@ final class AccountReconciliationUITests: XCTestCase {
 
         let start = app.buttons["reconciliation-start-button"]
         XCTAssertTrue(start.waitForExistence(timeout: 3))
+        XCTAssertEqual(start.label, "Reconcile")
         XCTAssertTrue(start.isEnabled)
         start.tap()
 

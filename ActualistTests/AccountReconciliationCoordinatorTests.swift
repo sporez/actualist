@@ -14,6 +14,9 @@ struct AccountReconciliationCoordinatorTests {
         await waitUntil { coordinator.targetEntry != nil }
 
         #expect(coordinator.targetEntry?.input.text == "123.45")
+        let presentation = try #require(coordinator.targetPresentation(privacyModeEnabled: false))
+        #expect(presentation.lastSyncedBalanceText == BudgetCurrency.usd.formatted(15_000))
+        #expect(presentation.lastReconciledText.hasPrefix("Reconciled "))
         coordinator.useLastSyncedBalance()
         #expect(coordinator.targetEntry?.input.text == "150.00")
         coordinator.confirmTarget(locale: Locale(identifier: "en_US"))

@@ -14,6 +14,15 @@ struct BankSyncLinkIdentity: Equatable, Sendable {
 /// confirm. Cancel / staleness simply discards the value — no rows, no
 /// `last_sync`.
 enum BankSyncReview {
+    /// Exact account-balance effect of confirming a review. A successful
+    /// download either replaces or clears stale bank evidence; a failed
+    /// download leaves the prior value untouched.
+    enum BalanceDisposition: Equatable, Sendable {
+        case set(Int)
+        case clear
+        case preserve
+    }
+
     /// A downloaded row that could not be normalized (junk amount, missing
     /// date). Never silently dropped: surfaced as a problem row.
     struct Problem: Equatable, Sendable {
@@ -60,6 +69,7 @@ enum BankSyncReview {
         let unchangedCount: Int
         let problems: [Problem]
         let openingBalance: BankSyncReconciliation.OpeningBalance?
+        let balanceDisposition: BalanceDisposition
 
         /// Unique token captured before this download starts. A stale
         /// plan (a newer download happened since) is refused at apply time.

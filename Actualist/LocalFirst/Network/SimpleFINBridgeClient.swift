@@ -144,6 +144,9 @@ actor SimpleFINBridgeClient {
                 }
             downloads[accountID] = SimpleFINAccountDownload(
                 transactions: transactions,
+                currentBalance: account.balance?.text.map {
+                    SimpleFINBalanceAmount(amount: $0, currency: account.currency)
+                },
                 startingBalance: nil,
                 errorType: errorCode,
                 errorCode: errorCode

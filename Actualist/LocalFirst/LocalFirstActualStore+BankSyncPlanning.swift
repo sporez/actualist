@@ -208,8 +208,13 @@ extension LocalFirstActualStore {
             guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
             var builder = LocalFirstSyncMessageBuilder()
             do {
-                let messages = try await database.makeBankSyncStampMessages(accountID: link.accountID,
-                    lastSyncEpochMilliseconds: nil, status: status, builder: &builder)
+                let messages = try await database.makeBankSyncCompletionMessages(
+                    accountID: link.accountID,
+                    lastSyncEpochMilliseconds: nil,
+                    status: status,
+                    balanceDisposition: .preserve,
+                    builder: &builder
+                )
                 guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
                 bankSyncGenerationByAccount[link.accountID] = nil
                 _ = try await database.commitBankSyncMessages(messages, expectedLink: link)
@@ -343,22 +348,20 @@ extension LocalFirstActualStore {
         )
 
         let inserts = reconciliation.inserts
+        let balanceDisposition = BankSyncBalancePlanning.disposition(
+            download: prepared.download,
+            fallbackRemote: remote,
+            currency: currency
+        )
         let openingBalance: BankSyncReconciliation.OpeningBalance?
-        if prepared.problems.isEmpty && !prepared.download.hasError {
-            let currentBalance = BankSyncAmounts.minorUnits(
-                fromDecimal: remote?.balance,
-                currency: currency
-            ) ?? (currency.decimalPlaces == 2 ? prepared.download.startingBalance : nil)
-            if let currentBalance {
-                openingBalance = BankSyncReconciliation.openingBalance(
-                    currentBalanceMinorUnits: currentBalance,
-                    inserts: inserts,
-                    earliestDayID: candidateDayIDs.min(),
-                    accountHadLiveTransactions: accountHadLiveTransactions
-                )
-            } else {
-                openingBalance = nil
-            }
+        if prepared.problems.isEmpty,
+           case .set(let currentBalance) = balanceDisposition {
+            openingBalance = BankSyncReconciliation.openingBalance(
+                currentBalanceMinorUnits: currentBalance,
+                inserts: inserts,
+                earliestDayID: candidateDayIDs.min(),
+                accountHadLiveTransactions: accountHadLiveTransactions
+            )
         } else {
             openingBalance = nil
         }
@@ -394,6 +397,7 @@ extension LocalFirstActualStore {
             },
             problems: prepared.problems,
             openingBalance: openingBalance,
+            balanceDisposition: balanceDisposition,
             generation: generation
         )
     }
@@ -414,6 +418,7 @@ extension LocalFirstActualStore {
         if response.hasWholeRequestError, download?.errorCode == nil {
             download = SimpleFINAccountDownload(
                 transactions: download?.transactions ?? [],
+                currentBalance: download?.currentBalance,
                 startingBalance: download?.startingBalance,
                 errorType: response.errorType,
                 errorCode: response.errorCode

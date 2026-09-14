@@ -90,4 +90,12 @@ struct AccountReconciliationModelsTests {
         let date = try #require(snapshot.lastReconciledAt)
         #expect(date.timeIntervalSince1970 == 1_700_000_000.5)
     }
+
+    @Test func entryCopyMatchesActualPWAConcepts() {
+        #expect(AccountReconciliationCopy.balancePrompt
+            == "Enter the current balance of your bank account that you want to reconcile with:")
+        #expect(AccountReconciliationCopy.lastBankBalance == "Last Balance from Bank")
+        #expect(AccountReconciliationCopy.useLastSyncedTotal == "Use last synced total")
+        #expect(AccountReconciliationCopy.reconcile == "Reconcile")
+    }
 }

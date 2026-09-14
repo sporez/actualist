@@ -249,7 +249,7 @@ extension LocalFirstActualStore {
 
     /// Writes a confirmed plan: opening balance, match updates (with the
     /// split-parent cleared cascade), inserts oldest-first, category
-    /// learning, then the `last_sync` / `bank_sync_status` stamp. One commit
+    /// learning, then account-balance and completion metadata. One commit
     /// for the plan, one for category learning (mirroring wallet import).
     func applyBankSyncPlan(
         _ plan: BankSyncReview.AccountPlan,
@@ -346,15 +346,16 @@ extension LocalFirstActualStore {
             insertedCount += 1
         }
 
-        // Stamp after the writes: status always, last_sync only when the
-        // download succeeded (a failed status leaves last_sync untouched).
+        // Completion metadata follows the transaction writes in the same
+        // guarded commit. Failed downloads preserve balance and last_sync.
         let stampEpoch: Int64? = plan.durableStatus == .ok
             ? Int64(Date().timeIntervalSince1970 * 1_000)
             : nil
-        messages.append(contentsOf: try await database.makeBankSyncStampMessages(
+        messages.append(contentsOf: try await database.makeBankSyncCompletionMessages(
             accountID: plan.link.accountID,
             lastSyncEpochMilliseconds: stampEpoch,
             status: plan.durableStatus,
+            balanceDisposition: plan.balanceDisposition,
             builder: &builder
         ))
 

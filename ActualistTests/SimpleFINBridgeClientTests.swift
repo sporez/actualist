@@ -212,6 +212,10 @@ struct SimpleFINBridgeClientTests {
         #expect(download?.transactions.first?.currency == "USD")
         #expect(download?.transactions.last?.booked == false)
         #expect(download?.transactions.last?.dateUnixSeconds == 1_709_339_400)
+        #expect(download?.currentBalance == SimpleFINBalanceAmount(
+            amount: "50.00",
+            currency: "USD"
+        ))
     }
 
     @Test func batchedTransactionsUseEarliestRequestDateAndFilterEachAccountWindow() async throws {
