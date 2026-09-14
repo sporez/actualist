@@ -140,6 +140,52 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
             capability: .unavailable(.missingLastReconciledColumn)
         )
     }
+
+    func createReconciliationAdjustmentAndRefresh(
+        budgetID: String,
+        accountID: String,
+        targetBalance: Int
+    ) async throws -> AccountReconciliationMutationResult {
+        reconciliationResult(accountID: accountID)
+    }
+
+    func finishReconciliationAndRefresh(
+        budgetID: String,
+        accountID: String,
+        targetBalance: Int
+    ) async throws -> AccountReconciliationMutationResult {
+        reconciliationResult(accountID: accountID)
+    }
+
+    func exitReconciliationAndRefresh(
+        budgetID: String,
+        accountID: String
+    ) async throws -> AccountReconciliationMutationResult {
+        reconciliationResult(accountID: accountID)
+    }
+
+    func unlockReconciledTransactionAndRefresh(
+        budgetID: String,
+        accountID: String,
+        transactionID: String
+    ) async throws -> AccountReconciliationMutationResult {
+        reconciliationResult(accountID: accountID)
+    }
+
+    private func reconciliationResult(accountID: String) -> AccountReconciliationMutationResult {
+        AccountReconciliationMutationResult(
+            snapshot: AccountReconciliationSnapshot(
+                accountID: accountID,
+                accountName: "Checking",
+                workingBalance: 0,
+                clearedBalance: 0,
+                lastSyncedBalance: nil,
+                lastReconciledMilliseconds: nil,
+                capability: .available
+            ),
+            changed: ChangedResources(accounts: [], months: [], transactions: [])
+        )
+    }
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {}
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {
         if let createError {

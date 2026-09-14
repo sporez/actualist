@@ -130,31 +130,6 @@ enum WalletTransactionMapper {
         )
     }
 
-    static func applyingImportPreview(
-        _ draft: TransactionDraft,
-        _ preview: TransactionRulePreview
-    ) -> TransactionDraft {
-        TransactionDraft(
-            accountID: draft.accountID,
-            date: draft.date,
-            amountMinorUnits: draft.amountMinorUnits,
-            payeeID: preview.payeeID ?? draft.payeeID,
-            payeeName: draft.payeeName,
-            categoryID: preview.splits.isEmpty ? (preview.categoryID ?? draft.categoryID) : nil,
-            // Rule preview carries the final nullable notes value. Nil means
-            // remove notes, not "leave the imported draft unchanged."
-            notes: preview.notes,
-            cleared: preview.cleared ?? draft.cleared,
-            isTransfer: draft.isTransfer,
-            importedPayee: draft.importedPayee,
-            importedID: draft.importedID,
-            sortOrder: draft.sortOrder,
-            reconciled: draft.reconciled,
-            isParent: !preview.splits.isEmpty || draft.isParent,
-            splits: preview.splits.isEmpty ? draft.splits : preview.splits
-        )
-    }
-
     static func signedMinorUnits(
         amount: Decimal,
         indicator: WalletCreditDebitIndicator,

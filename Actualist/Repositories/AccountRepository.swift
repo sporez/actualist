@@ -20,6 +20,33 @@ protocol AccountRepositoryProtocol: Sendable {
     ) async throws -> AccountReconciliationSnapshot
 
     @MainActor
+    func createReconciliationAdjustmentAndRefresh(
+        budgetID: String,
+        accountID: String,
+        targetBalance: Int
+    ) async throws -> AccountReconciliationMutationResult
+
+    @MainActor
+    func finishReconciliationAndRefresh(
+        budgetID: String,
+        accountID: String,
+        targetBalance: Int
+    ) async throws -> AccountReconciliationMutationResult
+
+    @MainActor
+    func exitReconciliationAndRefresh(
+        budgetID: String,
+        accountID: String
+    ) async throws -> AccountReconciliationMutationResult
+
+    @MainActor
+    func unlockReconciledTransactionAndRefresh(
+        budgetID: String,
+        accountID: String,
+        transactionID: String
+    ) async throws -> AccountReconciliationMutationResult
+
+    @MainActor
     func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws
 
     @MainActor

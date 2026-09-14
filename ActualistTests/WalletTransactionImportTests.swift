@@ -213,10 +213,7 @@ extension LocalFirstActualStoreTests {
             for: noteBearingDraft,
             budgetID: "group-1"
         )
-        let projected = WalletTransactionMapper.applyingImportPreview(
-            noteBearingDraft,
-            preview
-        )
+        let projected = TransactionRulePreviewProjection.applying(preview, to: noteBearingDraft)
 
         #expect(preview.notes == nil)
         #expect(projected.notes == nil)

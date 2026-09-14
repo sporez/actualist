@@ -165,13 +165,13 @@ struct WalletTransactionMappingTests {
                 sortOrder: .value(-1)
             )
         ]
-        let projected = WalletTransactionMapper.applyingImportPreview(
-            draft,
+        let projected = TransactionRulePreviewProjection.applying(
             TransactionRulePreview(
                 categoryID: "groceries",
                 notes: "imported",
                 splits: splits
-            )
+            ),
+            to: draft
         )
 
         #expect(projected.categoryID == nil)

@@ -59,6 +59,24 @@ struct AccountReconciliationCalculation: Hashable, Sendable {
     var canLockTransactions: Bool { difference == 0 }
 }
 
+enum AccountReconciliationCommandError: Error, Hashable, Sendable {
+    case unavailable(AccountReconciliationUnavailableReason)
+    case differenceOverflow
+    case alreadyBalanced
+    case balanceChanged
+    case transactionNotFound
+}
+
+struct AccountReconciliationMutationResult: Hashable, Sendable {
+    let snapshot: AccountReconciliationSnapshot
+    let changed: ChangedResources
+}
+
+struct AccountReconciliationDatabaseWrite: Hashable, Sendable {
+    let changed: ChangedResources
+    let committed: Bool
+}
+
 struct AccountReconciliationAmountInput: Hashable, Sendable {
     enum ValidationError: Error, Hashable, Sendable {
         case empty

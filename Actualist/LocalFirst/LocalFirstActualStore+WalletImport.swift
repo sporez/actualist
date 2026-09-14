@@ -41,7 +41,7 @@ extension LocalFirstActualStore {
             if preview.deletesTransaction {
                 continue
             }
-            draft = WalletTransactionMapper.applyingImportPreview(draft, preview)
+            draft = TransactionRulePreviewProjection.applying(preview, to: draft)
 
             let payeeResolution = try await resolveImportPayee(
                 draft: draft,
