@@ -12,16 +12,11 @@ struct BudgetView: View {
     @State private var uncategorizedRouteMonth: String?
     @State private var categoryDetailsPresentation: CategoryMonthDetails?
     @State private var isOverspentCategoriesPresented = false
-    @State private var assignmentInsetBottomY: CGFloat = 0
-    @State private var compactScrollPosition = ScrollPosition(y: 0)
-    @State private var compactScrollSample = ScrollDirectedExpansionSample(offset: 0, maxOffset: 0)
-    @State private var assignmentScrollBottomPadding = BudgetLayout.sectionSpacing
-    @State private var pendingAssignmentOpening: BudgetAssignmentOpeningRequest?
+    @State private var assignmentPresentation = BudgetAssignmentScrollPresentation()
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
     @State private var templateEditorTarget: BudgetTemplateEditorTarget?
     @State private var noteTarget: ActualNoteTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
-    @State private var addTransactionExpansion = ScrollDirectedExpansion()
     let loadsOnAppear: Bool
 
     init(viewModel: BudgetViewModel, loadsOnAppear: Bool = true) {
@@ -41,120 +36,34 @@ struct BudgetView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                    VStack(spacing: BudgetLayout.sectionSpacing) {
-                        if viewModel.budgetMonth != nil {
-                            operationErrorBanner
-                            compactContent(viewModel)
-                        } else if viewModel.isLoading {
-                            loadingState
-                        } else {
-                            emptyState
-                        }
+            BudgetAssignmentViewport(
+                presentation: assignmentPresentation,
+                viewModel: viewModel,
+                isPresented: viewModel.isAssignmentKeypadPresented,
+                monthSwipeBlocked: monthSwipePresentationBlocked,
+                beginEditing: { id in
+                    guard let category = realCategory(id: id) else {
+                        assignmentPresentation.cancelPendingPresentation()
+                        return
                     }
-                    .padding(.horizontal, BudgetLayout.screenHorizontalPadding)
-                    .padding(.top, 4)
-                    .padding(.bottom, assignmentScrollBottomPadding)
+                    viewModel.beginAssignmentEditing(for: category)
                 }
-                .scrollPosition($compactScrollPosition)
-                .scrollIndicators(.hidden)
-                .accessibilityIdentifier("budget-compact-scroll")
-                .background(ActualistTheme.background)
-                .onScrollGeometryChange(for: ScrollDirectedExpansionSample.self) { geometry in
-                    ScrollDirectedExpansionSample(
-                        offset: geometry.visibleRect.minY,
-                        maxOffset: max(0, geometry.contentSize.height - geometry.visibleRect.height),
-                        topInset: geometry.contentInsets.top
-                    )
-                } action: { previous, current in
-                    compactScrollSample = current
-                    updateAddTransactionExpansion(previous: previous, current: current)
-                    beginPreparedAssignmentOpeningIfNeeded()
-                }
-                .modifier(BudgetMonthSwipeModifier(
-                    model: viewModel,
-                    presentationBlocked: monthSwipePresentationBlocked,
-                    verticalOffset: compactScrollSample.offset
-                ))
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Group {
-                        if viewModel.isAssignmentKeypadPresented {
-                            BudgetAssignmentKeypad(
-                                canSubmit: viewModel.canSubmitAssignment,
-                                showsApplyTemplate: viewModel.activeCategoryHasTemplate,
-                                showsMoveMoney: !viewModel.isTrackingBudget,
-                                canApplyTemplate: viewModel.canApplyCategoryTemplate,
-                                isSubmitting: viewModel.isSubmittingAssignment,
-                                errorMessage: viewModel.activeAssignmentErrorMessage,
-                                appendDigit: { viewModel.appendAssignmentDigit($0) },
-                                setMode: { viewModel.setAssignmentInputMode($0) },
-                                applyTemplate: {
-                                    pendingTemplateConfirmation = .category
-                                },
-                                moveMoney: {
-                                    withAnimation(BudgetLayout.assignmentKeypadAnimation) {
-                                        viewModel.beginMoveMoney()
-                                    }
-                                },
-                                details: {
-                                    guard let details = viewModel.activeCategoryMonthDetails else {
-                                        return
-                                    }
-                                    categoryDetailsPresentation = details
-                                    dismissAssignmentKeypad {
-                                        viewModel.cancelAssignmentEditing()
-                                    }
-                                },
-                                deleteDigit: { viewModel.deleteAssignmentDigit() },
-                                clearOrCancel: {
-                                    if viewModel.assignmentDraft?.inputDigits.isEmpty == true {
-                                        dismissAssignmentKeypad {
-                                            viewModel.clearOrCancelAssignmentInput()
-                                        }
-                                    } else {
-                                        viewModel.clearOrCancelAssignmentInput()
-                                    }
-                                },
-                                cancel: {
-                                    dismissAssignmentKeypad {
-                                        viewModel.cancelAssignmentEditing()
-                                    }
-                                },
-                                submit: {
-                                    Task { await viewModel.submitAssignment(using: appState) }
-                                }
-                            )
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                        } else {
-                            HStack {
-                                Spacer(minLength: 0)
-                                BudgetAddTransactionButton(isExpanded: addTransactionExpansion.isExpanded) {
-                                    transactionPresenter.present(using: appState)
-                                }
-                            }
-                            .padding(.horizontal, BudgetLayout.screenHorizontalPadding)
-                            .padding(.bottom, BudgetLayout.addTransactionFloatingPadding)
-                            .frame(maxWidth: .infinity)
-                            .background {
-                                if dynamicTypeSize.isAccessibilitySize {
-                                    ActualistTheme.background
-                                }
-                            }
-                        }
-                    }
-                    .background {
-                        GeometryReader { geometry in
-                            Color.clear
-                                .onAppear {
-                                    assignmentInsetBottomY = geometry.frame(in: .global).maxY
-                                }
-                                .onChange(of: geometry.frame(in: .global).maxY) { _, bottom in
-                                    assignmentInsetBottomY = bottom
-                                }
-                        }
+            ) {
+                VStack(spacing: BudgetLayout.sectionSpacing) {
+                    if viewModel.budgetMonth != nil {
+                        operationErrorBanner
+                        compactContent(viewModel)
+                    } else if viewModel.isLoading {
+                        loadingState
+                    } else {
+                        emptyState
                     }
                 }
-                .animation(BudgetLayout.assignmentKeypadAnimation, value: viewModel.isAssignmentKeypadPresented)
+            } keypad: {
+                assignmentKeypad
+            } floating: { isExpanded in
+                floatingTransactionButton(isExpanded: isExpanded)
+            }
                 .navigationTitle(viewModel.navigationTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -366,17 +275,7 @@ struct BudgetView: View {
                         apply: applyTemplate
                     )
                 )
-                .onChange(of: viewModel.activeAssignmentCategoryID) { _, categoryID in
-                    guard categoryID == nil else {
-                        return
-                    }
-                    pendingAssignmentOpening = nil
-                    if assignmentScrollBottomPadding != BudgetLayout.sectionSpacing {
-                        withAnimation(BudgetLayout.assignmentKeypadAnimation) {
-                            assignmentScrollBottomPadding = BudgetLayout.sectionSpacing
-                        }
-                    }
-                }
+
         }
     }
 
@@ -541,16 +440,8 @@ struct BudgetView: View {
         BudgetCompactMonthContent(viewModel: model, canChangeVisibility: !visibilityWorkflow.isSubmitting) { action in
             switch action {
             case .edit(let id, let frame):
-                guard let category = realCategory(id: id) else { return }
-                let target = BudgetAssignmentScrollGeometry.openingTarget(
-                    currentOffset: compactScrollSample.offset,
-                    topInset: compactScrollSample.topInset,
-                    rowFrame: frame,
-                    insetBottomY: assignmentInsetBottomY,
-                    keypadHeight: BudgetKeypadLayout.initialHeight,
-                    visibilityMargin: BudgetLayout.assignmentScrollVisibilityMargin
-                )
-                beginAssignmentEditing(category, scrollTarget: target)
+                guard !viewModel.isSubmittingAssignment, realCategory(id: id) != nil else { return }
+                assignmentPresentation.select(categoryID: id, rowFrame: frame)
             case .toggle(let group):
                 withAnimation(.smooth(duration: 0.2)) { viewModel.toggle(group) }
             case .alert(let alert): open(alert)
@@ -593,82 +484,71 @@ struct BudgetView: View {
         return true
     }
 
-    private func updateAddTransactionExpansion(
-        previous: ScrollDirectedExpansionSample,
-        current: ScrollDirectedExpansionSample
-    ) {
-        var next = addTransactionExpansion
-        next.update(
-            previousOffset: previous.offset,
-            offset: current.offset,
-            maxOffset: current.maxOffset
-        )
-        guard next != addTransactionExpansion else {
-            return
-        }
-        withAnimation(BudgetLayout.addTransactionExpansionAnimation) {
-            addTransactionExpansion = next
-        }
-    }
-
-    private func beginAssignmentEditing(
-        _ category: BudgetMonthCategory,
-        scrollTarget: CGFloat?
-    ) {
-        expandAssignmentScrollClearance()
-
-        guard let scrollTarget else {
-            withAnimation(BudgetLayout.assignmentKeypadAnimation) {
-                viewModel.beginAssignmentEditing(for: category)
+    private var assignmentKeypad: some View {
+        BudgetAssignmentKeypad(
+            canSubmit: viewModel.canSubmitAssignment,
+            showsApplyTemplate: viewModel.activeCategoryHasTemplate,
+            showsMoveMoney: !viewModel.isTrackingBudget,
+            canApplyTemplate: viewModel.canApplyCategoryTemplate,
+            isSubmitting: viewModel.isSubmittingAssignment,
+            errorMessage: viewModel.activeAssignmentErrorMessage,
+            appendDigit: { viewModel.appendAssignmentDigit($0) },
+            setMode: { viewModel.setAssignmentInputMode($0) },
+            applyTemplate: {
+                pendingTemplateConfirmation = .category
+            },
+            moveMoney: {
+                withAnimation(BudgetLayout.assignmentKeypadAnimation) {
+                    viewModel.beginMoveMoney()
+                }
+            },
+            details: {
+                guard let details = viewModel.activeCategoryMonthDetails else {
+                    return
+                }
+                categoryDetailsPresentation = details
+                dismissAssignmentKeypad {
+                    viewModel.cancelAssignmentEditing()
+                }
+            },
+            deleteDigit: { viewModel.deleteAssignmentDigit() },
+            clearOrCancel: {
+                dismissAssignmentKeypad {
+                    viewModel.clearOrCancelAssignmentInput()
+                }
+            },
+            cancel: {
+                dismissAssignmentKeypad {
+                    viewModel.cancelAssignmentEditing()
+                }
+            },
+            submit: {
+                Task { await viewModel.submitAssignment(using: appState) }
             }
-            return
-        }
-
-        if viewModel.isAssignmentKeypadPresented {
-            withAnimation(BudgetLayout.assignmentKeypadAnimation) {
-                viewModel.beginAssignmentEditing(for: category)
-                compactScrollPosition.scrollTo(y: scrollTarget)
-            }
-            return
-        }
-
-        pendingAssignmentOpening = BudgetAssignmentOpeningRequest(
-            categoryID: category.id,
-            scrollTarget: scrollTarget
         )
     }
 
-    private func expandAssignmentScrollClearance() {
-        let expandedPadding = BudgetKeypadLayout.initialHeight
-            + BudgetLayout.assignmentScrollBottomClearance
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            assignmentScrollBottomPadding = expandedPadding
+    private func floatingTransactionButton(isExpanded: Bool) -> some View {
+        HStack {
+            Spacer(minLength: 0)
+            BudgetAddTransactionButton(isExpanded: isExpanded) {
+                transactionPresenter.present(using: appState)
+            }
         }
-    }
-
-    private func beginPreparedAssignmentOpeningIfNeeded() {
-        guard let request = pendingAssignmentOpening else {
-            return
-        }
-        pendingAssignmentOpening = nil
-        guard let category = realCategory(id: request.categoryID) else {
-            assignmentScrollBottomPadding = BudgetLayout.sectionSpacing
-            return
-        }
-
-        withAnimation(BudgetLayout.assignmentKeypadAnimation) {
-            viewModel.beginAssignmentEditing(for: category)
-            compactScrollPosition.scrollTo(y: request.scrollTarget)
+        .padding(.horizontal, BudgetLayout.screenHorizontalPadding)
+        .padding(.bottom, BudgetLayout.addTransactionFloatingPadding)
+        .frame(maxWidth: .infinity)
+        .background {
+            if dynamicTypeSize.isAccessibilitySize {
+                ActualistTheme.background
+            }
         }
     }
 
     private func dismissAssignmentKeypad(_ dismiss: () -> Void) {
-        pendingAssignmentOpening = nil
         withAnimation(BudgetLayout.assignmentKeypadAnimation) {
-            assignmentScrollBottomPadding = BudgetLayout.sectionSpacing
             dismiss()
+            if !viewModel.isAssignmentKeypadPresented { assignmentPresentation.close() }
         }
     }
 

@@ -86,7 +86,7 @@ struct BudgetCompactMonthContent: View {
     }
 
     private var categoryGroups: some View {
-        LazyVStack(spacing: 0, pinnedViews: []) {
+        VStack(spacing: 0) {
             ForEach(displayedGroups) { group in
                 BudgetGroupSection(
                     group: group,

@@ -20,7 +20,6 @@ enum BudgetLayout {
     static let summaryStackedVerticalPadding: CGFloat = 6
     static let summaryMetricSpacing: CGFloat = 2
     static let summaryColumnSpacing: CGFloat = 12
-    static let assignmentScrollBottomClearance: CGFloat = 160
     static let assignmentScrollVisibilityMargin: CGFloat = rowSpacing
     static let addTransactionFloatingPadding: CGFloat = 12
     static let hiddenCategoryOpacity: Double = 0.5
@@ -83,33 +82,6 @@ enum BudgetScrollTarget {
     }
 }
 
-enum BudgetAssignmentScrollGeometry {
-    static func openingTarget(
-        currentOffset: CGFloat,
-        topInset: CGFloat,
-        rowFrame: CGRect,
-        insetBottomY: CGFloat,
-        keypadHeight: CGFloat,
-        visibilityMargin: CGFloat
-    ) -> CGFloat? {
-        guard insetBottomY > 0, keypadHeight > 0 else {
-            return nil
-        }
-
-        let finalVisibleBottom = insetBottomY - keypadHeight - visibilityMargin
-        let requiredMovement = rowFrame.maxY - finalVisibleBottom
-        guard requiredMovement > 0.5 else {
-            return nil
-        }
-
-        return max(0, currentOffset) + max(0, topInset) + requiredMovement
-    }
-}
-
-struct BudgetAssignmentOpeningRequest: Equatable {
-    let categoryID: String
-    let scrollTarget: CGFloat
-}
 
 enum BudgetKeypadLayout {
     static let keyHeight: CGFloat = 46

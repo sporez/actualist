@@ -192,9 +192,40 @@ final class BudgetMonthSwipeUITests: XCTestCase {
 
             let addTransaction = app.buttons["Add Transaction"]
             XCTAssertTrue(addTransaction.waitForExistence(timeout: 5))
+            XCTAssertEqual(row.frame.maxY, originalRowMaxY, accuracy: 3)
             XCTAssertGreaterThanOrEqual(row.frame.maxY, addTransaction.frame.minY - 90)
             capture("assignment-\(categoryID)-dismissal-valid-scroll", app)
         }
+    }
+
+    @MainActor func testVisibleRowEditingDoesNotExposeArtificialScrollRange() throws {
+        let app = launchFreshDemo()
+        let scroll = app.scrollViews["budget-compact-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+
+        let visibleRow = app.buttons["budget-category-rent"]
+        XCTAssertTrue(visibleRow.waitForExistence(timeout: 5))
+        visibleRow.tap()
+
+        let dismissKeypad = app.buttons["Dismiss keypad"]
+        XCTAssertTrue(dismissKeypad.waitForExistence(timeout: 5))
+        let visibleHeight = dismissKeypad.frame.minY - 44 - scroll.frame.minY
+        let origin = scroll.coordinate(withNormalizedOffset: .zero)
+        for _ in 0..<6 {
+            origin.withOffset(.init(dx: scroll.frame.width * 0.5, dy: visibleHeight * 0.85))
+                .press(
+                    forDuration: 0.05,
+                    thenDragTo: origin.withOffset(.init(dx: scroll.frame.width * 0.5, dy: visibleHeight * 0.15))
+                )
+        }
+
+        let lastRow = app.buttons["budget-category-retirement"]
+        XCTAssertTrue(lastRow.exists)
+        XCTAssertTrue(lastRow.isHittable)
+        let lastRowToDismissControlGap = dismissKeypad.frame.minY - lastRow.frame.maxY
+        XCTAssertGreaterThanOrEqual(lastRowToDismissControlGap, 18)
+        XCTAssertLessThanOrEqual(lastRowToDismissControlGap, 48)
+        capture("assignment-visible-row-no-artificial-scroll-range", app)
     }
 
     @MainActor func testShownHiddenCategoryDetailsAndMoveMoneyOpen() throws {
@@ -235,6 +266,46 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         app.buttons["Move Money"].tap()
         XCTAssertTrue(app.navigationBars["Move to"].waitForExistence(timeout: 5))
         capture("shown-hidden-category-actions", app)
+    }
+
+    @MainActor func testAssignmentExitPathsRestoreBottomRow() {
+        let app = launchFreshDemo()
+        let scroll = app.scrollViews["budget-compact-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        let row = app.buttons["budget-category-retirement"]
+        for _ in 0..<5 where !row.isHittable { scroll.swipeUp() }
+        let original = row.frame.maxY
+        for action in ["Clear amount", "Save assignment", "Details"] {
+            row.tap()
+            XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
+            if action == "Save assignment" { app.buttons["0"].tap() }
+            app.buttons[action].tap()
+            if action == "Details" {
+                XCTAssertTrue(app.buttons["Close Category Details"].waitForExistence(timeout: 5))
+                app.buttons["Close Category Details"].tap()
+            }
+            XCTAssertTrue(app.buttons["Dismiss keypad"].waitForNonExistence(timeout: 5))
+            let restored = NSPredicate { _, _ in abs(row.frame.maxY - original) < 3 }
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: restored, object: nil)], timeout: 3), .completed)
+        }
+    }
+
+    @MainActor func testChangingCategoryAndReturningFromAnotherTabKeepsKeypad() {
+        let app = launchFreshDemo()
+        let scroll = app.scrollViews["budget-compact-scroll"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        let last = app.buttons["budget-category-retirement"]
+        for _ in 0..<5 where !last.isHittable { scroll.swipeUp() }
+        let original = last.frame.maxY
+        last.tap()
+        XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
+        app.buttons["budget-category-shopping"].tap()
+        app.tabBars.buttons["Spending"].tap()
+        app.tabBars.buttons["Budget"].tap()
+        XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
+        app.buttons["Dismiss keypad"].tap()
+        let restored = NSPredicate { _, _ in abs(last.frame.maxY - original) < 3 }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: restored, object: nil)], timeout: 3), .completed)
     }
 
     @MainActor func testLightThemeAndLargeTextSwipe() {

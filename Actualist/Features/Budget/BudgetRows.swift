@@ -216,12 +216,12 @@ struct BudgetCategoryRow: View {
     var onOpenTemplates: () -> Void = {}
     var onToggleHidden: () -> Void = {}
 
-    @State private var globalFrame: CGRect = .zero
+    @State private var measuredFrame = BudgetCategoryRowFrame()
 
     var body: some View {
         Button {
             if !assignedDisplay.isEditing {
-                beginAssignmentEditing(globalFrame)
+                beginAssignmentEditing(measuredFrame.value)
             }
         } label: {
             categoryRowLabel
@@ -259,16 +259,8 @@ struct BudgetCategoryRow: View {
                 }
             }
         }
-        .background {
-            GeometryReader { geometry in
-                Color.clear
-                    .onAppear {
-                        globalFrame = geometry.frame(in: .global)
-                    }
-                    .onChange(of: geometry.frame(in: .global)) { _, frame in
-                        globalFrame = frame
-                    }
-            }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            measuredFrame.value = frame
         }
         .background(isEditing ? ActualistTheme.elevatedSurface : Color.clear)
         .overlay(alignment: .bottom) {
@@ -397,4 +389,9 @@ private struct BudgetRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
     }
+}
+
+/// Hit-time geometry is not render state. Publishing every scroll-frame measurement redraws all rows.
+private final class BudgetCategoryRowFrame {
+    var value: CGRect = .zero
 }
