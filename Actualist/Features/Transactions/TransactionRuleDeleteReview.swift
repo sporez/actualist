@@ -39,6 +39,7 @@ final class TransactionRuleDeleteReview {
         accountID: String?,
         date: Date,
         budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         repository: any TransactionRepositoryProtocol,
         didDelete: @escaping () async -> Void
     ) async -> Result<Void, Error> {
@@ -63,11 +64,12 @@ final class TransactionRuleDeleteReview {
             _ = try await repository.deleteTransactionAndRefresh(
                 snapshot,
                 budgetID: budgetID,
+                reconciliationAuthorization: reconciliationAuthorization,
                 didDelete: didDelete
             )
             return .success(())
         } catch {
-            presentation = .review
+            presentation = error is ReconciledTransactionMutationError ? .blocked : .review
             return .failure(error)
         }
     }

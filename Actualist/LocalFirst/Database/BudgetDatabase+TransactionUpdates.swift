@@ -7,6 +7,7 @@ extension BudgetDatabase {
         transactionID: String,
         draft: TransactionDraft,
         payeeID: String?,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -22,6 +23,12 @@ extension BudgetDatabase {
             guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing transaction")
             }
+            try validateReconciledMutationAuthorization(
+                transactionID: trimmedTransactionID,
+                authorization: reconciliationAuthorization,
+                columns: columns,
+                db: db
+            )
             if try tableExists("accounts", db: db),
                try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing account")

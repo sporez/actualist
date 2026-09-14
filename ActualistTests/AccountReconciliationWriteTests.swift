@@ -57,7 +57,7 @@ struct AccountReconciliationWriteTests {
             transactionID: "adjustment"
         )
 
-        let row: Row? = try await bundle.queue.read { db in
+        let row: Row? = try bundle.queue.read { db in
             try Row.fetchOne(db, sql: "SELECT * FROM transactions WHERE id = 'adjustment'")
         }
         let actionCount: Int = try await bundle.queue.read { db in
@@ -151,7 +151,7 @@ struct AccountReconciliationWriteTests {
             transactionID: "split-adjustment"
         )
 
-        let rows: [Row] = try await bundle.queue.read { db in
+        let rows: [Row] = try bundle.queue.read { db in
             try Row.fetchAll(
                 db,
                 sql: """
@@ -201,7 +201,7 @@ struct AccountReconciliationWriteTests {
             transactionID: "transfer-adjustment"
         )
 
-        let rows: [Row] = try await bundle.queue.read { db in
+        let rows: [Row] = try bundle.queue.read { db in
             try Row.fetchAll(
                 db,
                 sql: """
@@ -239,7 +239,7 @@ struct AccountReconciliationWriteTests {
             now: now
         )
 
-        let reconciled: [Row] = try await bundle.queue.read { db in
+        let reconciled: [Row] = try bundle.queue.read { db in
             try Row.fetchAll(
                 db,
                 sql: "SELECT id, IFNULL(reconciled, 0) AS reconciled FROM transactions WHERE id IN ('txn', 'split', 'split-a', 'split-b')"
@@ -311,7 +311,7 @@ struct AccountReconciliationWriteTests {
             now: Date(timeIntervalSince1970: 1_789_344_000)
         )
 
-        let rows: [Row] = try await bundle.queue.read { db in
+        let rows: [Row] = try bundle.queue.read { db in
             try Row.fetchAll(
                 db,
                 sql: "SELECT id, cleared, reconciled FROM transactions WHERE id IN ('split', 'split-a', 'split-b', 'paired')"

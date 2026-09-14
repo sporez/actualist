@@ -495,11 +495,13 @@ struct AccountTransactionsView: View {
         .disabled(viewModel.deletingTransactionID == row.transaction.rowID)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button {
-                viewModel.requestDelete(
-                    row.transaction,
-                    budgetID: budgetID,
-                    repository: transactionRepository
-                )
+                Task {
+                    await viewModel.requestDelete(
+                        row.transaction,
+                        budgetID: budgetID,
+                        repository: transactionRepository
+                    )
+                }
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -507,16 +509,21 @@ struct AccountTransactionsView: View {
             .disabled(row.transaction.id == nil || viewModel.deletingTransactionID != nil)
         }
         .confirmationDialog(
-            "Delete Transaction?",
+            viewModel.deletePresentation?.confirmationTitle ?? "Delete Transaction?",
             isPresented: deletePresentationBinding.isPresented(matching: row.id),
             titleVisibility: .visible
         ) {
-            Button("Delete Transaction", role: .destructive) {
+            Button(
+                viewModel.deletePresentation?.actionTitle ?? "Delete Transaction",
+                role: .destructive
+            ) {
+                let authorization = viewModel.deletePresentation?.reconciliationAuthorization
                 Task {
                     await viewModel.delete(
                         row.transaction,
                         budgetID: budgetID,
                         repository: transactionRepository,
+                        reconciliationAuthorization: authorization,
                         onChanged: onChanged
                     )
                 }
@@ -524,7 +531,10 @@ struct AccountTransactionsView: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Delete \(row.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription).")
+            Text(
+                viewModel.deletePresentation?.message
+                    ?? "Delete \(row.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription)."
+            )
         }
     }
 

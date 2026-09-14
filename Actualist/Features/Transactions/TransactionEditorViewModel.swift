@@ -13,16 +13,12 @@ enum TransactionFlowKind: String, CaseIterable, Identifiable {
 @Observable
 final class TransactionEditorViewModel {
     private static let maximumAmountDigitCount = 16
-    private let editingTransactionID: String?
-    private let originalAccountID: String?
-    private let originalMonth: String?
     private let originalImportedPayee: String?
-    private let originalReconciled: Bool
     private let originalIsParent: Bool
     private var categoryState = TransactionEditorCategoryState()
     var splitState = TransactionSplitEditorState()
     private let rulePreviewCoordinator = TransactionRulePreviewCoordinator()
-    private let submissionCoordinator = TransactionEditorSubmissionCoordinator()
+    let mutationCoordinator: TransactionEditorMutationCoordinator
     let deleteReview = TransactionRuleDeleteReview()
 
     var kind: TransactionFlowKind = .spend
@@ -42,7 +38,7 @@ final class TransactionEditorViewModel {
     var currency: BudgetCurrency = .usd
     var errorMessage: String?
     var submissionState: TransactionSubmissionState {
-        submissionCoordinator.submissionState
+        mutationCoordinator.submissionState
     }
     private var loadedCategoryBalanceMonth: String?
 
@@ -51,12 +47,9 @@ final class TransactionEditorViewModel {
         payeeName fallbackPayeeName: String? = nil,
         categoryName fallbackCategoryName: String? = nil
     ) {
-        editingTransactionID = transaction?.id
-        originalAccountID = transaction?.account
-        originalMonth = transaction?.date.actualYearMonth
         originalImportedPayee = transaction?.importedPayee
-        originalReconciled = transaction?.reconciled ?? false
         originalIsParent = transaction?.isParent ?? false
+        mutationCoordinator = TransactionEditorMutationCoordinator(transaction: transaction)
         categoryState = TransactionEditorCategoryState(
             categoryID: transaction?.isParent == true ? nil : transaction?.category,
             fallbackName: transaction?.isParent == true ? nil : fallbackCategoryName
@@ -68,7 +61,7 @@ final class TransactionEditorViewModel {
     }
 
     var isEditing: Bool {
-        originalAccountID != nil
+        mutationCoordinator.isEditing
     }
 
     var title: String {
@@ -79,10 +72,14 @@ final class TransactionEditorViewModel {
         amountCents > 0
             && hasRequiredPayee
             && selectedAccountID != nil
-            && (!isEditing || (editingTransactionID != nil && originalMonth != nil))
+            && (!isEditing || (
+                mutationCoordinator.transactionID != nil
+                    && mutationCoordinator.originalMonth != nil
+            ))
             && !isSubmitting
             && !isPreviewingRules
             && !deleteReview.blocksSave
+            && mutationCoordinator.presentation == nil
     }
 
     private var hasRequiredPayee: Bool {
@@ -97,7 +94,7 @@ final class TransactionEditorViewModel {
     }
 
     var isSubmitting: Bool {
-        submissionCoordinator.isSubmitting
+        mutationCoordinator.isSubmitting
     }
 
     var isPreviewingRules: Bool {
@@ -501,19 +498,59 @@ final class TransactionEditorViewModel {
 
     func confirmRuleDelete(using appState: AppState) async -> Bool {
         guard let budgetID = appState.settings.selectedBudgetID else { return false }
-        switch await deleteReview.confirmDeletion(
-            transactionID: editingTransactionID,
-            accountID: originalAccountID,
+        switch await mutationCoordinator.confirmRuleDelete(
             date: date,
             budgetID: budgetID,
             repository: appState.transactionRepository,
-            didDelete: { appState.recordLocalDataMutation() }
+            deleteReview: deleteReview,
+            didDelete: {}
         ) {
-        case .success: return true
-        case .failure(let error):
-            errorMessage = error.userFacingMessage
+        case .saved:
+            errorMessage = nil
+            return true
+        case .failed(let message):
+            errorMessage = message
+            return false
+        case .unlocked, .awaitingReview, .cancelled:
             return false
         }
+    }
+
+    func requestClearedChange(_ value: Bool, using appState: AppState) async {
+        guard let budgetID = appState.settings.selectedBudgetID else { return }
+        do {
+            isCleared = try await mutationCoordinator.requestClearedChange(
+                value,
+                budgetID: budgetID,
+                repository: appState.transactionRepository
+            )
+            errorMessage = nil
+        } catch {
+            errorMessage = error.userFacingMessage
+        }
+    }
+
+    func confirmReconciledMutation(using appState: AppState) async -> TransactionEditorMutationCoordinator.Outcome {
+        guard let budgetID = appState.settings.selectedBudgetID else { return .cancelled }
+        let outcome = await mutationCoordinator.confirmPending(
+            validation: splitState.validate(parentSignedAmount: signedAmountCents),
+            draft: TransactionDraftBuilder.makeSubmissionDraft(from: makeSubmissionInput()),
+            date: date,
+            budgetID: budgetID,
+            repository: appState.transactionRepository,
+            deleteReview: deleteReview,
+            didMutate: {}
+        )
+        switch outcome {
+        case .saved, .unlocked:
+            isCleared = outcome == .unlocked ? true : isCleared
+            errorMessage = nil
+        case .failed(let message):
+            errorMessage = message
+        case .awaitingReview, .cancelled:
+            break
+        }
+        return outcome
     }
 
     func previewRules(
@@ -567,56 +604,25 @@ final class TransactionEditorViewModel {
         let validation = splitState.validate(
             parentSignedAmount: signedAmountCents
         )
-        switch submissionCoordinator.preflight(
+        switch await mutationCoordinator.submit(
             validation: validation,
             draft: TransactionDraftBuilder.makeSubmissionDraft(from: makeSubmissionInput()),
-            editingIdentity: makeEditingIdentity()
+            budgetID: budgetID,
+            repository: repository
         ) {
-        case .proceed(let identity, let draft):
+        case .saved:
             errorMessage = nil
-            switch await submissionCoordinator.execute(
-                editingIdentity: identity,
-                draft: draft,
-                budgetID: budgetID,
-                repository: repository
-            ) {
-            case .succeeded:
-                return true
-            case .cancelled:
-                return false
-            case .failed(let message):
-                errorMessage = message
-                return false
-            }
-        case .rejectedSplitOverflow(let message):
+            return true
+        case .failed(let message):
             errorMessage = message
             return false
-        case .rejectedSplitMismatch,
-             .rejectedInvalidDraft,
-             .rejectedAlreadySubmitting,
-             .rejectedInvalidEditingIdentity:
+        case .unlocked, .awaitingReview, .cancelled:
             return false
         }
     }
 
     private func makeRulePreviewRequest(budgetID: String) -> TransactionRulePreviewRequest? {
         TransactionDraftBuilder.makeRulePreviewRequest(from: makeRulePreviewInput(budgetID: budgetID))
-    }
-
-    private func makeEditingIdentity() -> TransactionEditorSubmissionCoordinator.EditingIdentity? {
-        if isEditing {
-            guard let editingTransactionID,
-                  let originalAccountID,
-                  let originalMonth else {
-                return nil
-            }
-            return .updating(
-                transactionID: editingTransactionID,
-                originalAccountID: originalAccountID,
-                originalMonth: originalMonth
-            )
-        }
-        return .creating
     }
 
     private func makeSubmissionInput() -> TransactionDraftBuilder.SubmissionInput {
@@ -633,7 +639,7 @@ final class TransactionEditorViewModel {
             isSplit: isSplit,
             isTransfer: selectedPayeeIsTransfer,
             realImportedPayee: originalImportedPayee,
-            reconciled: originalReconciled,
+            reconciled: mutationCoordinator.isTransactionReconciled,
             originalIsParent: originalIsParent,
             date: date,
             splitDrafts: splitState.splitDrafts()
@@ -653,7 +659,7 @@ final class TransactionEditorViewModel {
             isCategoryReadOnly: isCategoryReadOnly,
             isTransfer: selectedPayeeIsTransfer,
             realImportedPayee: originalImportedPayee,
-            reconciled: originalReconciled,
+            reconciled: mutationCoordinator.isTransactionReconciled,
             originalIsParent: originalIsParent,
             date: date,
             budgetID: budgetID,

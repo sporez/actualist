@@ -56,6 +56,7 @@ final class TransactionEditorSession: Identifiable {
     func invalidate() {
         lifecycle = .invalidated
         preparation?.cancel()
+        model.mutationCoordinator.cancel()
     }
 
     func isCurrent(_ context: Context?) -> Bool {
@@ -95,6 +96,25 @@ final class TransactionEditorSession: Identifiable {
               await model.confirmRuleDelete(using: appState),
               isCurrent(Context(appState: appState)) else { return false }
         lifecycle = .saved
+        appState.recordLocalDataMutation()
         return true
+    }
+
+    func confirmReconciledMutation(
+        using appState: AppState
+    ) async -> TransactionEditorMutationCoordinator.Outcome {
+        guard isCurrent(Context(appState: appState)) else { return .cancelled }
+        let outcome = await model.confirmReconciledMutation(using: appState)
+        guard isCurrent(Context(appState: appState)) else { return .cancelled }
+        switch outcome {
+        case .saved:
+            lifecycle = .saved
+            appState.recordLocalDataMutation()
+        case .unlocked:
+            appState.recordLocalDataMutation()
+        case .awaitingReview, .failed, .cancelled:
+            break
+        }
+        return outcome
     }
 }

@@ -1,6 +1,14 @@
 import Foundation
 
 extension LocalFirstActualStore {
+    func reconciledMutationReview(
+        budgetID: String,
+        transactionID: String
+    ) async throws -> ReconciledTransactionMutationReview? {
+        try await requireDatabase(for: budgetID)
+            .reconciledMutationReview(transactionID: transactionID)
+    }
+
     func accountReconciliationSnapshot(
         budgetID: String,
         accountID: String

@@ -60,6 +60,7 @@ final class TransactionEditorSubmissionCoordinator {
     /// The outcome of `execute(...)`.
     enum Outcome: Equatable {
         case succeeded(TransactionMutationResult?)
+        case requiresReconciledReview(ReconciledTransactionMutationReview)
         case failed(message: String)
         case cancelled
     }
@@ -106,6 +107,7 @@ final class TransactionEditorSubmissionCoordinator {
         editingIdentity: EditingIdentity,
         draft: TransactionDraft,
         budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         repository: any TransactionRepositoryProtocol
     ) async -> Outcome {
         generation += 1
@@ -130,7 +132,8 @@ final class TransactionEditorSubmissionCoordinator {
                     with: draft,
                     budgetID: budgetID,
                     originalAccountID: originalAccountID,
-                    originalMonth: originalMonth
+                    originalMonth: originalMonth,
+                    reconciliationAuthorization: reconciliationAuthorization
                 ) { [weak self] in
                     await MainActor.run {
                         self?.transitionToRefetching(token: token)
@@ -142,6 +145,10 @@ final class TransactionEditorSubmissionCoordinator {
             return .succeeded(result)
         } catch {
             guard token == generation else { return .cancelled }
+            if case .confirmationRequired(let review) = error as? ReconciledTransactionMutationError {
+                submissionState = .draft
+                return .requiresReconciledReview(review)
+            }
             guard let message = error.userFacingMessage else {
                 submissionState = .draft
                 return .cancelled

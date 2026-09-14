@@ -86,10 +86,21 @@ struct AccountTransactionFeedProjection {
         )
     }
 
-    func deletePresentation(for transaction: ActualTransaction) -> TransactionDeletePresentation {
-        TransactionDeletePresentation(
+    func deletePresentation(
+        for transaction: ActualTransaction,
+        reconciliationReview: ReconciledTransactionMutationReview? = nil
+    ) -> TransactionDeletePresentation {
+        let reconciliation = reconciliationReview.map {
+            ReconciledTransactionMutationPresentation.make(review: $0, intent: .delete)
+        }
+        return TransactionDeletePresentation(
             transaction: transaction,
-            payeeName: payeeName(for: transaction)
+            payeeName: payeeName(for: transaction),
+            confirmationTitle: reconciliation?.title ?? "Delete Transaction?",
+            actionTitle: reconciliation?.confirmationTitle ?? "Delete Transaction",
+            message: reconciliation?.message
+                ?? "Delete \(payeeName(for: transaction))? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription).",
+            reconciliationAuthorization: reconciliation?.review.authorization
         )
     }
 

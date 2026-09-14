@@ -79,6 +79,30 @@ struct TransactionEditorView: View {
             childCategoryPicker(for: row)
                 .appSwitcherPrivacyProtected(using: appState)
         }
+        .confirmationDialog(
+            reconciledMutationPresentation?.title ?? "Reconciled Transaction",
+            isPresented: reconciledMutationReviewBinding,
+            titleVisibility: .visible
+        ) {
+            if let presentation = reconciledMutationPresentation {
+                if presentation.intent == .ruleDelete {
+                    Button(presentation.confirmationTitle, role: .destructive) {
+                        confirmReconciledMutation()
+                    }
+                } else {
+                    Button(presentation.confirmationTitle) {
+                        confirmReconciledMutation()
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                viewModel.mutationCoordinator.dismissReview()
+            }
+        } message: {
+            if let presentation = reconciledMutationPresentation {
+                Text(presentation.message)
+            }
+        }
     }
 
     private var amountHeader: some View {
@@ -203,7 +227,7 @@ struct TransactionEditorView: View {
 
             Divider().overlay(ActualistTheme.separator).padding(.leading, density.iconSize + density.rowHorizontalPadding)
 
-            Toggle(isOn: $viewModel.isCleared) {
+            Toggle(isOn: clearedBinding) {
                 HStack(spacing: 16) {
                     Image(systemName: "c.circle")
                         .font(.body.weight(.semibold))
@@ -216,6 +240,7 @@ struct TransactionEditorView: View {
                 }
             }
             .tint(ActualistTheme.positive)
+            .disabled(viewModel.mutationCoordinator.isBusy)
             .padding(.horizontal, density.rowHorizontalPadding)
             .padding(.vertical, density.editorRowVerticalPadding)
         }
@@ -315,6 +340,39 @@ struct TransactionEditorView: View {
             viewModel.amountDigits
         } set: { newValue in
             viewModel.setAmountInput(newValue)
+        }
+    }
+
+    private var clearedBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.isCleared },
+            set: { value in
+                Task { await viewModel.requestClearedChange(value, using: appState) }
+            }
+        )
+    }
+
+    private var reconciledMutationPresentation: ReconciledTransactionMutationPresentation? {
+        viewModel.mutationCoordinator.presentation
+    }
+
+    private var reconciledMutationReviewBinding: Binding<Bool> {
+        Binding(
+            get: { reconciledMutationPresentation != nil },
+            set: { isPresented in
+                if !isPresented {
+                    viewModel.mutationCoordinator.dismissReview()
+                }
+            }
+        )
+    }
+
+    private func confirmReconciledMutation() {
+        guard viewModel.mutationCoordinator.beginConfirmation() else { return }
+        Task {
+            if await session.confirmReconciledMutation(using: appState) == .saved {
+                dismiss()
+            }
         }
     }
 

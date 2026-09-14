@@ -165,13 +165,18 @@ extension BudgetDatabase {
         now: Date = Date(),
         actionLogCommit: ActionLogCommit? = nil,
         expectedMode: BudgetModeIdentity? = nil,
-        expectedBankLink: BankSyncLinkIdentity? = nil
+        expectedBankLink: BankSyncLinkIdentity? = nil,
+        reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil
     ) throws -> Int {
         guard !drafts.isEmpty else {
             try queue.read { db in
                 try validateBankSyncLink(expectedBankLink, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
+                try validateReconciledMutationPrecondition(
+                    reconciledMutationPrecondition,
+                    db: db
+                )
             }
             return 0
         }
@@ -188,6 +193,10 @@ extension BudgetDatabase {
                 try validateBankSyncLink(expectedBankLink, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
+                try validateReconciledMutationPrecondition(
+                    reconciledMutationPrecondition,
+                    db: db
+                )
                 try ensureLocalSyncOutbox(db)
                 let baseTimestamp = try String.fetchOne(
                     db,
@@ -219,6 +228,8 @@ extension BudgetDatabase {
                 return applied.appliedCount
             }
         } catch let error as BudgetModeWriteError {
+            throw error
+        } catch let error as ReconciledTransactionMutationError {
             throw error
         } catch let error as LocalFirstError {
             throw error

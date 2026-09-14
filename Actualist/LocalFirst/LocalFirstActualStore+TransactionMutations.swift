@@ -131,6 +131,7 @@ extension LocalFirstActualStore {
             budgetID: budgetID,
             originalAccountID: originalAccountID,
             originalMonth: originalMonth,
+            reconciliationAuthorization: nil,
             actionSource: .ui,
             didUpdate: didUpdate
         )
@@ -142,6 +143,49 @@ extension LocalFirstActualStore {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await updateTransactionAndRefresh(
+            transactionID,
+            with: draft,
+            budgetID: budgetID,
+            originalAccountID: originalAccountID,
+            originalMonth: originalMonth,
+            reconciliationAuthorization: reconciliationAuthorization,
+            actionSource: .ui,
+            didUpdate: didUpdate
+        )
+    }
+
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        actionSource: BudgetActionSource,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await updateTransactionAndRefresh(
+            transactionID,
+            with: draft,
+            budgetID: budgetID,
+            originalAccountID: originalAccountID,
+            originalMonth: originalMonth,
+            reconciliationAuthorization: nil,
+            actionSource: actionSource,
+            didUpdate: didUpdate
+        )
+    }
+
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
         actionSource: BudgetActionSource,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -162,10 +206,15 @@ extension LocalFirstActualStore {
             transactionID: transactionID,
             draft: draft,
             payeeID: payeeResolution.payeeID,
+            reconciliationAuthorization: reconciliationAuthorization,
             builder: &builder
         )
 
         let messages = payeeResolution.messages + update.messages
+        let reconciledMutationPrecondition = ReconciledTransactionMutationPrecondition(
+            transactionID: transactionID,
+            authorization: reconciliationAuthorization
+        )
         let learningIDs: Set<String> = draft.categoryID == nil ? [] : [transactionID]
         let shouldRecord = existing.map {
             BudgetTransactionLogging.shouldRecordUpdate(
@@ -193,7 +242,8 @@ extension LocalFirstActualStore {
                     createdPayeeID: createdPayeeID
                 )),
                 source: actionSource,
-                learningTransactionIDs: learningIDs
+                learningTransactionIDs: learningIDs,
+                reconciledMutationPrecondition: reconciledMutationPrecondition
             )
         } else if let existing {
             let metadata = BudgetTransactionLogging.metadataChanges(existing: existing, draft: draft)
@@ -207,13 +257,20 @@ extension LocalFirstActualStore {
                         clearedChanged: metadata.cleared
                     )),
                     source: actionSource,
-                    learningTransactionIDs: learningIDs
+                    learningTransactionIDs: learningIDs,
+                    reconciledMutationPrecondition: reconciledMutationPrecondition
                 )
             } else {
-                _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+                _ = try await database.commitLocalSyncMessagesAndEnqueue(
+                    messages,
+                    reconciledMutationPrecondition: reconciledMutationPrecondition
+                )
             }
         } else {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(
+                messages,
+                reconciledMutationPrecondition: reconciledMutationPrecondition
+            )
         }
         try await reloadRulesIfNeeded(learningIDs: learningIDs, database: database, budgetID: budgetID)
         await didUpdate()
@@ -366,6 +423,7 @@ extension LocalFirstActualStore {
         try await deleteTransactionAndRefresh(
             transaction,
             budgetID: budgetID,
+            reconciliationAuthorization: nil,
             actionSource: .ui,
             didDelete: didDelete
         )
@@ -374,6 +432,37 @@ extension LocalFirstActualStore {
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await deleteTransactionAndRefresh(
+            transaction,
+            budgetID: budgetID,
+            reconciliationAuthorization: reconciliationAuthorization,
+            actionSource: .ui,
+            didDelete: didDelete
+        )
+    }
+
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        actionSource: BudgetActionSource,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await deleteTransactionAndRefresh(
+            transaction,
+            budgetID: budgetID,
+            reconciliationAuthorization: nil,
+            actionSource: actionSource,
+            didDelete: didDelete
+        )
+    }
+
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
         actionSource: BudgetActionSource,
         didDelete: @escaping () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -389,6 +478,7 @@ extension LocalFirstActualStore {
         var builder = LocalFirstSyncMessageBuilder()
         let delete = try await database.deleteTransactionMessages(
             transactionID: transactionID,
+            reconciliationAuthorization: reconciliationAuthorization,
             builder: &builder
         )
 
@@ -410,7 +500,11 @@ extension LocalFirstActualStore {
                 transactionIDs: delete.affectedTransactionIDs,
                 graph: graph
             )),
-            source: actionSource
+            source: actionSource,
+            reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition(
+                transactionID: transactionID,
+                authorization: reconciliationAuthorization
+            )
         )
         await didDelete()
 

@@ -32,6 +32,10 @@ struct TransactionEditorPresentation: Identifiable, Hashable {
 struct TransactionDeletePresentation: Identifiable, Hashable, Sendable {
     let transaction: ActualTransaction
     let payeeName: String
+    let confirmationTitle: String
+    let actionTitle: String
+    let message: String
+    let reconciliationAuthorization: ReconciledTransactionMutationAuthorization?
 
     var id: String {
         transaction.rowID

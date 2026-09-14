@@ -77,6 +77,10 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
     private let editorAccounts: [ActualAccount]
     private let rulePreviewsByPayeeName: [String: TransactionRulePreview]
     private let pausedRulePreviewPayeeNames: Set<String>
+    private var reconciliationReview: ReconciledTransactionMutationReview?
+    private var updateAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
+    private var deleteAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
+    private var unlockTransactionIDs: [String] = []
     private var pausedRulePreviewContinuations: [String: CheckedContinuation<Void, Never>] = [:]
 
     init(
@@ -88,7 +92,8 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         pauseAfterDidCreate: Bool = false,
         editorAccounts: [ActualAccount] = [],
         rulePreviewsByPayeeName: [String: TransactionRulePreview] = [:],
-        pausedRulePreviewPayeeNames: Set<String> = []
+        pausedRulePreviewPayeeNames: Set<String> = [],
+        reconciliationReview: ReconciledTransactionMutationReview? = nil
     ) {
         self.rulePreview = rulePreview
         self.previewError = previewError
@@ -99,6 +104,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         self.editorAccounts = editorAccounts
         self.rulePreviewsByPayeeName = rulePreviewsByPayeeName
         self.pausedRulePreviewPayeeNames = pausedRulePreviewPayeeNames
+        self.reconciliationReview = reconciliationReview
     }
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
@@ -215,6 +221,30 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         )
     }
 
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        updateAuthorizations.append(reconciliationAuthorization)
+        if let reconciliationReview,
+           reconciliationAuthorization != reconciliationReview.authorization {
+            throw ReconciledTransactionMutationError.confirmationRequired(reconciliationReview)
+        }
+        return try await updateTransactionAndRefresh(
+            transactionID,
+            with: draft,
+            budgetID: budgetID,
+            originalAccountID: originalAccountID,
+            originalMonth: originalMonth,
+            didUpdate: didUpdate
+        )
+    }
+
     func categorizeTransactionAndRefresh(
         _ transaction: ActualTransaction,
         categoryID: String,
@@ -286,6 +316,56 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         )
     }
 
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        deleteAuthorizations.append(reconciliationAuthorization)
+        if let reconciliationReview,
+           reconciliationAuthorization != reconciliationReview.authorization {
+            throw ReconciledTransactionMutationError.confirmationRequired(reconciliationReview)
+        }
+        return try await deleteTransactionAndRefresh(
+            transaction,
+            budgetID: budgetID,
+            didDelete: didDelete
+        )
+    }
+
+    func reconciledMutationReview(
+        budgetID: String,
+        transactionID: String
+    ) async throws -> ReconciledTransactionMutationReview? {
+        reconciliationReview
+    }
+
+    func unlockReconciledTransactionAndRefresh(
+        budgetID: String,
+        accountID: String,
+        transactionID: String
+    ) async throws -> AccountReconciliationMutationResult {
+        unlockTransactionIDs.append(transactionID)
+        reconciliationReview = nil
+        return AccountReconciliationMutationResult(
+            snapshot: AccountReconciliationSnapshot(
+                accountID: accountID,
+                accountName: "Checking",
+                workingBalance: 0,
+                clearedBalance: 0,
+                lastSyncedBalance: nil,
+                lastReconciledMilliseconds: nil,
+                capability: .available
+            ),
+            changed: ChangedResources(
+                accounts: [accountID],
+                months: ["2026-06"],
+                transactions: [transactionID]
+            )
+        )
+    }
+
     func onlyDraft() throws -> TransactionDraft {
         try #require(drafts.first)
     }
@@ -300,6 +380,18 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
 
     func onlyRulePreviewDraft() throws -> TransactionDraft {
         try #require(rulePreviewDrafts.first)
+    }
+
+    func recordedUpdateAuthorizations() -> [ReconciledTransactionMutationAuthorization?] {
+        updateAuthorizations
+    }
+
+    func recordedDeleteAuthorizations() -> [ReconciledTransactionMutationAuthorization?] {
+        deleteAuthorizations
+    }
+
+    func recordedUnlockTransactionIDs() -> [String] {
+        unlockTransactionIDs
     }
 
     func rulePreviewDraftCount() -> Int {

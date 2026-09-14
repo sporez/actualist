@@ -19,6 +19,7 @@ final class AccountTransactionsViewModel {
 
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var searchGeneration = 0
+    @ObservationIgnored private var deleteRequestGeneration = 0
     @ObservationIgnored private let searchDelay: Duration
     private var searchResult: SearchResult?
 
@@ -70,23 +71,41 @@ final class AccountTransactionsViewModel {
         _ transaction: ActualTransaction,
         budgetID: String?,
         repository: any TransactionRepositoryProtocol
-    ) {
-        guard transaction.id != nil else {
+    ) async {
+        guard let transactionID = transaction.id else {
             errorMessage = "This transaction cannot be deleted because it is missing its transaction ID."
             return
         }
 
         deleteIntentFeedback += 1
-        deletePresentation = projection(
-            budgetID: budgetID,
-            repository: repository
-        ).deletePresentation(for: transaction)
+        deleteRequestGeneration &+= 1
+        let requestGeneration = deleteRequestGeneration
+        do {
+            let review: ReconciledTransactionMutationReview? = if let budgetID {
+                try await repository.reconciledMutationReview(
+                    budgetID: budgetID,
+                    transactionID: transactionID
+                )
+            } else {
+                nil
+            }
+            guard requestGeneration == deleteRequestGeneration else { return }
+            deletePresentation = projection(
+                budgetID: budgetID,
+                repository: repository
+            ).deletePresentation(for: transaction, reconciliationReview: review)
+            errorMessage = nil
+        } catch {
+            guard requestGeneration == deleteRequestGeneration else { return }
+            errorMessage = error.userFacingMessage
+        }
     }
 
     func delete(
         _ transaction: ActualTransaction,
         budgetID: String?,
         repository: any TransactionRepositoryProtocol,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         onChanged: @MainActor () -> Void
     ) async {
         guard let budgetID, deletingTransactionID == nil else {
@@ -104,7 +123,8 @@ final class AccountTransactionsViewModel {
         do {
             _ = try await repository.deleteTransactionAndRefresh(
                 transaction,
-                budgetID: budgetID
+                budgetID: budgetID,
+                reconciliationAuthorization: reconciliationAuthorization
             ) {}
             if case .category(let details) = scope {
                 try await repository.refreshCategoryTransactions(
@@ -115,8 +135,17 @@ final class AccountTransactionsViewModel {
                 onChanged()
             }
             deleteSuccessFeedback += 1
+            deletePresentation = nil
         } catch {
-            errorMessage = error.userFacingMessage
+            if case .confirmationRequired(let review) = error as? ReconciledTransactionMutationError {
+                deletePresentation = projection(
+                    budgetID: budgetID,
+                    repository: repository
+                ).deletePresentation(for: transaction, reconciliationReview: review)
+                errorMessage = nil
+            } else {
+                errorMessage = error.userFacingMessage
+            }
         }
     }
 

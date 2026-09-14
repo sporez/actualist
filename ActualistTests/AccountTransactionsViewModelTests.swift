@@ -155,7 +155,7 @@ struct AccountTransactionsViewModelTests {
         )
         let model = AccountTransactionsViewModel(scope: .account(Self.account))
 
-        model.requestDelete(transaction, budgetID: "budget", repository: failingRepository)
+        await model.requestDelete(transaction, budgetID: "budget", repository: failingRepository)
         #expect(model.deletePresentation?.payeeName == "Market")
         #expect(model.deleteIntentFeedback == 1)
 
@@ -181,6 +181,36 @@ struct AccountTransactionsViewModelTests {
         #expect(model.errorMessage == nil)
         #expect(model.deleteSuccessFeedback == 1)
         #expect(await successfulRepository.deletedTransactionIDs == ["delete-me"])
+    }
+
+    @Test func reconciledDeleteUsesPreparedWarningAndExactAuthorization() async {
+        let transaction = Self.transaction(id: "locked", payee: "market")
+        let review = ReconciledTransactionMutationReview(
+            transactionID: "locked",
+            targetReconciledTransactionIDs: ["locked"],
+            pairedReconciledTransactionIDs: ["paired"]
+        )
+        let repository = AccountTransactionsRecordingRepository(
+            accountSnapshot: Self.loaded([transaction]),
+            reconciliationReview: review
+        )
+        let model = AccountTransactionsViewModel(scope: .account(Self.account))
+
+        await model.requestDelete(transaction, budgetID: "budget", repository: repository)
+
+        #expect(model.deletePresentation?.confirmationTitle == "Delete Reconciled Transaction?")
+        #expect(model.deletePresentation?.message.contains("other side of its transfer") == true)
+        let authorization = model.deletePresentation?.reconciliationAuthorization
+        await model.delete(
+            transaction,
+            budgetID: "budget",
+            repository: repository,
+            reconciliationAuthorization: authorization,
+            onChanged: {}
+        )
+
+        #expect(await repository.deleteAuthorizations == [review.authorization])
+        #expect(await repository.deletedTransactionIDs == ["locked"])
     }
 
     private static let account = ActualAccount(
@@ -269,11 +299,13 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
     private let deleteError: FeedTestError?
     private let suspendsOlderLoads: Bool
     private let suspendsSearches: Bool
+    private let reconciliationReview: ReconciledTransactionMutationReview?
 
     private(set) var refreshCalls: [String] = []
     private(set) var olderLoadCalls: [String] = []
     private(set) var searchQueries: [String] = []
     private(set) var deletedTransactionIDs: [String] = []
+    private(set) var deleteAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
     private var olderLoadContinuation: CheckedContinuation<Void, any Error>?
     private var searchContinuations: [
         String: CheckedContinuation<LoadedAccountTransactions, any Error>
@@ -286,7 +318,8 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         refreshError: FeedTestError? = nil,
         deleteError: FeedTestError? = nil,
         suspendsOlderLoads: Bool = false,
-        suspendsSearches: Bool = false
+        suspendsSearches: Bool = false,
+        reconciliationReview: ReconciledTransactionMutationReview? = nil
     ) {
         self.accountSnapshot = accountSnapshot
         self.spendingSnapshot = spendingSnapshot
@@ -295,6 +328,7 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         self.deleteError = deleteError
         self.suspendsOlderLoads = suspendsOlderLoads
         self.suspendsSearches = suspendsSearches
+        self.reconciliationReview = reconciliationReview
     }
 
     nonisolated func cachedAccountTransactions(
@@ -448,6 +482,31 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         deletedTransactionIDs.append(transaction.rowID)
         await didDelete()
         return Self.emptyMutation
+    }
+
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        deleteAuthorizations.append(reconciliationAuthorization)
+        if let reconciliationReview,
+           reconciliationAuthorization != reconciliationReview.authorization {
+            throw ReconciledTransactionMutationError.confirmationRequired(reconciliationReview)
+        }
+        return try await deleteTransactionAndRefresh(
+            transaction,
+            budgetID: budgetID,
+            didDelete: didDelete
+        )
+    }
+
+    func reconciledMutationReview(
+        budgetID: String,
+        transactionID: String
+    ) async throws -> ReconciledTransactionMutationReview? {
+        reconciliationReview
     }
 
     private static let emptyMutation = TransactionMutationResult(

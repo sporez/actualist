@@ -62,6 +62,15 @@ protocol TransactionRepositoryProtocol: Sendable {
         originalMonth: String,
         didUpdate: @escaping () async -> Void
     ) async throws -> TransactionMutationResult
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult
     func categorizeTransactionAndRefresh(
         _ transaction: ActualTransaction,
         categoryID: String,
@@ -79,9 +88,71 @@ protocol TransactionRepositoryProtocol: Sendable {
         budgetID: String,
         didDelete: @escaping () async -> Void
     ) async throws -> TransactionMutationResult
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult
+    func reconciledMutationReview(
+        budgetID: String,
+        transactionID: String
+    ) async throws -> ReconciledTransactionMutationReview?
+    func unlockReconciledTransactionAndRefresh(
+        budgetID: String,
+        accountID: String,
+        transactionID: String
+    ) async throws -> AccountReconciliationMutationResult
 }
 
 extension TransactionRepositoryProtocol {
+    func updateTransactionAndRefresh(
+        _ transactionID: String,
+        with draft: TransactionDraft,
+        budgetID: String,
+        originalAccountID: String,
+        originalMonth: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didUpdate: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await updateTransactionAndRefresh(
+            transactionID,
+            with: draft,
+            budgetID: budgetID,
+            originalAccountID: originalAccountID,
+            originalMonth: originalMonth,
+            didUpdate: didUpdate
+        )
+    }
+
+    func deleteTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        didDelete: @escaping () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await deleteTransactionAndRefresh(
+            transaction,
+            budgetID: budgetID,
+            didDelete: didDelete
+        )
+    }
+
+    func reconciledMutationReview(
+        budgetID: String,
+        transactionID: String
+    ) async throws -> ReconciledTransactionMutationReview? {
+        nil
+    }
+
+    func unlockReconciledTransactionAndRefresh(
+        budgetID: String,
+        accountID: String,
+        transactionID: String
+    ) async throws -> AccountReconciliationMutationResult {
+        throw LocalFirstError.unsupportedWrite
+    }
+
     func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
         []
     }
