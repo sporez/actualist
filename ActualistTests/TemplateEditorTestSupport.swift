@@ -1,29 +1,23 @@
 import Foundation
-import Observation
 import Testing
 @testable import Actualist
 
-/// Preview deadlines measure shared executor contention, not editor correctness.
-/// Observe the real completion; the suite time limit still bounds a stuck test.
-@MainActor
+/// Poll preview off the main actor. An Observation wait can miss the
+/// loading → ready flip, and a MainActor sleep can starve the dry-run that
+/// would clear `.loading`, so a full suite then hits the 2-minute test limit.
 func waitForTemplatePreview(
     _ viewModel: BudgetTemplateEditorViewModel,
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
-    while viewModel.previewState == .loading {
-        let changes = AsyncStream<Void> { continuation in
-            let isLoading = withObservationTracking {
-                viewModel.previewState == .loading
-            } onChange: {
-                continuation.yield(())
-                continuation.finish()
-            }
-            if !isLoading {
-                continuation.finish()
-            }
-        }
-        for await _ in changes { break }
+    let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+    while await viewModel.previewState == .loading {
         try Task.checkCancellation()
+        try #require(
+            ContinuousClock.now < deadline,
+            "template preview stayed loading",
+            sourceLocation: sourceLocation
+        )
+        try await Task.sleep(for: .milliseconds(20))
     }
-    try #require(viewModel.dryRun != nil, sourceLocation: sourceLocation)
+    try #require(await viewModel.dryRun != nil, sourceLocation: sourceLocation)
 }
