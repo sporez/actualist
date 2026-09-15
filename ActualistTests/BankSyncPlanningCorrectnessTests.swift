@@ -100,6 +100,23 @@ extension LocalFirstActualStoreTests {
         }
     }
 
+    private func existingPayeeRuleFixture() -> String {
+        """
+        CREATE TABLE rules (
+            id TEXT PRIMARY KEY,
+            conditions TEXT,
+            actions TEXT,
+            tombstone INTEGER
+        );
+        INSERT INTO rules VALUES (
+            'bank-payee-id-rule',
+            '[{"field":"payee","op":"is","value":"coffee","type":"id"}]',
+            '[{"field":"category","op":"set","value":"groceries","type":"id"}]',
+            0
+        );
+        """
+    }
+
     // MARK: - imported_payee rules in foreground and background paths
 
     @MainActor
@@ -151,6 +168,54 @@ extension LocalFirstActualStoreTests {
         #expect(row["category"] as String? == "groceries")
         #expect(row["notes"] as String? == "Rule applied")
         #expect(row["imported_description"] as String? == rawPayee)
+    }
+
+    // MARK: - payee-id rules after name resolution, like loot-core
+
+    @MainActor
+    @Test func syncAllReviewAppliesExistingPayeeIDRule() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(payeeName: "Coffee Shop"),
+            additionalFixtureSQL: existingPayeeRuleFixture()
+        )
+        let model = BankSyncViewModel(
+            store: bundle.store,
+            budgetID: "group-1",
+            currency: .usd
+        )
+        await model.load()
+
+        await model.syncAll()
+        #expect(model.phase == .reviewing)
+        await model.confirmReview()
+
+        let row = try #require(try await storedCorrectnessRow(
+            in: bundle,
+            financialID: "bank-correctness"
+        ))
+        #expect(row["description"] as String? == "coffee")
+        #expect(row["category"] as String? == "groceries")
+        #expect(row["imported_description"] as String? == "Coffee Shop")
+    }
+
+    @Test func backgroundApplyUsesExistingPayeeIDRule() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(
+                id: "background-payee-id-rule",
+                payeeName: "Coffee Shop"
+            ),
+            additionalFixtureSQL: existingPayeeRuleFixture()
+        )
+
+        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+
+        let row = try #require(try await storedCorrectnessRow(
+            in: bundle,
+            financialID: "background-payee-id-rule"
+        ))
+        #expect(row["description"] as String? == "coffee")
+        #expect(row["category"] as String? == "groceries")
+        #expect(row["imported_description"] as String? == "Coffee Shop")
     }
 
     // MARK: - Store read window across calendar boundaries

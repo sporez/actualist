@@ -111,6 +111,51 @@ extension LocalFirstActualStoreTests {
         #expect(imported.amount == -625)
     }
 
+    @Test func importWalletTransactionsAppliesExistingPayeeIDRule() async throws {
+        let store = try await makeOpenedWritableStore(
+            additionalFixtureSQL: """
+            \(Self.walletImportColumnsSQL)
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'wallet-payee-id-rule',
+                '[{"field":"payee","op":"is","value":"coffee","type":"id"}]',
+                '[{"field":"category","op":"set","value":"groceries","type":"id"}]',
+                0
+            );
+            """
+        )
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: UUID(uuidString: "44444444-5555-6666-7777-888888888888")!,
+                    amount: Decimal(string: "3.50")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: "Coffee Shop",
+                    transactionDescription: "Coffee Shop",
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 22),
+                    status: .booked
+                )
+            )
+        )
+
+        let result = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let imported = try #require(loaded.transactions.first { $0.importedPayee == "Coffee Shop" })
+
+        #expect(result.importedCount == 1)
+        #expect(imported.payee == "coffee")
+        #expect(imported.category == "groceries")
+    }
+
     @Test func importWalletTransactionsKeepsRawImportedPayeeForRules() async throws {
         let rawPayee = "SQ * RAW WALLET CAFE #123"
         let store = try await makeOpenedWritableStore(

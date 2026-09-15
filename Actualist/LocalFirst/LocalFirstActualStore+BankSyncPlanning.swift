@@ -442,8 +442,9 @@ extension LocalFirstActualStore {
         return try await database.fetchBudgetCurrency()
     }
 
-    /// Rule-preview draft uses raw provider values so conditions run before
-    /// matching, exactly like Actual's `transactionsStep1`.
+    /// loot-core resolves the payee during `normalizeBankSyncTransactions`
+    /// so `runRules` in `transactionsStep1` sees `trans.payee` before matching.
+    /// Keep the raw provider name on `imported_payee` / `payee_name`.
     private func bankSyncPreviewDraft(
         candidate: BankSyncReconciliation.Candidate,
         accountID: String,
@@ -454,7 +455,7 @@ extension LocalFirstActualStore {
             date: BankSyncAmounts.date(fromDayID: dayID)
                 ?? Date(timeIntervalSince1970: 0),
             amountMinorUnits: candidate.amountMinorUnits,
-            payeeID: nil,
+            payeeID: candidate.payeeID,
             payeeName: candidate.payeeName ?? "",
             categoryID: nil,
             notes: candidate.notes,

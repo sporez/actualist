@@ -112,13 +112,14 @@ enum WalletTransactionMapper {
     static func draft(
         from candidate: WalletTransactionCandidate,
         accountID: String,
-        sortOrder: Double
+        sortOrder: Double,
+        payeeID: String? = nil
     ) -> TransactionDraft {
         TransactionDraft(
             accountID: accountID,
             date: candidate.date,
             amountMinorUnits: candidate.amountMinorUnits,
-            payeeID: nil,
+            payeeID: payeeID,
             payeeName: candidate.payeeName,
             categoryID: nil,
             notes: nil,

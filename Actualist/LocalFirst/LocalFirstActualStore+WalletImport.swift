@@ -25,6 +25,18 @@ extension LocalFirstActualStore {
         var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
+        // loot-core resolves `trans.payee` before `runRules`. Look up existing
+        // non-transfer payees by name so Payee-is conditions can match; keep
+        // creating unknown names until after a delete rule has had its say.
+        let payeeIDsByName = try await database.fetchPayees().reduce(
+            into: [String: String]()
+        ) { result, payee in
+            guard payee.transferAccount == nil, let id = payee.id else { return }
+            let key = payee.name.lowercased()
+            if result[key] == nil {
+                result[key] = id
+            }
+        }
 
         for (index, candidate) in candidates.enumerated() {
             if seenIDs.contains(candidate.financialID) {
@@ -35,7 +47,8 @@ extension LocalFirstActualStore {
             var draft = WalletTransactionMapper.draft(
                 from: candidate,
                 accountID: accountID,
-                sortOrder: sortOrderBase + Double(index)
+                sortOrder: sortOrderBase + Double(index),
+                payeeID: payeeIDsByName[candidate.payeeName.lowercased()]
             )
             let preview = try await database.previewRules(for: draft)
             if preview.deletesTransaction {
