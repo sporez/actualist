@@ -99,17 +99,13 @@ struct AccountReconciliationTargetSheet: View {
                         Button {
                             coordinator.useLastSyncedBalance()
                         } label: {
-                            VStack(spacing: 0) {
-                                detailRow(label: AccountReconciliationCopy.lastBankBalance, value: synced)
-                                Text(AccountReconciliationCopy.useLastSyncedTotal)
-                                    .font(ActualistTypography.control(for: density))
-                                    .foregroundStyle(ActualistTheme.accent)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.bottom, 12)
-                            }
+                            bankBalanceActionRow(value: synced)
                         }
                         .buttonStyle(.plain)
                         .disabled(presentation.isPrivacyProtected)
+                        .accessibilityLabel(AccountReconciliationCopy.useBankBalance)
+                        .accessibilityValue(synced)
+                        .accessibilityIdentifier("reconciliation-use-bank-balance")
                     }
                     Divider().overlay(ActualistTheme.separator)
                     detailRow(label: "Last reconciled", value: presentation.lastReconciledText)
@@ -194,6 +190,30 @@ struct AccountReconciliationTargetSheet: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
+        }
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+    }
+
+    private func bankBalanceActionRow(value: String) -> some View {
+        HStack(spacing: 10) {
+            Text(AccountReconciliationCopy.lastBankBalance)
+                .font(ActualistTypography.body(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .layoutPriority(1)
+            Spacer(minLength: 6)
+            Text(value)
+                .font(ActualistTypography.rowValue(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Image(systemName: "arrow.up.circle.fill")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(ActualistTheme.accent)
+                .accessibilityHidden(true)
         }
         .padding(.vertical, 14)
         .contentShape(Rectangle())

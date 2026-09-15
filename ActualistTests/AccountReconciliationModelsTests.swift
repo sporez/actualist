@@ -95,7 +95,7 @@ struct AccountReconciliationModelsTests {
         #expect(AccountReconciliationCopy.balancePrompt
             == "Enter the current balance of your bank account that you want to reconcile with:")
         #expect(AccountReconciliationCopy.lastBankBalance == "Last Balance from Bank")
-        #expect(AccountReconciliationCopy.useLastSyncedTotal == "Use last synced total")
+        #expect(AccountReconciliationCopy.useBankBalance == "Use bank balance")
         #expect(AccountReconciliationCopy.reconcile == "Reconcile")
     }
 }
