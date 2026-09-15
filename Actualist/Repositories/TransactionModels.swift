@@ -38,6 +38,27 @@ struct TransactionDraft: Hashable, Sendable {
     var isSplit: Bool {
         !splits.isEmpty
     }
+
+    func withNotes(_ notes: String?) -> TransactionDraft {
+        TransactionDraft(
+            accountID: accountID,
+            date: date,
+            amountMinorUnits: amountMinorUnits,
+            payeeID: payeeID,
+            payeeName: payeeName,
+            categoryID: categoryID,
+            notes: notes,
+            cleared: cleared,
+            isTransfer: isTransfer,
+            importedPayee: importedPayee,
+            importedID: importedID,
+            sortOrder: sortOrder,
+            reconciled: reconciled,
+            isParent: isParent,
+            splits: splits,
+            scheduleID: scheduleID
+        )
+    }
 }
 
 struct TransactionSplitDraft: Hashable, Sendable, Identifiable {

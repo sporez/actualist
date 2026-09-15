@@ -133,7 +133,13 @@ extension BudgetDatabase {
                 committed: false
             )
         }
+        let defaultNotes = draft.notes
         draft = TransactionRulePreviewProjection.applying(preview, to: draft)
+        // Rule preview uses nil notes to mean "remove." Actual's adjustment still
+        // keeps the default note unless a rule replaced it with another value.
+        if draft.notes == nil, preview.notes == nil {
+            draft = draft.withNotes(defaultNotes)
+        }
 
         var builder = LocalFirstSyncMessageBuilder()
         let write: TransactionWriteResult

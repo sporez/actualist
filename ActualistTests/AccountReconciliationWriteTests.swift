@@ -46,6 +46,30 @@ struct AccountReconciliationWriteTests {
         #expect(projected.scheduleID == "schedule-1")
     }
 
+    @Test func previewWithoutMatchingRuleKeepsDefaultAdjustmentNotes() async throws {
+        let bundle = try makeDatabase()
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try support.makeDate(year: 2026, month: 9, day: 14),
+            amountMinorUnits: 2_500,
+            payeeID: nil,
+            payeeName: "",
+            categoryID: nil,
+            notes: "Reconciliation balance adjustment",
+            cleared: true,
+            isTransfer: false
+        )
+
+        let preview = try await bundle.database.previewRules(for: draft)
+        let projected = TransactionRulePreviewProjection.applying(preview, to: draft)
+        let restored = projected.notes == nil && preview.notes == nil
+            ? projected.withNotes(draft.notes)
+            : projected
+
+        #expect(preview.notes == "Reconciliation balance adjustment")
+        #expect(restored.notes == "Reconciliation balance adjustment")
+    }
+
     @Test func adjustmentUsesFreshDifferenceFixedDateNullPayeeAndHistory() async throws {
         let bundle = try makeDatabase()
         let now = try support.makeDate(year: 2026, month: 9, day: 14)
@@ -77,10 +101,39 @@ struct AccountReconciliationWriteTests {
         #expect(row?["description"] as String? == nil)
         #expect(row?["category"] as String? == nil)
         #expect(row?["notes"] as String? == "Reconciliation balance adjustment")
+        let fetched = try await bundle.database.fetchTransactions(accountID: "checking")
+        #expect(fetched.first { $0.id == "adjustment" }?.notes == "Reconciliation balance adjustment")
         #expect(row?["cleared"] as Int? == 1)
         #expect(row?["reconciled"] as Int? == 0)
         #expect(actionCount == 1)
         #expect(outboxCount > 0)
+    }
+
+    @Test func adjustmentKeepsDefaultNotesWhenRuleClearsThem() async throws {
+        let bundle = try makeDatabase(extraSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'clear-notes',
+                '[{"field":"notes","op":"is","value":"Reconciliation balance adjustment"}]',
+                '[{"field":"notes","op":"set","value":""}]',
+                0
+            );
+            """)
+
+        _ = try await bundle.database.createReconciliationAdjustment(
+            accountID: "checking",
+            targetBalance: 2_500,
+            now: try support.makeDate(year: 2026, month: 9, day: 14),
+            transactionID: "cleared-notes"
+        )
+
+        let fetched = try await bundle.database.fetchTransactions(accountID: "checking")
+        #expect(fetched.first { $0.id == "cleared-notes" }?.notes == "Reconciliation balance adjustment")
     }
 
     @Test func ruleDeletedAdjustmentWritesNothingAndCreatesNoHistory() async throws {
