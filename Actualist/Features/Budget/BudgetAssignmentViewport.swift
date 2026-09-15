@@ -31,6 +31,9 @@ struct BudgetAssignmentViewport<Content: View, Keypad: View, Floating: View>: Vi
             } action: { _, current in
                 presentation.update(current)
             }
+            .onScrollPhaseChange { _, phase in
+                presentation.updateScrollPhase(phase)
+            }
             .modifier(BudgetMonthSwipeModifier(model: viewModel,
                 presentationBlocked: monthSwipeBlocked || presentation.phase != .idle,
                 verticalOffset: presentation.sample.visibleOffset))

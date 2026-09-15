@@ -262,7 +262,7 @@ struct BudgetCategoryRow: View {
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
             measuredFrame.value = frame
         }
-        .background(isEditing ? ActualistTheme.elevatedSurface : Color.clear)
+        .background(isEditing ? ActualistTheme.elevatedSurface : Color.clear, in: Rectangle())
         .overlay(alignment: .bottom) {
             if showsBottomSeparator {
                 Rectangle()

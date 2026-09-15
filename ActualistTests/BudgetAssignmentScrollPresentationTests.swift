@@ -28,6 +28,23 @@ struct BudgetAssignmentScrollPresentationTests {
         #expect(BudgetLayout.assignmentScrollVisibilityMargin == 8)
     }
 
+    @Test func newFingerInteractionRearmsExpansionAfterBottomBounce() {
+        let model = make()
+        model.updateScrollPhase(.interacting)
+        model.update(.init(position: 300, maximum: 400, contentHeight: 1100, visibleOffset: 300))
+        #expect(!model.expansion.isExpanded)
+
+        model.updateScrollPhase(.decelerating)
+        model.update(.init(position: 428, maximum: 400, contentHeight: 1100, visibleOffset: 428))
+        model.update(.init(position: 397, maximum: 400, contentHeight: 1100, visibleOffset: 397))
+        #expect(!model.expansion.isExpanded)
+
+        model.updateScrollPhase(.tracking)
+        model.update(.init(position: 396, maximum: 400, contentHeight: 1100, visibleOffset: 396))
+
+        #expect(model.expansion.isExpanded)
+    }
+
     @Test func visibleRowRetainsPositionWithoutRestoration() throws {
         let model = make()
         let request = try prepare(model, bottom: 300)

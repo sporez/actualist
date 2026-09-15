@@ -67,8 +67,21 @@ struct ScrollDirectedExpansionTests {
         var expansion = ScrollDirectedExpansion(isExpanded: false)
 
         expansion.update(previousOffset: 428, offset: 406, maxOffset: 400)
+        expansion.update(previousOffset: 406, offset: 399, maxOffset: 400)
+        expansion.update(previousOffset: 399, offset: 397, maxOffset: 400, allowsExpansion: false)
 
         #expect(!expansion.isExpanded)
+    }
+
+    @Test func newInteractionAfterBottomRubberBandCanExpand() {
+        var expansion = ScrollDirectedExpansion(isExpanded: false)
+
+        expansion.update(previousOffset: 399, offset: 397, maxOffset: 400, allowsExpansion: false)
+        #expect(!expansion.isExpanded)
+
+        expansion.update(previousOffset: 397, offset: 396, maxOffset: 400, allowsExpansion: true)
+
+        #expect(expansion.isExpanded)
     }
 
     @Test func scrollingUpFromSettledBottomExpands() {

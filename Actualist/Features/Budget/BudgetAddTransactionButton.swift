@@ -24,5 +24,6 @@ struct BudgetAddTransactionButton: View {
         .buttonBorderShape(isExpanded ? .capsule : .circle)
         .controlSize(.large)
         .accessibilityLabel("Add Transaction")
+        .accessibilityIdentifier(isExpanded ? "budget-add-transaction-expanded" : "budget-add-transaction-collapsed")
     }
 }

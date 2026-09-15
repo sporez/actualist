@@ -38,6 +38,7 @@ final class BudgetAssignmentScrollPresentation {
     private(set) var keypadHeight = BudgetKeypadLayout.initialHeight
     private(set) var expansion = ScrollDirectedExpansion()
     private(set) var sample = Sample()
+    private var scrollPhase = ScrollPhase.idle
     @ObservationIgnored var viewportBottom: CGFloat = 0
 
     var clearance: CGFloat { max(0, keypadHeight - floatingHeight) }
@@ -54,7 +55,12 @@ final class BudgetAssignmentScrollPresentation {
         let previous = sample
         sample = next
         var updated = expansion
-        updated.update(previousOffset: previous.visibleOffset, offset: next.visibleOffset, maxOffset: next.maximum)
+        updated.update(
+            previousOffset: previous.visibleOffset,
+            offset: next.visibleOffset,
+            maxOffset: next.maximum,
+            allowsExpansion: scrollPhase == .tracking || scrollPhase == .interacting
+        )
         if updated != expansion {
             withAnimation(BudgetLayout.addTransactionExpansionAnimation) { expansion = updated }
         }
@@ -62,6 +68,10 @@ final class BudgetAssignmentScrollPresentation {
            next.contentHeight >= request.requiredContentHeight - 0.5 {
             phase = .ready(request)
         }
+    }
+
+    func updateScrollPhase(_ phase: ScrollPhase) {
+        scrollPhase = phase
     }
 
     func select(categoryID: String, rowFrame: CGRect) {

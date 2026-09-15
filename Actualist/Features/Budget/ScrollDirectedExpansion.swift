@@ -7,6 +7,8 @@ import CoreGraphics
 ///
 /// `onScrollGeometryChange` reports per-frame deltas of a few points. A large
 /// per-callback threshold only trips on rubber-band jumps at the ends.
+/// Upward expansion can be limited to finger-driven scroll phases so release
+/// deceleration cannot expand the control by itself.
 struct ScrollDirectedExpansion: Equatable {
     var isExpanded: Bool = true
 
@@ -16,6 +18,7 @@ struct ScrollDirectedExpansion: Equatable {
         previousOffset: CGFloat,
         offset: CGFloat,
         maxOffset: CGFloat,
+        allowsExpansion: Bool = true,
         threshold: CGFloat = Self.defaultThreshold
     ) {
         if maxOffset <= 0 || offset <= 0 {
@@ -32,6 +35,10 @@ struct ScrollDirectedExpansion: Equatable {
         // spring-back is an upward delta but is not a user scroll-up.
         if max(previousOffset, offset) > maxOffset {
             isExpanded = false
+            return
+        }
+
+        if delta < 0, !allowsExpansion {
             return
         }
 

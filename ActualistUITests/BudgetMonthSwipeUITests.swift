@@ -128,6 +128,27 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Save assignment"].exists)
     }
 
+    @MainActor func testBottomRubberBandKeepsAddTransactionCollapsedUntilNextGesture() {
+        let app = launchFreshDemo()
+        let scroll = app.scrollViews["budget-compact-scroll"]
+        let expanded = app.buttons["budget-add-transaction-expanded"]
+        let collapsed = app.buttons["budget-add-transaction-collapsed"]
+        XCTAssertTrue(scroll.waitForExistence(timeout: 15))
+        XCTAssertTrue(expanded.waitForExistence(timeout: 5))
+
+        for _ in 0..<4 { scroll.swipeUp() }
+        capture("bottom-rubber-band-before-assertion", app)
+        XCTAssertTrue(collapsed.waitForExistence(timeout: 5))
+
+        let expandsWithoutInteraction = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: expanded)
+        expandsWithoutInteraction.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [expandsWithoutInteraction], timeout: 1), .completed)
+
+        scroll.swipeDown()
+        XCTAssertTrue(expanded.waitForExistence(timeout: 5))
+        capture("bottom-rubber-band-add-transaction", app)
+    }
+
     @MainActor func testPickerStillOpensAfterRejectedGesture() {
         let app = launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
