@@ -75,6 +75,27 @@ struct AccountReconciliationModelsTests {
     @Test func inputFormatsAnExistingMinorUnitTarget() {
         let input = AccountReconciliationAmountInput(minorUnits: -12_345, currency: .usd)
         #expect(input.text == "-123.45")
+        #expect(input.isNegative)
+        #expect(input.magnitudeText == "123.45")
+    }
+
+    @Test func inputSignTogglePreservesMagnitude() {
+        var input = AccountReconciliationAmountInput(minorUnits: 2_500, currency: .usd)
+        #expect(!input.isNegative)
+        #expect(input.magnitudeText == "25.00")
+
+        input.toggleSign()
+        #expect(input.text == "-25.00")
+        input.setMagnitudeText("12.34")
+        #expect(input.text == "-12.34")
+        #expect(
+            input.minorUnits(currency: .usd, locale: Locale(identifier: "en_US")) == .success(-1_234)
+        )
+        input.toggleSign()
+        #expect(input.text == "12.34")
+        #expect(
+            input.minorUnits(currency: .usd, locale: Locale(identifier: "en_US")) == .success(1_234)
+        )
     }
 
     @Test func snapshotConvertsMillisecondsToDate() throws {

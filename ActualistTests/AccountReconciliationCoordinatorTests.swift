@@ -24,6 +24,25 @@ struct AccountReconciliationCoordinatorTests {
         #expect(!coordinator.presentsTargetSheet)
     }
 
+    @Test func targetSignToggleKeepsMagnitudeAndAppliesNegativeBalance() async throws {
+        let repository = ReconciliationCoordinatorRepository(
+            snapshots: [snapshot(cleared: 12_345, synced: -15_000)]
+        )
+        let coordinator = AccountReconciliationCoordinator()
+        coordinator.start(identity: identity, currency: .usd, repository: repository)
+        await waitUntil { coordinator.targetEntry != nil }
+
+        coordinator.toggleTargetSign()
+        #expect(coordinator.targetEntry?.input.text == "-123.45")
+        #expect(coordinator.targetPresentation(privacyModeEnabled: false)?.isNegative == true)
+        coordinator.updateTargetText("20.00")
+        #expect(coordinator.targetEntry?.input.text == "-20.00")
+        coordinator.useLastSyncedBalance()
+        #expect(coordinator.targetEntry?.input.text == "-150.00")
+        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        #expect(coordinator.activeSession?.targetBalance == -15_000)
+    }
+
     @Test func invalidTargetStaysInEntryWithPreparedMessage() async {
         let repository = ReconciliationCoordinatorRepository(snapshots: [snapshot(cleared: 0)])
         let coordinator = AccountReconciliationCoordinator()

@@ -27,6 +27,9 @@ struct AccountReconciliationTargetSheet: View {
             }
             .navigationTitle("Reconcile")
             .navigationBarTitleDisplayMode(.inline)
+            .actualistKeyboardDone(isVisible: isAmountFocused) {
+                isAmountFocused = false
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -37,12 +40,6 @@ struct AccountReconciliationTargetSheet: View {
                     }
                     .actualistToolbarGlassButton()
                     .accessibilityLabel("Close Reconcile")
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        isAmountFocused = false
-                    }
                 }
             }
         }
@@ -68,15 +65,37 @@ struct AccountReconciliationTargetSheet: View {
                             .minimumScaleFactor(0.55)
                             .accessibilityLabel("Sample target balance")
                     } else {
-                        MoneyAmountEntryField(
-                            text: targetTextBinding,
-                            displayText: presentation.amountText,
-                            foreground: ActualistTheme.primaryText,
-                            keyboard: .signedDecimal,
-                            focus: $isAmountFocused,
-                            accessibilityLabel: "Target Balance",
-                            accessibilityIdentifier: "reconciliation-target-field"
-                        )
+                        HStack(spacing: 4) {
+                            Button {
+                                coordinator.toggleTargetSign()
+                            } label: {
+                                Image(systemName: presentation.isNegative ? "minus" : "plus")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(ActualistTheme.primaryText)
+                                    .frame(width: 28, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Amount sign")
+                            .accessibilityValue(presentation.isNegative ? "Minus" : "Plus")
+                            .accessibilityIdentifier("reconciliation-target-sign")
+
+                            MoneyAmountEntryField(
+                                text: targetTextBinding,
+                                displayText: presentation.amountText,
+                                foreground: ActualistTheme.primaryText,
+                                keyboard: .decimal,
+                                focus: $isAmountFocused,
+                                accessibilityLabel: "Target Balance",
+                                accessibilityIdentifier: "reconciliation-target-field"
+                            )
+                            .fixedSize(horizontal: true, vertical: false)
+
+                            Color.clear
+                                .frame(width: 28, height: 44)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
 
                     Text(AccountReconciliationCopy.balancePrompt)
@@ -166,7 +185,7 @@ struct AccountReconciliationTargetSheet: View {
 
     private var targetTextBinding: Binding<String> {
         Binding(
-            get: { coordinator.targetEntry?.input.text ?? "" },
+            get: { coordinator.targetEntry?.input.magnitudeText ?? "" },
             set: coordinator.updateTargetText
         )
     }

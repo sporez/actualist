@@ -28,6 +28,7 @@ enum AccountReconciliationPrimaryAction: Hashable, Sendable {
 struct AccountReconciliationTargetPresentation: Hashable, Sendable {
     let accountName: String
     let amountText: String
+    let isNegative: Bool
     let clearedBalanceText: String
     let lastSyncedBalanceText: String?
     let lastReconciledText: String
@@ -58,11 +59,11 @@ enum AccountReconciliationPresentation {
         let target = parsedTarget ?? entry.snapshot.clearedBalance
         let enteredAmountText: String
         if let parsedTarget {
-            enteredAmountText = currency.formatted(parsedTarget)
-        } else if entry.input.text.isEmpty {
+            enteredAmountText = currency.formatted(abs(parsedTarget))
+        } else if entry.input.magnitudeText.isEmpty {
             enteredAmountText = currency.formatted(0)
         } else {
-            enteredAmountText = entry.input.text
+            enteredAmountText = entry.input.magnitudeText
         }
         return AccountReconciliationTargetPresentation(
             accountName: privacyModeEnabled
@@ -76,6 +77,7 @@ enum AccountReconciliationPresentation {
                     privacyModeEnabled: true
                 )
                 : enteredAmountText,
+            isNegative: entry.input.isNegative,
             clearedBalanceText: amountText(
                 entry.snapshot.clearedBalance,
                 seed: "reconciliation-cleared-entry-\(entry.identity.accountID)",

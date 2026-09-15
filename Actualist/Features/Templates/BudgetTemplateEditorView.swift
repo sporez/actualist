@@ -107,15 +107,8 @@ struct BudgetTemplateEditorView: View {
             .background(ActualistTheme.background)
             .navigationTitle(viewModel.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaBar(edge: .bottom, alignment: .trailing) {
-                if focusedField != nil {
-                    Button("Done") { focusedField = nil }
-                        .buttonStyle(.glass)
-                        .controlSize(.large)
-                        .tint(ActualistTheme.chromeForeground)
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 12)
-                }
+            .actualistKeyboardDone(isVisible: focusedField != nil) {
+                focusedField = nil
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

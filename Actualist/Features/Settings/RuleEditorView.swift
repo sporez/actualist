@@ -111,15 +111,8 @@ struct RuleEditorView: View {
             .background(ActualistTheme.background)
             .navigationTitle(target.rule == nil ? "New Rule" : target.rule?.isEditable == false ? "View Rule" : "Edit Rule")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaBar(edge: .bottom, alignment: .trailing) {
-                if focusedField != nil {
-                    Button("Done") { focusedField = nil }
-                        .buttonStyle(.glass)
-                        .controlSize(.large)
-                        .tint(ActualistTheme.chromeForeground)
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 12)
-                }
+            .actualistKeyboardDone(isVisible: focusedField != nil) {
+                focusedField = nil
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -281,4 +281,20 @@ extension View {
             .tint(ActualistTheme.chromeForeground)
             .controlSize(.small)
     }
+
+    /// Floating keyboard Done with a 12-point gap. Do not put Done in a
+    /// keyboard `ToolbarItem` — padding there only grows the system glass.
+    func actualistKeyboardDone(isVisible: Bool, action: @escaping () -> Void) -> some View {
+        safeAreaBar(edge: .bottom, alignment: .trailing) {
+            if isVisible {
+                Button("Done", action: action)
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+                    .tint(ActualistTheme.chromeForeground)
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 12)
+                    .accessibilityIdentifier("keyboard-done")
+            }
+        }
+    }
 }

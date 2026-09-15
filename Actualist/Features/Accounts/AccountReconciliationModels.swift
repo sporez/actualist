@@ -95,6 +95,41 @@ struct AccountReconciliationAmountInput: Hashable, Sendable {
         text = currency.editableAmountText(fromMinorUnits: minorUnits)
     }
 
+    var isNegative: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("-")
+    }
+
+    var magnitudeText: String {
+        var body = Substring(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        if body.first == "+" || body.first == "-" {
+            body = body.dropFirst()
+        }
+        return String(body)
+    }
+
+    mutating func setMagnitudeText(_ value: String) {
+        let negative = isNegative
+        var body = Substring(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        if body.first == "+" || body.first == "-" {
+            body = body.dropFirst()
+        }
+        let magnitude = String(body)
+        if negative {
+            text = magnitude.isEmpty ? "-" : "-" + magnitude
+        } else {
+            text = magnitude
+        }
+    }
+
+    mutating func toggleSign() {
+        if isNegative {
+            text = magnitudeText
+        } else {
+            let magnitude = magnitudeText
+            text = magnitude.isEmpty ? "-" : "-" + magnitude
+        }
+    }
+
     func minorUnits(
         currency: BudgetCurrency,
         locale: Locale = .current

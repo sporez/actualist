@@ -141,7 +141,14 @@ final class AccountReconciliationCoordinator {
 
     func updateTargetText(_ text: String) {
         guard case .enteringTarget(var entry) = state else { return }
-        entry.input.text = text
+        entry.input.setMagnitudeText(text)
+        entry.validationMessage = nil
+        state = .enteringTarget(entry)
+    }
+
+    func toggleTargetSign() {
+        guard case .enteringTarget(var entry) = state else { return }
+        entry.input.toggleSign()
         entry.validationMessage = nil
         state = .enteringTarget(entry)
     }

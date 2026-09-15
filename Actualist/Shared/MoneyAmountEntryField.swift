@@ -1,12 +1,17 @@
 import SwiftUI
+import UIKit
 
 enum MoneyAmountEntryKeyboard {
     case digits
-    case signedDecimal
+    case decimal
 }
 
 /// Shared large-amount entry used by money workflows that keep parsing and
 /// command values in their feature-owned models.
+///
+/// The overlay shows formatted text while idle. While focused, the TextField
+/// itself is the visible amount so typing is not inserted into a hidden 1pt
+/// caret at the start of the existing value.
 struct MoneyAmountEntryField: View {
     @Environment(\.actualistDensity) private var density
 
@@ -25,15 +30,20 @@ struct MoneyAmountEntryField: View {
                 .foregroundStyle(foreground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.55)
+                .opacity(focus.wrappedValue ? 0 : 1)
                 .accessibilityHidden(true)
 
             TextField(accessibilityLabel, text: $text)
                 .focused(focus)
-                .keyboardType(keyboard == .digits ? .numberPad : .numbersAndPunctuation)
+                .font(ActualistTypography.editorAmount(for: density))
+                .foregroundStyle(foreground)
+                .multilineTextAlignment(.center)
+                .keyboardType(keyboard == .digits ? .numberPad : .decimalPad)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+                .opacity(focus.wrappedValue ? 1 : 0.01)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityValue(displayText)
                 .accessibilityIdentifier(accessibilityIdentifier)
@@ -42,6 +52,17 @@ struct MoneyAmountEntryField: View {
         .contentShape(Rectangle())
         .onTapGesture {
             focus.wrappedValue = true
+        }
+        .onChange(of: focus.wrappedValue) { _, focused in
+            guard focused else { return }
+            Task { @MainActor in
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.selectAll(_:)),
+                    to: nil,
+                    from: nil,
+                    for: nil
+                )
+            }
         }
     }
 }

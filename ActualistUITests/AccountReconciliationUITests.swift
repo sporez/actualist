@@ -44,6 +44,34 @@ final class AccountReconciliationUITests: XCTestCase {
     }
 
     @MainActor
+    func testTargetAmountTypingReplacesExistingValueAndDoneClearsKeyboard() throws {
+        let app = launchCheckingAccount()
+        openReconciliationTarget(in: app)
+
+        let targetField = app.descendants(matching: .any)["reconciliation-target-field"]
+        XCTAssertTrue(targetField.waitForExistence(timeout: 5))
+        targetField.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+
+        let done = app.buttons["keyboard-done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 3))
+        XCTAssertGreaterThan(app.keyboards.firstMatch.frame.minY - done.frame.maxY, 8)
+
+        targetField.typeText("12.34")
+        let value = targetField.value as? String ?? ""
+        XCTAssertTrue(value.contains("12.34"), value)
+        XCTAssertEqual(value.filter { $0 == "." }.count, 1, value)
+
+        let typingAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        typingAttachment.name = "account-reconciliation-target-typing"
+        typingAttachment.lifetime = .keepAlways
+        add(typingAttachment)
+
+        done.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
     func testUnlockingReconciledTransactionRequiresConfirmationAndKeepsItCleared() throws {
         let app = launchCheckingAccount()
         openReconciliationTarget(in: app)
