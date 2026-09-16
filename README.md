@@ -40,7 +40,12 @@ and iOS Liquid Glass controls.
   notes, and overspending review. Move Money is available for envelope budgets.
 - Searchable transaction feeds, with create, edit, delete, categorize,
   split, transfer, and eligible undo actions.
-- iPad sidebar, category inspector, and up to five budget months side by side.
+- Accounts with on-budget, off-budget, and closed balances, plus notes. Add
+  and reconcile accounts. Manage groups when your Actual server supports them.
+- iPad sidebar, category details, and up to five budget months side by side.
+  Compact layouts can use Swipe Between Months for full-width transitions.
+- History in the Budget ⋯ menu shows the last 25 changes on this device, with
+  review and undo for the most recent eligible budget or transaction change.
 - Reports for net worth, cash flow, spending, and budget comparisons.
 - SimpleFIN Bank Sync and selected Apple Wallet imports, with review before save.
 - Payee and rule management under Settings → Budget & Data.
@@ -63,7 +68,8 @@ changes its setup; **Apply Template** previews and assigns the money separately.
 
 - An iPhone or iPad running iOS/iPadOS 26 or later.
 - A running [Actual Budget server](https://actualbudget.org/docs/install/) with at
-  least one budget already uploaded for sync.
+  least one budget already uploaded for sync, unless you only open the bundled
+  demo from onboarding.
 - Network access from the device to that server. If the server is available only
   through a VPN, Tailscale, or another private network, connect the device to that
   network first.
@@ -108,9 +114,8 @@ Sync lets you review changes before saving.
 - Bank Sync can download SimpleFIN transactions from your Actual server or a
   device token. Other bank providers still arrive only after another Actual
   client or the server imports them.
-- Account reconciliation is not yet available.
-- You can add accounts. Renaming, closing, reopening, and deleting accounts are
-  not yet supported.
+- You can add and reconcile accounts. Renaming, closing, reopening, and
+  deleting accounts are not yet supported.
 - Category creation, renaming, deletion, and reordering still require another
   Actual client. Actualist supports hiding and showing categories and groups.
 - Imported split rules run but cannot be edited here. Formula actions, some date
