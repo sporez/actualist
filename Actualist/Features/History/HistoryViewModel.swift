@@ -171,7 +171,7 @@ final class HistoryViewModel {
 
     /// Confirm: commit the undo, then reload rows so the undone marker and the
     /// new "newest applied" row reflect storage. Budget and other tabs refresh
-    /// through `localDataRevision` (the store bumps it on every mutation).
+    /// through `localDataRevision` after this method publishes the mutation.
     @discardableResult
     func confirmUndo(using appState: AppState) async -> Bool {
         guard case .reviewing(let presentation) = undoState,
@@ -185,6 +185,7 @@ final class HistoryViewModel {
                 actionID: presentation.actionID,
                 budgetID: budgetID
             )
+            appState.recordLocalDataMutation()
             guard generation == preparationGeneration,
                   undoState == .committing(presentation) else {
                 return false
