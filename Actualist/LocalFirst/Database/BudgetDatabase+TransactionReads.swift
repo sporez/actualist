@@ -408,15 +408,19 @@ private extension BudgetDatabase {
             \(limitClause)
             """
         let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(pageArguments))
-        if let rowLimit {
-            let reachedEnd = rows.count <= rowLimit
-            let page = Array(rows.prefix(rowLimit))
-            return TransactionFetchResult(
-                transactions: page.map(mapTransactionRow),
-                reachedEnd: reachedEnd
+        let reachedEnd = rowLimit.map { rows.count <= $0 } ?? true
+        let page = rowLimit.map { Array(rows.prefix($0)) } ?? rows
+        let mapped = page.map(mapTransactionRow)
+        let transactions = mode == .all
+            ? try transactionsByAttachingSplitFamilies(
+                mapped,
+                db: db,
+                split: split,
+                joins: joins,
+                normalizedDate: normalizedDate
             )
-        }
-        return TransactionFetchResult(transactions: rows.map(mapTransactionRow), reachedEnd: true)
+            : mapped
+        return TransactionFetchResult(transactions: transactions, reachedEnd: reachedEnd)
     }
 
     func fetchGroupedTransactionPage(
@@ -502,6 +506,63 @@ private extension BudgetDatabase {
             return TransactionFetchResult(transactions: [], reachedEnd: true)
         }
 
+        let assembled = try assembledTransactions(
+            forGroupIDs: groupIDs,
+            db: db,
+            split: split,
+            joins: joins,
+            normalizedDate: normalizedDate
+        )
+        let ordered = TransactionGroupedOrdering.transactions(assembled, orderedByGroupIDs: groupIDs)
+        return TransactionFetchResult(transactions: ordered, reachedEnd: reachedEnd)
+    }
+
+    /// Nested children on parent rows for payee projection. Does not add or
+    /// remove page rows, so `.all` search match sets and pagination stay intact.
+    func transactionsByAttachingSplitFamilies(
+        _ transactions: [ActualTransaction],
+        db: Database,
+        split: TransactionSplitQueryExpressions,
+        joins: TransactionReadJoins,
+        normalizedDate: String
+    ) throws -> [ActualTransaction] {
+        let parentIDs = transactions.compactMap { transaction -> String? in
+            guard transaction.isParent else { return nil }
+            return transaction.id
+        }
+        guard !parentIDs.isEmpty else {
+            return transactions
+        }
+        let childrenByParentID = Dictionary(
+            uniqueKeysWithValues: try assembledTransactions(
+                forGroupIDs: parentIDs,
+                db: db,
+                split: split,
+                joins: joins,
+                normalizedDate: normalizedDate
+            ).compactMap { parent -> (String, [ActualTransaction])? in
+                guard let id = parent.id else { return nil }
+                return (id, parent.subtransactions)
+            }
+        )
+        return transactions.map { transaction in
+            guard let id = transaction.id, let children = childrenByParentID[id] else {
+                return transaction
+            }
+            return transaction.replacingSubtransactions(children)
+        }
+    }
+
+    func assembledTransactions(
+        forGroupIDs groupIDs: [String],
+        db: Database,
+        split: TransactionSplitQueryExpressions,
+        joins: TransactionReadJoins,
+        normalizedDate: String
+    ) throws -> [ActualTransaction] {
+        guard !groupIDs.isEmpty else {
+            return []
+        }
         let placeholders = Array(repeating: "?", count: groupIDs.count).joined(separator: ", ")
         let familySQL = """
             SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
@@ -517,9 +578,7 @@ private extension BudgetDatabase {
             sql: familySQL,
             arguments: StatementArguments(groupIDs.map { $0 as DatabaseValueConvertible })
         )
-        let assembled = assembleTransactions(from: rows)
-        let ordered = TransactionGroupedOrdering.transactions(assembled, orderedByGroupIDs: groupIDs)
-        return TransactionFetchResult(transactions: ordered, reachedEnd: reachedEnd)
+        return assembleTransactions(from: rows)
     }
 
     func fetchAssembledGroupedTransactions(

@@ -50,6 +50,8 @@ struct TransactionSplitQueryTests {
         #expect(family.subtransactions.map(\.id) == ["child-a", "child-b"])
         #expect(family.subtransactions.map(\.isChild) == [true, true])
         #expect(family.subtransactions.map(\.notes) == ["child a", "Q01-CHILD-NOTE"])
+        #expect(all.transactions.first { $0.id == "parent" }?.subtransactions.map(\.id) == ["child-a", "child-b"])
+        #expect(none.transactions.first { $0.id == "parent" }?.subtransactions.isEmpty == true)
     }
 
     @Test func searchAllReturnsMatchingChildAndGroupedReturnsFamily() async throws {
@@ -94,6 +96,47 @@ struct TransactionSplitQueryTests {
         #expect(feed.map(\.id) == ["parent"])
         #expect(feed.first?.subtransactions.map(\.id) == ["child-b"])
         #expect(search.map(\.id) == ["child-b"])
+    }
+
+    @Test func defaultSearchAttachesSplitFamilyOnParentNoteMatch() async throws {
+        let database = try exactSchemaDatabase(extraSQL: """
+            INSERT INTO payees VALUES ('market', 'Market', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('market', 'market');
+            INSERT INTO transactions (
+                id, isParent, isChild, acct, category, amount, description, notes, date,
+                sort_order, tombstone, parent_id
+            ) VALUES
+            ('simple-needle', 0, 0, 'checking', 'groceries', -100, 'coffee', 'PARENT-ONLY-NOTE extra', 20260820, 4, 0, NULL),
+            ('parent', 1, 0, 'checking', NULL, -5000, NULL, 'PARENT-ONLY-NOTE', 20260815, 3, 0, NULL),
+            ('child-a', 0, 1, 'checking', 'groceries', -2000, 'coffee', 'child a', 20260815, 2, 0, 'parent'),
+            ('child-b', 0, 1, 'checking', 'utilities', -3000, 'market', 'child b', 20260815, 1, 0, 'parent');
+            """)
+
+        let search = try await database.fetchTransactionPage(matching: "PARENT-ONLY-NOTE")
+        #expect(search.transactions.map(\.id) == ["simple-needle", "parent"])
+        let parent = try #require(search.transactions.first { $0.id == "parent" })
+        #expect(parent.subtransactions.map(\.id) == ["child-a", "child-b"])
+        #expect(parent.subtransactions.map(\.payee) == ["coffee", "market"])
+        #expect(parent.subtransactions.map(\.payeeName) == ["Coffee Shop", "Market"])
+
+        let semantics = TransactionRowSemantics.project(parent, lookup: TransactionRowLookup())
+        #expect(semantics.payeeKind == .named)
+        #expect(semantics.payeeText != "Split (no payee)")
+        #expect(semantics.payeeText.contains("Coffee Shop") || semantics.payeeText.contains("Market"))
+
+        let childOnly = try await database.fetchTransactionPage(matching: "Market")
+        #expect(childOnly.transactions.map(\.id) == ["child-b"])
+        #expect(childOnly.transactions.first?.subtransactions.isEmpty == true)
+
+        let first = try await database.fetchTransactionPage(matching: "PARENT-ONLY-NOTE", limit: 1)
+        #expect(first.transactions.map(\.id) == ["simple-needle"])
+        #expect(first.transactions.count == 1)
+        #expect(!first.reachedEnd)
+        let second = try await database.fetchTransactionPage(matching: "PARENT-ONLY-NOTE", limit: 1, offset: 1)
+        #expect(second.transactions.map(\.id) == ["parent"])
+        #expect(second.transactions.count == 1)
+        #expect(second.transactions.first?.subtransactions.map(\.id) == ["child-a", "child-b"])
+        #expect(second.reachedEnd)
     }
 
     @Test func deadParentExcludesOrphanFromLiveReadsAndBalances() async throws {
