@@ -17,7 +17,8 @@ struct BankSyncMatchReviewTests {
             importedPayee: "Old bank payee",
             isParent: true,
             isChild: false,
-            parentID: nil
+            parentID: nil,
+            transferID: nil
         )
         let update = BankSyncReconciliation.MatchedUpdate(
             existingID: "local-1",

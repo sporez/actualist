@@ -65,6 +65,10 @@ enum BankSyncReconciliation {
         let isParent: Bool
         let isChild: Bool
         let parentID: String?
+        /// Paired transfer row id (`transferred_id` / `transfer_id`).
+        let transferID: String?
+
+        var isTransfer: Bool { transferID?.isEmpty == false }
 
         /// `v_transactions` validity: children must carry a parent id.
         var isValidCandidate: Bool { !isChild || parentID != nil }
@@ -74,6 +78,7 @@ enum BankSyncReconciliation {
 
     /// The write planned onto one matched local row. Blank local fields are
     /// filled from the download; user-filled payee / category / notes win.
+    /// Existing transfers keep their category exactly, including nil.
     /// `financialID` and `importedPayee` are bank-owned.
     struct MatchedUpdate: Equatable, Sendable {
         let existingID: String
@@ -183,15 +188,11 @@ enum BankSyncReconciliation {
             }
 
             let existingNotes = row.notes?.isEmpty == false ? row.notes : nil
-            // Split parents have a null category in the effective view. Filling
-            // a blank parent category from the download would persist a category
-            // on the parent, which Actual never does.
-            let categoryID = row.isParent ? nil : (row.categoryID ?? candidate.categoryID)
             let update = MatchedUpdate(
                 existingID: row.id,
                 financialID: candidate.financialID,
                 payeeID: row.payeeID ?? candidate.payeeID,
-                categoryID: categoryID,
+                categoryID: mergedCategoryID(existing: row, candidate: candidate),
                 importedPayee: candidate.importedPayee,
                 notes: existingNotes ?? candidate.notes,
                 cleared: row.cleared || candidate.cleared,
@@ -247,6 +248,22 @@ enum BankSyncReconciliation {
         return existing
             .filter { $0.isChild && $0.parentID == row.id && $0.cleared != cleared }
             .map(\.id)
+    }
+
+    /// Transfers keep their existing category, including nil. A bank-import
+    /// rule must not manufacture a category on an already-linked transfer.
+    /// Split parents stay uncategorized in the effective view.
+    private static func mergedCategoryID(
+        existing row: Existing,
+        candidate: Candidate
+    ) -> String? {
+        if row.isTransfer {
+            return row.categoryID
+        }
+        if row.isParent {
+            return nil
+        }
+        return row.categoryID ?? candidate.categoryID
     }
 
     // MARK: - Rule projection

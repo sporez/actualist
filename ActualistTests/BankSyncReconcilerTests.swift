@@ -45,7 +45,8 @@ struct BankSyncReconcilerTests {
         importedPayee: String? = nil,
         isParent: Bool = false,
         isChild: Bool = false,
-        parentID: String? = nil
+        parentID: String? = nil,
+        transferID: String? = nil
     ) -> BankSyncReconciliation.Existing {
         BankSyncReconciliation.Existing(
             id: id,
@@ -60,7 +61,8 @@ struct BankSyncReconcilerTests {
             importedPayee: importedPayee,
             isParent: isParent,
             isChild: isChild,
-            parentID: parentID
+            parentID: parentID,
+            transferID: transferID
         )
     }
 
@@ -499,6 +501,67 @@ struct BankSyncReconcilerTests {
         )
         #expect(isUnchanged("parent", plan))
         #expect(update(for: "child-1", plan) == nil)
+    }
+
+    @Test func matchedTransferDoesNotTakeCandidateCategory() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", category: "dining", cleared: true)],
+            existing: [existing(id: "xfer", category: nil, cleared: false, transferID: "xfer-dst")]
+        )
+        let matched = update(for: "xfer", plan)
+        #expect(matched?.categoryID == nil)
+        #expect(matched?.financialID == "fin-1")
+        #expect(matched?.cleared == true)
+    }
+
+    @Test func matchedTransferWithOnlyRuleCategoryStaysUnchanged() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [
+                candidate(
+                    id: "fin-1",
+                    category: "dining",
+                    cleared: true,
+                    importedPayee: "Steam"
+                )
+            ],
+            existing: [
+                existing(
+                    id: "xfer",
+                    financialID: "fin-1",
+                    category: nil,
+                    cleared: true,
+                    importedPayee: "Steam",
+                    transferID: "xfer-dst"
+                )
+            ]
+        )
+        #expect(isUnchanged("xfer", plan))
+    }
+
+    @Test func matchedTransferKeepsExistingCategoryAgainstCandidate() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", category: "dining")],
+            existing: [existing(id: "xfer", category: "groceries", transferID: "xfer-dst")]
+        )
+        let matched = update(for: "xfer", plan)
+        #expect(matched?.categoryID == "groceries")
+        #expect(matched?.financialID == "fin-1")
+    }
+
+    @Test func matchedOrdinaryUncategorizedTakesCandidateCategory() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", category: "dining")],
+            existing: [existing(id: "row", category: nil)]
+        )
+        #expect(update(for: "row", plan)?.categoryID == "dining")
+    }
+
+    @Test func emptyTransferIDDoesNotBlockCategoryFill() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", category: "dining")],
+            existing: [existing(id: "row", category: nil, transferID: "")]
+        )
+        #expect(update(for: "row", plan)?.categoryID == "dining")
     }
 
     @Test func splitParentMatchDoesNotFillParentCategory() {

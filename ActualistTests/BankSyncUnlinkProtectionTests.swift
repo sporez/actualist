@@ -44,7 +44,7 @@ extension LocalFirstActualStoreTests {
             try await bundle.store.unlinkBankAccount("savings", budgetID: "group-1")
         }
 
-        let storedRow: Row? = try queue.read { db in
+        let storedRow: Row? = try queue.readSync { db in
             return try Row.fetchOne(
                 db,
                 sql: """

@@ -476,6 +476,14 @@ extension LocalFirstActualStoreTests {
     }
 }
 
+extension DatabaseQueue {
+    /// GRDB prefers its async `read` from async tests, but `Row` is not Sendable.
+    /// Call this from a synchronous function so the sync overload is selected.
+    func readSync<T>(_ value: (Database) throws -> T) throws -> T {
+        try read(value)
+    }
+}
+
 extension BudgetTemplateEngine.Category {
     init(
         entries: [BudgetTemplateEntry],

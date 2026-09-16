@@ -230,8 +230,10 @@ extension BudgetDatabase {
             let split = transactionSplitQueryExpressions(columns: columns)
             let financialIDColumn = ["financial_id", "imported_id"].first { columns.contains($0) }
             let importedPayeeColumn = ["imported_description", "imported_payee"].first { columns.contains($0) }
+            let transferIDColumn = ["transferred_id", "transfer_id"].first { columns.contains($0) }
             let financialIDSelect = financialIDColumn.map { "t.\($0)" } ?? "NULL"
             let importedPayeeSelect = importedPayeeColumn.map { "t.\($0)" } ?? "NULL"
+            let transferIDSelect = transferIDColumn.map { "t.\($0)" } ?? "NULL"
 
             let sql = """
                 SELECT t.id AS id,
@@ -246,7 +248,8 @@ extension BudgetDatabase {
                        \(importedPayeeSelect) AS imported_payee,
                        \(split.qualifiedIsParent) AS is_parent,
                        \(split.qualifiedIsChild) AS is_child,
-                       \(split.effectiveParentID) AS parent_id
+                       \(split.effectiveParentID) AS parent_id,
+                       \(transferIDSelect) AS transfer_id
                 FROM transactions t
                 \(split.parentJoin())
                 WHERE \(split.qualifiedAccount) = ?
@@ -277,7 +280,8 @@ extension BudgetDatabase {
                     importedPayee: row["imported_payee"],
                     isParent: isParent,
                     isChild: isChild,
-                    parentID: isChild ? row["parent_id"] : nil
+                    parentID: isChild ? row["parent_id"] : nil,
+                    transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
                 )
             }
         }
@@ -494,7 +498,8 @@ extension BudgetDatabase {
             if let payeeID = update.payeeID {
                 try appendIfChanged(payeeColumn, .string(payeeID), changed: payeeID != existing.payeeID)
             }
-            if columns.contains("category"), let categoryID = update.categoryID {
+            // Bank Sync never manufactures or replaces an existing transfer's category.
+            if columns.contains("category"), let categoryID = update.categoryID, !existing.isTransfer {
                 try appendIfChanged("category", .string(categoryID), changed: categoryID != existing.categoryID)
             }
             if let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {

@@ -86,7 +86,7 @@ extension LocalFirstActualStoreTests {
     private func storedCorrectnessRow(
         in bundle: OpenedWritableStoreBundle,
         financialID: String
-    ) async throws -> Row? {
+    ) throws -> Row? {
         let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
         return try queue.read { db in
             try Row.fetchOne(
@@ -100,7 +100,7 @@ extension LocalFirstActualStoreTests {
         }
     }
 
-    private func existingPayeeRuleFixture() -> String {
+    private func existingPayeeRuleFixture(categoryID: String = "groceries") -> String {
         """
         CREATE TABLE rules (
             id TEXT PRIMARY KEY,
@@ -111,10 +111,42 @@ extension LocalFirstActualStoreTests {
         INSERT INTO rules VALUES (
             'bank-payee-id-rule',
             '[{"field":"payee","op":"is","value":"coffee","type":"id"}]',
-            '[{"field":"category","op":"set","value":"groceries","type":"id"}]',
+            '[{"field":"category","op":"set","value":"\(categoryID)","type":"id"}]',
             0
         );
         """
+    }
+
+    private func existingTransferFixture(
+        sourceCategorySQL: String = "NULL",
+        destinationPayeeID: String = "xfer-checking",
+        destinationAccountID: String = "checking"
+    ) -> String {
+        """
+        INSERT INTO transactions
+            (id, acct, date, amount, category, tombstone, description, notes, cleared, is_parent, transferred_id)
+        VALUES
+            ('xfer-src', 'savings', 20260302, -1000, \(sourceCategorySQL), 0, '\(destinationPayeeID)', NULL, 0, 0, 'xfer-dst'),
+            ('xfer-dst', '\(destinationAccountID)', 20260302, 1000, NULL, 0, 'xfer-savings', NULL, 0, 0, 'xfer-src');
+        """
+    }
+
+    private func storedTransactionRow(
+        in bundle: OpenedWritableStoreBundle,
+        id: String
+    ) throws -> Row? {
+        let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
+        return try queue.read { db in
+            try Row.fetchOne(
+                db,
+                sql: """
+                    SELECT id, description, category, notes, imported_description, cleared,
+                           transferred_id, financial_id
+                    FROM transactions WHERE id = ?
+                    """,
+                arguments: [id]
+            )
+        }
     }
 
     // MARK: - imported_payee rules in foreground and background paths
@@ -216,6 +248,160 @@ extension LocalFirstActualStoreTests {
         #expect(row["description"] as String? == "coffee")
         #expect(row["category"] as String? == "groceries")
         #expect(row["imported_description"] as String? == "Coffee Shop")
+    }
+
+    // MARK: - Existing transfers keep their category
+
+    @MainActor
+    @Test func syncAllReviewDoesNotCategorizeMatchedTransfer() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: existingPayeeRuleFixture() + existingTransferFixture()
+        )
+        let plan = try await bundle.store.downloadBankSyncPlan(
+            accountID: "savings",
+            budgetID: "group-1"
+        )
+        let update = try #require(plan.updates.first { $0.existingID == "xfer-src" })
+        #expect(update.categoryID == nil)
+        #expect(update.financialID == "bank-correctness")
+        #expect(!plan.matchDetails.contains { detail in
+            detail.changes.contains { $0.field == .category }
+        })
+
+        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+
+        let source = try #require(try await storedTransactionRow(in: bundle, id: "xfer-src"))
+        let destination = try #require(try await storedTransactionRow(in: bundle, id: "xfer-dst"))
+        #expect(source["category"] as String? == nil)
+        #expect(source["transferred_id"] as String? == "xfer-dst")
+        #expect(source["financial_id"] as String? == "bank-correctness")
+        #expect(source["imported_description"] as String? == "Coffee Shop")
+        #expect(destination["category"] as String? == nil)
+        #expect(destination["transferred_id"] as String? == "xfer-src")
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains {
+            $0.dataset == "transactions" && $0.row == "xfer-src" && $0.column == "category"
+        })
+    }
+
+    @Test func backgroundApplyDoesNotCategorizeMatchedTransfer() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(id: "background-transfer-rule"),
+            additionalFixtureSQL: existingPayeeRuleFixture() + existingTransferFixture()
+        )
+
+        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+
+        let source = try #require(try await storedTransactionRow(in: bundle, id: "xfer-src"))
+        #expect(source["category"] as String? == nil)
+        #expect(source["transferred_id"] as String? == "xfer-dst")
+        #expect(source["financial_id"] as String? == "background-transfer-rule")
+        #expect(source["imported_description"] as String? == "Coffee Shop")
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains {
+            $0.dataset == "transactions" && $0.row == "xfer-src" && $0.column == "category"
+        })
+    }
+
+    @MainActor
+    @Test func syncAllReviewAppliesPayeeIDRuleToMatchedOrdinaryTransaction() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: existingPayeeRuleFixture() + """
+                INSERT INTO transactions
+                    (id, acct, date, amount, category, tombstone, description, notes, cleared, is_parent)
+                VALUES ('ordinary', 'savings', 20260302, -1000, NULL, 0, 'coffee', NULL, 0, 0);
+                """
+        )
+        let model = BankSyncViewModel(
+            store: bundle.store,
+            budgetID: "group-1",
+            currency: .usd
+        )
+        await model.load()
+        await model.syncAll()
+        await model.confirmReview()
+
+        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        #expect(row["category"] as String? == "groceries")
+        #expect(row["financial_id"] as String? == "bank-correctness")
+        #expect(row["transferred_id"] as String? == nil)
+    }
+
+    @MainActor
+    @Test func syncAllReviewPreservesExistingTransferCategory() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: existingPayeeRuleFixture(categoryID: "dining")
+                + existingTransferFixture(
+                    sourceCategorySQL: "'groceries'",
+                    destinationPayeeID: "xfer-tracking",
+                    destinationAccountID: "tracking"
+                )
+        )
+        let model = BankSyncViewModel(
+            store: bundle.store,
+            budgetID: "group-1",
+            currency: .usd
+        )
+        await model.load()
+        await model.syncAll()
+        await model.confirmReview()
+
+        let source = try #require(try await storedTransactionRow(in: bundle, id: "xfer-src"))
+        #expect(source["category"] as String? == "groceries")
+        #expect(source["transferred_id"] as String? == "xfer-dst")
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains {
+            $0.dataset == "transactions" && $0.row == "xfer-src" && $0.column == "category"
+        })
+    }
+
+    @Test func matchUpdateWriterDoesNotWriteCategoryOntoExistingTransfer() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: existingTransferFixture()
+        )
+        let database = try #require(bundle.store.database)
+        var builder = LocalFirstSyncMessageBuilder()
+        let existing = BankSyncReconciliation.Existing(
+            id: "xfer-src",
+            financialID: nil,
+            dayID: "20260302",
+            amountMinorUnits: -1_000,
+            payeeID: "xfer-checking",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            reconciled: false,
+            importedPayee: nil,
+            isParent: false,
+            isChild: false,
+            parentID: nil,
+            transferID: "xfer-dst"
+        )
+        let update = BankSyncReconciliation.MatchedUpdate(
+            existingID: "xfer-src",
+            financialID: "bank-correctness",
+            payeeID: "xfer-checking",
+            categoryID: "dining",
+            importedPayee: "Coffee Shop",
+            notes: nil,
+            cleared: true,
+            childIDs: []
+        )
+
+        let messages = try await database.makeBankSyncMatchUpdateMessages(
+            update: update,
+            existing: existing,
+            builder: &builder
+        )
+
+        #expect(!messages.contains { $0.column == "category" })
+        #expect(messages.contains {
+            $0.dataset == "transactions" && $0.row == "xfer-src" && $0.column == "financial_id"
+        })
     }
 
     // MARK: - Store read window across calendar boundaries
