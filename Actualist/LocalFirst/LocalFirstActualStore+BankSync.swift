@@ -248,9 +248,10 @@ extension LocalFirstActualStore {
     // MARK: - Apply
 
     /// Writes a confirmed plan: opening balance, match updates (with the
-    /// split-parent cleared cascade), inserts oldest-first, category
-    /// learning, then account-balance and completion metadata. One commit
-    /// for the plan, one for category learning (mirroring wallet import).
+    /// split-parent cleared cascade), inserts oldest-first, then
+    /// account-balance and completion metadata. Bank Sync does not learn
+    /// payee→category rules; Actual's batch update defaults `learnCategories`
+    /// to false on this path.
     func applyBankSyncPlan(
         _ plan: BankSyncReview.AccountPlan,
         budgetID: String
@@ -267,7 +268,6 @@ extension LocalFirstActualStore {
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
         var resolvedPayeeIDs: [String: String] = [:]
-        var categorizedIDs = Set<String>()
         var insertedCount = 0
         var updatedCount = 0
         var collectedInsertedIDs: [String] = []
@@ -364,9 +364,6 @@ extension LocalFirstActualStore {
             messages.append(contentsOf: transactionMessages)
             collectedInsertedIDs.append(transactionID)
             monthIDs.insert(draft.month.rawValue)
-            if draft.categoryID != nil, transferDestinationID == nil, !draft.isSplit {
-                categorizedIDs.insert(transactionID)
-            }
             insertedCount += 1
         }
 
@@ -392,16 +389,6 @@ extension LocalFirstActualStore {
         // both apply the same prepared inserts. A failed apply requires a new review.
         bankSyncGenerationByAccount[plan.link.accountID] = nil
         _ = try await database.commitBankSyncMessages(messages, expectedLink: plan.link)
-        let learningMessages = try await database.categoryLearningRuleMessages(
-            changedTransactionIDs: categorizedIDs,
-            builder: &builder
-        )
-        if !learningMessages.isEmpty {
-            _ = try await database.commitBankSyncMessages(learningMessages, expectedLink: plan.link)
-            rulesByBudget[budgetID] = try await database.fetchRules()
-            payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
-                .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
-        }
 
         try await reloadAfterTransactionMutation(
             database: database,

@@ -143,7 +143,10 @@ extension LocalFirstActualStore {
                     download,
                     accountID: account.id,
                     currency: currency,
-                    payeeIDsByName: payeeIDsByName
+                    payeeIDsByName: payeeIDsByName,
+                    preferences: try await database.bankSyncImportPreferences(
+                        accountID: account.id
+                    )
                 ))
             }
         }
@@ -158,16 +161,27 @@ extension LocalFirstActualStore {
             try Task.checkCancellation()
             let count = prepared[index].candidates.count
             let accountPreviews = previews[previewOffset..<(previewOffset + count)]
-            prepared[index].projectedCandidates = zip(
+            var projected: [BankSyncReconciliation.Candidate] = []
+            projected.reserveCapacity(count)
+            for (candidate, preview) in zip(
                 prepared[index].candidates,
                 accountPreviews
-            ).compactMap { candidate, preview in
-                BankSyncReconciliation.applyingRulePreview(
+            ) {
+                if let destination = preview.accountID, destination != linked[index].id {
+                    prepared[index].problems.append(
+                        .unsupportedAccountMove(remoteTransactionID: candidate.financialID)
+                    )
+                    continue
+                }
+                if let projectedCandidate = BankSyncReconciliation.applyingRulePreview(
                     preview,
                     to: candidate,
                     accountIsOffBudget: linked[index].offbudget
-                )
+                ) {
+                    projected.append(projectedCandidate)
+                }
             }
+            prepared[index].projectedCandidates = projected
             previewOffset += count
         }
 
@@ -252,11 +266,28 @@ extension LocalFirstActualStore {
         _ download: SimpleFINAccountDownload,
         accountID: String,
         currency: BudgetCurrency,
-        payeeIDsByName: [String: String]
+        payeeIDsByName: [String: String],
+        preferences: BudgetDatabase.BankSyncImportPreferences
     ) throws -> PreparedDownload {
         var prepared = PreparedDownload(download: download)
+        let mappings: BankSyncFieldMapping.Mappings
+        if let json = preferences.customMappingsJSON {
+            do {
+                mappings = try BankSyncFieldMapping.parse(json)
+            } catch {
+                prepared.problems.append(.invalidCustomMapping)
+                return prepared
+            }
+        } else {
+            mappings = .defaults
+        }
         for transaction in download.transactions {
             try Task.checkCancellation()
+            // Actual skips uncleared downloads when import-pending is false,
+            // before rules, matching, payee creation, or opening-balance math.
+            if !preferences.importPending && transaction.booked != true {
+                continue
+            }
             let problemID = transaction.id
             guard transaction.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
                 prepared.problems.append(.init(
@@ -292,14 +323,26 @@ extension LocalFirstActualStore {
                 ))
                 continue
             }
-            guard let dayID = transaction.dateUnixSeconds.map(BankSyncAmounts.dayID(fromUnixSeconds:)) else {
+            guard let mapped = BankSyncFieldMapping.resolve(
+                transaction: transaction,
+                amountMinorUnits: amount,
+                mappings: mappings,
+                importNotes: preferences.importNotes
+            ) else {
+                prepared.problems.append(.missingMappingSide(
+                    remoteTransactionID: problemID,
+                    isPayment: amount <= 0
+                ))
+                continue
+            }
+            guard let dayID = mapped.dateUnixSeconds.map(BankSyncAmounts.dayID(fromUnixSeconds:)) else {
                 prepared.problems.append(.init(
                     remoteTransactionID: problemID,
                     message: "Unreadable date"
                 ))
                 continue
             }
-            let payeeName = transaction.payeeName?
+            let payeeName = mapped.payeeName?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard payeeName?.isEmpty == false else {
                 prepared.problems.append(.init(
@@ -308,14 +351,13 @@ extension LocalFirstActualStore {
                 ))
                 continue
             }
-            let escapedNotes = transaction.notes.map(BankSyncReconciliation.escapedNotes)
             let candidate = BankSyncReconciliation.Candidate(
                 financialID: transaction.id,
                 dayID: dayID,
                 amountMinorUnits: amount,
                 payeeID: payeeName.flatMap { payeeIDsByName[$0.lowercased()] },
                 payeeName: payeeName,
-                notes: escapedNotes?.isEmpty == false ? escapedNotes : nil,
+                notes: mapped.notes,
                 categoryID: nil,
                 // Actual core uses `Boolean(trans.booked)`: an absent or
                 // unreadable posted state must remain pending, not be asserted

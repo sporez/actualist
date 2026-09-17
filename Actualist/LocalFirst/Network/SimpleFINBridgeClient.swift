@@ -295,10 +295,12 @@ private struct BridgeTransaction: Decodable {
     let description: String?
     let payee: String?
     let pending: SimpleFINFlexibleBool?
-    let extra: Extra?
+    let extra: SimpleFINRawFields?
 
     func remoteTransaction(currency: String?) -> SimpleFINRemoteTransaction {
-        let payeeName = (extra?.payee ?? payee ?? description)?
+        let extraPayee = extra?["payee"]?.scalarString
+        let extraNotes = extra?["notes"]?.scalarString
+        let payeeName = (extraPayee ?? payee ?? description)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let dateUnixSeconds: Int64?
         if pending?.value == true || posted?.seconds == 0 {
@@ -306,21 +308,27 @@ private struct BridgeTransaction: Decodable {
         } else {
             dateUnixSeconds = posted?.seconds ?? transactedAt?.seconds
         }
+        var raw: [String: SimpleFINRawValue] = extra?.values ?? [:]
+        if let id { raw["id"] = raw["id"] ?? .string(id) }
+        if let posted = posted?.seconds { raw["posted"] = raw["posted"] ?? .int(posted) }
+        if let transactedAt = transactedAt?.seconds {
+            raw["transacted_at"] = raw["transacted_at"] ?? .int(transactedAt)
+        }
+        if let amount = amount?.text { raw["amount"] = raw["amount"] ?? .string(amount) }
+        if let description { raw["description"] = raw["description"] ?? .string(description) }
+        if let payee { raw["payee"] = raw["payee"] ?? .string(payee) }
+        if let pending = pending?.value { raw["pending"] = raw["pending"] ?? .bool(pending) }
         return SimpleFINRemoteTransaction(
             id: id,
             dateUnixSeconds: dateUnixSeconds,
             amount: amount?.text,
             currency: currency,
             payeeName: payeeName?.isEmpty == true ? nil : payeeName,
-            notes: extra?.notes,
+            notes: extraNotes,
             booked: pending?.value.map { !$0 },
-            accountID: nil
+            accountID: nil,
+            rawFields: SimpleFINRawFields(raw)
         )
-    }
-
-    struct Extra: Decodable {
-        let notes: String?
-        let payee: String?
     }
 
     enum CodingKeys: String, CodingKey {

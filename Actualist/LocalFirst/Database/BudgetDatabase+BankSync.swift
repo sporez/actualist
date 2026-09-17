@@ -287,6 +287,31 @@ extension BudgetDatabase {
         }
     }
 
+    /// Actual `normalizeBankSyncTransactions` defaults missing pending/notes
+    /// preferences to true. Custom mapping JSON is returned raw so the planner
+    /// can fail closed on invalid JSON instead of this helper guessing.
+    struct BankSyncImportPreferences: Equatable, Sendable {
+        var importPending: Bool
+        var importNotes: Bool
+        var customMappingsJSON: String?
+    }
+
+    func bankSyncImportPreferences(accountID: String) throws -> BankSyncImportPreferences {
+        try queue.read { db in
+            func flag(_ key: String) throws -> Bool {
+                (try preferenceValue(key, db: db) ?? "true") == "true"
+            }
+            return BankSyncImportPreferences(
+                importPending: try flag("sync-import-pending-\(accountID)"),
+                importNotes: try flag("sync-import-notes-\(accountID)"),
+                customMappingsJSON: try preferenceValue(
+                    "custom-sync-mappings-\(accountID)",
+                    db: db
+                )
+            )
+        }
+    }
+
     /// Actual 26.9.0 matchTransactions defaults a missing preference to true.
     /// Deleted IDs are account-wide dedupe keys, never mutable match rows.
     func bankSyncSuppressedFinancialIDs(accountID: String) throws -> Set<String> {

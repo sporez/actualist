@@ -73,6 +73,9 @@ struct SimpleFINRemoteTransaction: Equatable, Sendable {
     let booked: Bool?
     /// SimpleFIN-side account id, when present on the row.
     let accountID: String?
+    /// All top-level provider fields (plus flattened `extra`) so custom
+    /// mappings can resolve keys that never became canonical columns.
+    let rawFields: SimpleFINRawFields
 
     init(
         id: String?,
@@ -82,7 +85,8 @@ struct SimpleFINRemoteTransaction: Equatable, Sendable {
         payeeName: String?,
         notes: String?,
         booked: Bool?,
-        accountID: String?
+        accountID: String?,
+        rawFields: SimpleFINRawFields = SimpleFINRawFields()
     ) {
         self.id = id
         self.dateUnixSeconds = dateUnixSeconds
@@ -92,6 +96,7 @@ struct SimpleFINRemoteTransaction: Equatable, Sendable {
         self.notes = notes
         self.booked = booked
         self.accountID = accountID
+        self.rawFields = rawFields
     }
 }
 
@@ -348,6 +353,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let booked: SimpleFINFlexibleBool?
         let account: String?
         let date: FlexibleUnixSeconds?
+        let rawFields: SimpleFINRawFields
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -374,6 +380,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             date = (try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .date))
                 ?? (try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .posted))
                 ?? (try? container.decodeIfPresent(FlexibleUnixSeconds.self, forKey: .transactedAt))
+            rawFields = (try? SimpleFINRawFields(from: decoder)) ?? SimpleFINRawFields()
         }
 
         private struct TransactionAmount: Decodable {
@@ -511,7 +518,8 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
                     payeeName: transaction.payeeName,
                     notes: transaction.notes,
                     booked: transaction.booked?.value,
-                    accountID: transaction.account
+                    accountID: transaction.account,
+                    rawFields: transaction.rawFields
                 )
             }
             downloads[accountID] = SimpleFINAccountDownload(

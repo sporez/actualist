@@ -208,6 +208,8 @@ struct SimpleFINClientTests {
         #expect(transaction.payeeName == "Coffee Shop")
         #expect(transaction.notes == "latte")
         #expect(transaction.dateUnixSeconds.map(BankSyncAmounts.dayID(fromUnixSeconds:)) == "20240301")
+        #expect(transaction.rawFields["payeeName"]?.scalarString == "Coffee Shop")
+        #expect(transaction.rawFields["notes"]?.scalarString == "latte")
         #expect(response.downloads["acct_2"]?.errorCode == "TIMED_OUT")
     }
 
@@ -244,6 +246,7 @@ struct SimpleFINClientTests {
         #expect(first.payeeName == "Coffee Shop")
         #expect(first.notes == "latte")
         #expect(first.booked == true)
+        #expect(first.rawFields["payee_name"]?.scalarString == "Coffee Shop")
 
         let second = try #require(response.downloads["acct_1"]?.transactions.dropFirst().first)
         #expect(second.dateUnixSeconds == 1_709_166_600)

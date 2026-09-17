@@ -210,6 +210,8 @@ struct SimpleFINBridgeClientTests {
         #expect(download?.transactions.first?.notes == "morning")
         #expect(download?.transactions.first?.payeeName == "Coffee")
         #expect(download?.transactions.first?.currency == "USD")
+        #expect(download?.transactions.first?.rawFields["notes"]?.scalarString == "morning")
+        #expect(download?.transactions.first?.rawFields["description"]?.scalarString == "Coffee")
         #expect(download?.transactions.last?.booked == false)
         #expect(download?.transactions.last?.dateUnixSeconds == 1_709_339_400)
         #expect(download?.currentBalance == SimpleFINBalanceAmount(

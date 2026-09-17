@@ -61,7 +61,7 @@ struct FlexibleUnixSeconds: Decodable, Sendable {
         }
     }
 
-    private static func unixSeconds(fromDay day: String) -> Int64? {
+    static func unixSeconds(fromDay day: String) -> Int64? {
         let parts = day.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 3,
               parts[0].count == 4,

@@ -28,6 +28,30 @@ enum BankSyncReview {
     struct Problem: Equatable, Sendable {
         let remoteTransactionID: String?
         let message: String
+
+        static let invalidCustomMapping = Problem(
+            remoteTransactionID: nil,
+            message: "Custom bank field mapping is invalid. This download was not imported."
+        )
+
+        static func unsupportedAccountMove(remoteTransactionID: String?) -> Problem {
+            Problem(
+                remoteTransactionID: remoteTransactionID,
+                message: "A rule moves this transaction to another account. This Bank Sync build cannot apply that safely."
+            )
+        }
+
+        static func missingMappingSide(
+            remoteTransactionID: String?,
+            isPayment: Bool
+        ) -> Problem {
+            Problem(
+                remoteTransactionID: remoteTransactionID,
+                message: isPayment
+                    ? "Custom field mapping is missing the payment fields."
+                    : "Custom field mapping is missing the deposit fields."
+            )
+        }
     }
 
     /// Exact user-visible effects of one matched transaction. This snapshot
