@@ -11,7 +11,8 @@ Actualist is a native iOS 26+ local-first client for Actual Budget. It talks to 
 - Development pipeline: `docs/DEVELOPMENT.md`
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change. It
   covers whitespace, Liquid Glass, TestFlight notes, synchronized-group
-  integrity, and file-size signals. It does not replace tests.
+  integrity, file-size signals, and `reference/` doc link integrity. It does
+  not replace tests.
 - Simulator and device ids for this machine: gitignored
   `scripts/lib/destinations.sh` (copy `scripts/lib/destinations.example.sh`).
   Pin destinations by UDID, never by display name.

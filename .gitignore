@@ -61,6 +61,7 @@ Local.xcconfig
 scripts/*
 !scripts/check.sh
 !scripts/lint-liquid-glass.sh
+!scripts/lint-reference-links.sh
 !scripts/lint-testflight-notes.sh
 !scripts/run-ios-simulator.sh
 !scripts/test.sh

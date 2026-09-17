@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Mechanical pre-handoff gate. Cheap on purpose: whitespace, Liquid Glass,
-# TestFlight notes, pbxproj membership, and file-size signals.
-# Does not build, test, or archive.
+# TestFlight notes, pbxproj membership, file-size signals, and reference-doc
+# link integrity. Does not build, test, or archive.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -102,6 +102,9 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 else
   echo "skip: not a git work tree"
 fi
+
+section "Reference plan links"
+"$ROOT/scripts/lint-reference-links.sh" || status=1
 
 section "Largest Swift files"
 rg --files -0 Actualist -g '*.swift' | xargs -0 wc -l | sort -nr | head -20
