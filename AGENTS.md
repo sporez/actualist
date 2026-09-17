@@ -371,7 +371,7 @@ Do not treat commit, push, or handoff as a reason to repeat successful validatio
 | Contained production logic | Affected unit suites, including relevant caller/regression coverage. |
 | UI layout or interaction | Compile, inspect the affected screen, and run relevant UI regressions for changed interactions; include unit tests when view-model/domain behavior changes. No unrelated UI suites. |
 | Shared database, sync, money logic, broad refactors, or project/target configuration | Full unit suite and relevant integration coverage; affected UI tests only if UI behavior is at risk. |
-| TestFlight release | Full unit and UI suites, plus the strict-concurrency build. |
+| TestFlight release | Full unit and UI suites. |
 
 - Use `scripts/test.sh unit <Suite>...` for focused unit tests, `unit` for all
   unit tests, `ui <Suite[/testMethod]>...` for selected UI tests, and `all` for
@@ -385,9 +385,10 @@ Do not treat commit, push, or handoff as a reason to repeat successful validatio
   built. Do not add a separate identical build. Build other affected targets
   if the selected test run did not compile them. Keep the early build after
   structural moves, then avoid repeating it without a reason.
-- Run the strict-concurrency overlay for changes to async tasks, actor isolation,
-  Sendable boundaries, shared mutable state, or concurrency/build settings, and
-  for releases. It is not required for ordinary layout or synchronous logic.
+- Swift 6 turns complete concurrency checking on for every build, so async
+  tasks, actor isolation, Sendable boundaries, and shared mutable state are all
+  covered by the normal build. There is no separate strict-concurrency overlay
+  build anymore.
 - When a full suite is required, run it once after the final relevant edit;
   focused runs are useful while iterating but need not precede an already
   sufficient full run. Do not run both parallel and serial suites unless
@@ -421,21 +422,10 @@ and report the result. At minimum:
 - Audit every `AppState` change and confirm it is strictly app-wide
   session/settings/routing coordination. Move feature behavior to a focused
   owner before handoff.
-- When required by Testing Scope And Reuse, build with complete concurrency
-  diagnostics enabled, pinning the simulator
-  from `scripts/lib/destinations.sh`:
-
-  ```sh
-  xcodebuild -project Actualist.xcodeproj -scheme Actualist \
-    -destination "platform=iOS Simulator,id=${ACTUALIST_SIMULATOR_ID}" \
-    -derivedDataPath .derivedData \
-    SWIFT_STRICT_CONCURRENCY=complete build
-  ```
-
-  App, test, and widget targets use Swift 6, so complete concurrency is the
-  language default. Do not introduce a new concurrency warning in changed code.
-  Do not silence diagnostics with `@unchecked Sendable` or `@preconcurrency`
-  without a documented invariant and focused tests.
+- App, test, and widget targets use Swift 6, so complete concurrency is the
+  language default in every build. Do not introduce a new concurrency warning
+  in changed code. Do not silence diagnostics with `@unchecked Sendable` or
+  `@preconcurrency` without a documented invariant and focused tests.
 - Run or reuse the tests required by Testing Scope And Reuse above.
 - Require zero warnings from the normal project build (including the build
   performed by tests). Investigate new warnings instead of filtering them out.
