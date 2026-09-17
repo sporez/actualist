@@ -472,6 +472,7 @@ extension BudgetDatabase {
     func makeBankSyncMatchUpdateMessages(
         update: BankSyncReconciliation.MatchedUpdate,
         existing: BankSyncReconciliation.Existing,
+        accountIsOffBudget: Bool = false,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
@@ -498,8 +499,11 @@ extension BudgetDatabase {
             if let payeeID = update.payeeID {
                 try appendIfChanged(payeeColumn, .string(payeeID), changed: payeeID != existing.payeeID)
             }
-            // Bank Sync never manufactures or replaces an existing transfer's category.
-            if columns.contains("category"), let categoryID = update.categoryID, !existing.isTransfer {
+            // Bank Sync never manufactures a category on a transfer or off-budget row.
+            if columns.contains("category"),
+               let categoryID = update.categoryID,
+               !existing.isTransfer,
+               !accountIsOffBudget {
                 try appendIfChanged("category", .string(categoryID), changed: categoryID != existing.categoryID)
             }
             if let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {

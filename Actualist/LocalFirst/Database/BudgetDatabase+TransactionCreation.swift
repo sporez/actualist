@@ -413,6 +413,49 @@ extension BudgetDatabase {
         return destination
     }
 
+    func accountIsOffBudget(_ accountID: String) throws -> Bool {
+        try queue.read { db in
+            try accountOffBudget(accountID, db: db)
+        }
+    }
+
+    func transferAccountID(ifPayee payeeID: String?) throws -> String? {
+        try queue.read { db in
+            try transferAccountID(ifPayee: payeeID, db: db)
+        }
+    }
+
+    func makeImportedIdentityMessages(
+        transactionID: String,
+        importedID: String?,
+        importedPayee: String?,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        try queue.read { db in
+            let columns = try columnSet(for: "transactions", db: db)
+            var messages: [ActualSyncDecodedMessage] = []
+            if let importedPayee, !importedPayee.isEmpty,
+               let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
+                messages.append(try builder.makeMessage(
+                    dataset: "transactions",
+                    row: transactionID,
+                    column: importedPayeeColumn,
+                    value: .string(importedPayee)
+                ))
+            }
+            if let importedID, !importedID.isEmpty,
+               let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains) {
+                messages.append(try builder.makeMessage(
+                    dataset: "transactions",
+                    row: transactionID,
+                    column: importedIDColumn,
+                    value: .string(importedID)
+                ))
+            }
+            return messages
+        }
+    }
+
     func accountOffBudget(_ accountID: String, db: Database) throws -> Bool {
         guard try tableExists("accounts", db: db) else {
             return false

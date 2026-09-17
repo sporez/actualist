@@ -564,6 +564,61 @@ struct BankSyncReconcilerTests {
         #expect(update(for: "row", plan)?.categoryID == "dining")
     }
 
+    @Test func matchedOffBudgetDoesNotTakeCandidateCategory() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", category: "dining", cleared: true)],
+            existing: [existing(id: "row", category: nil, cleared: false)],
+            accountIsOffBudget: true
+        )
+        let matched = update(for: "row", plan)
+        #expect(matched?.categoryID == nil)
+        #expect(matched?.financialID == "fin-1")
+        #expect(matched?.cleared == true)
+    }
+
+    @Test func matchedOffBudgetWithOnlyRuleCategoryStaysUnchanged() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [
+                candidate(
+                    id: "fin-1",
+                    category: "dining",
+                    cleared: true,
+                    importedPayee: "Steam"
+                )
+            ],
+            existing: [
+                existing(
+                    id: "row",
+                    financialID: "fin-1",
+                    category: nil,
+                    cleared: true,
+                    importedPayee: "Steam"
+                )
+            ],
+            accountIsOffBudget: true
+        )
+        #expect(isUnchanged("row", plan))
+    }
+
+    @Test func offBudgetInsertStripsRuleCategoryAndSplitChildren() {
+        let split = candidate(id: "fin-1", category: "dining")
+        var withSplits = split
+        withSplits.splits = [
+            .init(categoryID: "groceries", amountMinorUnits: -400),
+            .init(categoryID: "dining", amountMinorUnits: -600),
+        ]
+        let plan = BankSyncReconciliation.plan(
+            candidates: [withSplits],
+            existing: [],
+            accountIsOffBudget: true
+        )
+        let inserted = insertIDs(plan)
+        #expect(inserted.count == 1)
+        #expect(inserted.first?.categoryID == nil)
+        #expect(inserted.first?.splits.map(\.categoryID) == [nil, nil])
+        #expect(inserted.first?.splits.map(\.amountMinorUnits) == [-400, -600])
+    }
+
     @Test func splitParentMatchDoesNotFillParentCategory() {
         let rows = [
             existing(id: "parent", day: "20240301", amount: -3_000, category: nil, isParent: true),
@@ -604,6 +659,81 @@ struct BankSyncReconcilerTests {
         #expect(projected?.splits.first?.categoryID == "groceries")
         #expect(projected?.splits.first?.payeeID == .value("coffee"))
         #expect(projected?.splits.first?.notes == .value("child-a"))
+    }
+
+    @Test func matchedOrdinaryDoesNotTakeTransferPayee() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", payee: "xfer-checking", cleared: true)],
+            existing: [existing(id: "row", payee: nil, cleared: false)],
+            transferPayeeIDs: ["xfer-checking"]
+        )
+        let matched = update(for: "row", plan)
+        #expect(matched?.payeeID == nil)
+        #expect(matched?.financialID == "fin-1")
+        #expect(matched?.cleared == true)
+    }
+
+    @Test func matchedTransferKeepsExistingPayeeAgainstCandidate() {
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", payee: "coffee")],
+            existing: [existing(id: "xfer", payee: "xfer-checking", transferID: "xfer-dst")],
+            transferPayeeIDs: ["xfer-checking"]
+        )
+        let matched = update(for: "xfer", plan)
+        #expect(matched?.payeeID == "xfer-checking")
+        #expect(matched?.financialID == "fin-1")
+    }
+
+    @Test func applyingRulePreviewAppliesDateAndSchedule() {
+        let projected = BankSyncReconciliation.applyingRulePreview(
+            TransactionRulePreview(
+                categoryID: nil,
+                notes: nil,
+                payeeID: nil,
+                amountMinorUnits: nil,
+                date: BankSyncAmounts.date(fromDayID: "20240315"),
+                cleared: nil,
+                scheduleID: "sched-1",
+                deletesTransaction: false,
+                splits: []
+            ),
+            to: candidate(day: "20240301")
+        )
+        #expect(projected?.dayID == "20240315")
+        #expect(projected?.scheduleID == "sched-1")
+    }
+
+    @Test func applyingRulePreviewStripsOffBudgetCategoryAndKeepsPayee() {
+        let projected = BankSyncReconciliation.applyingRulePreview(
+            TransactionRulePreview(
+                categoryID: "dining",
+                notes: "Rule applied",
+                payeeID: "coffee",
+                amountMinorUnits: nil,
+                date: nil,
+                cleared: nil,
+                scheduleID: nil,
+                deletesTransaction: false,
+                splits: [
+                    TransactionSplitDraft(
+                        id: nil,
+                        categoryID: "groceries",
+                        categoryName: nil,
+                        amountMinorUnits: -1_000,
+                        payeeID: .omitted,
+                        notes: .omitted,
+                        sortOrder: .omitted
+                    )
+                ]
+            ),
+            to: candidate(payee: "payee-a", category: nil),
+            accountIsOffBudget: true
+        )
+        #expect(projected?.payeeID == "coffee")
+        #expect(projected?.notes == "Rule applied")
+        #expect(projected?.categoryID == nil)
+        #expect(projected?.splits.first?.categoryID == nil)
+        #expect(projected?.splits.first?.amountMinorUnits == -1_000)
     }
 
     @Test func childMatchUpdatesOnlyThatChild() {

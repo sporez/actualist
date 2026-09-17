@@ -35,6 +35,7 @@ enum BankSyncReconciliation {
         var cleared: Bool
         var importedPayee: String?
         var splits: [Split] = []
+        var scheduleID: String? = nil
 
         struct Split: Equatable, Sendable {
             var categoryID: String?
@@ -78,8 +79,8 @@ enum BankSyncReconciliation {
 
     /// The write planned onto one matched local row. Blank local fields are
     /// filled from the download; user-filled payee / category / notes win.
-    /// Existing transfers keep their category exactly, including nil.
-    /// `financialID` and `importedPayee` are bank-owned.
+    /// Existing transfers and off-budget rows keep their category exactly,
+    /// including nil. `financialID` and `importedPayee` are bank-owned.
     struct MatchedUpdate: Equatable, Sendable {
         let existingID: String
         let financialID: String?
@@ -122,7 +123,9 @@ enum BankSyncReconciliation {
     static func plan(
         candidates: [Candidate],
         existing: [Existing],
-        suppressedFinancialIDs: Set<String> = []
+        suppressedFinancialIDs: Set<String> = [],
+        accountIsOffBudget: Bool = false,
+        transferPayeeIDs: Set<String> = []
     ) -> Plan {
         var claimed = Set<String>()
 
@@ -177,7 +180,9 @@ enum BankSyncReconciliation {
             let candidate = step.candidate
             guard let matchID = step.matchedID ?? matches[index],
                   let row = existingByID[matchID] else {
-                entries.append(.insert(candidate))
+                entries.append(.insert(
+                    accountIsOffBudget ? withoutBudgetCategory(candidate) : candidate
+                ))
                 continue
             }
 
@@ -191,8 +196,16 @@ enum BankSyncReconciliation {
             let update = MatchedUpdate(
                 existingID: row.id,
                 financialID: candidate.financialID,
-                payeeID: row.payeeID ?? candidate.payeeID,
-                categoryID: mergedCategoryID(existing: row, candidate: candidate),
+                payeeID: mergedPayeeID(
+                    existing: row,
+                    candidate: candidate,
+                    transferPayeeIDs: transferPayeeIDs
+                ),
+                categoryID: mergedCategoryID(
+                    existing: row,
+                    candidate: candidate,
+                    accountIsOffBudget: accountIsOffBudget
+                ),
                 importedPayee: candidate.importedPayee,
                 notes: existingNotes ?? candidate.notes,
                 cleared: row.cleared || candidate.cleared,
@@ -250,20 +263,53 @@ enum BankSyncReconciliation {
             .map(\.id)
     }
 
-    /// Transfers keep their existing category, including nil. A bank-import
-    /// rule must not manufacture a category on an already-linked transfer.
+    /// Existing transfers keep their payee. A rule must not turn a normal
+    /// matched row into a half-transfer by filling a transfer payee with no pair.
+    private static func mergedPayeeID(
+        existing row: Existing,
+        candidate: Candidate,
+        transferPayeeIDs: Set<String>
+    ) -> String? {
+        if row.isTransfer {
+            return row.payeeID
+        }
+        let proposed = row.payeeID ?? candidate.payeeID
+        if let proposed, transferPayeeIDs.contains(proposed) {
+            return row.payeeID
+        }
+        return proposed
+    }
+
+    /// Transfers keep their existing category, including nil. Off-budget
+    /// accounts never take a budget category, matching Actual's insert strip
+    /// (`batchUpdateTransactions`: off-budget rows should not have categories).
     /// Split parents stay uncategorized in the effective view.
     private static func mergedCategoryID(
         existing row: Existing,
-        candidate: Candidate
+        candidate: Candidate,
+        accountIsOffBudget: Bool
     ) -> String? {
-        if row.isTransfer {
+        if row.isTransfer || accountIsOffBudget {
             return row.categoryID
         }
         if row.isParent {
             return nil
         }
         return row.categoryID ?? candidate.categoryID
+    }
+
+    /// Actual clears category on every off-budget insert, including split children.
+    private static func withoutBudgetCategory(_ candidate: Candidate) -> Candidate {
+        var copy = candidate
+        copy.categoryID = nil
+        if !copy.splits.isEmpty {
+            copy.splits = copy.splits.map { split in
+                var split = split
+                split.categoryID = nil
+                return split
+            }
+        }
+        return copy
     }
 
     // MARK: - Rule projection
@@ -273,18 +319,28 @@ enum BankSyncReconciliation {
     /// rule drops the candidate (returns nil). Mirrors wallet import's
     /// preview application: rule-driven splits turn the candidate into a
     /// split parent.
-    static func applyingRulePreview(_ preview: TransactionRulePreview, to candidate: Candidate) -> Candidate? {
+    static func applyingRulePreview(
+        _ preview: TransactionRulePreview,
+        to candidate: Candidate,
+        accountIsOffBudget: Bool = false
+    ) -> Candidate? {
         if preview.deletesTransaction {
             return nil
         }
         var projected = candidate
         projected.payeeID = preview.payeeID ?? projected.payeeID
         projected.amountMinorUnits = preview.amountMinorUnits ?? projected.amountMinorUnits
+        if let date = preview.date {
+            projected.dayID = BankSyncAmounts.dayID(
+                fromUnixSeconds: Int64(date.timeIntervalSince1970)
+            )
+        }
         // Rule preview carries the final notes value, including `nil` when a
         // matching rule removes downloaded notes. Nil is not "no change".
         projected.notes = preview.notes
         projected.categoryID = preview.splits.isEmpty ? (preview.categoryID ?? projected.categoryID) : nil
         projected.cleared = preview.cleared ?? projected.cleared
+        projected.scheduleID = preview.scheduleID ?? projected.scheduleID
         projected.splits = preview.splits.isEmpty
             ? projected.splits
             : preview.splits.map {
@@ -296,7 +352,7 @@ enum BankSyncReconciliation {
                     sortOrder: $0.sortOrder
                 )
             }
-        return projected
+        return accountIsOffBudget ? withoutBudgetCategory(projected) : projected
     }
 
     /// loot-core `normalizeBankSyncTransactions`: imported notes are trimmed

@@ -24,6 +24,8 @@ extension LocalFirstActualStore {
         var categorizedIDs = Set<String>()
         var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
+        var affectedAccountIDs = Set([accountID])
+        let accountIsOffBudget = try await database.accountIsOffBudget(accountID)
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
         // loot-core resolves `trans.payee` before `runRules`. Look up existing
         // non-transfer payees by name so Payee-is conditions can match; keep
@@ -55,6 +57,9 @@ extension LocalFirstActualStore {
                 continue
             }
             draft = TransactionRulePreviewProjection.applying(preview, to: draft)
+            if accountIsOffBudget {
+                draft = draft.withoutBudgetCategory()
+            }
 
             let payeeResolution = try await resolveImportPayee(
                 draft: draft,
@@ -63,6 +68,9 @@ extension LocalFirstActualStore {
                 builder: &builder
             )
             let transactionID = UUID().uuidString
+            let transferDestinationID = draft.isSplit
+                ? nil
+                : try await database.transferAccountID(ifPayee: payeeResolution.payeeID)
             let transactionMessages: [ActualSyncDecodedMessage]
             if draft.isSplit {
                 transactionMessages = try await database.createSplitTransactionMessages(
@@ -71,6 +79,20 @@ extension LocalFirstActualStore {
                     payeeID: payeeResolution.payeeID,
                     builder: &builder
                 )
+            } else if let transferDestinationID {
+                let transfer = try await database.createTransferTransactionMessages(
+                    draft: draft,
+                    sourceTransactionID: transactionID,
+                    payeeID: payeeResolution.payeeID,
+                    builder: &builder
+                )
+                transactionMessages = transfer.messages + (try await database.makeImportedIdentityMessages(
+                    transactionID: transactionID,
+                    importedID: draft.importedID,
+                    importedPayee: draft.importedPayee,
+                    builder: &builder
+                ))
+                affectedAccountIDs.insert(transferDestinationID)
             } else {
                 transactionMessages = try await database.createSimpleTransactionMessages(
                     draft,
@@ -85,7 +107,7 @@ extension LocalFirstActualStore {
             seenIDs.insert(candidate.financialID)
             importedCount += 1
             monthIDs.insert(draft.month.rawValue)
-            if draft.categoryID != nil {
+            if draft.categoryID != nil, transferDestinationID == nil, !draft.isSplit {
                 categorizedIDs.insert(transactionID)
             }
         }
@@ -112,7 +134,7 @@ extension LocalFirstActualStore {
         try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
-            accountIDs: [accountID],
+            accountIDs: Array(affectedAccountIDs),
             monthIDs: Array(monthIDs)
         )
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)

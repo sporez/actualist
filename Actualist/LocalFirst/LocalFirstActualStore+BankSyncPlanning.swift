@@ -80,6 +80,10 @@ extension LocalFirstActualStore {
         let categoryNames = Dictionary(uniqueKeysWithValues: categories.compactMap { category in
             category.id.map { ($0, category.name) }
         })
+        let transferPayeeIDs = Set(payees.compactMap { payee -> String? in
+            guard payee.transferAccount != nil else { return nil }
+            return payee.id
+        })
 
         var startDates: [String] = []
         var accountHadLiveTransactions: [Bool] = []
@@ -158,7 +162,11 @@ extension LocalFirstActualStore {
                 prepared[index].candidates,
                 accountPreviews
             ).compactMap { candidate, preview in
-                BankSyncReconciliation.applyingRulePreview(preview, to: candidate)
+                BankSyncReconciliation.applyingRulePreview(
+                    preview,
+                    to: candidate,
+                    accountIsOffBudget: linked[index].offbudget
+                )
             }
             previewOffset += count
         }
@@ -180,6 +188,7 @@ extension LocalFirstActualStore {
                 currency: currency,
                 payeeNames: payeeNames,
                 categoryNames: categoryNames,
+                transferPayeeIDs: transferPayeeIDs,
                 accountHadLiveTransactions: accountHadLiveTransactions[index],
                 database: database
             ))
@@ -333,6 +342,7 @@ extension LocalFirstActualStore {
         currency: BudgetCurrency,
         payeeNames: [String: String],
         categoryNames: [String: String],
+        transferPayeeIDs: Set<String>,
         accountHadLiveTransactions: Bool,
         database: BudgetDatabase
     ) async throws -> BankSyncReview.AccountPlan {
@@ -344,7 +354,9 @@ extension LocalFirstActualStore {
         let reconciliation = BankSyncReconciliation.plan(
             candidates: prepared.projectedCandidates,
             existing: existing,
-            suppressedFinancialIDs: try await database.bankSyncSuppressedFinancialIDs(accountID: account.id)
+            suppressedFinancialIDs: try await database.bankSyncSuppressedFinancialIDs(accountID: account.id),
+            accountIsOffBudget: account.offbudget,
+            transferPayeeIDs: transferPayeeIDs
         )
 
         let inserts = reconciliation.inserts

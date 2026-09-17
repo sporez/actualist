@@ -273,16 +273,16 @@ extension LocalFirstActualStore {
         var collectedInsertedIDs: [String] = []
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
 
+        let accountIsOffBudget = try await database.bankSyncLinkedAccounts()
+            .first { $0.id == plan.link.accountID }?.offbudget ?? false
         if let openingBalance = plan.openingBalance {
-            let onBudget = !(try await database.bankSyncLinkedAccounts()
-                .first { $0.id == plan.link.accountID }?.offbudget ?? false)
             let openingBalanceID = UUID().uuidString
             collectedInsertedIDs.append(openingBalanceID)
             messages.append(contentsOf: try await database.makeBankSyncOpeningBalanceMessages(
                 transactionID: openingBalanceID,
                 accountID: plan.link.accountID,
                 openingBalance: openingBalance,
-                onBudget: onBudget,
+                onBudget: !accountIsOffBudget,
                 sortOrder: sortOrderBase,
                 builder: &builder
             ))
@@ -302,12 +302,14 @@ extension LocalFirstActualStore {
             messages.append(contentsOf: try await database.makeBankSyncMatchUpdateMessages(
                 update: update,
                 existing: existing,
+                accountIsOffBudget: accountIsOffBudget,
                 builder: &builder
             ))
             updatedCount += 1
         }
 
         var monthIDs = Set<String>()
+        var affectedAccountIDs = Set([plan.link.accountID])
         for (index, candidate) in plan.inserts.enumerated() {
             try Task.checkCancellation()
             let transactionID = UUID().uuidString
@@ -317,30 +319,52 @@ extension LocalFirstActualStore {
                 database: database,
                 builder: &builder
             )
+            let transferDestinationID = candidate.isSplit
+                ? nil
+                : try await database.transferAccountID(ifPayee: payeeResolution.payeeID)
             let draft = try bankSyncInsertDraft(
                 candidate: candidate,
                 accountID: plan.link.accountID,
                 payeeID: payeeResolution.payeeID,
-                sortOrder: sortOrderBase + Double(index + 1)
+                sortOrder: sortOrderBase + Double(index + 1),
+                accountIsOffBudget: accountIsOffBudget
             )
-            let transactionMessages = draft.isSplit
-                ? try await database.createSplitTransactionMessages(
+            let transactionMessages: [ActualSyncDecodedMessage]
+            if draft.isSplit {
+                transactionMessages = try await database.createSplitTransactionMessages(
                     draft: draft,
                     parentTransactionID: transactionID,
                     payeeID: payeeResolution.payeeID,
                     builder: &builder
                 )
-                : try await database.createSimpleTransactionMessages(
+            } else if let transferDestinationID {
+                let transfer = try await database.createTransferTransactionMessages(
+                    draft: draft,
+                    sourceTransactionID: transactionID,
+                    payeeID: payeeResolution.payeeID,
+                    builder: &builder
+                )
+                transactionMessages = transfer.messages + (try await database.makeImportedIdentityMessages(
+                    transactionID: transactionID,
+                    importedID: candidate.financialID,
+                    importedPayee: candidate.importedPayee,
+                    builder: &builder
+                ))
+                affectedAccountIDs.insert(transferDestinationID)
+                collectedInsertedIDs.append(transfer.pairedTransactionID)
+            } else {
+                transactionMessages = try await database.createSimpleTransactionMessages(
                     draft,
                     transactionID: transactionID,
                     payeeID: payeeResolution.payeeID,
                     builder: &builder
                 )
+            }
             messages.append(contentsOf: payeeResolution.messages)
             messages.append(contentsOf: transactionMessages)
             collectedInsertedIDs.append(transactionID)
             monthIDs.insert(draft.month.rawValue)
-            if draft.categoryID != nil {
+            if draft.categoryID != nil, transferDestinationID == nil, !draft.isSplit {
                 categorizedIDs.insert(transactionID)
             }
             insertedCount += 1
@@ -382,7 +406,7 @@ extension LocalFirstActualStore {
         try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,
-            accountIDs: [plan.link.accountID],
+            accountIDs: Array(affectedAccountIDs),
             monthIDs: Array(monthIDs)
         )
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -398,7 +422,8 @@ extension LocalFirstActualStore {
         candidate: BankSyncReconciliation.Candidate,
         accountID: String,
         payeeID: String,
-        sortOrder: Double
+        sortOrder: Double,
+        accountIsOffBudget: Bool = false
     ) throws -> TransactionDraft {
         var draft = TransactionDraft(
             accountID: accountID,
@@ -406,7 +431,7 @@ extension LocalFirstActualStore {
             amountMinorUnits: candidate.amountMinorUnits,
             payeeID: payeeID,
             payeeName: candidate.payeeName ?? "",
-            categoryID: candidate.categoryID,
+            categoryID: accountIsOffBudget ? nil : candidate.categoryID,
             notes: candidate.notes,
             cleared: candidate.cleared,
             isTransfer: false
@@ -414,11 +439,12 @@ extension LocalFirstActualStore {
         draft.importedPayee = candidate.importedPayee
         draft.importedID = candidate.financialID
         draft.sortOrder = sortOrder
+        draft.scheduleID = candidate.scheduleID
         if candidate.isSplit {
             draft.splits = candidate.splits.map {
                 TransactionSplitDraft(
                     id: nil,
-                    categoryID: $0.categoryID,
+                    categoryID: accountIsOffBudget ? nil : $0.categoryID,
                     categoryName: nil,
                     amountMinorUnits: $0.amountMinorUnits,
                     payeeID: $0.payeeID,

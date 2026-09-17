@@ -111,6 +111,100 @@ extension LocalFirstActualStoreTests {
         #expect(imported.amount == -625)
     }
 
+    @Test func importWalletTransactionsDropsCategoryOnOffBudgetAccount() async throws {
+        let store = try await makeOpenedWritableStore(
+            additionalFixtureSQL: """
+            \(Self.walletImportColumnsSQL)
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'wallet-offbudget-rule',
+                '[{"field":"payee_name","op":"is","value":"Rule Cafe"}]',
+                '[{"field":"category","op":"set","value":"groceries"}]',
+                0
+            );
+            """
+        )
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: UUID(uuidString: "12121212-3434-5656-7878-909090909090")!,
+                    amount: Decimal(string: "6.25")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: "Rule Cafe",
+                    transactionDescription: "Rule Cafe",
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 19),
+                    status: .booked
+                )
+            )
+        )
+
+        let result = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "tracking",
+            budgetID: "group-1"
+        )
+        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "tracking"))
+        let imported = try #require(loaded.transactions.first { $0.importedPayee == "Rule Cafe" })
+
+        #expect(result.importedCount == 1)
+        #expect(imported.category == nil)
+        #expect(imported.amount == -625)
+    }
+
+    @Test func importWalletTransactionsCreatesTransferWhenRuleSetsAccountPayee() async throws {
+        let store = try await makeOpenedWritableStore(
+            additionalFixtureSQL: """
+            \(Self.walletImportColumnsSQL)
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO rules VALUES (
+                'wallet-transfer-payee-rule',
+                '[{"field":"payee_name","op":"is","value":"Move To Savings"}]',
+                '[{"field":"description","op":"set","value":"xfer-savings","type":"id"}]',
+                0
+            );
+            """
+        )
+        let candidate = try #require(
+            WalletTransactionMapper.map(
+                WalletTransactionFields(
+                    id: UUID(uuidString: "abababab-cdcd-efef-aaaa-bbbbbbbbbbbb")!,
+                    amount: Decimal(string: "10.00")!,
+                    creditDebitIndicator: .debit,
+                    merchantName: "Move To Savings",
+                    transactionDescription: "Move To Savings",
+                    transactionDate: try makeDate(year: 2026, month: 7, day: 20),
+                    status: .booked
+                )
+            )
+        )
+
+        let result = try await store.importWalletTransactions(
+            [candidate],
+            intoAccountID: "checking",
+            budgetID: "group-1"
+        )
+        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let savings = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "savings"))
+        let source = try #require(checking.transactions.first { $0.importedPayee == "Move To Savings" })
+        let destination = try #require(savings.transactions.first { $0.amount == 1_000 })
+
+        #expect(result.importedCount == 1)
+        #expect(source.payee == "xfer-savings")
+        #expect(source.amount == -1_000)
+        #expect(destination.payee == "xfer-checking")
+        #expect(destination.account == "savings")
+    }
+
     @Test func importWalletTransactionsAppliesExistingPayeeIDRule() async throws {
         let store = try await makeOpenedWritableStore(
             additionalFixtureSQL: """

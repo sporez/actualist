@@ -100,6 +100,20 @@ extension LocalFirstActualStoreTests {
         }
     }
 
+    private func storedTransactionID(
+        in bundle: OpenedWritableStoreBundle,
+        financialID: String
+    ) throws -> String? {
+        let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
+        return try queue.read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT id FROM transactions WHERE financial_id = ?",
+                arguments: [financialID]
+            )
+        }
+    }
+
     private func existingPayeeRuleFixture(categoryID: String = "groceries") -> String {
         """
         CREATE TABLE rules (
@@ -140,7 +154,7 @@ extension LocalFirstActualStoreTests {
             try Row.fetchOne(
                 db,
                 sql: """
-                    SELECT id, description, category, notes, imported_description, cleared,
+                    SELECT id, acct, description, category, notes, imported_description, cleared,
                            transferred_id, financial_id
                     FROM transactions WHERE id = ?
                     """,
@@ -401,6 +415,213 @@ extension LocalFirstActualStoreTests {
         #expect(!messages.contains { $0.column == "category" })
         #expect(messages.contains {
             $0.dataset == "transactions" && $0.row == "xfer-src" && $0.column == "financial_id"
+        })
+    }
+
+    // MARK: - Off-budget accounts never take a budget category
+
+    private func offBudgetSavingsSQL() -> String {
+        "UPDATE accounts SET offbudget = 1 WHERE id = 'savings';\n"
+    }
+
+    @MainActor
+    @Test func syncAllReviewDoesNotCategorizeMatchedOffBudgetTransaction() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: offBudgetSavingsSQL() + existingPayeeRuleFixture() + """
+                INSERT INTO transactions
+                    (id, acct, date, amount, category, tombstone, description, notes, cleared, is_parent)
+                VALUES ('ordinary', 'savings', 20260302, -1000, NULL, 0, 'coffee', NULL, 0, 0);
+                """
+        )
+        let plan = try await bundle.store.downloadBankSyncPlan(
+            accountID: "savings",
+            budgetID: "group-1"
+        )
+        let update = try #require(plan.updates.first { $0.existingID == "ordinary" })
+        #expect(update.categoryID == nil)
+        #expect(update.financialID == "bank-correctness")
+        #expect(!plan.matchDetails.contains { detail in
+            detail.changes.contains { $0.field == .category }
+        })
+
+        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+
+        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        #expect(row["category"] as String? == nil)
+        #expect(row["financial_id"] as String? == "bank-correctness")
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains {
+            $0.dataset == "transactions" && $0.row == "ordinary" && $0.column == "category"
+        })
+    }
+
+    @Test func backgroundApplyDoesNotCategorizeMatchedOffBudgetTransaction() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(id: "background-offbudget-rule"),
+            additionalFixtureSQL: offBudgetSavingsSQL() + existingPayeeRuleFixture() + """
+                INSERT INTO transactions
+                    (id, acct, date, amount, category, tombstone, description, notes, cleared, is_parent)
+                VALUES ('ordinary', 'savings', 20260302, -1000, NULL, 0, 'coffee', NULL, 0, 0);
+                """
+        )
+
+        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+
+        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        #expect(row["category"] as String? == nil)
+        #expect(row["financial_id"] as String? == "background-offbudget-rule")
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains {
+            $0.dataset == "transactions" && $0.row == "ordinary" && $0.column == "category"
+        })
+    }
+
+    @MainActor
+    @Test func syncAllReviewInsertIntoOffBudgetKeepsPayeeAndDropsCategory() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: offBudgetSavingsSQL() + existingPayeeRuleFixture()
+        )
+        let model = BankSyncViewModel(
+            store: bundle.store,
+            budgetID: "group-1",
+            currency: .usd
+        )
+        await model.load()
+        await model.syncAll()
+        await model.confirmReview()
+
+        let row = try #require(try await storedCorrectnessRow(
+            in: bundle,
+            financialID: "bank-correctness"
+        ))
+        #expect(row["description"] as String? == "coffee")
+        #expect(row["category"] as String? == nil)
+        #expect(row["imported_description"] as String? == "Coffee Shop")
+    }
+
+    private func transferPayeeRuleFixture() -> String {
+        """
+        CREATE TABLE rules (
+            id TEXT PRIMARY KEY,
+            conditions TEXT,
+            actions TEXT,
+            tombstone INTEGER
+        );
+        INSERT INTO rules VALUES (
+            'bank-transfer-payee-rule',
+            '[{"field":"imported_payee","op":"is","value":"Coffee Shop","type":"string"}]',
+            '[{"field":"description","op":"set","value":"xfer-checking","type":"id"}]',
+            0
+        );
+        """
+    }
+
+    @MainActor
+    @Test func syncAllReviewInsertWithTransferPayeeCreatesPairedRows() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: transferPayeeRuleFixture()
+        )
+        let model = BankSyncViewModel(
+            store: bundle.store,
+            budgetID: "group-1",
+            currency: .usd
+        )
+        await model.load()
+        await model.syncAll()
+        await model.confirmReview()
+
+        let source = try #require(try await storedCorrectnessRow(
+            in: bundle,
+            financialID: "bank-correctness"
+        ))
+        #expect(source["description"] as String? == "xfer-checking")
+        let sourceID = try #require(try await storedTransactionID(
+            in: bundle,
+            financialID: "bank-correctness"
+        ))
+        let sourceRow = try #require(try await storedTransactionRow(in: bundle, id: sourceID))
+        let pairedID = try #require(sourceRow["transferred_id"] as String?)
+        let destination = try #require(try await storedTransactionRow(in: bundle, id: pairedID))
+        #expect(destination["acct"] as String? == "checking")
+        #expect(destination["transferred_id"] as String? == sourceID)
+        #expect(destination["description"] as String? == "xfer-savings")
+    }
+
+    @MainActor
+    @Test func syncAllReviewDoesNotFillTransferPayeeOnMatchedOrdinaryTransaction() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: transferPayeeRuleFixture() + """
+                INSERT INTO transactions
+                    (id, acct, date, amount, category, tombstone, description, notes, cleared, is_parent)
+                VALUES ('ordinary', 'savings', 20260302, -1000, NULL, 0, NULL, NULL, 0, 0);
+                """
+        )
+        let plan = try await bundle.store.downloadBankSyncPlan(
+            accountID: "savings",
+            budgetID: "group-1"
+        )
+        let update = try #require(plan.updates.first { $0.existingID == "ordinary" })
+        #expect(update.payeeID == nil)
+        #expect(update.financialID == "bank-correctness")
+        #expect(!plan.matchDetails.contains { detail in
+            detail.changes.contains { $0.field == .payee }
+        })
+
+        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        #expect(row["description"] as String? == nil)
+        #expect(row["transferred_id"] as String? == nil)
+        #expect(row["financial_id"] as String? == "bank-correctness")
+    }
+
+    @Test func matchUpdateWriterDoesNotWriteCategoryOntoOffBudgetAccount() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: offBudgetSavingsSQL()
+        )
+        let database = try #require(bundle.store.database)
+        var builder = LocalFirstSyncMessageBuilder()
+        let existing = BankSyncReconciliation.Existing(
+            id: "ordinary",
+            financialID: nil,
+            dayID: "20260302",
+            amountMinorUnits: -1_000,
+            payeeID: "coffee",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            reconciled: false,
+            importedPayee: nil,
+            isParent: false,
+            isChild: false,
+            parentID: nil,
+            transferID: nil
+        )
+        let update = BankSyncReconciliation.MatchedUpdate(
+            existingID: "ordinary",
+            financialID: "bank-correctness",
+            payeeID: "coffee",
+            categoryID: "dining",
+            importedPayee: "Coffee Shop",
+            notes: nil,
+            cleared: true,
+            childIDs: []
+        )
+
+        let messages = try await database.makeBankSyncMatchUpdateMessages(
+            update: update,
+            existing: existing,
+            accountIsOffBudget: true,
+            builder: &builder
+        )
+
+        #expect(!messages.contains { $0.column == "category" })
+        #expect(messages.contains {
+            $0.dataset == "transactions" && $0.row == "ordinary" && $0.column == "financial_id"
         })
     }
 

@@ -59,6 +59,37 @@ struct TransactionDraft: Hashable, Sendable {
             scheduleID: scheduleID
         )
     }
+
+    func withoutBudgetCategory() -> TransactionDraft {
+        TransactionDraft(
+            accountID: accountID,
+            date: date,
+            amountMinorUnits: amountMinorUnits,
+            payeeID: payeeID,
+            payeeName: payeeName,
+            categoryID: nil,
+            notes: notes,
+            cleared: cleared,
+            isTransfer: isTransfer,
+            importedPayee: importedPayee,
+            importedID: importedID,
+            sortOrder: sortOrder,
+            reconciled: reconciled,
+            isParent: isParent,
+            splits: splits.map {
+                TransactionSplitDraft(
+                    id: $0.id,
+                    categoryID: nil,
+                    categoryName: $0.categoryName,
+                    amountMinorUnits: $0.amountMinorUnits,
+                    payeeID: $0.payeeID,
+                    notes: $0.notes,
+                    sortOrder: $0.sortOrder
+                )
+            },
+            scheduleID: scheduleID
+        )
+    }
 }
 
 struct TransactionSplitDraft: Hashable, Sendable, Identifiable {
