@@ -10,14 +10,14 @@ struct UncategorizedTransactionsView: View {
     @State private var selectedDetent: PresentationDetent = .medium
 
     let month: String
-    let onChanged: () -> Void
-    let onResolvedAll: () -> Void
+    let onChanged: @MainActor () -> Void
+    let onResolvedAll: @MainActor () -> Void
 
     init(
         month: String,
         cachedSnapshot: LoadedUncategorizedTransactions?,
-        onChanged: @escaping () -> Void,
-        onResolvedAll: @escaping () -> Void
+        onChanged: @escaping @MainActor () -> Void,
+        onResolvedAll: @escaping @MainActor () -> Void
     ) {
         self.month = month
         self.onChanged = onChanged

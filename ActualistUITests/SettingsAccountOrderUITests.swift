@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class SettingsAccountOrderUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 

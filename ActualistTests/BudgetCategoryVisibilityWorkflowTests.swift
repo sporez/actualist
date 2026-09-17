@@ -125,7 +125,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         emptyLoadedMonth
     }
@@ -135,7 +135,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         carryover: Bool,
         budgetID: String,
         startMonth: String,
-        didSetCarryover: @escaping () async -> Void
+        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         emptyLoadedMonth
     }
@@ -152,7 +152,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         emptyLoadedMonth
     }
@@ -161,7 +161,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         emptyLoadedMonth
     }
@@ -170,7 +170,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         emptyLoadedMonth
     }
@@ -190,7 +190,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         if !didStart {
             didStart = true
@@ -209,7 +209,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         emptyLoadedMonth
     }

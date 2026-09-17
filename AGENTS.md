@@ -432,13 +432,10 @@ and report the result. At minimum:
     SWIFT_STRICT_CONCURRENCY=complete build
   ```
 
-  The project is still Swift 5. Complete concurrency is a CLI overlay, not a
-  target setting, until remaining warnings are gone (Sendable write callbacks,
-  theme global, notification delegate, iOS 26 intent `supportedModes`). Do not
-  introduce a new concurrency warning in changed code. Do not enable
-  `SWIFT_VERSION = 6` or project-wide `SWIFT_STRICT_CONCURRENCY=complete` until
-  that overlay is clean. Do not silence diagnostics with `@unchecked Sendable`
-  or `@preconcurrency` without a documented invariant and focused tests.
+  App, test, and widget targets use Swift 6, so complete concurrency is the
+  language default. Do not introduce a new concurrency warning in changed code.
+  Do not silence diagnostics with `@unchecked Sendable` or `@preconcurrency`
+  without a documented invariant and focused tests.
 - Run or reuse the tests required by Testing Scope And Reuse above.
 - Require zero warnings from the normal project build (including the build
   performed by tests). Investigate new warnings instead of filtering them out.

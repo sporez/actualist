@@ -218,14 +218,14 @@ struct BudgetMoveMoneyAmountSlider: View {
     let spec: BudgetMoveMoneySliderSpec
     let isDisabled: Bool
     var onEditingChanged: (Bool) -> Void = { _ in }
-    let onAmountDollarsChanged: (Double) -> Void
+    let onAmountDollarsChanged: @MainActor (Double) -> Void
     @Environment(\.budgetCurrency) private var currency
 
     var body: some View {
         Slider(
             value: Binding(
                 get: { spec.amountDollars },
-                set: onAmountDollarsChanged
+                set: { onAmountDollarsChanged($0) }
             ),
             in: 0...spec.maximumDollars
         ) { isEditing in

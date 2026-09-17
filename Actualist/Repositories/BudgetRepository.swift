@@ -1,5 +1,7 @@
 import Foundation
 
+/// Local-first budget reads and writes. Completions run on the main actor so
+/// UI refresh hooks can cross this Sendable seam into the store.
 protocol BudgetRepositoryProtocol: Sendable {
     func budgets() async throws -> [ActualBudget]
     func currentBudgetMonth(
@@ -15,14 +17,14 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?,
         categoryID: String,
         carryover: Bool,
         budgetID: String,
         startMonth: String,
-        didSetCarryover: @escaping () async -> Void
+        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
     func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?,
         carryover: Bool,
@@ -34,20 +36,20 @@ protocol BudgetRepositoryProtocol: Sendable {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
     func setCategoryGroupHiddenAndRefresh(
         groupID: String,
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity?,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
     func setCategoryTemplatesAndRefresh(
         categoryID: String,
@@ -77,13 +79,13 @@ protocol BudgetRepositoryProtocol: Sendable {
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
     // History: local money-flow gesture log and LIFO undo.
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity?

@@ -41,7 +41,7 @@ final class TransactionRuleDeleteReview {
         budgetID: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         repository: any TransactionRepositoryProtocol,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async -> Result<Void, Error> {
         guard presentation != .none else { return .success(()) }
         presentation = .none

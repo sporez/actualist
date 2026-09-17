@@ -1,6 +1,7 @@
 import XCTest
 import AppIntents
 
+@MainActor
 final class ActualistUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 

@@ -405,9 +405,10 @@ struct UncategorizedTransactionsViewModelTests {
     }
 }
 
-actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol {
-    nonisolated func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? { nil }
-    nonisolated func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? { nil }
+@MainActor
+final class UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol {
+    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? { nil }
+    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? { nil }
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws {}
     func refreshSpendingTransactions(budgetID: String) async throws {}
     func loadOlderTransactions(budgetID: String, accountID: String) async throws {}
@@ -440,11 +441,11 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
         self.categorizeError = categorizeError
     }
 
-    func recordedCategoryID() -> String? {
+    func recordedCategoryID() async -> String? {
         categoryID
     }
 
-    func recordedTransactionIDs() -> [String] {
+    func recordedTransactionIDs() async -> [String] {
         categorizedTransactionIDs
     }
 
@@ -466,7 +467,7 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let categorizeError {
             throw categorizeError
@@ -489,7 +490,7 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let categorizeError {
             throw categorizeError
@@ -519,7 +520,7 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
-        didCreate: @escaping () async -> Void
+        didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         TransactionMutationResult(ok: true, changed: ChangedResources(accounts: [], months: [], transactions: []))
     }
@@ -530,7 +531,7 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         TransactionMutationResult(ok: true, changed: ChangedResources(accounts: [], months: [], transactions: []))
     }
@@ -538,7 +539,7 @@ actor UncategorizedRecordingTransactionRepository: TransactionRepositoryProtocol
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         TransactionMutationResult(ok: true, changed: ChangedResources(accounts: [], months: [], transactions: []))
     }

@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 
+@MainActor
 final class BudgetMonthSwipeUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 

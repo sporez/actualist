@@ -223,7 +223,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         assignments.append(
             RecordedBudgetAssignment(
@@ -248,7 +248,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         carryover: Bool,
         budgetID: String,
         startMonth: String,
-        didSetCarryover: @escaping () async -> Void
+        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         carryoverUpdates.append(
             RecordedBudgetCarryoverUpdate(
@@ -300,7 +300,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         try await moveMoneyAndRefresh(expectedMode: nil,
             commands: [command],
@@ -314,7 +314,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         for command in commands {
             moves.append(
@@ -339,7 +339,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         templates.append(
             RecordedBudgetTemplate(
@@ -363,7 +363,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         categoryHides.append(
             RecordedCategoryHiddenUpdate(
@@ -382,7 +382,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         groupHides.append(
             RecordedCategoryGroupHiddenUpdate(

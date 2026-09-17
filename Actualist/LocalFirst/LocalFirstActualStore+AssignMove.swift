@@ -13,7 +13,7 @@ extension LocalFirstActualStore {
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         try await assignCategoryBudgetAndRefresh(expectedMode: expectedMode,
             categoryID: categoryID,
@@ -31,7 +31,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         actionSource: BudgetActionSource,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)
@@ -60,7 +60,7 @@ extension LocalFirstActualStore {
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         try await moveMoneyAndRefresh(expectedMode: expectedMode,
             commands: [command],
@@ -76,7 +76,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         actionSource: BudgetActionSource,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         try await moveMoneyAndRefresh(expectedMode: expectedMode,
             commands: [command],
@@ -92,7 +92,7 @@ extension LocalFirstActualStore {
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         try await moveMoneyAndRefresh(expectedMode: expectedMode,
             commands: commands,
@@ -108,7 +108,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         actionSource: BudgetActionSource,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)

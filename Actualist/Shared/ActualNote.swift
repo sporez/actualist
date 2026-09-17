@@ -57,7 +57,17 @@ struct ActualNoteTarget: Hashable, Identifiable, Sendable {
 }
 
 struct ActualNotePresentation: Equatable, Sendable {
-    let attributedText: AttributedString
+    struct Run: Equatable, Sendable {
+        var text: String
+        var isStrong: Bool
+        var isEmphasis: Bool
+    }
+
+    let runs: [Run]
+
+    var plainText: String {
+        runs.map(\.text).joined()
+    }
 
     init?(userBody: String?) {
         guard let userBody else {
@@ -69,48 +79,65 @@ struct ActualNotePresentation: Equatable, Sendable {
         }
 
         let displaySource = Self.displayMarkdownSource(from: source)
-        let parsed = try? AttributedString(
-            markdown: displaySource,
-            options: .init(
-                interpretedSyntax: .inlineOnlyPreservingWhitespace,
-                failurePolicy: .returnPartiallyParsedIfPossible
-            )
-        )
-        attributedText = parsed.map(Self.removingLinks) ?? AttributedString(source)
+        runs = Self.parseRuns(from: displaySource) ?? [
+            Run(text: source, isStrong: false, isEmphasis: false)
+        ]
     }
 
     /// Apply fonts on the attributed runs. A view-level weighted `.font()` on
     /// `Text` flattens **bold** down to the same weight as surrounding text.
-    func displayAttributedText(baseFont: Font) -> AttributedString {
-        var output = AttributedString()
-        for run in attributedText.runs {
-            var piece = AttributedString(String(attributedText[run.range].characters))
-            if let intent = run.inlinePresentationIntent {
-                piece.inlinePresentationIntent = intent
+    @MainActor
+    func displayText(baseFont: Font) -> Text {
+        runs.reduce(Text("")) { result, run in
+            var piece = Text(run.text).font(baseFont)
+            if run.isStrong {
+                piece = piece.bold()
             }
-            var font = baseFont
-            if run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true {
-                font = font.bold()
+            if run.isEmphasis {
+                piece = piece.italic()
             }
-            if run.inlinePresentationIntent?.contains(.emphasized) == true {
-                font = font.italic()
-            }
-            piece.font = font
-            output += piece
+            return Text("\(result)\(piece)")
         }
-        return output
     }
 
-    private static func removingLinks(from markdown: AttributedString) -> AttributedString {
-        var output = AttributedString()
-        for run in markdown.runs {
-            var piece = AttributedString(String(markdown[run.range].characters))
-            if let intent = run.inlinePresentationIntent {
-                piece.inlinePresentationIntent = intent
+    /// Notes only need **strong** and *emphasis*. A local scanner avoids Swift
+    /// `AttributedString` key paths, which are not Sendable under complete checking.
+    private static func parseRuns(from source: String) -> [Run]? {
+        var parsed: [Run] = []
+        var current = ""
+        var isStrong = false
+        var isEmphasis = false
+        let characters = Array(source)
+        var index = 0
+
+        func flush() {
+            guard !current.isEmpty else {
+                return
             }
-            output += piece
+            parsed.append(Run(text: current, isStrong: isStrong, isEmphasis: isEmphasis))
+            current = ""
         }
-        return output
+
+        while index < characters.count {
+            if index + 1 < characters.count,
+               characters[index] == "*",
+               characters[index + 1] == "*" {
+                flush()
+                isStrong.toggle()
+                index += 2
+                continue
+            }
+            if characters[index] == "*" {
+                flush()
+                isEmphasis.toggle()
+                index += 1
+                continue
+            }
+            current.append(characters[index])
+            index += 1
+        }
+        flush()
+        return parsed.isEmpty ? nil : parsed
     }
 
     /// Notes stay local-first display text: unwrap images, links, and autolinks

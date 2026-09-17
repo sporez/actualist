@@ -186,7 +186,7 @@ struct AccountReconciliationTargetSheet: View {
     private var targetTextBinding: Binding<String> {
         Binding(
             get: { coordinator.targetEntry?.input.magnitudeText ?? "" },
-            set: coordinator.updateTargetText
+            set: { coordinator.updateTargetText($0) }
         )
     }
 

@@ -143,10 +143,12 @@ private final class LegacyUnauthorizedURLProtocol: ActualErrorURLProtocol {
 /// configurable so tests can cover the iOS 26 case where the first socket fails
 /// with a code other than `.cannotConnectToHost`.
 final class FirstConnectionRetryURLProtocol: URLProtocol {
-    static var cancellationAttempt: Int?
-    static var failuresRemaining = 0
-    static var attemptCount = 0
-    static var errorCode: URLError.Code = .cannotConnectToHost
+    /// URLProtocol instances are created off the main actor; tests mutate this
+    /// state on one thread before the session starts.
+    nonisolated(unsafe) static var cancellationAttempt: Int?
+    nonisolated(unsafe) static var failuresRemaining = 0
+    nonisolated(unsafe) static var attemptCount = 0
+    nonisolated(unsafe) static var errorCode: URLError.Code = .cannotConnectToHost
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }

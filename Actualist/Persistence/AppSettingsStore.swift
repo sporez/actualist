@@ -355,6 +355,7 @@ struct LocalFirstSyncDebugEvent: Codable, Equatable, Identifiable, Sendable {
 }
 
 struct AppSettingsStore {
+    @MainActor
     static let live = AppSettingsStore(defaults: .standard)
 
     let defaults: UserDefaults
