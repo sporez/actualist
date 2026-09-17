@@ -6,13 +6,13 @@ struct AccountTransactionsView: View {
     @Environment(\.actualistDensity) private var density
     @Environment(\.dismiss) private var dismiss
     let scope: TransactionFeedScope
-    let onChanged: () -> Void
+    let onChanged: @MainActor () -> Void
     let categoryCarryoverIsEnabled: Bool?
     let categoryNotePresentation: ActualNotePresentation?
     let categoryCarryoverIsUpdating: Bool
     let canEditCategoryCarryover: Bool
     let categoryCarryoverErrorMessage: String?
-    let onCategoryCarryoverChanged: (Bool) -> Void
+    let onCategoryCarryoverChanged: @MainActor (Bool) -> Void
     let templateDoor: BudgetTemplateDoorRow?
     let onOpenTemplates: () -> Void
 
@@ -37,13 +37,13 @@ struct AccountTransactionsView: View {
 
     init(
         scope: TransactionFeedScope,
-        onChanged: @escaping () -> Void = {},
+        onChanged: @escaping @MainActor () -> Void = {},
         categoryCarryoverIsEnabled: Bool? = nil,
         categoryNotePresentation: ActualNotePresentation? = nil,
         categoryCarryoverIsUpdating: Bool = false,
         canEditCategoryCarryover: Bool = false,
         categoryCarryoverErrorMessage: String? = nil,
-        onCategoryCarryoverChanged: @escaping (Bool) -> Void = { _ in },
+        onCategoryCarryoverChanged: @escaping @MainActor (Bool) -> Void = { _ in },
         templateDoor: BudgetTemplateDoorRow? = nil,
         onOpenTemplates: @escaping () -> Void = {}
     ) {

@@ -151,6 +151,18 @@ private struct AppSwitcherPrivacyCover: View {
     }
 }
 
+/// Completes a `BGAppRefreshTask` from an unstructured task. The system owns
+/// the task object and delivers it on the registration queue; we only call
+/// `setTaskCompleted` once after the main-actor refresh finishes.
+private struct BackgroundRefreshTaskCompletion: @unchecked Sendable {
+    let task: BGAppRefreshTask
+
+    func complete(success: Bool) {
+        task.setTaskCompleted(success: success)
+    }
+}
+
+@MainActor
 final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificationCenterDelegate {
     static let shared = BackgroundTransactionRefreshCoordinator()
 
@@ -260,40 +272,40 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         return "Skipped schedule: \(reasons.joined(separator: ", "))"
     }
 
-    private func handle(_ task: BGAppRefreshTask) {
-        if let appState {
-            Task { @MainActor in
-                scheduleIfNeeded(for: appState)
-            }
+    nonisolated private func handle(_ task: BGAppRefreshTask) {
+        let completion = BackgroundRefreshTaskCompletion(task: task)
+        let refresh = Task { [weak self] in
+            await self?.runBackgroundRefresh() ?? false
         }
-
-        var refresh: Task<Void, Never>?
         task.expirationHandler = {
-            refresh?.cancel()
+            refresh.cancel()
         }
-
-        refresh = Task { [weak self] in
-            guard let appState = self?.appState else {
-                task.setTaskCompleted(success: false)
-                return
-            }
-
-            let success = await appState.performBackgroundTransactionRefresh()
-            task.setTaskCompleted(success: success)
+        Task {
+            let success = await refresh.value
+            completion.complete(success: success)
         }
     }
 
-    @MainActor
-    func userNotificationCenter(
+    private func runBackgroundRefresh() async -> Bool {
+        guard let appState else {
+            return false
+        }
+        scheduleIfNeeded(for: appState)
+        return await appState.performBackgroundTransactionRefresh()
+    }
+
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let userInfo = response.notification.request.content.userInfo
-        guard let budgetID = userInfo["budgetID"] as? String,
-              let appState else {
+        let budgetID = response.notification.request.content.userInfo["budgetID"] as? String
+        await routeNotification(budgetID: budgetID)
+    }
+
+    private func routeNotification(budgetID: String?) async {
+        guard let budgetID, let appState else {
             return
         }
-
         await appState.routeToSpendingFromNotification(budgetID: budgetID)
     }
 }

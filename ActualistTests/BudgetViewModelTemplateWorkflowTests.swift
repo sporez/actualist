@@ -220,7 +220,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         templates.append(
             RecordedBudgetTemplate(command: command, budgetID: budgetID, month: month)
@@ -268,7 +268,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         throw TestError("not used")
     }
@@ -278,7 +278,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         carryover: Bool,
         budgetID: String,
         startMonth: String,
-        didSetCarryover: @escaping () async -> Void
+        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         throw TestError("not used")
     }
@@ -296,7 +296,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         throw TestError("not used")
     }
@@ -306,7 +306,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         throw TestError("not used")
     }
@@ -315,7 +315,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         throw TestError("not used")
     }
@@ -324,7 +324,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         throw TestError("not used")
     }

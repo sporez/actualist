@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class TrackingBudgetUITests: XCTestCase {
     private var hasPreparedTrackingDemo = false
 

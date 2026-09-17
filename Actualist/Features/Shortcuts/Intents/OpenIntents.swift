@@ -4,7 +4,7 @@ import Foundation
 protocol ActualistForegroundIntent: AppIntent {}
 
 extension ActualistForegroundIntent {
-    static var supportedModes: IntentModes { .foreground(.dynamic) }
+    nonisolated static var supportedModes: IntentModes { .foreground(.dynamic) }
 }
 
 struct OpenBudgetIntent: ActualistForegroundIntent {

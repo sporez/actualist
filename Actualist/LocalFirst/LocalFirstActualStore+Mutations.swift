@@ -237,7 +237,7 @@ extension LocalFirstActualStore {
         carryover: Bool,
         budgetID: String,
         startMonth: String,
-        didSetCarryover: @escaping () async -> Void
+        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)
@@ -303,7 +303,7 @@ extension LocalFirstActualStore {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
@@ -326,7 +326,7 @@ extension LocalFirstActualStore {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
@@ -359,7 +359,7 @@ extension LocalFirstActualStore {
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         try await applyBudgetTemplateAndRefresh(expectedMode: expectedMode,
             command: command,
@@ -375,7 +375,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         actionSource: BudgetActionSource,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)

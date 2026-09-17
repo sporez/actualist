@@ -113,7 +113,7 @@ final class TransactionEditorMutationCoordinator {
         repository: any TransactionRepositoryProtocol,
         deleteReview: TransactionRuleDeleteReview,
         authorization: ReconciledTransactionMutationAuthorization? = nil,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async -> Outcome {
         switch await deleteReview.confirmDeletion(
             transactionID: transactionID,
@@ -175,7 +175,7 @@ final class TransactionEditorMutationCoordinator {
         budgetID: String,
         repository: any TransactionRepositoryProtocol,
         deleteReview: TransactionRuleDeleteReview,
-        didMutate: @escaping () async -> Void
+        didMutate: @escaping @MainActor @Sendable () async -> Void
     ) async -> Outcome {
         guard let presentation = pendingPresentation else { return .cancelled }
         let outcome: Outcome

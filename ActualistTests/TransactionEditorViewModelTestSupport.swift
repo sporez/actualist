@@ -46,9 +46,10 @@ extension TransactionEditorViewModelTests {
         return formatter.date(from: "\(value) 12:00:00")!
     }
 }
-actor RecordingTransactionRepository: TransactionRepositoryProtocol {
-    nonisolated func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? { nil }
-    nonisolated func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? { nil }
+@MainActor
+final class RecordingTransactionRepository: TransactionRepositoryProtocol {
+    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? { nil }
+    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? { nil }
     func refreshAccountTransactions(budgetID: String, accountID: String) async throws {}
     func refreshSpendingTransactions(budgetID: String) async throws {}
     func loadOlderTransactions(budgetID: String, accountID: String) async throws {}
@@ -144,7 +145,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
-        didCreate: @escaping () async -> Void
+        didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         drafts.append(draft)
 
@@ -189,7 +190,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         updates.append(
             RecordedTransactionUpdate(
@@ -228,7 +229,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         updateAuthorizations.append(reconciliationAuthorization)
         if let reconciliationReview,
@@ -249,7 +250,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let createError {
             throw createError
@@ -275,7 +276,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         await didUpdate()
         return TransactionMutationResult(
@@ -291,7 +292,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         deletes.append(transaction)
 
@@ -320,7 +321,7 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         _ transaction: ActualTransaction,
         budgetID: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         deleteAuthorizations.append(reconciliationAuthorization)
         if let reconciliationReview,
@@ -366,64 +367,64 @@ actor RecordingTransactionRepository: TransactionRepositoryProtocol {
         )
     }
 
-    func onlyDraft() throws -> TransactionDraft {
+    func onlyDraft() async throws -> TransactionDraft {
         try #require(drafts.first)
     }
 
-    func onlyUpdate() throws -> RecordedTransactionUpdate {
+    func onlyUpdate() async throws -> RecordedTransactionUpdate {
         try #require(updates.first)
     }
 
-    func onlyDelete() throws -> ActualTransaction {
+    func onlyDelete() async throws -> ActualTransaction {
         try #require(deletes.first)
     }
 
-    func onlyRulePreviewDraft() throws -> TransactionDraft {
+    func onlyRulePreviewDraft() async throws -> TransactionDraft {
         try #require(rulePreviewDrafts.first)
     }
 
-    func recordedUpdateAuthorizations() -> [ReconciledTransactionMutationAuthorization?] {
+    func recordedUpdateAuthorizations() async -> [ReconciledTransactionMutationAuthorization?] {
         updateAuthorizations
     }
 
-    func recordedDeleteAuthorizations() -> [ReconciledTransactionMutationAuthorization?] {
+    func recordedDeleteAuthorizations() async -> [ReconciledTransactionMutationAuthorization?] {
         deleteAuthorizations
     }
 
-    func recordedUnlockTransactionIDs() -> [String] {
+    func recordedUnlockTransactionIDs() async -> [String] {
         unlockTransactionIDs
     }
 
-    func rulePreviewDraftCount() -> Int {
+    func rulePreviewDraftCount() async -> Int {
         rulePreviewDrafts.count
     }
 
-    func isRulePreviewPaused(payeeName: String) -> Bool {
+    func isRulePreviewPaused(payeeName: String) async -> Bool {
         pausedRulePreviewContinuations[payeeName] != nil
     }
 
-    func resumeRulePreview(payeeName: String) {
+    func resumeRulePreview(payeeName: String) async {
         pausedRulePreviewContinuations.removeValue(forKey: payeeName)?.resume()
     }
 
-    func draftCount() -> Int {
+    func draftCount() async -> Int {
         drafts.count
     }
 
-    func didCreateFinished() -> Bool {
+    func didCreateFinished() async -> Bool {
         didCreateCallbackFinished
     }
 
-    func isPausedBeforeDidCreate() -> Bool {
+    func isPausedBeforeDidCreate() async -> Bool {
         pausedBeforeDidCreate
     }
 
-    func resumeBeforeDidCreate() {
+    func resumeBeforeDidCreate() async {
         beforeDidCreateContinuation?.resume()
         beforeDidCreateContinuation = nil
     }
 
-    func resumeAfterDidCreate() {
+    func resumeAfterDidCreate() async {
         afterDidCreateContinuation?.resume()
         afterDidCreateContinuation = nil
     }

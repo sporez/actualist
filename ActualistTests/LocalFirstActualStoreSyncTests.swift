@@ -149,18 +149,21 @@ extension LocalFirstActualStoreTests {
 
     @Test func concurrentStoreMutationsAcrossActorSuspensionAllReachTheOutbox() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
+        let store = bundle.store
         let mutationCount = 32
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             for index in 0..<mutationCount {
                 group.addTask {
                     await Task.yield()
-                    _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+                    _ = try await store.assignCategoryBudgetAndRefresh(
+                        expectedMode: nil,
                         categoryID: "groceries",
                         budgeted: 60_000 + index,
                         budgetID: "group-1",
-                        month: "2026-07"
-                    ) {}
+                        month: "2026-07",
+                        didAssign: { @MainActor in }
+                    )
                 }
             }
             try await group.waitForAll()

@@ -25,7 +25,7 @@ struct AccountTransactionsViewModelTests {
 
         #expect(!model.isLoading)
         #expect(model.errorMessage == nil)
-        #expect(await repository.refreshCalls == ["account:checking"])
+        #expect(repository.refreshCalls == ["account:checking"])
     }
 
     @Test func firstLoadFailureWithoutCacheShowsError() async {
@@ -51,7 +51,7 @@ struct AccountTransactionsViewModelTests {
         await categoryModel.loadLocal(budgetID: "budget", repository: repository)
 
         #expect(
-            await repository.refreshCalls == [
+            repository.refreshCalls == [
                 "account:checking",
                 "spending",
                 "category:groceries:2026-08"
@@ -70,10 +70,10 @@ struct AccountTransactionsViewModelTests {
         let firstLoad = Task {
             await model.loadOlder(budgetID: "budget", repository: repository)
         }
-        await Self.waitUntil { await repository.olderLoadCalls == ["account:checking"] }
+        await Self.waitUntil { repository.olderLoadCalls == ["account:checking"] }
 
         await model.loadOlder(budgetID: "budget", repository: repository)
-        #expect(await repository.olderLoadCalls == ["account:checking"])
+        #expect(repository.olderLoadCalls == ["account:checking"])
 
         await repository.finishOlderLoad()
         await firstLoad.value
@@ -105,7 +105,7 @@ struct AccountTransactionsViewModelTests {
 
         #expect(!model.isSearching)
         #expect(display.groups.flatMap(\.rows).map(\.id) == ["coffee"])
-        #expect(await repository.searchQueries.isEmpty)
+        #expect(repository.searchQueries.isEmpty)
     }
 
     @Test func delayedSearchResultCannotReplaceTheNewerQuery() async {
@@ -120,11 +120,11 @@ struct AccountTransactionsViewModelTests {
 
         model.searchText = "first"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await Self.waitUntil { await repository.searchQueries.contains("first") }
+        await Self.waitUntil { repository.searchQueries.contains("first") }
 
         model.searchText = "second"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await Self.waitUntil { await repository.searchQueries.contains("second") }
+        await Self.waitUntil { repository.searchQueries.contains("second") }
 
         await repository.finishSearch(
             "second",
@@ -209,8 +209,8 @@ struct AccountTransactionsViewModelTests {
             onChanged: {}
         )
 
-        #expect(await repository.deleteAuthorizations == [review.authorization])
-        #expect(await repository.deletedTransactionIDs == ["locked"])
+        #expect(repository.deleteAuthorizations == [review.authorization])
+        #expect(repository.deletedTransactionIDs == ["locked"])
     }
 
     private static let account = ActualAccount(
@@ -291,10 +291,11 @@ private struct FeedTestError: Error, LocalizedError, Sendable {
     var errorDescription: String? { message }
 }
 
-private actor AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
-    nonisolated let accountSnapshot: LoadedAccountTransactions?
-    nonisolated let spendingSnapshot: LoadedAccountTransactions?
-    nonisolated let categorySnapshot: LoadedAccountTransactions?
+@MainActor
+private final class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
+    let accountSnapshot: LoadedAccountTransactions?
+    let spendingSnapshot: LoadedAccountTransactions?
+    let categorySnapshot: LoadedAccountTransactions?
     private let refreshError: FeedTestError?
     private let deleteError: FeedTestError?
     private let suspendsOlderLoads: Bool
@@ -331,16 +332,16 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         self.reconciliationReview = reconciliationReview
     }
 
-    nonisolated func cachedAccountTransactions(
+    func cachedAccountTransactions(
         budgetID: String,
         accountID: String
     ) -> LoadedAccountTransactions? { accountSnapshot }
 
-    nonisolated func cachedSpendingTransactions(
+    func cachedSpendingTransactions(
         budgetID: String
     ) -> LoadedAccountTransactions? { spendingSnapshot }
 
-    nonisolated func cachedCategoryTransactions(
+    func cachedCategoryTransactions(
         budgetID: String,
         categoryID: String,
         month: String
@@ -376,7 +377,7 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         olderLoadCalls.append("spending")
     }
 
-    func finishOlderLoad() {
+    func finishOlderLoad() async {
         olderLoadContinuation?.resume()
         olderLoadContinuation = nil
     }
@@ -415,7 +416,7 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         )
     }
 
-    func finishSearch(_ query: String, with loaded: LoadedAccountTransactions) {
+    func finishSearch(_ query: String, with loaded: LoadedAccountTransactions) async {
         searchContinuations.removeValue(forKey: query)?.resume(returning: loaded)
     }
 
@@ -447,7 +448,7 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
-        didCreate: @escaping () async -> Void
+        didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
     func updateTransactionAndRefresh(
@@ -456,27 +457,27 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
     func categorizeTransactionAndRefresh(
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
     func categorizeTransactionsAndRefresh(
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let deleteError { throw deleteError }
         deletedTransactionIDs.append(transaction.rowID)
@@ -488,7 +489,7 @@ private actor AccountTransactionsRecordingRepository: TransactionRepositoryProto
         _ transaction: ActualTransaction,
         budgetID: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         deleteAuthorizations.append(reconciliationAuthorization)
         if let reconciliationReview,

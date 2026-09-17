@@ -33,17 +33,9 @@ struct ActualNoteValueTests {
         )
         let presentation = try #require(ActualNotePresentation(userBody: body.displayText))
 
-        #expect(
-            String(presentation.attributedText.characters)
-                == "Remember coupons and store policy."
-        )
-        #expect(!String(presentation.attributedText.characters).contains("template"))
-        #expect(
-            presentation.attributedText.runs.contains {
-                $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
-            }
-        )
-        #expect(presentation.attributedText.runs.allSatisfy { $0.link == nil })
+        #expect(presentation.plainText == "Remember coupons and store policy.")
+        #expect(!presentation.plainText.contains("template"))
+        #expect(presentation.runs.contains { $0.isStrong })
         #expect(ActualNotePresentation(userBody: " \n\t ") == nil)
     }
 
@@ -52,17 +44,9 @@ struct ActualNoteValueTests {
             ActualNotePresentation(userBody: "Keep **left**\nover *right*")
         )
 
-        #expect(String(presentation.attributedText.characters) == "Keep left\nover right")
-        #expect(
-            presentation.attributedText.runs.contains {
-                $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
-            }
-        )
-        #expect(
-            presentation.attributedText.runs.contains {
-                $0.inlinePresentationIntent?.contains(.emphasized) == true
-            }
-        )
+        #expect(presentation.plainText == "Keep left\nover right")
+        #expect(presentation.runs.contains { $0.isStrong })
+        #expect(presentation.runs.contains { $0.isEmphasis })
     }
 
     @Test func markdownPresentationDoesNotAttachTappableLinksOrImages() throws {
@@ -73,10 +57,9 @@ struct ActualNoteValueTests {
         )
 
         #expect(
-            String(presentation.attributedText.characters)
+            presentation.plainText
                 == "See policy, photo, https://example.com/docs, and https://example.com/plain."
         )
-        #expect(presentation.attributedText.runs.allSatisfy { $0.link == nil })
         #expect(
             ActualNotePresentation.displayMarkdownSource(
                 from: "Read [the guide](https://example.com)"
@@ -88,20 +71,8 @@ struct ActualNoteValueTests {
         let presentation = try #require(
             ActualNotePresentation(userBody: "Keep **left** over *right*")
         )
-        let styled = presentation.displayAttributedText(baseFont: .body)
-
-        #expect(
-            styled.runs.contains {
-                $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
-                    && $0.font != nil
-            }
-        )
-        #expect(
-            styled.runs.contains {
-                $0.inlinePresentationIntent?.contains(.emphasized) == true
-                    && $0.font != nil
-            }
-        )
+        #expect(presentation.runs.contains { $0.isStrong && $0.text.contains("left") })
+        #expect(presentation.runs.contains { $0.isEmphasis && $0.text.contains("right") })
     }
 
     @Test func proseMentionsRemainVisibleAndWhitespaceOnlyClearsUserBody() {
@@ -172,7 +143,7 @@ struct EntityNotesViewModelTests {
         )
 
         #expect(
-            viewModel.categoryNotePresentation.map { String($0.attributedText.characters) }
+            viewModel.categoryNotePresentation.map(\.plainText)
                 == "Remember coupons"
         )
         #expect(repository.loadCount == 1)

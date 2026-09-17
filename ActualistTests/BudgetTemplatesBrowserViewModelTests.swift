@@ -247,7 +247,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         Self.dummyMonth
     }
@@ -257,7 +257,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         carryover: Bool,
         budgetID: String,
         startMonth: String,
-        didSetCarryover: @escaping () async -> Void
+        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         Self.dummyMonth
     }
@@ -275,7 +275,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         Self.dummyMonth
     }
@@ -285,7 +285,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         Self.dummyMonth
     }
@@ -294,7 +294,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         Self.dummyMonth
     }
@@ -303,7 +303,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         Self.dummyMonth
     }
@@ -312,7 +312,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         Self.dummyMonth
     }

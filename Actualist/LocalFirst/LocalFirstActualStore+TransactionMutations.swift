@@ -8,7 +8,7 @@ extension LocalFirstActualStore {
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
-        didCreate: @escaping () async -> Void
+        didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await createTransactionAndRefresh(
             draft,
@@ -22,7 +22,7 @@ extension LocalFirstActualStore {
         _ draft: TransactionDraft,
         budgetID: String,
         actionSource: BudgetActionSource,
-        didCreate: @escaping () async -> Void
+        didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
         let draft = try await database.draftByResolvingSchedule(draft)
@@ -123,7 +123,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await updateTransactionAndRefresh(
             transactionID,
@@ -144,7 +144,7 @@ extension LocalFirstActualStore {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await updateTransactionAndRefresh(
             transactionID,
@@ -165,7 +165,7 @@ extension LocalFirstActualStore {
         originalAccountID: String,
         originalMonth: String,
         actionSource: BudgetActionSource,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await updateTransactionAndRefresh(
             transactionID,
@@ -187,7 +187,7 @@ extension LocalFirstActualStore {
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
         actionSource: BudgetActionSource,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
         let existing = try await database.fetchTransaction(id: transactionID)
@@ -298,7 +298,7 @@ extension LocalFirstActualStore {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionAndRefresh(
             transaction,
@@ -314,7 +314,7 @@ extension LocalFirstActualStore {
         categoryID: String,
         budgetID: String,
         actionSource: BudgetActionSource,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionsAndRefresh(
             [transaction],
@@ -329,7 +329,7 @@ extension LocalFirstActualStore {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionsAndRefresh(
             transactions,
@@ -345,7 +345,7 @@ extension LocalFirstActualStore {
         categoryID: String,
         budgetID: String,
         actionSource: BudgetActionSource,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         guard !transactions.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing transactions")
@@ -418,7 +418,7 @@ extension LocalFirstActualStore {
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await deleteTransactionAndRefresh(
             transaction,
@@ -433,7 +433,7 @@ extension LocalFirstActualStore {
         _ transaction: ActualTransaction,
         budgetID: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await deleteTransactionAndRefresh(
             transaction,
@@ -448,7 +448,7 @@ extension LocalFirstActualStore {
         _ transaction: ActualTransaction,
         budgetID: String,
         actionSource: BudgetActionSource,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await deleteTransactionAndRefresh(
             transaction,
@@ -464,7 +464,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
         actionSource: BudgetActionSource,
-        didDelete: @escaping () async -> Void
+        didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         guard let transactionID = transaction.id, !transactionID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")

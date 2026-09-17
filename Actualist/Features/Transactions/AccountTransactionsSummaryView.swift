@@ -10,7 +10,7 @@ struct AccountTransactionsSummaryView: View {
     let categoryCarryoverIsUpdating: Bool
     let canEditCategoryCarryover: Bool
     let categoryCarryoverErrorMessage: String?
-    let onCategoryCarryoverChanged: (Bool) -> Void
+    let onCategoryCarryoverChanged: @MainActor (Bool) -> Void
     var templateDoor: BudgetTemplateDoorRow? = nil
     var onOpenTemplates: () -> Void = {}
 
@@ -111,7 +111,7 @@ struct AccountTransactionsSummaryView: View {
                 semantics.rolloverTitle,
                 isOn: Binding(
                     get: { isEnabled },
-                    set: onCategoryCarryoverChanged
+                    set: { onCategoryCarryoverChanged($0) }
                 )
             )
             .labelsHidden()
@@ -155,10 +155,8 @@ struct AccountTransactionsSummaryView: View {
                 .foregroundStyle(ActualistTheme.accent)
 
             ScrollView(.vertical) {
-                Text(
-                    note.displayAttributedText(
-                        baseFont: ActualistTypography.markdownBody(for: density)
-                    )
+                note.displayText(
+                    baseFont: ActualistTypography.markdownBody(for: density)
                 )
                     .foregroundStyle(ActualistTheme.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)

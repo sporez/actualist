@@ -1,9 +1,9 @@
 import XCTest
 
+@MainActor
 final class AccountReconciliationUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
     }
 
     @MainActor
@@ -127,6 +127,7 @@ final class AccountReconciliationUITests: XCTestCase {
 
     @MainActor
     private func launchCheckingAccount() -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
         app.launchArguments = [
             "-actualist-demo",

@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 
 enum ActualistTheme {
@@ -18,16 +19,22 @@ enum ActualistTheme {
     static var neutralForeground: Color { current.neutralForeground }
     static var separator: Color { current.separator }
     static var chromeForeground: Color { current.chromeForeground }
-    static var incomeTransactionAmount: Color { activeOption.incomeTransactionAmount }
-
-    static func activate(_ option: ActualistThemeOption) {
-        activeOption = option
+    static var incomeTransactionAmount: Color {
+        activeOption.withLock { $0.incomeTransactionAmount }
     }
 
-    private static var activeOption: ActualistThemeOption = .actualPurple
+    static func activate(_ option: ActualistThemeOption) {
+        activeOption.withLock { $0 = option }
+    }
+
+    /// Palette selection is app-wide UI state. The lock makes reads safe from
+    /// nonisolated color helpers while `AppState` still writes it on the main actor.
+    private static let activeOption = OSAllocatedUnfairLock(
+        initialState: ActualistThemeOption.actualPurple
+    )
 
     private static var current: ActualistThemePalette {
-        activeOption.palette
+        activeOption.withLock { $0.palette }
     }
 }
 

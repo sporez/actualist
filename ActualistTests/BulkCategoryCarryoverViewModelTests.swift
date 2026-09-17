@@ -312,7 +312,7 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping () async -> Void
+        didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
@@ -320,7 +320,7 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         carryover: Bool,
         budgetID: String,
         startMonth: String,
-        didSetCarryover: @escaping () async -> Void
+        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
     func setCategoryHiddenAndRefresh(
@@ -328,7 +328,7 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
     func setCategoryGroupHiddenAndRefresh(
@@ -336,28 +336,28 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         hidden: Bool,
         budgetID: String,
         month: String,
-        didUpdate: @escaping () async -> Void
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
-        didApply: @escaping () async -> Void
+        didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping () async -> Void
+        didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth { loaded }
 
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
