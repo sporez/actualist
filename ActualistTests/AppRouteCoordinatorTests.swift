@@ -87,4 +87,34 @@ struct AppRouteCoordinatorTests {
         #expect(AppRouteApplication.uncategorizedMonth(from: .uncategorized(month: "2026-03")) == "2026-03")
         #expect(AppRouteApplication.uncategorizedMonth(from: .tab(.budget)) == nil)
     }
+
+    @Test func resetDropsStaleSettingsPresentationForTheNextSession() {
+        // Compact Settings is presented from BudgetView's fullScreenCover. A
+        // disconnect/erase or sign-in-again removes that host without a
+        // SwiftUI dismissal callback, so the coordinator must be reset at the
+        // teardown boundary or the next budget session re-presents Settings.
+        let coordinator = AppRouteCoordinator()
+        coordinator.presentSettings(path: [.connection])
+        coordinator.enqueue(.tab(.spending))
+        var queuedNavigationRan = false
+        coordinator.afterDismissingSettings { queuedNavigationRan = true }
+
+        coordinator.reset()
+
+        #expect(!coordinator.isSettingsPresented)
+        #expect(coordinator.settingsPath.isEmpty)
+        #expect(coordinator.pendingRoute == nil)
+        #expect(!queuedNavigationRan)
+        // A route enqueued after the reset still works for the new session.
+        coordinator.enqueue(.tab(.spending))
+        #expect(coordinator.pendingRoute == .tab(.spending))
+        // A late settingsDidDismiss from the destroyed host must not fire the
+        // dropped continuation or corrupt the hidden state.
+        coordinator.settingsDidDismiss()
+        #expect(!coordinator.isSettingsPresented)
+        #expect(!queuedNavigationRan)
+        coordinator.presentSettings(path: [.appearance])
+        #expect(coordinator.isSettingsPresented)
+        #expect(coordinator.settingsPath == [.appearance])
+    }
 }

@@ -229,6 +229,7 @@ final class AppState {
                 localFirstStore.remoteFilesByFileID = staged.remoteFilesByFileID
                 localFirstStore.cachedBudgets = staged.budgets
                 accountNavigationPath = []
+                routeCoordinator.reset()
                 selectedBudget = nil
             }
             settingsStore.save(settings)
@@ -287,6 +288,7 @@ final class AppState {
             selectedBudget = nil
             budgets = []
             accountNavigationPath = []
+            routeCoordinator.reset()
             setupPhase = .needsConnection
             connectionStatus = .offline
             lastErrorMessage = nil
@@ -502,6 +504,8 @@ final class AppState {
 
     func beginReauthentication() {
         lastErrorMessage = nil
+        // Leaving .ready tears down the settings host; drop its stale route state.
+        routeCoordinator.reset()
         setupPhase = .needsConnection
     }
 

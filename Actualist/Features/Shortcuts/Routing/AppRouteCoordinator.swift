@@ -58,6 +58,15 @@ final class AppRouteCoordinator {
         }
     }
 
+    /// A session teardown (disconnect, erase, sign-in-again) removes every
+    /// settings host without a SwiftUI dismissal callback. Drop the queued
+    /// continuation too: it navigates toward state the teardown destroyed.
+    func reset() {
+        pendingRoute = nil
+        settingsPath = []
+        settingsPresentation = .hidden
+    }
+
     func enqueue(_ route: AppRoute) {
         pendingRoute = route
     }

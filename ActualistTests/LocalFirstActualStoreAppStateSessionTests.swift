@@ -303,4 +303,52 @@ extension LocalFirstActualStoreTests {
         #expect(firstFrameModel.budgetMonth != nil)
         #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.id == "groceries" })
     }
+
+    @Test func reconnectAfterEraseDoesNotReopenStaleSettingsPresentation() async throws {
+        // Compact Settings is presented from BudgetView's fullScreenCover; the
+        // disconnect/erase removes that host without a SwiftUI dismissal
+        // callback. If the route coordinator keeps its visible state, the
+        // next budget session re-presents Connection & Sync over the fresh
+        // Budget tab. (Device report 2026-09-17.)
+        let archiveData = try makeArchiveData(databaseURL: makeSQLiteFixture())
+        let connectionTransport = StubConnectionTransport(
+            files: [testRemoteFile()],
+            token: "reconnect-token",
+            downloadData: archiveData
+        )
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in RecordingSyncTransport() },
+            connectionTransportFactory: { _ in connectionTransport }
+        )
+        try bundle.keychain.saveActualSyncToken("token")
+        let appState = try makeAppState(for: bundle)
+        await appState.beginForegroundSession()
+        #expect(appState.isReadyForMainTabs)
+
+        // Reproduce: Settings open in Connection & Sync when the user erases.
+        appState.routeCoordinator.presentSettings(path: [.connection])
+        appState.disconnectAndEraseLocalData()
+
+        #expect(appState.setupPhase == .needsConnection)
+        #expect(!appState.routeCoordinator.isSettingsPresented)
+        #expect(appState.routeCoordinator.settingsPath.isEmpty)
+        #expect(appState.routeCoordinator.pendingRoute == nil)
+
+        // Reconnect and select a budget, as onboarding does after an erase.
+        let reconnected = await appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "test-password"
+        )
+        #expect(reconnected)
+        #expect(appState.setupPhase == .selectingBudget)
+        #expect(appState.budgets.count == 1)
+
+        await appState.selectBudgetForCurrentBackend(appState.budgets[0])
+
+        #expect(appState.setupPhase == .ready)
+        #expect(appState.isReadyForMainTabs)
+        #expect(!appState.routeCoordinator.isSettingsPresented)
+        #expect(appState.routeCoordinator.settingsPath.isEmpty)
+        #expect(appState.routeCoordinator.pendingRoute == nil)
+    }
 }

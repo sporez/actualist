@@ -27,6 +27,31 @@ final class AdaptiveSettingsUITests: XCTestCase {
     }
 
     @MainActor
+    func testWideDemoReentryLeavesSidebarSettings() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/connection"]
+        app.launch()
+        guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
+        XCTAssertTrue(app.navigationBars["Connection & Sync"].waitForExistence(timeout: 15))
+        app.buttons["Exit Demo Mode"].tap()
+        XCTAssertTrue(app.staticTexts["Exit Demo Mode?"].waitForExistence(timeout: 5))
+        let confirm = try XCTUnwrap(
+            app.buttons.matching(identifier: "Exit Demo Mode").allElementsBoundByIndex.first { $0.isHittable }
+        )
+        confirm.tap()
+        let demo = app.buttons["Demo"].firstMatch
+        XCTAssertTrue(demo.waitForExistence(timeout: 15))
+        demo.tap()
+        XCTAssertTrue(app.buttons["Enter Demo"].waitForExistence(timeout: 5))
+        app.buttons["Enter Demo"].tap()
+        // The fresh demo session must land on the Budget workspace, not restore
+        // the Settings destination left selected by the session that was erased.
+        XCTAssertTrue(app.scrollViews["budget-grid"].waitForExistence(timeout: 20))
+        XCTAssertFalse(app.navigationBars["Connection & Sync"].exists)
+    }
+
+    @MainActor
     func testWideSettingsKeepsMenuWhileSwitchingDetail() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")

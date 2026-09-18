@@ -106,6 +106,15 @@ struct RootView: View {
         .onChange(of: appState.settings.selectedBudgetID) {
             transactionPresenter.reconcile(using: appState)
         }
+        .onChange(of: appState.setupPhase) { _, phase in
+            // A session teardown unmounts the adaptive shell while RootView
+            // keeps this selection. Drop it so the next budget session starts on
+            // the current tab instead of restoring the destroyed session's
+            // Settings destination.
+            if phase != .ready {
+                adaptiveSelection = nil
+            }
+        }
         .onChange(of: appState.settings.localFirstServerURLString) {
             transactionPresenter.reconcile(using: appState)
         }
