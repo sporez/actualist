@@ -245,16 +245,20 @@ extension LocalFirstActualStore {
             return result
         } catch {
             guard !error.isCancellation else { throw error }
-            try? await database.markPendingLocalSyncMessagesFailed(pending, error: error)
+            let resolvedError = await resolvedSyncFailure(
+                error,
+                serverURLString: serverURLString
+            )
+            try? await database.markPendingLocalSyncMessagesFailed(pending, error: resolvedError)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? pending.count
             recordSyncDebugEvent(
                 outcome: .failed,
                 pendingBefore: pending.count,
                 pendingAfter: remainingCount,
-                message: error.localizedDescription,
+                message: resolvedError.localizedDescription,
                 endpoint: lastSyncEndpoint
             )
-            throw error
+            throw resolvedError
         }
     }
 
@@ -322,14 +326,73 @@ extension LocalFirstActualStore {
             )
             return result
         } catch {
+            let resolvedError = await resolvedSyncFailure(
+                error,
+                serverURLString: serverURLString
+            )
             await recordSyncStatus(
                 budgetID: budgetID,
                 uploadedCount: nil,
                 appliedCount: nil,
-                error: error
+                error: resolvedError
             )
-            throw error
+            throw resolvedError
         }
+    }
+
+    /// Maps a raw sync failure onto the typed condition the UI needs. When the
+    /// server refuses a sync because this budget's encryption identity changed,
+    /// returns `LocalFirstError.budgetEncryptionChanged`; every other failure —
+    /// including an unrelated HTTP 400, a plain server-side sync reset, or a
+    /// transport error — is returned unchanged.
+    ///
+    /// Actual reports a key or group mismatch as a bare token in the 400 body.
+    /// `file-has-new-key` is unambiguous: the `keyID` Actualist sent is not the
+    /// file's registered key. `file-has-reset` only says the sync group changed,
+    /// which Actual also does for a non-encryption reset, so it is confirmed
+    /// against the live remote file metadata before being treated as an
+    /// encryption change.
+    private func resolvedSyncFailure(_ error: Error, serverURLString: String) async -> Error {
+        guard case .syncRejected(_, let reason)? = error as? ActualAPIError else {
+            return error
+        }
+        switch reason {
+        case .fileHasNewKey:
+            return LocalFirstError.budgetEncryptionChanged
+        case .fileHasReset:
+            let remoteIdentityDiffers = await remoteEncryptionIdentityDiffers(
+                serverURLString: serverURLString
+            )
+            return remoteIdentityDiffers ? LocalFirstError.budgetEncryptionChanged : error
+        case .fileOldVersion, .fileNeedsUpload, .fileKeyMismatch:
+            return error
+        }
+    }
+
+    /// `true` only when the live remote file metadata reports a different
+    /// encryption key ID than the currently opened budget. A missing token,
+    /// unknown file ID, or failed lookup is treated as "no evidence of change"
+    /// so the original server error is preserved.
+    private func remoteEncryptionIdentityDiffers(serverURLString: String) async -> Bool {
+        guard let fileID = await syncClient.configuration?.fileID else {
+            return false
+        }
+        let token = keychain.readActualSyncToken()
+        guard !token.isEmpty else {
+            return false
+        }
+        let remote: ActualSyncRemoteFile?
+        do {
+            remote = try await withConnectionFailover(serverURLString: serverURLString) { client in
+                try await client.userFileInfo(fileID: fileID, token: token)
+            }
+        } catch {
+            return false
+        }
+        guard let remote else {
+            return false
+        }
+        return remote.syncEncryptionKeyID != openedEncryptionContext?.keyID
     }
 
     func mergedTransactionIDsByAccount(

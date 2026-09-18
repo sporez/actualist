@@ -295,6 +295,8 @@ struct SettingsStatusRow: View {
             "Checking"
         case .offline:
             "Offline"
+        case .syncBlocked:
+            "Needs Attention"
         }
     }
 
@@ -306,6 +308,8 @@ struct SettingsStatusRow: View {
             ActualistTheme.warning
         case .offline:
             ActualistTheme.danger
+        case .syncBlocked:
+            ActualistTheme.warning
         }
     }
 }

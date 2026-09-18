@@ -296,6 +296,15 @@ struct FixedResponseSyncTransport: ActualSyncTransport {
     }
 }
 
+/// Fails every sync with a fixed error, for exercising sync-failure mapping.
+struct ErroringSyncTransport: ActualSyncTransport {
+    let error: ActualAPIError
+
+    func sync(data: Data, token: String) async throws -> Data {
+        throw error
+    }
+}
+
 final class PlaintextEnvelopeAuditRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recordedEvents: [PlaintextEnvelopeAuditEvent] = []

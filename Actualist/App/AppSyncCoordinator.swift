@@ -1,10 +1,31 @@
 import Foundation
 
+enum AppSyncFailureReason: Equatable, Sendable {
+    /// Transport, decoding, or other error with no more specific classification.
+    case general
+    /// The session is no longer valid; the user must sign in again.
+    case authenticationRequired
+    /// The server was reachable but refused this budget's sync (for example its
+    /// encryption changed on the server). The connection itself is healthy.
+    case budgetSyncRejected
+}
+
 enum AppSyncOperationOutcome: Equatable, Sendable {
     case succeeded
     case alreadyRequested
     case cancelledOrStale
-    case failed(message: String, requiresReauthentication: Bool)
+    case failed(message: String, reason: AppSyncFailureReason)
+}
+
+extension AppSyncFailureReason {
+    /// The connection status a failed refresh should publish. A budget-scoped
+    /// rejection means the server answered, so it must not read as offline.
+    var connectionStatus: ServerConnectionStatus {
+        switch self {
+        case .budgetSyncRejected: .syncBlocked
+        case .authenticationRequired, .general: .offline
+        }
+    }
 }
 
 struct AppSyncRefreshResult: Equatable, Sendable {
@@ -93,10 +114,23 @@ final class AppSyncCoordinator {
                 }
                 return .failed(
                     message: error.localizedDescription,
-                    requiresReauthentication: (error as? ActualAPIError)?.isAuthenticationFailure == true
+                    reason: Self.failureReason(for: error)
                 )
             }
         }
+    }
+
+    /// Classifies a sync/refresh error for the UI's connection status. Typed
+    /// domain conditions are the only errors that get a non-`.general` reason;
+    /// every other failure keeps the existing offline presentation.
+    private static func failureReason(for error: Error) -> AppSyncFailureReason {
+        if (error as? ActualAPIError)?.isAuthenticationFailure == true {
+            return .authenticationRequired
+        }
+        if (error as? LocalFirstError) == .budgetEncryptionChanged {
+            return .budgetSyncRejected
+        }
+        return .general
     }
 
     func refresh(

@@ -24,6 +24,9 @@ enum LocalFirstError: LocalizedError, Equatable {
     case invalidEncryptionPassword
     case invalidEncryptionKey
     case invalidEncryptedPayload
+    /// The server refused sync because this budget's remote encryption
+    /// identity (key ID) no longer matches the one Actualist opened with.
+    case budgetEncryptionChanged
     case unsupportedEncryptionAlgorithm(String)
     case missingImportedDatabase
     case invalidDownloadedBudget
@@ -74,6 +77,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not load this budget's encryption key."
         case .invalidEncryptedPayload:
             "Actualist could not read encrypted budget data from the server."
+        case .budgetEncryptionChanged:
+            "This budget's encryption settings changed on the server. Re-open the budget and enter its current encryption password."
         case .unsupportedEncryptionAlgorithm(let algorithm):
             "Actualist does not support this budget encryption algorithm: \(algorithm)."
         case .missingImportedDatabase:

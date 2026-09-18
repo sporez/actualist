@@ -272,6 +272,7 @@ struct SettingsView: View {
         case .online: statusWord = "Connected"
         case .connecting: statusWord = "Checking"
         case .offline: statusWord = "Offline"
+        case .syncBlocked: statusWord = "Needs Attention"
         }
 
         if let lastSyncedAt = appState.localFirstSyncStatus?.lastSyncedAt {
@@ -308,6 +309,7 @@ struct SettingsView: View {
         case .online: return ActualistTheme.positive
         case .connecting: return ActualistTheme.warning
         case .offline: return ActualistTheme.danger
+        case .syncBlocked: return ActualistTheme.warning
         }
     }
 

@@ -394,12 +394,12 @@ final class AppState {
             return true
         case .cancelledOrStale:
             return false
-        case .failed(let message, let requiresReauthentication):
+        case .failed(let message, let reason):
             if result.shouldPublish {
                 lastErrorMessage = message
-                connectionStatus = .offline
-                if requiresReauthentication {
-                    self.requiresReauthentication = true
+                connectionStatus = reason.connectionStatus
+                if reason == .authenticationRequired {
+                    requiresReauthentication = true
                 }
             }
             return false
@@ -419,7 +419,7 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    func reimportLocalFirstBudget() async {
+    func reimportLocalFirstBudget(encryptionPassword: String? = nil) async {
         guard let budget = selectedBudget else {
             return
         }
@@ -429,14 +429,19 @@ final class AppState {
         do {
             try await localFirstStore.reimportBudget(
                 budget,
-                serverURLString: settings.localFirstServerURLString
+                serverURLString: settings.localFirstServerURLString,
+                encryptionPassword: encryptionPassword
             )
             connectionStatus = .online
             lastErrorMessage = nil
             localDataRevision &+= 1
         } catch {
             lastErrorMessage = error.userFacingMessage
-            connectionStatus = localFirstStore.isOpen(budgetID: budget.syncID) ? .online : .offline
+            if (error as? LocalFirstError) == .budgetEncryptionChanged {
+                connectionStatus = .syncBlocked
+            } else {
+                connectionStatus = localFirstStore.isOpen(budgetID: budget.syncID) ? .online : .offline
+            }
         }
     }
 

@@ -291,7 +291,26 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     }
 
     private static func apiError(statusCode: Int, data: Data) -> ActualAPIError {
-        structuredAPIError(from: data, statusCode: statusCode) ?? .httpStatus(statusCode)
+        structuredAPIError(from: data, statusCode: statusCode)
+            ?? syncRejectionReason(from: data).map {
+                .syncRejected(status: statusCode, reason: $0)
+            }
+            ?? .httpStatus(statusCode)
+    }
+
+    /// Actual's sync endpoints reject a sync or upload with a bare text token
+    /// (`file-has-reset`, `file-has-new-key`, …) instead of the JSON error
+    /// envelope the account endpoints use. See `validateSyncedFile` and
+    /// `validateUploadedFile` in Actual's sync server. Only the known protocol
+    /// tokens are recognized, so unrelated text bodies keep the generic HTTP
+    /// status error.
+    private static func syncRejectionReason(from data: Data) -> ActualSyncRejectionReason? {
+        guard let body = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return ActualSyncRejectionReason(
+            rawValue: body.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 
     private static func structuredAPIError(
@@ -563,12 +582,27 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     }
 }
 
+/// The bare token Actual's sync server returns in a plain-text 400 body when it
+/// refuses a sync or upload for a specific file. Mirrors Actual's
+/// `validateSyncedFile` / `validateUploadedFile`.
+enum ActualSyncRejectionReason: String, Sendable, CaseIterable {
+    case fileOldVersion = "file-old-version"
+    case fileNeedsUpload = "file-needs-upload"
+    case fileKeyMismatch = "file-key-mismatch"
+    case fileHasReset = "file-has-reset"
+    case fileHasNewKey = "file-has-new-key"
+}
+
 enum ActualAPIError: LocalizedError {
     case invalidURL
     case invalidResponse
     case missingTransactionID
     case unsupportedAuthenticationMethod(String)
     case serverRejected(status: Int?, reason: String, details: String?)
+    /// The sync endpoint refused this file with one of Actual's protocol
+    /// tokens. Unlike `.serverRejected`, the reason is a typed protocol value
+    /// rather than a free-form server string.
+    case syncRejected(status: Int, reason: ActualSyncRejectionReason)
     case httpStatus(Int)
     case decoding
     case transport(URLError.Code?)
@@ -615,6 +649,17 @@ enum ActualAPIError: LocalizedError {
                 "Actual server error: \(reason) (\(details))."
             } else {
                 "Actual server error: \(reason)."
+            }
+        case .syncRejected(_, let reason):
+            switch reason {
+            case .fileHasNewKey, .fileKeyMismatch:
+                "This budget's encryption no longer matches the server. Re-open the budget to continue syncing."
+            case .fileHasReset:
+                "The server reset this budget's sync state. Re-import the budget to continue syncing."
+            case .fileOldVersion:
+                "This budget uses an older sync format that the server no longer accepts."
+            case .fileNeedsUpload:
+                "The server needs this budget uploaded again before it can sync."
             }
         case .httpStatus(let status):
             "The server returned HTTP \(status)."

@@ -93,6 +93,8 @@ struct ConnectionStatusDot: View {
             return Color(red: 0.96, green: 0.76, blue: 0.20)
         case .offline:
             return Color(red: 0.95, green: 0.26, blue: 0.32)
+        case .syncBlocked:
+            return Color(red: 0.96, green: 0.76, blue: 0.20)
         }
     }
 
@@ -107,6 +109,8 @@ struct ConnectionStatusDot: View {
             return "Server connecting"
         case .offline:
             return "Server offline"
+        case .syncBlocked:
+            return "Server connected; budget sync needs attention"
         }
     }
 }

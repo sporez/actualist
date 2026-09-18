@@ -288,6 +288,7 @@ enum ActualistDiagnosticReportBuilder {
         case .online: "online"
         case .connecting: "connecting"
         case .offline: "offline"
+        case .syncBlocked: "syncBlocked"
         }
     }
 

@@ -11,6 +11,8 @@ struct BudgetDataSettingsView: View {
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
     @State private var isReimportConfirmationPresented = false
+    @State private var isReimportPasswordPresented = false
+    @State private var reimportPassword = ""
     @State private var isCarryoverConfirmationPresented = false
 
     var body: some View {
@@ -226,6 +228,17 @@ struct BudgetDataSettingsView: View {
                 .presentationDetents([.medium, .large])
                 .appSwitcherPrivacyAwareDragIndicator()
         }
+        .alert("Encryption Password", isPresented: $isReimportPasswordPresented) {
+            SecureField("Encryption password", text: $reimportPassword)
+            Button("Unlock") {
+                let password = reimportPassword
+                reimportPassword = ""
+                Task { await reimport(encryptionPassword: password) }
+            }
+            Button("Cancel", role: .cancel) { reimportPassword = "" }
+        } message: {
+            Text("This budget's encryption settings changed on the server. Enter its current encryption password to download it again.")
+        }
     }
 
     private var allCategoriesCarryoverSelection: Binding<Bool> {
@@ -329,12 +342,19 @@ struct BudgetDataSettingsView: View {
         return "\(base) Warning: \(pendingCount) local \(noun) have not been confirmed by the server and will be permanently lost."
     }
 
-    private func reimport() async {
+    private func reimport(encryptionPassword: String? = nil) async {
         guard !isReimporting else {
             return
         }
         isReimporting = true
-        await appState.reimportLocalFirstBudget()
+        await appState.reimportLocalFirstBudget(encryptionPassword: encryptionPassword)
         isReimporting = false
+
+        guard appState.lastErrorMessage
+            == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription else {
+            return
+        }
+        reimportPassword = ""
+        isReimportPasswordPresented = true
     }
 }

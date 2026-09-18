@@ -19,7 +19,7 @@ struct AppSyncCoordinatorTests {
         let second = Task {
             await coordinator.refresh(budgetID: "budget", force: true) { _ in
                 Issue.record("A coalesced refresh must not start a second operation")
-                return .failed(message: "duplicate", requiresReauthentication: false)
+                return .failed(message: "duplicate", reason: .general)
             }
         }
 
@@ -94,7 +94,7 @@ struct AppSyncCoordinatorTests {
         let oldTask = Task {
             await coordinator.refresh(budgetID: "old", force: true) { _ in
                 await gate.pause()
-                return .failed(message: "old failure", requiresReauthentication: true)
+                return .failed(message: "old failure", reason: .authenticationRequired)
             }
         }
         while await gate.runCount == 0 {

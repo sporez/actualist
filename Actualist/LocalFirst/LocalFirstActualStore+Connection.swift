@@ -292,7 +292,11 @@ extension LocalFirstActualStore {
         try await pullAndReload(budgetID: budgetID, serverURLString: serverURLString)
     }
 
-    func reimportBudget(_ budget: ActualBudget, serverURLString: String) async throws {
+    func reimportBudget(
+        _ budget: ActualBudget,
+        serverURLString: String,
+        encryptionPassword: String? = nil
+    ) async throws {
         if isDemoBudgetActive {
             // Demo mode is local-only; there is no server copy to re-download.
             return
@@ -327,7 +331,7 @@ extension LocalFirstActualStore {
                 remote: remote,
                 client: client,
                 token: token,
-                password: nil
+                password: encryptionPassword
             )
             try await client.downloadUserFile(fileID: fileID, token: token, to: workspace.archiveURL)
             return (remote, encryptionContext)
