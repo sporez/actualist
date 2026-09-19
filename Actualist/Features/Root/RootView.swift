@@ -18,12 +18,7 @@ struct RootView: View {
             case .selectingBudget:
                 BudgetPickerView()
             case .restoringBudget:
-                VStack(spacing: 12) {
-                    ProgressView()
-                    Text("Opening local budget")
-                        .foregroundStyle(theme.secondaryText)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                sessionPlaceholder(theme: theme)
             case .ready:
                 if appState.isReadyForMainTabs {
                     GeometryReader { proxy in
@@ -51,9 +46,10 @@ struct RootView: View {
                                     .transition(.opacity)
                                 }
                             } else {
-                                ProgressView()
+                                sessionPlaceholder(theme: theme)
                             }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .animation(
                             reduceMotion ? nil : .easeInOut(duration: 0.22),
                             value: budgetSession?.presentedContext?.mode
@@ -126,5 +122,20 @@ struct RootView: View {
                 budgetSession = AdaptiveBudgetSession(repository: appState.localFirstStore)
             }
         }
+    }
+
+    /// The one launch placeholder. `RootView` passes three sequential gates
+    /// before the first month can draw — restoring the saved budget, creating
+    /// the adaptive session, and preparing that session's first month read — so
+    /// they must read as one continuous load. Keep this centered and framed;
+    /// an intrinsic-sized placeholder inside `GeometryReader` lands in the
+    /// top-leading corner instead.
+    private func sessionPlaceholder(theme: ActualistThemePalette) -> some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Opening local budget")
+                .foregroundStyle(theme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
