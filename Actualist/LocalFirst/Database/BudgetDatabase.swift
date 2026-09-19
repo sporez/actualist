@@ -9,10 +9,19 @@ actor BudgetDatabase {
     var localClock: HybridLogicalClock?
     var tableExistsCache: [String: Bool] = [:]
     var columnSetCache: [String: Set<String>] = [:]
+    /// Cross-launch cache authority. Every database path that changes Actual
+    /// budget data calls this synchronously before its SQLite mutation can
+    /// commit. Sync bookkeeping and open-time compatibility writes do not.
+    let beforeBudgetDataMutation: @Sendable () throws -> Void
 
     static let bankSyncStatusCompatibilityMigration = "bank-sync-status-compatibility-v1"
-    init(databaseURL: URL, localNodeID: String? = nil) throws {
+    init(
+        databaseURL: URL,
+        localNodeID: String? = nil,
+        beforeBudgetDataMutation: @escaping @Sendable () throws -> Void = {}
+    ) throws {
         self.databaseURL = databaseURL
+        self.beforeBudgetDataMutation = beforeBudgetDataMutation
         queue = try DatabaseQueue(path: databaseURL.path)
         let compatibility = LaunchSignpost.begin(LaunchStage.budgetDatabaseCompatibility)
         defer { LaunchSignpost.end(LaunchStage.budgetDatabaseCompatibility, compatibility) }

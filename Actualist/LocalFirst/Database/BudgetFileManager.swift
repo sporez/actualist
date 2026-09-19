@@ -44,6 +44,7 @@ struct BudgetFileManager {
     private let fileManager: FileManager
     private let resourceLimits: LocalFirstResourceLimits
     private let reimportFailureInjector: ((BudgetReimportCheckpoint) throws -> Void)?
+    private let launchSnapshotAccess: BudgetLaunchSnapshotFileAccess
 
     init(
         applicationSupportURL: URL? = nil,
@@ -54,6 +55,7 @@ struct BudgetFileManager {
         self.fileManager = fileManager
         self.resourceLimits = resourceLimits
         self.reimportFailureInjector = reimportFailureInjector
+        launchSnapshotAccess = BudgetLaunchSnapshotFileAccess(fileManager: fileManager)
         self.applicationSupportURL = applicationSupportURL
             ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
                 .appending(path: "Actualist", directoryHint: .isDirectory)
@@ -75,6 +77,16 @@ struct BudgetFileManager {
     func metadataURL(fileID: String) throws -> URL {
         try containedURL(
             budgetDirectory(fileID: fileID).appending(path: "metadata.json")
+        )
+    }
+
+    func launchSnapshotFiles(fileID: String) throws -> BudgetLaunchSnapshotFiles {
+        let directory = try budgetDirectory(fileID: fileID)
+        return BudgetLaunchSnapshotFiles(
+            localFileID: fileID,
+            revisionURL: try containedURL(directory.appending(path: "launch-revision.json")),
+            snapshotURL: try containedURL(directory.appending(path: "launch-snapshot.json")),
+            access: launchSnapshotAccess
         )
     }
 
@@ -244,6 +256,11 @@ struct BudgetFileManager {
             )
             return fileManager.fileExists(atPath: sidecar.path) ? sidecar : nil
         })
+        let launchFiles = try launchSnapshotFiles(fileID: fileID)
+        for sidecar in [launchFiles.revisionURL, launchFiles.snapshotURL]
+        where fileManager.fileExists(atPath: sidecar.path) {
+            artifacts.append(sidecar)
+        }
         return artifacts
     }
 

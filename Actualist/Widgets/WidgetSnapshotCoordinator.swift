@@ -15,6 +15,28 @@ struct WidgetSnapshotPublicationGeneration {
     }
 }
 
+struct WidgetFinancialPublicationGate {
+    private var generation = 0
+    private(set) var activeGeneration: Int?
+
+    var isActive: Bool { activeGeneration != nil }
+
+    mutating func begin() -> Int {
+        if let activeGeneration { return activeGeneration }
+        generation &+= 1
+        activeGeneration = generation
+        return generation
+    }
+
+    mutating func end() {
+        activeGeneration = nil
+    }
+
+    func accepts(_ candidate: Int) -> Bool {
+        activeGeneration == candidate
+    }
+}
+
 /// Publishes a current-budget display snapshot into the App Group container
 /// so widget extensions can render without opening SQLite.
 @MainActor
@@ -24,6 +46,7 @@ final class WidgetSnapshotCoordinator {
     private weak var appState: AppState?
     private var snapshotStore: WidgetSnapshotStore
     private var isArmed = false
+    private var financialPublicationGate = WidgetFinancialPublicationGate()
     private var publicationGeneration = WidgetSnapshotPublicationGeneration()
     private var publishTask: Task<Void, Never>?
     private let themeStore: WidgetThemeStore
@@ -47,7 +70,6 @@ final class WidgetSnapshotCoordinator {
         }
         isArmed = true
         armTheme()
-        arm()
         refresh()
     }
 
@@ -63,24 +85,40 @@ final class WidgetSnapshotCoordinator {
         }
     }
 
-    private func arm() {
-        guard let appState else {
-            return
-        }
+    private func armFinancialObservation(generation: Int) {
+        guard financialPublicationGate.accepts(generation), let appState else { return }
         withObservationTracking {
-            _ = appState.setupPhase
             _ = appState.settings.selectedBudgetID
             _ = appState.settings.selectedBudgetName
             _ = appState.settings.randomizedDisplayValuesEnabled
             _ = appState.localDataRevision
-            _ = appState.localFirstStore.openedBudgetID
-            _ = appState.localFirstStore.loadedBudgetMonthsByBudget
         } onChange: { [weak self] in
-            Task { @MainActor in
-                self?.refresh()
-                self?.arm()
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.financialPublicationGate.accepts(generation) else { return }
+                self.refresh()
+                self.armFinancialObservation(generation: generation)
             }
         }
+    }
+
+    /// Widget finance reads stay dormant until the Budget host reports its first
+    /// frame. This prevents setup observation from competing with launch seeding.
+    func beginFinancialPublication() {
+        let wasActive = financialPublicationGate.isActive
+        let generation = financialPublicationGate.begin()
+        if !wasActive {
+            armFinancialObservation(generation: generation)
+        }
+        refresh()
+    }
+
+    func endFinancialPublication() {
+        financialPublicationGate.end()
+        _ = publicationGeneration.begin()
+        publishTask?.cancel()
+        publishTask = nil
+        refresh()
     }
 
     func refresh() {
@@ -107,7 +145,9 @@ final class WidgetSnapshotCoordinator {
            previous.budgetID != budgetID || previous.privacyEnabled != privacyEnabled {
             replaceSnapshot(nil)
         }
-        guard appState.localFirstStore.isOpen(budgetID: budgetID) else { return }
+        guard financialPublicationGate.isActive,
+              appState.setupPhase == .ready,
+              appState.localFirstStore.isOpen(budgetID: budgetID) else { return }
         do {
             let source = try await appState.localFirstStore.fetchWidgetSource(budgetID: budgetID)
             guard !Task.isCancelled, publicationGeneration.isCurrent(generation),

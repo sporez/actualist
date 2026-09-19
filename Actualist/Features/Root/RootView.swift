@@ -15,6 +15,7 @@ struct RootView: View {
     @State private var adaptiveSelection: AdaptiveRootDestination? = .budget
     @State private var isLaunchPlaceholderRevealed = false
     @State private var launchPlaceholderRevealTask: Task<Void, Never>?
+    @State private var hasPresentedInitialBudget = false
 
     var body: some View {
         let theme = appState.settings.theme.palette
@@ -96,8 +97,9 @@ struct RootView: View {
                         MainTabView(budgetViewModel: budgetSession.compactModel)
                             .environment(\.budgetRootWidth, proxy.size.width)
                             .environment(\.budgetSidebarLayoutActive, false)
-                            .transition(.opacity)
+                            .transition(hasPresentedInitialBudget ? .opacity : .identity)
                             .onAppear {
+                                hasPresentedInitialBudget = true
                                 LaunchSignpost.event(LaunchStage.compactPresentation)
                                 if let budgetID = context.budgetID {
                                     appState.budgetDidPresent(budgetID)
@@ -110,8 +112,9 @@ struct RootView: View {
                             budgetViewModel: budgetSession.compactModel,
                             rootWidth: proxy.size.width
                         )
-                        .transition(.opacity)
+                        .transition(hasPresentedInitialBudget ? .opacity : .identity)
                         .onAppear {
+                            hasPresentedInitialBudget = true
                             LaunchSignpost.event(LaunchStage.sidebarPresentation)
                             if let budgetID = context.budgetID {
                                 appState.budgetDidPresent(budgetID)
@@ -124,7 +127,7 @@ struct RootView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(
-                reduceMotion ? nil : .easeInOut(duration: 0.22),
+                hasPresentedInitialBudget && !reduceMotion ? .easeInOut(duration: 0.22) : nil,
                 value: budgetSession?.presentedContext?.mode
             )
             .onChange(of: mode) { _, newMode in

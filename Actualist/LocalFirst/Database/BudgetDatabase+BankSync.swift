@@ -138,6 +138,7 @@ extension BudgetDatabase {
                 )
             }
 
+            try beforeBudgetDataMutation()
             let id = makeID()
             try db.execute(
                 sql: "INSERT INTO banks (id, bank_id, name) VALUES (?, ?, ?)",

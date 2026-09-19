@@ -37,11 +37,17 @@ extension BudgetDatabase {
             var appliedCount = 0
             let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
             var insertedRows = Set<String>()
+            var didAdvanceLaunchRevision = false
             var insertedTransactionIDs = Set<String>()
 
             for message in sortedMessages {
                 if try hasSameOrNewerMessage(message, db: db) {
                     continue
+                }
+
+                if !didAdvanceLaunchRevision {
+                    try beforeBudgetDataMutation()
+                    didAdvanceLaunchRevision = true
                 }
 
                 guard try tableExists(message.dataset, db: db) else {
@@ -183,6 +189,7 @@ extension BudgetDatabase {
         guard var clock = localClock else {
             throw LocalFirstError.invalidLocalWrite("local clock is not configured")
         }
+        try beforeBudgetDataMutation()
 
         let appliedCount: Int
         do {
@@ -316,6 +323,7 @@ extension BudgetDatabase {
         guard !messages.isEmpty else {
             return 0
         }
+        try beforeBudgetDataMutation()
 
         return try queue.write { db in
             guard try tableExists("messages_crdt", db: db) else {

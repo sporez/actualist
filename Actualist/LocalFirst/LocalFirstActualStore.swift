@@ -19,6 +19,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var openedBudgetID: String?
     var openedGroupID: String?
     var database: BudgetDatabase?
+    var launchSnapshotFiles: BudgetLaunchSnapshotFiles?
+    var launchSnapshotContext: BudgetLaunchSnapshotContext?
+    var launchSnapshotWrittenRevision: UInt64?
     var openedNodeID: String?
     var openedServerURLString: String? {
         didSet { refreshEndpointHealthDisplay() }
@@ -202,7 +205,10 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         openedServerURLString = nil
         openedEncryptionContext = nil
         database = nil
+        launchSnapshotFiles = nil
+        launchSnapshotContext = nil
         accountsByBudget = [:]
+        launchSnapshotWrittenRevision = nil
         accountGroupsByBudget = [:]
         accountGroupManagementEnabledByBudget = [:]
         payeesByBudget = [:]

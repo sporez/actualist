@@ -525,6 +525,7 @@ extension BudgetDatabase {
                 guard !drafts.isEmpty else {
                     throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
                 }
+                try beforeBudgetDataMutation()
                 let applied = try applyCommittedDrafts(
                     drafts,
                     clock: &clock,

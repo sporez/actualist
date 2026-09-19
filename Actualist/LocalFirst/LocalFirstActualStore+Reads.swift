@@ -56,6 +56,7 @@ extension LocalFirstActualStore {
         while true {
             try Task.checkCancellation()
             let generation = budgetReadGeneration
+            let launchRevision = try? launchSnapshotFiles?.prepareRevision()
             let snapshot = try await database.fetchBudgetSnapshot(month: monthID, now: now)
             let month = snapshot.month
             let isTracking = month.trackingSummary != nil
@@ -81,6 +82,9 @@ extension LocalFirstActualStore {
             // Another same-budget write may finish while alerts are read. Retry
             // its snapshot rather than report a committed write as cancelled.
             guard generation == budgetReadGeneration, currentIdentity == snapshot.modeIdentity else { continue }
+            if let launchRevision {
+                persistBudgetLaunchSnapshotIfCanonical(loaded, revision: launchRevision)
+            }
             return loaded
         }
     }

@@ -433,10 +433,16 @@ extension LocalFirstActualStore {
             try fileManager.hardenCachedBudget(fileID: fileID)
         }
         let encryptionContext = try providedEncryptionContext ?? encryptionContext(metadata: metadata)
+        let launchFiles = try fileManager.launchSnapshotFiles(fileID: fileID)
         let database = try LaunchSignpost.measureSync(LaunchStage.budgetDatabaseInit) {
             try BudgetDatabase(
                 databaseURL: fileManager.databaseURL(fileID: fileID),
-                localNodeID: metadata.nodeID
+                localNodeID: metadata.nodeID,
+                beforeBudgetDataMutation: {
+                    _ = try LaunchSignpost.measureSync(LaunchStage.launchSnapshotRevisionAdvance) {
+                        try launchFiles.advanceRevision()
+                    }
+                }
             )
         }
         // Opening SQLite creates sidecar files, so the excluded-from-backup and
@@ -445,6 +451,7 @@ extension LocalFirstActualStore {
             try fileManager.hardenCachedBudget(fileID: fileID)
         }
         self.database = database
+        launchSnapshotFiles = launchFiles
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID
         openedNodeID = metadata.nodeID
@@ -472,12 +479,16 @@ extension LocalFirstActualStore {
             )
         }
 
-        // Seed the first Budget frame before foreground sync begins. This snapshot
-        // is what the presentation models consume; it must not be recalculated.
-        _ = try? await LaunchSignpost.measure(LaunchStage.budgetSeedMonth) {
-            try await currentBudgetMonth(
+        // Seed the first Budget frame before foreground sync begins. A valid
+        // materialized projection is authoritative for its unchanged revision;
+        // only a miss runs the existing live calculation.
+        await LaunchSignpost.measure(LaunchStage.budgetSeedMonth) {
+            await seedBudgetForLaunch(
+                database: database,
+                files: launchFiles,
+                metadata: metadata,
                 budgetID: budgetID,
-                preferredMonth: YearMonth(date: Date()).rawValue
+                preferredCalendarMonth: YearMonth(date: Date()).rawValue
             )
         }
     }

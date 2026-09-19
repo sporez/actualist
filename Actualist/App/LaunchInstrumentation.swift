@@ -77,6 +77,20 @@ enum LaunchStage {
     static let budgetFileHardening: StaticString = "budgetFileHardening"
     /// `BudgetDatabase` construction, including compatibility preparation.
     static let budgetDatabaseInit: StaticString = "budgetDatabaseInit"
+    /// Persistent per-budget launch generation read.
+    static let launchSnapshotRevisionRead: StaticString = "launchSnapshotRevisionRead"
+    /// Versioned first-frame sidecar read and decode.
+    static let launchSnapshotRead: StaticString = "launchSnapshotRead"
+    /// Valid sidecar accepted as the materialized first Budget projection.
+    static let launchSnapshotHit: StaticString = "launchSnapshotHit"
+    /// Missing, corrupt, stale, or incompatible sidecar rejected.
+    static let launchSnapshotMiss: StaticString = "launchSnapshotMiss"
+    /// Atomic first-frame sidecar replacement.
+    static let launchSnapshotWrite: StaticString = "launchSnapshotWrite"
+    /// Persistent generation advanced before a budget-data write.
+    static let launchSnapshotRevisionAdvance: StaticString = "launchSnapshotRevisionAdvance"
+    /// Authoritative SQLite projection required after a sidecar miss.
+    static let launchLiveProjectionFallback: StaticString = "launchLiveProjectionFallback"
     /// One-time legacy schema/CRDT compatibility work inside the open.
     static let budgetDatabaseCompatibility: StaticString = "budgetDatabaseCompatibility"
     /// Available-month discovery during the initial snapshot.

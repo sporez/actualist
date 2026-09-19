@@ -340,11 +340,13 @@ final class AppState {
     @discardableResult
     func budgetDidPresent(_ budgetID: String?) -> Task<Void, Never>? {
         guard let budgetID else {
+            WidgetSnapshotCoordinator.shared.endFinancialPublication()
             launchWarmupCoordinator.endPresentation()
             return nil
         }
         guard setupPhase == .ready, settings.selectedBudgetID == budgetID,
               localFirstStore.isOpen(budgetID: budgetID) else { return nil }
+        WidgetSnapshotCoordinator.shared.beginFinancialPublication()
         return launchWarmupCoordinator.present(budgetID: budgetID, appState: self)
     }
 
