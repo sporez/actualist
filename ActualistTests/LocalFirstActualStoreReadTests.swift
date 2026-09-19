@@ -417,12 +417,16 @@ extension LocalFirstActualStoreTests {
         )
 
         let july = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
-        let julyCached = try #require(
-            bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        #expect(bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07") == nil)
+        let julyCached = try await bundle.store.uncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
         )
         let june = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-06")
-        let juneCached = try #require(
-            bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-06")
+        #expect(bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-06") == nil)
+        let juneCached = try await bundle.store.uncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-06"
         )
 
         let reviewableIDs: Set<String> = [
@@ -436,7 +440,7 @@ extension LocalFirstActualStoreTests {
         #expect(Set(juneCached.transactions.compactMap(\.id)) == reviewableIDs)
     }
 
-    @Test func budgetMonthRetainsUncategorizedAlertDrillDownSnapshot() async throws {
+    @Test func budgetMonthKeepsDrillDownLazyUntilRequested() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: """
                 UPDATE transactions
@@ -449,17 +453,24 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             selectedMonth: "2026-07"
         )
-        let cached = try #require(
-            bundle.store.cachedUncategorizedTransactions(
-                budgetID: "group-1",
-                month: "2026-07"
-            )
+        #expect(loaded.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 1)
+        #expect(bundle.store.cachedUncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
+        ) == nil)
+
+        let requested = try await bundle.store.uncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
         )
 
-        #expect(loaded.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 1)
-        #expect(cached.transactions.compactMap(\.id) == ["txn"])
-        #expect(cached.payeeNames["coffee"] == "Coffee Shop")
-        #expect(cached.categoryGroups.flatMap(\.options).contains { $0.id == "groceries" })
+        #expect(requested.transactions.compactMap(\.id) == ["txn"])
+        #expect(requested.payeeNames["coffee"] == "Coffee Shop")
+        #expect(requested.categoryGroups.flatMap(\.options).contains { $0.id == "groceries" })
+        #expect(bundle.store.cachedUncategorizedTransactions(
+            budgetID: "group-1",
+            month: "2026-07"
+        ) == requested)
     }
 
     @Test func openedStoreRejectsMismatchedBudgetReads() async throws {

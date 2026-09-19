@@ -2,7 +2,21 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
+    /// One-time migration name for the account-group compatibility replay below.
+    static let accountGroupCompatibilityMigration = "account-group-compatibility-v1"
+
     // Old imports may have retained account group CRDT without the physical table/column.
+    //
+    // The physical schema is ensured on every open (cheap, and required before any
+    // read of `accounts`/`account_groups`). The historical `messages_crdt` replay
+    // runs once per file: it exists to materialize CRDT that predates the physical
+    // columns, and later sync writes those columns directly.
+    //
+    // Audit of the sibling preparations, which need no watermark:
+    // `prepareBankSyncStatusCompatibility` already returns early once
+    // `accounts.bank_sync_status` exists; `prepareBankSyncSchemaCompatibility`
+    // and `prepareBudgetIdentity` are DDL-only and must stay unconditional so
+    // local writes keep validating on older imports.
     static func prepareAccountGroupCompatibility(in queue: DatabaseQueue) throws {
         try queue.write { db in
             let accountTableExists = try Bool.fetchOne(
@@ -39,6 +53,10 @@ extension BudgetDatabase {
                 )
             }
 
+            guard !(try localMigrationApplied(accountGroupCompatibilityMigration, in: db)) else {
+                return
+            }
+
             let messagesTableExists = try Bool.fetchOne(
                 db,
                 sql: """
@@ -49,6 +67,7 @@ extension BudgetDatabase {
                     """
             ) ?? false
             guard messagesTableExists else {
+                try recordLocalMigration(accountGroupCompatibilityMigration, in: db)
                 return
             }
 
@@ -118,6 +137,8 @@ extension BudgetDatabase {
                     db: db
                 )
             }
+
+            try recordLocalMigration(accountGroupCompatibilityMigration, in: db)
         }
     }
 

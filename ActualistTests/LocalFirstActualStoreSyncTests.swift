@@ -308,6 +308,8 @@ extension LocalFirstActualStoreTests {
 
         bundle.store.reset()
         #expect(try await bundle.store.openCachedBudget(bundle.budget))
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastSyncedAt == nil)
+        await bundle.store.warmLaunchCaches(budgetID: "group-1")
 
         let restored = try #require(bundle.store.syncStatus(budgetID: "group-1"))
         let restoredLastSyncedAt = try #require(restored.lastSyncedAt)

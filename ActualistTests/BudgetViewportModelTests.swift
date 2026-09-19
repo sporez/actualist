@@ -8,6 +8,54 @@ struct BudgetViewportModelTests {
         #expect(BudgetViewportModel.monthID("2027-01", offsetBy: -1) == "2026-12")
     }
 
+    @Test func seededAnchorPresentsWithoutReadingItAgain() async throws {
+        let repository = BudgetViewportTestRepository()
+        let anchor = BudgetViewportFixtures.loaded("2026-07")
+        await repository.set(anchor)
+        let model = BudgetViewportModel(repository: repository)
+        let compact = BudgetViewModel(initialMonth: anchor, initialBudgetID: "budget")
+
+        await model.adoptCompactState(compact, budgetID: "budget", seed: anchor)
+
+        #expect(model.anchorMonth == "2026-07")
+        #expect(model.snapshot(for: "2026-07") == anchor)
+        #expect(await repository.budgetMonthReadCount(for: "2026-07") == 0)
+    }
+
+    @Test func activatingAPresentedWorkspaceHydratesOnlyTheMissingMonths() async throws {
+        let repository = BudgetViewportTestRepository()
+        let anchor = BudgetViewportFixtures.loaded("2026-07")
+        await repository.set(anchor)
+        await repository.set(BudgetViewportFixtures.loaded("2026-08"))
+        await repository.set(BudgetViewportFixtures.loaded("2026-09"))
+        let model = BudgetViewportModel(repository: repository)
+        let compact = BudgetViewModel(initialMonth: anchor, initialBudgetID: "budget")
+        await model.adoptCompactState(compact, budgetID: "budget", seed: anchor)
+
+        await model.activate(budgetID: "budget", compactModel: compact, monthCount: 3)
+
+        #expect(model.visibleMonths == ["2026-07", "2026-08", "2026-09"])
+        #expect(model.snapshot(for: "2026-09") != nil)
+        #expect(await repository.budgetMonthReadCount(for: "2026-07") == 0)
+        #expect(await repository.budgetMonthReadCount(for: "2026-08") == 1)
+        #expect(await repository.budgetMonthReadCount(for: "2026-09") == 1)
+    }
+
+    @Test func activatingAnUnseededWorkspaceReadsTheAnchorNormally() async throws {
+        let repository = BudgetViewportTestRepository()
+        let anchor = BudgetViewportFixtures.loaded("2026-07")
+        await repository.set(anchor)
+        await repository.set(BudgetViewportFixtures.loaded("2026-08"))
+        let model = BudgetViewportModel(repository: repository)
+        let compact = BudgetViewModel(initialMonth: anchor, initialBudgetID: "budget")
+
+        await model.activate(budgetID: "budget", compactModel: compact, monthCount: 2)
+
+        #expect(model.snapshot(for: "2026-07") == anchor)
+        #expect(model.snapshot(for: "2026-08") != nil)
+        #expect(await repository.budgetMonthReadCount(for: "2026-07") == 1)
+    }
+
     @Test func viewportCountIsClampedAndVisibleMonthsStayAnchored() {
         let model = BudgetViewportModel(repository: ViewportTestRepository())
         model.setResolvedMonthCount(9)

@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// Delay before the shared launch placeholder draws. Long enough that a cached
+/// launch goes straight from the system launch screen into the Budget, short
+/// enough that a genuinely slow open — first import, migration, key access, old
+/// hardware — still explains itself instead of showing an empty screen.
+private let launchPlaceholderRevealDelay: Duration = .milliseconds(250)
+
 struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -7,6 +13,8 @@ struct RootView: View {
     @State private var budgetSession: AdaptiveBudgetSession?
     @State private var transactionPresenter = RootTransactionEditorPresenter()
     @State private var adaptiveSelection: AdaptiveRootDestination? = .budget
+    @State private var isLaunchPlaceholderRevealed = false
+    @State private var launchPlaceholderRevealTask: Task<Void, Never>?
 
     var body: some View {
         let theme = appState.settings.theme.palette
@@ -21,72 +29,7 @@ struct RootView: View {
                 sessionPlaceholder(theme: theme)
             case .ready:
                 if appState.isReadyForMainTabs {
-                    GeometryReader { proxy in
-                        let mode = AdaptiveRootPresentationMode.mode(
-                            for: proxy.size.width,
-                            dynamicTypeScale: dynamicTypeSize.budgetLayoutScale
-                        )
-                        ZStack {
-                            if let budgetSession,
-                               let context = budgetSession.presentedContext,
-                               context.budgetID == appState.settings.selectedBudgetID {
-                                switch context.mode {
-                                case .compact:
-                                    MainTabView(budgetViewModel: budgetSession.compactModel)
-                                        .environment(\.budgetRootWidth, proxy.size.width)
-                                        .environment(\.budgetSidebarLayoutActive, false)
-                                        .transition(.opacity)
-                                case .sidebar:
-                                    AdaptiveRootShell(
-                                        selection: $adaptiveSelection,
-                                        viewport: budgetSession.viewport,
-                                        budgetViewModel: budgetSession.compactModel,
-                                        rootWidth: proxy.size.width
-                                    )
-                                    .transition(.opacity)
-                                }
-                            } else {
-                                sessionPlaceholder(theme: theme)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .animation(
-                            reduceMotion ? nil : .easeInOut(duration: 0.22),
-                            value: budgetSession?.presentedContext?.mode
-                        )
-                        .onChange(of: mode) { _, newMode in
-                            if newMode == .compact {
-                                if let adaptiveSelection, adaptiveSelection.isAccount {
-                                    AdaptiveRootRouting.activate(adaptiveSelection, using: appState)
-                                }
-                                adaptiveSelection = AdaptiveRootDestination(tab: appState.selectedTab)
-                            }
-                            budgetSession?.update(
-                                mode: newMode,
-                                budgetID: appState.settings.selectedBudgetID,
-                                appState: appState
-                            )
-                        }
-                        .onChange(of: budgetSession != nil) { _, ready in
-                            guard ready else { return }
-                            budgetSession?.update(
-                                mode: mode,
-                                budgetID: appState.settings.selectedBudgetID,
-                                appState: appState
-                            )
-                        }
-                        .task(id: "\(appState.settings.selectedBudgetID ?? "none")-\(mode)") {
-                            budgetSession?.update(
-                                mode: mode,
-                                budgetID: appState.settings.selectedBudgetID,
-                                appState: appState
-                            )
-                        }
-                    }
-                    .sheet(item: $transactionPresenter.presentation) { presentation in
-                        RootTransactionEditorContent(presentation: presentation)
-                            .appSwitcherPrivacyProtected(using: appState)
-                    }
+                    adaptiveShell(theme: theme)
                 } else if appState.hasSyncCredentials {
                     BudgetPickerView()
                 } else {
@@ -100,19 +43,16 @@ struct RootView: View {
         .environment(\.actualistDensity, appState.settings.displayDensity)
         .environment(transactionPresenter)
         .onChange(of: appState.settings.selectedBudgetID) {
-            transactionPresenter.reconcile(using: appState)
+            reconcileTransactionPresenter()
+        }
+        .onChange(of: isLaunchGatePending, initial: true) { _, isPending in
+            updateLaunchPlaceholderReveal(isPending)
         }
         .onChange(of: appState.setupPhase) { _, phase in
-            // A session teardown unmounts the adaptive shell while RootView
-            // keeps this selection. Drop it so the next budget session starts on
-            // the current tab instead of restoring the destroyed session's
-            // Settings destination.
-            if phase != .ready {
-                adaptiveSelection = nil
-            }
+            handleSetupPhaseChange(phase)
         }
         .onChange(of: appState.settings.localFirstServerURLString) {
-            transactionPresenter.reconcile(using: appState)
+            reconcileTransactionPresenter()
         }
         .onChange(of: transactionPresenter.presentation?.id) { _, id in
             if id == nil { transactionPresenter.consumeNewTransaction(using: appState) }
@@ -124,17 +64,150 @@ struct RootView: View {
         }
     }
 
-    /// The one launch placeholder. `RootView` passes three sequential gates
-    /// before the first month can draw — restoring the saved budget, creating
-    /// the adaptive session, and preparing that session's first month read — so
-    /// they must read as one continuous load. Keep this centered and framed;
-    /// an intrinsic-sized placeholder inside `GeometryReader` lands in the
-    /// top-leading corner instead.
+    private func reconcileTransactionPresenter() {
+        transactionPresenter.reconcile(using: appState)
+    }
+
+    /// A session teardown unmounts the adaptive shell while RootView keeps this
+    /// selection. Drop it so the next budget session starts on the current tab
+    /// instead of restoring the destroyed session's Settings destination, and
+    /// tell the app-session coordinator that no Budget is currently presented.
+    private func handleSetupPhaseChange(_ phase: SetupPhase) {
+        guard phase != .ready else { return }
+        adaptiveSelection = nil
+        appState.budgetDidPresent(nil)
+    }
+
+    /// The presented window: either the compact tab shell or the wide workspace,
+    /// for the session's current context. Extracted from `body` so the launch
+    /// gates above stay cheap for the type checker.
+    private func adaptiveShell(theme: ActualistThemePalette) -> some View {
+        GeometryReader { proxy in
+            let mode = AdaptiveRootPresentationMode.mode(
+                for: proxy.size.width,
+                dynamicTypeScale: dynamicTypeSize.budgetLayoutScale
+            )
+            ZStack {
+                if let budgetSession,
+                   let context = budgetSession.presentedContext,
+                   context.budgetID == appState.settings.selectedBudgetID {
+                    switch context.mode {
+                    case .compact:
+                        MainTabView(budgetViewModel: budgetSession.compactModel)
+                            .environment(\.budgetRootWidth, proxy.size.width)
+                            .environment(\.budgetSidebarLayoutActive, false)
+                            .transition(.opacity)
+                            .onAppear {
+                                LaunchSignpost.event(LaunchStage.compactPresentation)
+                                if let budgetID = context.budgetID {
+                                    appState.budgetDidPresent(budgetID)
+                                }
+                            }
+                    case .sidebar:
+                        AdaptiveRootShell(
+                            selection: $adaptiveSelection,
+                            viewport: budgetSession.viewport,
+                            budgetViewModel: budgetSession.compactModel,
+                            rootWidth: proxy.size.width
+                        )
+                        .transition(.opacity)
+                        .onAppear {
+                            LaunchSignpost.event(LaunchStage.sidebarPresentation)
+                            if let budgetID = context.budgetID {
+                                appState.budgetDidPresent(budgetID)
+                            }
+                        }
+                    }
+                } else {
+                    sessionPlaceholder(theme: theme)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.22),
+                value: budgetSession?.presentedContext?.mode
+            )
+            .onChange(of: mode) { _, newMode in
+                applyPresentationMode(newMode)
+            }
+            .onChange(of: budgetSession != nil) { _, ready in
+                guard ready else { return }
+                requestSessionUpdate(mode: mode)
+            }
+            .task(id: "\(appState.settings.selectedBudgetID ?? "none")-\(mode)") {
+                requestSessionUpdate(mode: mode)
+            }
+        }
+        .sheet(item: $transactionPresenter.presentation) { presentation in
+            RootTransactionEditorContent(presentation: presentation)
+                .appSwitcherPrivacyProtected(using: appState)
+        }
+    }
+
+    private func requestSessionUpdate(mode: AdaptiveRootPresentationMode) {
+        budgetSession?.update(
+            mode: mode,
+            budgetID: appState.settings.selectedBudgetID,
+            appState: appState
+        )
+    }
+
+    private func applyPresentationMode(_ mode: AdaptiveRootPresentationMode) {
+        if mode == .compact {
+            if let adaptiveSelection, adaptiveSelection.isAccount {
+                AdaptiveRootRouting.activate(adaptiveSelection, using: appState)
+            }
+            adaptiveSelection = AdaptiveRootDestination(tab: appState.selectedTab)
+        }
+        requestSessionUpdate(mode: mode)
+    }
+
+    /// `true` while either launch gate is unresolved: restoring the saved budget,
+    /// then preparing the session's first presentable month. Both draw the same
+    /// placeholder.
+    private var isLaunchGatePending: Bool {
+        switch appState.setupPhase {
+        case .restoringBudget:
+            return true
+        case .ready:
+            guard appState.isReadyForMainTabs else { return false }
+            return budgetSession?.presentedContext?.budgetID != appState.settings.selectedBudgetID
+        case .needsConnection, .selectingBudget:
+            return false
+        }
+    }
+
+    /// Runs the reveal timer once per unresolved gate and cancels it the moment
+    /// the Budget is presentable, so a late timer can never draw a loader over it.
+    private func updateLaunchPlaceholderReveal(_ isPending: Bool) {
+        guard isPending else {
+            launchPlaceholderRevealTask?.cancel()
+            launchPlaceholderRevealTask = nil
+            isLaunchPlaceholderRevealed = false
+            return
+        }
+        guard launchPlaceholderRevealTask == nil else { return }
+        launchPlaceholderRevealTask = Task {
+            try? await Task.sleep(for: launchPlaceholderRevealDelay)
+            guard !Task.isCancelled else { return }
+            isLaunchPlaceholderRevealed = true
+        }
+    }
+
+    /// The one launch placeholder, shared by both sequential gates — restoring
+    /// the saved budget and creating/preparing the adaptive session — so they
+    /// read as one continuous load instead of two loaders. Keep this centered and
+    /// framed; an intrinsic-sized placeholder inside `GeometryReader` lands in
+    /// the top-leading corner instead. It stays invisible for the first
+    /// `launchPlaceholderRevealDelay` so a normal cached launch transitions from
+    /// the system launch experience straight into the Budget.
     private func sessionPlaceholder(theme: ActualistThemePalette) -> some View {
         VStack(spacing: 12) {
-            ProgressView()
-            Text("Opening local budget")
-                .foregroundStyle(theme.secondaryText)
+            if isLaunchPlaceholderRevealed {
+                ProgressView()
+                Text("Opening local budget")
+                    .foregroundStyle(theme.secondaryText)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

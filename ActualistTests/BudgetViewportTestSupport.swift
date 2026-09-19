@@ -13,6 +13,13 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     var assignmentBlocked = false
     var pendingAssignments: [CheckedContinuation<Void, Never>] = []
     private var assignmentSignals: [CheckedContinuation<Void, Never>] = []
+    private var budgetMonthReads: [String: Int] = [:]
+    private(set) var currentMonthReads = 0
+
+    /// How many times a month was read from the repository. Used to prove the
+    /// launch path consumes the restored snapshot instead of reading it again.
+    func budgetMonthReadCount(for month: String) -> Int { budgetMonthReads[month, default: 0] }
+    func currentBudgetMonthReadCount() -> Int { currentMonthReads }
 
     func setModeIdentity(_ identity: BudgetModeIdentity?) { currentModeIdentity = identity }
     func budgetModeIdentity(budgetID: String) -> BudgetModeIdentity? { currentModeIdentity }
@@ -47,11 +54,13 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     }
 
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth {
+        currentMonthReads += 1
         if let currentReadError { throw currentReadError }
         return try await budgetMonth(budgetID: budgetID, selectedMonth: preferredMonth)
     }
 
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth {
+        budgetMonthReads[selectedMonth, default: 0] += 1
         if blockedMonths.contains(selectedMonth) {
             blockedSignals.removeValue(forKey: selectedMonth)?.forEach { $0.resume() }
             await withCheckedContinuation { continuation in

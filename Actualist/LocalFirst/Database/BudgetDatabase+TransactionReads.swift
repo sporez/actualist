@@ -154,48 +154,42 @@ extension BudgetDatabase {
             guard try tableExists("transactions", db: db) else {
                 return []
             }
-
-            let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
-            let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-            let joins = try transactionReadJoins(db: db, split: split, includeNames: true)
-
-            var extraJoin = ""
-            var conditions: [String] = [split.liveEffectivePredicate()]
-            conditions.append("(\(joins.mappedCategory) IS NULL OR \(joins.mappedCategory) = '')")
-
-            if try tableExists("accounts", db: db) {
-                extraJoin = "LEFT JOIN accounts src ON src.id = \(split.qualifiedAccount)"
-                conditions.append("IFNULL(src.offbudget, 0) = 0")
-            }
-
-            if try tableExists("payees", db: db) {
-                let payeeColumns = try columnSet(for: "payees", db: db)
-                if payeeColumns.contains("transfer_acct"), try tableExists("accounts", db: db) {
-                    conditions.append(
-                        "(py.transfer_acct IS NULL OR py.transfer_acct = '' OR IFNULL(pax.offbudget, 0) = 1)"
-                    )
-                }
-            }
-
-            let uncategorizedJoins = TransactionReadJoins(
-                sql: [joins.sql, extraJoin].filter { !$0.isEmpty }.joined(separator: "\n"),
-                mappedPayee: joins.mappedPayee,
-                mappedCategory: joins.mappedCategory,
-                payeeNameSelect: joins.payeeNameSelect,
-                categoryNameSelect: joins.categoryNameSelect
-            )
+            let context = try uncategorizedReadContext(db: db)
             return try fetchFlatTransactionPage(
                 db: db,
-                split: split,
-                joins: uncategorizedJoins,
-                normalizedDate: normalizedDate,
+                split: context.split,
+                joins: context.joins,
+                normalizedDate: context.normalizedDate,
                 mode: .inline,
-                conditions: conditions,
+                conditions: context.conditions,
                 arguments: [],
                 rowLimit: nil,
                 rowOffset: 0
             ).transactions
+        }
+    }
+
+    /// Count used by the first Budget frame. Full transaction/name/category
+    /// models remain lazy until the user opens the Uncategorized sheet.
+    func fetchUncategorizedTransactionCount() throws -> Int {
+        try queue.read { db in
+            guard try tableExists("transactions", db: db) else {
+                return 0
+            }
+            let context = try uncategorizedReadContext(db: db)
+            let conditions = context.conditions + [
+                context.split.splitModePredicate(.inline),
+            ]
+            return try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*)
+                    FROM transactions t
+                    \(context.joins.sql)
+                    \(context.split.parentJoin())
+                    WHERE \(conditions.joined(separator: " AND "))
+                    """
+            ) ?? 0
         }
     }
 
@@ -290,6 +284,13 @@ private struct TransactionReadJoins {
     let categoryNameSelect: String
 }
 
+private struct UncategorizedReadContext {
+    let split: TransactionSplitQueryExpressions
+    let normalizedDate: String
+    let joins: TransactionReadJoins
+    let conditions: [String]
+}
+
 private extension BudgetDatabase {
     func transactionReadJoins(
         db: Database,
@@ -341,6 +342,43 @@ private extension BudgetDatabase {
             mappedCategory: mappedCategory,
             payeeNameSelect: payeeNameSelect,
             categoryNameSelect: categoryNameSelect
+        )
+    }
+
+    func uncategorizedReadContext(db: Database) throws -> UncategorizedReadContext {
+        let columns = try columnSet(for: "transactions", db: db)
+        let split = transactionSplitQueryExpressions(columns: columns)
+        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let joins = try transactionReadJoins(db: db, split: split, includeNames: true)
+
+        var extraJoin = ""
+        var conditions: [String] = [
+            split.liveEffectivePredicate(),
+            "(\(joins.mappedCategory) IS NULL OR \(joins.mappedCategory) = '')",
+        ]
+        if try tableExists("accounts", db: db) {
+            extraJoin = "LEFT JOIN accounts src ON src.id = \(split.qualifiedAccount)"
+            conditions.append("IFNULL(src.offbudget, 0) = 0")
+        }
+        if try tableExists("payees", db: db) {
+            let payeeColumns = try columnSet(for: "payees", db: db)
+            if payeeColumns.contains("transfer_acct"), try tableExists("accounts", db: db) {
+                conditions.append(
+                    "(py.transfer_acct IS NULL OR py.transfer_acct = '' OR IFNULL(pax.offbudget, 0) = 1)"
+                )
+            }
+        }
+        return UncategorizedReadContext(
+            split: split,
+            normalizedDate: normalizedDate,
+            joins: TransactionReadJoins(
+                sql: [joins.sql, extraJoin].filter { !$0.isEmpty }.joined(separator: "\n"),
+                mappedPayee: joins.mappedPayee,
+                mappedCategory: joins.mappedCategory,
+                payeeNameSelect: joins.payeeNameSelect,
+                categoryNameSelect: joins.categoryNameSelect
+            ),
+            conditions: conditions
         )
     }
 

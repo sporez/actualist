@@ -161,6 +161,9 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.accountGroupMigrationSQL
         )
+        // Management enablement is read by the warmup, not by the first Budget
+        // frame, so it is not cached straight from the open.
+        await bundle.store.warmLaunchCaches(budgetID: "group-1")
         #expect(bundle.store.accountGroupManagementEnabled(budgetID: "group-1"))
 
         try await bundle.store.createAccountGroupAndRefresh(budgetID: "group-1", name: "Cash")

@@ -128,7 +128,7 @@ extension LocalFirstActualStoreTests {
         #expect(accounts.contains { $0.id == "missing" } == false)
     }
 
-    @Test func storeOpenCachesLiveAccountGroupsFromABackfilledBudget() async throws {
+    @Test func storeDefersAccountCachesUntilThePostLaunchWarmup() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: """
                 INSERT INTO messages_crdt (timestamp, dataset, row, column, value) VALUES
@@ -138,6 +138,13 @@ extension LocalFirstActualStoreTests {
                     ('2026-07-01T12:00:01.000Z-0000-remote', 'accounts', 'checking', 'account_group_id', 'S:cash');
                 """
         )
+        // Opening a budget must not compute balances or account groups before the
+        // restored Budget is on screen.
+        #expect(bundle.store.accountDisplays(budgetID: "group-1").isEmpty)
+        #expect(bundle.store.accountGroups(budgetID: "group-1").isEmpty)
+
+        await bundle.store.warmLaunchCaches(budgetID: "group-1")
+
         let groups = bundle.store.accountGroups(budgetID: "group-1")
         let checking = try #require(
             bundle.store.accountDisplays(budgetID: "group-1").map(\.account).first { $0.id == "checking" }
@@ -146,6 +153,54 @@ extension LocalFirstActualStoreTests {
         #expect(groups.map(\.id) == ["cash"])
         #expect(groups.first?.name == "Cash")
         #expect(checking.accountGroupId == "cash")
+    }
+
+    @Test func accountGroupCompatibilityReplaysOncePerFile() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            INSERT INTO messages_crdt (timestamp, dataset, row, column, value) VALUES
+                ('2026-07-01T12:00:00.000Z-0000-remote', 'account_groups', 'cash', 'name', 'S:Cash'),
+                ('2026-07-01T12:00:01.000Z-0000-remote', 'accounts', 'checking', 'account_group_id', 'S:cash');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let migrated = try #require(
+            try await database.fetchAccounts().first { $0.id == "checking" }
+        )
+        #expect(migrated.accountGroupId == "cash")
+
+        // Change the physical row after the migration. A second open must not
+        // rescan the historical CRDT and put the old value back.
+        let queue = try DatabaseQueue(path: fixtureURL.path)
+        try await queue.write { db in
+            try db.execute(sql: "UPDATE accounts SET account_group_id = NULL WHERE id = 'checking'")
+        }
+
+        let reopened = try BudgetDatabase(databaseURL: fixtureURL)
+        let afterReopen = try #require(
+            try await reopened.fetchAccounts().first { $0.id == "checking" }
+        )
+        #expect(afterReopen.accountGroupId == nil)
+    }
+
+    @Test func accountGroupSchemaIsStillEnsuredAfterTheReplayMigration() async throws {
+        let fixtureURL = try makeSQLiteFixture(extraSQL: """
+            CREATE TABLE account_groups (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                sort_order REAL,
+                tombstone INTEGER DEFAULT 0
+            );
+            CREATE TABLE actualist_local_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL
+            );
+            INSERT INTO actualist_local_migrations (name, applied_at)
+                VALUES ('account-group-compatibility-v1', '0');
+            """)
+        // A recorded migration must not stop the physical schema from being
+        // ensured: older imports still need the column before any read.
+        _ = try BudgetDatabase(databaseURL: fixtureURL)
+
+        #expect(try sqliteColumns("accounts", at: fixtureURL).contains("account_group_id"))
     }
 
     @Test func storeReloadAfterRemoteGroupApplyRefreshesBothCaches() async throws {

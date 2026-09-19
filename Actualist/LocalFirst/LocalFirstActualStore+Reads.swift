@@ -22,7 +22,9 @@ extension LocalFirstActualStore {
         preferredMonth: String
     ) async throws -> LoadedBudgetMonth {
         let months = try await availableMonths(budgetID: budgetID)
-        let tracking = try await requireDatabase(for: budgetID).isTrackingBudget()
+        let tracking = try await LaunchSignpost.measure(LaunchStage.budgetModeLookup) {
+            try await requireDatabase(for: budgetID).isTrackingBudget()
+        }
         let selected = tracking || months.contains(preferredMonth) ? preferredMonth : (months.last ?? preferredMonth)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: selected)
     }
@@ -57,26 +59,28 @@ extension LocalFirstActualStore {
             let snapshot = try await database.fetchBudgetSnapshot(month: monthID, now: now)
             let month = snapshot.month
             let isTracking = month.trackingSummary != nil
-            let alertSnapshot = try await budgetAlertSnapshot(
-                database: database, month: month, currency: snapshot.currency,
-                isTrackingBudget: isTracking
-            )
+            let alerts = try await LaunchSignpost.measure(LaunchStage.budgetAlertCalculation) {
+                try await budgetAlertSnapshot(
+                    database: database, month: month, isTrackingBudget: isTracking
+                )
+            }
             let loaded = LoadedBudgetMonth(
                 modeIdentity: snapshot.modeIdentity,
                 availableMonths: snapshot.availableMonths,
                 selectedMonth: monthID,
                 month: month,
-                alerts: alertSnapshot.alerts,
+                alerts: alerts,
                 currency: snapshot.currency,
                 isTrackingBudget: isTracking
             )
-            let currentIdentity = try await database.fetchBudgetModeIdentity()
+            let currentIdentity = try await LaunchSignpost.measure(LaunchStage.budgetIdentityValidation) {
+                try await database.fetchBudgetModeIdentity()
+            }
             try Task.checkCancellation()
             guard self.database === database, openedBudgetID == budgetID else { throw CancellationError() }
             // Another same-budget write may finish while alerts are read. Retry
             // its snapshot rather than report a committed write as cancelled.
             guard generation == budgetReadGeneration, currentIdentity == snapshot.modeIdentity else { continue }
-            uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, monthID)] = alertSnapshot.uncategorized
             return loaded
         }
     }
@@ -408,34 +412,23 @@ extension LocalFirstActualStore {
     func budgetAlertSnapshot(
         database: BudgetDatabase,
         month: BudgetMonth,
-        currency: BudgetCurrency,
         isTrackingBudget: Bool
-    ) async throws -> (alerts: [BudgetMonthAlert], uncategorized: LoadedUncategorizedTransactions) {
-        let maps = try await nameMaps(database)
-        let uncategorized = try await database.fetchUncategorizedTransactions().filter { transaction in
-            Self.isUncategorized(
-                transaction,
-                transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
-                offBudgetAccountIDs: maps.offBudgetAccountIDs
-            )
+    ) async throws -> [BudgetMonthAlert] {
+        var alerts: [BudgetMonthAlert] = []
+        if !isTrackingBudget, let toBudget = Self.toBudgetAlert(month: month) {
+            alerts.append(toBudget)
         }
-        let loaded = LoadedUncategorizedTransactions(
-                transactions: uncategorized,
-                accountNames: maps.accountNames,
-                categoryNames: maps.categoryNames,
-                payeeNames: maps.payeeNames,
-                transferPayeeIDs: maps.transferPayeeIDs,
-                transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
-                offBudgetAccountIDs: maps.offBudgetAccountIDs,
-                categoryGroups: month.editorCategoryGroups(currency: currency)
-            )
-        return (Self.budgetAlerts(
+        if let overspending = Self.overspendingAlert(
             month: month,
-            transactions: uncategorized,
-            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: maps.offBudgetAccountIDs,
             isTrackingBudget: isTrackingBudget
-        ), loaded)
+        ) {
+            alerts.append(overspending)
+        }
+        let uncategorizedCount = try await database.fetchUncategorizedTransactionCount()
+        if let uncategorized = Self.uncategorizedAlert(count: uncategorizedCount) {
+            alerts.append(uncategorized)
+        }
+        return alerts
     }
 
     static func budgetAlerts(
@@ -494,6 +487,18 @@ extension LocalFirstActualStore {
         )
     }
 
+    static func uncategorizedAlert(count: Int) -> BudgetMonthAlert? {
+        guard count > 0 else { return nil }
+        return BudgetMonthAlert(
+            kind: "uncategorizedTransactions",
+            severity: "warning",
+            title: "Uncategorized transactions",
+            amount: nil,
+            count: count,
+            actionTitle: "Review"
+        )
+    }
+
     static func uncategorizedAlerts(
         transactions: [ActualTransaction],
         transferAccountIDsByPayeeID: [String: String],
@@ -506,19 +511,7 @@ extension LocalFirstActualStore {
                 offBudgetAccountIDs: offBudgetAccountIDs
             )
         }.count
-        guard count > 0 else {
-            return []
-        }
-        return [
-            BudgetMonthAlert(
-                kind: "uncategorizedTransactions",
-                severity: "warning",
-                title: "Uncategorized transactions",
-                amount: nil,
-                count: count,
-                actionTitle: "Review"
-            )
-        ]
+        return uncategorizedAlert(count: count).map { [$0] } ?? []
     }
 
     // Cross-budget transfers from a budget account still need a category.
@@ -612,7 +605,9 @@ extension LocalFirstActualStore {
         if let months = monthsByBudget[budgetID] {
             return months
         }
-        let months = try await requireDatabase(for: budgetID).fetchAvailableMonths()
+        let months = try await LaunchSignpost.measure(LaunchStage.budgetAvailableMonths) {
+            try await requireDatabase(for: budgetID).fetchAvailableMonths()
+        }
         monthsByBudget[budgetID] = months
         return months
     }

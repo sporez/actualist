@@ -10,9 +10,12 @@ actor BudgetDatabase {
     var tableExistsCache: [String: Bool] = [:]
     var columnSetCache: [String: Set<String>] = [:]
 
+    static let bankSyncStatusCompatibilityMigration = "bank-sync-status-compatibility-v1"
     init(databaseURL: URL, localNodeID: String? = nil) throws {
         self.databaseURL = databaseURL
         queue = try DatabaseQueue(path: databaseURL.path)
+        let compatibility = LaunchSignpost.begin(LaunchStage.budgetDatabaseCompatibility)
+        defer { LaunchSignpost.end(LaunchStage.budgetDatabaseCompatibility, compatibility) }
         try Self.prepareBankSyncStatusCompatibility(in: queue)
         try Self.prepareBankSyncSchemaCompatibility(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
@@ -45,7 +48,9 @@ actor BudgetDatabase {
         }
     }
 
-    // Old imports may have retained bank_sync_status messages without the physical column.
+    // Old imports may have retained bank_sync_status messages without the
+    // physical column. Ensure the column on every open, but replay history only
+    // once per file.
     private static func prepareBankSyncStatusCompatibility(in queue: DatabaseQueue) throws {
         try queue.write { db in
             let accountTableExists = try Bool.fetchOne(
@@ -65,11 +70,13 @@ actor BudgetDatabase {
                 Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
                     .compactMap { $0["name"] as String? }
             )
-            guard !accountColumns.contains("bank_sync_status") else {
-                return
+            if !accountColumns.contains("bank_sync_status") {
+                try db.execute(sql: "ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT")
             }
 
-            try db.execute(sql: "ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT")
+            guard !(try localMigrationApplied(bankSyncStatusCompatibilityMigration, in: db)) else {
+                return
+            }
 
             let messagesTableExists = try Bool.fetchOne(
                 db,
@@ -81,6 +88,7 @@ actor BudgetDatabase {
                     """
             ) ?? false
             guard messagesTableExists else {
+                try recordLocalMigration(bankSyncStatusCompatibilityMigration, in: db)
                 return
             }
 
@@ -112,6 +120,7 @@ actor BudgetDatabase {
                     arguments: [status, accountID]
                 )
             }
+            try recordLocalMigration(bankSyncStatusCompatibilityMigration, in: db)
         }
     }
 

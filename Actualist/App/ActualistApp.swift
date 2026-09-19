@@ -56,7 +56,7 @@ struct ActualistApp: App {
                     WidgetDeepLinkRouter.handle(url, appState: appState)
                 }
                 .task {
-                    await appState.prepareBackgroundTransactionNotifications()
+                    LaunchSignpost.event(LaunchStage.foregroundSessionStart)
                     BudgetCalendarCoordinator.shared.beginForeground()
                     await appState.beginForegroundSession()
                     if let command = simulatorLaunchCommand {

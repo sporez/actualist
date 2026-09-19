@@ -258,10 +258,13 @@ extension LocalFirstActualStore {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
-        guard fileManager.importedDatabaseExists(fileID: fileID),
-              let metadata = try fileManager.loadMetadata(fileID: fileID) else {
+        guard fileManager.importedDatabaseExists(fileID: fileID) else {
             return false
         }
+        let metadata = try LaunchSignpost.measureSync(LaunchStage.budgetMetadataLoad) {
+            try fileManager.loadMetadata(fileID: fileID)
+        }
+        guard let metadata else { return false }
 
         try await openImportedBudget(fileID: fileID, metadata: metadata)
         return true
@@ -426,13 +429,21 @@ extension LocalFirstActualStore {
         metadata: LocalFirstBudgetMetadata,
         encryptionContext providedEncryptionContext: ActualBudgetEncryptionContext? = nil
     ) async throws {
-        try fileManager.hardenCachedBudget(fileID: fileID)
+        try LaunchSignpost.measureSync(LaunchStage.budgetFileHardening) {
+            try fileManager.hardenCachedBudget(fileID: fileID)
+        }
         let encryptionContext = try providedEncryptionContext ?? encryptionContext(metadata: metadata)
-        let database = try BudgetDatabase(
-            databaseURL: fileManager.databaseURL(fileID: fileID),
-            localNodeID: metadata.nodeID
-        )
-        try fileManager.hardenCachedBudget(fileID: fileID)
+        let database = try LaunchSignpost.measureSync(LaunchStage.budgetDatabaseInit) {
+            try BudgetDatabase(
+                databaseURL: fileManager.databaseURL(fileID: fileID),
+                localNodeID: metadata.nodeID
+            )
+        }
+        // Opening SQLite creates sidecar files, so the excluded-from-backup and
+        // file-protection pass runs again over what the open produced.
+        try LaunchSignpost.measureSync(LaunchStage.budgetFileHardening) {
+            try fileManager.hardenCachedBudget(fileID: fileID)
+        }
         self.database = database
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID
@@ -440,36 +451,35 @@ extension LocalFirstActualStore {
         openedEncryptionContext = encryptionContext
         isDemoBudgetActive = (metadata.cloudFileID == DemoBudget.fileID)
         let budgetID = metadata.groupID ?? metadata.cloudFileID
-        await reloadBudgetCurrency(database: database, budgetID: budgetID)
-        try? await reloadAccountCaches(database: database, budgetID: budgetID)
-        payeesByBudget[budgetID] = try? await database.fetchPayeeManagementSnapshot()
-            .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
-        await refreshActionLogDiagnosticSnapshot(database: database)
-        let checkpoint = try? await database.localSyncCheckpoint()
+        // Account balances/groups, payee management, action-log diagnostics,
+        // sync checkpoint/outbox diagnostics, and currency cache population are
+        // not needed before the first Budget frame. The snapshot below supplies
+        // its own currency; everything else loads in `warmLaunchCaches`.
         syncStatus = LocalFirstSyncStatus(
             fileID: budgetID,
             groupID: metadata.groupID,
-            lastSyncedAt: checkpoint?.lastSyncedAt,
-            lastAppliedMessageCount: checkpoint?.lastAppliedMessageCount ?? 0,
-            lastUploadedMessageCount: checkpoint?.lastUploadedMessageCount ?? 0,
-            encryptionKeyID: encryptionContext?.keyID,
-            pendingLocalMessageCount: (try? await database.pendingLocalSyncMessageCount()) ?? 0
+            encryptionKeyID: encryptionContext?.keyID
         )
-        await syncClient.configure(
-            LocalFirstSyncConfiguration(
-                fileID: metadata.cloudFileID,
-                groupID: metadata.groupID,
-                nodeID: metadata.nodeID,
-                encryptionKeyID: encryptionContext?.keyID,
-                encryptionContext: encryptionContext
+        await LaunchSignpost.measure(LaunchStage.syncClientConfiguration) {
+            await syncClient.configure(
+                LocalFirstSyncConfiguration(
+                    fileID: metadata.cloudFileID,
+                    groupID: metadata.groupID,
+                    nodeID: metadata.nodeID,
+                    encryptionKeyID: encryptionContext?.keyID,
+                    encryptionContext: encryptionContext
+                )
             )
-        )
+        }
 
-        // Seed the first Budget frame before foreground sync begins.
-        _ = try? await currentBudgetMonth(
-            budgetID: budgetID,
-            preferredMonth: YearMonth(date: Date()).rawValue
-        )
+        // Seed the first Budget frame before foreground sync begins. This snapshot
+        // is what the presentation models consume; it must not be recalculated.
+        _ = try? await LaunchSignpost.measure(LaunchStage.budgetSeedMonth) {
+            try await currentBudgetMonth(
+                budgetID: budgetID,
+                preferredMonth: YearMonth(date: Date()).rawValue
+            )
+        }
     }
 
     func encryptionContext(metadata: LocalFirstBudgetMetadata) throws -> ActualBudgetEncryptionContext? {

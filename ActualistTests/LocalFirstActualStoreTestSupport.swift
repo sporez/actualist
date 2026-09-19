@@ -201,7 +201,11 @@ extension LocalFirstActualStoreTests {
         ).store
     }
 
-    func makeAppState(for bundle: OpenedWritableStoreBundle) throws -> AppState {
+    func makeAppState(
+        for bundle: OpenedWritableStoreBundle,
+        notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool = { true },
+        applicationBadgeUpdater: @escaping @MainActor (Int) -> Void = { _ in }
+    ) throws -> AppState {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let settingsStore = AppSettingsStore(defaults: defaults)
         settingsStore.save(
@@ -216,7 +220,9 @@ extension LocalFirstActualStoreTests {
         return AppState(
             settingsStore: settingsStore,
             keychain: bundle.keychain,
-            localFirstStore: bundle.store
+            localFirstStore: bundle.store,
+            notificationAuthorizationRequester: notificationAuthorizationRequester,
+            applicationBadgeUpdater: applicationBadgeUpdater
         )
     }
 

@@ -116,13 +116,21 @@ final class BudgetViewportModel {
         let sameBudget = self.budgetID == budgetID && anchorMonth != nil
         setResolvedMonthCount(monthCount)
         if sameBudget {
-            _ = await refreshVisibleMonths()
+            // The anchor month is already presented; hydrate only the columns
+            // that are still missing instead of re-reading the workspace's
+            // initial month.
+            _ = await refreshVisibleMonths(preservingLoadedMonths: true)
         } else {
             await adoptCompactState(compactModel, budgetID: budgetID)
         }
     }
 
-    func load(budgetID: String, anchorMonth: String? = nil, preservingAssignment: Bool = false) async {
+    func load(
+        budgetID: String,
+        anchorMonth: String? = nil,
+        preservingAssignment: Bool = false,
+        seeds: [String: LoadedBudgetMonth] = [:]
+    ) async {
         if !preservingAssignment, self.anchorMonth != anchorMonth {
             assignmentWorkflow.invalidate()
         }
@@ -146,7 +154,9 @@ final class BudgetViewportModel {
 
         do {
             let first: LoadedBudgetMonth
-            if let anchorMonth {
+            if let anchorMonth, let seeded = seeds[anchorMonth] {
+                first = seeded
+            } else if let anchorMonth {
                 first = try await repository.budgetMonth(
                     budgetID: budgetID,
                     selectedMonth: anchorMonth
@@ -162,7 +172,7 @@ final class BudgetViewportModel {
             self.anchorMonth = first.month.month
             try await loadVisibleMonths(
                 generation: requestGeneration,
-                seed: first
+                seeds: seeds.merging([first.month.month: first]) { _, replacement in replacement }
             )
         } catch where error.isCancellation {
             if requestGeneration == generation { isLoading = false }
@@ -203,14 +213,26 @@ final class BudgetViewportModel {
         normalizeState(using: visibleSnapshots.first?.month)
     }
 
-    func adoptCompactState(_ compactModel: BudgetViewModel, budgetID: String) async {
+    /// Adopts the compact model's month as the workspace anchor. `seed` is the
+    /// restored `LoadedBudgetMonth` the first frame already consumed; when it
+    /// matches the anchor the workspace presents it instead of re-reading the
+    /// same month, and only the supplementary columns hydrate afterwards.
+    func adoptCompactState(
+        _ compactModel: BudgetViewModel,
+        budgetID: String,
+        seed: LoadedBudgetMonth? = nil
+    ) async {
         let belongsToBudget = compactModel.loadedBudgetID == budgetID
         let month = belongsToBudget
             ? (compactModel.selectedMonth ?? compactModel.budgetMonth?.month)
             : nil
         let expansion = belongsToBudget ? compactModel.expandedGroupIDs : nil
         let anchor = assignmentWorkflow.isPresented && self.budgetID == budgetID ? anchorMonth : month
-        await load(budgetID: budgetID, anchorMonth: anchor, preservingAssignment: true)
+        var seeds: [String: LoadedBudgetMonth] = [:]
+        if let seed, let anchor, seed.month.month == anchor, seed.selectedMonth == anchor {
+            seeds[anchor] = seed
+        }
+        await load(budgetID: budgetID, anchorMonth: anchor, preservingAssignment: true, seeds: seeds)
         if let expansion {
             let validIDs = Set(visibleSnapshots.first?.month.categoryGroups.filter { !$0.isIncome || isTrackingBudget }.map(\.id) ?? [])
             expandedGroupIDs = expansion.intersection(validIDs)
@@ -387,21 +409,34 @@ final class BudgetViewportModel {
         }
     }
 
+    /// Re-reads the visible months from the repository. `preservingLoadedMonths`
+    /// keeps months that already have a snapshot and reads only the rest: the
+    /// launch path where the restored anchor month is already presented and the
+    /// supplementary columns still have to hydrate.
     @discardableResult
-    func refreshVisibleMonths() async -> Bool {
+    func refreshVisibleMonths(preservingLoadedMonths: Bool = false) async -> Bool {
         guard let budgetID else { return false }
         if anchorMonth == nil {
             await load(budgetID: budgetID)
             return self.budgetID == budgetID && !Task.isCancelled && errorMessage == nil
                 && !visibleSnapshots.isEmpty && visibleMonths.allSatisfy { monthErrors[$0] == nil }
         }
+        let months = preservingLoadedMonths
+            ? retainedMonths.filter { monthSnapshots[$0] == nil }
+            : retainedMonths
+        guard !months.isEmpty else { return true }
         generation += 1
         let requestGeneration = generation
         isLoading = true
         errorMessage = nil
         defer { if requestGeneration == generation { isLoading = false } }
         do {
-            try await loadVisibleMonths(generation: requestGeneration, budgetID: budgetID)
+            try await loadVisibleMonths(
+                generation: requestGeneration,
+                budgetID: budgetID,
+                months: months,
+                seeds: preservingLoadedMonths ? monthSnapshots : [:]
+            )
         } catch where error.isCancellation {
             if requestGeneration == generation { isLoading = false }
             return false
@@ -416,19 +451,20 @@ final class BudgetViewportModel {
     private func loadVisibleMonths(
         generation requestGeneration: Int,
         budgetID: String? = nil,
-        seed: LoadedBudgetMonth? = nil
+        months requestedMonths: [String]? = nil,
+        seeds: [String: LoadedBudgetMonth] = [:]
     ) async throws {
         let id = budgetID ?? self.budgetID ?? ""
         var staged: [String: LoadedBudgetMonth] = [:]
         var stagedErrors: [String: String] = [:]
-        let months = retainedMonths
+        let months = requestedMonths ?? retainedMonths
         var latestIdentity: BudgetModeIdentity?
         for month in months {
             try Task.checkCancellation()
             do {
                 let loaded: LoadedBudgetMonth
-                if let seed, seed.month.month == month {
-                    loaded = seed
+                if let seeded = seeds[month] {
+                    loaded = seeded
                 } else {
                     loaded = try await repository.budgetMonth(budgetID: id, selectedMonth: month)
                 }

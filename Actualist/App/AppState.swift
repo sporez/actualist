@@ -24,6 +24,7 @@ final class AppState {
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
     @ObservationIgnored private let appSyncCoordinator = AppSyncCoordinator()
+    @ObservationIgnored private let launchWarmupCoordinator = LaunchWarmupCoordinator()
     @ObservationIgnored private let backgroundTransactionWorkflow: BackgroundTransactionWorkflow
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
     private var developerUnlockTracker = DeveloperUnlockTracker()
@@ -323,31 +324,32 @@ final class AppState {
         return localFirstStore.syncStatus(budgetID: budgetID)
     }
 
-    var cachedSelectedBudgetMonth: LoadedBudgetMonth? {
-        guard let budgetID = settings.selectedBudgetID else {
-            return nil
-        }
-        return localFirstStore.cachedBudgetMonth(budgetID: budgetID)
-    }
-
     func beginForegroundSession() async {
         guard appSyncCoordinator.beginForegroundSession() else {
             return
         }
+        launchWarmupCoordinator.beginForeground(appState: self)
 
         if setupPhase == .restoringBudget {
-            await restoreSelectedBudgetForLaunch()
+            await LaunchSignpost.measure(LaunchStage.cachedBudgetRestore) {
+                await restoreSelectedBudgetForLaunch()
+            }
         }
+    }
 
-        guard setupPhase == .ready,
-              let budgetID = settings.selectedBudgetID else {
-            return
+    @discardableResult
+    func budgetDidPresent(_ budgetID: String?) -> Task<Void, Never>? {
+        guard let budgetID else {
+            launchWarmupCoordinator.endPresentation()
+            return nil
         }
-
-        _ = await refreshLocalFirstData(budgetID: budgetID, force: false)
+        guard setupPhase == .ready, settings.selectedBudgetID == budgetID,
+              localFirstStore.isOpen(budgetID: budgetID) else { return nil }
+        return launchWarmupCoordinator.present(budgetID: budgetID, appState: self)
     }
 
     func endForegroundSession() {
+        launchWarmupCoordinator.endForeground()
         appSyncCoordinator.endForegroundSession()
     }
 
@@ -794,6 +796,7 @@ final class AppState {
             selectedBudget = budget
             budgets = AppBudgetList.unique([budget] + budgets)
             setupPhase = .ready
+            LaunchSignpost.event(LaunchStage.setupReady)
             connectionStatus = restoredStatus
             localDataRevision &+= 1
             return true
@@ -803,7 +806,8 @@ final class AppState {
     }
 
     private func restoreSelectedBudgetForLaunch() async {
-        let restoredStatus: ServerConnectionStatus = isDemoMode ? .offline : .connecting
+        let restoredStatus: ServerConnectionStatus =
+            (isDemoMode || !hasSyncCredentials) ? .offline : .connecting
         if await openSelectedCachedBudget(connectionStatus: restoredStatus) {
             lastErrorMessage = nil
             return

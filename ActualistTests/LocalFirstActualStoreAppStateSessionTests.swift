@@ -27,22 +27,44 @@ extension LocalFirstActualStoreTests {
         #expect(appState.connectionStatus == .online)
     }
 
-    @Test func appStateAutomaticallySyncsOncePerForegroundSession() async throws {
+    @Test func postPresentationWorkRunsOncePerForegroundSession() async throws {
         let transport = RecordingSyncTransport()
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
         try bundle.keychain.saveActualSyncToken("token")
-        let appState = try makeAppState(for: bundle)
+        var notificationPreparationCount = 0
+        let appState = try makeAppState(
+            for: bundle,
+            notificationAuthorizationRequester: {
+                notificationPreparationCount += 1
+                return true
+            }
+        )
+        appState.settings.backgroundTransactionRefreshEnabled = true
 
         await appState.beginForegroundSession()
         await appState.beginForegroundSession()
 
         #expect(appState.setupPhase == .ready)
+        #expect(await transport.messageCounts().isEmpty)
+        #expect(notificationPreparationCount == 0)
+
+        let firstWarmup = try #require(appState.budgetDidPresent("group-1"))
+        await firstWarmup.value
         #expect(await transport.messageCounts() == [0])
+        #expect(notificationPreparationCount == 1)
+
+        let duplicate = try #require(appState.budgetDidPresent("group-1"))
+        await duplicate.value
+        #expect(await transport.messageCounts() == [0])
+        #expect(notificationPreparationCount == 1)
 
         appState.endForegroundSession()
         await appState.beginForegroundSession()
+        let nextWarmup = try #require(appState.budgetDidPresent("group-1"))
+        await nextWarmup.value
 
         #expect(await transport.messageCounts() == [0, 0])
+        #expect(notificationPreparationCount == 2)
     }
 
     @Test func appStateRequiresTheSelectedBudgetDatabaseBeforeShowingMainTabs() async throws {
@@ -170,12 +192,16 @@ extension LocalFirstActualStoreTests {
         #expect(appState.setupPhase == .restoringBudget)
 
         await appState.beginForegroundSession()
+        #expect(appState.setupPhase == .ready)
+        #expect(appState.connectionStatus == .connecting)
+
+        let postPresentation = try #require(appState.budgetDidPresent("group-1"))
+        await postPresentation.value
 
         let loaded = try await bundle.store.budgetMonth(
             budgetID: "group-1",
             selectedMonth: "2026-07"
         )
-        #expect(appState.setupPhase == .ready)
         #expect(appState.connectionStatus == .offline)
         #expect(appState.localDataRevision == 1)
         #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.id == "groceries" })
@@ -291,11 +317,11 @@ extension LocalFirstActualStoreTests {
 
         #expect(appState.setupPhase == .restoringBudget)
         #expect(appState.connectionStatus == .offline)
-        #expect(appState.cachedSelectedBudgetMonth == nil)
+        #expect(bundle.store.cachedBudgetMonth(budgetID: "group-1") == nil)
 
         await appState.beginForegroundSession()
 
-        let loaded = try #require(appState.cachedSelectedBudgetMonth)
+        let loaded = try #require(bundle.store.cachedBudgetMonth(budgetID: "group-1"))
         let firstFrameModel = BudgetViewModel(initialMonth: loaded)
         #expect(appState.setupPhase == .ready)
         #expect(appState.connectionStatus == .offline)

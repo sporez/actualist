@@ -9,12 +9,23 @@ extension BudgetDatabase {
 
     func fetchBudgetSnapshot(month: String, now: Date = Date()) throws -> BudgetFinancialSnapshot {
         try queue.read { db in
-            let value = try fetchBudgetMonth(month: month, db: db)
-            let discovered = try fetchAvailableMonths(db: db)
+            let value = try LaunchSignpost.measureSync(LaunchStage.budgetMonthCalculation) {
+                try fetchBudgetMonth(month: month, db: db)
+            }
+            let discovered = try LaunchSignpost.measureSync(LaunchStage.budgetAvailableMonths) {
+                try fetchAvailableMonths(db: db)
+            }
             let months = value.trackingSummary == nil ? discovered
                 : Array(Set(discovered + [month, YearMonth(date: now).rawValue])).sorted()
-            return BudgetFinancialSnapshot(modeIdentity: try budgetModeIdentity(db: db), month: value, currency: try budgetCurrency(db: db),
-                availableMonths: months)
+            let currency = try LaunchSignpost.measureSync(LaunchStage.budgetSnapshotCurrency) {
+                try budgetCurrency(db: db)
+            }
+            return BudgetFinancialSnapshot(
+                modeIdentity: try budgetModeIdentity(db: db),
+                month: value,
+                currency: currency,
+                availableMonths: months
+            )
         }
     }
 
