@@ -267,6 +267,10 @@ extension LocalFirstActualStoreTests {
         #expect(appState.connectionStatus == .online)
         #expect(appState.lastErrorMessage == nil)
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == nil)
+        #expect(appState.setupPhase == .ready)
+        #expect(appState.settings.selectedBudgetID == "group-1")
+        #expect(appState.settings.selectedLocalFirstFileID == "file-1")
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
     }
 
     @Test func authenticationWithMismatchedCachedBudgetReturnsToBudgetSelection() async throws {
@@ -328,6 +332,224 @@ extension LocalFirstActualStoreTests {
         #expect(!firstFrameModel.isLoading)
         #expect(firstFrameModel.budgetMonth != nil)
         #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.id == "groceries" })
+    }
+
+    @Test func restoredSelectionWithoutLocalCacheReturnsToBudgetPickerAfterLogin() async throws {
+        let remoteFile = ActualSyncRemoteFile(
+            fileID: "file-1",
+            groupID: "group-1",
+            name: "Restored Budget"
+        )
+        let connectionTransport = StubConnectionTransport(
+            files: [remoteFile],
+            token: "renewed-token"
+        )
+        let fixture = try makeRestoredSelectionAppState { _ in connectionTransport }
+        let appState = fixture.appState
+
+        #expect(appState.setupPhase == .restoringBudget)
+        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+        await appState.beginForegroundSession()
+        #expect(appState.setupPhase == .needsConnection)
+
+        let authenticated = await appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "correct-password"
+        )
+
+        #expect(authenticated)
+        #expect(appState.lastErrorMessage == nil)
+        #expect(appState.setupPhase == .selectingBudget)
+        #expect(appState.budgets == [remoteFile.actualBudget])
+        #expect(appState.settings.selectedBudgetID == nil)
+        #expect(appState.settings.selectedLocalFirstFileID == nil)
+        #expect(fixture.settingsStore.load().selectedBudgetID == nil)
+        #expect(fixture.keychain.readActualSyncToken() == "renewed-token")
+    }
+
+    @Test func restoredSelectionForUnavailableRemoteBudgetKeepsExistingState() async throws {
+        let differentRemote = ActualSyncRemoteFile(
+            fileID: "file-2",
+            groupID: "group-2",
+            name: "Different Budget"
+        )
+        let connectionTransport = StubConnectionTransport(files: [differentRemote])
+        let fixture = try makeRestoredSelectionAppState { _ in connectionTransport }
+        await fixture.appState.beginForegroundSession()
+
+        let authenticated = await fixture.appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "correct-password"
+        )
+
+        #expect(!authenticated)
+        #expect(
+            fixture.appState.lastErrorMessage
+                == LocalFirstError.selectedBudgetUnavailable.localizedDescription
+        )
+        #expect(fixture.appState.settings.selectedBudgetID == "group-1")
+        #expect(fixture.settingsStore.load().selectedBudgetID == "group-1")
+        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+    }
+
+    @Test func connectingToDifferentServerClearsRestoredSelection() async throws {
+        let remoteFile = ActualSyncRemoteFile(
+            fileID: "file-2",
+            groupID: "group-2",
+            name: "New Server Budget"
+        )
+        let connectionTransport = StubConnectionTransport(files: [remoteFile], token: "new-token")
+        let fixture = try makeRestoredSelectionAppState(
+            savedServerURLString: "https://old.example",
+            connectionTransportFactory: { _ in connectionTransport }
+        )
+
+        let authenticated = await fixture.appState.saveLocalFirstConnection(
+            serverURLString: "https://new.example",
+            password: "correct-password"
+        )
+
+        #expect(authenticated)
+        #expect(fixture.appState.settings.localFirstServerURLString == "https://new.example")
+        #expect(fixture.appState.settings.selectedBudgetID == nil)
+        #expect(fixture.appState.settings.selectedLocalFirstFileID == nil)
+        #expect(fixture.appState.setupPhase == .selectingBudget)
+        #expect(fixture.keychain.readActualSyncToken() == "new-token")
+    }
+
+    @Test func restoredSelectionWithPresentCorruptCacheStillFailsValidation() async throws {
+        let remoteFile = ActualSyncRemoteFile(
+            fileID: "file-1",
+            groupID: "group-1",
+            name: "Restored Budget"
+        )
+        let connectionTransport = StubConnectionTransport(files: [remoteFile])
+        let fixture = try makeRestoredSelectionAppState { _ in connectionTransport }
+        let directory = try fixture.fileManager.budgetDirectory(fileID: "file-1")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("not a sqlite database".utf8).write(
+            to: fixture.fileManager.databaseURL(fileID: "file-1")
+        )
+        let metadata = LocalFirstBudgetMetadata(
+            localBudgetID: "file-1",
+            cloudFileID: "file-1",
+            groupID: "group-1",
+            budgetName: "Restored Budget",
+            encryptionKeyID: nil,
+            nodeID: "node"
+        )
+        try JSONEncoder.actual.encode(metadata).write(
+            to: fixture.fileManager.metadataURL(fileID: "file-1")
+        )
+        await fixture.appState.beginForegroundSession()
+
+        let authenticated = await fixture.appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "correct-password"
+        )
+
+        #expect(!authenticated)
+        #expect(fixture.appState.settings.selectedBudgetID == "group-1")
+        #expect(fixture.settingsStore.load().selectedBudgetID == "group-1")
+        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+        #expect(fixture.fileManager.importedDatabaseExists(fileID: "file-1"))
+    }
+
+    @Test func incorrectPasswordDoesNotEnterMissingCacheRecovery() async throws {
+        let authenticationError = ActualAPIError.serverRejected(
+            status: nil,
+            reason: "invalid-password",
+            details: nil
+        )
+        let connectionTransport = ConfigurableConnectionTransport(
+            methodErrors: [.loginWithPassword: authenticationError]
+        )
+        let fixture = try makeRestoredSelectionAppState { _ in connectionTransport }
+        await fixture.appState.beginForegroundSession()
+
+        let authenticated = await fixture.appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "incorrect-password"
+        )
+
+        #expect(!authenticated)
+        #expect(fixture.appState.lastErrorMessage == "The server password is incorrect.")
+        #expect(fixture.appState.settings.selectedBudgetID == "group-1")
+        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+    }
+
+    @Test func restoredEncryptedSelectionCanUnlockAndDownloadAfterRecovery() async throws {
+        let password = "budget password"
+        let salt = "server salt"
+        let keyID = "restored-key-\(UUID().uuidString)"
+        let keyData = try ActualBudgetCrypto.deriveKey(password: password, salt: salt)
+        let context = ActualBudgetEncryptionContext(keyID: keyID, keyData: keyData)
+        let archiveData = try makeArchiveData(databaseURL: makeSQLiteFixture())
+        let encryptedArchive = try ActualBudgetCrypto.encrypt(archiveData, context: context)
+        let encryptedTestValue = try ActualBudgetCrypto.encrypt(Data("test-value".utf8), context: context)
+        let testPayload = ActualUserKeyResponse.TestPayload(
+            value: encryptedTestValue.data.base64EncodedString(),
+            meta: ActualEncryptedMetadata(
+                keyID: keyID,
+                algorithm: ActualBudgetCrypto.algorithm,
+                iv: encryptedTestValue.iv.base64EncodedString(),
+                authTag: encryptedTestValue.authTag.base64EncodedString()
+            )
+        )
+        let userKeyResponse = ActualUserKeyResponse(
+            id: keyID,
+            salt: salt,
+            test: String(data: try JSONEncoder.actual.encode(testPayload), encoding: .utf8)
+        )
+        let remoteFile = ActualSyncRemoteFile(
+            fileID: "file-1",
+            groupID: "group-1",
+            name: "Encrypted Budget",
+            encryptKeyID: keyID,
+            encryptMeta: ActualEncryptedMetadata(
+                keyID: keyID,
+                algorithm: ActualBudgetCrypto.algorithm,
+                iv: encryptedArchive.iv.base64EncodedString(),
+                authTag: encryptedArchive.authTag.base64EncodedString()
+            ),
+            requiresEncryptionPassword: true
+        )
+        let connectionTransport = ConfigurableConnectionTransport(
+            files: [remoteFile],
+            downloadData: encryptedArchive.data,
+            userKeyResponse: userKeyResponse,
+            token: "renewed-token"
+        )
+        let fixture = try makeRestoredSelectionAppState { _ in connectionTransport }
+        defer {
+            try? fixture.keychain.removeLocalFirstEncryptionKey(fileID: "file-1", keyID: keyID)
+        }
+        await fixture.appState.beginForegroundSession()
+        let authenticated = await fixture.appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "correct-server-password"
+        )
+        #expect(authenticated)
+        #expect(fixture.appState.lastErrorMessage == nil)
+        let budget = try #require(fixture.appState.budgets.first)
+
+        await fixture.appState.selectBudgetForCurrentBackend(budget)
+        #expect(
+            fixture.appState.lastErrorMessage
+                == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
+        )
+        #expect(fixture.appState.setupPhase == .selectingBudget)
+
+        await fixture.appState.selectBudgetForCurrentBackend(
+            budget,
+            encryptionPassword: password
+        )
+
+        #expect(fixture.appState.lastErrorMessage == nil)
+        #expect(fixture.appState.setupPhase == .ready)
+        #expect(fixture.appState.settings.selectedBudgetID == "group-1")
+        #expect(fixture.appState.localFirstStore.isOpen(budgetID: "group-1"))
+        #expect(fixture.appState.isReadyForMainTabs)
     }
 
     @Test func reconnectAfterEraseDoesNotReopenStaleSettingsPresentation() async throws {

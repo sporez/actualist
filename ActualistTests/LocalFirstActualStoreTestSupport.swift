@@ -226,6 +226,50 @@ extension LocalFirstActualStoreTests {
         )
     }
 
+    func makeRestoredSelectionAppState(
+        savedServerURLString: String = "https://sync.example",
+        connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport,
+        syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = {
+            _ in RecordingSyncTransport()
+        }
+    ) throws -> (
+        appState: AppState,
+        fileManager: BudgetFileManager,
+        keychain: KeychainStore,
+        settingsStore: AppSettingsStore
+    ) {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        settingsStore.save(
+            AppSettings(
+                localFirstServerURLString: savedServerURLString,
+                selectedBudgetID: "group-1",
+                selectedBudgetName: "Restored Budget",
+                selectedLocalFirstFileID: "file-1",
+                selectedLocalFirstGroupID: "group-1"
+            )
+        )
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString
+        )
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistRestoredSelection-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            fileManager: fileManager,
+            syncTransportFactory: syncTransportFactory,
+            connectionTransportFactory: connectionTransportFactory
+        )
+        let appState = AppState(
+            settingsStore: settingsStore,
+            keychain: keychain,
+            localFirstStore: store
+        )
+        return (appState, fileManager, keychain, settingsStore)
+    }
+
     func makeOpenedWritableStoreBundle(
         syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
         connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {

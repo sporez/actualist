@@ -166,7 +166,7 @@ actor ConfigurableConnectionTransport: ActualServerConnectionTransport {
         try record(.loginWithPassword)
         return try JSONDecoder.actual.decode(
             ActualLoginResponse.self,
-            from: Data(#"{"token":"\(token)"}"#.utf8)
+            from: Data(#"{"token":"\#(token)"}"#.utf8)
         )
     }
 

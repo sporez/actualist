@@ -108,6 +108,11 @@ struct BudgetFileManager {
         return fileManager.fileExists(atPath: url.path)
     }
 
+    func cachedBudgetDirectoryExists(fileID: String) throws -> Bool {
+        try migrateLegacyBudgetDirectoryIfNeeded(fileID: fileID)
+        return fileManager.fileExists(atPath: try budgetDirectory(fileID: fileID).path)
+    }
+
     func importedBudgetFileIDs() throws -> [String] {
         let budgetsDirectory = try budgetRootURL()
         guard fileManager.fileExists(atPath: budgetsDirectory.path) else {

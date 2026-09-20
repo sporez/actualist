@@ -270,9 +270,15 @@ extension LocalFirstActualStore {
         return true
     }
 
-    func validateCachedBudgetCanOpen(_ budget: ActualBudget) async throws {
+    /// Returns `false` only when this device has no local directory for the
+    /// remembered budget. Any present-but-incomplete or invalid cache still
+    /// throws so reconnect cannot discard potentially recoverable local data.
+    func validateCachedBudgetCanOpen(_ budget: ActualBudget) async throws -> Bool {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
+        }
+        guard try fileManager.cachedBudgetDirectoryExists(fileID: fileID) else {
+            return false
         }
         guard fileManager.importedDatabaseExists(fileID: fileID),
               let metadata = try fileManager.loadMetadata(fileID: fileID) else {
@@ -287,6 +293,7 @@ extension LocalFirstActualStore {
         )
         try fileManager.hardenCachedBudget(fileID: fileID)
         _ = try await validationDatabase.fetchAccountDisplays()
+        return true
     }
 
     func refresh(budgetID: String, serverURLString: String) async throws {

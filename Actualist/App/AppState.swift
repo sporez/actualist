@@ -209,9 +209,10 @@ final class AppState {
 
         do {
             let staged = try await stage(normalized, targetBudgetID)
+            var canRestoreTargetBudget = false
             if let targetBudgetID,
                let target = staged.budgets.first(where: { $0.syncID == targetBudgetID }) {
-                try await localFirstStore.validateCachedBudgetCanOpen(target)
+                canRestoreTargetBudget = try await localFirstStore.validateCachedBudgetCanOpen(target)
             }
 
             try localFirstStore.commitConnection(staged)
@@ -221,21 +222,24 @@ final class AppState {
                 settings.pendingNewTransactionIDsByAccount = [:]
                 updateApplicationBadge()
                 settings.backgroundTransactionRefreshEnabled = false
-            settings.simplefinBackgroundSyncEnabled = false
+                settings.simplefinBackgroundSyncEnabled = false
+                localFirstStore.reset()
+                localFirstStore.remoteFilesByFileID = staged.remoteFilesByFileID
+                localFirstStore.cachedBudgets = staged.budgets
+            }
+            if serverChanged || (targetBudgetID != nil && !canRestoreTargetBudget) {
                 settings.selectedBudgetID = nil
                 settings.selectedBudgetName = nil
                 settings.selectedLocalFirstFileID = nil
                 settings.selectedLocalFirstGroupID = nil
-                localFirstStore.reset()
-                localFirstStore.remoteFilesByFileID = staged.remoteFilesByFileID
-                localFirstStore.cachedBudgets = staged.budgets
                 accountNavigationPath = []
                 routeCoordinator.reset()
                 selectedBudget = nil
             }
             settingsStore.save(settings)
 
-            if let targetBudgetID,
+            if canRestoreTargetBudget,
+               let targetBudgetID,
                let target = budgets.first(where: { $0.syncID == targetBudgetID }) {
                 if !localFirstStore.isOpen(budgetID: targetBudgetID) {
                     _ = try await localFirstStore.openCachedBudget(target)
