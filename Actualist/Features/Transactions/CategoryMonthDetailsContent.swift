@@ -16,9 +16,14 @@ struct CategoryMonthDetailsContent: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel: CategoryMonthDetailsViewModel
     @State private var templateEditorTarget: BudgetTemplateEditorTarget?
+    let presentation: AccountTransactionsPresentation
 
-    init(details: CategoryMonthDetails) {
+    init(
+        details: CategoryMonthDetails,
+        presentation: AccountTransactionsPresentation = .navigation
+    ) {
         _viewModel = State(initialValue: CategoryMonthDetailsViewModel(details: details))
+        self.presentation = presentation
     }
 
     var body: some View {
@@ -44,7 +49,8 @@ struct CategoryMonthDetailsContent: View {
                     categoryName: viewModel.details.category.name.actualistCategoryNameParts.name,
                     month: viewModel.details.month
                 )
-            }
+            },
+            presentation: presentation
         )
         .task { await viewModel.refresh(using: appState) }
         .onChange(of: appState.localDataRevision) {

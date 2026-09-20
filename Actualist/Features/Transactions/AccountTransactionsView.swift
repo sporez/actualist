@@ -1,5 +1,21 @@
 import SwiftUI
 
+enum AccountTransactionsPresentation {
+    case navigation
+    case categoryInspector(onClose: @MainActor () -> Void)
+
+    var isCategoryInspector: Bool {
+        if case .categoryInspector = self { true } else { false }
+    }
+
+    @MainActor
+    func closeInspector() {
+        if case .categoryInspector(let onClose) = self {
+            onClose()
+        }
+    }
+}
+
 struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
     @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
@@ -15,6 +31,7 @@ struct AccountTransactionsView: View {
     let onCategoryCarryoverChanged: @MainActor (Bool) -> Void
     let templateDoor: BudgetTemplateDoorRow?
     let onOpenTemplates: () -> Void
+    let presentation: AccountTransactionsPresentation
 
     @FocusState private var isSearchFieldFocused: Bool
     @State private var isSearchFieldVisible = false
@@ -32,6 +49,7 @@ struct AccountTransactionsView: View {
         self.onCategoryCarryoverChanged = { _ in }
         self.templateDoor = nil
         self.onOpenTemplates = {}
+        self.presentation = .navigation
         _viewModel = State(initialValue: AccountTransactionsViewModel(scope: .account(account)))
     }
 
@@ -45,7 +63,8 @@ struct AccountTransactionsView: View {
         categoryCarryoverErrorMessage: String? = nil,
         onCategoryCarryoverChanged: @escaping @MainActor (Bool) -> Void = { _ in },
         templateDoor: BudgetTemplateDoorRow? = nil,
-        onOpenTemplates: @escaping () -> Void = {}
+        onOpenTemplates: @escaping () -> Void = {},
+        presentation: AccountTransactionsPresentation = .navigation
     ) {
         self.scope = scope
         self.onChanged = onChanged
@@ -57,6 +76,7 @@ struct AccountTransactionsView: View {
         self.onCategoryCarryoverChanged = onCategoryCarryoverChanged
         self.templateDoor = templateDoor
         self.onOpenTemplates = onOpenTemplates
+        self.presentation = presentation
         _viewModel = State(initialValue: AccountTransactionsViewModel(scope: scope))
     }
 
@@ -164,50 +184,59 @@ struct AccountTransactionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
-        .navigationTitle(displayState.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if scope.categoryDetails != nil {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("Close Category Details")
-                }
+        .modifier(TransactionNavigationTitleModifier(
+            title: displayState.title,
+            isVisible: !presentation.isCategoryInspector
+        ))
+        .safeAreaBar(edge: .top, spacing: 0) {
+            if presentation.isCategoryInspector {
+                inspectorHeader(displayState)
             }
-
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if scope.account != nil {
-                    Menu {
+        }
+        .toolbar {
+            if !presentation.isCategoryInspector {
+                if scope.categoryDetails != nil {
+                    ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            startReconciliation()
+                            dismiss()
                         } label: {
-                            Label("Reconcile", systemImage: "checkmark.seal")
+                            Image(systemName: "xmark")
                         }
+                        .accessibilityLabel("Close Category Details")
+                    }
+                }
+
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if scope.account != nil {
+                        Menu {
+                            Button {
+                                startReconciliation()
+                            } label: {
+                                Label("Reconcile", systemImage: "checkmark.seal")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .actualistToolbarGlassButton()
+                        .accessibilityLabel("Account Actions")
+                    }
+
+                    Button {
+                        showSearch()
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Image(systemName: "magnifyingglass")
                     }
                     .actualistToolbarGlassButton()
-                    .accessibilityLabel("Account Actions")
-                }
+                    .accessibilityLabel("Search Transactions")
 
-                Button {
-                    showSearch()
-                } label: {
-                    Image(systemName: "magnifyingglass")
+                    Button {
+                        viewModel.showCreateEditor(using: appState, presenter: transactionPresenter)
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .actualistToolbarGlassButton()
+                    .accessibilityLabel("Add Transaction")
                 }
-                .actualistToolbarGlassButton()
-                .accessibilityLabel("Search Transactions")
-
-                Button {
-                    viewModel.showCreateEditor(using: appState, presenter: transactionPresenter)
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .actualistToolbarGlassButton()
-                .accessibilityLabel("Add Transaction")
             }
         }
         .task {
@@ -282,6 +311,43 @@ struct AccountTransactionsView: View {
         )
     }
 
+    private func inspectorHeader(_ displayState: AccountTransactionsDisplayState) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                presentation.closeInspector()
+            } label: {
+                Image(systemName: "xmark")
+            }
+            .accessibilityLabel("Close Category Details")
+
+            Text(displayState.title)
+                .font(.headline)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            Button {
+                showSearch()
+            } label: {
+                Image(systemName: "magnifyingglass")
+            }
+            .accessibilityLabel("Search Transactions")
+
+            Button {
+                viewModel.showCreateEditor(using: appState, presenter: transactionPresenter)
+            } label: {
+                Image(systemName: "plus")
+            }
+            .accessibilityLabel("Add Transaction")
+        }
+        .buttonStyle(.glass)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(ActualistTheme.background)
+        .overlay(alignment: .bottom) {
+            Divider().overlay(ActualistTheme.separator)
+        }
+    }
     private func header(_ displayState: AccountTransactionsDisplayState) -> some View {
         AccountTransactionsSummaryView(
             scope: scope,
@@ -578,5 +644,21 @@ struct AccountTransactionsView: View {
     private func reconciliationDidMutate() {
         appState.recordLocalDataMutation()
         onChanged()
+    }
+}
+
+private struct TransactionNavigationTitleModifier: ViewModifier {
+    let title: String
+    let isVisible: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isVisible {
+            content
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            content
+        }
     }
 }

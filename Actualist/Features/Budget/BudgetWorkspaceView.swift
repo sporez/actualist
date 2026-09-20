@@ -16,6 +16,15 @@ struct BudgetWorkspaceView: View {
     }
 
     var body: some View {
+        let display = BudgetGridPresentation(
+            visibleMonths: viewport.visibleMonths,
+            snapshots: viewport.monthSnapshots,
+            errors: viewport.monthErrors,
+            privacyEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            showHidden: appState.settings.showHiddenCategories,
+            showTotalAssigned: appState.settings.showTotalAssigned,
+            includeCarryover: appState.settings.includeCarryoverCategoriesInOverspentAlerts
+        )
         NavigationStack {
             GeometryReader { geometry in
                 let inputs = BudgetLayoutInputs(
@@ -27,15 +36,6 @@ struct BudgetWorkspaceView: View {
                 )
                 let capacity = BudgetLayoutMetrics.resolve(inputs)
                 let metrics = BudgetLayoutMetrics.resolve(inputs, renderedMonthCount: viewport.resolvedMonthCount)
-                let display = BudgetGridPresentation(
-                    visibleMonths: viewport.visibleMonths,
-                    snapshots: viewport.monthSnapshots,
-                    errors: viewport.monthErrors,
-                    privacyEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                    showHidden: appState.settings.showHiddenCategories,
-                    showTotalAssigned: appState.settings.showTotalAssigned,
-                    includeCarryover: appState.settings.includeCarryoverCategoriesInOverspentAlerts
-                )
                 VStack(spacing: 0) {
                     if let error = viewport.errorMessage ?? actions.errorMessage {
                         Text(error)
@@ -60,9 +60,6 @@ struct BudgetWorkspaceView: View {
                             }
                     }
                 }
-                .navigationTitle(display.rangeTitle)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { navigationToolbar(display) }
                 .task(id: LoadID(budgetID: appState.settings.selectedBudgetID, count: capacity.visibleMonthCount, route: appState.routeCoordinator.pendingRoute)) {
                     await actions.activate(using: appState, compactModel: compactModel, monthCount: capacity.visibleMonthCount)
                 }
@@ -82,28 +79,24 @@ struct BudgetWorkspaceView: View {
                 actions.updateIncludeCarryover(enabled)
             }
             .modifier(BudgetWorkspaceSheets(actions: actions, viewport: viewport))
-        }
-        .inspector(isPresented: Binding(
-            get: { viewport.selectedCategoryDetails != nil },
-            set: { if !$0 { viewport.closeInspector() } }
-        )) {
-            if let details = viewport.selectedCategoryDetails {
-                NavigationStack {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(appState.settings.randomizedDisplayValuesEnabled
-                            ? PrivacyDisplay.name(for: .category, seed: details.category.id)
-                            : details.category.name.actualistCategoryNameParts.name)
-                            .font(.title2.weight(.bold))
-                            .padding(.horizontal, 20)
-                            .padding(.top, 12)
-                        CategoryMonthDetailsContent(details: details)
-                            .id(details.id)
-                    }
+            .inspector(isPresented: Binding(
+                get: { viewport.selectedCategoryDetails != nil },
+                set: { if !$0 { viewport.closeInspector() } }
+            )) {
+                if let details = viewport.selectedCategoryDetails {
+                    CategoryMonthDetailsContent(
+                        details: details,
+                        presentation: .categoryInspector(onClose: viewport.closeInspector)
+                    )
+                    .id(details.id)
+                    .accessibilityIdentifier("budget-category-inspector")
+                    .inspectorColumnWidth(min: 340, ideal: 380, max: 440)
+                    .appSwitcherPrivacyProtected(using: appState)
                 }
-                .accessibilityIdentifier("budget-category-inspector")
-                .inspectorColumnWidth(min: 340, ideal: 380, max: 440)
-                .appSwitcherPrivacyProtected(using: appState)
             }
+            .navigationTitle(display.rangeTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { navigationToolbar(display) }
         }
     }
 

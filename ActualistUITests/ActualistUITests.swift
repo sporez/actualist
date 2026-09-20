@@ -186,23 +186,56 @@ final class ActualistUITests: XCTestCase {
     }
 
     @MainActor
-    func testWideBudgetCategoryOpensAndClosesNativeInspector() throws {
+    func testWideBudgetCategoryInspectorChromeInBothSidebarLayouts() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launchDemo()
         try requireWide(app)
         XCTAssertTrue(budgetGrid(in: app).waitForExistence(timeout: 15))
-        let category = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'available-'")).firstMatch
-        XCTAssertTrue(category.waitForExistence(timeout: 5))
-        let month = category.label.components(separatedBy: ", ")[1]
-        category.tap()
-        let inspector = app.collectionViews.matching(identifier: "budget-category-inspector").firstMatch
-        XCTAssertTrue(inspector.waitForExistence(timeout: 5))
-        XCTAssertTrue(inspector.descendants(matching: .any).matching(NSPredicate(format: "label == %@", month)).firstMatch.waitForExistence(timeout: 3))
-        attachScreenshot(named: "wide-category-inspector-open", app: app)
-        let close = app.buttons["Close Category Details"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        close.tap()
-        XCTAssertTrue(inspector.waitForNonExistence(timeout: 5))
+
+        for preference in ["Auto", "1"] {
+            app.buttons["Budget Actions"].tap()
+            let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Months Shown'")).firstMatch
+            XCTAssertTrue(picker.waitForExistence(timeout: 3))
+            picker.tap()
+            app.buttons[preference].tap()
+
+            let expectedMonthCount = preference == "1" ? 1 : 2
+            let monthCountExpectation = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    preference == "1"
+                        ? self.visibleMonthCount(in: app) == expectedMonthCount
+                        : self.visibleMonthCount(in: app) >= expectedMonthCount
+                },
+                object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [monthCountExpectation], timeout: 5), .completed)
+
+            let category = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'available-'")).firstMatch
+            XCTAssertTrue(category.waitForExistence(timeout: 5))
+            let month = category.label.components(separatedBy: ", ")[1]
+            category.tap()
+
+            let inspector = app.collectionViews.matching(identifier: "budget-category-inspector").firstMatch
+            XCTAssertTrue(inspector.waitForExistence(timeout: 5))
+            XCTAssertTrue(inspector.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", month)).firstMatch.waitForExistence(timeout: 3))
+
+            for controlName in ["Close Category Details", "Search Transactions", "Add Transaction"] {
+                let control = app.buttons[controlName]
+                XCTAssertTrue(control.waitForExistence(timeout: 3))
+                XCTAssertGreaterThanOrEqual(control.frame.minX, inspector.frame.minX)
+                XCTAssertLessThanOrEqual(control.frame.maxX, inspector.frame.maxX)
+            }
+
+            attachScreenshot(named: "wide-category-inspector-\(preference.lowercased())", app: app)
+            app.buttons["Close Category Details"].tap()
+            XCTAssertTrue(inspector.waitForNonExistence(timeout: 5))
+        }
+
+        app.buttons["Budget Actions"].tap()
+        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Months Shown'")).firstMatch
+        picker.tap()
+        app.buttons["Auto"].tap()
     }
 
     @MainActor
