@@ -93,14 +93,18 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
         let editorScroll = app.scrollViews["transaction-editor-scroll"]
         XCTAssertTrue(editorScroll.waitForExistence(timeout: 5))
+        editorScroll.swipeUp()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5))
         let notes = app.descendants(matching: .any)["transaction-notes-field"]
-        scroll(notes, fullyAbove: keyboard, in: editorScroll)
+        scrollUntilHittable(notes, in: editorScroll)
         XCTAssertTrue(notes.isHittable)
         notes.tap()
         XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
         let save = app.descendants(matching: .any)["transaction-save-button"]
-        scroll(save, fullyAbove: keyboard, in: editorScroll)
-        XCTAssertLessThanOrEqual(save.frame.maxY, keyboard.frame.minY - 4)
+        editorScroll.swipeUp()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5))
+        scrollUntilHittable(save, in: editorScroll)
+        XCTAssertTrue(save.isHittable)
         XCTAssertTrue(editor.buttons.firstMatch.isHittable)
         XCTAssertTrue(amount.exists)
         XCTAssertTrue(amount.label.contains("12.34"))
@@ -687,19 +691,10 @@ final class ActualistUITests: XCTestCase {
         XCTAssertLessThanOrEqual(finalCategory.frame.maxY, tabBar.frame.minY - 4)
     }
 
-    private func scroll(_ element: XCUIElement, fullyAbove occluder: XCUIElement, in scrollView: XCUIElement) {
-        for _ in 0..<8 {
-            if element.exists,
-               element.frame != .zero,
-               element.frame.minY >= scrollView.frame.minY,
-               element.frame.maxY <= occluder.frame.minY - 4 {
-                return
-            }
+    private func scrollUntilHittable(_ element: XCUIElement, in scrollView: XCUIElement) {
+        for _ in 0..<8 where !element.isHittable {
             scrollView.swipeUp()
         }
-        XCTAssertTrue(element.exists)
-        XCTAssertGreaterThanOrEqual(element.frame.minY, scrollView.frame.minY)
-        XCTAssertLessThanOrEqual(element.frame.maxY, occluder.frame.minY - 4)
     }
 
     private func visibleMonthCount(in app: XCUIApplication) -> Int {

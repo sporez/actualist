@@ -36,7 +36,7 @@ struct TransactionEditorView: View {
                     .padding(.top, 18)
                     .padding(.bottom, 32)
                 }
-                .scrollDismissesKeyboard(.never)
+                .scrollDismissesKeyboard(.immediately)
                 .accessibilityIdentifier("transaction-editor-scroll")
             }
             .toolbar {
@@ -107,15 +107,28 @@ struct TransactionEditorView: View {
 
     private var amountHeader: some View {
         VStack(spacing: 18) {
-            MoneyAmountEntryField(
-                text: amountDigitsBinding,
-                displayText: viewModel.formattedAmount,
-                foreground: viewModel.amountColor,
-                keyboard: .digits,
-                focus: $isAmountFocused,
-                accessibilityLabel: "Transaction Amount",
-                accessibilityIdentifier: "transaction-amount-field"
-            )
+            ZStack {
+                Text(viewModel.formattedAmount)
+                    .font(ActualistTypography.editorAmount(for: density))
+                    .foregroundStyle(viewModel.amountColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+
+                TextField("", text: amountDigitsBinding)
+                    .focused($isAmountFocused)
+                    .keyboardType(.numberPad)
+                    .textInputAutocapitalization(.never)
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .accessibilityLabel("Transaction Amount")
+                    .accessibilityValue(viewModel.formattedAmount)
+                    .accessibilityIdentifier("transaction-amount-field")
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                isAmountFocused = true
+            }
             .padding(.top, 18)
 
             Picker("Transaction Type", selection: $viewModel.kind) {
