@@ -17,6 +17,8 @@ struct BudgetView: View {
     @State private var templateEditorTarget: BudgetTemplateEditorTarget?
     @State private var noteTarget: ActualNoteTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
+    @State private var categoryLifecycleSheet: BudgetCategoryLifecycleSheet?
+    @State private var categoryLifecycle = BudgetCategoryLifecycleController()
     let loadsOnAppear: Bool
 
     init(viewModel: BudgetViewModel, loadsOnAppear: Bool = true) {
@@ -114,6 +116,26 @@ struct BudgetView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button {
+                                presentCategoryLifecycle(.createCategory(
+                                    groups: categoryLifecycleGroups,
+                                    isTrackingBudget: viewModel.isTrackingBudget
+                                ))
+                            } label: {
+                                Label("New Category…", systemImage: "plus")
+                            }
+                            .disabled(managedCategoryGroups.isEmpty)
+                            .accessibilityIdentifier("budget-new-category")
+
+                            Button {
+                                presentCategoryLifecycle(.createGroup)
+                            } label: {
+                                Label("New Group…", systemImage: "folder.badge.plus")
+                            }
+                            .accessibilityIdentifier("budget-new-group")
+
+                            Divider()
+
+                            Button {
                                 isHistoryPresented = true
                             } label: {
                                 Label("History", systemImage: "clock.arrow.circlepath")
@@ -191,10 +213,12 @@ struct BudgetView: View {
                 }
                 .onChange(of: viewModel.selectedMonth) {
                     visibilityWorkflow.cancel()
+                    dismissCategoryLifecycle()
                     noteTarget = nil
                     applyShortcutRoute()
                 }
                 .onChange(of: appState.settings.selectedBudgetID) {
+                    dismissCategoryLifecycle()
                     noteTarget = nil
                 }
                 .sheet(isPresented: $isHistoryPresented) {
@@ -259,6 +283,13 @@ struct BudgetView: View {
                     )
                     .appSwitcherPrivacyProtected(using: appState)
                 }
+                .sheet(item: Binding(
+                    get: { categoryLifecycleSheet },
+                    set: { if $0 == nil { dismissCategoryLifecycle() } }
+                )) { sheet in
+                    categoryLifecycleContent(sheet)
+                        .appSwitcherPrivacyProtected(using: appState)
+                }
                 .sheet(isPresented: moveMoneyPresentationBinding) {
                     BudgetMoveMoneyView(
                         viewModel: viewModel,
@@ -283,8 +314,9 @@ struct BudgetView: View {
         isHistoryPresented || isMonthPickerPresented || isUncategorizedTransactionsPresented
             || categoryDetailsPresentation != nil || isOverspentCategoriesPresented
             || pendingTemplateConfirmation != nil || templateEditorTarget != nil || noteTarget != nil
+            || categoryLifecycleSheet != nil
             || transactionPresenter.presentation != nil || appState.routeCoordinator.isSettingsPresented
-            || visibilityWorkflow.isSubmitting
+            || visibilityWorkflow.isSubmitting || categoryLifecycle.isSubmitting
     }
 
     private func applyTemplate(_ confirmation: BudgetTemplateConfirmation, reviewedMode: BudgetModeIdentity?) {
@@ -344,7 +376,7 @@ struct BudgetView: View {
 
     @ViewBuilder
     private var operationErrorBanner: some View {
-        if let message = viewModel.errorMessage ?? visibilityWorkflow.errorMessage {
+        if let message = viewModel.errorMessage ?? visibilityWorkflow.errorMessage ?? categoryLifecycle.errorMessage {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.body.weight(.bold))
@@ -452,7 +484,60 @@ struct BudgetView: View {
             case .templates(let category): presentTemplates(for: category)
             case .categoryVisibility(let category, let group): toggleCategoryHidden(category, in: group)
             case .groupVisibility(let group): toggleGroupHidden(group)
+            case .renameCategory(let category):
+                presentCategoryLifecycle(.renameCategory(category, isTrackingBudget: viewModel.isTrackingBudget))
+            case .renameGroup(let group):
+                presentCategoryLifecycle(.renameGroup(group, isTrackingBudget: viewModel.isTrackingBudget))
+            case .reorder:
+                presentCategoryLifecycle(.reorder(
+                    groups: categoryLifecycleGroups,
+                    isTrackingBudget: viewModel.isTrackingBudget
+                ))
             }
+        }
+    }
+
+    private var categoryLifecycleGroups: [BudgetMonthCategoryGroup] {
+        viewModel.budgetMonth?.categoryGroups ?? []
+    }
+
+    private var managedCategoryGroups: [BudgetMonthCategoryGroup] {
+        BudgetCategoryLifecycleController.manageableGroups(
+            categoryLifecycleGroups,
+            isTrackingBudget: viewModel.isTrackingBudget
+        )
+    }
+
+    private func presentCategoryLifecycle(_ sheet: BudgetCategoryLifecycleSheet) {
+        categoryLifecycle.prepare(sheet)
+        categoryLifecycleSheet = sheet
+    }
+
+    private func dismissCategoryLifecycle() {
+        categoryLifecycle.cancel()
+        categoryLifecycleSheet = nil
+    }
+
+    @ViewBuilder
+    private func categoryLifecycleContent(_ sheet: BudgetCategoryLifecycleSheet) -> some View {
+        switch sheet {
+        case .reorder:
+            BudgetCategoryReorderSheet(
+                controller: categoryLifecycle,
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.budgetRepository,
+                onSaved: { await viewModel.refreshSelectedMonth(using: appState) }
+            )
+        default:
+            BudgetCategoryNameSheet(
+                controller: categoryLifecycle,
+                sheet: sheet,
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.budgetRepository,
+                onSaved: { await viewModel.refreshSelectedMonth(using: appState) }
+            )
         }
     }
 

@@ -22,6 +22,9 @@ struct BudgetGroupSection: View {
     var templatesMenuTitle: (BudgetMonthCategory) -> String? = { _ in nil }
     var onToggleCategoryHidden: (BudgetMonthCategory) -> Void = { _ in }
     var onToggleGroupHidden: () -> Void = {}
+    var onRenameCategory: (BudgetMonthCategory) -> Void = { _ in }
+    var onRenameGroup: () -> Void = {}
+    var onReorder: () -> Void = {}
 
     private var displayedCategories: [BudgetMonthCategory] {
         BudgetCategoryVisibility.displayedCategories(in: group, showHidden: showHidden)
@@ -39,6 +42,7 @@ struct BudgetGroupSection: View {
                 .padding(.vertical, 12)
                 .padding(.horizontal, BudgetLayout.rowHorizontalPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(BudgetRowButtonStyle())
             .accessibilityIdentifier("budget-group-\(group.id)")
@@ -57,6 +61,24 @@ struct BudgetGroupSection: View {
                         Label(isGroupHidden ? "Show" : "Hide", systemImage: isGroupHidden ? "eye" : "eye.slash")
                     }
                     .disabled(!canChangeVisibility)
+                }
+
+                if isTrackingBudget || !group.isIncome {
+                    Divider()
+
+                    Button {
+                        onRenameGroup()
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
+                    }
+                    .accessibilityIdentifier("budget-group-rename-\(group.id)")
+
+                    Button {
+                        onReorder()
+                    } label: {
+                        Label("Reorder", systemImage: "arrow.up.arrow.down")
+                    }
+                    .accessibilityIdentifier("budget-group-reorder-\(group.id)")
                 }
             }
 
@@ -88,7 +110,10 @@ struct BudgetGroupSection: View {
                             },
                             onToggleHidden: {
                                 onToggleCategoryHidden(category)
-                            }
+                            },
+                            canManageLifecycle: isTrackingBudget || !category.isIncome,
+                            onRename: { onRenameCategory(category) },
+                            onReorder: onReorder
                         )
                         .id(BudgetScrollTarget.category(category.id))
                     }
@@ -215,6 +240,9 @@ struct BudgetCategoryRow: View {
     var templatesMenuTitle: String? = nil
     var onOpenTemplates: () -> Void = {}
     var onToggleHidden: () -> Void = {}
+    var canManageLifecycle = false
+    var onRename: () -> Void = {}
+    var onReorder: () -> Void = {}
 
     @State private var measuredFrame = BudgetCategoryRowFrame()
 
@@ -257,6 +285,24 @@ struct BudgetCategoryRow: View {
                         systemImage: BudgetCategoryVisibility.isHidden(category.hidden) ? "eye" : "eye.slash"
                     )
                 }
+            }
+
+            if canManageLifecycle {
+                Divider()
+
+                Button {
+                    onRename()
+                } label: {
+                    Label("Rename", systemImage: "pencil")
+                }
+                .accessibilityIdentifier("budget-category-rename-\(category.id)")
+
+                Button {
+                    onReorder()
+                } label: {
+                    Label("Reorder", systemImage: "arrow.up.arrow.down")
+                }
+                .accessibilityIdentifier("budget-category-reorder-\(category.id)")
             }
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in

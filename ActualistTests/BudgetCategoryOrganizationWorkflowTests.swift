@@ -52,6 +52,65 @@ struct BudgetCategoryOrganizationWorkflowTests {
         #expect(!workflow.isSubmitting)
         #expect(await repository.createdGroups == ["Bills"])
     }
+
+    @Test func lifecycleControllerUsesHiddenGroupsAndTreatsUnchangedRenameAsSaved() async {
+        let repository = CategoryLifecycleRecordingRepository()
+        let controller = BudgetCategoryLifecycleController()
+        let hidden = BudgetMonthCategoryGroup(
+            id: "hidden", name: "Hidden Group", isIncome: false, hidden: true,
+            budgeted: 0, spent: 0, balance: 0, categories: []
+        )
+        let create = BudgetCategoryLifecycleSheet.createCategory(
+            groups: [hidden], isTrackingBudget: false
+        )
+        controller.prepare(create)
+
+        #expect(await controller.submitName(
+            "Fuel",
+            selectedGroupID: hidden.id,
+            sheet: create,
+            selectedMonth: "2026-07",
+            budgetID: "budget",
+            repository: repository
+        ))
+        #expect(await repository.createdCategories == [.init(name: "Fuel", groupID: "hidden")])
+
+        let existing = category("food", "Food", false, "hidden")
+        let rename = BudgetCategoryLifecycleSheet.renameCategory(existing, isTrackingBudget: false)
+        controller.prepare(rename)
+        #expect(await controller.submitName(
+            " Food ",
+            selectedGroupID: nil,
+            sheet: rename,
+            selectedMonth: "2026-07",
+            budgetID: "budget",
+            repository: repository
+        ))
+        #expect(await repository.renamedCategories.isEmpty)
+    }
+
+    @Test func lifecycleControllerAllowsTrackingIncomeAndIncludesItInReorder() async {
+        let repository = CategoryLifecycleRecordingRepository()
+        let controller = BudgetCategoryLifecycleController()
+        let income = group("income", "Income", true, [])
+        let create = BudgetCategoryLifecycleSheet.createCategory(
+            groups: [income], isTrackingBudget: true
+        )
+        controller.prepare(create)
+
+        #expect(await controller.submitName(
+            "Paycheck",
+            selectedGroupID: income.id,
+            sheet: create,
+            selectedMonth: "2026-07",
+            budgetID: "budget",
+            repository: repository
+        ))
+        #expect(await repository.createdCategories == [.init(name: "Paycheck", groupID: "income")])
+
+        controller.prepare(.reorder(groups: [income], isTrackingBudget: true))
+        #expect(controller.reorder.draft?.groups.map(\.id) == ["income"])
+    }
 }
 
 actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {

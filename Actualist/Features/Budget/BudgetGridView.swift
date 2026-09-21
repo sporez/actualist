@@ -65,6 +65,7 @@ struct BudgetGridView: View {
             .hoverEffect(.highlight)
             .accessibilityLabel(group.title)
             .accessibilityValue(viewport.expandedGroupIDs.contains(group.id) ? "Expanded" : "Collapsed")
+            .accessibilityIdentifier("budget-grid-group-\(group.id)")
             .frame(width: metrics.categoryColumnWidth, alignment: .leading)
             .contextMenu {
                 Button("Notes", systemImage: "note.text") { actions.openGroupNote(group.source) }
@@ -72,6 +73,17 @@ struct BudgetGridView: View {
                     Button(group.source.hidden == true ? "Show" : "Hide", systemImage: "eye") {
                         Task { await actions.toggleGroupHidden(group.source, using: appState) }
                     }
+                }
+                if viewport.isTrackingBudget || !group.source.isIncome {
+                    Divider()
+                    Button("Rename", systemImage: "pencil") {
+                        actions.openRenameGroup(group.source)
+                    }
+                    .accessibilityIdentifier("budget-grid-group-rename-\(group.id)")
+                    Button("Reorder", systemImage: "arrow.up.arrow.down") {
+                        actions.openCategoryReorder()
+                    }
+                    .accessibilityIdentifier("budget-grid-group-reorder-\(group.id)")
                 }
             }
 
@@ -133,6 +145,7 @@ struct BudgetGridView: View {
             .buttonStyle(.plain)
             .hoverEffect(.highlight)
             .accessibilityLabel("\(category.title), category details")
+            .accessibilityIdentifier("budget-grid-category-\(category.id)")
             .frame(width: metrics.categoryColumnWidth, alignment: .leading)
             .contextMenu {
                 Button("Notes", systemImage: "note.text") { actions.openCategoryNote(category.source) }
@@ -143,6 +156,17 @@ struct BudgetGridView: View {
                     Task { await actions.toggleCategoryHidden(category.source, in: group.source, using: appState) }
                 }
                 .disabled(group.source.hidden == true)
+                if viewport.isTrackingBudget || !category.source.isIncome {
+                    Divider()
+                    Button("Rename", systemImage: "pencil") {
+                        actions.openRenameCategory(category.source)
+                    }
+                    .accessibilityIdentifier("budget-grid-category-rename-\(category.id)")
+                    Button("Reorder", systemImage: "arrow.up.arrow.down") {
+                        actions.openCategoryReorder()
+                    }
+                    .accessibilityIdentifier("budget-grid-category-reorder-\(category.id)")
+                }
             }
 
             ForEach(presentation.months) { month in

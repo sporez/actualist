@@ -7,6 +7,7 @@ enum BudgetWorkspaceSheet: Identifiable, Equatable {
     case moveMoney
     case note(ActualNoteTarget)
     case templates(BudgetTemplateEditorTarget)
+    case categoryLifecycle(BudgetCategoryLifecycleSheet)
 
     var id: String {
         switch self {
@@ -16,6 +17,7 @@ enum BudgetWorkspaceSheet: Identifiable, Equatable {
         case .moveMoney: "move-money"
         case .note(let target): "note:\(target.id)"
         case .templates(let target): "templates:\(target.id)"
+        case .categoryLifecycle(let sheet): "category-lifecycle:\(sheet.id)"
         }
     }
 }
@@ -33,16 +35,18 @@ final class BudgetWorkspaceActions {
     private(set) var confirmation: BudgetTemplateConfirmation?
     private(set) var actionMonth: String?
     private(set) var actionCategoryID: String?
+    private(set) var actionBudgetID: String?
     var errorMessage: String? {
-        actionModel?.errorMessage ?? visibilityWorkflow.errorMessage
+        actionModel?.errorMessage ?? visibilityWorkflow.errorMessage ?? categoryLifecycle.errorMessage
     }
     var isSubmitting: Bool {
-        actionModel?.isLoading == true || visibilityWorkflow.isSubmitting
+        actionModel?.isLoading == true || visibilityWorkflow.isSubmitting || categoryLifecycle.isSubmitting
     }
+
+    let categoryLifecycle = BudgetCategoryLifecycleController()
 
     private let visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
     private var includeCarryoverCategoriesInOverspentAlerts: Bool
-    private var actionBudgetID: String?
 
     init(viewport: BudgetViewportModel, includeCarryoverCategoriesInOverspentAlerts: Bool = false) {
         self.viewport = viewport
@@ -85,6 +89,34 @@ final class BudgetWorkspaceActions {
     func openHistory() {
         clearActionContext()
         sheet = .history
+    }
+
+    func openCreateCategory() {
+        presentCategoryLifecycle(.createCategory(
+            groups: categoryLifecycleGroups,
+            isTrackingBudget: viewport.isTrackingBudget
+        ))
+    }
+
+    func openCreateGroup() {
+        presentCategoryLifecycle(.createGroup)
+    }
+
+    func openRenameCategory(_ category: BudgetMonthCategory) {
+        guard viewport.isTrackingBudget || !category.isIncome else { return }
+        presentCategoryLifecycle(.renameCategory(category, isTrackingBudget: viewport.isTrackingBudget))
+    }
+
+    func openRenameGroup(_ group: BudgetMonthCategoryGroup) {
+        guard viewport.isTrackingBudget || !group.isIncome else { return }
+        presentCategoryLifecycle(.renameGroup(group, isTrackingBudget: viewport.isTrackingBudget))
+    }
+
+    func openCategoryReorder() {
+        presentCategoryLifecycle(.reorder(
+            groups: categoryLifecycleGroups,
+            isTrackingBudget: viewport.isTrackingBudget
+        ))
     }
 
     func openMonthNote(_ month: String) {
@@ -292,6 +324,7 @@ final class BudgetWorkspaceActions {
 
     func dismissSheet() {
         viewport.cancelAssignmentEditing()
+        categoryLifecycle.cancel()
         clearActionContext()
     }
 
@@ -336,6 +369,19 @@ final class BudgetWorkspaceActions {
         )
         actionBudgetID = viewport.budgetID
         actionModel?.includeCarryoverCategoriesInOverspentAlerts = includeCarryoverCategoriesInOverspentAlerts
+    }
+
+    private var categoryLifecycleGroups: [BudgetMonthCategoryGroup] {
+        guard let month = viewport.anchorMonth else { return [] }
+        return viewport.snapshot(for: month)?.month.categoryGroups ?? []
+    }
+
+    private func presentCategoryLifecycle(_ lifecycleSheet: BudgetCategoryLifecycleSheet) {
+        clearActionContext()
+        categoryLifecycle.prepare(lifecycleSheet)
+        actionMonth = viewport.anchorMonth
+        actionBudgetID = viewport.budgetID
+        sheet = .categoryLifecycle(lifecycleSheet)
     }
 
     private func clearActionContext() {

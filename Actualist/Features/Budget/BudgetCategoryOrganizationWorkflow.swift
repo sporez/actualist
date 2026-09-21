@@ -11,6 +11,7 @@ final class BudgetCategoryOrganizationWorkflow {
     func cancel() {
         generation += 1
         isSubmitting = false
+        errorMessage = nil
     }
 
     func createCategory(

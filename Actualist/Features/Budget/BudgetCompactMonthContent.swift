@@ -13,6 +13,8 @@ struct BudgetCompactMonthContent: View {
         case templates(BudgetMonthCategory)
         case categoryVisibility(BudgetMonthCategory, BudgetMonthCategoryGroup)
         case groupVisibility(BudgetMonthCategoryGroup)
+        case renameCategory(BudgetMonthCategory), renameGroup(BudgetMonthCategoryGroup)
+        case reorder
     }
 
     var body: some View {
@@ -112,7 +114,10 @@ struct BudgetCompactMonthContent: View {
                             : BudgetTemplateDoorKind.kind(hasDefinition: category.hasTemplateDefinition).menuTitle
                     },
                     onToggleCategoryHidden: { action(.categoryVisibility($0, group)) },
-                    onToggleGroupHidden: { action(.groupVisibility(group)) }
+                    onToggleGroupHidden: { action(.groupVisibility(group)) },
+                    onRenameCategory: { action(.renameCategory($0)) },
+                    onRenameGroup: { action(.renameGroup(group)) },
+                    onReorder: { action(.reorder) }
                 )
             }
         }

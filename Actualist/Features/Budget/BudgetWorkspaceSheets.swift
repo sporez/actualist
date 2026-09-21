@@ -60,6 +60,26 @@ struct BudgetWorkspaceSheets: ViewModifier {
             BudgetTemplateEditorView(target: target) {
                 Task { await viewport.refreshVisibleMonths() }
             }
+        case .categoryLifecycle(let lifecycleSheet):
+            switch lifecycleSheet {
+            case .reorder:
+                BudgetCategoryReorderSheet(
+                    controller: actions.categoryLifecycle,
+                    selectedMonth: actions.actionMonth,
+                    budgetID: actions.actionBudgetID,
+                    repository: viewport.repository,
+                    onSaved: {}
+                )
+            default:
+                BudgetCategoryNameSheet(
+                    controller: actions.categoryLifecycle,
+                    sheet: lifecycleSheet,
+                    selectedMonth: actions.actionMonth,
+                    budgetID: actions.actionBudgetID,
+                    repository: viewport.repository,
+                    onSaved: {}
+                )
+            }
         }
     }
 }
