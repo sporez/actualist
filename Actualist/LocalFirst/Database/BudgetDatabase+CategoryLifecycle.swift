@@ -220,7 +220,7 @@ extension BudgetDatabase {
     }
 }
 
-private extension BudgetDatabase {
+extension BudgetDatabase {
     struct CategoryLifecycleGroup {
         let id: String
         let name: String

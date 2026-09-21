@@ -122,13 +122,31 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
     private(set) var renamedCategories: [RenamedEntity] = []
     private(set) var renamedGroups: [RenamedEntity] = []
     private(set) var outlines: [BudgetCategoryOutlineCommand] = []
+    private(set) var transferChecks: [String] = []
+    private(set) var deletedCategories: [(id: String, transferID: String?)] = []
+    private(set) var deletedGroups: [(id: String, transferID: String?)] = []
     private let suspendCreates: Bool
+    private let suspendTransferChecks: Bool
+    private let suspendDeletes: Bool
+    private let transferRequiredIDs: Set<String>
     private var createStarted = false
     private var createStartedWaiters: [CheckedContinuation<Void, Never>] = []
     private var createContinuation: CheckedContinuation<Void, Never>?
+    private var transferCheckStartedWaiters: [CheckedContinuation<Void, Never>] = []
+    private var transferCheckContinuation: CheckedContinuation<Void, Never>?
+    private var deleteStartedWaiters: [CheckedContinuation<Void, Never>] = []
+    private var deleteContinuation: CheckedContinuation<Void, Never>?
 
-    init(suspendCreates: Bool = false) {
+    init(
+        suspendCreates: Bool = false,
+        suspendTransferChecks: Bool = false,
+        suspendDeletes: Bool = false,
+        transferRequiredIDs: Set<String> = []
+    ) {
         self.suspendCreates = suspendCreates
+        self.suspendTransferChecks = suspendTransferChecks
+        self.suspendDeletes = suspendDeletes
+        self.transferRequiredIDs = transferRequiredIDs
     }
 
     func waitUntilCreateStarted() async {
@@ -139,6 +157,26 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
     func finishCreate() {
         createContinuation?.resume()
         createContinuation = nil
+    }
+
+    func waitUntilTransferCheckStarted() async {
+        if !transferChecks.isEmpty { return }
+        await withCheckedContinuation { transferCheckStartedWaiters.append($0) }
+    }
+
+    func finishTransferCheck() {
+        transferCheckContinuation?.resume()
+        transferCheckContinuation = nil
+    }
+
+    func waitUntilDeleteStarted() async {
+        if !deletedCategories.isEmpty || !deletedGroups.isEmpty { return }
+        await withCheckedContinuation { deleteStartedWaiters.append($0) }
+    }
+
+    func finishDelete() {
+        deleteContinuation?.resume()
+        deleteContinuation = nil
     }
 
     func createCategoryAndRefresh(name: String, groupID: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
@@ -172,6 +210,32 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
         return emptyCategoryLifecycleMonth
     }
 
+    func categoryNeedsTransfer(categoryID: String, budgetID: String) async throws -> Bool {
+        transferChecks.append(categoryID)
+        transferCheckStartedWaiters.forEach { $0.resume() }
+        transferCheckStartedWaiters = []
+        if suspendTransferChecks {
+            await withCheckedContinuation { transferCheckContinuation = $0 }
+        }
+        return transferRequiredIDs.contains(categoryID)
+    }
+
+    func deleteCategoryAndRefresh(categoryID: String, transferCategoryID: String?, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        deletedCategories.append((categoryID, transferCategoryID))
+        deleteStartedWaiters.forEach { $0.resume() }
+        deleteStartedWaiters = []
+        if suspendDeletes { await withCheckedContinuation { deleteContinuation = $0 } }
+        return emptyCategoryLifecycleMonth
+    }
+
+    func deleteCategoryGroupAndRefresh(groupID: String, transferCategoryID: String?, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        deletedGroups.append((groupID, transferCategoryID))
+        deleteStartedWaiters.forEach { $0.resume() }
+        deleteStartedWaiters = []
+        if suspendDeletes { await withCheckedContinuation { deleteContinuation = $0 } }
+        return emptyCategoryLifecycleMonth
+    }
+
     func budgets() async throws -> [ActualBudget] { [] }
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
@@ -189,7 +253,7 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
     func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
 }
 
-private let emptyCategoryLifecycleMonth = LoadedBudgetMonth(
+let emptyCategoryLifecycleMonth = LoadedBudgetMonth(
     availableMonths: ["2026-07"], selectedMonth: "2026-07",
     month: BudgetMonth(
         month: "2026-07", incomeAvailable: 0, lastMonthOverspent: 0, forNextMonth: 0,

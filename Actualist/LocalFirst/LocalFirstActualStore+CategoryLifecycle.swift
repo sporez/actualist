@@ -39,6 +39,37 @@ extension LocalFirstActualStore {
         }
     }
 
+    func categoryNeedsTransfer(categoryID: String, budgetID: String) async throws -> Bool {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.categoryNeedsTransfer(categoryID: categoryID)
+    }
+
+    func deleteCategoryAndRefresh(
+        categoryID: String,
+        transferCategoryID: String?,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth {
+        try await commitCategoryLifecycle(budgetID: budgetID, month: month) { database, builder in
+            try await database.deleteCategoryMessages(
+                categoryID: categoryID, transferCategoryID: transferCategoryID, builder: &builder
+            )
+        }
+    }
+
+    func deleteCategoryGroupAndRefresh(
+        groupID: String,
+        transferCategoryID: String?,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth {
+        try await commitCategoryLifecycle(budgetID: budgetID, month: month) { database, builder in
+            try await database.deleteCategoryGroupMessages(
+                groupID: groupID, transferCategoryID: transferCategoryID, builder: &builder
+            )
+        }
+    }
+
     private func commitCategoryLifecycle(
         budgetID: String,
         month: String,

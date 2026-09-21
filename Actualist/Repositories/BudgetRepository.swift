@@ -73,6 +73,19 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         month: String
     ) async throws -> LoadedBudgetMonth
+    func categoryNeedsTransfer(categoryID: String, budgetID: String) async throws -> Bool
+    func deleteCategoryAndRefresh(
+        categoryID: String,
+        transferCategoryID: String?,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
+    func deleteCategoryGroupAndRefresh(
+        groupID: String,
+        transferCategoryID: String?,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity?,
         command: BudgetTemplateCommand,
         budgetID: String,
@@ -145,6 +158,18 @@ extension BudgetRepositoryProtocol {
     }
 
     func applyCategoryOutlineAndRefresh(draft: BudgetCategoryOutlineCommand, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func categoryNeedsTransfer(categoryID: String, budgetID: String) async throws -> Bool {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func deleteCategoryAndRefresh(categoryID: String, transferCategoryID: String?, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func deleteCategoryGroupAndRefresh(groupID: String, transferCategoryID: String?, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
         throw LocalFirstError.unsupportedWrite
     }
 
