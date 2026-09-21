@@ -91,3 +91,4 @@ reference/
 # Local pi overlay (device ids, plans, personal workflow)
 .pi/
 .omp/
+.opencode

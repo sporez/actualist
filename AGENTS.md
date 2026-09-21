@@ -17,6 +17,35 @@ Actualist is a native iOS 26+ local-first client for Actual Budget. It talks to 
   `scripts/lib/destinations.sh` (copy `scripts/lib/destinations.example.sh`).
   Pin destinations by UDID, never by display name.
 
+## Architecture At A Glance
+
+- `Actualist/App/`: app entry, session lifecycle, background work, and app-wide
+  coordination. `AppState` is limited to session, settings, and routing.
+- `Actualist/Features/`: screens, feature view models, focused coordinators,
+  presentation models, and feature-local pure logic.
+- `Actualist/Repositories/`: dependency-injection protocols and domain/display
+  models. Production injects `LocalFirstActualStore`; there are no concrete
+  repository structs.
+- `Actualist/LocalFirst/`: the observable store, cached local source of truth,
+  CRDT write orchestration, sync, imports, and connection lifecycle.
+- `Actualist/LocalFirst/Database/`: GRDB/SQLite reads, schema compatibility,
+  calculations close to stored data, and atomic local write/outbox transactions.
+- `Actualist/LocalFirst/Network/` and `LocalFirst/Sync/`: HTTP/wire transport,
+  protocol decoding, sync abstractions, and CRDT message construction.
+- `Actualist/Shared/`, `Models/`, `Persistence/`, `Security/`, and
+  `DesignSystem/`: cross-feature domain helpers, shared models, app preferences,
+  credentials/transport security, and visual primitives respectively.
+- `Actualist/Widgets/` owns app-side widget snapshots and shared widget models;
+  `ActualistWidget/` owns the extension UI and timelines.
+- `ActualistTests/` is a flat unit/integration suite named by production type or
+  workflow; `ActualistUITests/` is grouped by visible surface.
+
+Normal flow is View -> feature view model/coordinator -> repository protocol ->
+`LocalFirstActualStore`, which orchestrates `BudgetDatabase` and sync/network
+clients. Screens never read from network clients. For unfamiliar or cross-layer
+work, load `.agents/skills/actualist-architecture/SKILL.md`; skill-aware clients
+expose it as `skill://actualist-architecture`.
+
 ## Local-First Backend
 
 - The app connects to a normal Actual server, not the `actual-http-api` REST wrapper.
