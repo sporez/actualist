@@ -74,7 +74,8 @@ struct BudgetGridView: View {
                         Task { await actions.toggleGroupHidden(group.source, using: appState) }
                     }
                 }
-                if viewport.isTrackingBudget || !group.source.isIncome {
+                if !appState.settings.randomizedDisplayValuesEnabled
+                    && (viewport.isTrackingBudget || !group.source.isIncome) {
                     Divider()
                     Button("Rename", systemImage: "pencil") {
                         actions.openRenameGroup(group.source)
@@ -160,7 +161,8 @@ struct BudgetGridView: View {
                     Task { await actions.toggleCategoryHidden(category.source, in: group.source, using: appState) }
                 }
                 .disabled(group.source.hidden == true)
-                if viewport.isTrackingBudget || !category.source.isIncome {
+                if !appState.settings.randomizedDisplayValuesEnabled
+                    && (viewport.isTrackingBudget || !category.source.isIncome) {
                     Divider()
                     Button("Rename", systemImage: "pencil") {
                         actions.openRenameCategory(category.source)

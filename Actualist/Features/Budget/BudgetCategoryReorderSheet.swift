@@ -40,6 +40,7 @@ struct BudgetCategoryReorderSheet: View {
                         controller.cancel()
                         dismiss()
                     }
+                    .disabled(controller.isSubmitting)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }

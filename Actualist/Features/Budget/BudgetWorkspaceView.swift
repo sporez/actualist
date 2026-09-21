@@ -142,19 +142,21 @@ struct BudgetWorkspaceView: View {
             Button("Today") { Task { await viewport.jumpToCurrentMonth() } }
                 .accessibilityLabel("Current month")
             Menu {
-                Button("New Category…", systemImage: "plus") {
-                    actions.openCreateCategory()
+                if !appState.settings.randomizedDisplayValuesEnabled {
+                    Button("New Category…", systemImage: "plus") {
+                        actions.openCreateCategory()
+                    }
+                    .disabled(BudgetCategoryLifecycleController.manageableGroups(
+                        viewport.visibleSnapshots.first?.month.categoryGroups ?? [],
+                        isTrackingBudget: viewport.isTrackingBudget
+                    ).isEmpty)
+                    .accessibilityIdentifier("budget-new-category")
+                    Button("New Group…", systemImage: "folder.badge.plus") {
+                        actions.openCreateGroup()
+                    }
+                    .accessibilityIdentifier("budget-new-group")
+                    Divider()
                 }
-                .disabled(BudgetCategoryLifecycleController.manageableGroups(
-                    viewport.visibleSnapshots.first?.month.categoryGroups ?? [],
-                    isTrackingBudget: viewport.isTrackingBudget
-                ).isEmpty)
-                .accessibilityIdentifier("budget-new-category")
-                Button("New Group…", systemImage: "folder.badge.plus") {
-                    actions.openCreateGroup()
-                }
-                .accessibilityIdentifier("budget-new-group")
-                Divider()
                 Picker("Months Shown", selection: Binding(
                     get: { appState.settings.monthDisplayPreference },
                     set: { appState.updateMonthDisplayPreference($0) }

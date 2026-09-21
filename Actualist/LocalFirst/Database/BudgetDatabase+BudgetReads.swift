@@ -392,12 +392,13 @@ extension BudgetDatabase {
         }
         let columns = try columnSet(for: "transactions", db: db)
         let split = transactionSplitQueryExpressions(columns: columns)
-        let categoryMappingJoin = try tableExists("category_mapping", db: db)
-            ? "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
-            : ""
-        let mappedCategory = try tableExists("category_mapping", db: db)
-            ? "COALESCE(cm.transferId, \(split.qualifiedCategory))"
-            : split.qualifiedCategory
+        let transferColumn = try categoryMappingTransferColumn(db: db)
+        let categoryMappingJoin = transferColumn == nil
+            ? ""
+            : "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
+        let mappedCategory = transferColumn.map {
+            "COALESCE(cm.\(quotedIdentifier($0)), \(split.qualifiedCategory))"
+        } ?? split.qualifiedCategory
         let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let rows = try Row.fetchAll(
             db,
@@ -429,12 +430,13 @@ extension BudgetDatabase {
         }
         let columns = try columnSet(for: "transactions", db: db)
         let split = transactionSplitQueryExpressions(columns: columns)
-        let categoryMappingJoin = try tableExists("category_mapping", db: db)
-            ? "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
-            : ""
-        let mappedCategory = try tableExists("category_mapping", db: db)
-            ? "COALESCE(cm.transferId, \(split.qualifiedCategory))"
-            : split.qualifiedCategory
+        let transferColumn = try categoryMappingTransferColumn(db: db)
+        let categoryMappingJoin = transferColumn == nil
+            ? ""
+            : "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
+        let mappedCategory = transferColumn.map {
+            "COALESCE(cm.\(quotedIdentifier($0)), \(split.qualifiedCategory))"
+        } ?? split.qualifiedCategory
         let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let rows = try Row.fetchAll(
             db,

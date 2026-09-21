@@ -86,13 +86,14 @@ extension BudgetDatabase {
                 guard allChildren.allSatisfy({ $0.isIncome == destination.isIncome }) else {
                     throw LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")
                 }
-                let childIDs = allChildren.map(\.id)
+                let liveChildIDs = liveChildren.map(\.id)
+                let allChildIDs = allChildren.map(\.id)
                 messages += try categoryBudgetTransferMessages(
-                    sourceCategoryIDs: childIDs, destinationCategoryID: destination.id,
+                    sourceCategoryIDs: liveChildIDs, destinationCategoryID: destination.id,
                     db: db, builder: &builder
                 )
                 messages += try categoryMappingTransferMessages(
-                    sourceCategoryIDs: childIDs, destinationCategoryID: destination.id,
+                    sourceCategoryIDs: allChildIDs, destinationCategoryID: destination.id,
                     db: db, builder: &builder
                 )
             }
@@ -118,12 +119,12 @@ private extension BudgetDatabase {
         let liveTransactions = predicateForLiveRows(columns: transactionColumns, tableAlias: "t")
         let hasTransaction: Bool
         if try tableExists("category_mapping", db: db) {
-            let mappingColumns = try requiredColumns(
+            _ = try requiredColumns(
                 table: "category_mapping", required: ["id"], db: db
             )
-            let transferColumn = try firstExistingColumn(
-                ["transferId", "transfer_id"], in: mappingColumns, table: "category_mapping"
-            )
+            guard let transferColumn = try categoryMappingTransferColumn(db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing category_mapping table")
+            }
             hasTransaction = try Bool.fetchOne(
                 db,
                 sql: """
@@ -265,12 +266,12 @@ private extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         guard !sourceCategoryIDs.isEmpty else { return [] }
-        let columns = try requiredColumns(
+        _ = try requiredColumns(
             table: "category_mapping", required: ["id"], db: db
         )
-        let transferColumn = try firstExistingColumn(
-            ["transferId", "transfer_id"], in: columns, table: "category_mapping"
-        )
+        guard let transferColumn = try categoryMappingTransferColumn(db: db) else {
+            throw LocalFirstError.invalidLocalWrite("missing category_mapping table")
+        }
         var mappingIDs = Set(sourceCategoryIDs)
         for sourceID in sourceCategoryIDs {
             let forwarded = try String.fetchAll(

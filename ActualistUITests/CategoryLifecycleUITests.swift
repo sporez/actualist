@@ -107,13 +107,56 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
-    private func launchDemo() -> XCUIApplication {
+    func testSampleValuesHideCategoryLifecycleActions() throws {
+        XCUIDevice.shared.orientation = .portrait
+        var app = launchDemo()
+        let isWide = app.frame.width >= 792
+        app.terminate()
+
+        app = launchDemo(screen: "settings/privacy", replaceDemo: false)
+        let sampleValues = app.switches["Use Sample Values"]
+        XCTAssertTrue(sampleValues.waitForExistence(timeout: 5))
+        if sampleValues.value as? String == "0" {
+            sampleValues.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        XCTAssertEqual(sampleValues.value as? String, "1")
+        app.terminate()
+
+        app = launchDemo(replaceDemo: false)
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 10))
+        app.buttons["Budget Actions"].tap()
+        XCTAssertFalse(app.buttons["budget-new-category"].exists)
+        XCTAssertFalse(app.buttons["budget-new-group"].exists)
+        app.tap()
+
+        let group = app.buttons[isWide ? "budget-grid-group-essentials" : "budget-group-essentials"]
+        XCTAssertTrue(group.waitForExistence(timeout: 5))
+        group.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["Notes"].waitForExistence(timeout: 3))
+        let prefix = isWide ? "budget-grid-group" : "budget-group"
+        XCTAssertFalse(app.buttons["\(prefix)-rename-essentials"].exists)
+        XCTAssertFalse(app.buttons["\(prefix)-reorder-essentials"].exists)
+        XCTAssertFalse(app.buttons["\(prefix)-delete-essentials"].exists)
+        app.terminate()
+
+        app = launchDemo(screen: "settings/privacy", replaceDemo: false)
+        let restore = app.switches["Use Sample Values"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        if restore.value as? String == "1" {
+            restore.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        XCTAssertEqual(restore.value as? String, "0")
+    }
+
+    private func launchDemo(
+        screen: String = "budget",
+        replaceDemo: Bool = true
+    ) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
-        app.launchArguments = [
-            "-actualist-demo",
-            "-actualist-replace-demo-for-ui-testing",
-            "-actualist-screen", "budget"
-        ]
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
+        if replaceDemo {
+            app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
+        }
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app

@@ -45,6 +45,7 @@ struct BudgetCategoryDeleteSheet: View {
                         controller.cancel()
                         dismiss()
                     }
+                    .disabled(controller.isSubmitting)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Delete", role: .destructive) { delete() }

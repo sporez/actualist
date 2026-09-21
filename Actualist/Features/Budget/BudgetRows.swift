@@ -65,7 +65,7 @@ struct BudgetGroupSection: View {
                     .disabled(!canChangeVisibility)
                 }
 
-                if isTrackingBudget || !group.isIncome {
+                if !isPrivacyModeEnabled && (isTrackingBudget || !group.isIncome) {
                     Divider()
 
                     Button {
@@ -120,7 +120,7 @@ struct BudgetGroupSection: View {
                             onToggleHidden: {
                                 onToggleCategoryHidden(category)
                             },
-                            canManageLifecycle: isTrackingBudget || !category.isIncome,
+                            canManageLifecycle: !isPrivacyModeEnabled && (isTrackingBudget || !category.isIncome),
                             onRename: { onRenameCategory(category) },
                             onReorder: onReorder,
                             onDelete: { onDeleteCategory(category) }

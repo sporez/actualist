@@ -7,23 +7,22 @@ final class BudgetCategoryDeletionWorkflow {
         let id: String
         let name: String
         let groupName: String
-        let isIncome: Bool
         let hidden: Bool
     }
 
     enum Target: Equatable, Sendable {
         case category(id: String, name: String, isIncome: Bool)
-        case group(id: String, name: String, isIncome: Bool, categoryIDs: [String])
+        case group(id: String, name: String, isIncome: Bool)
 
         var isIncome: Bool {
             switch self {
-            case .category(_, _, let isIncome), .group(_, _, let isIncome, _): isIncome
+            case .category(_, _, let isIncome), .group(_, _, let isIncome): isIncome
             }
         }
 
         var name: String {
             switch self {
-            case .category(_, let name, _), .group(_, let name, _, _): name
+            case .category(_, let name, _), .group(_, let name, _): name
             }
         }
 
@@ -93,9 +92,7 @@ final class BudgetCategoryDeletionWorkflow {
         repository: any BudgetRepositoryProtocol
     ) async {
         let categoryIDs = group.categories.map(\.id)
-        let target = Target.group(
-            id: group.id, name: group.name, isIncome: group.isIncome, categoryIDs: categoryIDs
-        )
+        let target = Target.group(id: group.id, name: group.name, isIncome: group.isIncome)
         await prepare(
             target: target, excludedCategoryIDs: Set(categoryIDs), groups: groups,
             isTrackingBudget: isTrackingBudget, budgetID: budgetID
@@ -150,7 +147,7 @@ final class BudgetCategoryDeletionWorkflow {
                     categoryID: id, transferCategoryID: selectedDestinationID,
                     budgetID: budgetID, month: selectedMonth
                 )
-            case .group(let id, _, _, _):
+            case .group(let id, _, _):
                 loaded = try await repository.deleteCategoryGroupAndRefresh(
                     groupID: id, transferCategoryID: selectedDestinationID,
                     budgetID: budgetID, month: selectedMonth
@@ -197,7 +194,7 @@ final class BudgetCategoryDeletionWorkflow {
                           !excludedCategoryIDs.contains(category.id) else { return nil }
                     return Destination(
                         id: category.id, name: category.name, groupName: group.name,
-                        isIncome: category.isIncome, hidden: group.hidden == true || category.hidden == true
+                        hidden: group.hidden == true || category.hidden == true
                     )
                 }
             }

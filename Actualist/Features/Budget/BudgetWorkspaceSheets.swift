@@ -61,33 +61,14 @@ struct BudgetWorkspaceSheets: ViewModifier {
                 Task { await viewport.refreshVisibleMonths() }
             }
         case .categoryLifecycle(let lifecycleSheet):
-            switch lifecycleSheet {
-            case .reorder:
-                BudgetCategoryReorderSheet(
-                    controller: actions.categoryLifecycle,
-                    selectedMonth: actions.actionMonth,
-                    budgetID: actions.actionBudgetID,
-                    repository: viewport.repository,
-                    onSaved: {}
-                )
-            case .deleteCategory, .deleteGroup:
-                BudgetCategoryDeleteSheet(
-                    controller: actions.categoryLifecycle,
-                    selectedMonth: actions.actionMonth,
-                    budgetID: actions.actionBudgetID,
-                    repository: viewport.repository,
-                    onDeleted: {}
-                )
-            default:
-                BudgetCategoryNameSheet(
-                    controller: actions.categoryLifecycle,
-                    sheet: lifecycleSheet,
-                    selectedMonth: actions.actionMonth,
-                    budgetID: actions.actionBudgetID,
-                    repository: viewport.repository,
-                    onSaved: {}
-                )
-            }
+            BudgetCategoryLifecycleContent(
+                controller: actions.categoryLifecycle,
+                sheet: lifecycleSheet,
+                selectedMonth: actions.actionMonth,
+                budgetID: actions.actionBudgetID,
+                repository: viewport.repository,
+                onSaved: {}
+            )
         }
     }
 }

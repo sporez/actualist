@@ -313,6 +313,7 @@ struct BudgetCategoryNameSheet: View {
                         controller.cancel()
                         dismiss()
                     }
+                    .disabled(controller.isSubmitting)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(saveTitle) { submit() }
@@ -367,4 +368,44 @@ struct BudgetCategoryNameSheet: View {
         }
     }
 
+}
+
+struct BudgetCategoryLifecycleContent: View {
+    @Bindable var controller: BudgetCategoryLifecycleController
+    let sheet: BudgetCategoryLifecycleSheet
+    let selectedMonth: String?
+    let budgetID: String?
+    let repository: any BudgetRepositoryProtocol
+    let onSaved: @MainActor () async -> Void
+
+    @ViewBuilder
+    var body: some View {
+        switch sheet {
+        case .reorder:
+            BudgetCategoryReorderSheet(
+                controller: controller,
+                selectedMonth: selectedMonth,
+                budgetID: budgetID,
+                repository: repository,
+                onSaved: onSaved
+            )
+        case .deleteCategory, .deleteGroup:
+            BudgetCategoryDeleteSheet(
+                controller: controller,
+                selectedMonth: selectedMonth,
+                budgetID: budgetID,
+                repository: repository,
+                onDeleted: onSaved
+            )
+        default:
+            BudgetCategoryNameSheet(
+                controller: controller,
+                sheet: sheet,
+                selectedMonth: selectedMonth,
+                budgetID: budgetID,
+                repository: repository,
+                onSaved: onSaved
+            )
+        }
+    }
 }

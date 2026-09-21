@@ -297,13 +297,13 @@ private extension BudgetDatabase {
         split: TransactionSplitQueryExpressions,
         includeNames: Bool
     ) throws -> TransactionReadJoins {
-        let hasCategoryMapping = try tableExists("category_mapping", db: db)
-        let mappedCategory = hasCategoryMapping
-            ? "COALESCE(cm.transferId, \(split.qualifiedCategory))"
-            : split.qualifiedCategory
-        let categoryMappingJoin = hasCategoryMapping
-            ? "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
-            : ""
+        let transferColumn = try categoryMappingTransferColumn(db: db)
+        let mappedCategory = transferColumn.map {
+            "COALESCE(cm.\(quotedIdentifier($0)), \(split.qualifiedCategory))"
+        } ?? split.qualifiedCategory
+        let categoryMappingJoin = transferColumn == nil
+            ? ""
+            : "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
 
         let hasPayeeMapping = try tableExists("payee_mapping", db: db)
         let mappedPayee = hasPayeeMapping

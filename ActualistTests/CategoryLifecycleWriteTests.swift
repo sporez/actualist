@@ -194,6 +194,24 @@ struct CategoryLifecycleWriteTests {
         #expect(pending.contains { $0.message.dataset == "category_mapping" })
     }
 
+    @Test func storeCategoryLifecycleReloadsWithSnakeCaseMappingColumn() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            ALTER TABLE category_mapping RENAME COLUMN transferId TO transfer_id;
+            """)
+
+        let loaded = try await bundle.store.createCategoryAndRefresh(
+            name: "Fuel",
+            groupID: "group",
+            budgetID: "group-1",
+            month: "2026-07"
+        )
+
+        #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.name == "Fuel" })
+        #expect(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.spent == -12345)
+        let transactions = try await bundle.store.database?.fetchTransactions() ?? []
+        #expect(transactions.first { $0.id == "txn" }?.category == "groceries")
+    }
+
     @Test func categoryNeedsTransferUsesMappedTransactionsBudgetAmountsAndDirectFallback() async throws {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             INSERT INTO categories VALUES ('mapped', 'Mapped', 'group', 0, 0, 0, 2);
@@ -382,6 +400,8 @@ struct CategoryLifecycleWriteTests {
             INSERT INTO category_mapping VALUES ('old', 'old');
             INSERT INTO category_mapping VALUES ('destination', 'destination');
             INSERT INTO zero_budgets VALUES (202607, 'one', 7000, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'old', 9000, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'destination', 1000, 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
@@ -401,7 +421,7 @@ struct CategoryLifecycleWriteTests {
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "one" && $0.column == "tombstone" })
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "old" && $0.column == "tombstone" })
         #expect(messages.contains { $0.dataset == "category_groups" && $0.row == "victim" && $0.column == "tombstone" })
-        #expect(messages.contains { $0.dataset == "zero_budgets" && $0.row == "202607-destination" && $0.serializedValue == "N:7000" })
+        #expect(messages.contains { $0.dataset == "zero_budgets" && $0.row == "202607-destination" && $0.serializedValue == "N:8000" })
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let month = try await database.fetchBudgetMonth(month: "2026-07")
         #expect(month.categoryGroups.contains { $0.id == "victim" } == false)

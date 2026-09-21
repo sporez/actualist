@@ -115,25 +115,27 @@ struct BudgetView: View {
 
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            Button {
-                                presentCategoryLifecycle(.createCategory(
-                                    groups: categoryLifecycleGroups,
-                                    isTrackingBudget: viewModel.isTrackingBudget
-                                ))
-                            } label: {
-                                Label("New Category…", systemImage: "plus")
-                            }
-                            .disabled(managedCategoryGroups.isEmpty)
-                            .accessibilityIdentifier("budget-new-category")
+                            if !appState.settings.randomizedDisplayValuesEnabled {
+                                Button {
+                                    presentCategoryLifecycle(.createCategory(
+                                        groups: categoryLifecycleGroups,
+                                        isTrackingBudget: viewModel.isTrackingBudget
+                                    ))
+                                } label: {
+                                    Label("New Category…", systemImage: "plus")
+                                }
+                                .disabled(managedCategoryGroups.isEmpty)
+                                .accessibilityIdentifier("budget-new-category")
 
-                            Button {
-                                presentCategoryLifecycle(.createGroup)
-                            } label: {
-                                Label("New Group…", systemImage: "folder.badge.plus")
-                            }
-                            .accessibilityIdentifier("budget-new-group")
+                                Button {
+                                    presentCategoryLifecycle(.createGroup)
+                                } label: {
+                                    Label("New Group…", systemImage: "folder.badge.plus")
+                                }
+                                .accessibilityIdentifier("budget-new-group")
 
-                            Divider()
+                                Divider()
+                            }
 
                             Button {
                                 isHistoryPresented = true
@@ -513,6 +515,7 @@ struct BudgetView: View {
     }
 
     private func presentCategoryLifecycle(_ sheet: BudgetCategoryLifecycleSheet) {
+        guard !appState.settings.randomizedDisplayValuesEnabled else { return }
         categoryLifecycle.prepare(sheet)
         categoryLifecycleSheet = sheet
     }
@@ -563,33 +566,14 @@ struct BudgetView: View {
 
     @ViewBuilder
     private func categoryLifecycleContent(_ sheet: BudgetCategoryLifecycleSheet) -> some View {
-        switch sheet {
-        case .reorder:
-            BudgetCategoryReorderSheet(
-                controller: categoryLifecycle,
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                repository: appState.budgetRepository,
-                onSaved: { await viewModel.refreshSelectedMonth(using: appState) }
-            )
-        case .deleteCategory, .deleteGroup:
-            BudgetCategoryDeleteSheet(
-                controller: categoryLifecycle,
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                repository: appState.budgetRepository,
-                onDeleted: { await viewModel.refreshSelectedMonth(using: appState) }
-            )
-        default:
-            BudgetCategoryNameSheet(
-                controller: categoryLifecycle,
-                sheet: sheet,
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                repository: appState.budgetRepository,
-                onSaved: { await viewModel.refreshSelectedMonth(using: appState) }
-            )
-        }
+        BudgetCategoryLifecycleContent(
+            controller: categoryLifecycle,
+            sheet: sheet,
+            selectedMonth: viewModel.selectedMonth,
+            budgetID: appState.settings.selectedBudgetID,
+            repository: appState.budgetRepository,
+            onSaved: { await viewModel.refreshSelectedMonth(using: appState) }
+        )
     }
 
     private func presentMonthNote() {

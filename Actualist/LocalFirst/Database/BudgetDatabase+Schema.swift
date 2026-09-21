@@ -97,6 +97,15 @@ extension BudgetDatabase {
         throw LocalFirstError.invalidLocalWrite("missing column \(table).\(candidates.joined(separator: "|"))")
     }
 
+    func categoryMappingTransferColumn(db: Database) throws -> String? {
+        guard try tableExists("category_mapping", db: db) else { return nil }
+        return try firstExistingColumn(
+            ["transferId", "transfer_id"],
+            in: columnSet(for: "category_mapping", db: db),
+            table: "category_mapping"
+        )
+    }
+
     func rowExists(table: String, rowID: String, db: Database) throws -> Bool {
         if table == "zero_budgets",
            try tableExists("zero_budgets", db: db),

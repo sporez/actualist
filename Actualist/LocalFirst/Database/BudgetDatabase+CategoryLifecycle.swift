@@ -19,12 +19,12 @@ extension BudgetDatabase {
             let groupColumn = try firstExistingColumn(
                 ["cat_group", "group_id"], in: categoryColumns, table: "categories"
             )
-            let mappingColumns = try requiredColumns(
+            _ = try requiredColumns(
                 table: "category_mapping", required: ["id"], db: db
             )
-            let transferColumn = try firstExistingColumn(
-                ["transferId", "transfer_id"], in: mappingColumns, table: "category_mapping"
-            )
+            guard let transferColumn = try categoryMappingTransferColumn(db: db) else {
+                throw LocalFirstError.invalidLocalWrite("missing category_mapping table")
+            }
             guard !(try rowExists(table: "categories", rowID: id, db: db)) else {
                 throw LocalFirstError.invalidLocalWrite("category already exists")
             }
