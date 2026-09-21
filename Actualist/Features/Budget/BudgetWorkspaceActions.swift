@@ -119,6 +119,36 @@ final class BudgetWorkspaceActions {
         ))
     }
 
+    func requestDeleteCategory(_ category: BudgetMonthCategory) async {
+        clearActionContext()
+        actionMonth = viewport.anchorMonth
+        actionBudgetID = viewport.budgetID
+        let result = await categoryLifecycle.requestDeleteCategory(
+            category,
+            groups: categoryLifecycleGroups,
+            isTrackingBudget: viewport.isTrackingBudget,
+            selectedMonth: actionMonth,
+            budgetID: actionBudgetID,
+            repository: viewport.repository
+        )
+        await handleDeleteRequest(result)
+    }
+
+    func requestDeleteGroup(_ group: BudgetMonthCategoryGroup) async {
+        clearActionContext()
+        actionMonth = viewport.anchorMonth
+        actionBudgetID = viewport.budgetID
+        let result = await categoryLifecycle.requestDeleteGroup(
+            group,
+            groups: categoryLifecycleGroups,
+            isTrackingBudget: viewport.isTrackingBudget,
+            selectedMonth: actionMonth,
+            budgetID: actionBudgetID,
+            repository: viewport.repository
+        )
+        await handleDeleteRequest(result)
+    }
+
     func openMonthNote(_ month: String) {
         guard let target = ActualNoteTarget.budgetMonth(month: month, title: month) else { return }
         actionMonth = month
@@ -382,6 +412,18 @@ final class BudgetWorkspaceActions {
         actionMonth = viewport.anchorMonth
         actionBudgetID = viewport.budgetID
         sheet = .categoryLifecycle(lifecycleSheet)
+    }
+
+    private func handleDeleteRequest(_ result: BudgetCategoryDeletionRequestResult) async {
+        switch result {
+        case .review(let lifecycleSheet):
+            sheet = .categoryLifecycle(lifecycleSheet)
+        case .deleted:
+            clearActionContext()
+            await viewport.refreshVisibleMonths()
+        case .failed:
+            break
+        }
     }
 
     private func clearActionContext() {

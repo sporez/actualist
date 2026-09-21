@@ -7,6 +7,8 @@ enum BudgetCategoryLifecycleSheet: Identifiable, Equatable {
     case renameCategory(BudgetMonthCategory, isTrackingBudget: Bool)
     case renameGroup(BudgetMonthCategoryGroup, isTrackingBudget: Bool)
     case reorder(groups: [BudgetMonthCategoryGroup], isTrackingBudget: Bool)
+    case deleteCategory(BudgetMonthCategory)
+    case deleteGroup(BudgetMonthCategoryGroup)
 
     var id: String {
         switch self {
@@ -15,6 +17,8 @@ enum BudgetCategoryLifecycleSheet: Identifiable, Equatable {
         case .renameCategory(let category, _): "rename-category:\(category.id)"
         case .renameGroup(let group, _): "rename-group:\(group.id)"
         case .reorder: "reorder"
+        case .deleteCategory(let category): "delete-category:\(category.id)"
+        case .deleteGroup(let group): "delete-group:\(group.id)"
         }
     }
 
@@ -25,8 +29,16 @@ enum BudgetCategoryLifecycleSheet: Identifiable, Equatable {
         case .renameCategory: "Rename Category"
         case .renameGroup: "Rename Group"
         case .reorder: "Reorder Categories"
+        case .deleteCategory: "Delete Category"
+        case .deleteGroup: "Delete Group"
         }
     }
+}
+
+enum BudgetCategoryDeletionRequestResult: Equatable {
+    case review(BudgetCategoryLifecycleSheet)
+    case deleted
+    case failed
 }
 
 @MainActor
@@ -34,13 +46,14 @@ enum BudgetCategoryLifecycleSheet: Identifiable, Equatable {
 final class BudgetCategoryLifecycleController {
     let organization = BudgetCategoryOrganizationWorkflow()
     let reorder = BudgetCategoryReorderWorkflow()
+    let deletion = BudgetCategoryDeletionWorkflow()
 
     var errorMessage: String? {
-        organization.errorMessage ?? reorder.errorMessage
+        organization.errorMessage ?? reorder.errorMessage ?? deletion.errorMessage
     }
 
     var isSubmitting: Bool {
-        organization.isSubmitting || reorder.isSubmitting
+        organization.isSubmitting || reorder.isSubmitting || deletion.isBusy
     }
 
     static func manageableGroups(
@@ -53,14 +66,21 @@ final class BudgetCategoryLifecycleController {
     func prepare(_ sheet: BudgetCategoryLifecycleSheet) {
         organization.cancel()
         reorder.cancel()
-        if case .reorder(let groups, let isTrackingBudget) = sheet {
+        switch sheet {
+        case .reorder(let groups, let isTrackingBudget):
+            deletion.cancel()
             reorder.begin(groups: groups, isTrackingBudget: isTrackingBudget)
+        case .deleteCategory, .deleteGroup:
+            break
+        default:
+            deletion.cancel()
         }
     }
 
     func cancel() {
         organization.cancel()
         reorder.cancel()
+        deletion.cancel()
     }
 
     func submitName(
@@ -109,9 +129,71 @@ final class BudgetCategoryLifecycleController {
                 budgetID: budgetID,
                 repository: repository
             ) != nil
-        case .reorder:
+        case .reorder, .deleteCategory, .deleteGroup:
             return false
         }
+    }
+
+    func requestDeleteCategory(
+        _ category: BudgetMonthCategory,
+        groups: [BudgetMonthCategoryGroup],
+        isTrackingBudget: Bool,
+        selectedMonth: String?,
+        budgetID: String?,
+        repository: any BudgetRepositoryProtocol
+    ) async -> BudgetCategoryDeletionRequestResult {
+        organization.cancel()
+        reorder.cancel()
+        await deletion.prepareCategory(
+            category,
+            groups: groups,
+            isTrackingBudget: isTrackingBudget,
+            budgetID: budgetID,
+            repository: repository
+        )
+        return await finishDeleteRequest(
+            reviewSheet: .deleteCategory(category),
+            selectedMonth: selectedMonth,
+            budgetID: budgetID,
+            repository: repository
+        )
+    }
+
+    func requestDeleteGroup(
+        _ group: BudgetMonthCategoryGroup,
+        groups: [BudgetMonthCategoryGroup],
+        isTrackingBudget: Bool,
+        selectedMonth: String?,
+        budgetID: String?,
+        repository: any BudgetRepositoryProtocol
+    ) async -> BudgetCategoryDeletionRequestResult {
+        organization.cancel()
+        reorder.cancel()
+        await deletion.prepareGroup(
+            group,
+            groups: groups,
+            isTrackingBudget: isTrackingBudget,
+            budgetID: budgetID,
+            repository: repository
+        )
+        return await finishDeleteRequest(
+            reviewSheet: .deleteGroup(group),
+            selectedMonth: selectedMonth,
+            budgetID: budgetID,
+            repository: repository
+        )
+    }
+
+    func confirmDeletion(
+        selectedMonth: String?,
+        budgetID: String?,
+        repository: any BudgetRepositoryProtocol
+    ) async -> Bool {
+        await deletion.delete(
+            selectedMonth: selectedMonth,
+            budgetID: budgetID,
+            repository: repository
+        ) != nil
     }
 
     func saveReorder(
@@ -125,6 +207,21 @@ final class BudgetCategoryLifecycleController {
             budgetID: budgetID,
             repository: repository
         ) != nil
+    }
+
+    private func finishDeleteRequest(
+        reviewSheet: BudgetCategoryLifecycleSheet,
+        selectedMonth: String?,
+        budgetID: String?,
+        repository: any BudgetRepositoryProtocol
+    ) async -> BudgetCategoryDeletionRequestResult {
+        guard case .ready(let requiresTransfer) = deletion.state else { return .failed }
+        if requiresTransfer { return .review(reviewSheet) }
+        return await confirmDeletion(
+            selectedMonth: selectedMonth,
+            budgetID: budgetID,
+            repository: repository
+        ) ? .deleted : .failed
     }
 }
 
@@ -171,7 +268,7 @@ struct BudgetCategoryNameSheet: View {
         case .renameGroup(let group, _):
             _name = State(initialValue: group.name)
             _selectedGroupID = State(initialValue: nil)
-        case .reorder:
+        case .reorder, .deleteCategory, .deleteGroup:
             _name = State(initialValue: "")
             _selectedGroupID = State(initialValue: nil)
         }
@@ -244,14 +341,14 @@ struct BudgetCategoryNameSheet: View {
         switch sheet {
         case .createCategory, .renameCategory: "Category Name"
         case .createGroup, .renameGroup: "Group Name"
-        case .reorder: "Name"
+        case .reorder, .deleteCategory, .deleteGroup: "Name"
         }
     }
 
     private var saveTitle: String {
         switch sheet {
         case .createCategory, .createGroup: "Add"
-        case .renameCategory, .renameGroup, .reorder: "Save"
+        case .renameCategory, .renameGroup, .reorder, .deleteCategory, .deleteGroup: "Save"
         }
     }
 

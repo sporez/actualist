@@ -84,6 +84,10 @@ struct BudgetGridView: View {
                         actions.openCategoryReorder()
                     }
                     .accessibilityIdentifier("budget-grid-group-reorder-\(group.id)")
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                        Task { await actions.requestDeleteGroup(group.source) }
+                    }
+                    .accessibilityIdentifier("budget-grid-group-delete-\(group.id)")
                 }
             }
 
@@ -166,6 +170,10 @@ struct BudgetGridView: View {
                         actions.openCategoryReorder()
                     }
                     .accessibilityIdentifier("budget-grid-category-reorder-\(category.id)")
+                    Button("Delete", systemImage: "trash", role: .destructive) {
+                        Task { await actions.requestDeleteCategory(category.source) }
+                    }
+                    .accessibilityIdentifier("budget-grid-category-delete-\(category.id)")
                 }
             }
 

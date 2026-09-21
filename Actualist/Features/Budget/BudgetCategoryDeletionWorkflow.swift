@@ -20,6 +20,35 @@ final class BudgetCategoryDeletionWorkflow {
             case .category(_, _, let isIncome), .group(_, _, let isIncome, _): isIncome
             }
         }
+
+        var name: String {
+            switch self {
+            case .category(_, let name, _), .group(_, let name, _, _): name
+            }
+        }
+
+        var deleteTitle: String {
+            switch self {
+            case .category: "Delete Category"
+            case .group: "Delete Group"
+            }
+        }
+
+        var reviewMessage: String {
+            let transfer = "Are you sure you want to delete it? If so, you must select another category to transfer existing transactions and balance to."
+            switch self {
+            case .category:
+                let use = isIncome
+                    ? "\(name) is used by existing transactions or it has a positive leftover balance currently."
+                    : "\(name) is used by existing transactions."
+                return "\(use) \(transfer)"
+            case .group:
+                let use = isIncome
+                    ? "Categories in the group \(name) are used by existing transactions or it has a positive leftover balance currently."
+                    : "Categories in the group \(name) are used by existing transactions."
+                return "\(use) \(transfer)"
+            }
+        }
     }
 
     enum State: Equatable, Sendable {
@@ -35,6 +64,10 @@ final class BudgetCategoryDeletionWorkflow {
     private(set) var selectedDestinationID: String?
     private(set) var errorMessage: String?
     private var generation = 0
+
+    var isBusy: Bool {
+        state == .checking || state == .submitting
+    }
 
     func prepareCategory(
         _ category: BudgetMonthCategory,

@@ -18,6 +18,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         group.press(forDuration: 1)
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Reorder"].exists)
+        XCTAssertTrue(app.buttons["budget-group-delete-essentials"].exists)
         app.buttons["Rename"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
             .waitForExistence(timeout: 5))
@@ -38,6 +39,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         category.press(forDuration: 1)
         XCTAssertTrue(app.buttons["budget-category-rename-rent"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["budget-category-reorder-rent"].exists)
+        XCTAssertTrue(app.buttons["budget-category-delete-rent"].exists)
         app.buttons["budget-category-reorder-rent"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
             .waitForExistence(timeout: 5))
@@ -54,6 +56,16 @@ final class CategoryLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
             .waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
+
+        category.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["budget-category-delete-rent"].waitForExistence(timeout: 3))
+        app.buttons["budget-category-delete-rent"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["budget-category-delete-sheet"]
+            .waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["budget-category-delete-destination"].exists)
+        XCTAssertFalse(app.buttons["budget-category-delete-confirm"].isEnabled)
+        attachScreenshot(named: "category-lifecycle-compact-delete")
+        app.buttons["Cancel"].tap()
     }
 
     func testWideCreateRenameAndReorderChrome() throws {
@@ -67,6 +79,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         group.press(forDuration: 1)
         XCTAssertTrue(app.buttons["Rename"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Reorder"].exists)
+        XCTAssertTrue(app.buttons["budget-grid-group-delete-essentials"].exists)
         app.buttons["Rename"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
             .waitForExistence(timeout: 5))
@@ -85,6 +98,8 @@ final class CategoryLifecycleUITests: XCTestCase {
         category.press(forDuration: 1)
         XCTAssertTrue(app.buttons["budget-grid-category-rename-rent"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["budget-grid-category-reorder-rent"].exists)
+        XCTAssertTrue(app.buttons["budget-grid-category-delete-rent"].exists)
+        attachScreenshot(named: "category-lifecycle-wide-delete-menu")
         app.buttons["budget-grid-category-reorder-rent"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
             .waitForExistence(timeout: 5))
@@ -94,7 +109,11 @@ final class CategoryLifecycleUITests: XCTestCase {
 
     private func launchDemo() -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
+        app.launchArguments = [
+            "-actualist-demo",
+            "-actualist-replace-demo-for-ui-testing",
+            "-actualist-screen", "budget"
+        ]
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app

@@ -15,6 +15,7 @@ struct BudgetCompactMonthContent: View {
         case groupVisibility(BudgetMonthCategoryGroup)
         case renameCategory(BudgetMonthCategory), renameGroup(BudgetMonthCategoryGroup)
         case reorder
+        case deleteCategory(BudgetMonthCategory), deleteGroup(BudgetMonthCategoryGroup)
     }
 
     var body: some View {
@@ -117,7 +118,9 @@ struct BudgetCompactMonthContent: View {
                     onToggleGroupHidden: { action(.groupVisibility(group)) },
                     onRenameCategory: { action(.renameCategory($0)) },
                     onRenameGroup: { action(.renameGroup(group)) },
-                    onReorder: { action(.reorder) }
+                    onReorder: { action(.reorder) },
+                    onDeleteCategory: { action(.deleteCategory($0)) },
+                    onDeleteGroup: { action(.deleteGroup(group)) }
                 )
             }
         }

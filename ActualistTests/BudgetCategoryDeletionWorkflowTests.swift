@@ -58,6 +58,78 @@ struct BudgetCategoryDeletionWorkflowTests {
         #expect(workflow.state == .idle)
     }
 
+    @Test func lifecycleControllerDeletesImmediatelyWhenTransferIsNotRequired() async {
+        let victim = category("victim", "Victim", false, "expense", hidden: false)
+        let destination = category("destination", "Destination", false, "expense", hidden: false)
+        let groups = [group("expense", "Expenses", false, false, [victim, destination])]
+        let repository = CategoryLifecycleRecordingRepository()
+        let controller = BudgetCategoryLifecycleController()
+
+        let result = await controller.requestDeleteCategory(
+            victim,
+            groups: groups,
+            isTrackingBudget: false,
+            selectedMonth: "2026-07",
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(result == .deleted)
+        #expect(await repository.deletedCategories.map(\.id) == ["victim"])
+        #expect(await repository.deletedCategories.first?.transferID == nil)
+        #expect(controller.deletion.state == .idle)
+
+        let emptyGroup = group("empty", "Empty", false, false, [])
+        let groupResult = await controller.requestDeleteGroup(
+            emptyGroup,
+            groups: [emptyGroup, groups[0]],
+            isTrackingBudget: false,
+            selectedMonth: "2026-07",
+            budgetID: "budget",
+            repository: repository
+        )
+        #expect(groupResult == .deleted)
+        #expect(await repository.deletedGroups.map(\.id) == ["empty"])
+        #expect(await repository.deletedGroups.first?.transferID == nil)
+    }
+
+    @Test func lifecycleControllerRequiresReviewAndDestinationBeforeDeleting() async {
+        let victim = category("victim", "Victim", false, "expense", hidden: false)
+        let destination = category("destination", "Destination", false, "expense", hidden: true)
+        let groups = [group("expense", "Expenses", false, false, [victim, destination])]
+        let repository = CategoryLifecycleRecordingRepository(transferRequiredIDs: ["victim"])
+        let controller = BudgetCategoryLifecycleController()
+
+        let result = await controller.requestDeleteCategory(
+            victim,
+            groups: groups,
+            isTrackingBudget: false,
+            selectedMonth: "2026-07",
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(result == .review(.deleteCategory(victim)))
+        #expect(await repository.deletedCategories.isEmpty)
+        #expect(await !controller.confirmDeletion(
+            selectedMonth: "2026-07", budgetID: "budget", repository: repository
+        ))
+        controller.deletion.selectDestination("destination")
+        #expect(await controller.confirmDeletion(
+            selectedMonth: "2026-07", budgetID: "budget", repository: repository
+        ))
+        #expect(await repository.deletedCategories.first?.transferID == "destination")
+    }
+
+    @Test func reviewCopyUsesActualIncomeWording() {
+        let target = BudgetCategoryDeletionWorkflow.Target.category(
+            id: "income", name: "Paycheck", isIncome: true
+        )
+
+        #expect(target.reviewMessage.contains("positive leftover balance currently"))
+        #expect(target.reviewMessage.contains("must select another category"))
+    }
+
     @Test func envelopeIncomeIntentNeverReachesRepository() async {
         let income = category("income", "Income", true, "income", hidden: false)
         let groups = [group("income", "Income", true, false, [income])]

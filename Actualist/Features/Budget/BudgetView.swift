@@ -493,6 +493,10 @@ struct BudgetView: View {
                     groups: categoryLifecycleGroups,
                     isTrackingBudget: viewModel.isTrackingBudget
                 ))
+            case .deleteCategory(let category):
+                requestDeleteCategory(category)
+            case .deleteGroup(let group):
+                requestDeleteGroup(group)
             }
         }
     }
@@ -518,6 +522,45 @@ struct BudgetView: View {
         categoryLifecycleSheet = nil
     }
 
+    private func requestDeleteCategory(_ category: BudgetMonthCategory) {
+        Task {
+            let result = await categoryLifecycle.requestDeleteCategory(
+                category,
+                groups: categoryLifecycleGroups,
+                isTrackingBudget: viewModel.isTrackingBudget,
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.budgetRepository
+            )
+            await handleDeleteRequest(result)
+        }
+    }
+
+    private func requestDeleteGroup(_ group: BudgetMonthCategoryGroup) {
+        Task {
+            let result = await categoryLifecycle.requestDeleteGroup(
+                group,
+                groups: categoryLifecycleGroups,
+                isTrackingBudget: viewModel.isTrackingBudget,
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.budgetRepository
+            )
+            await handleDeleteRequest(result)
+        }
+    }
+
+    private func handleDeleteRequest(_ result: BudgetCategoryDeletionRequestResult) async {
+        switch result {
+        case .review(let sheet):
+            categoryLifecycleSheet = sheet
+        case .deleted:
+            await viewModel.refreshSelectedMonth(using: appState)
+        case .failed:
+            break
+        }
+    }
+
     @ViewBuilder
     private func categoryLifecycleContent(_ sheet: BudgetCategoryLifecycleSheet) -> some View {
         switch sheet {
@@ -528,6 +571,14 @@ struct BudgetView: View {
                 budgetID: appState.settings.selectedBudgetID,
                 repository: appState.budgetRepository,
                 onSaved: { await viewModel.refreshSelectedMonth(using: appState) }
+            )
+        case .deleteCategory, .deleteGroup:
+            BudgetCategoryDeleteSheet(
+                controller: categoryLifecycle,
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                repository: appState.budgetRepository,
+                onDeleted: { await viewModel.refreshSelectedMonth(using: appState) }
             )
         default:
             BudgetCategoryNameSheet(

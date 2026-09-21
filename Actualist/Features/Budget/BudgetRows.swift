@@ -25,6 +25,8 @@ struct BudgetGroupSection: View {
     var onRenameCategory: (BudgetMonthCategory) -> Void = { _ in }
     var onRenameGroup: () -> Void = {}
     var onReorder: () -> Void = {}
+    var onDeleteCategory: (BudgetMonthCategory) -> Void = { _ in }
+    var onDeleteGroup: () -> Void = {}
 
     private var displayedCategories: [BudgetMonthCategory] {
         BudgetCategoryVisibility.displayedCategories(in: group, showHidden: showHidden)
@@ -79,6 +81,13 @@ struct BudgetGroupSection: View {
                         Label("Reorder", systemImage: "arrow.up.arrow.down")
                     }
                     .accessibilityIdentifier("budget-group-reorder-\(group.id)")
+
+                    Button(role: .destructive) {
+                        onDeleteGroup()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .accessibilityIdentifier("budget-group-delete-\(group.id)")
                 }
             }
 
@@ -113,7 +122,8 @@ struct BudgetGroupSection: View {
                             },
                             canManageLifecycle: isTrackingBudget || !category.isIncome,
                             onRename: { onRenameCategory(category) },
-                            onReorder: onReorder
+                            onReorder: onReorder,
+                            onDelete: { onDeleteCategory(category) }
                         )
                         .id(BudgetScrollTarget.category(category.id))
                     }
@@ -243,6 +253,7 @@ struct BudgetCategoryRow: View {
     var canManageLifecycle = false
     var onRename: () -> Void = {}
     var onReorder: () -> Void = {}
+    var onDelete: () -> Void = {}
 
     @State private var measuredFrame = BudgetCategoryRowFrame()
 
@@ -303,6 +314,13 @@ struct BudgetCategoryRow: View {
                     Label("Reorder", systemImage: "arrow.up.arrow.down")
                 }
                 .accessibilityIdentifier("budget-category-reorder-\(category.id)")
+
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .accessibilityIdentifier("budget-category-delete-\(category.id)")
             }
         }
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in

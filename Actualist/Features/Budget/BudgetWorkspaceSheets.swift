@@ -70,6 +70,14 @@ struct BudgetWorkspaceSheets: ViewModifier {
                     repository: viewport.repository,
                     onSaved: {}
                 )
+            case .deleteCategory, .deleteGroup:
+                BudgetCategoryDeleteSheet(
+                    controller: actions.categoryLifecycle,
+                    selectedMonth: actions.actionMonth,
+                    budgetID: actions.actionBudgetID,
+                    repository: viewport.repository,
+                    onDeleted: {}
+                )
             default:
                 BudgetCategoryNameSheet(
                     controller: actions.categoryLifecycle,
