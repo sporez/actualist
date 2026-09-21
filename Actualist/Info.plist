@@ -55,6 +55,41 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<true/>
 	</dict>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>minus.circle.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Add Expense</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.sporez.actualist.quick-action.add-expense</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>list.bullet.rectangle.portrait.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Budget</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.sporez.actualist.quick-action.budget</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>banknote.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Spending</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.sporez.actualist.quick-action.spending</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>building.columns.fill</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Accounts</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.sporez.actualist.quick-action.accounts</string>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
