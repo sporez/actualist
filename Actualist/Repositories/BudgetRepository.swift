@@ -45,6 +45,34 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
+    func createCategoryAndRefresh(
+        name: String,
+        groupID: String,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
+    func createCategoryGroupAndRefresh(
+        name: String,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
+    func renameCategoryAndRefresh(
+        categoryID: String,
+        name: String,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
+    func renameCategoryGroupAndRefresh(
+        groupID: String,
+        name: String,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
+    func applyCategoryOutlineAndRefresh(
+        draft: BudgetCategoryOutlineCommand,
+        budgetID: String,
+        month: String
+    ) async throws -> LoadedBudgetMonth
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity?,
         command: BudgetTemplateCommand,
         budgetID: String,
@@ -98,6 +126,26 @@ protocol BudgetRepositoryProtocol: Sendable {
 extension BudgetRepositoryProtocol {
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
         nil
+    }
+
+    func createCategoryAndRefresh(name: String, groupID: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func createCategoryGroupAndRefresh(name: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func renameCategoryAndRefresh(categoryID: String, name: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func renameCategoryGroupAndRefresh(groupID: String, name: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func applyCategoryOutlineAndRefresh(draft: BudgetCategoryOutlineCommand, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
     }
 
     func setCategoryTemplatesAndRefresh(
@@ -157,6 +205,15 @@ struct BudgetMoveMoneyCommand: Hashable, Sendable {
     let fromCategoryID: String?
     let toCategoryID: String?
     let amount: Int
+}
+
+struct BudgetCategoryOutlineCommand: Hashable, Sendable {
+    struct Group: Hashable, Sendable {
+        let id: String
+        let categoryIDs: [String]
+    }
+
+    let groups: [Group]
 }
 
 enum BudgetTemplateApplicationMode: String, Codable, Hashable, Sendable {

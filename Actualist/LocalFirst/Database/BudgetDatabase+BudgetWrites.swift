@@ -268,7 +268,7 @@ extension BudgetDatabase {
     private func nextAccountSortOrder(offbudget: Bool, db: Database) throws -> Int {
         let columns = try columnSet(for: "accounts", db: db)
         guard columns.contains("sort_order") else {
-            return 16_384
+            return Int(ActualSortOrder.increment)
         }
         let offbudgetColumn = column("offbudget", fallback: "0", columns: columns)
         let maxSortOrder = try Int.fetchOne(
@@ -276,7 +276,7 @@ extension BudgetDatabase {
             sql: "SELECT MAX(sort_order) FROM accounts WHERE \(offbudgetColumn) = ?",
             arguments: [offbudget ? 1 : 0]
         )
-        return (maxSortOrder ?? 0) + 16_384
+        return (maxSortOrder ?? 0) + Int(ActualSortOrder.increment)
     }
 
     private func transferPayeeMessages(

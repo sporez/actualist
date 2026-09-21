@@ -177,17 +177,33 @@ extension LocalFirstActualStoreTests {
 
     @Test func shoveSortOrdersMatchesActualMidpointAndAppend() {
         let items = [
-            AccountGroupSort.Item(id: "a", sortOrder: 16_384),
-            AccountGroupSort.Item(id: "b", sortOrder: 32_768),
-            AccountGroupSort.Item(id: "c", sortOrder: 49_152)
+            ActualSortOrder.Item(id: "a", sortOrder: 16_384),
+            ActualSortOrder.Item(id: "b", sortOrder: 32_768),
+            ActualSortOrder.Item(id: "c", sortOrder: 49_152)
         ]
-        let beforeA = AccountGroupSort.shove(items: items, targetID: "a")
+        let beforeA = ActualSortOrder.shove(items: items, targetID: "a")
         #expect(beforeA.sortOrder == 8_192)
         #expect(beforeA.updates.isEmpty)
 
-        let append = AccountGroupSort.shove(items: items, targetID: nil)
+        let append = ActualSortOrder.shove(items: items, targetID: nil)
         #expect(append.sortOrder == 65_536)
         #expect(append.updates.isEmpty)
+    }
+
+    @Test func shoveSortOrdersHandlesEmptyAndCrowdedGaps() {
+        #expect(ActualSortOrder.shove(items: [], targetID: nil).sortOrder == 16_384)
+
+        let crowded = [
+            ActualSortOrder.Item(id: "a", sortOrder: 1),
+            ActualSortOrder.Item(id: "b", sortOrder: 2),
+            ActualSortOrder.Item(id: "c", sortOrder: 3)
+        ]
+        let result = ActualSortOrder.shove(items: crowded, targetID: "b")
+        #expect(result.sortOrder == 1.5)
+        #expect(result.updates == [
+            ActualSortOrder.Item(id: "b", sortOrder: 16_386),
+            ActualSortOrder.Item(id: "c", sortOrder: 32_770)
+        ])
     }
 
     private func makeWritableAccountGroupDatabase(extraSQL: String = "") throws -> BudgetDatabase {
