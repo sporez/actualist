@@ -27,8 +27,18 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Cancel"].tap()
 
         app.buttons["Budget Actions"].tap()
+        let categoriesMenu = app.buttons["Categories & Groups"]
+        XCTAssertTrue(categoriesMenu.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["History"].exists)
+        XCTAssertTrue(app.buttons["Notes"].exists)
+        XCTAssertTrue(app.buttons["Templates"].exists)
+        attachScreenshot(named: "category-lifecycle-compact-actions-root")
+
+        categoriesMenu.tap()
         XCTAssertTrue(app.buttons["budget-new-category"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["budget-new-group"].exists)
+        XCTAssertTrue(app.buttons["Show Hidden Categories"].exists)
+        attachScreenshot(named: "category-lifecycle-compact-actions-categories")
         app.buttons["budget-new-category"].tap()
         let createSheet = app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
         XCTAssertTrue(createSheet.waitForExistence(timeout: 5))
@@ -74,6 +84,20 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
+    func testCompactBudgetActionsExposeTemplateSubmenu() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+
+        app.buttons["Budget Actions"].tap()
+        XCTAssertTrue(app.buttons["Templates"].waitForExistence(timeout: 3))
+        app.buttons["Templates"].tap()
+        XCTAssertTrue(app.buttons["Apply Template"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Apply Template Overwrite"].exists)
+        attachScreenshot(named: "category-lifecycle-compact-actions-templates")
+    }
+
     func testCompactCategorySheetsUseLightPalette() throws {
         XCUIDevice.shared.orientation = .portrait
         var app = launchDemo(screen: "settings/appearance")
@@ -84,6 +108,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         app = launchDemo(replaceDemo: false)
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
         app.buttons["Budget Actions"].tap()
+        app.buttons["Categories & Groups"].tap()
         XCTAssertTrue(app.buttons["budget-new-category"].waitForExistence(timeout: 3))
         app.buttons["budget-new-category"].tap()
         let createSheet = app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
@@ -176,6 +201,9 @@ final class CategoryLifecycleUITests: XCTestCase {
         app = launchDemo(replaceDemo: false)
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 10))
         app.buttons["Budget Actions"].tap()
+        if !isWide {
+            app.buttons["Categories & Groups"].tap()
+        }
         XCTAssertFalse(app.buttons["budget-new-category"].exists)
         XCTAssertFalse(app.buttons["budget-new-group"].exists)
         app.tap()

@@ -256,12 +256,15 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15))
 
         app.buttons["Budget Actions"].tap()
+        XCTAssertTrue(app.buttons["Categories & Groups"].waitForExistence(timeout: 5))
+        app.buttons["Categories & Groups"].tap()
         let showHidden = app.buttons["Show Hidden Categories"]
         XCTAssertTrue(showHidden.waitForExistence(timeout: 5))
         let initiallyShowsHidden = showHidden.value as? String == "1" || showHidden.isSelected
         showHidden.tap()
         if !initiallyShowsHidden {
             app.buttons["Budget Actions"].tap()
+            app.buttons["Categories & Groups"].tap()
             XCTAssertTrue(showHidden.waitForExistence(timeout: 5))
             showHidden.tap()
         }
@@ -272,6 +275,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertTrue(row.waitForNonExistence(timeout: 5))
 
         app.buttons["Budget Actions"].tap()
+        app.buttons["Categories & Groups"].tap()
         XCTAssertTrue(showHidden.waitForExistence(timeout: 5))
         showHidden.tap()
         XCTAssertTrue(row.waitForExistence(timeout: 5))

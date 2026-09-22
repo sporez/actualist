@@ -115,27 +115,39 @@ struct BudgetView: View {
 
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            if !appState.settings.randomizedDisplayValuesEnabled {
-                                Button {
-                                    presentCategoryLifecycle(.createCategory(
-                                        groups: categoryLifecycleGroups,
-                                        isTrackingBudget: viewModel.isTrackingBudget
-                                    ))
-                                } label: {
-                                    Label("New Category…", systemImage: "plus")
-                                }
-                                .disabled(managedCategoryGroups.isEmpty)
-                                .accessibilityIdentifier("budget-new-category")
+                            Menu {
+                                if !appState.settings.randomizedDisplayValuesEnabled {
+                                    Button {
+                                        presentCategoryLifecycle(.createCategory(
+                                            groups: categoryLifecycleGroups,
+                                            isTrackingBudget: viewModel.isTrackingBudget
+                                        ))
+                                    } label: {
+                                        Label("New Category…", systemImage: "plus")
+                                    }
+                                    .disabled(managedCategoryGroups.isEmpty)
+                                    .accessibilityIdentifier("budget-new-category")
 
-                                Button {
-                                    presentCategoryLifecycle(.createGroup)
-                                } label: {
-                                    Label("New Group…", systemImage: "folder.badge.plus")
-                                }
-                                .accessibilityIdentifier("budget-new-group")
+                                    Button {
+                                        presentCategoryLifecycle(.createGroup)
+                                    } label: {
+                                        Label("New Group…", systemImage: "folder.badge.plus")
+                                    }
+                                    .accessibilityIdentifier("budget-new-group")
 
-                                Divider()
+                                    Divider()
+                                }
+
+                                Toggle(
+                                    "Show Hidden Categories",
+                                    systemImage: "eye",
+                                    isOn: showHiddenCategoriesBinding
+                                )
+                            } label: {
+                                Label("Categories & Groups", systemImage: "folder")
                             }
+
+                            Divider()
 
                             Button {
                                 isHistoryPresented = true
@@ -152,30 +164,26 @@ struct BudgetView: View {
                             }
                             .disabled(viewModel.selectedMonth == nil)
 
-                            Divider()
-
-                            Toggle(
-                                "Show Hidden Categories",
-                                systemImage: "eye",
-                                isOn: showHiddenCategoriesBinding
-                            )
-
                             if viewModel.hasMonthTemplateActions {
                                 Divider()
 
-                                Button {
-                                    pendingTemplateConfirmation = .monthFillEmpty
-                                } label: {
-                                    Label("Apply Template", systemImage: "sparkles")
-                                }
-                                .disabled(viewModel.isApplyingMonthTemplate)
+                                Menu {
+                                    Button {
+                                        pendingTemplateConfirmation = .monthFillEmpty
+                                    } label: {
+                                        Label("Apply Template", systemImage: "sparkles")
+                                    }
+                                    .disabled(viewModel.isApplyingMonthTemplate)
 
-                                Button {
-                                    pendingTemplateConfirmation = .monthOverwrite
+                                    Button {
+                                        pendingTemplateConfirmation = .monthOverwrite
+                                    } label: {
+                                        Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
+                                    }
+                                    .disabled(viewModel.isApplyingMonthTemplate)
                                 } label: {
-                                    Label("Apply Template Overwrite", systemImage: "sparkles.square.filled.on.square")
+                                    Label("Templates", systemImage: "doc.text")
                                 }
-                                .disabled(viewModel.isApplyingMonthTemplate)
                             }
                         } label: {
                             Image(systemName: "ellipsis")
