@@ -21,6 +21,7 @@ struct BudgetCategoryReorderSheet: View {
                         } header: {
                             groupRow(group)
                         }
+                        .settingsSectionChrome()
                     }
                 }
 
@@ -28,9 +29,14 @@ struct BudgetCategoryReorderSheet: View {
                     Text(errorMessage)
                         .foregroundStyle(ActualistTheme.danger)
                         .accessibilityIdentifier("budget-category-reorder-error")
+                        .settingsRowChrome()
                 }
             }
             .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
             .accessibilityIdentifier("budget-category-reorder-sheet")
             .navigationTitle("Reorder Categories")
             .navigationBarTitleDisplayMode(.inline)
@@ -49,8 +55,6 @@ struct BudgetCategoryReorderSheet: View {
                 }
             }
         }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(controller.isSubmitting)
     }
 
@@ -67,6 +71,7 @@ struct BudgetCategoryReorderSheet: View {
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
+        .foregroundStyle(ActualistTheme.primaryText)
         .opacity(group.hidden ? BudgetLayout.hiddenCategoryOpacity : 1)
         .accessibilityIdentifier("budget-category-reorder-group-\(group.id)")
         .draggable(DragToken.group(group.id))
@@ -118,21 +123,19 @@ struct BudgetCategoryReorderSheet: View {
         toGroupID: String,
         beforeCategoryID: String?,
         beforeGroupID: String?
-    ) -> Bool {
-        guard let token = tokens.first else { return false }
+    ) {
+        guard let token = tokens.first else { return }
         if let categoryID = DragToken.categoryID(token) {
             controller.reorder.moveCategory(
                 id: categoryID,
                 toGroupID: toGroupID,
                 beforeCategoryID: beforeCategoryID
             )
-            return true
+            return
         }
         if let groupID = DragToken.groupID(token) {
             controller.reorder.moveGroup(id: groupID, beforeGroupID: beforeGroupID)
-            return true
         }
-        return false
     }
 
     private func nextGroupID(after group: BudgetCategoryOutlineDraft.Group) -> String? {

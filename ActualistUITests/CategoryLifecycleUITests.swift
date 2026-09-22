@@ -20,18 +20,22 @@ final class CategoryLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Reorder"].exists)
         XCTAssertTrue(app.buttons["budget-group-delete-essentials"].exists)
         app.buttons["Rename"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
-            .waitForExistence(timeout: 5))
+        let renameSheet = app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
+        XCTAssertTrue(renameSheet.waitForExistence(timeout: 5))
+        assertMediumSheet(renameSheet, in: app)
+        attachScreenshot(named: "category-lifecycle-compact-rename")
         app.buttons["Cancel"].tap()
 
         app.buttons["Budget Actions"].tap()
         XCTAssertTrue(app.buttons["budget-new-category"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["budget-new-group"].exists)
         app.buttons["budget-new-category"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
-            .waitForExistence(timeout: 5))
+        let createSheet = app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
+        XCTAssertTrue(createSheet.waitForExistence(timeout: 5))
+        assertMediumSheet(createSheet, in: app)
         XCTAssertTrue(app.textFields["budget-category-lifecycle-name"].exists)
         XCTAssertTrue(app.buttons["budget-category-lifecycle-group"].exists)
+        attachScreenshot(named: "category-lifecycle-compact-create")
         app.buttons["Cancel"].tap()
 
         let category = app.buttons["budget-category-rent"]
@@ -41,8 +45,9 @@ final class CategoryLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["budget-category-reorder-rent"].exists)
         XCTAssertTrue(app.buttons["budget-category-delete-rent"].exists)
         app.buttons["budget-category-reorder-rent"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
-            .waitForExistence(timeout: 5))
+        let reorderSheet = app.descendants(matching: .any)["budget-category-reorder-sheet"]
+        XCTAssertTrue(reorderSheet.waitForExistence(timeout: 5))
+        assertLargeSheet(reorderSheet, in: app)
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-category-rent"].exists)
         XCTAssertTrue(app.buttons["budget-category-reorder-save"].exists)
         attachScreenshot(named: "category-lifecycle-compact-reorder")
@@ -60,12 +65,56 @@ final class CategoryLifecycleUITests: XCTestCase {
         category.press(forDuration: 1)
         XCTAssertTrue(app.buttons["budget-category-delete-rent"].waitForExistence(timeout: 3))
         app.buttons["budget-category-delete-rent"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["budget-category-delete-sheet"]
-            .waitForExistence(timeout: 5))
+        let deleteSheet = app.descendants(matching: .any)["budget-category-delete-sheet"]
+        XCTAssertTrue(deleteSheet.waitForExistence(timeout: 5))
+        assertMediumSheet(deleteSheet, in: app)
         XCTAssertTrue(app.buttons["budget-category-delete-destination"].exists)
         XCTAssertFalse(app.buttons["budget-category-delete-confirm"].isEnabled)
         attachScreenshot(named: "category-lifecycle-compact-delete")
         app.buttons["Cancel"].tap()
+    }
+
+    func testCompactCategorySheetsUseLightPalette() throws {
+        XCUIDevice.shared.orientation = .portrait
+        var app = launchDemo(screen: "settings/appearance")
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        selectTheme("Actual Purple (light)", in: app)
+        app.terminate()
+
+        app = launchDemo(replaceDemo: false)
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        app.buttons["Budget Actions"].tap()
+        XCTAssertTrue(app.buttons["budget-new-category"].waitForExistence(timeout: 3))
+        app.buttons["budget-new-category"].tap()
+        let createSheet = app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
+        XCTAssertTrue(createSheet.waitForExistence(timeout: 5))
+        assertMediumSheet(createSheet, in: app)
+        attachScreenshot(named: "category-lifecycle-light-create")
+        app.buttons["Cancel"].tap()
+
+        let category = app.buttons["budget-category-rent"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5))
+        category.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["budget-category-reorder-rent"].waitForExistence(timeout: 3))
+        app.buttons["budget-category-reorder-rent"].tap()
+        let reorderSheet = app.descendants(matching: .any)["budget-category-reorder-sheet"]
+        XCTAssertTrue(reorderSheet.waitForExistence(timeout: 5))
+        assertLargeSheet(reorderSheet, in: app)
+        attachScreenshot(named: "category-lifecycle-light-reorder")
+        app.buttons["Cancel"].tap()
+
+        category.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["budget-category-delete-rent"].waitForExistence(timeout: 3))
+        app.buttons["budget-category-delete-rent"].tap()
+        let deleteSheet = app.descendants(matching: .any)["budget-category-delete-sheet"]
+        XCTAssertTrue(deleteSheet.waitForExistence(timeout: 5))
+        assertMediumSheet(deleteSheet, in: app)
+        attachScreenshot(named: "category-lifecycle-light-delete")
+        app.buttons["Cancel"].tap()
+        app.terminate()
+
+        app = launchDemo(screen: "settings/appearance", replaceDemo: false)
+        selectTheme("Actual Purple (dark)", in: app)
     }
 
     func testWideCreateRenameAndReorderChrome() throws {
@@ -83,6 +132,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Rename"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-lifecycle-name-sheet"]
             .waitForExistence(timeout: 5))
+        attachScreenshot(named: "category-lifecycle-wide-rename")
         app.buttons["Cancel"].tap()
 
         app.buttons["Budget Actions"].tap()
@@ -104,6 +154,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
             .waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-category-rent"].exists)
+        attachScreenshot(named: "category-lifecycle-wide-reorder")
         app.buttons["Cancel"].tap()
     }
 
@@ -160,6 +211,45 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app
+    }
+
+    private func selectTheme(_ title: String, in app: XCUIApplication) {
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 10))
+        let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 5))
+        app.buttons[title].tap()
+    }
+
+    private func assertMediumSheet(
+        _ sheet: XCUIElement,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertGreaterThan(
+            sheet.frame.minY,
+            app.frame.height * 0.3,
+            "Expected a medium-height sheet, got \(sheet.frame)",
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertLargeSheet(
+        _ sheet: XCUIElement,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertLessThan(
+            sheet.frame.minY,
+            app.frame.height * 0.3,
+            "Expected a large sheet, got \(sheet.frame)",
+            file: file,
+            line: line
+        )
     }
 
     private func attachScreenshot(named name: String) {

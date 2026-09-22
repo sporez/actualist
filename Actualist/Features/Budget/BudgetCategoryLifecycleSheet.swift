@@ -227,6 +227,7 @@ final class BudgetCategoryLifecycleController {
 
 struct BudgetCategoryNameSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
     @Bindable var controller: BudgetCategoryLifecycleController
     let sheet: BudgetCategoryLifecycleSheet
     let selectedMonth: String?
@@ -276,34 +277,81 @@ struct BudgetCategoryNameSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField(nameFieldLabel, text: $name)
-                        .textInputAutocapitalization(.words)
-                        .submitLabel(.done)
-                        .accessibilityIdentifier("budget-category-lifecycle-name")
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Name")
+                            .font(ActualistTypography.rowLabel(for: density))
+                            .foregroundStyle(ActualistTheme.secondaryText)
 
-                if !categoryGroupChoices.isEmpty {
-                    Section("Group") {
-                        Picker("Group", selection: $selectedGroupID) {
-                            ForEach(categoryGroupChoices) { group in
-                                Text(group.hidden == true ? "\(group.name) (Hidden)" : group.name)
-                                    .tag(Optional(group.id))
-                            }
-                        }
-                        .accessibilityIdentifier("budget-category-lifecycle-group")
+                        TextField(nameFieldLabel, text: $name)
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.primaryText)
+                            .textInputAutocapitalization(.words)
+                            .submitLabel(.done)
+                            .accessibilityIdentifier("budget-category-lifecycle-name")
                     }
-                }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        ActualistTheme.surface,
+                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    )
 
-                if let errorMessage = controller.errorMessage {
-                    Section {
+                    if !categoryGroupChoices.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Group")
+                                .font(ActualistTypography.rowLabel(for: density))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+
+                            Picker("Group", selection: $selectedGroupID) {
+                                ForEach(categoryGroupChoices) { group in
+                                    Text(group.hidden == true ? "\(group.name) (Hidden)" : group.name)
+                                        .tag(Optional(group.id))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(ActualistTheme.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("budget-category-lifecycle-group")
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            ActualistTheme.surface,
+                            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        )
+                    }
+
+                    if let errorMessage = controller.errorMessage {
                         Text(errorMessage)
+                            .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.danger)
                             .accessibilityIdentifier("budget-category-lifecycle-error")
                     }
+
+                    Button { submit() } label: {
+                        if controller.isSubmitting {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text(saveTitle)
+                                .font(ActualistTypography.control(for: density))
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
+                    .disabled(controller.isSubmitting || requiresGroup && selectedGroupID == nil)
+                    .accessibilityIdentifier("budget-category-lifecycle-save")
                 }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
             .accessibilityIdentifier("budget-category-lifecycle-name-sheet")
             .navigationTitle(sheet.title)
             .navigationBarTitleDisplayMode(.inline)
@@ -314,11 +362,6 @@ struct BudgetCategoryNameSheet: View {
                         dismiss()
                     }
                     .disabled(controller.isSubmitting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(saveTitle) { submit() }
-                        .disabled(controller.isSubmitting || requiresGroup && selectedGroupID == nil)
-                        .accessibilityIdentifier("budget-category-lifecycle-save")
                 }
             }
         }
@@ -380,32 +423,44 @@ struct BudgetCategoryLifecycleContent: View {
 
     @ViewBuilder
     var body: some View {
-        switch sheet {
-        case .reorder:
-            BudgetCategoryReorderSheet(
-                controller: controller,
-                selectedMonth: selectedMonth,
-                budgetID: budgetID,
-                repository: repository,
-                onSaved: onSaved
-            )
-        case .deleteCategory, .deleteGroup:
-            BudgetCategoryDeleteSheet(
-                controller: controller,
-                selectedMonth: selectedMonth,
-                budgetID: budgetID,
-                repository: repository,
-                onDeleted: onSaved
-            )
-        default:
-            BudgetCategoryNameSheet(
-                controller: controller,
-                sheet: sheet,
-                selectedMonth: selectedMonth,
-                budgetID: budgetID,
-                repository: repository,
-                onSaved: onSaved
-            )
+        Group {
+            switch sheet {
+            case .reorder:
+                BudgetCategoryReorderSheet(
+                    controller: controller,
+                    selectedMonth: selectedMonth,
+                    budgetID: budgetID,
+                    repository: repository,
+                    onSaved: onSaved
+                )
+            case .deleteCategory, .deleteGroup:
+                BudgetCategoryDeleteSheet(
+                    controller: controller,
+                    selectedMonth: selectedMonth,
+                    budgetID: budgetID,
+                    repository: repository,
+                    onDeleted: onSaved
+                )
+            default:
+                BudgetCategoryNameSheet(
+                    controller: controller,
+                    sheet: sheet,
+                    selectedMonth: selectedMonth,
+                    budgetID: budgetID,
+                    repository: repository,
+                    onSaved: onSaved
+                )
+            }
         }
+        .presentationDetents(presentationDetents)
+        .appSwitcherPrivacyAwareDragIndicator()
+        .presentationBackground(ActualistTheme.background)
+    }
+
+    private var presentationDetents: Set<PresentationDetent> {
+        if case .reorder = sheet {
+            return [.large]
+        }
+        return [.medium, .large]
     }
 }

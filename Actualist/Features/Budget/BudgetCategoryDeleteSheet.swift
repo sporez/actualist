@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BudgetCategoryDeleteSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.actualistDensity) private var density
     @Bindable var controller: BudgetCategoryLifecycleController
     let selectedMonth: String?
     let budgetID: String?
@@ -10,32 +11,78 @@ struct BudgetCategoryDeleteSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let target = controller.deletion.target {
-                    Section {
-                        Text(target.reviewMessage)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let target = controller.deletion.target {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Transfer Required")
+                                .font(ActualistTypography.rowLabel(for: density))
+                                .foregroundStyle(ActualistTheme.secondaryText)
 
-                    Section("Transfer To") {
-                        Picker("Category", selection: destinationBinding) {
-                            Text("Choose a category").tag(String?.none)
-                            ForEach(controller.deletion.destinations) { destination in
-                                Text(destinationLabel(destination)).tag(Optional(destination.id))
-                            }
+                            Text(target.reviewMessage)
+                                .font(ActualistTypography.body(for: density))
+                                .foregroundStyle(ActualistTheme.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        .accessibilityIdentifier("budget-category-delete-destination")
-                    }
-                }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            ActualistTheme.surface,
+                            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        )
 
-                if let errorMessage = controller.errorMessage {
-                    Section {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Transfer To")
+                                .font(ActualistTypography.rowLabel(for: density))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+
+                            Picker("Category", selection: destinationBinding) {
+                                Text("Choose a category").tag(String?.none)
+                                ForEach(controller.deletion.destinations) { destination in
+                                    Text(destinationLabel(destination)).tag(Optional(destination.id))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(ActualistTheme.accent)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("budget-category-delete-destination")
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            ActualistTheme.surface,
+                            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        )
+                    }
+
+                    if let errorMessage = controller.errorMessage {
                         Text(errorMessage)
+                            .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.danger)
                             .accessibilityIdentifier("budget-category-delete-error")
                     }
+
+                    Button(role: .destructive) { delete() } label: {
+                        if controller.isSubmitting {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text("Delete")
+                                .font(ActualistTypography.control(for: density))
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.danger)
+                    .disabled(controller.deletion.selectedDestinationID == nil || controller.isSubmitting)
+                    .accessibilityIdentifier("budget-category-delete-confirm")
                 }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 20)
             }
+            .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
             .accessibilityIdentifier("budget-category-delete-sheet")
             .navigationTitle(controller.deletion.target?.deleteTitle ?? "Delete")
             .navigationBarTitleDisplayMode(.inline)
@@ -46,11 +93,6 @@ struct BudgetCategoryDeleteSheet: View {
                         dismiss()
                     }
                     .disabled(controller.isSubmitting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Delete", role: .destructive) { delete() }
-                        .disabled(controller.deletion.selectedDestinationID == nil || controller.isSubmitting)
-                        .accessibilityIdentifier("budget-category-delete-confirm")
                 }
             }
         }
