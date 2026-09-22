@@ -17,6 +17,27 @@ Actualist is a native iOS 26+ local-first client for Actual Budget. It talks to 
   `scripts/lib/destinations.sh` (copy `scripts/lib/destinations.example.sh`).
   Pin destinations by UDID, never by display name.
 
+## Phased Plans And Worker Delegation
+
+- When implementing a substantial plan, especially one divided into phases,
+  delegate bounded implementation work to worker subagents by default. Use the
+  cheaper worker model to keep detailed execution context and token cost out of
+  the main chat.
+- The main agent owns the overall plan, architecture decisions, dependency
+  ordering, and progress tracker. Give each worker a precise scope, relevant
+  constraints, expected deliverables, and verification commands; parallelize
+  only work that is genuinely independent.
+- Require workers to report concise progress, files changed, checks run, and
+  blockers or decisions needed. Track those results and resolve issues before
+  treating a phase as complete.
+- Do not blindly accept worker output. The main agent must inspect the resulting
+  diff, verify architectural and instruction compliance, and run or confirm the
+  required tests and checks before handoff, before committing, and before moving
+  to a dependent phase.
+- Keep final integration, cross-phase consistency, and user communication with
+  the main agent. If delegation would add more coordination than it saves for a
+  small or tightly coupled change, implement it directly instead.
+
 ## Architecture At A Glance
 
 - `Actualist/App/`: app entry, session lifecycle, background work, and app-wide
