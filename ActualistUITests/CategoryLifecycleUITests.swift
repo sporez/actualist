@@ -84,6 +84,151 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
+    func testCompactReordersCategoryGroupsAndPersistsTheirOrder() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        XCTAssertTrue(app.buttons["budget-category-rent"].waitForExistence(timeout: 15))
+
+        app.buttons["budget-category-rent"].press(forDuration: 1)
+        XCTAssertTrue(app.buttons["budget-category-reorder-rent"].waitForExistence(timeout: 3))
+        app.buttons["budget-category-reorder-rent"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
+            .waitForExistence(timeout: 5))
+
+        let essentials = app.images["budget-category-reorder-group-essentials"]
+        let lifestyle = app.images["budget-category-reorder-group-lifestyle"]
+        XCTAssertTrue(essentials.waitForExistence(timeout: 3))
+        XCTAssertTrue(lifestyle.exists)
+        XCTAssertGreaterThan(lifestyle.frame.minY, essentials.frame.minY)
+
+        lifestyle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(
+                forDuration: 1,
+                thenDragTo: essentials.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+            )
+        let reorderedGroupHandles = app.images.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'budget-category-reorder-group-'")
+        )
+        XCTAssertEqual(
+            reorderedGroupHandles.element(boundBy: 0).identifier,
+            "budget-category-reorder-group-lifestyle"
+        )
+        attachScreenshot(named: "category-lifecycle-compact-group-reordered")
+
+        app.buttons["budget-category-reorder-save"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
+            .waitForNonExistence(timeout: 5))
+
+        let lifestyleGroup = app.buttons["budget-group-lifestyle"]
+        XCTAssertTrue(lifestyleGroup.waitForExistence(timeout: 5))
+        lifestyleGroup.tap()
+        let essentialsGroup = app.buttons["budget-group-essentials"]
+        XCTAssertTrue(essentialsGroup.waitForExistence(timeout: 5))
+        XCTAssertLessThan(lifestyleGroup.frame.minY, essentialsGroup.frame.minY)
+
+        lifestyleGroup.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["budget-group-reorder-lifestyle"].waitForExistence(timeout: 3))
+        app.buttons["budget-group-reorder-lifestyle"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
+            .waitForExistence(timeout: 5))
+        let groupHandles = app.images.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'budget-category-reorder-group-'")
+        )
+        XCTAssertEqual(
+            groupHandles.element(boundBy: 0).identifier,
+            "budget-category-reorder-group-lifestyle"
+        )
+    }
+
+    func testCompactReordersCategoriesAndPersistsTheirOrder() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        XCTAssertTrue(app.buttons["budget-category-rent"].waitForExistence(timeout: 15))
+
+        app.buttons["budget-category-rent"].press(forDuration: 1)
+        XCTAssertTrue(app.buttons["budget-category-reorder-rent"].waitForExistence(timeout: 3))
+        app.buttons["budget-category-reorder-rent"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
+            .waitForExistence(timeout: 5))
+
+        let rent = app.images["budget-category-reorder-category-rent"]
+        let groceries = app.images["budget-category-reorder-category-groceries"]
+        let utilities = app.images["budget-category-reorder-category-utilities"]
+        XCTAssertTrue(rent.waitForExistence(timeout: 3))
+        XCTAssertTrue(groceries.exists)
+        XCTAssertTrue(utilities.exists)
+        XCTAssertGreaterThan(groceries.frame.minY, rent.frame.minY)
+
+        groceries.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(
+                forDuration: 1,
+                thenDragTo: rent.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            )
+        let reorderedCategoryHandles = app.images.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'budget-category-reorder-category-'")
+        )
+        XCTAssertEqual(
+            reorderedCategoryHandles.element(boundBy: 0).identifier,
+            "budget-category-reorder-category-groceries"
+        )
+        attachScreenshot(named: "category-lifecycle-compact-category-reordered")
+
+        groceries.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(
+                forDuration: 1,
+                thenDragTo: utilities.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            )
+        XCTAssertEqual(
+            reorderedCategoryHandles.element(boundBy: 0).identifier,
+            "budget-category-reorder-category-rent"
+        )
+        XCTAssertEqual(
+            reorderedCategoryHandles.element(boundBy: 1).identifier,
+            "budget-category-reorder-category-utilities"
+        )
+        XCTAssertEqual(
+            reorderedCategoryHandles.element(boundBy: 2).identifier,
+            "budget-category-reorder-category-groceries"
+        )
+        attachScreenshot(named: "category-lifecycle-compact-category-reordered-twice")
+
+        app.buttons["budget-category-reorder-save"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
+            .waitForNonExistence(timeout: 5))
+
+        let groceriesCategory = app.buttons["budget-category-groceries"]
+        let rentCategory = app.buttons["budget-category-rent"]
+        let utilitiesCategory = app.buttons["budget-category-utilities"]
+        XCTAssertTrue(groceriesCategory.waitForExistence(timeout: 5))
+        XCTAssertTrue(rentCategory.exists)
+        XCTAssertTrue(utilitiesCategory.exists)
+        XCTAssertLessThan(rentCategory.frame.minY, utilitiesCategory.frame.minY)
+        XCTAssertLessThan(utilitiesCategory.frame.minY, groceriesCategory.frame.minY)
+
+        groceriesCategory.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["budget-category-reorder-groceries"].waitForExistence(timeout: 3))
+        app.buttons["budget-category-reorder-groceries"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["budget-category-reorder-sheet"]
+            .waitForExistence(timeout: 5))
+        let categoryHandles = app.images.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'budget-category-reorder-category-'")
+        )
+        XCTAssertEqual(
+            categoryHandles.element(boundBy: 0).identifier,
+            "budget-category-reorder-category-rent"
+        )
+        XCTAssertEqual(
+            categoryHandles.element(boundBy: 1).identifier,
+            "budget-category-reorder-category-utilities"
+        )
+        XCTAssertEqual(
+            categoryHandles.element(boundBy: 2).identifier,
+            "budget-category-reorder-category-groceries"
+        )
+    }
+
     func testCompactBudgetActionsExposeTemplateSubmenu() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = launchDemo()
