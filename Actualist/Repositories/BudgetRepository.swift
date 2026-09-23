@@ -92,6 +92,13 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth
     func setCategoryTemplatesAndRefresh(
         categoryID: String,
         drafts: [BudgetTemplateDraft],
@@ -116,6 +123,10 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         month: String
     ) async throws -> BudgetTemplateApplyPreview
+    func previewBudgetTemplatePair(
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateApplyPreviewPair
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         command: BudgetMoveMoneyCommand,
         budgetID: String,
@@ -137,6 +148,16 @@ protocol BudgetRepositoryProtocol: Sendable {
 }
 
 extension BudgetRepositoryProtocol {
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
         nil
     }
@@ -209,6 +230,13 @@ extension BudgetRepositoryProtocol {
         budgetID: String,
         month: String
     ) async throws -> BudgetTemplateApplyPreview {
+        throw LocalFirstError.unsupportedWrite
+    }
+
+    func previewBudgetTemplatePair(
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateApplyPreviewPair {
         throw LocalFirstError.unsupportedWrite
     }
 }

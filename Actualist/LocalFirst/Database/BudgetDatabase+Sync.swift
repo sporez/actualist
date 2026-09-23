@@ -172,11 +172,13 @@ extension BudgetDatabase {
         actionLogCommit: ActionLogCommit? = nil,
         expectedMode: BudgetModeIdentity? = nil,
         expectedBankLink: BankSyncLinkIdentity? = nil,
-        reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil
+        reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil,
+        expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil
     ) throws -> Int {
         guard !drafts.isEmpty else {
             try queue.read { db in
                 try validateBankSyncLink(expectedBankLink, db: db)
+                try validateBudgetTemplateReviewRevision(expectedTemplateReviewRevision, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
                 try validateReconciledMutationPrecondition(
@@ -198,6 +200,7 @@ extension BudgetDatabase {
                     throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
                 }
                 try validateBankSyncLink(expectedBankLink, db: db)
+                try validateBudgetTemplateReviewRevision(expectedTemplateReviewRevision, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
                 try validateReconciledMutationPrecondition(

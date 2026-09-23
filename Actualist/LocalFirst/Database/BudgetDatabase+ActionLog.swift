@@ -31,7 +31,8 @@ extension BudgetDatabase {
         actionID: String = UUID().uuidString,
         now: Date = Date(),
         expectedMode: BudgetModeIdentity? = nil,
-        reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil
+        reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil,
+        expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil
     ) throws -> Int {
         try commitLocalSyncMessagesAndEnqueue(
             drafts,
@@ -43,7 +44,8 @@ extension BudgetDatabase {
                 learningTransactionIDs: learningTransactionIDs
             ),
             expectedMode: expectedMode,
-            reconciledMutationPrecondition: reconciledMutationPrecondition
+            reconciledMutationPrecondition: reconciledMutationPrecondition,
+            expectedTemplateReviewRevision: expectedTemplateReviewRevision
         )
     }
 

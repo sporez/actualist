@@ -10,7 +10,9 @@ struct BudgetWorkspaceActionsTests {
             visibleCategoryHasTemplate: true,
             lastMonthOverspent: 0
         )
+        let modeIdentity = BudgetModeIdentity(storageID: "file-1", table: .envelope, revision: nil)
         let loaded = LoadedBudgetMonth(
+            modeIdentity: modeIdentity,
             availableMonths: ["2026-06"],
             selectedMonth: "2026-06",
             month: month,
@@ -24,15 +26,21 @@ struct BudgetWorkspaceActionsTests {
 
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let appState = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+        appState.settings.selectedBudgetID = "file-1"
+        let reviewRevision = BudgetTemplateReviewRevision(
+            month: "2026-06", modeIdentity: modeIdentity,
+            messageCount: 0, maxMessageTimestamp: nil
+        )
         // The confirmation sheet clears its binding before invoking apply.
         // Clearing the binding must preserve the captured assignment draft.
         actions.setConfirmation(nil)
-        await actions.applyConfirmation(.category, using: appState)
+        await actions.applyConfirmation(.category, reviewRevision: reviewRevision, using: appState)
 
         let recorded = try await repository.onlyTemplate()
         #expect(recorded.command == .category("mortgage"))
         #expect(recorded.budgetID == "file-1")
         #expect(recorded.month == "2026-06")
+        #expect(await repository.recordedReviewedTemplateRevisions() == [reviewRevision])
         #expect(viewport.snapshot(for: "2026-06") != nil)
     }
     @Test @MainActor func activationOpensCategoryRouteAfterLoadingAndConsumesOnce() async throws {

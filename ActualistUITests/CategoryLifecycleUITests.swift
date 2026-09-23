@@ -243,6 +243,122 @@ final class CategoryLifecycleUITests: XCTestCase {
         attachScreenshot(named: "category-lifecycle-compact-actions-templates")
     }
 
+    func testCompactTemplatePreviewSwitchesTwiceAndAppliesSelectedMode() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+
+        app.buttons["Budget Actions"].tap()
+        XCTAssertTrue(app.buttons["Templates"].waitForExistence(timeout: 3))
+        app.buttons["Templates"].tap()
+        app.buttons["Apply Template"].tap()
+
+        let apply = app.buttons["template-apply-confirm"]
+        XCTAssertTrue(app.staticTexts["Funding required"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["template-apply-mode"].waitForExistence(timeout: 5))
+
+        app.buttons["Overwrite"].tap()
+        XCTAssertEqual(apply.label, "Apply Template Overwrite")
+        app.buttons["Fill Empty"].tap()
+        XCTAssertEqual(apply.label, "Apply Template")
+        app.buttons["Overwrite"].tap()
+        XCTAssertEqual(apply.label, "Apply Template Overwrite")
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
+        ).firstMatch.waitForExistence(timeout: 5))
+        attachScreenshot(named: "template-preview-overwrite-after-switches")
+
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        XCTAssertTrue(apply.waitForNonExistence(timeout: 10))
+    }
+
+    func testCompactTemplatePreviewUsesLightPalette() throws {
+        XCUIDevice.shared.orientation = .portrait
+        var app = launchDemo(screen: "settings/appearance")
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        selectTheme("Actual Purple (light)", in: app)
+        app.terminate()
+
+        app = launchDemo(replaceDemo: false)
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        app.buttons["Budget Actions"].tap()
+        app.buttons["Templates"].tap()
+        app.buttons["Apply Template Overwrite"].tap()
+        XCTAssertTrue(app.staticTexts["Funding required"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
+        ).firstMatch.waitForExistence(timeout: 5))
+        attachScreenshot(named: "template-preview-light-overwrite")
+        app.buttons["Cancel"].tap()
+        app.terminate()
+
+        app = launchDemo(screen: "settings/appearance", replaceDemo: false)
+        selectTheme("Actual Purple (dark)", in: app)
+    }
+
+    func testCompactTemplatePreviewShowsReadableUnfundedTargets() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        openUnfundedTemplatePreview(in: app)
+        assertUnfundedTemplatePreview(in: app)
+        attachScreenshot(named: "template-preview-unfunded-dark")
+    }
+
+    func testCompactTemplatePreviewShowsReadableUnfundedTargetsInLightTheme() throws {
+        XCUIDevice.shared.orientation = .portrait
+        var app = launchDemo(screen: "settings/appearance")
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        selectTheme("Actual Purple (light)", in: app)
+        app.terminate()
+
+        app = launchDemo(replaceDemo: false)
+        openUnfundedTemplatePreview(in: app)
+        assertUnfundedTemplatePreview(in: app)
+        attachScreenshot(named: "template-preview-unfunded-light")
+        app.buttons["Cancel"].tap()
+        app.terminate()
+
+        app = launchDemo(screen: "settings/appearance", replaceDemo: false)
+        selectTheme("Actual Purple (dark)", in: app)
+    }
+
+    private func openUnfundedTemplatePreview(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        app.buttons["Budget Actions"].tap()
+        app.buttons["Templates"].tap()
+        app.buttons["Apply Template Overwrite"].tap()
+        let apply = app.buttons["template-apply-confirm"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 10))
+        apply.tap()
+        XCTAssertTrue(apply.waitForNonExistence(timeout: 10))
+
+        let monthPicker = app.navigationBars.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'Aug 2026'")
+        ).firstMatch
+        XCTAssertTrue(monthPicker.waitForExistence(timeout: 5))
+        monthPicker.tap()
+        XCTAssertTrue(app.buttons["Sep"].waitForExistence(timeout: 5))
+        app.buttons["Sep"].tap()
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 5))
+        app.buttons["Budget Actions"].tap()
+        app.buttons["Templates"].tap()
+        app.buttons["Apply Template"].tap()
+    }
+
+    private func assertUnfundedTemplatePreview(in app: XCUIApplication) {
+        XCTAssertTrue(app.staticTexts["Still needed"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Unfunded"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH 'Template target '")
+        ).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH 'Goal None'")
+        ).firstMatch.exists)
+    }
+
     func testCompactCategorySheetsUseLightPalette() throws {
         XCUIDevice.shared.orientation = .portrait
         var app = launchDemo(screen: "settings/appearance")

@@ -4,6 +4,71 @@ import Testing
 
 @MainActor
 struct BudgetViewModelTemplateWorkflowTests {
+    @Test func reviewedMonthModeRoutesSelectedCommandAndRejectsWrongMonth() async throws {
+        let (model, repo, revision, _) = try reviewedFixture()
+
+        #expect(await BudgetTemplateWorkflow.applyReviewed(
+            .monthOverwrite, revision: revision, model: model,
+            budgetID: "fixture", repository: repo
+        ))
+        #expect(await BudgetTemplateWorkflow.applyReviewed(
+            .monthFillEmpty, revision: revision, model: model,
+            budgetID: "fixture", repository: repo
+        ))
+        #expect(await repo.recordedTemplates().map(\.command) == [.overwrite, .fillEmpty])
+        #expect(await repo.recordedReviewedTemplateRevisions() == [revision, revision])
+
+        let wrongMonth = BudgetTemplateReviewRevision(
+            month: "2026-07", modeIdentity: revision.modeIdentity,
+            messageCount: 0, maxMessageTimestamp: nil
+        )
+        let rejected = await BudgetTemplateWorkflow.applyReviewed(
+            .monthOverwrite, revision: wrongMonth, model: model,
+            budgetID: "fixture", repository: repo
+        )
+        #expect(!rejected)
+        #expect(await repo.recordedTemplates().count == 2)
+    }
+
+    @Test func reviewedCategoryUsesCapturedDraftAndReviewedRepository() async throws {
+        let (model, repo, revision, loaded) = try reviewedFixture()
+        let category = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "mortgage" })
+        model.beginAssignmentEditing(for: category)
+        #expect(await BudgetTemplateWorkflow.applyReviewed(
+            .category, revision: revision, model: model,
+            budgetID: "fixture", repository: repo
+        ))
+        #expect(await repo.recordedTemplates().map(\.command) == [.category("mortgage")])
+        #expect(await repo.recordedReviewedTemplateRevisions() == [revision])
+    }
+
+    private func reviewedFixture() throws -> (
+        BudgetViewModel, RecordingBudgetRepository, BudgetTemplateReviewRevision, LoadedBudgetMonth
+    ) {
+        let mode = BudgetModeIdentity(storageID: "fixture", table: .envelope, revision: nil)
+        let loaded = LoadedBudgetMonth(
+            modeIdentity: mode,
+            availableMonths: ["2026-06"],
+            selectedMonth: "2026-06",
+            month: try BudgetViewModelFixtures.decodeBudgetMonth(
+                visibleCategoryBalance: 0,
+                hiddenCategoryBalance: 0,
+                visibleCategoryHasTemplate: true,
+                lastMonthOverspent: 0
+            ),
+            alerts: []
+        )
+        return (
+            BudgetViewModel(initialMonth: loaded, initialBudgetID: "fixture"),
+            RecordingBudgetRepository(loadedMonth: loaded),
+            BudgetTemplateReviewRevision(
+                month: "2026-06", modeIdentity: mode,
+                messageCount: 0, maxMessageTimestamp: nil
+            ),
+            loaded
+        )
+    }
+
     // MARK: - Same-context application
 
     @Test func sameMonthTemplateResultAppliesNormally() async throws {

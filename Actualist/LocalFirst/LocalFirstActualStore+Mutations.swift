@@ -361,7 +361,8 @@ extension LocalFirstActualStore {
         month: String,
         didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
-        try await applyBudgetTemplateAndRefresh(expectedMode: expectedMode,
+        try await applyBudgetTemplateAndRefresh(reviewRevision: nil,
+            expectedMode: expectedMode,
             command: command,
             budgetID: budgetID,
             month: month,
@@ -370,7 +371,8 @@ extension LocalFirstActualStore {
         )
     }
 
-    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
+    func applyBudgetTemplateAndRefresh(reviewRevision: BudgetTemplateReviewRevision? = nil,
+        expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,
         budgetID: String,
         month: String,
@@ -389,13 +391,18 @@ extension LocalFirstActualStore {
         if result.assignments.isEmpty {
             // A goal-only or orphan-cleanup write moved no money; History
             // records money-flow gestures only.
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(result.messages, expectedMode: mode)
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(
+                result.messages,
+                expectedMode: reviewRevision?.modeIdentity ?? mode,
+                expectedTemplateReviewRevision: reviewRevision
+            )
         } else {
             _ = try await database.commitUserAction(
                 result.messages,
                 descriptor: .template(month: month, mode: command.mode, assignments: result.assignments),
                 source: actionSource,
-                expectedMode: mode
+                expectedMode: reviewRevision?.modeIdentity ?? mode,
+                expectedTemplateReviewRevision: reviewRevision
             )
         }
         await didApply()

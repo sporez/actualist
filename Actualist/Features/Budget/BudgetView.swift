@@ -313,6 +313,7 @@ struct BudgetView: View {
                         categoryID: viewModel.activeAssignmentCategoryID,
                         month: viewModel.selectedMonth,
                         modeIdentity: viewModel.modeIdentity,
+                        localDataRevision: appState.localDataRevision,
                         apply: applyTemplate
                     )
                 )
@@ -329,14 +330,19 @@ struct BudgetView: View {
             || visibilityWorkflow.isSubmitting || categoryLifecycle.isSubmitting
     }
 
-    private func applyTemplate(_ confirmation: BudgetTemplateConfirmation, reviewedMode: BudgetModeIdentity?) {
-        switch confirmation {
-        case .monthFillEmpty:
-            Task { await viewModel.applyMonthTemplate(.fillEmpty, expectedMode: reviewedMode, using: appState) }
-        case .monthOverwrite:
-            Task { await viewModel.applyMonthTemplate(.overwrite, expectedMode: reviewedMode, using: appState) }
-        case .category:
-            Task { await viewModel.applyCategoryTemplate(expectedMode: reviewedMode, using: appState) }
+    private func applyTemplate(
+        _ confirmation: BudgetTemplateConfirmation,
+        reviewRevision: BudgetTemplateReviewRevision
+    ) {
+        Task {
+            guard let budgetID = appState.settings.selectedBudgetID else { return }
+            _ = await BudgetTemplateWorkflow.applyReviewed(
+                confirmation,
+                revision: reviewRevision,
+                model: viewModel,
+                budgetID: budgetID,
+                repository: appState.budgetRepository
+            )
         }
     }
 

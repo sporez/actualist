@@ -63,6 +63,9 @@ rollover is enabled.
 
 Add or edit templates from a category or Settings → Templates. Saving a template
 changes its setup; **Apply Template** previews and assigns the money separately.
+The preview switches between filling empty categories and overwriting existing
+assignments, showing funding needed, resulting category balances, and any
+shortfall before either action is confirmed.
 
 ## Requirements
 
@@ -116,8 +119,6 @@ Sync lets you review changes before saving.
   client or the server imports them.
 - You can add and reconcile accounts. Renaming, closing, reopening, and
   deleting accounts are not yet supported.
-- Category creation, renaming, deletion, and reordering still require another
-  Actual client. Actualist supports hiding and showing categories and groups.
 - Imported split rules run but cannot be edited here. Formula actions, some date
   and recurrence options, and rules managed by schedules also remain read-only.
 - Template definitions written in a category note stay view-only. Unsupported

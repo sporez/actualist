@@ -39,6 +39,7 @@ enum LocalFirstError: LocalizedError, Equatable {
     case actionUndoBlocked(String)
     case budgetNotOpened
     case unsupportedTemplate(String)
+    case budgetTemplateReviewStale
     case keychainFailure(String, OSStatus)
     case hybridLogicalClockOverflow
     case localWriteSuperseded
@@ -99,6 +100,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Open a local-first budget before loading this screen."
         case .unsupportedTemplate(let reason):
             "This budget template can't be applied locally yet: \(reason)"
+        case .budgetTemplateReviewStale:
+            "This template preview is out of date. Review it again before applying."
         case .keychainFailure(let operation, let status):
             "Actualist could not \(operation) Keychain data. OSStatus: \(status)"
         case .hybridLogicalClockOverflow:

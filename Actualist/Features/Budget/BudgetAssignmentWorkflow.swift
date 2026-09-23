@@ -277,6 +277,7 @@ final class BudgetAssignmentWorkflow {
         selectedMonth: String,
         budgetID: String,
         expectedMode: BudgetModeIdentity? = nil,
+        reviewRevision: BudgetTemplateReviewRevision? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard let context, context.budgetID == budgetID, context.month == selectedMonth,
@@ -289,11 +290,7 @@ final class BudgetAssignmentWorkflow {
         self.draft = draft
 
         do {
-            let loadedMonth = try await repository.applyBudgetTemplateAndRefresh(expectedMode: expectedMode ?? context.modeIdentity,
-                command: .category(draft.categoryID),
-                budgetID: context.budgetID,
-                month: context.month
-            ) { [weak self] in
+            let didApply: @MainActor @Sendable () async -> Void = { [weak self] in
                 await MainActor.run {
                     guard var currentDraft = self?.draft,
                           self?.context == context else {
@@ -303,6 +300,25 @@ final class BudgetAssignmentWorkflow {
                     currentDraft.submissionState = .refetching
                     self?.draft = currentDraft
                 }
+            }
+            let command = BudgetTemplateCommand.category(draft.categoryID)
+            let loadedMonth: LoadedBudgetMonth
+            if let reviewRevision {
+                loadedMonth = try await repository.applyReviewedBudgetTemplateAndRefresh(
+                    reviewRevision: reviewRevision,
+                    command: command,
+                    budgetID: context.budgetID,
+                    month: context.month,
+                    didApply: didApply
+                )
+            } else {
+                loadedMonth = try await repository.applyBudgetTemplateAndRefresh(
+                    expectedMode: expectedMode ?? context.modeIdentity,
+                    command: command,
+                    budgetID: context.budgetID,
+                    month: context.month,
+                    didApply: didApply
+                )
             }
             completionRevision += 1
             guard self.context == context else { return nil }

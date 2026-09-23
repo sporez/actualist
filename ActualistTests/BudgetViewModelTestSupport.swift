@@ -156,6 +156,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private var carryoverUpdates: [RecordedBudgetCarryoverUpdate] = []
     private var moves: [RecordedBudgetMove] = []
     private var templates: [RecordedBudgetTemplate] = []
+    private var reviewedTemplateRevisions: [BudgetTemplateReviewRevision] = []
     private var categoryHides: [RecordedCategoryHiddenUpdate] = []
     private var groupHides: [RecordedCategoryGroupHiddenUpdate] = []
     private var didAssignCallbackFinished = false
@@ -358,6 +359,20 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         return loadedMonth
     }
 
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        reviewedTemplateRevisions.append(reviewRevision)
+        return try await applyBudgetTemplateAndRefresh(
+            expectedMode: reviewRevision.modeIdentity,
+            command: command, budgetID: budgetID, month: month, didApply: didApply
+        )
+    }
+
     func setCategoryHiddenAndRefresh(
         categoryID: String,
         hidden: Bool,
@@ -426,6 +441,14 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
 
     func onlyTemplate() throws -> RecordedBudgetTemplate {
         try #require(templates.first)
+    }
+
+    func recordedReviewedTemplateRevisions() -> [BudgetTemplateReviewRevision] {
+        reviewedTemplateRevisions
+    }
+
+    func recordedTemplates() -> [RecordedBudgetTemplate] {
+        templates
     }
 
     func didAssignFinished() -> Bool {

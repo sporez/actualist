@@ -623,23 +623,10 @@ final class BudgetViewModel {
     }
 
     func applyMonthTemplate(
-        _ mode: BudgetTemplateApplicationMode,
-        expectedMode: BudgetModeIdentity? = nil,
-        using appState: AppState
-    ) async -> Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return false
-        }
-        let repository = appState.budgetRepository
-
-        let command: BudgetTemplateCommand = mode == .overwrite ? .overwrite : .fillEmpty
-        return await applyMonthTemplate(command, budgetID: budgetID, expectedMode: expectedMode, repository: repository)
-    }
-
-    func applyMonthTemplate(
         _ command: BudgetTemplateCommand,
         budgetID: String,
         expectedMode: BudgetModeIdentity? = nil,
+        reviewRevision: BudgetTemplateReviewRevision? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
         if let expectedMode, expectedMode != modeIdentity {
@@ -663,6 +650,7 @@ final class BudgetViewModel {
             selectedMonth: selectedMonth,
             budgetID: budgetID,
             expectedMode: reviewedMode,
+            reviewRevision: reviewRevision,
             repository: repository
         ) {
         case .success(let loadedMonth):
@@ -694,20 +682,9 @@ final class BudgetViewModel {
     }
 
     func applyCategoryTemplate(
-        expectedMode: BudgetModeIdentity? = nil,
-        using appState: AppState
-    ) async -> Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return false
-        }
-        let repository = appState.budgetRepository
-
-        return await applyCategoryTemplate(budgetID: budgetID, expectedMode: expectedMode, repository: repository)
-    }
-
-    func applyCategoryTemplate(
         budgetID: String,
         expectedMode: BudgetModeIdentity? = nil,
+        reviewRevision: BudgetTemplateReviewRevision? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
         if let expectedMode, expectedMode != modeIdentity {
@@ -717,9 +694,10 @@ final class BudgetViewModel {
         guard let selectedMonth,
               let loadedMonth = await assignmentWorkflow.applyCategoryTemplate(
                 selectedMonth: selectedMonth,
-                budgetID: budgetID,
-                expectedMode: expectedMode,
-                repository: repository
+                 budgetID: budgetID,
+                 expectedMode: expectedMode,
+                 reviewRevision: reviewRevision,
+                 repository: repository
               ) else {
             return false
         }

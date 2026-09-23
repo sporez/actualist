@@ -8,7 +8,8 @@ extension BudgetTemplateEngine {
         budgetedByCategory: inout [String: Int],
         limitMetByCategory: inout [String: Bool],
         remainingAvailable: inout Int,
-        contributions: inout [String: [Int]]
+        contributions: inout [String: [Int]],
+        evaluatedDemandByCategory: inout [String: Int]
     ) throws {
         func remainderCategoryIDs() -> [String] {
             orderedCategoryIDs.filter { categoryID in
@@ -59,6 +60,10 @@ extension BudgetTemplateEngine {
                 }
                 budgetedByCategory[categoryID] = try Self.checkedAdd(
                     budgetedByCategory[categoryID, default: 0],
+                    allocated
+                )
+                evaluatedDemandByCategory[categoryID] = try Self.checkedAdd(
+                    evaluatedDemandByCategory[categoryID, default: 0],
                     allocated
                 )
                 remainingAvailable = try Self.checkedSubtract(remainingAvailable, allocated)

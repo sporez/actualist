@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum BudgetTemplateConfirmation: String, Identifiable {
+enum BudgetTemplateConfirmation: String, Equatable, Identifiable {
     case monthFillEmpty
     case monthOverwrite
     case category

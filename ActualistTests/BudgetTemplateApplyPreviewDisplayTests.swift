@@ -29,16 +29,18 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                         current: 0,
                         proposed: 40_000,
                         perTemplate: [40_000],
-                        drafts: [.monthlyFixed(amount: 400, now: now)]
+                        drafts: [.monthlyFixed(amount: 400, now: now)],
+                        metric: .init(kind: .available, before: 0, after: 40_000)
                     )
-                ]
+                ],
+                availableBefore: 12_000,
+                availableAfter: 12_000
             ),
-            randomized: false,
-            month: "2026-07"
+            randomized: false
         )
         #expect(display.assignedText == BudgetCurrency.usd.formatted(40_000))
         #expect(display.leftoverTitle == "To Budget")
-        #expect(display.leftoverText == BudgetCurrency.usd.formatted(12_000))
+        #expect(display.leftoverAfterText == BudgetCurrency.usd.formatted(12_000))
         #expect(display.changeCountText == "1 category")
         #expect(display.categories.map(\.name) == ["Groceries"])
         #expect(display.categories[0].currentText == BudgetCurrency.usd.formatted(0))
@@ -56,12 +58,12 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                         current: 0,
                         proposed: 5_000,
                         perTemplate: [1_000, 4_000],
-                        drafts: [.monthlyFixed(amount: 10, now: now), .remainder()]
+                        drafts: [.monthlyFixed(amount: 10, now: now), .remainder()],
+                        metric: .init(kind: .available, before: 0, after: 5_000)
                     )
                 ]
             ),
-            randomized: false,
-            month: "2026-07"
+            randomized: false
         )
         #expect(labeled.categories[0].contributions.map(\.title) == ["Fixed Amount", "Remainder"])
         #expect(labeled.categories[0].contributions.map(\.amountText) == [
@@ -78,18 +80,18 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                         current: 0,
                         proposed: 3_000,
                         perTemplate: [1_000, 2_000],
-                        drafts: []
+                        drafts: [],
+                        metric: .init(kind: .available, before: 0, after: 3_000)
                     )
                 ]
             ),
-            randomized: false,
-            month: "2026-07"
+            randomized: false
         )
         #expect(fallback.categories[0].contributions.map(\.title) == ["Template 1", "Template 2"])
     }
 
     @Test func privacyRandomizesAmounts() {
-        let preview = preview(
+        var preview = preview(
             leftover: -500,
             isTracking: true,
             categories: [
@@ -99,38 +101,26 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                     current: 10_000,
                     proposed: 40_000,
                     perTemplate: [15_000, 25_000],
-                    drafts: [.monthlyFixed(amount: 150, now: now), .remainder()]
+                    drafts: [.monthlyFixed(amount: 150, now: now), .remainder()],
+                    metric: .init(kind: .balance, before: 10_000, after: 40_000)
                 )
             ]
         )
+        preview.released = 500
         let display = BudgetTemplateApplyPreviewDisplay.make(
             preview: preview,
-            randomized: true,
-            month: "2026-07"
-        )
-        let assigned = PrivacyDisplay.money(
-            40_000,
-            seed: "template-apply-assigned-2026-07",
-            currency: .usd
-        )
-        let leftover = PrivacyDisplay.money(
-            -500,
-            seed: "template-apply-leftover-2026-07",
-            currency: .usd
+            randomized: true
         )
         #expect(display.leftoverTitle == "Total Saved")
-        #expect(display.assignedText == assigned)
-        #expect(display.leftoverText == leftover)
-        #expect(
-            display.categories[0].proposedText == PrivacyDisplay.money(
-                40_000,
-                seed: "template-apply-groceries-proposed",
-                currency: .usd
-            )
-        )
-        if BudgetCurrency.usd.formatted(40_000) != assigned {
-            #expect(!display.assignedText.contains(BudgetCurrency.usd.formatted(40_000)))
-        }
+        #expect(display.releasedTitle == "Reduced")
+        #expect(display.releasedText == "Hidden")
+        #expect(display.assignedText == "Hidden")
+        #expect(display.leftoverAfterText == "Hidden")
+        #expect(display.categories[0].proposedText == "Hidden")
+        #expect(display.categories[0].name != "Groceries")
+        #expect(display.categories[0].metricBeforeText == "Hidden")
+        #expect(display.categories[0].metricAfterText == "Hidden")
+        #expect(display.categories[0].contributions.allSatisfy { $0.amountText == "Hidden" })
     }
 
     @Test func confirmationCommands() {
@@ -169,12 +159,12 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                             .average(numMonths: 3, adjustment: .percent(-10)),
                             .balanceLimit(amount: 500),
                             .schedule(name: "Rent", full: true, adjustment: .fixed(20))
-                        ]
+                        ],
+                        metric: .init(kind: .available, before: 0, after: 7_000)
                     )
                 ]
             ),
-            randomized: false,
-            month: "2026-07"
+            randomized: false
         )
 
         #expect(display.categories[0].contributions.map(\.id) == [0, 2])
@@ -182,5 +172,86 @@ struct BudgetTemplateApplyPreviewDisplayTests {
             "3-month average (decreased by 10%)",
             "Cover Rent (increased by \(BudgetCurrency.usd.formatted(2_000)))"
         ])
+    }
+
+    @Test func showsPartialFundingAndProjectedAvailableValues() {
+        var category = BudgetTemplateApplyPreview.Category(
+            categoryID: "rent",
+            name: "Rent",
+            current: 100,
+            proposed: 100,
+            perTemplate: [200],
+            drafts: [],
+            goalAfter: 200,
+            metric: .init(kind: .available, before: 50, after: 50)
+        )
+        category.evaluatedDemand = 200
+        category.shortfall = 100
+        let preview = BudgetTemplateApplyPreview(
+            assigned: 0,
+            leftover: 0,
+            isTrackingBudget: false,
+            currency: .usd,
+            categories: [category],
+            fundingRequired: 200,
+            stillNeeded: 100,
+            availableBefore: 100,
+            availableAfter: 0
+        )
+
+        let display = BudgetTemplateApplyPreviewDisplay.make(
+            preview: preview,
+            randomized: false
+        )
+        #expect(display.fundingRequiredText == BudgetCurrency.usd.formatted(200))
+        #expect(display.stillNeededText == BudgetCurrency.usd.formatted(100))
+        #expect(display.leftoverBeforeText == BudgetCurrency.usd.formatted(100))
+        #expect(display.leftoverAfterText == BudgetCurrency.usd.formatted(0))
+        #expect(display.categories[0].statusText == "Unfunded")
+        #expect(display.categories[0].shortfallText == BudgetCurrency.usd.formatted(100))
+        #expect(display.categories[0].targetDetailText == "Template target \(BudgetCurrency.usd.formatted(200))")
+        #expect(!display.hasNonMoneyUpdates)
+        #expect(display.noOpExplanation == "No funds are available for the remaining template targets.")
+    }
+
+    @Test func showsChangedGoalMetadataEvenWithoutAnAssignmentChange() {
+        let category = BudgetTemplateApplyPreview.Category(
+            categoryID: "savings",
+            name: "Savings",
+            current: 500,
+            proposed: 500,
+            perTemplate: [],
+            drafts: [],
+            isGoalOnlyUpdate: true,
+            goalBefore: 10_000,
+            goalAfter: 12_000,
+            metric: .init(kind: .available, before: 500, after: 500)
+        )
+        let preview = BudgetTemplateApplyPreview(
+            assigned: 0,
+            leftover: 0,
+            isTrackingBudget: false,
+            currency: .usd,
+            categories: [category],
+            hasNonMoneyUpdates: true
+        )
+
+        let display = BudgetTemplateApplyPreviewDisplay.make(preview: preview, randomized: false)
+        #expect(display.categories.map(\.id) == ["savings"])
+        #expect(display.categories[0].targetDetailText == "Goal target \(BudgetCurrency.usd.formatted(10_000)) → \(BudgetCurrency.usd.formatted(12_000))")
+        #expect(display.hasNonMoneyUpdates)
+    }
+
+    @Test func emptyCategoryListDistinguishesMissingFromAlreadyFundedTemplates() {
+        let display = BudgetTemplateApplyPreviewDisplay.make(
+            preview: preview(categories: []),
+            randomized: false
+        )
+        #expect(display.noOpExplanation == "No eligible templates were found for this month.")
+
+        var fullyFunded = preview(categories: [])
+        fullyFunded.hasEligibleTemplates = true
+        let funded = BudgetTemplateApplyPreviewDisplay.make(preview: fullyFunded, randomized: false)
+        #expect(funded.noOpExplanation == "Assignments already match their template targets.")
     }
 }

@@ -90,8 +90,14 @@ extension BudgetDatabase {
             messages += try tombstoneOrphanCleanupGroupMessages(db: db, builder: &builder)
             return BudgetTemplateApplyResult(
                 messages: messages,
-                assignments: writes.map {
-                    BudgetTemplateAssignment(categoryID: $0.categoryID, amount: $0.amount)
+                assignments: writes.compactMap { write in
+                    guard prepared.currentBudgeted[write.categoryID] != write.amount else {
+                        return nil
+                    }
+                    return BudgetTemplateAssignment(
+                        categoryID: write.categoryID,
+                        amount: write.amount
+                    )
                 }
             )
         }

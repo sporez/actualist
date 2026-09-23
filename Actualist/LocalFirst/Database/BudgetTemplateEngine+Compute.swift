@@ -4,6 +4,13 @@ struct BudgetTemplateComputePlan: Equatable, Sendable {
     var writes: [BudgetTemplateEngine.Write]
     var leftover: Int
     var contributions: [String: [Int]]
+    /// Demand before the actual available-funds clamp, captured in the same
+    /// pass that produces `writes`.
+    var evaluatedDemandByCategory: [String: Int]
+    var evaluatedDemand: Int
+    /// Positive demand lost at the actual priority available-funds clamp.
+    var clampShortfallByCategory: [String: Int]
+    var clampShortfall: Int
 }
 
 extension BudgetTemplateEngine {
@@ -38,7 +45,15 @@ extension BudgetTemplateEngine {
         skipAvailableClamp: Bool
     ) throws -> BudgetTemplateComputePlan {
         guard !categories.isEmpty else {
-            return BudgetTemplateComputePlan(writes: [], leftover: availableBudget, contributions: [:])
+            return BudgetTemplateComputePlan(
+                writes: [],
+                leftover: availableBudget,
+                contributions: [:],
+                evaluatedDemandByCategory: [:],
+                evaluatedDemand: 0,
+                clampShortfallByCategory: [:],
+                clampShortfall: 0
+            )
         }
         _ = try BudgetTemplateCalendar.validatedMonth(monthValue)
         let currentMonth = try BudgetTemplateCalendar.validatedMonth(
@@ -86,6 +101,7 @@ extension BudgetTemplateEngine {
                 (id, Array(repeating: 0, count: category.entries.count))
             }
         )
+        var evaluatedDemandByCategory: [String: Int] = [:]
         for categoryID in categoryIDs {
             guard let state = limitStates[categoryID], state.isInitiallyMet else {
                 continue
@@ -93,8 +109,10 @@ extension BudgetTemplateEngine {
             let initial = try state.initialBudgetedAmount()
             budgetedByCategory[categoryID] = initial
             fullAmountByCategory[categoryID] = initial
+            evaluatedDemandByCategory[categoryID] = initial
             limitMetByCategory[categoryID] = true
         }
+        var clampShortfallByCategory: [String: Int] = [:]
         let priorities = Set(categories.values.flatMap { category in
             category.entries.compactMap { entry -> Int? in
                 guard Self.participatesInPriority(entry) else {
@@ -222,6 +240,13 @@ extension BudgetTemplateEngine {
                     amount
                 )
 
+                // Capture the signed target before the available-funds clamp.
+                // A dry run would produce different percentage/remainder inputs.
+                evaluatedDemandByCategory[categoryID] = try Self.checkedAdd(
+                    evaluatedDemandByCategory[categoryID, default: 0],
+                    amount
+                )
+
                 // Actual's "do not overbudget when using a priority" clamp gates on
                 // `available < 0` where `available = budgetAvail - toBudget` (the
                 // resulting availability), NOT on whether the amount is positive.
@@ -231,7 +256,15 @@ extension BudgetTemplateEngine {
                    !category.isIncome,
                    remainingAvailable < amount,
                    !skipAvailableClamp {
-                    amount = max(0, remainingAvailable)
+                    let requested = amount
+                    let clamped = max(0, remainingAvailable)
+                    if requested > clamped {
+                        clampShortfallByCategory[categoryID] = try Self.checkedAdd(
+                            clampShortfallByCategory[categoryID, default: 0],
+                            try Self.checkedSubtract(requested, clamped)
+                        )
+                    }
+                    amount = clamped
                 }
 
                 let orderedIndexes = indexedEntries.map(\.offset)
@@ -272,7 +305,8 @@ extension BudgetTemplateEngine {
             budgetedByCategory: &budgetedByCategory,
             limitMetByCategory: &limitMetByCategory,
             remainingAvailable: &remainingAvailable,
-            contributions: &contributions
+            contributions: &contributions,
+            evaluatedDemandByCategory: &evaluatedDemandByCategory
         )
 
         let writes = try finalizeWrites(
@@ -284,7 +318,15 @@ extension BudgetTemplateEngine {
         return BudgetTemplateComputePlan(
             writes: writes,
             leftover: remainingAvailable,
-            contributions: contributions
+            contributions: contributions,
+            evaluatedDemandByCategory: evaluatedDemandByCategory,
+            evaluatedDemand: try evaluatedDemandByCategory.values.reduce(0) {
+                try Self.checkedAdd($0, $1)
+            },
+            clampShortfallByCategory: clampShortfallByCategory,
+            clampShortfall: try clampShortfallByCategory.values.reduce(0) {
+                try Self.checkedAdd($0, $1)
+            }
         )
     }
 }

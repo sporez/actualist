@@ -51,7 +51,8 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
     var categoryID: String?
     var month: String?
     var modeIdentity: BudgetModeIdentity?
-    let apply: (BudgetTemplateConfirmation, BudgetModeIdentity?) -> Void
+    var localDataRevision: UInt64
+    let apply: (BudgetTemplateConfirmation, BudgetTemplateReviewRevision) -> Void
 
     func body(content: Content) -> some View {
         content.sheet(item: $confirmation) { confirmation in
@@ -60,15 +61,16 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
                 categoryID: categoryID,
                 month: month ?? "",
                 modeIdentity: modeIdentity,
+                localDataRevision: localDataRevision,
                 cancel: {
                     self.confirmation = nil
                 },
-                apply: { reviewedMode in
+                apply: { selectedConfirmation, reviewRevision in
                     self.confirmation = nil
-                    apply(confirmation, reviewedMode)
+                    apply(selectedConfirmation, reviewRevision)
                 }
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
             .appSwitcherPrivacyAwareDragIndicator()
             .presentationBackground(ActualistTheme.background)
             .appSwitcherPrivacyProtected(using: appState)

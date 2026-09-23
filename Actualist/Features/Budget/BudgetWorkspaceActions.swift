@@ -233,7 +233,7 @@ final class BudgetWorkspaceActions {
 
     func applyConfirmation(
         _ confirmation: BudgetTemplateConfirmation,
-        reviewedMode: BudgetModeIdentity? = nil,
+        reviewRevision: BudgetTemplateReviewRevision,
         using appState: AppState
     ) async {
         guard let actionModel, let actionBudgetID, let actionMonth else {
@@ -242,29 +242,16 @@ final class BudgetWorkspaceActions {
         }
 
         self.confirmation = nil
-        let succeeded: Bool
-        switch confirmation {
-        case .monthFillEmpty:
-            succeeded = await actionModel.applyMonthTemplate(
-                .fillEmpty,
-                budgetID: actionBudgetID,
-                expectedMode: reviewedMode,
-                repository: viewport.repository
-            )
-        case .monthOverwrite:
-            succeeded = await actionModel.applyMonthTemplate(
-                .overwrite,
-                budgetID: actionBudgetID,
-                expectedMode: reviewedMode,
-                repository: viewport.repository
-            )
-        case .category:
-            succeeded = await actionModel.applyCategoryTemplate(
-                budgetID: actionBudgetID,
-                expectedMode: reviewedMode,
-                repository: viewport.repository
-            )
-        }
+        guard viewport.budgetID == actionBudgetID,
+              appState.settings.selectedBudgetID == actionBudgetID,
+              actionMonth == reviewRevision.month else { return }
+        let succeeded = await BudgetTemplateWorkflow.applyReviewed(
+            confirmation,
+            revision: reviewRevision,
+            model: actionModel,
+            budgetID: actionBudgetID,
+            repository: viewport.repository
+        )
         if succeeded, viewport.budgetID == actionBudgetID, viewport.snapshot(for: actionMonth) != nil {
             await viewport.refreshVisibleMonths()
         }

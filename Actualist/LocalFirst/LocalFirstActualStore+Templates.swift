@@ -86,4 +86,33 @@ extension LocalFirstActualStore {
             month: month
         )
     }
+
+    func previewBudgetTemplatePair(
+        budgetID: String,
+        month: String
+    ) async throws -> BudgetTemplateApplyPreviewPair {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.previewBudgetTemplatePair(month: month)
+    }
+
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        guard reviewRevision.month == month else {
+            throw LocalFirstError.budgetTemplateReviewStale
+        }
+        return try await applyBudgetTemplateAndRefresh(
+            reviewRevision: reviewRevision,
+            expectedMode: nil,
+            command: command,
+            budgetID: budgetID,
+            month: month,
+            actionSource: .ui,
+            didApply: didApply
+        )
+    }
 }

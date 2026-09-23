@@ -4,12 +4,15 @@ import GRDB
 struct BudgetTemplatePreparedPlan: Sendable {
     var compute: BudgetTemplateComputePlan
     var currentBudgeted: [String: Int]
+    var currentGoals: [String: Int]
     var entriesByCategory: [String: [BudgetTemplateEntry]]
+    var categoryIsIncome: [String: Bool]
     var isTracking: Bool
     var canWriteGoals: Bool
     var orphanGoalCategoryIDs: [String]
     var table: BudgetTable
     var columns: Set<String>
+    var initialAvailableBudget: Int
 }
 
 extension BudgetDatabase {
@@ -81,42 +84,238 @@ extension BudgetDatabase {
         now: Date = Date()
     ) throws -> BudgetTemplateApplyPreview {
         try queue.read { db in
-            let prepared = try budgetTemplatePlan(
+            try makeBudgetTemplateApplyPreview(
                 command: command,
                 month: month,
                 currentMonth: currentMonth,
-                skipAvailableClamp: false,
-                goalDefOverrides: [:],
-                skipStaleCheck: false,
+                now: now,
                 db: db
             )
-            let names = try templateCategoryNames(db: db)
-            var categories: [BudgetTemplateApplyPreview.Category] = []
-            for write in prepared.compute.writes {
-                let current = prepared.currentBudgeted[write.categoryID] ?? 0
-                guard write.amount != current else { continue }
-                let entries = prepared.entriesByCategory[write.categoryID] ?? []
-                categories.append(
-                    BudgetTemplateApplyPreview.Category(
-                        categoryID: write.categoryID,
-                        name: names[write.categoryID] ?? write.categoryID,
-                        current: current,
-                        proposed: write.amount,
-                        perTemplate: prepared.compute.contributions[write.categoryID]
-                            ?? Array(repeating: 0, count: entries.count),
-                        drafts: BudgetTemplateDefinition.drafts(from: entries, now: now) ?? []
-                    )
+        }
+    }
+
+    /// Calculates both month-wide Apply modes while holding one SQLite read
+    /// snapshot. Each scenario catches its own template validation failure.
+    func previewBudgetTemplatePair(
+        month: String,
+        currentMonth: String? = nil,
+        now: Date = Date()
+    ) throws -> BudgetTemplateApplyPreviewPair {
+        try queue.read { db in
+            let fillEmpty = previewBudgetTemplateOutcome(
+                command: .fillEmpty,
+                month: month,
+                currentMonth: currentMonth,
+                now: now,
+                db: db
+            )
+            let overwrite = previewBudgetTemplateOutcome(
+                command: .overwrite,
+                month: month,
+                currentMonth: currentMonth,
+                now: now,
+                db: db
+            )
+            return BudgetTemplateApplyPreviewPair(fillEmpty: fillEmpty, overwrite: overwrite)
+        }
+    }
+
+    private func previewBudgetTemplateOutcome(
+        command: BudgetTemplateCommand,
+        month: String,
+        currentMonth: String?,
+        now: Date,
+        db: Database
+    ) -> BudgetTemplatePreviewOutcome {
+        do {
+            return .ready(
+                try makeBudgetTemplateApplyPreview(
+                    command: command,
+                    month: month,
+                    currentMonth: currentMonth,
+                    now: now,
+                    db: db
+                )
+            )
+        } catch {
+            return .failed(error.userFacingMessage ?? "The template preview could not be loaded.")
+        }
+    }
+
+    private func makeBudgetTemplateApplyPreview(
+        command: BudgetTemplateCommand,
+        month: String,
+        currentMonth: String?,
+        now: Date,
+        db: Database
+    ) throws -> BudgetTemplateApplyPreview {
+        let prepared = try budgetTemplatePlan(
+            command: command,
+            month: month,
+            currentMonth: currentMonth,
+            skipAvailableClamp: false,
+            goalDefOverrides: [:],
+            skipStaleCheck: false,
+            db: db
+        )
+        let names = try templateCategoryNames(db: db)
+        let currentValues = try categoryValues(through: month, db: db)
+        let reviewRevision = try budgetTemplateReviewRevision(month: month, db: db)
+        let currency = try budgetCurrency(db: db)
+        let includedTrackingCategoryIDs: Set<String>
+        if prepared.isTracking {
+            let groups = try fetchCategoryGroups(categoryValues: currentValues, db: db)
+            let firstIncomeGroupID = groups.first(where: \.isIncome)?.id
+            includedTrackingCategoryIDs = Set(groups
+                .filter { $0.isIncome ? $0.id == firstIncomeGroupID : $0.hidden != true }
+                .flatMap { $0.categories.filter { $0.hidden != true }.map(\.id) })
+        } else {
+            includedTrackingCategoryIDs = []
+        }
+        let writesByCategory = Dictionary(
+            uniqueKeysWithValues: prepared.compute.writes.map { ($0.categoryID, $0) }
+        )
+        var orderedIDs = prepared.compute.writes.map(\.categoryID)
+        for categoryID in prepared.orphanGoalCategoryIDs where !orderedIDs.contains(categoryID) {
+            orderedIDs.append(categoryID)
+        }
+
+        var categories: [BudgetTemplateApplyPreview.Category] = []
+        var assigned = 0
+        var released = 0
+        var hasNonMoneyUpdates = false
+
+        for categoryID in orderedIDs {
+            let write = writesByCategory[categoryID]
+            let current = prepared.currentBudgeted[categoryID] ?? 0
+            let proposed = write?.amount ?? current
+            let evaluatedDemand = prepared.compute.evaluatedDemandByCategory[categoryID] ?? 0
+            let shortfall = prepared.compute.clampShortfallByCategory[categoryID] ?? 0
+            let goalBefore = prepared.currentGoals[categoryID]
+            let goalAfter = write?.goal
+            let goalChanged = goalBefore != goalAfter
+            let entries = prepared.entriesByCategory[categoryID] ?? []
+            let isGoalOnly = isGoalOnly(entries)
+            let isOrphanGoal = prepared.orphanGoalCategoryIDs.contains(categoryID)
+            let isGoalOnlyUpdate = isGoalOnly && goalChanged || isOrphanGoal
+            guard current != proposed || shortfall > 0 || goalChanged else {
+                continue
+            }
+
+            let delta = try BudgetTemplateEngine.checkedSubtract(proposed, current)
+            if delta >= 0 {
+                assigned = try BudgetTemplateEngine.checkedAdd(assigned, delta)
+            } else {
+                released = try BudgetTemplateEngine.checkedAdd(
+                    released,
+                    try BudgetTemplateEngine.checkedSubtract(0, delta)
                 )
             }
-            return BudgetTemplateApplyPreview(
-                modeIdentity: try budgetModeIdentity(db: db),
-                assigned: categories.reduce(0) { $0 + $1.proposed },
-                leftover: prepared.compute.leftover,
-                isTrackingBudget: prepared.isTracking,
-                currency: try budgetCurrency(db: db),
-                categories: categories
+            hasNonMoneyUpdates = hasNonMoneyUpdates || goalChanged
+
+            let beforeValue = currentValues[categoryID] ?? BudgetCategoryValue()
+            let afterBalance = try BudgetFinancialCalculation.sum(
+                [beforeValue.balance, delta],
+                table: prepared.table
+            )
+            let metric: BudgetTemplateCategoryMetric
+            if prepared.isTracking {
+                if prepared.categoryIsIncome[categoryID] == true {
+                    metric = BudgetTemplateCategoryMetric(
+                        kind: .received,
+                        before: beforeValue.spent,
+                        after: beforeValue.spent
+                    )
+                } else {
+                    metric = BudgetTemplateCategoryMetric(
+                        kind: .balance,
+                        before: beforeValue.balance,
+                        after: afterBalance
+                    )
+                }
+            } else {
+                metric = BudgetTemplateCategoryMetric(
+                    kind: .available,
+                    before: beforeValue.balance,
+                    after: afterBalance
+                )
+            }
+            categories.append(BudgetTemplateApplyPreview.Category(
+                categoryID: categoryID,
+                name: names[categoryID] ?? categoryID,
+                current: current,
+                proposed: proposed,
+                perTemplate: prepared.compute.contributions[categoryID]
+                    ?? Array(repeating: 0, count: entries.count),
+                drafts: BudgetTemplateDefinition.drafts(
+                    from: entries,
+                    now: now
+                ) ?? [],
+                evaluatedDemand: evaluatedDemand,
+                shortfall: shortfall,
+                isGoalOnlyUpdate: isGoalOnlyUpdate,
+                goalBefore: goalBefore,
+                goalAfter: goalAfter,
+                metric: metric
+            ))
+        }
+
+        let evaluatedDemand = prepared.compute.evaluatedDemand
+        var netFundingRequired = 0
+        for (categoryID, entries) in prepared.entriesByCategory where !isGoalOnly(entries) {
+            let targetChange = try BudgetTemplateEngine.checkedSubtract(
+                prepared.compute.evaluatedDemandByCategory[categoryID] ?? 0,
+                prepared.currentBudgeted[categoryID] ?? 0
+            )
+            // Tracking income adds to Total Saved; expenses use it. Envelope
+            // whole-month applies have no income categories in their scope.
+            let cost = prepared.isTracking && prepared.categoryIsIncome[categoryID] == true
+                ? try BudgetTemplateEngine.checkedSubtract(0, targetChange)
+                : targetChange
+            netFundingRequired = try BudgetTemplateEngine.checkedAdd(
+                netFundingRequired,
+                cost
             )
         }
+        // To Budget / Total Saved is not subtracted here: it determines how
+        // much of the requirement the apply can meet, not what was requested.
+        let fundingRequired = max(0, netFundingRequired)
+        var availableAfter = prepared.compute.leftover
+        if prepared.isTracking {
+            // The engine's remaining availability is an allocation input, not
+            // tracking's displayed Total Saved. Project only the same visible
+            // categories that trackingTotalSaved includes.
+            availableAfter = prepared.initialAvailableBudget
+            for write in prepared.compute.writes where includedTrackingCategoryIDs.contains(write.categoryID) {
+                let delta = try BudgetTemplateEngine.checkedSubtract(
+                    write.amount,
+                    prepared.currentBudgeted[write.categoryID] ?? 0
+                )
+                let effect = prepared.categoryIsIncome[write.categoryID] == true
+                    ? delta
+                    : try BudgetTemplateEngine.checkedSubtract(0, delta)
+                availableAfter = try BudgetFinancialCalculation.sum(
+                    [availableAfter, effect], table: .tracking
+                )
+            }
+        }
+        return BudgetTemplateApplyPreview(
+            modeIdentity: reviewRevision.modeIdentity,
+            assigned: assigned,
+            leftover: prepared.compute.leftover,
+            isTrackingBudget: prepared.isTracking,
+            currency: currency,
+            categories: categories,
+            released: released,
+            evaluatedDemand: evaluatedDemand,
+            fundingRequired: fundingRequired,
+            stillNeeded: prepared.compute.clampShortfall,
+            availableBefore: prepared.initialAvailableBudget,
+            availableAfter: availableAfter,
+            hasNonMoneyUpdates: hasNonMoneyUpdates,
+            hasEligibleTemplates: !prepared.entriesByCategory.isEmpty,
+            reviewRevision: reviewRevision
+        )
     }
 
     func budgetTemplatePlan(
@@ -189,9 +388,10 @@ extension BudgetDatabase {
         var unsupported: [String] = []
         var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
         var orphanGoalCategoryIDs: [String] = []
-        var availableBudget = try isTracking
+        let initialAvailableBudget = try isTracking
             ? trackingTotalSaved(month: monthID(monthValue), db: db)
             : envelopeToBudget(month: monthID(monthValue), db: db)
+        var availableBudget = initialAvailableBudget
         var incomeCatalog = try templateIncomeCatalog(db: db)
         let activeSchedules = try templateActiveSchedules(db: db)
         incomeCatalog.activeScheduleIDs = activeSchedules.ids
@@ -271,12 +471,15 @@ extension BudgetDatabase {
         return BudgetTemplatePreparedPlan(
             compute: compute,
             currentBudgeted: currentBudgets.mapValues(\.budgeted),
+            currentGoals: existingGoals,
             entriesByCategory: categoryTemplates,
+            categoryIsIncome: categoryIsIncome,
             isTracking: isTracking,
             canWriteGoals: canWriteGoals,
             orphanGoalCategoryIDs: orphanGoalCategoryIDs,
             table: table,
-            columns: columns
+            columns: columns,
+            initialAvailableBudget: initialAvailableBudget
         )
     }
 }

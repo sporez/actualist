@@ -5,6 +5,37 @@ final class IPadReviewUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     @MainActor
+    func testWideTemplatePreviewSwitchesAndAppliesSelectedMode() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launch(replaceDemo: true)
+        try requireWide(app)
+        XCTAssertTrue(app.scrollViews["budget-grid"].waitForExistence(timeout: 10))
+        let monthActions = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'month actions'")
+        ).firstMatch
+        XCTAssertTrue(monthActions.waitForExistence(timeout: 5))
+        monthActions.tap()
+        let overwrite = app.buttons["Apply Template Overwrite"]
+        XCTAssertTrue(overwrite.waitForExistence(timeout: 5))
+        overwrite.tap()
+
+        let confirm = app.buttons["template-apply-confirm"]
+        XCTAssertTrue(app.staticTexts["Funding required"].waitForExistence(timeout: 10))
+        XCTAssertEqual(confirm.label, "Apply Template Overwrite")
+        app.buttons["Fill Empty"].tap()
+        XCTAssertEqual(confirm.label, "Apply Template")
+        app.buttons["Overwrite"].tap()
+        XCTAssertEqual(confirm.label, "Apply Template Overwrite")
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
+        ).firstMatch.waitForExistence(timeout: 5))
+        screenshot("review-wide-template-overwrite")
+        XCTAssertTrue(confirm.isEnabled)
+        confirm.tap()
+        XCTAssertTrue(confirm.waitForNonExistence(timeout: 10))
+    }
+
+    @MainActor
     func testSidebarAccountsOverviewClearsPreviousAccount() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launch()
@@ -223,9 +254,12 @@ final class IPadReviewUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
     }
 
-    @MainActor private func launch(screen: String = "budget") -> XCUIApplication {
+    @MainActor private func launch(screen: String = "budget", replaceDemo: Bool = false) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
         app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
+        if replaceDemo {
+            app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
+        }
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app

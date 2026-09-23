@@ -74,6 +74,7 @@ final class BudgetTemplateWorkflow {
         selectedMonth: String,
         budgetID: String,
         expectedMode: BudgetModeIdentity? = nil,
+        reviewRevision: BudgetTemplateReviewRevision? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> Result<LoadedBudgetMonth, Error> {
         guard !submissionState.isSubmitting else {
@@ -84,15 +85,29 @@ final class BudgetTemplateWorkflow {
         submissionState = .submitting
 
         do {
-            let loadedMonth = try await repository.applyBudgetTemplateAndRefresh(expectedMode: expectedMode,
-                command: command,
-                budgetID: budgetID,
-                month: selectedMonth
-            ) { [weak self] in
+            let didApply: @MainActor @Sendable () async -> Void = { [weak self] in
                 await MainActor.run {
                     guard self?.selectionGeneration == generation else { return }
                     self?.submissionState = .refetching
                 }
+            }
+            let loadedMonth: LoadedBudgetMonth
+            if let reviewRevision {
+                loadedMonth = try await repository.applyReviewedBudgetTemplateAndRefresh(
+                    reviewRevision: reviewRevision,
+                    command: command,
+                    budgetID: budgetID,
+                    month: selectedMonth,
+                    didApply: didApply
+                )
+            } else {
+                loadedMonth = try await repository.applyBudgetTemplateAndRefresh(
+                    expectedMode: expectedMode,
+                    command: command,
+                    budgetID: budgetID,
+                    month: selectedMonth,
+                    didApply: didApply
+                )
             }
             if selectionGeneration == generation { submissionState = .draft }
             return .success(loadedMonth)
@@ -102,7 +117,38 @@ final class BudgetTemplateWorkflow {
         }
     }
 
-
+    /// Routes a reviewed sheet action through the workflow that owns its
+    /// submission state; the view only supplies the selected intent and context.
+    static func applyReviewed(
+        _ confirmation: BudgetTemplateConfirmation,
+        revision: BudgetTemplateReviewRevision,
+        model: BudgetViewModel,
+        budgetID: String,
+        repository: any BudgetRepositoryProtocol
+    ) async -> Bool {
+        guard model.loadedBudgetID == budgetID,
+              model.selectedMonth == revision.month,
+              model.modeIdentity == revision.modeIdentity else {
+            return false
+        }
+        switch confirmation {
+        case .monthFillEmpty:
+            return await model.applyMonthTemplate(
+                .fillEmpty, budgetID: budgetID, expectedMode: revision.modeIdentity,
+                reviewRevision: revision, repository: repository
+            )
+        case .monthOverwrite:
+            return await model.applyMonthTemplate(
+                .overwrite, budgetID: budgetID, expectedMode: revision.modeIdentity,
+                reviewRevision: revision, repository: repository
+            )
+        case .category:
+            return await model.applyCategoryTemplate(
+                budgetID: budgetID, expectedMode: revision.modeIdentity,
+                reviewRevision: revision, repository: repository
+            )
+        }
+    }
 }
 
 private enum BudgetTemplateWorkflowError: Error {
