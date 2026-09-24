@@ -206,6 +206,7 @@ actor BudgetDatabase {
     struct TransactionFetchResult: Sendable {
         let transactions: [ActualTransaction]
         let reachedEnd: Bool
+        let nextOffset: Int
     }
 
     struct RemoteSyncApplyResult: Equatable, Sendable {

@@ -48,16 +48,16 @@ extension TransactionEditorViewModelTests {
 }
 @MainActor
 final class RecordingTransactionRepository: TransactionRepositoryProtocol {
-    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? { nil }
-    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? { nil }
-    func refreshAccountTransactions(budgetID: String, accountID: String) async throws {}
-    func refreshSpendingTransactions(budgetID: String) async throws {}
-    func loadOlderTransactions(budgetID: String, accountID: String) async throws {}
-    func loadOlderSpendingTransactions(budgetID: String) async throws {}
-    func searchAccountTransactions(budgetID: String, accountID: String, query: String, limit: Int, offset: Int) async throws -> LoadedAccountTransactions {
+    func cachedAccountTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) -> LoadedAccountTransactions? { nil }
+    func cachedSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) -> LoadedAccountTransactions? { nil }
+    func refreshAccountTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {}
+    func refreshSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {}
+    func loadOlderTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {}
+    func loadOlderSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {}
+    func searchAccountTransactions(budgetID: String, accountID: String, query: String, limit: Int, offset: Int, statusFilter: TransactionStatusFilter) async throws -> LoadedAccountTransactions {
         LoadedAccountTransactions(transactions: [], balance: nil, categoryNames: [:], payeeNames: [:], transferPayeeIDs: [], reachedEnd: true)
     }
-    func searchSpendingTransactions(budgetID: String, query: String, limit: Int, offset: Int) async throws -> LoadedAccountTransactions {
+    func searchSpendingTransactions(budgetID: String, query: String, limit: Int, offset: Int, statusFilter: TransactionStatusFilter) async throws -> LoadedAccountTransactions {
         LoadedAccountTransactions(transactions: [], balance: nil, categoryNames: [:], payeeNames: [:], transferPayeeIDs: [], reachedEnd: true)
     }
 

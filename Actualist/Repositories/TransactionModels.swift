@@ -1,5 +1,13 @@
 import Foundation
 
+enum TransactionStatusFilter: String, CaseIterable, Hashable, Sendable {
+    case all
+    case uncategorized
+    case uncleared
+    case cleared
+    case reconciled
+}
+
 struct YearMonth: Hashable, Sendable, RawRepresentable {
     let rawValue: String
 

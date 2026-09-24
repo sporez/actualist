@@ -334,11 +334,13 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
 
     func cachedAccountTransactions(
         budgetID: String,
-        accountID: String
+        accountID: String,
+        statusFilter: TransactionStatusFilter
     ) -> LoadedAccountTransactions? { accountSnapshot }
 
     func cachedSpendingTransactions(
-        budgetID: String
+        budgetID: String,
+        statusFilter: TransactionStatusFilter
     ) -> LoadedAccountTransactions? { spendingSnapshot }
 
     func cachedCategoryTransactions(
@@ -347,12 +349,12 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         month: String
     ) -> LoadedAccountTransactions? { categorySnapshot }
 
-    func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
+    func refreshAccountTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {
         refreshCalls.append("account:\(accountID)")
         if let refreshError { throw refreshError }
     }
 
-    func refreshSpendingTransactions(budgetID: String) async throws {
+    func refreshSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {
         refreshCalls.append("spending")
         if let refreshError { throw refreshError }
     }
@@ -366,14 +368,14 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         if let refreshError { throw refreshError }
     }
 
-    func loadOlderTransactions(budgetID: String, accountID: String) async throws {
+    func loadOlderTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {
         olderLoadCalls.append("account:\(accountID)")
         if suspendsOlderLoads {
             try await withCheckedThrowingContinuation { olderLoadContinuation = $0 }
         }
     }
 
-    func loadOlderSpendingTransactions(budgetID: String) async throws {
+    func loadOlderSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {
         olderLoadCalls.append("spending")
     }
 
@@ -387,7 +389,8 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         accountID: String,
         query: String,
         limit: Int,
-        offset: Int
+        offset: Int,
+        statusFilter: TransactionStatusFilter
     ) async throws -> LoadedAccountTransactions {
         try await search(query)
     }
@@ -396,7 +399,8 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         budgetID: String,
         query: String,
         limit: Int,
-        offset: Int
+        offset: Int,
+        statusFilter: TransactionStatusFilter
     ) async throws -> LoadedAccountTransactions {
         try await search(query)
     }

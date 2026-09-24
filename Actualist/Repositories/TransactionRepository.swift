@@ -4,8 +4,15 @@ import Foundation
 /// cached reads touch the store snapshot and write completions refresh UI.
 @MainActor
 protocol TransactionRepositoryProtocol: AnyObject {
-    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions?
-    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions?
+    func cachedAccountTransactions(
+        budgetID: String,
+        accountID: String,
+        statusFilter: TransactionStatusFilter
+    ) -> LoadedAccountTransactions?
+    func cachedSpendingTransactions(
+        budgetID: String,
+        statusFilter: TransactionStatusFilter
+    ) -> LoadedAccountTransactions?
     func cachedCategoryTransactions(
         budgetID: String,
         categoryID: String,
@@ -15,27 +22,43 @@ protocol TransactionRepositoryProtocol: AnyObject {
         budgetID: String,
         month: String
     ) -> LoadedUncategorizedTransactions?
-    func refreshAccountTransactions(budgetID: String, accountID: String) async throws
-    func refreshSpendingTransactions(budgetID: String) async throws
+    func refreshAccountTransactions(
+        budgetID: String,
+        accountID: String,
+        statusFilter: TransactionStatusFilter
+    ) async throws
+    func refreshSpendingTransactions(
+        budgetID: String,
+        statusFilter: TransactionStatusFilter
+    ) async throws
     func refreshCategoryTransactions(
         budgetID: String,
         categoryID: String,
         month: String
     ) async throws
-    func loadOlderTransactions(budgetID: String, accountID: String) async throws
-    func loadOlderSpendingTransactions(budgetID: String) async throws
+    func loadOlderTransactions(
+        budgetID: String,
+        accountID: String,
+        statusFilter: TransactionStatusFilter
+    ) async throws
+    func loadOlderSpendingTransactions(
+        budgetID: String,
+        statusFilter: TransactionStatusFilter
+    ) async throws
     func searchAccountTransactions(
         budgetID: String,
         accountID: String,
         query: String,
         limit: Int,
-        offset: Int
+        offset: Int,
+        statusFilter: TransactionStatusFilter
     ) async throws -> LoadedAccountTransactions
     func searchSpendingTransactions(
         budgetID: String,
         query: String,
         limit: Int,
-        offset: Int
+        offset: Int,
+        statusFilter: TransactionStatusFilter
     ) async throws -> LoadedAccountTransactions
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions
     func uncategorizedTransactions(
@@ -109,6 +132,54 @@ protocol TransactionRepositoryProtocol: AnyObject {
 }
 
 extension TransactionRepositoryProtocol {
+    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
+        cachedAccountTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
+    }
+
+    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? {
+        cachedSpendingTransactions(budgetID: budgetID, statusFilter: .all)
+    }
+
+    func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
+        try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
+    }
+
+    func refreshSpendingTransactions(budgetID: String) async throws {
+        try await refreshSpendingTransactions(budgetID: budgetID, statusFilter: .all)
+    }
+
+    func loadOlderTransactions(budgetID: String, accountID: String) async throws {
+        try await loadOlderTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
+    }
+
+    func loadOlderSpendingTransactions(budgetID: String) async throws {
+        try await loadOlderSpendingTransactions(budgetID: budgetID, statusFilter: .all)
+    }
+
+    func searchAccountTransactions(
+        budgetID: String,
+        accountID: String,
+        query: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions {
+        try await searchAccountTransactions(
+            budgetID: budgetID, accountID: accountID, query: query, limit: limit, offset: offset,
+            statusFilter: .all
+        )
+    }
+
+    func searchSpendingTransactions(
+        budgetID: String,
+        query: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions {
+        try await searchSpendingTransactions(
+            budgetID: budgetID, query: query, limit: limit, offset: offset, statusFilter: .all
+        )
+    }
+
     func updateTransactionAndRefresh(
         _ transactionID: String,
         with draft: TransactionDraft,
@@ -222,6 +293,7 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let transferAccountIDsByPayeeID: [String: String]
     let offBudgetAccountIDs: Set<String>
     let reachedEnd: Bool
+    let nextOffset: Int
 
     init(
         transactions: [ActualTransaction],
@@ -232,7 +304,8 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         transferPayeeIDs: Set<String>,
         transferAccountIDsByPayeeID: [String: String] = [:],
         offBudgetAccountIDs: Set<String> = [],
-        reachedEnd: Bool
+        reachedEnd: Bool,
+        nextOffset: Int? = nil
     ) {
         self.transactions = transactions
         self.balance = balance
@@ -243,6 +316,7 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         self.transferAccountIDsByPayeeID = transferAccountIDsByPayeeID
         self.offBudgetAccountIDs = offBudgetAccountIDs
         self.reachedEnd = reachedEnd
+        self.nextOffset = nextOffset ?? transactions.count
     }
 }
 
@@ -259,7 +333,8 @@ extension LoadedAccountTransactions {
             transferPayeeIDs: transferPayeeIDs,
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
             offBudgetAccountIDs: offBudgetAccountIDs,
-            reachedEnd: reachedEnd
+            reachedEnd: reachedEnd,
+            nextOffset: nextOffset
         )
     }
 }

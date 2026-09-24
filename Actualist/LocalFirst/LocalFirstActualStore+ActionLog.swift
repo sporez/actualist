@@ -60,11 +60,11 @@ extension LocalFirstActualStore {
         }
         _ = try await database.commitActionUndo(record: record)
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        let prefix = "\(budgetID)|"
-        let accountIDs = accountTransactionsByKey.keys.compactMap { key -> String? in
-            guard key.hasPrefix(prefix) else { return nil }
-            return String(key.dropFirst(prefix.count))
-        }
+        let accountIDs = transactionFeedPagesByKey.keys.compactMap { key -> String? in
+            guard key.budgetID == budgetID,
+                  case .account(let accountID) = key.scope else { return nil }
+            return accountID
+        }.sorted()
         try await reloadAfterTransactionMutation(
             database: database,
             budgetID: budgetID,

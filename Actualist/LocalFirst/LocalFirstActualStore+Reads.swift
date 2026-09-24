@@ -123,14 +123,6 @@ extension LocalFirstActualStore {
         return try await database.fetchTransaction(id: id)
     }
 
-    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
-        accountTransactionsByKey[transactionKey(budgetID, accountID)]?.loaded
-    }
-
-    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? {
-        spendingTransactionsByBudget[budgetID]?.loaded
-    }
-
     func cachedCategoryTransactions(
         budgetID: String,
         categoryID: String,
@@ -144,36 +136,6 @@ extension LocalFirstActualStore {
         month: String
     ) -> LoadedUncategorizedTransactions? {
         uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)]
-    }
-
-    func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
-        let database = try requireDatabase(for: budgetID)
-        let key = transactionKey(budgetID, accountID)
-        let limit = max(accountTransactionsByKey[key]?.nextOffset ?? transactionPageSize, transactionPageSize)
-        accountTransactionsByKey[key] = TransactionFeedPage(
-            loaded: try await loadedAccountTransactions(
-                database: database,
-                budgetID: budgetID,
-                accountID: accountID,
-                query: nil,
-                limit: limit,
-                offset: 0
-            )
-        )
-    }
-
-    func refreshSpendingTransactions(budgetID: String) async throws {
-        let database = try requireDatabase(for: budgetID)
-        let limit = max(spendingTransactionsByBudget[budgetID]?.nextOffset ?? transactionPageSize, transactionPageSize)
-        spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
-            loaded: try await loadedSpendingTransactions(
-                database: database,
-                budgetID: budgetID,
-                query: nil,
-                limit: limit,
-                offset: 0
-            )
-        )
     }
 
     func refreshCategoryTransactions(
@@ -198,86 +160,6 @@ extension LocalFirstActualStore {
                 offBudgetAccountIDs: maps.offBudgetAccountIDs,
                 reachedEnd: true
             )
-        )
-    }
-
-    func loadOlderTransactions(budgetID: String, accountID: String) async throws {
-        let database = try requireDatabase(for: budgetID)
-        let key = transactionKey(budgetID, accountID)
-        guard let current = accountTransactionsByKey[key] else {
-            try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID)
-            return
-        }
-        guard !current.loaded.reachedEnd else {
-            return
-        }
-
-        let older = try await loadedAccountTransactions(
-            database: database,
-            budgetID: budgetID,
-            accountID: accountID,
-            query: nil,
-            limit: transactionPageSize,
-            offset: current.nextOffset
-        )
-        accountTransactionsByKey[key] = TransactionFeedPage(
-            loaded: combinedTransactions(current.loaded, older)
-        )
-    }
-
-    func loadOlderSpendingTransactions(budgetID: String) async throws {
-        let database = try requireDatabase(for: budgetID)
-        guard let current = spendingTransactionsByBudget[budgetID] else {
-            try await refreshSpendingTransactions(budgetID: budgetID)
-            return
-        }
-        guard !current.loaded.reachedEnd else {
-            return
-        }
-
-        let older = try await loadedSpendingTransactions(
-            database: database,
-            budgetID: budgetID,
-            query: nil,
-            limit: transactionPageSize,
-            offset: current.nextOffset
-        )
-        spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
-            loaded: combinedTransactions(current.loaded, older)
-        )
-    }
-
-    func searchAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        query: String,
-        limit: Int,
-        offset: Int
-    ) async throws -> LoadedAccountTransactions {
-        let database = try requireDatabase(for: budgetID)
-        return try await loadedAccountTransactions(
-            database: database,
-            budgetID: budgetID,
-            accountID: accountID,
-            query: query,
-            limit: limit,
-            offset: offset
-        )
-    }
-
-    func searchSpendingTransactions(
-        budgetID: String,
-        query: String,
-        limit: Int,
-        offset: Int
-    ) async throws -> LoadedAccountTransactions {
-        let database = try requireDatabase(for: budgetID)
-        return try await loadedSpendingTransactions(
-            database: database,
-            budgetID: budgetID,
-            query: query,
-            limit: limit,
-            offset: offset
         )
     }
 
@@ -331,86 +213,6 @@ extension LocalFirstActualStore {
         )
         uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)] = loaded
         return loaded
-    }
-
-    func loadedAccountTransactions(
-        database: BudgetDatabase,
-        budgetID: String,
-        accountID: String,
-        query: String?,
-        limit: Int? = nil,
-        offset: Int = 0
-    ) async throws -> LoadedAccountTransactions {
-        let maps = try await nameMaps(database)
-        let balance = accountsByBudget[budgetID]?.first(where: { $0.account.id == accountID })?.balance
-        let page = try await database.fetchTransactionPage(
-            accountID: accountID,
-            matching: query,
-            limit: limit,
-            offset: offset
-        )
-        return LoadedAccountTransactions(
-            transactions: page.transactions,
-            balance: balance,
-            accountNames: maps.accountNames,
-            categoryNames: maps.categoryNames,
-            payeeNames: maps.payeeNames,
-            transferPayeeIDs: maps.transferPayeeIDs,
-            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: maps.offBudgetAccountIDs,
-            reachedEnd: page.reachedEnd
-        )
-    }
-
-    func loadedSpendingTransactions(
-        database: BudgetDatabase,
-        budgetID: String,
-        query: String?,
-        limit: Int? = nil,
-        offset: Int = 0
-    ) async throws -> LoadedAccountTransactions {
-        let maps = try await nameMaps(database)
-        let page = try await database.fetchTransactionPage(
-            matching: query,
-            limit: limit,
-            offset: offset
-        )
-        return LoadedAccountTransactions(
-            transactions: page.transactions,
-            balance: nil,
-            accountNames: maps.accountNames,
-            categoryNames: maps.categoryNames,
-            payeeNames: maps.payeeNames,
-            transferPayeeIDs: maps.transferPayeeIDs,
-            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: maps.offBudgetAccountIDs,
-            reachedEnd: page.reachedEnd
-        )
-    }
-
-    func combinedTransactions(
-        _ current: LoadedAccountTransactions,
-        _ older: LoadedAccountTransactions
-    ) -> LoadedAccountTransactions {
-        let existingIDs = Set(current.transactions.map(transactionIdentity))
-        let appended = older.transactions.filter { !existingIDs.contains(transactionIdentity($0)) }
-        return LoadedAccountTransactions(
-            transactions: current.transactions + appended,
-            balance: older.balance ?? current.balance,
-            accountNames: older.accountNames.isEmpty ? current.accountNames : older.accountNames,
-            categoryNames: older.categoryNames.isEmpty ? current.categoryNames : older.categoryNames,
-            payeeNames: older.payeeNames.isEmpty ? current.payeeNames : older.payeeNames,
-            transferPayeeIDs: older.transferPayeeIDs.isEmpty ? current.transferPayeeIDs : older.transferPayeeIDs,
-            transferAccountIDsByPayeeID: older.transferAccountIDsByPayeeID.isEmpty
-                ? current.transferAccountIDsByPayeeID
-                : older.transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: older.offBudgetAccountIDs,
-            reachedEnd: older.reachedEnd
-        )
-    }
-
-    func transactionIdentity(_ transaction: ActualTransaction) -> String {
-        transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(transaction.importedPayee ?? "")"
     }
 
     func budgetAlertSnapshot(
@@ -591,10 +393,6 @@ extension LocalFirstActualStore {
         })
         let offBudgetAccountIDs = Set(accounts.filter(\.offbudget).map(\.id))
         return (accountNames, categoryNames, payeeNames, transferPayeeIDs, transferAccountIDsByPayeeID, offBudgetAccountIDs)
-    }
-
-    func transactionKey(_ budgetID: String, _ accountID: String) -> String {
-        "\(budgetID)|\(accountID)"
     }
 
     func categoryTransactionKey(_ budgetID: String, _ categoryID: String, _ month: String) -> String {

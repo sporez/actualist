@@ -14,6 +14,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     let openIDAuthenticationCoordinator = ActualOpenIDAuthenticationCoordinator()
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
+    @ObservationIgnored let transactionFeedPageReadHook: TransactionFeedPageReadHook?
+    @ObservationIgnored let transactionFeedCacheRefreshGate: TransactionFeedCacheRefreshGate
     let syncClient = SyncClient()
 
     var openedBudgetID: String?
@@ -40,8 +42,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var monthsByBudget: [String: [String]] = [:]
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
     var templateBrowserByBudget: [String: BudgetTemplateBrowserSnapshot] = [:]
-    var accountTransactionsByKey: [String: TransactionFeedPage] = [:]
-    var spendingTransactionsByBudget: [String: TransactionFeedPage] = [:]
+    var transactionFeedPagesByKey: [TransactionFeedCacheKey: TransactionFeedPage] = [:]
+    @ObservationIgnored var transactionFeedRequestIdentity = TransactionFeedRequestIdentity()
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
@@ -151,7 +153,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         transportSession: URLSession? = nil,
         syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
-        endpointHealth: ServerEndpointHealth? = nil
+        endpointHealth: ServerEndpointHealth? = nil,
+        transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil
     ) {
         self.keychain = keychain
         self.transportSession = transportSession
@@ -161,6 +164,8 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         self.simpleFINTransportFactory = simpleFINTransportFactory
         self.syncDebugRecorder = syncDebugRecorder
         self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
+        self.transactionFeedPageReadHook = transactionFeedPageReadHook
+        self.transactionFeedCacheRefreshGate = TransactionFeedCacheRefreshGate()
         // Constructed in the main-actor init body (not a default argument) so
         // the @MainActor struct is built in an isolated context.
         self.endpointHealth = endpointHealth ?? ServerEndpointHealth()
@@ -171,7 +176,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         let loaded: LoadedAccountTransactions
 
         var nextOffset: Int {
-            loaded.transactions.count
+            loaded.nextOffset
         }
     }
 
@@ -196,6 +201,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
         database?.invalidateBankSyncWrites()
+        transactionFeedRequestIdentity.resetSession()
         budgetReadGeneration &+= 1
         pendingLocalMessageFlushTask?.cancel()
         pendingLocalMessageFlushTask = nil
@@ -218,8 +224,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         monthsByBudget = [:]
         loadedBudgetMonthsByBudget = [:]
         templateBrowserByBudget = [:]
-        accountTransactionsByKey = [:]
-        spendingTransactionsByBudget = [:]
+        transactionFeedPagesByKey = [:]
         categoryTransactionsByKey = [:]
         uncategorizedTransactionsByKey = [:]
         reportsByKey = [:]

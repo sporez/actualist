@@ -36,6 +36,28 @@ enum TransactionStatusFilterTestSupport {
         return try BudgetDatabase(databaseURL: url)
     }
 
+    static func appendTransactions(
+        count: Int,
+        prefix: String,
+        to database: BudgetDatabase
+    ) async throws {
+        let queue = try DatabaseQueue(path: (await database.databaseURL).path)
+        try await queue.write { db in
+            for index in 0..<count {
+                try db.execute(
+                    sql: """
+                        INSERT INTO transactions (
+                            id, isParent, isChild, acct, category, amount, description, notes,
+                            date, sort_order, tombstone, parent_id, cleared, reconciled
+                        ) VALUES (?, 0, 0, 'checking', 'groceries', -100, 'coffee', 'feed pagination',
+                                  20260831, ?, 0, NULL, 0, 0)
+                        """,
+                    arguments: ["\(prefix)-\(index)", 20_000 - index]
+                )
+            }
+        }
+    }
+
     private static func schema(includeStatusColumns: Bool) -> String {
         let statusColumns = includeStatusColumns
             ? "cleared INTEGER, reconciled INTEGER,"
@@ -112,9 +134,13 @@ enum TransactionStatusFilterTestSupport {
             date, sort_order, tombstone, parent_id, cleared, reconciled
         ) VALUES
         ('mixed-parent', 1, 0, 'checking', NULL, -3000, NULL, 'split parent', 20260821, 910, 0, NULL, 1, 0),
-        ('mixed-uncategorized-child', 0, 1, 'checking', NULL, -1000, 'coffee', NULL, 20260821, 909, 0, 'mixed-parent', 0, 0),
+        ('mixed-uncategorized-child', 0, 1, 'checking', NULL, -1000, 'coffee', 'mixed uncategorized search needle', 20260821, 909, 0, 'mixed-parent', 0, 0),
         ('mixed-categorized-child', 0, 1, 'checking', 'groceries', -2000, 'coffee', NULL, 20260821, 908, 0, 'mixed-parent', 1, 1),
         ('mixed-tombstoned-child', 0, 1, 'checking', NULL, -500, 'coffee', NULL, 20260821, 907, 1, 'mixed-parent', 0, 0),
+        ('categorized-only-parent', 1, 0, 'checking', NULL, -1200, NULL, 'categorized children', 20260814, 845, 0, NULL, 1, 0),
+        ('categorized-only-child', 0, 1, 'checking', 'groceries', -1200, 'coffee', NULL, 20260814, 844, 0, 'categorized-only-parent', 0, 0),
+        ('dead-only-parent', 1, 0, 'checking', NULL, -700, NULL, 'dead child only', 20260813, 840, 0, NULL, 1, 0),
+        ('dead-only-child', 0, 1, 'checking', NULL, -700, 'coffee', NULL, 20260813, 839, 1, 'dead-only-parent', 0, 0),
         ('dead-parent', 1, 0, 'checking', NULL, -1000, NULL, 'dead', 20260820, 900, 1, NULL, 0, 0),
         ('orphan-of-dead-parent', 0, 1, 'checking', NULL, -1000, 'coffee', NULL, 20260820, 899, 0, 'dead-parent', 0, 0),
         ('uncategorized-tombstone', 0, 0, 'checking', NULL, -1000, 'coffee', NULL, 20260819, 890, 1, NULL, 0, 0);

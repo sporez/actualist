@@ -168,31 +168,7 @@ extension LocalFirstActualStore {
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         invalidateReports(budgetID: budgetID)
 
-        let prefix = "\(budgetID)|"
-        for (key, page) in Array(accountTransactionsByKey) where key.hasPrefix(prefix) {
-            let accountID = String(key.dropFirst(prefix.count))
-            accountTransactionsByKey[key] = TransactionFeedPage(
-                loaded: try await loadedAccountTransactions(
-                    database: database,
-                    budgetID: budgetID,
-                    accountID: accountID,
-                    query: nil,
-                    limit: max(page.nextOffset, transactionPageSize),
-                    offset: 0
-                )
-            )
-        }
-        if let currentSpending = spendingTransactionsByBudget[budgetID] {
-            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
-                loaded: try await loadedSpendingTransactions(
-                    database: database,
-                    budgetID: budgetID,
-                    query: nil,
-                    limit: max(currentSpending.nextOffset, transactionPageSize),
-                    offset: 0
-                )
-            )
-        }
+        try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
         await refreshActionLogDiagnosticSnapshot(database: database)
     }
 
@@ -442,32 +418,11 @@ extension LocalFirstActualStore {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
-        if let currentSpending = spendingTransactionsByBudget[budgetID] {
-            let limit = max(currentSpending.nextOffset, transactionPageSize)
-            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
-                loaded: try await loadedSpendingTransactions(
-                    database: database,
-                    budgetID: budgetID,
-                    query: nil,
-                    limit: limit,
-                    offset: 0
-                )
-            )
-        }
-        for accountID in Set(accountIDs) {
-            let key = transactionKey(budgetID, accountID)
-            let limit = max(accountTransactionsByKey[key]?.nextOffset ?? transactionPageSize, transactionPageSize)
-            accountTransactionsByKey[key] = TransactionFeedPage(
-                loaded: try await loadedAccountTransactions(
-                    database: database,
-                    budgetID: budgetID,
-                    accountID: accountID,
-                    query: nil,
-                    limit: limit,
-                    offset: 0
-                )
-            )
-        }
+        try await refreshLoadedTransactionFeedCaches(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: Set(accountIDs)
+        )
         await refreshActionLogDiagnosticSnapshot(database: database)
     }
 
@@ -478,18 +433,7 @@ extension LocalFirstActualStore {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
-        if let currentSpending = spendingTransactionsByBudget[budgetID] {
-            let limit = max(currentSpending.nextOffset, transactionPageSize)
-            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
-                loaded: try await loadedSpendingTransactions(
-                    database: database,
-                    budgetID: budgetID,
-                    query: nil,
-                    limit: limit,
-                    offset: 0
-                )
-            )
-        }
+        try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
         await refreshActionLogDiagnosticSnapshot(database: database)
     }
 

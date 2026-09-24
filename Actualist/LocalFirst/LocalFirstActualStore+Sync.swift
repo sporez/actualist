@@ -413,34 +413,7 @@ extension LocalFirstActualStore {
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
 
-        let prefix = "\(budgetID)|"
-        for (key, page) in Array(accountTransactionsByKey) where key.hasPrefix(prefix) {
-            let accountID = String(key.dropFirst(prefix.count))
-            let limit = max(page.nextOffset, transactionPageSize)
-            accountTransactionsByKey[key] = TransactionFeedPage(
-                loaded: try await loadedAccountTransactions(
-                    database: database,
-                    budgetID: budgetID,
-                    accountID: accountID,
-                    query: nil,
-                    limit: limit,
-                    offset: 0
-                )
-            )
-        }
-
-        if let currentSpending = spendingTransactionsByBudget[budgetID] {
-            let limit = max(currentSpending.nextOffset, transactionPageSize)
-            spendingTransactionsByBudget[budgetID] = TransactionFeedPage(
-                loaded: try await loadedSpendingTransactions(
-                    database: database,
-                    budgetID: budgetID,
-                    query: nil,
-                    limit: limit,
-                    offset: 0
-                )
-            )
-        }
+        try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
     }
 
     func recordSyncStatus(
