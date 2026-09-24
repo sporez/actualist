@@ -3,6 +3,7 @@ import SwiftUI
 struct TransactionSplitEditorView: View {
     @Environment(\.actualistDensity) private var density
     @Bindable var viewModel: TransactionEditorViewModel
+    var focusedField: FocusState<TransactionEditorField?>.Binding
     var onPickPayee: (String) -> Void
     var onPickCategory: (String) -> Void
 
@@ -30,6 +31,7 @@ struct TransactionSplitEditorView: View {
 
             HStack(spacing: 10) {
                 Button {
+                    focusedField.wrappedValue = nil
                     viewModel.splitState.addChild()
                 } label: {
                     Label("Add Split", systemImage: "plus.circle.fill")
@@ -43,6 +45,7 @@ struct TransactionSplitEditorView: View {
 
                 if viewModel.splitRemainingCents != 0 {
                     Button {
+                        focusedField.wrappedValue = nil
                         viewModel.autoDistributeSplitMismatch()
                     } label: {
                         Text("Fill Remaining")
@@ -102,6 +105,8 @@ struct TransactionSplitEditorView: View {
                     .accessibilityLabel(row.amountMinorUnits < 0 ? "Expense" : "Inflow")
 
                     TextField("0.00", text: splitAmountBinding(for: row.id))
+                        .focused(focusedField, equals: .splitAmount(row.id))
+                        .accessibilityIdentifier("transaction-split-amount-\(row.id)")
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .font(ActualistTypography.rowValue(for: density))
@@ -140,6 +145,7 @@ struct TransactionSplitEditorView: View {
                         .font(ActualistTypography.body(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
                     TextField("Optional", text: notesBinding(for: row.id), axis: .vertical)
+                        .focused(focusedField, equals: .splitNotes(row.id))
                         .lineLimit(1...3)
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
@@ -147,6 +153,7 @@ struct TransactionSplitEditorView: View {
 
                 if viewModel.splitState.canRemoveSplitRow {
                     Button {
+                        focusedField.wrappedValue = nil
                         viewModel.removeSplit(rowID: row.id)
                     } label: {
                         Image(systemName: "minus.circle.fill")

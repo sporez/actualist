@@ -485,13 +485,12 @@ final class TransactionEditorViewModel {
         defer { isLoadingCategoryBalances = false }
 
         do {
-            apply(
-                try await repository.editorOptions(budgetID: budgetID, month: month),
-                loadedMonth: month,
-                preferredAccountIDs: preferredAccountIDs
-            )
+            let options = try await repository.editorOptions(budgetID: budgetID, month: month)
+            guard !Task.isCancelled, YearMonth(date: date).rawValue == month else { return }
+            apply(options, loadedMonth: month, preferredAccountIDs: preferredAccountIDs)
             errorMessage = nil
         } catch {
+            guard !Task.isCancelled, YearMonth(date: date).rawValue == month else { return }
             errorMessage = error.userFacingMessage
         }
     }

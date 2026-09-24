@@ -705,4 +705,76 @@ struct TransactionEditorViewModelTests {
 
         #expect(model.accounts.map(\.id) == ["savings", "checking"])
     }
+
+    @Test func successfulCategoryBalanceRefreshAppliesOptionsForCurrentMonth() async {
+        let model = categoryBalanceModel()
+        let repository = RecordingTransactionRepository(editorOptionsResult: categoryOptions("new", name: "New"))
+
+        await model.refreshCategoryBalancesIfNeeded(budgetID: "budget", repository: repository)
+
+        #expect(model.categories.compactMap(\.id) == ["new"])
+        #expect(model.errorMessage == nil)
+        #expect(model.isLoadingCategoryBalances == false)
+    }
+
+    @Test func cancelledCategoryBalanceRefreshDoesNotApplyOptionsOrError() async {
+        let model = categoryBalanceModel(errorMessage: "Existing error")
+        let repository = RecordingTransactionRepository(
+            editorOptionsResult: categoryOptions("new", name: "New"),
+            pausedEditorOptionsMonths: ["2026-06"]
+        )
+        let refresh = Task {
+            await model.refreshCategoryBalancesIfNeeded(budgetID: "budget", repository: repository)
+        }
+
+        while await !repository.isEditorOptionsPaused(month: "2026-06") {
+            await Task.yield()
+        }
+        refresh.cancel()
+        await repository.resumeEditorOptions(month: "2026-06")
+        await refresh.value
+
+        #expect(model.categories.compactMap(\.id) == ["old"])
+        #expect(model.errorMessage == "Existing error")
+        #expect(model.isLoadingCategoryBalances == false)
+    }
+
+    @Test func categoryBalanceRefreshDoesNotApplyOptionsAfterDateMonthChanges() async {
+        let model = categoryBalanceModel(errorMessage: "Existing error")
+        let repository = RecordingTransactionRepository(
+            editorOptionsResult: categoryOptions("new", name: "New"),
+            pausedEditorOptionsMonths: ["2026-06"]
+        )
+        let refresh = Task {
+            await model.refreshCategoryBalancesIfNeeded(budgetID: "budget", repository: repository)
+        }
+
+        while await !repository.isEditorOptionsPaused(month: "2026-06") {
+            await Task.yield()
+        }
+        model.date = Self.date("2026-07-14")
+        await repository.resumeEditorOptions(month: "2026-06")
+        await refresh.value
+
+        #expect(model.categories.compactMap(\.id) == ["old"])
+        #expect(model.errorMessage == "Existing error")
+        #expect(model.isLoadingCategoryBalances == false)
+    }
+
+    private func categoryBalanceModel(errorMessage: String? = nil) -> TransactionEditorViewModel {
+        let model = TransactionEditorViewModel()
+        model.date = Self.date("2026-06-14")
+        model.errorMessage = errorMessage
+        model.apply(categoryOptions("old", name: "Old"), loadedMonth: "2026-05")
+        return model
+    }
+
+    private func categoryOptions(_ id: String, name: String) -> TransactionEditorOptions {
+        TransactionEditorOptions(
+            accounts: [],
+            categories: [ActualCategory(id: id, name: name, isIncome: false, hidden: false, groupID: "group")],
+            categoryGroups: [],
+            payees: []
+        )
+    }
 }

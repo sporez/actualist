@@ -10,17 +10,22 @@ struct RootTransactionEditorPresenterTests {
         let prefill = ShortcutEditorPrefill(accountID: "checking", amountMinorUnits: 1234, payeeName: "Coffee", categoryName: "Dining", notes: "Original")
         #expect(presenter.present(context: context, prefill: prefill))
         let session = try #require(presenter.presentation)
+        #expect(session.consumeInitialAmountAutofocus())
+        #expect(!session.consumeInitialAmountAutofocus())
         session.model.notes = "Typed draft"
         session.model.isCleared = true
         #expect(!presenter.present(context: context))
         #expect(presenter.presentation === session)
+        #expect(!session.consumeInitialAmountAutofocus())
         #expect(session.model.amountDigits == "1234")
         #expect(session.model.selectedAccountID == "checking")
         #expect(session.model.notes == "Typed draft")
         #expect(session.model.isCleared)
         presenter.presentation = nil
         #expect(presenter.present(context: context))
-        #expect(presenter.presentation?.id != session.id)
+        let next = try #require(presenter.presentation)
+        #expect(next.id != session.id)
+        #expect(next.consumeInitialAmountAutofocus())
     }
 
     @Test func openingFeedbackIsConsumedOncePerActiveSession() {
@@ -32,6 +37,36 @@ struct RootTransactionEditorPresenterTests {
         let invalidated = TransactionEditorSession(context: context)
         invalidated.invalidate()
         #expect(!invalidated.consumePresentationFeedback())
+    }
+
+    @Test func initialAmountAutofocusIsIndependentAndOnlyAvailableForActiveCreateSessions() {
+        let session = TransactionEditorSession(context: context)
+        #expect(session.consumePresentationFeedback())
+        #expect(session.consumeInitialAmountAutofocus())
+        #expect(!session.consumeInitialAmountAutofocus())
+        #expect(!session.consumePresentationFeedback())
+
+        let editedTransaction = ActualTransaction(
+            id: "transaction",
+            account: "checking",
+            date: "2026-07-03",
+            amount: -1000,
+            payee: nil,
+            payeeName: nil,
+            importedPayee: nil,
+            category: nil,
+            notes: nil,
+            cleared: nil
+        )
+        let edit = TransactionEditorSession(
+            context: context,
+            request: .edit(editedTransaction, payeeName: "Coffee", categoryName: "Dining")
+        )
+        #expect(!edit.consumeInitialAmountAutofocus())
+
+        let invalidated = TransactionEditorSession(context: context)
+        invalidated.invalidate()
+        #expect(!invalidated.consumeInitialAmountAutofocus())
     }
 
     @Test func invalidatedSessionCannotBecomeCurrentAgain() {
@@ -96,6 +131,7 @@ extension RootTransactionEditorPresenterTests {
         #expect(session.model.splitRows == rows)
         #expect(session.model.date == date)
         #expect(await session.submit(using: state))
+        #expect(!session.consumeInitialAmountAutofocus())
         #expect(await session.submit(using: state) == false)
         let stored = try await bundle.store.searchAccountTransactions(budgetID: "group-1", accountID: "savings", query: "Retained notes", limit: 50, offset: 0)
         #expect(stored.transactions.count == 1)

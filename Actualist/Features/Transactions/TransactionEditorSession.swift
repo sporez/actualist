@@ -26,6 +26,7 @@ final class TransactionEditorSession: Identifiable {
     private let account: ActualAccount?
     private var preparation: Task<Void, Never>?
     private var hasPresentedFeedback = false
+    private var hasConsumedInitialAmountAutofocus = false
     private enum Lifecycle { case active, saved, invalidated }
     private var lifecycle: Lifecycle = .active
 
@@ -50,6 +51,15 @@ final class TransactionEditorSession: Identifiable {
     func consumePresentationFeedback() -> Bool {
         guard lifecycle == .active, !hasPresentedFeedback else { return false }
         hasPresentedFeedback = true
+        return true
+    }
+
+    /// Initial amount focus belongs to this retained create session, not to each host reconstruction.
+    func consumeInitialAmountAutofocus() -> Bool {
+        guard lifecycle == .active, !model.isEditing, !hasConsumedInitialAmountAutofocus else {
+            return false
+        }
+        hasConsumedInitialAmountAutofocus = true
         return true
     }
 

@@ -1,5 +1,12 @@
 import SwiftUI
 
+enum TransactionEditorField: Hashable {
+    case amount
+    case notes
+    case splitAmount(String)
+    case splitNotes(String)
+}
+
 struct TransactionEditorView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -7,9 +14,10 @@ struct TransactionEditorView: View {
     @Bindable private var viewModel: TransactionEditorViewModel
     @State private var isPayeePickerPresented = false
     @State private var isCategoryPickerPresented = false
+    @State private var isDatePickerPresented = false
     @State private var childPayeePickerRowID: String?
     @State private var childCategoryPickerRowID: String?
-    @FocusState private var isAmountFocused: Bool
+    @FocusState private var focusedField: TransactionEditorField?
 
     let session: TransactionEditorSession
 
@@ -37,11 +45,15 @@ struct TransactionEditorView: View {
                     .padding(.bottom, 32)
                 }
                 .scrollDismissesKeyboard(.immediately)
+                .onScrollPhaseChange { _, phase in
+                    if phase == .interacting { focusedField = nil }
+                }
                 .accessibilityIdentifier("transaction-editor-scroll")
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        focusedField = nil
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
@@ -57,11 +69,15 @@ struct TransactionEditorView: View {
                 ActualistHaptics.editorOpened()
             }
         }
+        .frame(idealWidth: 620)
+        .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
+            guard !Task.isCancelled,
+                  session.isCurrent(TransactionEditorSession.Context(appState: appState)) else { return }
+            if session.consumeInitialAmountAutofocus() { focusedField = .amount }
             await session.prepare(using: appState)
-            if !viewModel.isEditing { isAmountFocused = true }
         }
         .sheet(isPresented: $isPayeePickerPresented) {
             PayeeSelectionView(viewModel: viewModel)
@@ -70,6 +86,7 @@ struct TransactionEditorView: View {
         .sheet(isPresented: $isCategoryPickerPresented) {
             TransactionCategorySelectionView(viewModel: viewModel)
                 .appSwitcherPrivacyProtected(using: appState)
+                .task { await viewModel.refreshCategoryBalancesIfNeeded(using: appState) }
         }
         .sheet(item: childPayeePickerItem) { row in
             childPayeePicker(for: row)
@@ -78,6 +95,7 @@ struct TransactionEditorView: View {
         .sheet(item: childCategoryPickerItem) { row in
             childCategoryPicker(for: row)
                 .appSwitcherPrivacyProtected(using: appState)
+                .task { await viewModel.refreshCategoryBalancesIfNeeded(using: appState) }
         }
         .confirmationDialog(
             reconciledMutationPresentation?.title ?? "Reconciled Transaction",
@@ -115,7 +133,7 @@ struct TransactionEditorView: View {
                     .minimumScaleFactor(0.55)
 
                 TextField("", text: amountDigitsBinding)
-                    .focused($isAmountFocused)
+                    .focused($focusedField, equals: .amount)
                     .keyboardType(.numberPad)
                     .textInputAutocapitalization(.never)
                     .frame(width: 1, height: 1)
@@ -127,7 +145,7 @@ struct TransactionEditorView: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .onTapGesture {
-                isAmountFocused = true
+                focusedField = .amount
             }
             .padding(.top, 18)
 
@@ -137,6 +155,7 @@ struct TransactionEditorView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .onChange(of: viewModel.kind) { focusedField = nil }
             .tint(viewModel.kind == .spend ? ActualistTheme.danger : ActualistTheme.positive)
             .frame(maxWidth: 260)
         }
@@ -171,10 +190,7 @@ struct TransactionEditorView: View {
                     value: viewModel.selectedCategoryName,
                     isEnabled: !viewModel.isCategoryReadOnly
                 ) {
-                    Task {
-                        await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
-                        isCategoryPickerPresented = true
-                    }
+                    isCategoryPickerPresented = true
                 }
             }
 
@@ -187,6 +203,7 @@ struct TransactionEditorView: View {
             ) {
                 ForEach(viewModel.accounts) { account in
                     Button(account.name) {
+                        focusedField = nil
                         viewModel.selectAccount(account)
                     }
                 }
@@ -200,14 +217,31 @@ struct TransactionEditorView: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .frame(width: density.iconSize)
 
-                DatePicker(
-                    "Date",
-                    selection: $viewModel.date,
-                    displayedComponents: .date
-                )
-                .font(ActualistTypography.rowTitle(for: density))
-                .foregroundStyle(ActualistTheme.primaryText)
-                .tint(ActualistTheme.accent)
+                Text("Date")
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                Spacer()
+                Button {
+                    focusedField = nil
+                    isDatePickerPresented = true
+                } label: {
+                    Text(viewModel.date, format: .dateTime.month(.abbreviated).day().year())
+                }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Date")
+                .accessibilityValue(viewModel.date.formatted(date: .abbreviated, time: .omitted))
+                .accessibilityIdentifier("transaction-date-picker")
+                .popover(isPresented: $isDatePickerPresented, arrowEdge: .bottom) {
+                    DatePicker("Date", selection: $viewModel.date, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .tint(ActualistTheme.accent)
+                        .frame(width: 320)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding()
+                        .presentationCompactAdaptation(.popover)
+                        .onChange(of: viewModel.date) { isDatePickerPresented = false }
+                }
             }
             .padding(.horizontal, density.rowHorizontalPadding)
             .padding(.vertical, density.editorRowVerticalPadding)
@@ -229,6 +263,7 @@ struct TransactionEditorView: View {
                         .foregroundStyle(ActualistTheme.secondaryText)
 
                     TextField("Optional", text: $viewModel.notes, axis: .vertical)
+                        .focused($focusedField, equals: .notes)
                         .lineLimit(2...4)
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
@@ -265,16 +300,19 @@ struct TransactionEditorView: View {
         if viewModel.isSplit {
             TransactionSplitEditorView(
                 viewModel: viewModel,
-                onPickPayee: { childPayeePickerRowID = $0 },
+                focusedField: $focusedField,
+                onPickPayee: {
+                    focusedField = nil
+                    childPayeePickerRowID = $0
+                },
                 onPickCategory: { rowID in
-                    Task {
-                        await viewModel.refreshCategoryBalancesIfNeeded(using: appState)
-                        childCategoryPickerRowID = rowID
-                    }
+                    focusedField = nil
+                    childCategoryPickerRowID = rowID
                 }
             )
         } else if !viewModel.isCategoryReadOnly {
             Button {
+                focusedField = nil
                 viewModel.beginSplit()
             } label: {
                 Label("Split", systemImage: "square.split.1x2.fill")
@@ -290,6 +328,7 @@ struct TransactionEditorView: View {
 
     private var saveButton: some View {
         Button {
+            focusedField = nil
             Task { await submitAndDismissIfSaved() }
         } label: {
             Label(viewModel.saveButtonTitle, systemImage: viewModel.isSubmitting ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
@@ -360,6 +399,7 @@ struct TransactionEditorView: View {
         Binding(
             get: { viewModel.isCleared },
             set: { value in
+                focusedField = nil
                 Task { await viewModel.requestClearedChange(value, using: appState) }
             }
         )
@@ -469,7 +509,10 @@ struct TransactionEditorView: View {
         isEnabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            focusedField = nil
+            action()
+        } label: {
             HStack(spacing: 16) {
                 Image(systemName: systemImage)
                     .font(.body.weight(.semibold))
@@ -540,6 +583,7 @@ struct TransactionEditorView: View {
         .buttonStyle(.plain)
         .padding(.horizontal, density.rowHorizontalPadding)
         .padding(.vertical, density.editorRowVerticalPadding)
+        .simultaneousGesture(TapGesture().onEnded { focusedField = nil })
     }
 }
 

@@ -71,6 +71,8 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
     private let refreshError: Error?
     private let pauseBeforeDidCreate: Bool
     private let pauseAfterDidCreate: Bool
+    private let editorOptionsResult: TransactionEditorOptions?
+    private let pausedEditorOptionsMonths: Set<String>
     private var didCreateCallbackFinished = false
     private var pausedBeforeDidCreate = false
     private var beforeDidCreateContinuation: CheckedContinuation<Void, Never>?
@@ -83,6 +85,7 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
     private var deleteAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
     private var unlockTransactionIDs: [String] = []
     private var pausedRulePreviewContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var pausedEditorOptionsContinuations: [String: CheckedContinuation<Void, Never>] = [:]
 
     init(
         rulePreview: TransactionRulePreview = TransactionRulePreview(categoryID: nil, notes: nil),
@@ -94,7 +97,9 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         editorAccounts: [ActualAccount] = [],
         rulePreviewsByPayeeName: [String: TransactionRulePreview] = [:],
         pausedRulePreviewPayeeNames: Set<String> = [],
-        reconciliationReview: ReconciledTransactionMutationReview? = nil
+        reconciliationReview: ReconciledTransactionMutationReview? = nil,
+        editorOptionsResult: TransactionEditorOptions? = nil,
+        pausedEditorOptionsMonths: Set<String> = []
     ) {
         self.rulePreview = rulePreview
         self.previewError = previewError
@@ -106,10 +111,17 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         self.rulePreviewsByPayeeName = rulePreviewsByPayeeName
         self.pausedRulePreviewPayeeNames = pausedRulePreviewPayeeNames
         self.reconciliationReview = reconciliationReview
+        self.editorOptionsResult = editorOptionsResult
+        self.pausedEditorOptionsMonths = pausedEditorOptionsMonths
     }
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
-        TransactionEditorOptions(accounts: editorAccounts, categories: [], categoryGroups: [], payees: [])
+        if pausedEditorOptionsMonths.contains(month) {
+            await withCheckedContinuation { continuation in
+                pausedEditorOptionsContinuations[month] = continuation
+            }
+        }
+        return editorOptionsResult ?? TransactionEditorOptions(accounts: editorAccounts, categories: [], categoryGroups: [], payees: [])
     }
 
     func uncategorizedTransactions(
@@ -405,6 +417,14 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
 
     func resumeRulePreview(payeeName: String) async {
         pausedRulePreviewContinuations.removeValue(forKey: payeeName)?.resume()
+    }
+
+    func isEditorOptionsPaused(month: String) async -> Bool {
+        pausedEditorOptionsContinuations[month] != nil
+    }
+
+    func resumeEditorOptions(month: String) async {
+        pausedEditorOptionsContinuations.removeValue(forKey: month)?.resume()
     }
 
     func draftCount() async -> Int {
