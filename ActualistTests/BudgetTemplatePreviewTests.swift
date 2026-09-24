@@ -167,6 +167,7 @@ struct BudgetTemplatePreviewTests {
         #expect(preview.categories.map(\.proposed) == applied.assignments.map(\.amount))
         #expect(preview.categories.first?.name == "Groceries")
         #expect(preview.categories.first?.drafts.count == 1)
+        #expect(preview.categories.first?.priorityLevels == [1])
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == before)
         _ = try await database.applyLocalSyncMessages(applied.messages)
         if let proposed = preview.categories.first(where: { $0.categoryID == "groceries" })?.proposed {
@@ -445,6 +446,7 @@ struct BudgetTemplatePreviewTests {
         #expect(groceries.current == 0)
         #expect(groceries.proposed == -500)
         #expect(groceries.evaluatedDemand == -500)
+        #expect(groceries.priorityLevels == [0])
         #expect(groceries.shortfall == 0)
         #expect(groceries.metric.after == -11_845)
 
@@ -491,6 +493,7 @@ struct BudgetTemplatePreviewTests {
         #expect(overwrite.categories.contains { $0.isGoalOnlyUpdate })
         #expect(groceries.current == groceries.proposed)
         #expect(groceries.isGoalOnlyUpdate)
+        #expect(groceries.priorityLevels.isEmpty)
         #expect(groceries.goalBefore == nil)
         #expect(groceries.goalAfter == 600)
         #expect(groceries.metric.kind == .available)

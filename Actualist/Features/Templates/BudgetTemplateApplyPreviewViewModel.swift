@@ -25,10 +25,11 @@ final class BudgetTemplateApplyPreviewViewModel {
         case failed
     }
 
-    private enum State {
+    private indirect enum State {
         case idle
         case loading
-        case categoryReady(BudgetTemplateApplyPreviewDisplay, BudgetTemplateReviewRevision?)
+        case refreshing(State)
+        case categoryReady(BudgetTemplateApplyPreview, randomized: Bool)
         case paired(BudgetTemplateApplyPreviewPair, randomized: Bool)
         case failed(String)
     }
@@ -38,11 +39,12 @@ final class BudgetTemplateApplyPreviewViewModel {
     private var state: State = .loading
     private var loadGeneration = 0
     private var requestContext: RequestContext?
+    private var completedRequest: PreviewRequest?
 
     var phase: Phase {
         switch state {
         case .idle: return .idle
-        case .loading: return .loading
+        case .loading, .refreshing: return .loading
         case .categoryReady: return .ready
         case .failed: return .failed
         case .paired(let pair, _):
@@ -54,12 +56,22 @@ final class BudgetTemplateApplyPreviewViewModel {
     }
 
     var display: BudgetTemplateApplyPreviewDisplay? {
+        display(in: state)
+    }
+
+    private func display(in state: State) -> BudgetTemplateApplyPreviewDisplay? {
         switch state {
-        case .categoryReady(let display, _):
-            return display
+        case .refreshing(let previous):
+            return display(in: previous)
+        case .categoryReady(let preview, let randomized):
+            return BudgetTemplateApplyPreviewDisplay.make(
+                preview: preview, randomized: randomized
+            )
         case .paired(let pair, let randomized):
             guard case .ready(let preview) = selectedOutcome(in: pair) else { return nil }
-            return BudgetTemplateApplyPreviewDisplay.make(preview: preview, randomized: randomized)
+            return BudgetTemplateApplyPreviewDisplay.make(
+                preview: preview, randomized: randomized
+            )
         case .idle, .loading, .failed:
             return nil
         }
@@ -72,7 +84,7 @@ final class BudgetTemplateApplyPreviewViewModel {
         case .paired(let pair, let randomized):
             guard case .failed(let message) = selectedOutcome(in: pair) else { return nil }
             return randomized ? "Template preview unavailable for this option." : message
-        case .idle, .loading, .categoryReady:
+        case .idle, .loading, .refreshing, .categoryReady:
             return nil
         }
     }
@@ -83,11 +95,11 @@ final class BudgetTemplateApplyPreviewViewModel {
 
     var reviewRevision: BudgetTemplateReviewRevision? {
         switch state {
-        case .categoryReady(_, let revision):
-            revision
+        case .categoryReady(let preview, _):
+            preview.reviewRevision
         case .paired(let pair, _):
             selectedPreview(in: pair)?.reviewRevision
-        case .idle, .loading, .failed:
+        case .idle, .loading, .refreshing, .failed:
             nil
         }
     }
@@ -101,11 +113,50 @@ final class BudgetTemplateApplyPreviewViewModel {
         state = .idle
         selectedMode = nil
         requestContext = nil
+        completedRequest = nil
     }
 
     func selectMode(_ mode: Mode) {
         guard selectedMode != nil else { return }
         selectedMode = mode
+    }
+
+    func loadIfNeeded(
+        revision: UInt64,
+        confirmation: BudgetTemplateConfirmation,
+        categoryID: String?,
+        month: String,
+        budgetID: String?,
+        modeIdentity: BudgetModeIdentity? = nil,
+        randomized: Bool,
+        repository: any BudgetRepositoryProtocol
+    ) async {
+        let request = PreviewRequest(
+            context: RequestContext(
+                confirmation: confirmation,
+                categoryID: categoryID,
+                month: month,
+                budgetID: budgetID,
+                modeIdentity: modeIdentity,
+                randomized: randomized
+            ),
+            revision: revision
+        )
+        guard completedRequest != request else { return }
+        let expectedGeneration = loadGeneration + 1
+        await load(
+            confirmation: confirmation,
+            categoryID: categoryID,
+            month: month,
+            budgetID: budgetID,
+            modeIdentity: modeIdentity,
+            randomized: randomized,
+            repository: repository
+        )
+        if !Task.isCancelled, loadGeneration == expectedGeneration,
+           requestContext == request.context, phase != .idle {
+            completedRequest = request
+        }
     }
 
     func load(
@@ -124,14 +175,27 @@ final class BudgetTemplateApplyPreviewViewModel {
             categoryID: categoryID,
             month: month,
             budgetID: budgetID,
-            modeIdentity: modeIdentity
+            modeIdentity: modeIdentity,
+            randomized: randomized
         )
-        let shouldResetSelection = requestContext != context || selectedMode == nil
+        let sameContext = requestContext == context
+        let shouldResetSelection = !sameContext || selectedMode == nil
         requestContext = context
         if shouldResetSelection {
             selectedMode = mode(for: confirmation)
         }
-        state = .loading
+        if sameContext {
+            switch state {
+            case .categoryReady, .paired:
+                state = .refreshing(state)
+            case .refreshing(let previous):
+                state = .refreshing(previous)
+            case .idle, .loading, .failed:
+                state = .loading
+            }
+        } else {
+            state = .loading
+        }
 
         guard let budgetID, !budgetID.isEmpty else {
             fail("No budget is selected.", generation: requestGeneration)
@@ -154,30 +218,27 @@ final class BudgetTemplateApplyPreviewViewModel {
                     budgetID: budgetID,
                     month: trimmedMonth
                 )
-                guard requestGeneration == loadGeneration else { return }
+                guard requestGeneration == loadGeneration, !Task.isCancelled else { return }
                 guard preview.modeIdentity == modeIdentity,
                       preview.reviewRevision?.month == trimmedMonth,
                       (modeIdentity == nil || preview.reviewRevision?.modeIdentity == modeIdentity) else {
                     fail(BudgetModeWriteError.budgetChanged.localizedDescription, generation: requestGeneration)
                     return
                 }
-                state = .categoryReady(
-                    BudgetTemplateApplyPreviewDisplay.make(preview: preview, randomized: randomized),
-                    preview.reviewRevision
-                )
+                state = .categoryReady(preview, randomized: randomized)
             } else {
                 let pair = try await repository.previewBudgetTemplatePair(
                     budgetID: budgetID,
                     month: trimmedMonth
                 )
-                guard requestGeneration == loadGeneration else { return }
+                guard requestGeneration == loadGeneration, !Task.isCancelled else { return }
                 state = .paired(
                     validated(pair, expectedMode: modeIdentity, month: trimmedMonth),
                     randomized: randomized
                 )
             }
         } catch {
-            guard requestGeneration == loadGeneration else { return }
+            guard requestGeneration == loadGeneration, !Task.isCancelled else { return }
             if let message = error.userFacingMessage {
                 fail(randomized ? "Template preview unavailable." : message, generation: requestGeneration)
             } else {
@@ -242,5 +303,11 @@ final class BudgetTemplateApplyPreviewViewModel {
         let month: String
         let budgetID: String?
         let modeIdentity: BudgetModeIdentity?
+        let randomized: Bool
+    }
+
+    private struct PreviewRequest: Equatable {
+        let context: RequestContext
+        let revision: UInt64
     }
 }

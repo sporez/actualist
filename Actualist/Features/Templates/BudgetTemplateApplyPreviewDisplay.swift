@@ -12,7 +12,9 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         var metricBeforeText: String
         var metricAfterText: String
         var statusText: String
+        var priorityText: String?
         var shortfallText: String?
+        var targetAmountText: String?
         var targetDetailText: String?
         var contributions: [Contribution]
     }
@@ -27,13 +29,15 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
     var assignedText: String
     var releasedTitle: String
     var releasedText: String?
-    var stillNeededText: String?
+    var stillNeededText: String
+    var hasOutstandingFunding: Bool
     var leftoverTitle: String
     var leftoverBeforeText: String
     var leftoverAfterText: String
     var changeCountText: String
     var hasNonMoneyUpdates: Bool
     var noOpExplanation: String?
+    var hasNoFundsWarning: Bool
     var warningText: String?
     var categories: [Category]
 
@@ -59,9 +63,11 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         let currency = preview.currency
         let isPrivate = randomized
         let hasGoalOnlyUpdates = preview.categories.contains { $0.isGoalOnlyUpdate }
+        let hasNoFundsWarning = preview.assigned == 0 && preview.released == 0
+            && !hasGoalOnlyUpdates && preview.stillNeeded > 0
         let noOpExplanation: String? = {
             guard preview.assigned == 0, preview.released == 0, !hasGoalOnlyUpdates else { return nil }
-            if preview.stillNeeded > 0 { return "No funds are available for the remaining template targets." }
+            if hasNoFundsWarning { return "No funds are available for the remaining template targets." }
             return preview.hasEligibleTemplates
                 ? "Assignments already match their template targets."
                 : "No eligible templates were found for this month."
@@ -84,11 +90,12 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
                 currency: currency,
                 randomized: isPrivate
             ) : nil,
-            stillNeededText: preview.stillNeeded > 0 ? money(
+            stillNeededText: money(
                 preview.stillNeeded,
                 currency: currency,
                 randomized: isPrivate
-            ) : nil,
+            ),
+            hasOutstandingFunding: preview.stillNeeded > 0,
             leftoverTitle: leftoverTitle(isTrackingBudget: preview.isTrackingBudget),
             leftoverBeforeText: money(
                 availableBefore,
@@ -103,6 +110,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
             changeCountText: changeCountText(preview.categories.count),
             hasNonMoneyUpdates: hasGoalOnlyUpdates,
             noOpExplanation: noOpExplanation,
+            hasNoFundsWarning: hasNoFundsWarning,
             warningText: preview.availableAfter < 0 ? "Over budget after Apply." : nil,
             categories: preview.categories.map { category in
                 Category(
@@ -130,11 +138,15 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
                         randomized: isPrivate
                     ),
                     statusText: status(for: category),
+                    priorityText: priorityText(for: category.priorityLevels),
                     shortfallText: category.shortfall > 0 ? money(
                         category.shortfall,
                         currency: currency,
                         randomized: isPrivate
                     ) : nil,
+                    targetAmountText: category.shortfall > 0 ? category.goalAfter.map {
+                        money($0, currency: currency, randomized: isPrivate)
+                    } : nil,
                     targetDetailText: targetDetailText(for: category, currency: currency, randomized: isPrivate),
                     contributions: contributions(
                         category,
@@ -163,6 +175,13 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         return category.current == category.proposed ? "Unfunded" : "Partially funded"
     }
 
+    private static func priorityText(for levels: [Int]) -> String? {
+        let levels = Set(levels).sorted()
+        guard !levels.isEmpty else { return nil }
+        if levels.count == 1 { return "Priority \(levels[0])" }
+        return "Priorities \(levels.map(String.init).joined(separator: ", "))"
+    }
+
     private static func targetDetailText(
         for category: BudgetTemplateApplyPreview.Category,
         currency: BudgetCurrency,
@@ -174,8 +193,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
             guard let goalBefore = category.goalBefore else { return "Goal target \(after)" }
             return "Goal target \(money(goalBefore, currency: currency, randomized: randomized)) → \(after)"
         }
-        guard category.shortfall > 0, let target = category.goalAfter else { return nil }
-        return "Template target \(money(target, currency: currency, randomized: randomized))"
+        return nil
     }
 
     private static func contributions(

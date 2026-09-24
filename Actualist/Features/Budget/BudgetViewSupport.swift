@@ -43,7 +43,7 @@ enum BudgetTemplateConfirmation: String, Equatable, Identifiable {
         case .monthOverwrite, .category:
             ActualistTheme.danger
         case .monthFillEmpty:
-            ActualistTheme.positive
+            ActualistThemeOption.coastalSageLight.palette.positive
         }
     }
 

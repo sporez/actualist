@@ -3,6 +3,40 @@ import Testing
 @testable import Actualist
 
 struct BudgetTemplateApplyPreviewDisplayTests {
+    @Test(arguments: [BudgetCurrency.usd, .catalog(code: "EUR"), .jpy,
+                      .catalog(code: "GBP", hideFraction: true), .none])
+    func snapshotCurrencyFormatsEveryReviewAmount(_ currency: BudgetCurrency) {
+        let category = BudgetTemplateApplyPreview.Category(
+            categoryID: "category", name: "Category", current: 100, proposed: 12_345,
+            perTemplate: [10_000, 2_345], drafts: [], shortfall: 500,
+            goalAfter: 12_845, metric: .init(kind: .available, before: -100, after: 12_145)
+        )
+        var snapshot = preview(leftover: 200, categories: [category])
+        snapshot.currency = currency
+        snapshot.fundingRequired = 12_745
+        snapshot.stillNeeded = 500
+        snapshot.released = 100
+        snapshot.availableBefore = 12_445
+        snapshot.availableAfter = 200
+        let display = BudgetTemplateApplyPreviewDisplay.make(
+            preview: snapshot, randomized: false
+        )
+        #expect(display.fundingRequiredText == currency.formatted(12_745))
+        #expect(display.assignedText == currency.formatted(12_345))
+        #expect(display.releasedText == currency.formatted(100))
+        #expect(display.stillNeededText == currency.formatted(500))
+        #expect(display.leftoverBeforeText == currency.formatted(12_445))
+        #expect(display.leftoverAfterText == currency.formatted(200))
+        let row = display.categories[0]
+        #expect(row.currentText == currency.formatted(100))
+        #expect(row.proposedText == currency.formatted(12_345))
+        #expect(row.metricBeforeText == currency.formatted(-100))
+        #expect(row.metricAfterText == currency.formatted(12_145))
+        #expect(row.shortfallText == currency.formatted(500))
+        #expect(row.targetAmountText == currency.formatted(12_845))
+        #expect(row.contributions.map(\.amountText) == [10_000, 2_345].map(currency.formatted))
+    }
+
     private let now = Calendar(identifier: .gregorian).date(
         from: DateComponents(year: 2026, month: 7, day: 15, hour: 12)
     )!
@@ -30,6 +64,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                         proposed: 40_000,
                         perTemplate: [40_000],
                         drafts: [.monthlyFixed(amount: 400, now: now)],
+                        priorityLevels: [4],
                         metric: .init(kind: .available, before: 0, after: 40_000)
                     )
                 ],
@@ -39,6 +74,8 @@ struct BudgetTemplateApplyPreviewDisplayTests {
             randomized: false
         )
         #expect(display.assignedText == BudgetCurrency.usd.formatted(40_000))
+        #expect(display.stillNeededText == BudgetCurrency.usd.formatted(0))
+        #expect(!display.hasOutstandingFunding)
         #expect(display.leftoverTitle == "To Budget")
         #expect(display.leftoverAfterText == BudgetCurrency.usd.formatted(12_000))
         #expect(display.changeCountText == "1 category")
@@ -46,6 +83,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(display.categories[0].currentText == BudgetCurrency.usd.formatted(0))
         #expect(display.categories[0].proposedText == BudgetCurrency.usd.formatted(40_000))
         #expect(display.categories[0].contributions.isEmpty)
+        #expect(display.categories[0].priorityText == "Priority 4")
     }
 
     @Test func showsPerTemplateContributionsAndFallbackTitles() {
@@ -59,6 +97,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                         proposed: 5_000,
                         perTemplate: [1_000, 4_000],
                         drafts: [.monthlyFixed(amount: 10, now: now), .remainder()],
+                        priorityLevels: [3],
                         metric: .init(kind: .available, before: 0, after: 5_000)
                     )
                 ]
@@ -66,6 +105,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
             randomized: false
         )
         #expect(labeled.categories[0].contributions.map(\.title) == ["Fixed Amount", "Remainder"])
+        #expect(labeled.categories[0].priorityText == "Priority 3")
         #expect(labeled.categories[0].contributions.map(\.amountText) == [
             BudgetCurrency.usd.formatted(1_000),
             BudgetCurrency.usd.formatted(4_000),
@@ -81,6 +121,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
                         proposed: 3_000,
                         perTemplate: [1_000, 2_000],
                         drafts: [],
+                        priorityLevels: [9, 1, 9, 0],
                         metric: .init(kind: .available, before: 0, after: 3_000)
                     )
                 ]
@@ -88,6 +129,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
             randomized: false
         )
         #expect(fallback.categories[0].contributions.map(\.title) == ["Template 1", "Template 2"])
+        #expect(fallback.categories[0].priorityText == "Priorities 0, 1, 9")
     }
 
     @Test func privacyRandomizesAmounts() {
@@ -205,13 +247,16 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         )
         #expect(display.fundingRequiredText == BudgetCurrency.usd.formatted(200))
         #expect(display.stillNeededText == BudgetCurrency.usd.formatted(100))
+        #expect(display.hasOutstandingFunding)
         #expect(display.leftoverBeforeText == BudgetCurrency.usd.formatted(100))
         #expect(display.leftoverAfterText == BudgetCurrency.usd.formatted(0))
         #expect(display.categories[0].statusText == "Unfunded")
         #expect(display.categories[0].shortfallText == BudgetCurrency.usd.formatted(100))
-        #expect(display.categories[0].targetDetailText == "Template target \(BudgetCurrency.usd.formatted(200))")
+        #expect(display.categories[0].targetDetailText == nil)
+        #expect(display.categories[0].targetAmountText == BudgetCurrency.usd.formatted(200))
         #expect(!display.hasNonMoneyUpdates)
         #expect(display.noOpExplanation == "No funds are available for the remaining template targets.")
+        #expect(display.hasNoFundsWarning)
     }
 
     @Test func showsChangedGoalMetadataEvenWithoutAnAssignmentChange() {
@@ -239,7 +284,9 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         let display = BudgetTemplateApplyPreviewDisplay.make(preview: preview, randomized: false)
         #expect(display.categories.map(\.id) == ["savings"])
         #expect(display.categories[0].targetDetailText == "Goal target \(BudgetCurrency.usd.formatted(10_000)) → \(BudgetCurrency.usd.formatted(12_000))")
+        #expect(display.categories[0].priorityText == nil)
         #expect(display.hasNonMoneyUpdates)
+        #expect(!display.hasNoFundsWarning)
     }
 
     @Test func emptyCategoryListDistinguishesMissingFromAlreadyFundedTemplates() {

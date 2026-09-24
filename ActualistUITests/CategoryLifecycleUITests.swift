@@ -267,11 +267,52 @@ final class CategoryLifecycleUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
         ).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Priority 1"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Priority 0"].firstMatch.waitForExistence(timeout: 5))
         attachScreenshot(named: "template-preview-overwrite-after-switches")
+        let previewScroll = app.scrollViews.firstMatch
+        previewScroll.swipeUp()
+        XCTAssertTrue(app.staticTexts["Priorities 1, 2"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(apply.isHittable)
+        attachScreenshot(named: "template-preview-overwrite-scrolled")
 
         XCTAssertTrue(apply.isEnabled)
         apply.tap()
         XCTAssertTrue(apply.waitForNonExistence(timeout: 10))
+    }
+
+    func testCompactTemplatePreviewSurvivesAppSwitcherReturn() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        app.buttons["Budget Actions"].tap()
+        app.buttons["Templates"].tap()
+        app.buttons["Apply Template"].tap()
+        let apply = app.buttons["template-apply-confirm"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 10))
+        XCTAssertTrue(apply.isEnabled)
+        app.buttons["Overwrite"].tap()
+        XCTAssertEqual(apply.label, "Apply Template Overwrite")
+
+        let funding = app.staticTexts["Funding required"]
+        let originalY = funding.frame.minY
+        for _ in 0..<2 {
+            XCUIDevice.shared.press(.home)
+            app.activate()
+            // Sample the return window as well as the final state. The lifecycle
+            // unit regression separately counts both calendar and sync requests.
+            let deadline = Date().addingTimeInterval(3)
+            repeat {
+                XCTAssertTrue(funding.exists)
+                XCTAssertFalse(app.staticTexts["Loading preview"].exists)
+                XCTAssertFalse(app.staticTexts["Updating preview"].exists)
+                XCTAssertEqual(funding.frame.minY, originalY, accuracy: 1)
+            } while Date() < deadline
+            XCTAssertTrue(apply.isEnabled)
+            XCTAssertEqual(apply.label, "Apply Template Overwrite")
+        }
+        attachScreenshot(named: "template-preview-after-app-switcher-return")
     }
 
     func testCompactTemplatePreviewUsesLightPalette() throws {
@@ -351,9 +392,7 @@ final class CategoryLifecycleUITests: XCTestCase {
     private func assertUnfundedTemplatePreview(in app: XCUIApplication) {
         XCTAssertTrue(app.staticTexts["Still needed"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Unfunded"].firstMatch.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH 'Template target '")
-        ).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Template target"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts.matching(
             NSPredicate(format: "label BEGINSWITH 'Goal None'")
         ).firstMatch.exists)

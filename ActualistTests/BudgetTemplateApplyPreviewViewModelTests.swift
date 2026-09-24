@@ -5,6 +5,22 @@ import Testing
 @Suite("Budget template apply preview view model")
 @MainActor
 struct BudgetTemplateApplyPreviewViewModelTests {
+    @Test(arguments: [BudgetTemplateConfirmation.monthFillEmpty, .category],
+          [BudgetCurrency.usd, .catalog(code: "EUR", hideFraction: true), .jpy, .none])
+    func displayUsesSnapshotCurrency(_ confirmation: BudgetTemplateConfirmation, currency: BudgetCurrency) async {
+        var snapshot = preview(assigned: 12_345, modeIdentity: nil)
+        snapshot.currency = currency
+        let repository = ApplyPreviewRepository(preview: snapshot)
+        let model = BudgetTemplateApplyPreviewViewModel()
+        await model.load(confirmation: confirmation, categoryID: "category", month: "2026-07",
+                         budgetID: "budget", randomized: false, repository: repository)
+        let revision = model.reviewRevision
+        #expect(model.display?.assignedText == currency.formatted(12_345))
+        #expect(model.reviewRevision == revision)
+        #expect(model.canApply)
+        #expect(await repository.previewCallCount() + repository.previewPairCallCount() == 1)
+    }
+
     @Test(arguments: CancellationTestCase.allCases)
     func cancelledPreviewCannotEnableApply(_ kind: CancellationTestCase) async {
         let model = BudgetTemplateApplyPreviewViewModel()
@@ -323,6 +339,155 @@ struct BudgetTemplateApplyPreviewViewModelTests {
 
         #expect(viewModel.selectedMode == .fillEmpty)
         #expect(viewModel.display?.assignedText == BudgetCurrency.usd.formatted(30_000))
+    }
+
+    @Test func resumedSheetReusesReviewUntilForegroundRevisionChanges() async {
+        let repository = ApplyPreviewRepository(pair: BudgetTemplateApplyPreviewPair(
+            fillEmpty: .ready(preview(assigned: 10_000, modeIdentity: nil)),
+            overwrite: .ready(preview(assigned: 20_000, modeIdentity: nil))
+        ))
+        let model = BudgetTemplateApplyPreviewViewModel()
+        await model.loadIfNeeded(revision: 1, confirmation: .monthOverwrite,
+                                 categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                 randomized: false, repository: repository)
+        let firstReview = model.reviewRevision
+        model.selectMode(.fillEmpty)
+
+        // Re-entering the sheet task without a local revision must not read again.
+        await model.loadIfNeeded(revision: 1, confirmation: .monthOverwrite,
+                                 categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                 randomized: false, repository: repository)
+        #expect(await repository.previewPairCallCount() == 1)
+        #expect(model.reviewRevision == firstReview)
+        #expect(model.selectedMode == .fillEmpty)
+
+        await repository.suspendNextPair()
+        let refresh = Task {
+            await model.loadIfNeeded(revision: 2, confirmation: .monthOverwrite,
+                                     categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                     randomized: false, repository: repository)
+        }
+        await repository.waitForPairCall(expected: 2)
+        #expect(model.phase == .loading)
+        #expect(!model.canApply)
+        #expect(model.reviewRevision == nil)
+        #expect(model.display?.assignedText == BudgetCurrency.usd.formatted(10_000))
+        await repository.resolvePair(BudgetTemplateApplyPreviewPair(
+            fillEmpty: .ready(preview(assigned: 30_000, modeIdentity: nil)),
+            overwrite: .ready(preview(assigned: 40_000, modeIdentity: nil))
+        ))
+        await refresh.value
+        #expect(model.canApply)
+        #expect(model.selectedMode == .fillEmpty)
+        #expect(model.display?.assignedText == BudgetCurrency.usd.formatted(30_000))
+
+        await model.loadIfNeeded(revision: 2, confirmation: .monthOverwrite,
+                                 categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                 randomized: false, repository: repository)
+        #expect(await repository.previewPairCallCount() == 2)
+    }
+
+    @Test func foregroundCalendarAndSyncCauseOnlyOneReviewReload() async throws {
+        let fixtures = LocalFirstActualStoreTests()
+        let transport = RecordingSyncTransport()
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+        let appState = try fixtures.makeAppState(for: bundle)
+        let calendar = BudgetCalendarCoordinator(publishWidgets: {})
+        calendar.configure(appState: appState)
+        defer {
+            calendar.endForeground()
+            appState.endForegroundSession()
+        }
+
+        await appState.beginForegroundSession()
+        await appState.budgetDidPresent("group-1")?.value
+        await calendar.beginForeground()?.value
+        let repository = ApplyPreviewRepository(pair: BudgetTemplateApplyPreviewPair(
+            fillEmpty: .ready(preview(assigned: 10_000, modeIdentity: nil)),
+            overwrite: .ready(preview(assigned: 20_000, modeIdentity: nil))
+        ))
+        let model = BudgetTemplateApplyPreviewViewModel()
+        func updateReview() async {
+            await model.loadIfNeeded(revision: appState.localDataRevision,
+                                     confirmation: .monthFillEmpty, categoryID: nil,
+                                     month: "2026-07", budgetID: "group-1",
+                                     randomized: false, repository: repository)
+        }
+        await updateReview()
+        model.selectMode(.overwrite)
+        let beforeReturn = appState.localDataRevision
+        #expect(await repository.previewPairCallCount() == 1)
+
+        calendar.endForeground()
+        appState.endForegroundSession()
+
+        // The scene starts both coordinators on return. Let the calendar finish
+        // first so a redundant revision cannot hide through update coalescing.
+        await calendar.beginForeground()?.value
+        await updateReview()
+        #expect(appState.localDataRevision == beforeReturn)
+        #expect(await repository.previewPairCallCount() == 1)
+
+        await appState.beginForegroundSession()
+        await appState.budgetDidPresent("group-1")?.value
+        await updateReview()
+        #expect(appState.localDataRevision == beforeReturn + 1)
+        #expect(await transport.messageCounts() == [0, 0])
+        #expect(await repository.previewPairCallCount() == 2)
+        #expect(model.selectedMode == .overwrite)
+        #expect(model.canApply)
+    }
+
+    @Test func olderForegroundResultCannotMarkNewerRevisionComplete() async {
+        let repository = ApplyPreviewRepository()
+        await repository.suspendNextPair()
+        let model = BudgetTemplateApplyPreviewViewModel()
+        let older = Task {
+            await model.loadIfNeeded(revision: 1, confirmation: .monthFillEmpty,
+                                     categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                     randomized: false, repository: repository)
+        }
+        await repository.waitForPairCall()
+        let newer = ApplyPreviewRepository(pair: BudgetTemplateApplyPreviewPair(
+            fillEmpty: .ready(preview(assigned: 30_000, modeIdentity: nil)),
+            overwrite: .ready(preview(assigned: 40_000, modeIdentity: nil))
+        ))
+        await model.loadIfNeeded(revision: 2, confirmation: .monthFillEmpty,
+                                 categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                 randomized: false, repository: newer)
+        await repository.resolvePair()
+        await older.value
+        #expect(model.display?.assignedText == BudgetCurrency.usd.formatted(30_000))
+        await model.loadIfNeeded(revision: 2, confirmation: .monthFillEmpty,
+                                 categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                 randomized: false, repository: newer)
+        #expect(await newer.previewPairCallCount() == 1)
+    }
+
+    @Test func privacyChangeNeverShowsPreviousRealAmountsDuringRefresh() async {
+        let repository = ApplyPreviewRepository(pair: BudgetTemplateApplyPreviewPair(
+            fillEmpty: .ready(preview(assigned: 10_000, modeIdentity: nil)),
+            overwrite: .ready(preview(assigned: 20_000, modeIdentity: nil))
+        ))
+        let model = BudgetTemplateApplyPreviewViewModel()
+        await model.loadIfNeeded(revision: 1, confirmation: .monthFillEmpty,
+                                 categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                 randomized: false, repository: repository)
+        await repository.suspendNextPair()
+        let privacyRefresh = Task {
+            await model.loadIfNeeded(revision: 1, confirmation: .monthFillEmpty,
+                                     categoryID: nil, month: "2026-07", budgetID: "budget-1",
+                                     randomized: true, repository: repository)
+        }
+        await repository.waitForPairCall(expected: 2)
+        #expect(model.phase == .loading)
+        #expect(model.display == nil)
+        #expect(!model.canApply)
+        await repository.resolvePair()
+        await privacyRefresh.value
+        #expect(model.canApply)
+        #expect(model.display?.assignedText != BudgetCurrency.usd.formatted(10_000))
     }
 
     private func preview(assigned: Int, modeIdentity: BudgetModeIdentity?) -> BudgetTemplateApplyPreview {

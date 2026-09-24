@@ -72,6 +72,9 @@ struct BudgetTemplateApplyPreview: Equatable, Sendable {
         var proposed: Int
         var perTemplate: [Int]
         var drafts: [BudgetTemplateDraft]
+        /// Priority levels from the eligible apply entries, including entries
+        /// that the editor draft representation cannot retain exactly.
+        var priorityLevels: [Int] = []
         /// Demand captured by the same engine pass as `proposed`.
         var evaluatedDemand: Int = 0
         /// Positive evaluated demand not met by `proposed`.

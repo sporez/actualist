@@ -251,6 +251,9 @@ extension BudgetDatabase {
                     from: entries,
                     now: now
                 ) ?? [],
+                priorityLevels: entries.compactMap { entry in
+                    BudgetTemplateEngine.participatesInPriority(entry) ? entry.priority : nil
+                },
                 evaluatedDemand: evaluatedDemand,
                 shortfall: shortfall,
                 isGoalOnlyUpdate: isGoalOnlyUpdate,
