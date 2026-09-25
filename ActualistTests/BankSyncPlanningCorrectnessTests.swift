@@ -184,7 +184,7 @@ extension LocalFirstActualStoreTests {
         #expect((model.reviewLines.first?.addedCount ?? 0) >= 1)
         await model.confirmReview()
 
-        let row = try #require(try await storedCorrectnessRow(
+        let row = try #require(try storedCorrectnessRow(
             in: bundle,
             financialID: "bank-correctness"
         ))
@@ -206,7 +206,7 @@ extension LocalFirstActualStoreTests {
 
         _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
 
-        let row = try #require(try await storedCorrectnessRow(
+        let row = try #require(try storedCorrectnessRow(
             in: bundle,
             financialID: "background-imported-rule"
         ))
@@ -235,7 +235,7 @@ extension LocalFirstActualStoreTests {
         #expect(model.phase == .reviewing)
         await model.confirmReview()
 
-        let row = try #require(try await storedCorrectnessRow(
+        let row = try #require(try storedCorrectnessRow(
             in: bundle,
             financialID: "bank-correctness"
         ))
@@ -255,7 +255,7 @@ extension LocalFirstActualStoreTests {
 
         _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
 
-        let row = try #require(try await storedCorrectnessRow(
+        let row = try #require(try storedCorrectnessRow(
             in: bundle,
             financialID: "background-payee-id-rule"
         ))
@@ -285,8 +285,8 @@ extension LocalFirstActualStoreTests {
 
         _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
 
-        let source = try #require(try await storedTransactionRow(in: bundle, id: "xfer-src"))
-        let destination = try #require(try await storedTransactionRow(in: bundle, id: "xfer-dst"))
+        let source = try #require(try storedTransactionRow(in: bundle, id: "xfer-src"))
+        let destination = try #require(try storedTransactionRow(in: bundle, id: "xfer-dst"))
         #expect(source["category"] as String? == nil)
         #expect(source["transferred_id"] as String? == "xfer-dst")
         #expect(source["financial_id"] as String? == "bank-correctness")
@@ -307,7 +307,7 @@ extension LocalFirstActualStoreTests {
 
         _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
 
-        let source = try #require(try await storedTransactionRow(in: bundle, id: "xfer-src"))
+        let source = try #require(try storedTransactionRow(in: bundle, id: "xfer-src"))
         #expect(source["category"] as String? == nil)
         #expect(source["transferred_id"] as String? == "xfer-dst")
         #expect(source["financial_id"] as String? == "background-transfer-rule")
@@ -337,7 +337,7 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
         await model.confirmReview()
 
-        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["category"] as String? == "groceries")
         #expect(row["financial_id"] as String? == "bank-correctness")
         #expect(row["transferred_id"] as String? == nil)
@@ -363,7 +363,7 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
         await model.confirmReview()
 
-        let source = try #require(try await storedTransactionRow(in: bundle, id: "xfer-src"))
+        let source = try #require(try storedTransactionRow(in: bundle, id: "xfer-src"))
         #expect(source["category"] as String? == "groceries")
         #expect(source["transferred_id"] as String? == "xfer-dst")
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
@@ -447,7 +447,7 @@ extension LocalFirstActualStoreTests {
 
         _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
 
-        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["category"] as String? == nil)
         #expect(row["financial_id"] as String? == "bank-correctness")
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
@@ -468,7 +468,7 @@ extension LocalFirstActualStoreTests {
 
         _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
 
-        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["category"] as String? == nil)
         #expect(row["financial_id"] as String? == "background-offbudget-rule")
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
@@ -492,7 +492,7 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
         await model.confirmReview()
 
-        let row = try #require(try await storedCorrectnessRow(
+        let row = try #require(try storedCorrectnessRow(
             in: bundle,
             financialID: "bank-correctness"
         ))
@@ -533,18 +533,18 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
         await model.confirmReview()
 
-        let source = try #require(try await storedCorrectnessRow(
+        let source = try #require(try storedCorrectnessRow(
             in: bundle,
             financialID: "bank-correctness"
         ))
         #expect(source["description"] as String? == "xfer-checking")
-        let sourceID = try #require(try await storedTransactionID(
+        let sourceID = try #require(try storedTransactionID(
             in: bundle,
             financialID: "bank-correctness"
         ))
-        let sourceRow = try #require(try await storedTransactionRow(in: bundle, id: sourceID))
+        let sourceRow = try #require(try storedTransactionRow(in: bundle, id: sourceID))
         let pairedID = try #require(sourceRow["transferred_id"] as String?)
-        let destination = try #require(try await storedTransactionRow(in: bundle, id: pairedID))
+        let destination = try #require(try storedTransactionRow(in: bundle, id: pairedID))
         #expect(destination["acct"] as String? == "checking")
         #expect(destination["transferred_id"] as String? == sourceID)
         #expect(destination["description"] as String? == "xfer-savings")
@@ -572,7 +572,7 @@ extension LocalFirstActualStoreTests {
         })
 
         _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
-        let row = try #require(try await storedTransactionRow(in: bundle, id: "ordinary"))
+        let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["description"] as String? == nil)
         #expect(row["transferred_id"] as String? == nil)
         #expect(row["financial_id"] as String? == "bank-correctness")

@@ -299,6 +299,8 @@ extension LocalFirstActualStoreTests {
                 CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
                 INSERT INTO preferences VALUES ('defaultCurrencyCode', 'USD');
                 ALTER TABLE accounts ADD COLUMN last_reconciled TEXT;
+                ALTER TABLE accounts ADD COLUMN balance_current INTEGER;
+                UPDATE accounts SET balance_current = -228364 WHERE id = 'savings';
                 INSERT INTO transactions
                     (id, acct, date, amount, category, tombstone, description, cleared, is_parent)
                     VALUES ('prior-savings', 'savings', 20260701, 100, NULL, 0, 'coffee', 1, 0);
@@ -307,14 +309,6 @@ extension LocalFirstActualStoreTests {
         try await bundle.store.linkBankAccount(
             "savings", to: remoteAccount(), budgetID: "group-1"
         )
-        let queue = try DatabaseQueue(
-            path: try bundle.fileManager.databaseURL(fileID: "file-1").path
-        )
-        try await queue.write { db in
-            try db.execute(
-                sql: "UPDATE accounts SET balance_current = -228364 WHERE id = 'savings'"
-            )
-        }
         return bundle
     }
 }
