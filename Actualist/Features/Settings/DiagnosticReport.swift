@@ -86,7 +86,7 @@ enum ActualistDiagnosticReportBuilder {
             "Discovered budget count: \(appState.budgets.count)",
             "Budget selected: \(yesNo(settings.selectedBudgetID != nil))",
             "Local data revision: \(appState.localDataRevision)",
-            "Last app error: \(redactor.redact(appState.lastErrorMessage))",
+            "Last app error: \(appState.lastErrorMessage.map(SafeSyncDiagnostic.storedError) ?? "none")",
             "",
             "[Preferences]",
             "Theme: \(settings.theme.rawValue)",
@@ -152,7 +152,7 @@ enum ActualistDiagnosticReportBuilder {
             "Last downloaded messages: \(syncStatus?.lastAppliedMessageCount ?? 0)",
             "Pending local messages: \(syncStatus?.pendingLocalMessageCount ?? 0)",
             "Encryption key ID present: \(yesNo(syncStatus?.encryptionKeyID != nil))",
-            "Last sync error: \(redactor.redact(syncStatus?.lastError))",
+            "Last sync error: \(syncStatus?.lastError.map(SafeSyncDiagnostic.storedError) ?? "none")",
             "",
             "[Local-First Sync Event History]",
             "Total recorded events: \(settings.localFirstSyncDebug.totalEventCount)",
@@ -164,7 +164,7 @@ enum ActualistDiagnosticReportBuilder {
         } else {
             for (index, event) in settings.localFirstSyncDebug.recentEvents.enumerated() {
                 lines.append(
-                    "\(index + 1). \(timestamp(event.date)) | \(event.outcome.rawValue) | \(event.endpoint?.rawValue ?? "local") | pending \(event.pendingBefore)->\(event.pendingAfter) | uploaded \(event.uploadedCount) | downloaded \(event.downloadedCount) | \(redactor.redact(event.message))"
+                    "\(index + 1). \(timestamp(event.date)) | \(event.outcome.rawValue) | \(event.endpoint?.rawValue ?? "local") | pending \(event.pendingBefore)->\(event.pendingAfter) | uploaded \(event.uploadedCount) | downloaded \(event.downloadedCount) | \(event.diagnosticMessage)"
                 )
             }
         }
@@ -185,7 +185,7 @@ enum ActualistDiagnosticReportBuilder {
         } else {
             for (index, attempt) in settings.backgroundRefreshDebug.recentScheduleAttempts.enumerated() {
                 lines.append(
-                    "\(index + 1). \(timestamp(attempt.date)) | \(attempt.succeeded ? "accepted" : "rejected") | earliest \(timestamp(attempt.earliestBeginDate)) | \(redactor.redact(attempt.message))"
+                    "\(index + 1). \(timestamp(attempt.date)) | \(attempt.succeeded ? "accepted" : "rejected") | earliest \(timestamp(attempt.earliestBeginDate)) | \(redactor.redact(SafeSyncDiagnostic.backgroundMessage(attempt.message, succeeded: attempt.succeeded)))"
                 )
             }
         }
@@ -196,7 +196,7 @@ enum ActualistDiagnosticReportBuilder {
         } else {
             for (index, run) in settings.backgroundRefreshDebug.recentRuns.enumerated() {
                 lines.append(
-                    "\(index + 1). woke \(timestamp(run.wakeDate)) | completed \(timestamp(run.completionDate)) | result \(backgroundResult(run.succeeded)) | \(redactor.redact(run.message))"
+                    "\(index + 1). woke \(timestamp(run.wakeDate)) | completed \(timestamp(run.completionDate)) | result \(backgroundResult(run.succeeded)) | \(redactor.redact(SafeSyncDiagnostic.backgroundMessage(run.message, succeeded: run.succeeded)))"
                 )
             }
         }

@@ -458,8 +458,7 @@ extension LocalFirstActualStoreTests {
     @Test func incorrectPasswordDoesNotEnterMissingCacheRecovery() async throws {
         let authenticationError = ActualAPIError.serverRejected(
             status: nil,
-            reason: "invalid-password",
-            details: nil
+            reason: .invalidPassword
         )
         let connectionTransport = ConfigurableConnectionTransport(
             methodErrors: [.loginWithPassword: authenticationError]

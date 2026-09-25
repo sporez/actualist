@@ -451,7 +451,7 @@ extension BudgetDatabase {
                     ),
                     baseTimestamp: row["base_timestamp"] ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000",
                     attemptCount: row["attempt_count"] ?? 0,
-                    lastError: row["last_error"]
+                    lastError: (row["last_error"] as String?).map(SafeSyncDiagnostic.storedError)
                 )
             }
         }
@@ -498,7 +498,7 @@ extension BudgetDatabase {
         guard !messages.isEmpty else {
             return
         }
-        let message = error.localizedDescription
+        let message = SafeSyncDiagnostic.description(for: error)
         try queue.write { db in
             guard try tableExists("actualist_outbox", db: db) else {
                 return

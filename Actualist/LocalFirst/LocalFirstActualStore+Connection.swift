@@ -41,7 +41,7 @@ extension LocalFirstActualStore {
         return try await withConnectionFailover(serverURLString: serverURLString) { client in
             let methods = try await client.loginMethods()
             guard methods.availableLoginMethods.contains(where: { $0.authenticationMethod == .openID }) else {
-                throw ActualAPIError.unsupportedAuthenticationMethod("openid")
+                throw ActualAPIError.unsupportedAuthenticationMethod
             }
 
             let token = try await self.openIDAuthenticationCoordinator.authenticate(

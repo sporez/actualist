@@ -209,6 +209,41 @@ extension LocalFirstActualStoreTests {
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == pendingCount)
     }
 
+    @Test func unknownServerRejectionKeepsMessagesAndPersistsOnlySafeError() async throws {
+        let primary = ErroringSyncTransport(error: .serverRejected(status: 500, reason: .unknown))
+        let bundle = try await makeOpenedWritableStoreBundle(syncTransportFactory: { _ in primary })
+        try bundle.keychain.saveActualSyncToken("synthetic-token")
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+            categoryID: "groceries", budgeted: 62_500, budgetID: "group-1", month: "2026-07") {}
+        let database = try #require(bundle.store.database)
+        let pendingBefore = try await database.pendingLocalSyncMessages().map(\.message)
+        #expect(!pendingBefore.isEmpty)
+
+        await #expect(throws: ActualAPIError.self) {
+            try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://sync.example")
+        }
+
+        let pendingAfter = try await database.pendingLocalSyncMessages()
+        #expect(pendingAfter.map(\.message) == pendingBefore)
+        #expect(pendingAfter.allSatisfy { $0.attemptCount == 1 })
+        #expect(pendingAfter.allSatisfy { $0.lastError == ActualServerErrorCategory.unknown.description })
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == ActualServerErrorCategory.unknown.description)
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        #expect(month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == 62_500)
+
+        let queue = try DatabaseQueue(path: (await database.databaseURL).path)
+        try await queue.write { db in
+            try db.execute(sql: "UPDATE actualist_outbox SET last_error = ?", arguments: ["unlabeled-token-qq7"])
+        }
+        let sanitized = try await database.pendingLocalSyncMessages()
+        #expect(sanitized.map(\.message) == pendingBefore)
+        #expect(sanitized.allSatisfy { $0.lastError == SafeSyncDiagnostic.previousFailure })
+        let stored = try await queue.read { db in
+            try String.fetchOne(db, sql: "SELECT last_error FROM actualist_outbox LIMIT 1")
+        }
+        #expect(stored == "unlabeled-token-qq7")
+    }
+
     @Test func refusedRedirectDuringFlushKeepsLocalBudgetAndOutboxWithoutFallback() async throws {
         let fallback = RecordingSyncTransport()
         let primary = ErroringSyncTransport(error: .redirectRefused)

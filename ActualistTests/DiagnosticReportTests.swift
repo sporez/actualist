@@ -142,6 +142,68 @@ struct DiagnosticReportTests {
         #expect(!report.text.contains("429487"))
     }
 
+    @Test func legacyEventIsConservativelyReadAndExportedWithoutChangingMetadata() throws {
+        let hostile = "unlabeled-token-qq7 password-qq7 synthetic-payee-qq7 synthetic-address-qq7\r\n"
+        let original = LocalFirstSyncDebugEvent(
+            id: UUID(), date: Date(timeIntervalSince1970: 1_700_000_000), outcome: .failed,
+            pendingBefore: 4, uploadedCount: 2, downloadedCount: 1,
+            pendingAfter: 3, message: hostile, endpoint: .fallback
+        )
+        let data = try JSONEncoder().encode(original)
+        let loaded = try JSONDecoder().decode(LocalFirstSyncDebugEvent.self, from: data)
+        #expect(loaded.id == original.id)
+        #expect(loaded.date == original.date)
+        #expect(loaded.outcome == .failed)
+        #expect(loaded.pendingBefore == 4)
+        #expect(loaded.pendingAfter == 3)
+        #expect(loaded.uploadedCount == 2)
+        #expect(loaded.downloadedCount == 1)
+        #expect(loaded.endpoint == .fallback)
+        #expect(loaded.message == SafeSyncDiagnostic.previousFailure)
+        #expect(original.diagnosticMessage == SafeSyncDiagnostic.previousFailure)
+        #expect(loaded.diagnosticMessage == SafeSyncDiagnostic.previousFailure)
+
+        let state = makeAppState()
+        state.settings.localFirstSyncDebug = .init(totalEventCount: 7, recentEvents: [original])
+        state.lastErrorMessage = hostile
+        state.localFirstStore.syncStatus = LocalFirstSyncStatus(
+            fileID: "synthetic-file", groupID: nil, lastError: hostile
+        )
+        let report = ActualistDiagnosticReportBuilder.make(appState: state)
+        #expect(report.text.contains("Total recorded events: 7"))
+        #expect(report.text.contains("pending 4->3 | uploaded 2 | downloaded 1"))
+        #expect(report.text.contains(SafeSyncDiagnostic.previousFailure))
+        for secret in ["unlabeled-token-qq7", "password-qq7", "synthetic-payee-qq7", "synthetic-address-qq7"] {
+            #expect(!report.text.contains(secret))
+        }
+    }
+
+    @Test func newGenericSyncEventKeepsSafeDescriptionAcrossReadAndExport() throws {
+        let event = LocalFirstSyncDebugEvent(
+            id: UUID(), date: Date(timeIntervalSince1970: 1_700_000_000), outcome: .failed,
+            pendingBefore: 2, uploadedCount: 0, downloadedCount: 0,
+            pendingAfter: 2, message: SafeSyncDiagnostic.genericFailure
+        )
+        let restored = try JSONDecoder().decode(LocalFirstSyncDebugEvent.self, from: JSONEncoder().encode(event))
+        #expect(restored.message == SafeSyncDiagnostic.genericFailure)
+        #expect(restored.diagnosticMessage == SafeSyncDiagnostic.genericFailure)
+        let state = makeAppState()
+        state.settings.localFirstSyncDebug = .init(totalEventCount: 1, recentEvents: [restored])
+        let report = ActualistDiagnosticReportBuilder.make(appState: state)
+        #expect(report.text.contains(SafeSyncDiagnostic.genericFailure))
+        #expect(report.text.contains("pending 2->2"))
+    }
+
+    @Test func oldBackgroundMessagesDoNotTurnSuccessfulRunsIntoFailures() {
+        let hostile = "unlabeled-token-qq7 synthetic-payee-qq7"
+        #expect(SafeSyncDiagnostic.backgroundMessage(hostile, succeeded: true)
+                == "Previous background task completed.")
+        #expect(SafeSyncDiagnostic.backgroundMessage(hostile, succeeded: nil)
+                == "Previous background task started.")
+        #expect(SafeSyncDiagnostic.backgroundMessage(hostile, succeeded: false)
+                == "Previous background attempt failed. Details are unavailable.")
+    }
+
     private func makeAppState() -> AppState {
         let defaults = UserDefaults(suiteName: "ActualistDiagnosticReportTests.\(UUID().uuidString)")!
         return AppState(

@@ -313,6 +313,10 @@ struct LocalFirstSyncDebugEvent: Codable, Equatable, Identifiable, Sendable {
     let message: String
     let endpoint: Endpoint?
 
+    var diagnosticMessage: String {
+        SafeSyncDiagnostic.eventMessage(message, outcome: outcome)
+    }
+
     init(
         id: UUID,
         date: Date,
@@ -349,7 +353,10 @@ struct LocalFirstSyncDebugEvent: Codable, Equatable, Identifiable, Sendable {
         uploadedCount = try container.decode(Int.self, forKey: .uploadedCount)
         downloadedCount = try container.decode(Int.self, forKey: .downloadedCount)
         pendingAfter = try container.decode(Int.self, forKey: .pendingAfter)
-        message = try container.decode(String.self, forKey: .message)
+        // Older releases persisted free-form server responses. Decode the
+        // metadata, but never expose their untrusted message again.
+        let storedMessage = try container.decode(String.self, forKey: .message)
+        message = SafeSyncDiagnostic.eventMessage(storedMessage, outcome: outcome)
         endpoint = try container.decodeIfPresent(Endpoint.self, forKey: .endpoint)
     }
 }

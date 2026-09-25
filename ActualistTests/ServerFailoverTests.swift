@@ -30,8 +30,8 @@ struct ServerFailoverTests {
         #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.httpStatus(400)))
         #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.httpStatus(404)))
         #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.httpStatus(500)))
-        #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.serverRejected(status: 502, reason: "invalid-response", details: nil)))
-        #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.serverRejected(status: 401, reason: "unauthorized", details: nil)))
+        #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.serverRejected(status: 502, reason: .unknown)))
+        #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.serverRejected(status: 401, reason: .sessionExpired)))
         #expect(!LocalFirstActualStore.isFailoverEligible(ActualAPIError.decoding))
         #expect(!LocalFirstActualStore.isFailoverEligible(LocalFirstTestSyncError.failed))
     }
@@ -114,7 +114,7 @@ struct ServerFailoverTests {
 
     @Test("Sync does not fail over on server-rejected errors")
     func syncNoFailoverOnServerError() async throws {
-        let primary = FailingSyncTransport(error: .serverRejected(status: 500, reason: "internal", details: nil))
+        let primary = FailingSyncTransport(error: .serverRejected(status: 500, reason: .unknown))
         let fallback = RecordingSyncTransport()
         let store = LocalFirstActualStore(
             syncTransportFactory: { url in
@@ -133,7 +133,7 @@ struct ServerFailoverTests {
 
     @Test("Sync does not fail over on authentication failure")
     func syncNoFailoverOnAuthFailure() async throws {
-        let primary = FailingSyncTransport(error: .serverRejected(status: 401, reason: "unauthorized", details: nil))
+        let primary = FailingSyncTransport(error: .serverRejected(status: 401, reason: .sessionExpired))
         let fallback = RecordingSyncTransport()
         let store = LocalFirstActualStore(
             syncTransportFactory: { url in
@@ -228,7 +228,7 @@ struct ServerFailoverTests {
 
     @Test("Connection does not fail over on server errors")
     func connectionNoFailoverOnServerError() async throws {
-        let primary = ConfigurableConnectionTransport(error: .serverRejected(status: 500, reason: "internal", details: nil))
+        let primary = ConfigurableConnectionTransport(error: .serverRejected(status: 500, reason: .unknown))
         let fallback = StubConnectionTransport(files: [])
         let store = LocalFirstActualStore(
             connectionTransportFactory: { url in

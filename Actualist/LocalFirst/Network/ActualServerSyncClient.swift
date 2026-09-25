@@ -167,7 +167,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             body: body
         )
         if let serverError = Self.structuredAPIError(from: data) {
-            throw customHeaders.sanitized(serverError)
+            throw serverError
         }
         do {
             return try JSONDecoder.actual.decode(Value.self, from: data)
@@ -288,12 +288,12 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         Self.debugLogResponse(httpResponse, data: data)
         guard (200..<300).contains(httpResponse.statusCode) else {
-            throw customHeaders.sanitized(Self.apiError(statusCode: httpResponse.statusCode, data: data))
+            throw Self.apiError(statusCode: httpResponse.statusCode, data: data)
         }
         return data
     }
 
-    private static func apiError(statusCode: Int, data: Data) -> ActualAPIError {
+    static func apiError(statusCode: Int, data: Data) -> ActualAPIError {
         structuredAPIError(from: data, statusCode: statusCode)
             ?? syncRejectionReason(from: data).map {
                 .syncRejected(status: statusCode, reason: $0)
@@ -316,33 +316,19 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         )
     }
 
-    private static func structuredAPIError(
+    static func structuredAPIError(
         from data: Data,
         statusCode: Int? = nil
     ) -> ActualAPIError? {
         guard let response = try? JSONDecoder.actual.decode(ActualErrorResponse.self, from: data),
               statusCode != nil || response.status?.lowercased() == "error",
-              let reason = sanitizedServerText(response.reason) else {
+              response.reason != nil || response.details != nil || response.status?.lowercased() == "error" else {
             return nil
         }
         return .serverRejected(
             status: statusCode,
-            reason: reason,
-            details: sanitizedServerText(response.details)
+            reason: ActualServerErrorCategory.classify(reason: response.reason, details: response.details)
         )
-    }
-
-    private static func sanitizedServerText(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let withoutControls = value
-            .components(separatedBy: .controlCharacters)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        let compact = withoutControls
-            .split(whereSeparator: \.isWhitespace)
-            .joined(separator: " ")
-        guard !compact.isEmpty else { return nil }
-        return String(compact.prefix(240))
     }
 
     private func limitedData(for request: URLRequest, maximumBytes: Int) async throws -> (Data, URLResponse) {
@@ -400,7 +386,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
                     guard errorData.count < 64 * 1_024 else { break }
                     errorData.append(byte)
                 }
-                throw customHeaders.sanitized(Self.apiError(statusCode: httpResponse.statusCode, data: errorData))
+                throw Self.apiError(statusCode: httpResponse.statusCode, data: errorData)
             }
             guard httpResponse.expectedContentLength <= 0
                     || httpResponse.expectedContentLength <= Int64(resourceLimits.maximumCompressedBudgetBytes) else {
@@ -604,11 +590,11 @@ enum ActualAPIError: LocalizedError {
     case redirectRefused
     case invalidResponse
     case missingTransactionID
-    case unsupportedAuthenticationMethod(String)
-    case serverRejected(status: Int?, reason: String, details: String?)
+    case unsupportedAuthenticationMethod
+    case serverRejected(status: Int?, reason: ActualServerErrorCategory)
     /// The sync endpoint refused this file with one of Actual's protocol
-    /// tokens. Unlike `.serverRejected`, the reason is a typed protocol value
-    /// rather than a free-form server string.
+    /// tokens. Keep this typed protocol rejection distinct from a structured
+    /// `.serverRejected` response so reset recovery sees the precise token.
     case syncRejected(status: Int, reason: ActualSyncRejectionReason)
     case httpStatus(Int)
     case decoding
@@ -619,16 +605,12 @@ enum ActualAPIError: LocalizedError {
         switch self {
         case .httpStatus(let status):
             return status == 401 || status == 403
-        case .serverRejected(let status, let reason, let details):
+        case .serverRejected(let status, let reason):
             if let status {
                 return status == 401 || status == 403
             }
 
-            let normalizedReason = reason.lowercased()
-            let normalizedDetails = details?.lowercased()
-            return normalizedReason == "unauthorized"
-                || normalizedReason == "token-not-found"
-                || normalizedDetails == "token-not-found"
+            return reason == .sessionExpired
         default:
             return false
         }
@@ -648,17 +630,10 @@ enum ActualAPIError: LocalizedError {
             "The server returned an invalid response."
         case .missingTransactionID:
             "This transaction cannot be changed because the server did not provide its transaction ID."
-        case .unsupportedAuthenticationMethod(let method):
-            "This Actual server authentication method is not supported: \(method)."
-        case .serverRejected(_, let reason, _)
-            where reason.lowercased() == "invalid-password":
-            "The server password is incorrect."
-        case .serverRejected(_, let reason, let details):
-            if let details {
-                "Actual server error: \(reason) (\(details))."
-            } else {
-                "Actual server error: \(reason)."
-            }
+        case .unsupportedAuthenticationMethod:
+            "This Actual server authentication method is not supported."
+        case .serverRejected(_, let reason):
+            reason.description
         case .syncRejected(_, let reason):
             switch reason {
             case .fileHasNewKey, .fileKeyMismatch:

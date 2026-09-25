@@ -139,6 +139,6 @@ struct CustomHTTPHeadersTests {
         #expect(!String(reflecting: endpoint).contains("secret-sentinel"))
         let fields = try HTTPHeaderFields(endpoint: endpoint)
         #expect(!String(reflecting: fields).contains("secret-sentinel"))
-        #expect(fields.sanitized(.serverRejected(status: nil, reason: "unauthorized", details: "token-not-found")).isAuthenticationFailure)
+        #expect(ActualAPIError.serverRejected(status: nil, reason: .sessionExpired).isAuthenticationFailure)
     }
 }

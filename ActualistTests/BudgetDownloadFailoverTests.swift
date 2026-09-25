@@ -27,7 +27,7 @@ struct BudgetDownloadFailoverTests {
     func openBudgetFirstDownloadDoesNotFailOverOnServerRejectedDownload() async throws {
         let primary = ConfigurableConnectionTransport(
             methodErrors: [
-                .downloadUserFile: .serverRejected(status: 500, reason: "internal", details: nil)
+                .downloadUserFile: .serverRejected(status: 500, reason: .unknown)
             ],
             files: [fixtures.testRemoteFile()]
         )
@@ -172,7 +172,7 @@ struct BudgetDownloadFailoverTests {
     func reimportBudgetDoesNotFailOverOnServerRejectedDownload() async throws {
         let primary = ConfigurableConnectionTransport(
             methodErrors: [
-                .downloadUserFile: .serverRejected(status: 500, reason: "internal", details: nil)
+                .downloadUserFile: .serverRejected(status: 500, reason: .unknown)
             ],
             files: [fixtures.testRemoteFile()]
         )

@@ -175,11 +175,10 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
         let response = try Self.decode(SimpleFINAccountsResponse.self, from: data)
         if let errorCode = response.data?.errorCode {
-            throw customHeaders.sanitized(ActualAPIError.serverRejected(
+            throw ActualAPIError.serverRejected(
                 status: nil,
-                reason: errorCode,
-                details: response.data?.errorType
-            ))
+                reason: ActualServerErrorCategory.classify(reason: errorCode, details: response.data?.errorType)
+            )
         }
         return (response.data?.accounts ?? []).map { account in
             SimpleFINRemoteAccount(
@@ -462,8 +461,9 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             return nil
         }
         guard (200..<300).contains(statusCode) else {
-            throw ActualAPIError.httpStatus(statusCode)
+            throw ActualServerSyncClient.apiError(statusCode: statusCode, data: data)
         }
+        if let error = ActualServerSyncClient.structuredAPIError(from: data) { throw error }
         return data
     }
 

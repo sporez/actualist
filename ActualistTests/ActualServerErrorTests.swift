@@ -9,16 +9,40 @@ extension LocalFirstActualStoreTests {
         #expect(message == "The server password is incorrect.")
     }
 
-    @Test func unknownStructuredErrorPreservesActualReasonAndDetails() async throws {
+    @Test func categoryMatchingIsExactAndCannotBeTriggeredByAppendedServerText() {
+        #expect(ActualServerErrorCategory.classify(reason: "invalid-password", details: nil) == .invalidPassword)
+        #expect(ActualServerErrorCategory.classify(reason: "unauthorized", details: "token-not-found") == .sessionExpired)
+        #expect(ActualServerErrorCategory.classify(reason: "opaque", details: "token-not-found") == .sessionExpired)
+        let conflicting = ActualServerErrorCategory.classify(reason: "invalid-password", details: "token-not-found")
+        #expect(conflicting == .sessionExpired)
+        #expect(ActualAPIError.serverRejected(status: nil, reason: conflicting).isAuthenticationFailure)
+        #expect(!ActualAPIError.serverRejected(status: 502, reason: conflicting).isAuthenticationFailure)
+        #expect(ActualAPIError.serverRejected(status: 401, reason: .invalidPassword).isAuthenticationFailure)
+        #expect(ActualServerErrorCategory.classify(reason: "invalid-password unlabeled-token-qq7", details: nil) == .unknown)
+        #expect(ActualServerErrorCategory.classify(reason: "opaque", details: "token-not-found synthetic-payee-qq7") == .unknown)
+        #expect(ActualAPIError.serverRejected(status: 403, reason: .unknown).isAuthenticationFailure)
+        #expect(!ActualAPIError.serverRejected(status: 502, reason: .sessionExpired).isAuthenticationFailure)
+        let reset = ActualAPIError.syncRejected(status: 400, reason: .fileHasReset).localizedDescription
+        #expect(SafeSyncDiagnostic.storedError(reset) == reset)
+        let unconfirmed = LocalFirstError.syncUploadNotConfirmed(2).localizedDescription
+        #expect(SafeSyncDiagnostic.storedError(unconfirmed) == unconfirmed)
+        #expect(SafeSyncDiagnostic.storedError("\(reset) unlabeled-token-qq7") == SafeSyncDiagnostic.previousFailure)
+        let generic = SafeSyncDiagnostic.description(for: LocalFirstTestSyncError.failed)
+        #expect(generic == SafeSyncDiagnostic.genericFailure)
+        #expect(SafeSyncDiagnostic.storedError(generic) == generic)
+        #expect(SafeSyncDiagnostic.storedError("\(generic) unlabeled-token-qq7") == SafeSyncDiagnostic.previousFailure)
+    }
+
+    @Test func knownStructuredErrorUsesAppOwnedDescription() async throws {
         let message = await loginErrorMessage(using: DetailedErrorURLProtocol.self)
 
-        #expect(message == "Actual server error: forbidden (password-auth-not-active).")
+        #expect(message == "Password sign-in is not enabled on this Actual server.")
     }
 
     @Test func successfulHTTPErrorEnvelopeIsStillSurfaced() async throws {
         let message = await loginErrorMessage(using: SuccessfulErrorURLProtocol.self)
 
-        #expect(message == "Actual server error: invalid-header.")
+        #expect(message == "The Actual server rejected an HTTP header.")
     }
 
     @Test func nonJSONErrorFallsBackToHTTPStatus() async throws {
@@ -45,6 +69,65 @@ extension LocalFirstActualStoreTests {
             error?.localizedDescription
                 == "Your Actual session is no longer valid. Sign in again to resume syncing."
         )
+    }
+
+    @Test func hostileServerFieldsNeverBecomeErrorPayloads() async throws {
+        let protocolClasses: [AnyClass] = [HostileHTTP500URLProtocol.self, HostileHTTP200URLProtocol.self,
+                                           HostileGatewayURLProtocol.self]
+        for protocolClass in protocolClasses {
+            try await checkHostileResponse(protocolClass: protocolClass)
+        }
+    }
+
+    private func checkHostileResponse(protocolClass: AnyClass) async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [protocolClass]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let url = URL(string: "https://sync.example")!
+        let configured = try HTTPHeaderFields(endpoint: EndpointCustomHTTPHeaders(
+            url: url,
+            headers: [.init(name: "Authorization", value: "synthetic-proxy-value")]
+        ))
+        for headers in [HTTPHeaderFields.empty, configured] {
+            let client = ActualServerSyncClient(baseURL: url, customHeaders: headers, session: session)
+            do {
+                _ = try await client.loginMethods()
+                Issue.record("Expected structured server error")
+            } catch let error as ActualAPIError {
+                guard case .serverRejected(let status, let category) = error else {
+                    Issue.record("Expected structured rejection, got \(error)")
+                    continue
+                }
+                #expect(status == (protocolClass == HostileHTTP200URLProtocol.self ? nil
+                                   : protocolClass == HostileGatewayURLProtocol.self ? 502 : 500))
+                #expect(category == .unknown)
+                #expect(!error.isAuthenticationFailure)
+                #expect(!LocalFirstActualStore.isFailoverEligible(error))
+                let publicText = error.localizedDescription + String(reflecting: error)
+                for secret in HostileHTTP500URLProtocol.secrets {
+                    #expect(!publicText.contains(secret))
+                }
+                #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
+            }
+        }
+    }
+
+    @Test func hostileDownloadErrorRemovesPartialArtifact() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [HostileHTTP500URLProtocol.self]
+        let client = ActualServerSyncClient(baseURL: URL(string: "https://sync.example")!,
+                                            session: URLSession(configuration: configuration))
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: destination) }
+        try Data("old-partial".utf8).write(to: destination)
+        do {
+            try await client.downloadUserFile(fileID: "synthetic-file", token: "synthetic-token", to: destination)
+            Issue.record("Expected download rejection")
+        } catch let error as ActualAPIError {
+            #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
+            #expect(!FileManager.default.fileExists(atPath: destination.path))
+        }
     }
 
     private func loginErrorMessage(using protocolClass: AnyClass) async -> String? {
@@ -134,6 +217,27 @@ private final class StructuredUnauthorizedURLProtocol: ActualErrorURLProtocol {
 private final class LegacyUnauthorizedURLProtocol: ActualErrorURLProtocol {
     override class var statusCode: Int { 401 }
     override class var responseBody: Data { Data() }
+}
+
+private class HostileHTTP500URLProtocol: ActualErrorURLProtocol {
+    static let secrets = ["unlabeled-token-qq7", "password-qq7", "synthetic-proxy-value",
+                          "synthetic-payee-qq7", "synthetic-address-qq7"]
+    override class var statusCode: Int { 500 }
+    override class var responseBody: Data {
+        let body: [String: String] = [
+            "status": "error", "reason": "unlabeled-token-qq7 password-qq7",
+            "details": "synthetic-proxy-value synthetic-payee-qq7 synthetic-address-qq7\r\ncontrol"
+        ]
+        return try! JSONSerialization.data(withJSONObject: body)
+    }
+}
+
+private final class HostileHTTP200URLProtocol: HostileHTTP500URLProtocol {
+    override class var statusCode: Int { 200 }
+}
+
+private final class HostileGatewayURLProtocol: HostileHTTP500URLProtocol {
+    override class var statusCode: Int { 502 }
 }
 
 /// A transport that fails the first `failuresRemaining` requests with

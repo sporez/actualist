@@ -254,7 +254,7 @@ extension LocalFirstActualStoreTests {
             uploadedCount: 0,
             downloadedCount: 0,
             pendingAfter: 5,
-            message: "Network unavailable"
+            message: ActualAPIError.transport(.notConnectedToInternet).localizedDescription
         )
         var settings = AppSettings()
         settings.localFirstSyncDebug = LocalFirstSyncDebugInfo(totalEventCount: 1, recentEvents: [event])
@@ -262,6 +262,23 @@ extension LocalFirstActualStoreTests {
         store.save(settings)
 
         #expect(store.load().localFirstSyncDebug == settings.localFirstSyncDebug)
+    }
+
+    @Test func newRejectedSyncEventPersistsAppOwnedWording() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        let state = AppState(settingsStore: settingsStore)
+        let error = ActualAPIError.serverRejected(status: 500, reason: .unknown)
+        state.localFirstStore.recordSyncDebugEvent(
+            outcome: .failed, pendingBefore: 3, pendingAfter: 3,
+            message: SafeSyncDiagnostic.description(for: error), endpoint: .primary
+        )
+        let loaded = settingsStore.load().localFirstSyncDebug
+        #expect(loaded.totalEventCount == 1)
+        #expect(loaded.recentEvents.first?.pendingBefore == 3)
+        #expect(loaded.recentEvents.first?.endpoint == .primary)
+        #expect(loaded.recentEvents.first?.message == ActualServerErrorCategory.unknown.description)
+        #expect(!String(reflecting: error).contains("unlabeled-token-qq7"))
     }
 
     @Test func experimentalFeaturesPersistInSettings() throws {

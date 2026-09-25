@@ -162,7 +162,7 @@ private struct LocalFirstSyncDiagnosticRows: View {
             }
 
             if let error = status.lastError {
-                Text(error)
+                Text(SafeSyncDiagnostic.storedError(error))
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.danger)
             }
@@ -215,7 +215,7 @@ private struct LocalFirstSyncDebugEventRow: View {
                     .foregroundStyle(outcomeColor)
             }
 
-            Text(event.message)
+            Text(event.diagnosticMessage)
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
 
@@ -373,7 +373,7 @@ private struct BackgroundRefreshScheduleAttemptRow: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
 
-            Text(attempt.message)
+            Text(SafeSyncDiagnostic.backgroundMessage(attempt.message, succeeded: attempt.succeeded))
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .lineLimit(2)
@@ -413,7 +413,7 @@ private struct BackgroundRefreshDebugRunRow: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
 
-            Text(run.message)
+            Text(SafeSyncDiagnostic.backgroundMessage(run.message, succeeded: run.succeeded))
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .lineLimit(4)

@@ -157,17 +157,6 @@ struct HTTPHeaderFields: Sendable, Equatable, CustomStringConvertible, CustomDeb
         return result
     }
 
-    /// Servers can echo credentials in error bodies. With custom credentials,
-    /// retain the status but never expose arbitrary server-provided text.
-    func sanitized(_ error: ActualAPIError) -> ActualAPIError {
-        guard endpoint?.headers.isEmpty == false else { return error }
-        if case .serverRejected(let status, _, _) = error {
-            if error.isAuthenticationFailure { return .httpStatus(status ?? 401) }
-            return status.map(ActualAPIError.httpStatus) ?? .invalidResponse
-        }
-        return error
-    }
-
     func containsCredential(in text: String?) -> Bool {
         guard let text else { return false }
         return endpoint?.headers.contains { !$0.value.isEmpty && text.contains($0.value) } ?? false

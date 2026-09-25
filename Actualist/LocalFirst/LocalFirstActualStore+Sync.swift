@@ -255,7 +255,7 @@ extension LocalFirstActualStore {
                 outcome: .failed,
                 pendingBefore: pending.count,
                 pendingAfter: remainingCount,
-                message: resolvedError.localizedDescription,
+                message: SafeSyncDiagnostic.description(for: resolvedError),
                 endpoint: lastSyncEndpoint
             )
             throw resolvedError
@@ -454,7 +454,7 @@ extension LocalFirstActualStore {
                 }
             }
         } else if let error, !error.isCancellation {
-            status.lastError = error.localizedDescription
+            status.lastError = SafeSyncDiagnostic.description(for: error)
         }
         syncStatus = status
     }

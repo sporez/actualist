@@ -11,7 +11,8 @@ struct SimpleFINClientTests {
     private func makeClient(
         statusCode: Int,
         body: String,
-        failConnect: Bool = false
+        failConnect: Bool = false,
+        customHeaders: HTTPHeaderFields = .empty
     ) -> ActualServerSimpleFINClient {
         let configuration = URLSessionConfiguration.ephemeral
         if failConnect {
@@ -23,6 +24,7 @@ struct SimpleFINClientTests {
         }
         return ActualServerSimpleFINClient(
             baseURL: URL(string: "https://sync.example")!,
+            customHeaders: customHeaders,
             session: URLSession(configuration: configuration)
         )
     }
@@ -77,6 +79,18 @@ struct SimpleFINClientTests {
         let client = makeClient(statusCode: 500, body: "boom")
         await #expect(throws: ActualAPIError.self) {
             _ = try await client.simpleFINStatus(token: "token")
+        }
+    }
+
+    @Test func statusRouteRejectsSuccessfulHTTPErrorEnvelope() async throws {
+        let client = makeClient(statusCode: 200,
+                                body: #"{"status":"error","reason":"unlabeled-token-qq7","details":"synthetic-payee-qq7"}"#)
+        do {
+            _ = try await client.simpleFINStatus(token: "synthetic-token")
+            Issue.record("Expected structured error on HTTP 200")
+        } catch let error as ActualAPIError {
+            #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
+            #expect(!String(reflecting: error).contains("unlabeled-token-qq7"))
         }
     }
 
@@ -136,6 +150,52 @@ struct SimpleFINClientTests {
         )
         await #expect(throws: ActualAPIError.self) {
             _ = try await client.simpleFINAccounts(token: "token")
+        }
+    }
+
+    @Test func knownAccountTokenRejectionKeepsBankSyncStatusClassification() async throws {
+        let client = makeClient(statusCode: 200,
+                                body: #"{"status":"ok","data":{"error_type":"SimplefinError","error_code":"INVALID_ACCESS_TOKEN"}}"#)
+        do {
+            _ = try await client.simpleFINAccounts(token: "synthetic-token")
+            Issue.record("Expected account token rejection")
+        } catch let error as ActualAPIError {
+            #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
+            #expect(!error.isAuthenticationFailure)
+            #expect(ActualBankSyncDurableStatus.from(errorCode: "INVALID_ACCESS_TOKEN") == .reauthRequired)
+        }
+    }
+
+    @Test func accountsUnknownErrorTextIsNotExposed() async throws {
+        let client = makeClient(statusCode: 200, body: #"{"status":"ok","data":{"error_type":"synthetic-payee-qq7","error_code":"unlabeled-token-qq7"}}"#)
+        do {
+            _ = try await client.simpleFINAccounts(token: "test")
+            Issue.record("Expected bank account rejection")
+        } catch let error as ActualAPIError {
+            #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
+            #expect(!String(reflecting: error).contains("unlabeled-token-qq7"))
+            #expect(!String(reflecting: error).contains("synthetic-payee-qq7"))
+            #expect(!LocalFirstActualStore.isFailoverEligible(error))
+        }
+    }
+
+    @Test func structuredGatewayDoesNotBecomeFailoverEligibleWithProxyHeaders() async throws {
+        let url = URL(string: "https://sync.example")!
+        let headers = try HTTPHeaderFields(endpoint: EndpointCustomHTTPHeaders(
+            url: url, headers: [.init(name: "Authorization", value: "synthetic-proxy-value")]
+        ))
+        let client = makeClient(statusCode: 502,
+                                body: #"{"status":"error","reason":"unlabeled-token-qq7 synthetic-proxy-value"}"#,
+                                customHeaders: headers)
+        do {
+            _ = try await client.simpleFINStatus(token: "test")
+            Issue.record("Expected gateway rejection")
+        } catch let error as ActualAPIError {
+            guard case .serverRejected(status: 502, reason: .unknown) = error else {
+                Issue.record("Expected typed structured gateway rejection")
+                return
+            }
+            #expect(!LocalFirstActualStore.isFailoverEligible(error))
         }
     }
 

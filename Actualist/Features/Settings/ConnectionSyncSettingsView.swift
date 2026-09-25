@@ -226,7 +226,7 @@ struct ConnectionSyncSettingsView: View {
 
             if let error = appState.localFirstSyncStatus?.lastError,
                error != appState.lastErrorMessage {
-                Text(error)
+                Text(SafeSyncDiagnostic.storedError(error))
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.danger)
             }
