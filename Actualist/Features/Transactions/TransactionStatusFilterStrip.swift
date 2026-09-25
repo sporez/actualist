@@ -32,19 +32,18 @@ struct TransactionStatusFilterStrip: View {
                 }
             }
         }
-        .frame(height: 44)
+        .frame(height: 28)
     }
 
     @ViewBuilder
     private func filterButton(_ filter: TransactionStatusFilter) -> some View {
         let button = Button { onSelect(filter) } label: {
             Text(filter.title)
-                .font(ActualistTypography.control(for: density))
+                .font(ActualistTypography.rowBadge(for: density))
                 .lineLimit(1)
                 .fixedSize()
-                .frame(minHeight: 44)
-                .padding(.horizontal, 14)
         }
+        .controlSize(.mini)
         if selection == filter {
             button.buttonStyle(.glassProminent)
                 .tint(ActualistTheme.accent)
