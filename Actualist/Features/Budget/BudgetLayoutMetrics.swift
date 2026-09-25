@@ -44,7 +44,6 @@ struct BudgetLayoutInputs: Equatable {
 }
 
 struct BudgetLayoutMetrics: Equatable {
-    static let compactRootWidth: CGFloat = defaultSidebarWidth + singleMonthMinimumWidth + defaultHorizontalMargins
     static let singleMonthMinimumWidth: CGFloat = 520
     static let defaultSidebarWidth: CGFloat = 240
     static let defaultHorizontalMargins: CGFloat = 32

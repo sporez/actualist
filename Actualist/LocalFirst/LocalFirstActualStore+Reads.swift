@@ -13,10 +13,6 @@ extension LocalFirstActualStore {
         currencyByBudget[budgetID] ?? .usd
     }
 
-    func reloadBudgetCurrency(database: BudgetDatabase, budgetID: String) async {
-        currencyByBudget[budgetID] = (try? await database.fetchBudgetCurrency()) ?? .usd
-    }
-
     func currentBudgetMonth(
         budgetID: String,
         preferredMonth: String

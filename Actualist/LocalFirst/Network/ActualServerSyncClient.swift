@@ -589,7 +589,6 @@ enum ActualAPIError: LocalizedError {
     case invalidURL
     case redirectRefused
     case invalidResponse
-    case missingTransactionID
     case unsupportedAuthenticationMethod
     case serverRejected(status: Int?, reason: ActualServerErrorCategory)
     /// The sync endpoint refused this file with one of Actual's protocol
@@ -628,8 +627,6 @@ enum ActualAPIError: LocalizedError {
             "The server redirected the request to a different address. Enter the final server URL directly."
         case .invalidResponse:
             "The server returned an invalid response."
-        case .missingTransactionID:
-            "This transaction cannot be changed because the server did not provide its transaction ID."
         case .unsupportedAuthenticationMethod:
             "This Actual server authentication method is not supported."
         case .serverRejected(_, let reason):
