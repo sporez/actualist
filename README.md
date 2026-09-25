@@ -36,8 +36,9 @@ and iOS Liquid Glass controls.
 
 ## Features
 
-- Envelope and tracking budgets, category assignments, rollover, templates,
-  notes, and overspending review. Move Money is available for envelope budgets.
+- Envelope and tracking budgets, category assignments and organization,
+  rollover, templates, notes, and overspending review. Move Money is available
+  for envelope budgets.
 - Searchable transaction feeds, with create, edit, delete, categorize,
   split, transfer, and eligible undo actions.
 - Accounts with on-budget, off-budget, and closed balances, plus notes. Add
@@ -64,8 +65,13 @@ rollover is enabled.
 Add or edit templates from a category or Settings → Templates. Saving a template
 changes its setup; **Apply Template** previews and assigns the money separately.
 The preview switches between filling empty categories and overwriting existing
-assignments, showing funding needed, resulting category balances, and any
-shortfall before either action is confirmed.
+assignments, showing funding needed, resulting category balances, priorities,
+and any shortfall before either action is confirmed. An open review stays in
+place when you return to the app while its values are refreshed.
+
+The transaction editor offers a full date calendar and uses more of the
+available sheet height on iPad. Choosing a payee, category, or date does not
+reopen a dismissed amount keyboard.
 
 ## Requirements
 
@@ -108,9 +114,9 @@ changes are lost if the app or local data is removed, or the device is lost.**
 Before erasing or replacing a device, connect and confirm **Pending Sync: None**
 in Settings. Synced changes can be restored from your Actual server.
 
-**Background Bank Sync** is experimental and off by default under Settings →
-Advanced. Enabling it automatically saves downloaded bank changes. Manual Bank
-Sync lets you review changes before saving.
+**Background Bank Sync** is experimental and off by default on the Settings →
+Budget & Data → Bank Sync page. Enabling it automatically saves downloaded bank
+changes. Manual Bank Sync lets you review changes before saving.
 
 ## Current Limitations
 
