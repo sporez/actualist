@@ -114,6 +114,16 @@ final class BackgroundTransactionWorkflow {
         return .enabled
     }
 
+    func enableBankSync(_ isEnabled: Bool, keychain: KeychainStore) -> EnableOutcome {
+        guard isEnabled else { return .disabled }
+        do {
+            try keychain.promoteAllItemsForBackgroundRefresh()
+            return .enabled
+        } catch {
+            return .credentialPromotionFailed(error.localizedDescription)
+        }
+    }
+
     // MARK: Preparation
 
     /// Pre-foreground preparation: re-request notification authorization and
@@ -278,10 +288,10 @@ final class BackgroundTransactionWorkflow {
             debugRecorder.completeRun(
                 debugRunID,
                 succeeded: false,
-                message: error.localizedDescription,
+                message: SafeSyncDiagnostic.description(for: error),
                 in: &local
             )
-            return (.failed(error.localizedDescription), local)
+            return (.failed(SafeSyncDiagnostic.description(for: error)), local)
         }
     }
 

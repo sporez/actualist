@@ -13,9 +13,7 @@ struct AppSyncCoordinatorTests {
                 return .succeeded
             }
         }
-        while await gate.runCount == 0 {
-            await Task.yield()
-        }
+        await gate.waitForPause()
         let second = Task {
             await coordinator.refresh(budgetID: "budget", force: true) { _ in
                 Issue.record("A coalesced refresh must not start a second operation")
@@ -74,9 +72,7 @@ struct AppSyncCoordinatorTests {
                 return .succeeded
             }
         }
-        while await gate.runCount == 0 {
-            await Task.yield()
-        }
+        await gate.waitForPause()
 
         coordinator.endForegroundSession()
         await gate.resume()
@@ -97,9 +93,7 @@ struct AppSyncCoordinatorTests {
                 return .failed(message: "old failure", reason: .authenticationRequired)
             }
         }
-        while await gate.runCount == 0 {
-            await Task.yield()
-        }
+        await gate.waitForPause()
 
         let replacement = await coordinator.refresh(budgetID: "new", force: true) { _ in
             .succeeded
@@ -124,9 +118,7 @@ struct AppSyncCoordinatorTests {
                 return .succeeded
             }
         }
-        while await gate.runCount == 0 {
-            await Task.yield()
-        }
+        await gate.waitForPause()
 
         let automatic = Task {
             await coordinator.refresh(budgetID: "budget", force: false) { _ in
@@ -163,9 +155,7 @@ struct AppSyncCoordinatorTests {
                 return .succeeded
             }
         }
-        while await gate.runCount == 0 {
-            await Task.yield()
-        }
+        await gate.waitForPause()
 
         let rejected = await coordinator.refresh(budgetID: "replacement", force: false) { _ in
             Issue.record("A consumed automatic request must not run")
@@ -195,12 +185,18 @@ struct AppSyncCoordinatorTests {
 private actor AppSyncOperationGate {
     private(set) var runCount = 0
     private var continuation: CheckedContinuation<Void, Never>?
+    private let paused = TestLatch()
 
     func pause() async {
         runCount += 1
         await withCheckedContinuation { continuation in
             self.continuation = continuation
+            paused.trip()
         }
+    }
+
+    func waitForPause() async {
+        await paused.wait()
     }
 
     func resume() {

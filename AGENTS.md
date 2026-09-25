@@ -24,9 +24,12 @@ Actualist is a native iOS 26+ local-first client for Actual Budget. It talks to 
   cheaper worker model to keep detailed execution context and token cost out of
   the main chat.
 - The main agent owns the overall plan, architecture decisions, dependency
-  ordering, and progress tracker. Give each worker a precise scope, relevant
-  constraints, expected deliverables, and verification commands; parallelize
-  only work that is genuinely independent.
+  ordering, and progress tracker. Give each worker a precise scope, the
+  plan's enumerated edge cases relevant to that phase, relevant constraints,
+  expected deliverables, and verification commands bounded by the
+  Verification Budget; parallelize only work that is genuinely independent.
+  Edge cases belong in the plan a worker receives, not in gap-closing
+  follow-up dispatches discovered after implementation.
 - Require workers to report concise progress, files changed, checks run, and
   blockers or decisions needed. Track those results and resolve issues before
   treating a phase as complete.
@@ -41,7 +44,9 @@ Actualist is a native iOS 26+ local-first client for Actual Budget. It talks to 
 ## Architecture At A Glance
 
 - `Actualist/App/`: app entry, session lifecycle, background work, and app-wide
-  coordination. `AppState` is limited to session, settings, and routing.
+  coordination. `AppState` publishes app-wide session, settings, and routing;
+  `AppSessionRecovery` owns credential availability, restoration, discovery,
+  and stale-session identity without caching credential bytes.
 - `Actualist/Features/`: screens, feature view models, focused coordinators,
   presentation models, and feature-local pure logic.
 - `Actualist/Repositories/`: dependency-injection protocols and domain/display
@@ -285,6 +290,16 @@ implementation shape:
 - Identify the verification seam before implementation. Any new calculation,
   state transition, cancellation path, compatibility branch, or command value
   must have a focused test plan before production code is written.
+- For plan-governed work, the plan must enumerate each phase's edge cases
+  BEFORE implementation starts: races and cancellation identities, error and
+  recovery paths, compatibility branches with named sources, and the
+  per-phase verification budget. If the plan has not done this, complete the
+  plan (or ask the user) instead of discovering edge cases during
+  implementation.
+- A genuinely new, significant edge case discovered mid-implementation that
+  grows scope is a plan amendment: pause and escalate to the user before
+  building it. Small mechanical adjustments within the planned contract are
+  normal and need no escalation.
 
 If this gate reveals that the requested change needs a structural extraction,
 the extraction is part of the change. Do not defer it merely to keep the first
@@ -408,6 +423,51 @@ that are already known to require Xcode, CoreDevice, signing, socket binding,
 or public network access. Request/run them outside the sandbox immediately.
 
 ## Testing Scope And Reuse
+
+### Verification Budget
+
+Test execution is the most expensive thing an agent does in this repo: a full
+unit run takes about 6 minutes and runs serially (see `scripts/test.sh`). A
+session that runs the suite dozens of times is broken, not thorough. These
+caps are hard limits. Exceeding one is a process failure to report, not
+something to quietly continue.
+
+- **Numeric session cap: at most 3 full-suite runs per implementation
+  session** (a full run is `scripts/test.sh unit` or `all` with no
+  selectors), and at most 1 per phase. Splitting work into more phases or
+  more follow-up dispatches does not raise the cap. If the cap is spent and
+  something still seems to need a run, stop and ask the user.
+- While iterating, run only focused suites for the changed behavior and its
+  callers. Never run broad or full suites mid-iteration, and never run the
+  suite to "see where things stand" or to confirm a commit.
+- Run the one full run a phase is allowed only after the final relevant edit,
+  and only where the table below requires it. Re-run it only if production or
+  test source changed after that run. Never re-run "to be safe". If a late
+  review keeps finding more edits, finish the review scope first and run the
+  full suite once at the end.
+- Run UI device/theme verification (light/dark, iPad layouts, screenshots)
+  once at closeout of a UI change, not after every iteration.
+- Invoke suites through `scripts/test.sh` as written. Do not inject PATH
+  shims, wrapper scripts, or hand-rolled `xcodebuild` flag overrides to
+  force serial or parallel mode; the script's defaults are the supported
+  invocation.
+- A flaky test is a defect of the suite, not bad luck. Stop and fix the
+  flake — or get an explicit product decision to quarantine it — instead of
+  rerunning to green or changing parallelism to hide it. One environmental
+  retry is allowed only for the wedged-simulator failure mode described in
+  the local overlay, after the wedge is resolved.
+- Test coordination must suspend, never spin. Wait for conditions with
+  continuation-backed primitives (`TestLatch`, fakes' `waitFor…()` methods,
+  or `ObservedTestState` for Observation state): `while … { await
+  Task.yield() }` and bounded "give the scheduler time" yield loops are hot
+  spinners that saturate the cooperative executor under Swift Testing's
+  in-process parallelism and turned the full suite into a flaky 100x
+  slowdown (fixed 2026-09-25). Do not reintroduce them; do not work them
+  around with `.serialized` or serial-mode runs.
+- The main agent enforces this budget on workers: every dispatch prompt
+  names the allowed verification commands and expected run counts. A worker
+  that believes broader verification is required reports the need to the
+  main agent instead of spending more runs.
 
 Choose validation from the changed behavior and its callers before running tests.
 Do not treat commit, push, or handoff as a reason to repeat successful validation.

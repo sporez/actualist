@@ -43,6 +43,7 @@ actor SyncClient {
     )
 
     private(set) var configuration: LocalFirstSyncConfiguration?
+    private var sessionGeneration = 0
     private let resourceLimits: LocalFirstResourceLimits
     private let enforcesAuthenticatedEncryptedEnvelopes: Bool
     private let plaintextEnvelopeAuditRecorder: (@Sendable (PlaintextEnvelopeAuditEvent) -> Void)?
@@ -57,30 +58,46 @@ actor SyncClient {
         self.plaintextEnvelopeAuditRecorder = plaintextEnvelopeAuditRecorder
     }
 
-    func configure(_ configuration: LocalFirstSyncConfiguration) {
+    func configure(_ configuration: LocalFirstSyncConfiguration, generation: Int? = nil) {
+        if let generation {
+            guard generation >= sessionGeneration else { return }
+            sessionGeneration = generation
+        }
         self.configuration = configuration
+    }
+
+    func invalidate(generation: Int) {
+        guard generation >= sessionGeneration else { return }
+        sessionGeneration = generation
+        configuration = nil
     }
 
     func pullAndApply(
         database: BudgetDatabase,
         client: any ActualSyncTransport,
-        token: String
+        token: String,
+        sessionIsCurrent: (@Sendable () async -> Bool)? = nil
     ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
         guard let configuration else {
             return .empty
         }
+        let generation = sessionGeneration
 
         var request = ActualSync_SyncRequest()
         request.fileID = configuration.fileID
         request.groupID = configuration.groupID ?? ""
         request.keyID = configuration.encryptionKeyID ?? ""
         request.since = try await database.latestSyncTimestamp()
+        try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
+        try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
         try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let messages = try decodedMessages(from: response, configuration: configuration)
-        return try await database.applyRemoteSyncMessagesTrackingInserts(messages)
+        let applied = try await database.applyRemoteSyncMessagesTrackingInserts(messages)
+        try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
+        return applied
     }
 
     func pushAndPull(
@@ -88,11 +105,13 @@ actor SyncClient {
         client: any ActualSyncTransport,
         token: String,
         messages: [ActualSyncDecodedMessage],
-        since: String? = nil
+        since: String? = nil,
+        sessionIsCurrent: (@Sendable () async -> Bool)? = nil
     ) async throws -> LocalFirstSyncResult {
         guard let configuration else {
             throw LocalFirstError.budgetNotOpened
         }
+        let generation = sessionGeneration
 
         var request = ActualSync_SyncRequest()
         request.messages = try LocalFirstSyncMessageBuilder.envelopes(
@@ -107,8 +126,10 @@ actor SyncClient {
         } else {
             request.since = try await database.latestSyncTimestamp()
         }
+        try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
 
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
+        try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
         try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         var responseEnvelopes = response.messages
@@ -134,6 +155,7 @@ actor SyncClient {
                 data: try confirmationRequest.serializedData(),
                 token: token
             )
+            try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
             try validateResponseSize(confirmationData)
             let confirmationResponse = try ActualSync_SyncResponse(serializedBytes: confirmationData)
             responseEnvelopes.append(contentsOf: confirmationResponse.messages)
@@ -158,6 +180,7 @@ actor SyncClient {
         ).values.sorted { $0.timestamp < $1.timestamp }
         let remoteMessages = try decodedMessages(from: combinedResponse, configuration: configuration)
         let applyResult = try await database.applyRemoteSyncMessagesTrackingInserts(remoteMessages)
+        try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
 
         return LocalFirstSyncResult(
             pushedMessageCount: messages.count,
@@ -170,6 +193,18 @@ actor SyncClient {
         guard data.count <= resourceLimits.maximumSyncResponseBytes else {
             throw LocalFirstError.remoteDataLimitExceeded
         }
+    }
+
+    private func requireActiveSession(
+        generation: Int,
+        sessionIsCurrent: (@Sendable () async -> Bool)?
+    ) async throws {
+        try Task.checkCancellation()
+        guard generation == sessionGeneration else { throw CancellationError() }
+        if let sessionIsCurrent {
+            guard await sessionIsCurrent(), generation == sessionGeneration else { throw CancellationError() }
+        }
+        try Task.checkCancellation()
     }
 
     private func confirmedUploadTimestamps(

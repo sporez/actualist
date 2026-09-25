@@ -261,7 +261,7 @@ struct BankSyncCorrectnessInvestigationTests {
 
     @Test func missingLocalSyncTokenDoesNotWriteSharedStatus() async throws {
         let bundle = try await fixture(Provider(response: response()))
-        try bundle.keychain.saveActualSyncToken("")
+        try bundle.keychain.removeActualSyncToken()
         let before = try snapshot(bundle)
         await #expect(throws: LocalFirstError.missingSyncToken) {
             try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
@@ -285,7 +285,7 @@ struct BankSyncCorrectnessInvestigationTests {
     @Test func missingDeviceKeyRefusesUnsupportedServerWithoutSharedWrites() async throws {
         let provider = Provider(response: .init(downloads: [:], errorType: nil, errorCode: nil), configured: .unsupported)
         let bundle = try await fixture(provider)
-        #expect(!bundle.store.hasBankSyncDeviceKey())
+        #expect(try !bundle.store.hasBankSyncDeviceKey())
         let before = try snapshot(bundle)
         await #expect(throws: LocalFirstActualStore.BankSyncStoreError.notConfigured) {
             try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")

@@ -1,6 +1,27 @@
 import Foundation
 import Security
 
+enum KeychainReadError: LocalizedError, Equatable {
+    case unavailable(OSStatus)
+    case unreadable
+
+    var errorDescription: String? {
+        switch self {
+        case .unavailable:
+            "A saved credential on this device could not be read. Your local data is unchanged. Try again after unlocking your device."
+        case .unreadable:
+            "A saved credential on this device is unreadable. Your local data is unchanged."
+        }
+    }
+
+    var diagnosticDescription: String {
+        switch self {
+        case .unavailable(let status): "Credential access unavailable (OSStatus: \(status))."
+        case .unreadable: "Saved credential unreadable."
+        }
+    }
+}
+
 protocol KeychainBackend: Sendable {
     func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus
     func update(_ query: CFDictionary, attributes: CFDictionary) -> OSStatus
@@ -60,9 +81,13 @@ struct KeychainStore: Sendable {
     }
 
     func readCustomHTTPHeaders() throws -> CustomHTTPHeaderConfiguration {
-        guard let data = try customHeadersItem.readRequiredData() else { return .init() }
+        try readCustomHTTPHeadersIfPresent() ?? .init()
+    }
+
+    func readCustomHTTPHeadersIfPresent() throws -> CustomHTTPHeaderConfiguration? {
+        guard let data = try customHeadersItem.readData() else { return nil }
         guard let configuration = try? JSONDecoder().decode(CustomHTTPHeaderConfiguration.self, from: data) else {
-            throw CustomHTTPHeaderError.unreadableConfiguration
+            throw KeychainReadError.unreadable
         }
         return configuration
     }
@@ -82,23 +107,11 @@ struct KeychainStore: Sendable {
         try customHeadersItem.deleteData(operation: "remove custom headers")
     }
 
-    private func readRequiredData() throws -> Data? {
-        var query = baseQuery()
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: AnyObject?
-        let status = backend.copyMatching(query as CFDictionary, result: &result)
-        if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else {
-            throw CustomHTTPHeaderError.unreadableConfiguration
-        }
-        return data
-    }
-
-    func readActualSyncToken() -> String {
-        guard let data = readData(),
-              let value = String(data: data, encoding: .utf8) else {
-            return ""
+    func readActualSyncToken() throws -> String? {
+        guard let data = try readData() else { return nil }
+        guard let value = String(data: data, encoding: .utf8),
+              !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw KeychainReadError.unreadable
         }
         return value
     }
@@ -111,10 +124,15 @@ struct KeychainStore: Sendable {
         try deleteData(operation: "remove the sync token")
     }
 
-    func readSimpleFINAccessURL() -> String {
-        guard let data = scoped(account: simplefinAccessKeyAccount).readData(),
-              let value = String(data: data, encoding: .utf8) else {
-            return ""
+    func readSimpleFINAccessURL() throws -> String? {
+        guard let data = try scoped(account: simplefinAccessKeyAccount).readData() else { return nil }
+        guard let value = String(data: data, encoding: .utf8),
+              !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw KeychainReadError.unreadable
+        }
+        guard (try? SimpleFINBridgeCredentials.accessCredentials(fromClaimBody: value)) != nil,
+              (try? SimpleFINBridgeCredentials.baseURL(fromClaimBody: value)) != nil else {
+            throw KeychainReadError.unreadable
         }
         return value
     }
@@ -128,8 +146,12 @@ struct KeychainStore: Sendable {
             .deleteData(operation: "remove the SimpleFIN access key")
     }
 
-    func readLocalFirstEncryptionKey(fileID: String, keyID: String) -> Data? {
-        scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID)).readData()
+    func readLocalFirstEncryptionKey(fileID: String, keyID: String) throws -> Data? {
+        guard let data = try scoped(account: Self.encryptionKeyAccount(fileID: fileID, keyID: keyID)).readData() else {
+            return nil
+        }
+        guard data.count == 32 else { throw KeychainReadError.unreadable }
+        return data
     }
 
     func saveLocalFirstEncryptionKey(_ keyData: Data, fileID: String, keyID: String) throws {
@@ -195,16 +217,16 @@ struct KeychainStore: Sendable {
         "\(encryptionKeyAccountPrefix)\(fileID):\(keyID)"
     }
 
-    private func readData() -> Data? {
+    private func readData() throws -> Data? {
         var query = baseQuery()
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var result: AnyObject?
         let status = backend.copyMatching(query as CFDictionary, result: &result)
-        guard status == errSecSuccess, let data = result as? Data else {
-            return nil
-        }
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw KeychainReadError.unavailable(status) }
+        guard let data = result as? Data else { throw KeychainReadError.unreadable }
         return data
     }
 

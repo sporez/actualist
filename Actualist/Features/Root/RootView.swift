@@ -28,9 +28,13 @@ struct RootView: View {
                 BudgetPickerView()
             case .restoringBudget:
                 sessionPlaceholder(theme: theme)
+            case .credentialUnavailable:
+                CredentialRecoveryView()
             case .ready:
                 if appState.isReadyForMainTabs {
                     adaptiveShell(theme: theme)
+                } else if appState.credentialRecoveryMessage != nil {
+                    CredentialRecoveryView()
                 } else if appState.hasSyncCredentials {
                     BudgetPickerView()
                 } else {
@@ -175,7 +179,7 @@ struct RootView: View {
         case .ready:
             guard appState.isReadyForMainTabs else { return false }
             return budgetSession?.presentedContext?.budgetID != appState.settings.selectedBudgetID
-        case .needsConnection, .selectingBudget:
+        case .needsConnection, .selectingBudget, .credentialUnavailable:
             return false
         }
     }

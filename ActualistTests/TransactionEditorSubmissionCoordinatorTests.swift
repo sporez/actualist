@@ -122,9 +122,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
             )
         }
 
-        while await !repository.didCreateFinished() {
-            await Task.yield()
-        }
+        await repository.waitForDidCreateFinished()
 
         // The didCreate callback has fired during the create call; the
         // coordinator should be mid-flight at `.refetching`.
@@ -154,9 +152,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
             )
         }
 
-        while await !repository.isPausedBeforeDidCreate() {
-            await Task.yield()
-        }
+        await repository.waitForPauseBeforeDidCreate()
 
         #expect(coordinator.submissionState == .submitting)
 
@@ -237,9 +233,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
             )
         }
 
-        while await !repository.isPausedBeforeDidCreate() {
-            await Task.yield()
-        }
+        await repository.waitForPauseBeforeDidCreate()
         #expect(coordinator.submissionState == .submitting)
 
         // A budget switch / dismissal cancels the in-flight submission.

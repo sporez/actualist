@@ -54,6 +54,7 @@ Start here for launch, session, routing, background refresh, or app-wide state:
 
 - `Actualist/App/ActualistApp.swift` — app entry, dependency construction, scene setup, and environment injection.
 - `Actualist/App/AppState.swift` — app-wide session/setup state and lifecycle coordination only.
+- `Actualist/App/AppSessionRecovery.swift` — credential-availability state, cached-budget launch restoration, budget discovery/selection recovery, and stale-session identity; never caches credential bytes.
 - `Actualist/App/AppStateModels.swift` — small app-state enums/value types.
 - `Actualist/App/AppSyncCoordinator.swift` — foreground sync coordination and status publication.
 - `Actualist/App/BackgroundTransactionWorkflow.swift` and `BackgroundTransactionRefreshRunner.swift` — background transaction/bank work.

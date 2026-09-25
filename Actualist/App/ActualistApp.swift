@@ -28,7 +28,12 @@ struct ActualistApp: App {
     private let simulatorLaunchCommand: SimulatorLaunchCommand?
 
     init() {
+        #if DEBUG
+        let appState = SyntheticCredentialFaultHarness.make(arguments: ProcessInfo.processInfo.arguments)
+            ?? AppState()
+        #else
         let appState = AppState()
+        #endif
         let simulatorLaunchCommand = SimulatorLaunchCommand.fromProcessInfo()
         if let simulatorLaunchCommand {
             SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
@@ -60,6 +65,11 @@ struct ActualistApp: App {
                 .task {
                     LaunchSignpost.event(LaunchStage.foregroundSessionStart)
                     BudgetCalendarCoordinator.shared.beginForeground()
+                    #if DEBUG
+                    await SyntheticCredentialFaultHarness.prepareCacheIfRequested(
+                        arguments: ProcessInfo.processInfo.arguments, appState: appState
+                    )
+                    #endif
                     await appState.beginForegroundSession()
                     if let command = simulatorLaunchCommand {
                         await SimulatorLaunchApplier.apply(command, to: appState)
@@ -69,9 +79,17 @@ struct ActualistApp: App {
                     if phase == .active {
                         BudgetCalendarCoordinator.shared.beginForeground()
                         appState.clearAppInitiatedSystemUIPresentationSuppression()
+                        #if DEBUG
+                        // The synthetic cached fixture must finish installation
+                        // before launch restoration starts in the window task.
+                        if !ProcessInfo.processInfo.arguments.contains("-actualist-test-credential-session") {
+                            Task { await appState.beginForegroundSession() }
+                        }
+                        #else
                         Task {
                             await appState.beginForegroundSession()
                         }
+                        #endif
                     } else if phase == .background {
                         BudgetCalendarCoordinator.shared.endForeground()
                         appState.endForegroundSession()
@@ -264,7 +282,7 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         if appState.settings.selectedBudgetID == nil {
             reasons.append("no selected budget")
         }
-        if !appState.hasSyncCredentials {
+        if appState.credentialAvailability == .absent {
             reasons.append("sync credentials missing")
         }
 

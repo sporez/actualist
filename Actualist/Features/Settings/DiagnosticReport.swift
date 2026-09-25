@@ -82,7 +82,7 @@ enum ActualistDiagnosticReportBuilder {
             "Selected tab: \(appState.selectedTab.rawValue)",
             "Server configured: \(yesNo(!settings.localFirstServerURLString.isEmpty))",
             "Server transport: \(serverTransport(settings.localFirstServerURLString))",
-            "Credentials available: \(yesNo(appState.hasSyncCredentials))",
+            "Sync credential: \(syncCredentialAvailability(appState.credentialAvailability))",
             "Discovered budget count: \(appState.budgets.count)",
             "Budget selected: \(yesNo(settings.selectedBudgetID != nil))",
             "Local data revision: \(appState.localDataRevision)",
@@ -272,7 +272,16 @@ enum ActualistDiagnosticReportBuilder {
         case .needsConnection: "needsConnection"
         case .selectingBudget: "selectingBudget"
         case .restoringBudget: "restoringBudget"
+        case .credentialUnavailable: "credentialUnavailable"
         case .ready: "ready"
+        }
+    }
+
+    private static func syncCredentialAvailability(_ availability: AppSessionRecovery.CredentialAvailability) -> String {
+        switch availability {
+        case .available: "available"
+        case .absent: "absent"
+        case .unavailable(let error): error.diagnosticDescription
         }
     }
 

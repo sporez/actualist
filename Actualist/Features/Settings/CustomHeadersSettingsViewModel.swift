@@ -66,7 +66,8 @@ final class CustomHeadersSettingsViewModel {
                 )
             }
         } catch {
-            phase = .failed(CustomHTTPHeaderError.unreadableConfiguration.localizedDescription)
+            phase = .failed((error as? KeychainReadError)?.localizedDescription
+                ?? CustomHTTPHeaderError.unreadableConfiguration.localizedDescription)
         }
     }
 
@@ -165,6 +166,7 @@ final class CustomHeadersSettingsViewModel {
     }
 
     private func safeMessage(_ error: Error) -> String {
+        if let error = error as? KeychainReadError { return error.localizedDescription }
         if let error = error as? CustomHTTPHeaderError { return error.localizedDescription }
         if let error = error as? DraftError { return error.localizedDescription }
         if let error = error as? ActualAPIError {

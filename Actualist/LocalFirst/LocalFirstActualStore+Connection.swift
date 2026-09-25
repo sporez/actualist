@@ -106,14 +106,18 @@ extension LocalFirstActualStore {
     }
 
     func loadBudgets(serverURLString: String) async throws -> [ActualBudget] {
-        let token = keychain.readActualSyncToken()
-        guard !token.isEmpty else {
+        budgetDiscoveryGeneration &+= 1
+        let identity = budgetDiscoveryGeneration
+        let token = try keychain.readActualSyncToken()
+        guard let token else {
             throw LocalFirstError.missingSyncToken
         }
 
         let files = try await withConnectionFailover(serverURLString: serverURLString) { client in
             try await client.listUserFiles(token: token)
         }
+        try Task.checkCancellation()
+        guard identity == budgetDiscoveryGeneration else { throw CancellationError() }
         remoteFilesByFileID = files.reduce(into: [:]) { cache, file in
             cache[file.fileID] = file
         }
@@ -121,7 +125,7 @@ extension LocalFirstActualStore {
         return cachedBudgets
     }
 
-    func requiresEncryptionPasswordToOpen(_ budget: ActualBudget) -> Bool {
+    func requiresEncryptionPasswordToOpen(_ budget: ActualBudget) throws -> Bool {
         guard let fileID = budget.localFirstFileID else {
             return false
         }
@@ -136,14 +140,16 @@ extension LocalFirstActualStore {
         guard let keyID = remoteKeyID ?? importedKeyID else {
             return false
         }
-        return keychain.readLocalFirstEncryptionKey(fileID: fileID, keyID: keyID) == nil
+        return try keychain.readLocalFirstEncryptionKey(fileID: fileID, keyID: keyID) == nil
     }
 
+    @discardableResult
     func openBudget(
         _ budget: ActualBudget,
         serverURLString: String,
         encryptionPassword: String? = nil
-    ) async throws {
+    ) async throws -> KeychainReadError? {
+        let originalGeneration = budgetSessionGeneration
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
@@ -152,20 +158,22 @@ extension LocalFirstActualStore {
         if openedBudgetID == budget.syncID, database != nil {
             openedServerURLString = serverURLString
             try await refresh(budgetID: budget.syncID, serverURLString: serverURLString)
-            return
+            return nil
         }
 
         if fileManager.importedDatabaseExists(fileID: fileID),
            let metadata = try fileManager.loadMetadata(fileID: fileID) {
             do {
-                try await openImportedBudget(fileID: fileID, metadata: metadata)
+                try await openImportedBudget(
+                    fileID: fileID, metadata: metadata, expectedGeneration: originalGeneration
+                )
             } catch LocalFirstError.encryptedBudgetRequiresPassword {
                 guard let encryptionPassword,
                       !encryptionPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     throw LocalFirstError.encryptedBudgetRequiresPassword
                 }
-                let token = keychain.readActualSyncToken()
-                guard !token.isEmpty else {
+                let token = try keychain.readActualSyncToken()
+                guard let token else {
                     throw LocalFirstError.missingSyncToken
                 }
                 let context = try await withConnectionFailover(
@@ -175,18 +183,28 @@ extension LocalFirstActualStore {
                         metadata: metadata,
                         client: client,
                         token: token,
-                        password: encryptionPassword
+                        password: encryptionPassword,
+                        expectedGeneration: originalGeneration
                     )
                 }
-                try await openImportedBudget(fileID: fileID, metadata: metadata, encryptionContext: context)
+                try await openImportedBudget(
+                    fileID: fileID, metadata: metadata,
+                    encryptionContext: context, expectedGeneration: originalGeneration
+                )
             }
             openedServerURLString = serverURLString
-            try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
-            return
+            do {
+                try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
+            } catch let error as KeychainReadError {
+                // The imported database remains authoritative while device
+                // credentials are temporarily inaccessible.
+                return error
+            }
+            return nil
         }
 
-        let token = keychain.readActualSyncToken()
-        guard !token.isEmpty else {
+        let token = try keychain.readActualSyncToken()
+        guard let token else {
             throw LocalFirstError.missingSyncToken
         }
 
@@ -219,11 +237,14 @@ extension LocalFirstActualStore {
                 remote: remote,
                 client: client,
                 token: token,
-                password: encryptionPassword
+                password: encryptionPassword,
+                expectedGeneration: originalGeneration
             )
             try await client.downloadUserFile(fileID: fileID, token: token, to: stagedArchiveURL)
             return (remote, encryptionContext)
         }
+        try Task.checkCancellation()
+        guard originalGeneration == budgetSessionGeneration else { throw CancellationError() }
         try fileManager.validateStagedDownload(at: stagedArchiveURL)
         if let encryptMeta = remote.encryptMeta {
             guard let encryptionContext else {
@@ -249,12 +270,18 @@ extension LocalFirstActualStore {
             remoteFile: remote,
             metadata: metadata
         )
-        try await openImportedBudget(fileID: fileID, metadata: metadata, encryptionContext: encryptionContext)
+        try await openImportedBudget(
+            fileID: fileID, metadata: metadata,
+            encryptionContext: encryptionContext, expectedGeneration: originalGeneration
+        )
         openedServerURLString = serverURLString
         try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
+        return nil
     }
 
-    func openCachedBudget(_ budget: ActualBudget) async throws -> Bool {
+    func openCachedBudget(_ budget: ActualBudget, expectedGeneration: Int? = nil) async throws -> Bool {
+        let expectedGeneration = expectedGeneration ?? budgetSessionGeneration
+        guard expectedGeneration == budgetSessionGeneration else { throw CancellationError() }
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
@@ -266,7 +293,7 @@ extension LocalFirstActualStore {
         }
         guard let metadata else { return false }
 
-        try await openImportedBudget(fileID: fileID, metadata: metadata)
+        try await openImportedBudget(fileID: fileID, metadata: metadata, expectedGeneration: expectedGeneration)
         return true
     }
 
@@ -314,12 +341,14 @@ extension LocalFirstActualStore {
         guard let fileID = budget.localFirstFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
+        let sourceDatabase = try requireDatabase(for: budget.syncID)
+        let sourceGeneration = budgetSessionGeneration
         guard let originalMetadata = try fileManager.loadMetadata(fileID: fileID),
               fileManager.importedDatabaseExists(fileID: fileID) else {
             throw LocalFirstError.missingImportedDatabase
         }
-        let token = keychain.readActualSyncToken()
-        guard !token.isEmpty else {
+        let token = try keychain.readActualSyncToken()
+        guard let token else {
             throw LocalFirstError.missingSyncToken
         }
 
@@ -341,11 +370,13 @@ extension LocalFirstActualStore {
                 remote: remote,
                 client: client,
                 token: token,
-                password: encryptionPassword
+                password: encryptionPassword,
+                expectedGeneration: sourceGeneration
             )
             try await client.downloadUserFile(fileID: fileID, token: token, to: workspace.archiveURL)
             return (remote, encryptionContext)
         }
+        try requireSyncSession(database: sourceDatabase, budgetID: budget.syncID, generation: sourceGeneration)
         try fileManager.reimportCheckpoint(.afterDownload)
         try fileManager.validateStagedDownload(at: workspace.archiveURL)
         try fileManager.reimportCheckpoint(.beforeDecrypt)
@@ -379,8 +410,12 @@ extension LocalFirstActualStore {
             localNodeID: metadata.nodeID
         )
         try await validationDatabase.validateImportedBudget()
+        try requireSyncSession(database: sourceDatabase, budgetID: budget.syncID, generation: sourceGeneration)
 
         reset()
+        let operationID = UUID()
+        activeReimportID = operationID
+        let commitGeneration = budgetSessionGeneration
         var didSwap = false
         do {
             try fileManager.commitReimport(workspace, fileID: fileID)
@@ -388,21 +423,35 @@ extension LocalFirstActualStore {
             try await openImportedBudget(
                 fileID: fileID,
                 metadata: metadata,
-                encryptionContext: encryptionContext
+                encryptionContext: encryptionContext,
+                expectedGeneration: commitGeneration
             )
+            try Task.checkCancellation()
+            guard activeReimportID == operationID else { throw CancellationError() }
             openedServerURLString = serverURLString
             try await pullAndReload(
                 budgetID: metadata.groupID ?? metadata.cloudFileID,
                 serverURLString: serverURLString
             )
+            try Task.checkCancellation()
+            guard activeReimportID == operationID else { throw CancellationError() }
+            activeReimportID = nil
         } catch {
+            // Only this operation may restore the backup. Logout or a newer
+            // session has already taken ownership of the files and selection.
+            guard activeReimportID == operationID else { throw error }
             reset()
             if didSwap {
                 try? fileManager.rollbackReimport(fileID: fileID)
             }
             if fileManager.importedDatabaseExists(fileID: fileID) {
-                try? await openImportedBudget(fileID: fileID, metadata: originalMetadata)
-                openedServerURLString = serverURLString
+                let rollbackGeneration = budgetSessionGeneration
+                if (try? await openImportedBudget(
+                    fileID: fileID, metadata: originalMetadata,
+                    expectedGeneration: rollbackGeneration
+                )) != nil, !Task.isCancelled {
+                    openedServerURLString = serverURLString
+                }
             }
             throw error
         }
@@ -434,8 +483,12 @@ extension LocalFirstActualStore {
     func openImportedBudget(
         fileID: String,
         metadata: LocalFirstBudgetMetadata,
-        encryptionContext providedEncryptionContext: ActualBudgetEncryptionContext? = nil
+        encryptionContext providedEncryptionContext: ActualBudgetEncryptionContext? = nil,
+        expectedGeneration: Int? = nil
     ) async throws {
+        let expectedGeneration = expectedGeneration ?? budgetSessionGeneration
+        try Task.checkCancellation()
+        guard expectedGeneration == budgetSessionGeneration else { throw CancellationError() }
         try LaunchSignpost.measureSync(LaunchStage.budgetFileHardening) {
             try fileManager.hardenCachedBudget(fileID: fileID)
         }
@@ -457,6 +510,12 @@ extension LocalFirstActualStore {
         try LaunchSignpost.measureSync(LaunchStage.budgetFileHardening) {
             try fileManager.hardenCachedBudget(fileID: fileID)
         }
+        try Task.checkCancellation()
+        guard expectedGeneration == budgetSessionGeneration else { throw CancellationError() }
+        if self.database != nil { closeOpenBudget() }
+        budgetReadGeneration &+= 1
+        budgetSessionGeneration &+= 1
+        let generation = budgetSessionGeneration
         self.database = database
         launchSnapshotFiles = launchFiles
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
@@ -482,9 +541,17 @@ extension LocalFirstActualStore {
                     nodeID: metadata.nodeID,
                     encryptionKeyID: encryptionContext?.keyID,
                     encryptionContext: encryptionContext
-                )
+                ),
+                generation: generation
             )
         }
+        try Task.checkCancellation()
+        guard generation == budgetSessionGeneration, self.database === database else { throw CancellationError() }
+        #if DEBUG
+        await budgetOpenSuspension?()
+        #endif
+        try Task.checkCancellation()
+        guard generation == budgetSessionGeneration, self.database === database else { throw CancellationError() }
 
         // Seed the first Budget frame before foreground sync begins. A valid
         // materialized projection is authoritative for its unchanged revision;
@@ -498,13 +565,15 @@ extension LocalFirstActualStore {
                 preferredCalendarMonth: YearMonth(date: Date()).rawValue
             )
         }
+        try Task.checkCancellation()
+        guard generation == budgetSessionGeneration, self.database === database else { throw CancellationError() }
     }
 
     func encryptionContext(metadata: LocalFirstBudgetMetadata) throws -> ActualBudgetEncryptionContext? {
         guard let keyID = metadata.encryptionKeyID else {
             return nil
         }
-        guard let keyData = keychain.readLocalFirstEncryptionKey(
+        guard let keyData = try keychain.readLocalFirstEncryptionKey(
             fileID: metadata.cloudFileID,
             keyID: keyID
         ) else {
@@ -517,7 +586,8 @@ extension LocalFirstActualStore {
         metadata: LocalFirstBudgetMetadata,
         client: any ActualServerConnectionTransport,
         token: String,
-        password: String
+        password: String,
+        expectedGeneration: Int? = nil
     ) async throws -> ActualBudgetEncryptionContext {
         guard let keyID = metadata.encryptionKeyID else {
             throw LocalFirstError.invalidEncryptionKey
@@ -530,6 +600,8 @@ extension LocalFirstActualStore {
         guard context.keyID == keyID else {
             throw LocalFirstError.invalidEncryptionKey
         }
+        try Task.checkCancellation()
+        if let expectedGeneration, expectedGeneration != budgetSessionGeneration { throw CancellationError() }
         try keychain.saveLocalFirstEncryptionKey(
             context.keyData,
             fileID: metadata.cloudFileID,
@@ -542,7 +614,8 @@ extension LocalFirstActualStore {
         remote: ActualSyncRemoteFile,
         client: any ActualServerConnectionTransport,
         token: String,
-        password: String?
+        password: String?,
+        expectedGeneration: Int? = nil
     ) async throws -> ActualBudgetEncryptionContext? {
         guard remote.requiresEncryptionPassword else {
             return nil
@@ -550,7 +623,7 @@ extension LocalFirstActualStore {
         guard let keyID = remote.syncEncryptionKeyID else {
             throw LocalFirstError.invalidEncryptionKey
         }
-        if let keyData = keychain.readLocalFirstEncryptionKey(fileID: remote.fileID, keyID: keyID) {
+        if let keyData = try keychain.readLocalFirstEncryptionKey(fileID: remote.fileID, keyID: keyID) {
             return ActualBudgetEncryptionContext(keyID: keyID, keyData: keyData)
         }
         guard let password, !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -565,6 +638,8 @@ extension LocalFirstActualStore {
         guard context.keyID == keyID else {
             throw LocalFirstError.invalidEncryptionKey
         }
+        try Task.checkCancellation()
+        if let expectedGeneration, expectedGeneration != budgetSessionGeneration { throw CancellationError() }
         try keychain.saveLocalFirstEncryptionKey(context.keyData, fileID: remote.fileID, keyID: keyID)
         return context
     }

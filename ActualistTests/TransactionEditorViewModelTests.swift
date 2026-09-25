@@ -449,9 +449,7 @@ struct TransactionEditorViewModelTests {
             await model.submit(budgetID: "budget", repository: repository)
         }
 
-        while await !repository.didCreateFinished() {
-            await Task.yield()
-        }
+        await repository.waitForDidCreateFinished()
 
         #expect(model.submissionState == .refetching)
 
@@ -493,9 +491,7 @@ struct TransactionEditorViewModelTests {
             await model.submit(budgetID: "budget", repository: repository)
         }
 
-        while await !repository.isPausedBeforeDidCreate() {
-            await Task.yield()
-        }
+        await repository.waitForPauseBeforeDidCreate()
 
         #expect(model.submissionState == .submitting)
         #expect(await model.submit(budgetID: "budget", repository: repository) == false)
@@ -564,9 +560,7 @@ struct TransactionEditorViewModelTests {
         let preview = Task {
             await model.previewRules(budgetID: "budget", repository: repository)
         }
-        while await !repository.isRulePreviewPaused(payeeName: "Target") {
-            await Task.yield()
-        }
+        await repository.waitForRulePreviewPaused(payeeName: "Target")
         model.beginSplit()
         await repository.resumeRulePreview(payeeName: "Target")
         await preview.value
@@ -593,9 +587,7 @@ struct TransactionEditorViewModelTests {
                 currentBudgetID: { currentBudgetID }
             )
         }
-        while await !repository.isRulePreviewPaused(payeeName: "Target") {
-            await Task.yield()
-        }
+        await repository.waitForRulePreviewPaused(payeeName: "Target")
         currentBudgetID = "other"
         await repository.resumeRulePreview(payeeName: "Target")
         await preview.value
@@ -727,9 +719,7 @@ struct TransactionEditorViewModelTests {
             await model.refreshCategoryBalancesIfNeeded(budgetID: "budget", repository: repository)
         }
 
-        while await !repository.isEditorOptionsPaused(month: "2026-06") {
-            await Task.yield()
-        }
+        await repository.waitForEditorOptionsPaused(month: "2026-06")
         refresh.cancel()
         await repository.resumeEditorOptions(month: "2026-06")
         await refresh.value
@@ -749,9 +739,7 @@ struct TransactionEditorViewModelTests {
             await model.refreshCategoryBalancesIfNeeded(budgetID: "budget", repository: repository)
         }
 
-        while await !repository.isEditorOptionsPaused(month: "2026-06") {
-            await Task.yield()
-        }
+        await repository.waitForEditorOptionsPaused(month: "2026-06")
         model.date = Self.date("2026-07-14")
         await repository.resumeEditorOptions(month: "2026-06")
         await refresh.value

@@ -116,7 +116,8 @@ extension LocalFirstActualStore {
                 deviceFallback: deviceFallback
             )
         } catch let error as ActualAPIError {
-            if deviceFallback, !error.isCancellation, case .transport = error, let device = try? bankSyncDeviceClient() {
+            if deviceFallback, !error.isCancellation, case .transport = error,
+               let device = try bankSyncDeviceClientIfPresent() {
                 return .device(device)
             }
             throw error
@@ -136,7 +137,7 @@ extension LocalFirstActualStore {
         if !deviceFallback {
             throw BankSyncStoreError.serverCannotBankSync
         }
-        if let device = try? bankSyncDeviceClient() {
+        if let device = try bankSyncDeviceClientIfPresent() {
             return .device(device)
         }
         throw BankSyncStoreError.notConfigured
@@ -145,8 +146,8 @@ extension LocalFirstActualStore {
     /// Whether a device-claimed SimpleFIN access key is stored. Device-wide:
     /// not budget-scoped, survives budget switches, cleared only by erase
     /// (sign-out) or an explicit disconnect on the Bank Sync screen.
-    func hasBankSyncDeviceKey() -> Bool {
-        !keychain.readSimpleFINAccessURL().isEmpty
+    func hasBankSyncDeviceKey() throws -> Bool {
+        try keychain.readSimpleFINAccessURL() != nil
     }
 
     /// Claims a pasted setup token once and stores the access key in the
@@ -167,11 +168,8 @@ extension LocalFirstActualStore {
         bankSyncSessionCache.clearSimpleFINRemoteAccounts()
     }
 
-    private func bankSyncDeviceClient() throws -> SimpleFINBridgeClient {
-        let stored = keychain.readSimpleFINAccessURL()
-        guard !stored.isEmpty else {
-            throw SimpleFINBridgeError.invalidAccessURL
-        }
+    private func bankSyncDeviceClientIfPresent() throws -> SimpleFINBridgeClient? {
+        guard let stored = try keychain.readSimpleFINAccessURL() else { return nil }
         let credentials = try SimpleFINBridgeCredentials.accessCredentials(fromClaimBody: stored)
         let baseURL = try SimpleFINBridgeCredentials.baseURL(fromClaimBody: stored)
         return SimpleFINBridgeClient(
@@ -179,6 +177,13 @@ extension LocalFirstActualStore {
             username: credentials.username,
             password: credentials.password
         )
+    }
+
+    private func bankSyncDeviceClient() throws -> SimpleFINBridgeClient {
+        guard let client = try bankSyncDeviceClientIfPresent() else {
+            throw BankSyncStoreError.notConfigured
+        }
+        return client
     }
 
     /// Remote SimpleFIN-side accounts through the resolved provider
@@ -571,8 +576,8 @@ extension LocalFirstActualStore {
               let url = URL(string: urlString) else {
             throw LocalFirstError.missingServerURL
         }
-        let token = keychain.readActualSyncToken()
-        guard !token.isEmpty else {
+        let token = try keychain.readActualSyncToken()
+        guard let token else {
             throw LocalFirstError.missingSyncToken
         }
         let endpoints = failoverEndpoints(for: urlString)

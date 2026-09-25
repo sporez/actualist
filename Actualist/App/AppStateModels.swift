@@ -2,6 +2,7 @@ enum SetupPhase: Equatable {
     case needsConnection
     case selectingBudget
     case restoringBudget
+    case credentialUnavailable
     case ready
 }
 

@@ -6,7 +6,7 @@ import Testing
 final class TransactionFeedReadGate {
     private var predicate: ((TransactionFeedCacheKey, String?, Int?, Int) -> Bool)?
     private var continuation: CheckedContinuation<Void, Never>?
-    private(set) var isSuspended = false
+    private let suspended = TestLatch()
 
     func holdNextRead(
         where predicate: @escaping (TransactionFeedCacheKey, String?, Int?, Int) -> Bool
@@ -22,9 +22,10 @@ final class TransactionFeedReadGate {
     ) async {
         guard let predicate, predicate(key, query, limit, offset) else { return }
         self.predicate = nil
-        isSuspended = true
-        await withCheckedContinuation { continuation = $0 }
-        isSuspended = false
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            suspended.trip()
+        }
         continuation = nil
     }
 
@@ -34,10 +35,6 @@ final class TransactionFeedReadGate {
     }
 
     func waitUntilSuspended() async {
-        for _ in 0..<10_000 {
-            if isSuspended { return }
-            await Task.yield()
-        }
-        Issue.record("Timed out waiting for the transaction-feed read gate")
+        await suspended.wait()
     }
 }

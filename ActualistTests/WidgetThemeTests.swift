@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftUI
 import Testing
 import WidgetKit
@@ -68,20 +69,33 @@ struct WidgetThemeTests {
         let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
         let store = WidgetThemeStore(defaults: defaults)
         var refreshCount = 0
+        var expectedRefresh: TestLatch?
         let publisher = WidgetSnapshotCoordinator(
-            themeStore: store, reloadAllTimelines: { refreshCount += 1 }
+            themeStore: store, reloadAllTimelines: {
+                refreshCount += 1
+                expectedRefresh?.trip()
+            }
         )
         publisher.configure(appState: state, snapshotStore: WidgetSnapshotStore(directoryURL: nil))
         #expect(state.settings.selectedBudgetID == nil)
         #expect(refreshCount == 1)
         for (offset, theme) in [ActualistThemeOption.blueCurrent, .coastalSageLight, .emberAmber].enumerated() {
+            let refresh = TestLatch()
+            expectedRefresh = refresh
             state.settings.theme = theme
-            for _ in 0..<100 where refreshCount < offset + 2 { await Task.yield() }
+            await refresh.wait()
             #expect(store.load() == theme)
             #expect(refreshCount == offset + 2)
         }
+        expectedRefresh = nil
+        let randomizationChanged = TestLatch()
+        withObservationTracking {
+            _ = state.settings.randomizedDisplayValuesEnabled
+        } onChange: {
+            Task { @MainActor in randomizationChanged.trip() }
+        }
         state.settings.randomizedDisplayValuesEnabled.toggle()
-        for _ in 0..<20 { await Task.yield() }
+        await randomizationChanged.wait()
         #expect(refreshCount == 4)
         #expect(store.load() == .emberAmber)
     }

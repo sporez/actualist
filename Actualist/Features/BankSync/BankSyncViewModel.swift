@@ -164,7 +164,8 @@ final class BankSyncViewModel {
             // must surface even when the server is unreachable or its
             // answer is unreadable (the provider resolution falls back to
             // the device key in exactly that case).
-            hasDeviceKey = store.hasBankSyncDeviceKey()
+            hasDeviceKey = false
+            hasDeviceKey = try store.hasBankSyncDeviceKey()
             applyCachedSession()
             if phase != .ready {
                 phase = .loading
@@ -332,7 +333,7 @@ final class BankSyncViewModel {
     func forgetDeviceKey() async {
         do {
             try store.forgetBankSyncDeviceKey()
-            hasDeviceKey = store.hasBankSyncDeviceKey()
+            hasDeviceKey = try store.hasBankSyncDeviceKey()
             await load()
         } catch {
             phase = error.userFacingMessage.map(Phase.failed) ?? .ready

@@ -39,6 +39,13 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var actionLogDiagnosticSnapshot = ActionLogDiagnosticSnapshot.empty
     var rulesByBudget: [String: [ManagedRule]] = [:]
     var budgetReadGeneration = 0
+    var budgetSessionGeneration = 0
+    @ObservationIgnored var activeReimportID: UUID?
+    var budgetDiscoveryGeneration = 0
+    #if DEBUG
+    @ObservationIgnored var budgetOpenSuspension: (@MainActor () async -> Void)?
+    @ObservationIgnored var launchWarmupSuspension: (@MainActor () async -> Void)?
+    #endif
     var monthsByBudget: [String: [String]] = [:]
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
     var templateBrowserByBudget: [String: BudgetTemplateBrowserSnapshot] = [:]
@@ -200,9 +207,14 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
+        activeReimportID = nil
         database?.invalidateBankSyncWrites()
         transactionFeedRequestIdentity.resetSession()
         budgetReadGeneration &+= 1
+        budgetSessionGeneration &+= 1
+        budgetDiscoveryGeneration &+= 1
+        let generation = budgetSessionGeneration
+        Task { await syncClient.invalidate(generation: generation) }
         pendingLocalMessageFlushTask?.cancel()
         pendingLocalMessageFlushTask = nil
         openedBudgetID = nil

@@ -166,7 +166,7 @@ extension LocalFirstActualStoreTests {
         )
         // A stored Phase 5 device key must NOT be promoted to background use.
         try bundle.keychain.saveSimpleFINAccessURL("https://user:secret@bridge.example/user")
-        #expect(bundle.store.hasBankSyncDeviceKey())
+        #expect(try bundle.store.hasBankSyncDeviceKey())
 
         await #expect(throws: LocalFirstActualStore.BankSyncStoreError.serverCannotBankSync) {
             try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")

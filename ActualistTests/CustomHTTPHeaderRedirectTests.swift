@@ -189,11 +189,16 @@ struct CustomHTTPHeaderRedirectTests {
 }
 
 /// Each server owns a private serial queue; the mutex protects observations read
-/// by async tests while Network callbacks run on that queue.
+/// by async tests while Network callbacks run on that queue. Every response is
+/// tagged with this instance's identity, and `start()` probes the bound URL:
+/// if anything other than this listener answers, the failure is loud and
+/// self-explaining instead of surfacing later as a foreign HTTP error from an
+/// unidentified service (the 404 flake observed 2026-09-25).
 private final class HeaderRedirectTestServer: Sendable {
     private let listener: NWListener
     private let queue = DispatchQueue(label: "Actualist.HeaderRedirectTest")
     private let state = Mutex((ready: false, requests: [String]()))
+    private let identity = UUID().uuidString
     private let response: @Sendable (String) -> String
 
     init(response: @escaping @Sendable (String) -> String) throws {
@@ -214,10 +219,85 @@ private final class HeaderRedirectTestServer: Sendable {
         }
         listener.start(queue: queue)
         for _ in 0..<200 {
-            if state.withLock({ $0.ready }) { return }
+            if state.withLock({ $0.ready }) { break }
             try await Task.sleep(for: .milliseconds(10))
         }
-        throw URLError(.timedOut)
+        guard state.withLock({ $0.ready }) else { throw URLError(.timedOut) }
+        try await proveOwnership()
+    }
+
+    /// Confirms the bound URL is answered by THIS listener, not a foreign
+    /// service. Uses a raw NWConnection so the probe can never follow the
+    /// server's redirect responses and pollute recorded requests; the probe
+    /// request itself is deliberately not recorded.
+    private func proveOwnership() async throws {
+        let port = listener.port!
+        let connection = NWConnection(host: "127.0.0.1", port: port, using: .tcp)
+        defer { connection.cancel() }
+        try await withCheckedThrowingContinuation { (ready: CheckedContinuation<Void, Error>) in
+            let resumed = Mutex(false)
+            connection.stateUpdateHandler = { update in
+                let shouldResume = resumed.withLock { flag -> Bool in
+                    guard !flag else { return false }
+                    flag = true
+                    return true
+                }
+                guard shouldResume else { return }
+                switch update {
+                case .ready:
+                    ready.resume()
+                case .failed(let error), .waiting(let error):
+                    ready.resume(throwing: error)
+                default:
+                    resumed.withLock { $0 = false }
+                }
+            }
+            connection.start(queue: queue)
+        }
+        let request = Data("GET /__probe__ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n".utf8)
+        try await withCheckedThrowingContinuation { (sent: CheckedContinuation<Void, Error>) in
+            connection.send(content: request, completion: .contentProcessed { error in
+                if let error { sent.resume(throwing: error) } else { sent.resume() }
+            })
+        }
+        let body = try await withCheckedThrowingContinuation { (received: CheckedContinuation<Data, Error>) in
+            var collected = Data()
+            func receiveNext() {
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, complete, error in
+                    if let data { collected.append(data) }
+                    if let error {
+                        received.resume(throwing: error)
+                    } else if complete {
+                        received.resume(returning: collected)
+                    } else {
+                        receiveNext()
+                    }
+                }
+            }
+            receiveNext()
+        }
+        let marker = String(decoding: body, as: UTF8.self)
+            .split(separator: "\r\n")
+            .first { $0.lowercased().hasPrefix("x-test-server:") }
+            .map { $0.dropFirst("x-test-server:".count).trimmingCharacters(in: .whitespaces) }
+        guard marker == identity else {
+            struct ProbeError: LocalizedError {
+                let identity: String
+                let marker: String?
+                var errorDescription: String? {
+                    "test-server loopback probe answered by a foreign service (marker: \(marker ?? "none"), expected: \(identity))"
+                }
+            }
+            throw ProbeError(identity: identity, marker: marker)
+        }
+    }
+
+    /// Inserts this listener's identity header directly after the status
+    /// line so any response can be proven to come from this instance.
+    private func taggedResponse(_ request: String) -> String {
+        let raw = response(request)
+        guard let statusLineEnd = raw.firstRange(of: "\r\n") else { return raw }
+        return raw.replacingCharacters(in: statusLineEnd, with: "\r\nX-Test-Server: \(identity)\r\n")
     }
 
     func stop() {
@@ -235,8 +315,10 @@ private final class HeaderRedirectTestServer: Sendable {
             let length = text.split(separator: "\r\n").first { $0.lowercased().hasPrefix("content-length:") }
                 .flatMap { Int($0.dropFirst("content-length:".count).trimmingCharacters(in: .whitespaces)) } ?? 0
             if let headerEnd, bytes.count >= headerEnd + length {
-                state.withLock { $0.requests.append(text) }
-                connection.send(content: Data(response(text).utf8), completion: .contentProcessed { _ in connection.cancel() })
+                if !text.contains(" /__probe__ ") {
+                    state.withLock { $0.requests.append(text) }
+                }
+                connection.send(content: Data(taggedResponse(text).utf8), completion: .contentProcessed { _ in connection.cancel() })
             } else if !complete && error == nil {
                 receive(connection, collected: bytes)
             } else {

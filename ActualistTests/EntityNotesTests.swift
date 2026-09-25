@@ -161,9 +161,7 @@ struct EntityNotesViewModelTests {
                 repository: repository
             )
         }
-        while repository.resumeLoad == nil {
-            await Task.yield()
-        }
+        await repository.waitForLoadSuspension()
         await viewModel.loadCategoryNote(
             budgetID: "budget-1",
             isPrivacyModeEnabled: true,
@@ -187,9 +185,7 @@ struct EntityNotesViewModelTests {
         )
 
         let task = Task { await viewModel.load(repository: repository) }
-        while repository.resumeLoad == nil {
-            await Task.yield()
-        }
+        await repository.waitForLoadSuspension()
         viewModel.cancel()
         repository.finishLoad()
         await task.value
@@ -223,6 +219,7 @@ private final class FakeEntityNotesRepository: EntityNotesRepositoryProtocol {
     var error: Error?
     var suspendLoad = false
     var resumeLoad: CheckedContinuation<Void, Never>?
+    private let loadSuspended = TestLatch()
 
     init(note: ActualNoteBody) {
         self.note = note
@@ -234,6 +231,7 @@ private final class FakeEntityNotesRepository: EntityNotesRepositoryProtocol {
         if suspendLoad {
             await withCheckedContinuation { continuation in
                 resumeLoad = continuation
+                loadSuspended.trip()
             }
         }
         return note
@@ -251,6 +249,10 @@ private final class FakeEntityNotesRepository: EntityNotesRepositoryProtocol {
     func finishLoad() {
         resumeLoad?.resume()
         resumeLoad = nil
+    }
+
+    func waitForLoadSuspension() async {
+        await loadSuspended.wait()
     }
 }
 

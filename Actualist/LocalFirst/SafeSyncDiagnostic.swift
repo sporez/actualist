@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 /// A controlled diagnostic projection, not a substring redactor. In particular,
 /// opaque NSError/localizedDescription strings never become durable sync errors.
@@ -7,6 +8,7 @@ enum SafeSyncDiagnostic {
     static let genericFailure = "Sync could not complete. The changes remain on this device."
 
     static func description(for error: Error) -> String {
+        if let error = error as? KeychainReadError { return error.localizedDescription }
         if let error = error as? ActualAPIError { return error.localizedDescription }
         if let error = error as? LocalFirstError {
             switch error {
@@ -52,6 +54,8 @@ enum SafeSyncDiagnostic {
             LocalFirstError.remoteDataLimitExceeded.localizedDescription,
             LocalFirstError.invalidEncryptedPayload.localizedDescription,
             LocalFirstError.unauthenticatedPlaintextEnvelope.localizedDescription,
+            KeychainReadError.unreadable.localizedDescription,
+            KeychainReadError.unavailable(errSecInteractionNotAllowed).localizedDescription,
             genericFailure,
             previousFailure
         ] + ActualServerErrorCategory.allCases.map(\.description)
@@ -78,7 +82,7 @@ enum SafeSyncDiagnostic {
     static func backgroundMessage(_ text: String, succeeded: Bool?) -> String {
         switch text {
         case "Started", "Registered background task", "Failed to register background task",
-             "Scheduled background refresh": return text
+             "Scheduled background refresh", "Skipped: credentials unavailable on this device": return text
         default:
             if succeeded == false {
                 let safe = storedError(text)

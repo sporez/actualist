@@ -114,7 +114,7 @@ extension LocalFirstActualStoreTests {
 
         #expect(staged.token == "openid-token")
         #expect(staged.budgets.map(\.syncID) == ["group-1"])
-        #expect(keychain.readActualSyncToken().isEmpty)
+        #expect(try keychain.readActualSyncToken() == nil)
     }
 
     @Test func onboardingOpenIDOnlyDiscoveryImmediatelyStartsAuthentication() async throws {

@@ -19,6 +19,7 @@ extension LocalFirstActualStore {
         } catch {
             LaunchSignpost.event(LaunchStage.launchSnapshotMiss)
             await seedBudgetFromLiveProjection(
+                database: database,
                 files: files,
                 metadata: metadata,
                 budgetID: budgetID,
@@ -36,6 +37,7 @@ extension LocalFirstActualStore {
             guard pair.revision == revision else {
                 LaunchSignpost.event(LaunchStage.launchSnapshotMiss)
                 await seedBudgetFromLiveProjection(
+                    database: database,
                     files: files,
                     metadata: metadata,
                     budgetID: budgetID,
@@ -50,6 +52,7 @@ extension LocalFirstActualStore {
         }
 
         let modeIdentity = try? await database.fetchBudgetModeIdentity()
+        guard !Task.isCancelled, self.database === database, openedBudgetID == budgetID else { return }
         if let revision,
            let stored,
            let modeIdentity,
@@ -81,6 +84,7 @@ extension LocalFirstActualStore {
 
         LaunchSignpost.event(LaunchStage.launchSnapshotMiss)
         await seedBudgetFromLiveProjection(
+            database: database,
             files: files,
             metadata: metadata,
             budgetID: budgetID,
@@ -90,6 +94,7 @@ extension LocalFirstActualStore {
     }
 
     private func seedBudgetFromLiveProjection(
+        database: BudgetDatabase,
         files: BudgetLaunchSnapshotFiles,
         metadata: LocalFirstBudgetMetadata,
         budgetID: String,
@@ -102,7 +107,8 @@ extension LocalFirstActualStore {
                 preferredMonth: preferredCalendarMonth
             )
         }
-        guard let loaded else { return }
+        guard let loaded, !Task.isCancelled,
+              self.database === database, openedBudgetID == budgetID else { return }
         launchSnapshotContext = BudgetLaunchSnapshotContext(
             localFileID: files.localFileID,
             budgetID: budgetID,

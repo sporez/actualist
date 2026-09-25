@@ -61,8 +61,8 @@ extension LocalFirstActualStoreTests {
         try keychain.saveLocalFirstEncryptionKey(Data([1, 2, 3]), fileID: "file-1", keyID: "key-1")
         try keychain.removeAllLocalFirstEncryptionKeys()
 
-        #expect(keychain.readActualSyncToken() == "token")
-        #expect(keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1") == nil)
+        #expect(try keychain.readActualSyncToken() == "token")
+        #expect(try keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1") == nil)
 
         backend.updateFailureStatus = errSecAuthFailed
         #expect(throws: LocalFirstError.keychainFailure("save Keychain data", errSecAuthFailed)) {
@@ -160,12 +160,10 @@ extension LocalFirstActualStoreTests {
             keyID: "key-1"
         )
 
-        #expect(keychain.readActualSyncToken() == "token")
-        #expect(
-            keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1")
-                == Data([1, 2, 3])
-        )
-
+        #expect(try keychain.readActualSyncToken() == "token")
+        #expect(throws: KeychainReadError.unreadable) {
+            try keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1")
+        }
         for item in backend.storedItemAttributes(service: service) {
             #expect(
                 item[kSecAttrAccessible as String] as? String
@@ -353,8 +351,8 @@ extension LocalFirstActualStoreTests {
 
         try store.eraseLocalData()
 
-        #expect(keychain.readActualSyncToken().isEmpty)
-        #expect(keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1") == nil)
+        #expect(try keychain.readActualSyncToken() == nil)
+        #expect(try keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1") == nil)
         #expect(try fileManager.importedBudgetFileIDs().isEmpty)
         #expect(!store.hasOpenBudget)
     }

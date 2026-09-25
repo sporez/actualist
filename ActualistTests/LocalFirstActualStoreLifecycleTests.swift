@@ -170,7 +170,7 @@ extension LocalFirstActualStoreTests {
         )
         try keychain.saveActualSyncToken("working-token")
         try keychain.saveLocalFirstEncryptionKey(
-            Data("working-key".utf8),
+            Data(repeating: 7, count: 32),
             fileID: "file-old",
             keyID: "key-old"
         )
@@ -204,10 +204,10 @@ extension LocalFirstActualStoreTests {
 
         #expect(state.settings == previousSettings)
         #expect(settingsStore.load() == previousSettings)
-        #expect(keychain.readActualSyncToken() == "working-token")
+        #expect(try keychain.readActualSyncToken() == "working-token")
         #expect(
-            keychain.readLocalFirstEncryptionKey(fileID: "file-old", keyID: "key-old")
-                == Data("working-key".utf8)
+            try keychain.readLocalFirstEncryptionKey(fileID: "file-old", keyID: "key-old")
+                == Data(repeating: 7, count: 32)
         )
         #expect(state.setupPhase == .ready)
         #expect(state.connectionStatus == .online)

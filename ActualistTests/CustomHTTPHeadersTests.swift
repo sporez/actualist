@@ -108,7 +108,7 @@ struct CustomHTTPHeadersTests {
         backend.updateFailureStatus = nil
         #expect(try keychain.readCustomHTTPHeaders() == configuration)
         backend.copyFailureStatus = errSecInteractionNotAllowed
-        #expect(throws: CustomHTTPHeaderError.unreadableConfiguration) { try keychain.readCustomHTTPHeaders() }
+        #expect(throws: KeychainReadError.unavailable(errSecInteractionNotAllowed)) { try keychain.readCustomHTTPHeaders() }
         backend.copyFailureStatus = nil
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

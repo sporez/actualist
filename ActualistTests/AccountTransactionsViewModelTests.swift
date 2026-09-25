@@ -118,7 +118,7 @@ struct AccountTransactionsViewModelTests {
         let firstLoad = Task {
             await model.loadOlder(budgetID: "budget", repository: repository)
         }
-        await Self.waitUntil { repository.olderLoadCalls == ["account:checking"] }
+        await repository.waitForOlderLoad()
 
         await model.loadOlder(budgetID: "budget", repository: repository)
         #expect(repository.olderLoadCalls == ["account:checking"])
@@ -168,17 +168,17 @@ struct AccountTransactionsViewModelTests {
 
         model.searchText = "first"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await Self.waitUntil { repository.searchQueries.contains("first") }
+        await repository.waitForSearch("first|all|0")
 
         model.searchText = "second"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await Self.waitUntil { repository.searchQueries.contains("second") }
+        await repository.waitForSearch("second|all|0")
 
         await repository.finishSearch(
             "second",
             with: Self.loaded([Self.transaction(id: "second-result")])
         )
-        await Self.waitUntil { !model.isSearching }
+        await ObservedTestState { !model.isSearching }.wait()
         await repository.finishSearch(
             "first",
             with: Self.loaded([Self.transaction(id: "first-result")])
@@ -200,12 +200,12 @@ struct AccountTransactionsViewModelTests {
         let model = AccountTransactionsViewModel(scope: .account(Self.account), searchDelay: .zero)
         model.searchText = "market"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await Self.waitUntil { repository.searchRequests.contains("market|all|0") }
+        await repository.waitForSearch("market|all|0")
 
         await model.selectFilter(.cleared, budgetID: "budget", repository: repository)
-        await Self.waitUntil { repository.searchRequests.contains("market|cleared|0") }
+        await repository.waitForSearch("market|cleared|0")
         await repository.finishSearch("market", filter: .cleared, with: Self.loaded([Self.transaction(id: "cleared")]))
-        await Self.waitUntil { !model.isSearching }
+        await ObservedTestState { !model.isSearching }.wait()
         await repository.finishSearch("market", filter: .all, with: Self.loaded([Self.transaction(id: "stale")]))
         await Task.yield()
 
@@ -224,7 +224,8 @@ struct AccountTransactionsViewModelTests {
         let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
         model.searchText = "market"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await Self.waitUntil { repository.searchRequests.contains("market|all|0") && !model.isSearching }
+        await repository.waitForSearch("market|all|0")
+        await ObservedTestState { !model.isSearching }.wait()
 
         await model.loadOlder(budgetID: "budget", repository: repository)
 
@@ -253,7 +254,7 @@ struct AccountTransactionsViewModelTests {
         let model = AccountTransactionsViewModel(scope: .spending)
         model.searchText = "market"
         model.scheduleSearch(budgetID: "budget", repository: AccountTransactionsRecordingRepository())
-        await Self.waitUntil { model.isSearching }
+        await ObservedTestState { model.isSearching }.wait()
         await model.selectFilter(.reconciled, budgetID: "budget",
                                  repository: AccountTransactionsRecordingRepository())
         model.clearSearch(budgetID: "budget", repository: AccountTransactionsRecordingRepository())
@@ -268,14 +269,14 @@ struct AccountTransactionsViewModelTests {
         let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
         model.searchText = "market"
         model.scheduleSearch(budgetID: "old-budget", repository: repository)
-        await Self.waitUntil { repository.searchBudgetIDs.contains("old-budget") }
+        await repository.waitForSearch("market|all|0", budgetID: "old-budget")
         await model.budgetDidChange(to: "new-budget", repository: repository)
         model.searchTextDidChange("market", budgetID: "new-budget", repository: repository)
-        await Self.waitUntil { repository.searchBudgetIDs.contains("new-budget") }
+        await repository.waitForSearch("market|all|0", budgetID: "new-budget")
 
         await repository.finishSearch("market", budgetID: "new-budget",
                                       with: Self.loaded([Self.transaction(id: "new-budget-result")]))
-        await Self.waitUntil { !model.isSearching }
+        await ObservedTestState { !model.isSearching }.wait()
         await repository.finishSearch("market", budgetID: "old-budget",
                                       with: Self.loaded([Self.transaction(id: "old-budget-result")]))
         await Task.yield()
@@ -293,7 +294,7 @@ struct AccountTransactionsViewModelTests {
         let model = AccountTransactionsViewModel(scope: .account(Self.account))
         await model.loadLocal(budgetID: "budget", repository: repository)
         let olderLoad = Task { await model.loadOlder(budgetID: "budget", repository: repository) }
-        await Self.waitUntil { repository.olderLoadCalls == ["account:checking"] }
+        await repository.waitForOlderLoad()
 
         await model.selectFilter(.cleared, budgetID: "budget", repository: repository)
         #expect(!model.isLoadingOlder)
@@ -313,7 +314,8 @@ struct AccountTransactionsViewModelTests {
         let model = AccountTransactionsViewModel(scope: .account(Self.account), searchDelay: .zero)
         model.searchText = "market"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await Self.waitUntil { repository.searchRequests.contains("market|all|0") && !model.isSearching }
+        await repository.waitForSearch("market|all|0")
+        await ObservedTestState { !model.isSearching }.wait()
 
         await model.refresh(budgetID: "budget", repository: repository, sync: {}, onChanged: {})
 
@@ -447,16 +449,6 @@ struct AccountTransactionsViewModelTests {
             nextOffset: nextOffset
         )
     }
-
-    static func waitUntil(
-        _ condition: @escaping @MainActor () async -> Bool
-    ) async {
-        for _ in 0..<1_000 {
-            if await condition() { return }
-            await Task.yield()
-        }
-        Issue.record("Timed out waiting for asynchronous test state")
-    }
 }
 
 struct FeedTestError: Error, LocalizedError, Sendable {
@@ -497,6 +489,10 @@ final class AccountTransactionsRecordingRepository: TransactionRepositoryProtoco
     private var olderLoadContinuation: CheckedContinuation<Void, any Error>?
     private var searchContinuations: [String: CheckedContinuation<LoadedAccountTransactions, any Error>] = [:]
     private var refreshContinuations: [TransactionStatusFilter: CheckedContinuation<Void, any Error>] = [:]
+    private let olderLoadStarted = TestLatch()
+    private var searchStarted: [String: TestLatch] = [:]
+    private var searchRequestCounts: [String: Int] = [:]
+    private var refreshStarted: [TransactionStatusFilter: TestLatch] = [:]
 
     init(
         accountSnapshot: LoadedAccountTransactions? = nil,
@@ -548,6 +544,7 @@ final class AccountTransactionsRecordingRepository: TransactionRepositoryProtoco
     func refreshAccountTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {
         refreshCalls.append("account:\(accountID)")
         refreshFilters.append(statusFilter)
+        refreshStarted[statusFilter]?.trip()
         if suspendsRefreshFilters.contains(statusFilter) {
             try await withCheckedThrowingContinuation { refreshContinuations[statusFilter] = $0 }
         }
@@ -557,6 +554,7 @@ final class AccountTransactionsRecordingRepository: TransactionRepositoryProtoco
     func refreshSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {
         refreshCalls.append("spending")
         refreshFilters.append(statusFilter)
+        refreshStarted[statusFilter]?.trip()
         if suspendsRefreshFilters.contains(statusFilter) {
             try await withCheckedThrowingContinuation { refreshContinuations[statusFilter] = $0 }
         }
@@ -574,6 +572,7 @@ final class AccountTransactionsRecordingRepository: TransactionRepositoryProtoco
 
     func loadOlderTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {
         olderLoadCalls.append("account:\(accountID)")
+        olderLoadStarted.trip()
         if suspendsOlderLoads {
             try await withCheckedThrowingContinuation { olderLoadContinuation = $0 }
         }
@@ -586,6 +585,26 @@ final class AccountTransactionsRecordingRepository: TransactionRepositoryProtoco
     func finishOlderLoad() async {
         olderLoadContinuation?.resume()
         olderLoadContinuation = nil
+    }
+
+    func waitForOlderLoad() async {
+        await olderLoadStarted.wait()
+    }
+
+    func waitForRefresh(_ filter: TransactionStatusFilter) async {
+        if refreshFilters.contains(filter) { return }
+        let latch = refreshStarted[filter] ?? TestLatch()
+        refreshStarted[filter] = latch
+        await latch.wait()
+    }
+
+    func waitForSearch(_ request: String, budgetID: String = "budget", occurrence: Int = 1) async {
+        let identity = "\(budgetID)|\(request)"
+        if searchRequestCounts[identity, default: 0] >= occurrence { return }
+        let key = "\(identity)|\(occurrence)"
+        let latch = searchStarted[key] ?? TestLatch()
+        searchStarted[key] = latch
+        await latch.wait()
     }
 
     func finishRefresh(_ filter: TransactionStatusFilter) async {
@@ -620,6 +639,11 @@ final class AccountTransactionsRecordingRepository: TransactionRepositoryProtoco
         searchLimits.append(limit)
         let key = "\(query)|\(filter.rawValue)|\(offset)"
         searchRequests.append(key)
+        let identity = "\(budgetID)|\(key)"
+        let occurrence = searchRequestCounts[identity, default: 0] + 1
+        searchRequestCounts[identity] = occurrence
+        let startedKey = "\(identity)|\(occurrence)"
+        searchStarted[startedKey]?.trip()
         let limitedKey = "\(key)|\(limit)"
         if searchErrorsByLimit.contains(limitedKey) { throw FeedTestError("search refresh failed") }
         if let page = searchPagesByLimit[limitedKey] { return page }

@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import Actualist
 
@@ -194,6 +195,29 @@ struct DiagnosticReportTests {
         #expect(report.text.contains("pending 2->2"))
     }
 
+    @Test func unavailableCredentialKeepsCanonicalDescriptionAcrossPersistenceAndExport() throws {
+        let accessFailure = KeychainReadError.unavailable(errSecInteractionNotAllowed)
+        let anotherFailure = KeychainReadError.unavailable(errSecAuthFailed)
+        let safeText = SafeSyncDiagnostic.description(for: accessFailure)
+        #expect(safeText == SafeSyncDiagnostic.description(for: anotherFailure))
+        #expect(SafeSyncDiagnostic.storedError(safeText) == safeText)
+        let event = LocalFirstSyncDebugEvent(
+            id: UUID(), date: Date(timeIntervalSince1970: 1_700_000_000), outcome: .failed,
+            pendingBefore: 1, uploadedCount: 0, downloadedCount: 0,
+            pendingAfter: 1, message: safeText
+        )
+        let loaded = try JSONDecoder().decode(LocalFirstSyncDebugEvent.self, from: JSONEncoder().encode(event))
+        #expect(loaded.diagnosticMessage == safeText)
+        let state = makeAppState()
+        state.settings.localFirstSyncDebug = .init(totalEventCount: 1, recentEvents: [loaded])
+        state.localFirstStore.syncStatus = LocalFirstSyncStatus(
+            fileID: "synthetic-file", groupID: nil, lastError: safeText
+        )
+        let report = ActualistDiagnosticReportBuilder.make(appState: state)
+        #expect(report.text.contains(safeText))
+        #expect(!report.text.contains("OSStatus"))
+    }
+
     @Test func oldBackgroundMessagesDoNotTurnSuccessfulRunsIntoFailures() {
         let hostile = "unlabeled-token-qq7 synthetic-payee-qq7"
         #expect(SafeSyncDiagnostic.backgroundMessage(hostile, succeeded: true)
@@ -202,6 +226,8 @@ struct DiagnosticReportTests {
                 == "Previous background task started.")
         #expect(SafeSyncDiagnostic.backgroundMessage(hostile, succeeded: false)
                 == "Previous background attempt failed. Details are unavailable.")
+        #expect(SafeSyncDiagnostic.backgroundMessage("Skipped: credentials unavailable on this device", succeeded: true)
+                == "Skipped: credentials unavailable on this device")
     }
 
     private func makeAppState() -> AppState {

@@ -105,6 +105,7 @@ extension LocalFirstActualStore {
         resolveTransport: (URL, ActualServerEndpointRole) throws -> Transport,
         operation: (Transport) async throws -> T
     ) async throws -> T {
+        let generation = budgetSessionGeneration
         let endpoints = failoverEndpoints(for: serverURLString)
         guard let primaryURL = endpoints.primary else {
             throw ActualAPIError.invalidURL
@@ -114,8 +115,13 @@ extension LocalFirstActualStore {
            shouldSkipPrimary(primary: primaryURL, fallback: fallbackURL) {
             lastSyncEndpoint = .fallback
             do {
-                return try await operation(resolveTransport(fallbackURL, .fallback))
+                let result = try await operation(resolveTransport(fallbackURL, .fallback))
+                try Task.checkCancellation()
+                guard generation == budgetSessionGeneration else { throw CancellationError() }
+                return result
             } catch {
+                try Task.checkCancellation()
+                guard generation == budgetSessionGeneration else { throw CancellationError() }
                 if Self.isFailoverEligible(error) {
                     notePrimarySucceeded(primary: primaryURL, fallback: fallbackURL)
                 }
@@ -126,17 +132,23 @@ extension LocalFirstActualStore {
         lastSyncEndpoint = .primary
         do {
             let result = try await operation(resolveTransport(primaryURL, .primary))
+            try Task.checkCancellation()
+            guard generation == budgetSessionGeneration else { throw CancellationError() }
             if let fallbackURL = endpoints.fallback {
                 notePrimarySucceeded(primary: primaryURL, fallback: fallbackURL)
             }
             return result
         } catch {
+            try Task.checkCancellation()
+            guard generation == budgetSessionGeneration else { throw CancellationError() }
             guard let fallbackURL = endpoints.fallback,
                   Self.isFailoverEligible(error) else {
                 throw error
             }
             lastSyncEndpoint = .fallback
             let result = try await operation(resolveTransport(fallbackURL, .fallback))
+            try Task.checkCancellation()
+            guard generation == budgetSessionGeneration else { throw CancellationError() }
             notePrimaryUnreachable(primary: primaryURL, fallback: fallbackURL)
             return result
         }

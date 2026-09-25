@@ -11,16 +11,20 @@ extension LocalFirstActualStore {
         guard let database, owns(database, budgetID: budgetID) else { return }
         await LaunchSignpost.measure(LaunchStage.launchWarmup) {
             await LaunchSignpost.measure(LaunchStage.accountWarmup) {
-                try? await reloadAccountCaches(database: database, budgetID: budgetID)
+                try? await reloadAccountCaches(database: database, budgetID: budgetID, bestEffort: true)
             }
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.payeeWarmup) {
-                payeesByBudget[budgetID] = try? await database.fetchPayeeManagementSnapshot()
+                let snapshot = try? await database.fetchPayeeManagementSnapshot()
+                guard owns(database, budgetID: budgetID) else { return }
+                payeesByBudget[budgetID] = snapshot?
                     .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
             }
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.diagnosticWarmup) {
-                await refreshActionLogDiagnosticSnapshot(database: database)
+                let snapshot = try? await database.actionLogDiagnosticSnapshot()
+                guard owns(database, budgetID: budgetID) else { return }
+                actionLogDiagnosticSnapshot = snapshot ?? .empty
             }
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.syncStatusRestore) {

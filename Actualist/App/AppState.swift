@@ -23,6 +23,8 @@ final class AppState {
 
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
+    private let credentialRetryPreparation: @MainActor () -> Void
+    @ObservationIgnored private let sessionRecovery = AppSessionRecovery()
     @ObservationIgnored private let appSyncCoordinator = AppSyncCoordinator()
     @ObservationIgnored private let launchWarmupCoordinator = LaunchWarmupCoordinator()
     @ObservationIgnored private let backgroundTransactionWorkflow: BackgroundTransactionWorkflow
@@ -46,6 +48,7 @@ final class AppState {
         settingsStore: AppSettingsStore = .live,
         keychain: KeychainStore = .actualist,
         localFirstStore: LocalFirstActualStore? = nil,
+        credentialRetryPreparation: @escaping @MainActor () -> Void = {},
         notificationAuthorizationRequester: @escaping @MainActor () async throws -> Bool = {
             try await UNUserNotificationCenter.current().requestAuthorization(
                 options: [.alert, .sound, .badge]
@@ -59,6 +62,7 @@ final class AppState {
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
+        self.credentialRetryPreparation = credentialRetryPreparation
         self.backgroundTransactionWorkflow = BackgroundTransactionWorkflow(
             settingsStore: settingsStore,
             notificationAuthorizationRequester: notificationAuthorizationRequester,
@@ -72,22 +76,45 @@ final class AppState {
         }
         self.settings = loaded
         ActualistTheme.activate(loaded.theme)
-        if loaded.selectedBudgetID != nil,
-           loaded.selectedLocalFirstFileID != nil {
-            self.setupPhase = .restoringBudget
-            self.connectionStatus = keychain.readActualSyncToken().isEmpty ? .offline : .connecting
-        } else if loaded.localFirstServerURLString.isEmpty
-            || keychain.readActualSyncToken().isEmpty {
-            self.setupPhase = .needsConnection
-            self.connectionStatus = .offline
-        } else {
-            self.setupPhase = .selectingBudget
-            self.connectionStatus = .online
-        }
+        let (phase, status) = sessionRecovery.initialSession(settings: loaded, keychain: keychain)
+        self.setupPhase = phase
+        self.connectionStatus = status
     }
 
     var hasSyncCredentials: Bool {
-        !settings.localFirstServerURLString.isEmpty && !keychain.readActualSyncToken().isEmpty
+        !settings.localFirstServerURLString.isEmpty && credentialAvailability == .available
+    }
+
+    var credentialAvailability: AppSessionRecovery.CredentialAvailability {
+        AppSessionRecovery.credentialAvailability(keychain: keychain)
+    }
+
+    var credentialRecoveryMessage: String? { sessionRecovery.message }
+
+    func retryCredentialAccess() async {
+        credentialRetryPreparation()
+        let hadOpenBudget = isReadyForMainTabs
+        let action = sessionRecovery.retry(
+            keychain: keychain,
+            hasOpenBudget: hadOpenBudget,
+            hasSelection: settings.selectedBudgetID != nil
+        )
+        if !hadOpenBudget { localFirstStore.closeOpenBudget() }
+        switch action {
+        case .unavailable(let message): lastErrorMessage = message
+        case .needsConnection:
+            if !isReadyForMainTabs { setupPhase = .needsConnection }
+        case .refresh:
+            lastErrorMessage = nil
+            if let budgetID = settings.selectedBudgetID {
+                _ = await refreshLocalFirstData(budgetID: budgetID)
+            }
+        case .restore:
+            setupPhase = .restoringBudget
+            await restoreSelectedBudgetForLaunch()
+        case .discover:
+            _ = try? await loadBudgets() // loadBudgets publishes the failure.
+        }
     }
 
     /// `true` when the selected budget is the bundled demo budget. Derived from
@@ -206,16 +233,22 @@ final class AppState {
         let previousServerURLString = settings.localFirstServerURLString
         let serverChanged = !previousServerURLString.isEmpty && previousServerURLString != normalized
         let targetBudgetID = serverChanged ? nil : settings.selectedBudgetID
+        let recoveryIdentity = sessionRecovery.identity
+        var activeIdentity = recoveryIdentity
 
         do {
             let staged = try await stage(normalized, targetBudgetID)
+            guard sessionRecovery.isCurrent(recoveryIdentity) else { return false }
             var canRestoreTargetBudget = false
             if let targetBudgetID,
                let target = staged.budgets.first(where: { $0.syncID == targetBudgetID }) {
                 canRestoreTargetBudget = try await localFirstStore.validateCachedBudgetCanOpen(target)
+                guard sessionRecovery.isCurrent(recoveryIdentity) else { return false }
             }
 
             try localFirstStore.commitConnection(staged)
+            sessionRecovery.invalidate()
+            activeIdentity = sessionRecovery.identity
             settings.localFirstServerURLString = normalized
             budgets = AppBudgetList.unique(staged.budgets)
             if serverChanged {
@@ -242,7 +275,10 @@ final class AppState {
                let targetBudgetID,
                let target = budgets.first(where: { $0.syncID == targetBudgetID }) {
                 if !localFirstStore.isOpen(budgetID: targetBudgetID) {
-                    _ = try await localFirstStore.openCachedBudget(target)
+                    _ = try await localFirstStore.openCachedBudget(
+                        target, expectedGeneration: localFirstStore.budgetSessionGeneration
+                    )
+                    guard sessionRecovery.isCurrent(activeIdentity) else { return false }
                 }
                 if localFirstStore.isOpen(budgetID: targetBudgetID) {
                     selectedBudget = target
@@ -262,9 +298,10 @@ final class AppState {
             lastErrorMessage = nil
             return true
         } catch where error.isCancellation {
-            lastErrorMessage = nil
+            if sessionRecovery.isCurrent(activeIdentity) { lastErrorMessage = nil }
             return false
         } catch {
+            guard sessionRecovery.isCurrent(activeIdentity) else { return false }
             lastErrorMessage = error.userFacingMessage
             if previousServerURLString.isEmpty && !hasSyncCredentials {
                 connectionStatus = .offline
@@ -276,6 +313,7 @@ final class AppState {
 
     func disconnectAndEraseLocalData() {
         do {
+            sessionRecovery.invalidate()
             appSyncCoordinator.cancelRefresh()
             try localFirstStore.eraseLocalData()
             settings.localFirstServerURLString = ""
@@ -338,6 +376,8 @@ final class AppState {
             await LaunchSignpost.measure(LaunchStage.cachedBudgetRestore) {
                 await restoreSelectedBudgetForLaunch()
             }
+        } else if sessionRecovery.state != .idle {
+            await retryCredentialAccess()
         }
     }
 
@@ -395,6 +435,7 @@ final class AppState {
             if result.shouldPublish {
                 connectionStatus = .online
                 lastErrorMessage = nil
+                sessionRecovery.clear()
                 localDataRevision &+= 1
             }
             return true
@@ -406,6 +447,9 @@ final class AppState {
             if result.shouldPublish {
                 lastErrorMessage = message
                 connectionStatus = reason.connectionStatus
+                if case .credentialUnavailable(let error) = reason {
+                    sessionRecovery.noteFailure(error, hasOpenBudget: true)
+                }
                 if reason == .authenticationRequired {
                     requiresReauthentication = true
                 }
@@ -434,32 +478,36 @@ final class AppState {
 
         appSyncCoordinator.cancelRefresh()
         connectionStatus = .connecting
-        do {
-            try await localFirstStore.reimportBudget(
-                budget,
-                serverURLString: settings.localFirstServerURLString,
-                encryptionPassword: encryptionPassword
-            )
+        switch await sessionRecovery.reimport(
+            budget, serverURLString: settings.localFirstServerURLString,
+            encryptionPassword: encryptionPassword, store: localFirstStore
+        ) {
+        case .succeeded:
             connectionStatus = .online
             lastErrorMessage = nil
             localDataRevision &+= 1
-        } catch {
+        case .failed(let error, let status):
             lastErrorMessage = error.userFacingMessage
-            if (error as? LocalFirstError) == .budgetEncryptionChanged {
-                connectionStatus = .syncBlocked
-            } else {
-                connectionStatus = localFirstStore.isOpen(budgetID: budget.syncID) ? .online : .offline
-            }
+            connectionStatus = status
+        case .superseded:
+            break
         }
     }
 
     private func selectLocalFirstBudget(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
-        if encryptionPassword?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
-           localFirstStore.requiresEncryptionPasswordToOpen(budget) {
-            lastErrorMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
+        do {
+            if encryptionPassword?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+               try localFirstStore.requiresEncryptionPasswordToOpen(budget) {
+                lastErrorMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
+                return
+            }
+        } catch {
+            lastErrorMessage = error.userFacingMessage
+            sessionRecovery.noteFailure(error, hasOpenBudget: isReadyForMainTabs)
             return
         }
 
+        sessionRecovery.invalidate()
         let previousBudget = selectedBudget
         let previousBudgetID = settings.selectedBudgetID
         let isChangingBudget = previousBudgetID != budget.syncID
@@ -477,15 +525,12 @@ final class AppState {
         defer { isBudgetSwitchInProgress = false }
 
         connectionStatus = .connecting
-        do {
-            try await localFirstStore.openBudget(
-                budget,
-                serverURLString: settings.localFirstServerURLString,
-                encryptionPassword: encryptionPassword
-            )
-            guard localFirstStore.isOpen(budgetID: budget.syncID) else {
-                throw LocalFirstError.budgetNotOpened
-            }
+        switch await sessionRecovery.openSelectedBudget(
+            budget, serverURLString: settings.localFirstServerURLString,
+            encryptionPassword: encryptionPassword, previousBudget: previousBudget,
+            canRestorePreviousBudget: canRestorePreviousBudget, store: localFirstStore
+        ) {
+        case .opened(let credentialError):
             selectedBudget = budget
             settings.selectedBudgetID = budget.syncID
             settings.selectedBudgetName = budget.name
@@ -495,23 +540,24 @@ final class AppState {
             settings.simplefinBackgroundSyncEnabled = false
             settingsStore.save(settings)
             setupPhase = .ready
-            connectionStatus = .online
-            lastErrorMessage = nil
+            (connectionStatus, lastErrorMessage) = sessionRecovery.openedBudgetStatus(
+                keychain: keychain, credentialError: credentialError
+            )
             localDataRevision &+= 1
-        } catch {
-            var restoredPreviousBudget = false
-            if canRestorePreviousBudget, let previousBudget {
-                localFirstStore.closeOpenBudget()
-                restoredPreviousBudget = (try? await localFirstStore.openCachedBudget(previousBudget)) == true
-            }
+        case .restored(let error):
             lastErrorMessage = error.userFacingMessage
+            sessionRecovery.noteFailure(error, hasOpenBudget: true)
             connectionStatus = .offline
-            if restoredPreviousBudget {
-                selectedBudget = previousBudget
-                setupPhase = .ready
-            } else if settings.selectedBudgetID.map({ localFirstStore.isOpen(budgetID: $0) }) != true {
+            selectedBudget = previousBudget
+            setupPhase = .ready
+        case .failed(let error):
+            lastErrorMessage = error.userFacingMessage
+            sessionRecovery.noteFailure(error, hasOpenBudget: localFirstStore.hasOpenBudget)
+            connectionStatus = .offline
+            if settings.selectedBudgetID.map({ localFirstStore.isOpen(budgetID: $0) }) != true {
                 setupPhase = .selectingBudget
             }
+        case .superseded: break
         }
     }
 
@@ -524,12 +570,9 @@ final class AppState {
 
     func cancelReauthentication() {
         lastErrorMessage = nil
-        if let budgetID = settings.selectedBudgetID,
-           localFirstStore.isOpen(budgetID: budgetID) {
-            setupPhase = .ready
-        } else {
-            setupPhase = hasSyncCredentials ? .selectingBudget : .needsConnection
-        }
+        setupPhase = sessionRecovery.phaseAfterCancelingReauthentication(
+            selectedBudgetID: settings.selectedBudgetID, store: localFirstStore, keychain: keychain
+        )
     }
 
     var canCancelReauthentication: Bool {
@@ -715,20 +758,13 @@ final class AppState {
     /// notification authorization — it posts nothing.
     func updateSimpleFINBackgroundSyncEnabled(_ isEnabled: Bool) async {
         let enable = isEnabled && isExperimentalFeatureEnabled(.bankSync)
-        if enable {
-            do {
-                try keychain.promoteAllItemsForBackgroundRefresh()
-            } catch {
-                lastErrorMessage = error.userFacingMessage
-                settings.simplefinBackgroundSyncEnabled = false
-                settingsStore.save(settings)
-                BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
-                return
-            }
+        let outcome = backgroundTransactionWorkflow.enableBankSync(enable, keychain: keychain)
+        if case .credentialPromotionFailed(let message) = outcome {
+            lastErrorMessage = message
         }
-        settings.simplefinBackgroundSyncEnabled = enable
+        settings.simplefinBackgroundSyncEnabled = (outcome == .enabled)
         settingsStore.save(settings)
-        if enable {
+        if outcome == .enabled {
             BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
         } else {
             BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
@@ -766,63 +802,32 @@ final class AppState {
         }
     }
 
-    private func selectedBudgetFromSettings() -> ActualBudget? {
-        guard settings.selectedBudgetID != nil,
-              let fileID = settings.selectedLocalFirstFileID else {
-            return nil
-        }
-        return ActualBudget(
-            budgetID: fileID,
-            cloudFileId: fileID,
-            groupId: settings.selectedLocalFirstGroupID,
-            name: settings.selectedBudgetName ?? "Selected Budget",
-            state: nil
-        )
-    }
-
-    private func openSelectedCachedBudgetForOfflineUse() async -> Bool {
-        await openSelectedCachedBudget(connectionStatus: .offline)
-    }
-
-    private func openSelectedCachedBudget(connectionStatus restoredStatus: ServerConnectionStatus) async -> Bool {
-        guard let budget = selectedBudgetFromSettings() else {
-            return false
-        }
-
-        do {
-            let didOpen = try await localFirstStore.openCachedBudget(budget)
-            guard didOpen else {
-                return false
-            }
-            guard let selectedBudgetID = settings.selectedBudgetID,
-                  localFirstStore.isOpen(budgetID: selectedBudgetID) else {
-                localFirstStore.reset()
-                return false
-            }
+    private func restoreSelectedBudgetForLaunch() async {
+        let identity = sessionRecovery.identity
+        switch await sessionRecovery.restoreForLaunch(
+            settings: settings, keychain: keychain, store: localFirstStore, isDemoMode: isDemoMode
+        ) {
+        case .opened(let budget, let status):
             selectedBudget = budget
             budgets = AppBudgetList.unique([budget] + budgets)
             setupPhase = .ready
             LaunchSignpost.event(LaunchStage.setupReady)
-            connectionStatus = restoredStatus
+            connectionStatus = status
+            lastErrorMessage = sessionRecovery.message
             localDataRevision &+= 1
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private func restoreSelectedBudgetForLaunch() async {
-        let restoredStatus: ServerConnectionStatus =
-            (isDemoMode || !hasSyncCredentials) ? .offline : .connecting
-        if await openSelectedCachedBudget(connectionStatus: restoredStatus) {
-            lastErrorMessage = nil
-            return
-        }
-
-        do {
-            try await loadBudgets()
-        } catch {
-            _ = await openSelectedCachedBudgetForOfflineUse()
+        case .discovered(let discovery):
+            await presentDiscoveredBudgets(discovery, identity: identity)
+        case .blocked(let error):
+            setupPhase = .credentialUnavailable
+            lastErrorMessage = error.localizedDescription
+        case .needsConnection:
+            setupPhase = .needsConnection
+            connectionStatus = .offline
+        case .failed(let error):
+            lastErrorMessage = error.userFacingMessage
+            connectionStatus = .offline
+            setupPhase = settings.selectedBudgetID == nil ? .needsConnection : .selectingBudget
+        case .superseded: break
         }
     }
 
@@ -897,55 +902,47 @@ final class AppState {
     #endif
 
     func loadBudgets() async throws {
-        guard !settings.localFirstServerURLString.isEmpty,
-              !keychain.readActualSyncToken().isEmpty else {
-            connectionStatus = .offline
-            setupPhase = .needsConnection
-            throw LocalFirstError.missingSyncToken
-        }
-
+        let discoveryIdentity = sessionRecovery.identity
         do {
-            budgets = AppBudgetList.unique(
-                try await localFirstStore.loadBudgets(serverURLString: settings.localFirstServerURLString)
-            )
-
-            if budgets.count == 1, let budget = budgets.first, settings.selectedBudgetID == nil {
-                await selectLocalFirstBudget(budget)
-                return
-            }
-
-            if let selectedBudgetID = settings.selectedBudgetID,
-               let budget = budgets.first(where: { $0.syncID == selectedBudgetID }) {
-                selectedBudget = budget
-                // Reopening here would race the normal refresh path.
-                if !localFirstStore.isOpen(budgetID: selectedBudgetID) {
-                    try await localFirstStore.openBudget(
-                        budget,
-                        serverURLString: settings.localFirstServerURLString
-                    )
-                }
-                guard localFirstStore.isOpen(budgetID: selectedBudgetID) else {
-                    setupPhase = .selectingBudget
-                    connectionStatus = .online
-                    return
-                }
-                setupPhase = .ready
-                connectionStatus = .online
-                return
-            }
-
-            connectionStatus = .online
-            setupPhase = .selectingBudget
+            let discovery = try await sessionRecovery.discoverBudgets(settings: settings, store: localFirstStore)
+            guard sessionRecovery.isCurrent(discoveryIdentity) else { throw CancellationError() }
+            await presentDiscoveredBudgets(discovery, identity: discoveryIdentity)
         } catch {
+            guard sessionRecovery.isCurrent(discoveryIdentity) else { throw error }
+            if error.isCancellation { throw error }
             lastErrorMessage = error.userFacingMessage
             connectionStatus = .offline
+            if let phase = sessionRecovery.discoveryFailure(
+                error, hasOpenBudget: isReadyForMainTabs, hasSelection: settings.selectedBudgetID != nil
+            ) { setupPhase = phase }
             if (error as? ActualAPIError)?.isAuthenticationFailure == true {
                 requiresReauthentication = true
             }
-            if settings.selectedBudgetID == nil {
-                setupPhase = .needsConnection
-            }
             throw error
+        }
+    }
+
+    private func presentDiscoveredBudgets(
+        _ discovery: AppSessionRecovery.BudgetDiscovery,
+        identity: Int
+    ) async {
+        guard !Task.isCancelled, sessionRecovery.isCurrent(identity) else { return }
+        budgets = discovery.budgets
+        if budgets.count == 1, let budget = budgets.first, settings.selectedBudgetID == nil {
+            await selectLocalFirstBudget(budget)
+        } else if let budget = discovery.selectedBudget {
+            selectedBudget = budget
+            setupPhase = discovery.selectedIsOpen ? .ready : .selectingBudget
+            if discovery.selectedIsOpen {
+                (connectionStatus, lastErrorMessage) = sessionRecovery.openedBudgetStatus(
+                    keychain: keychain, credentialError: discovery.credentialError
+                )
+            } else {
+                connectionStatus = .online
+            }
+        } else {
+            connectionStatus = .online
+            setupPhase = .selectingBudget
         }
     }
 

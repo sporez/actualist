@@ -525,6 +525,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
     private var pairCalls = 0
     private var shouldSuspendPair = false
     private var pairContinuation: CheckedContinuation<BudgetTemplateApplyPreviewPair, Never>?
+    private var pairCallLatches: [Int: TestLatch] = [:]
 
     init(
         preview: BudgetTemplateApplyPreview = .empty,
@@ -542,9 +543,10 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
     func suspendNextPair() { shouldSuspendPair = true }
 
     func waitForPairCall(expected: Int = 1) async {
-        while pairCalls < expected {
-            await Task.yield()
-        }
+        if pairCalls >= expected { return }
+        let latch = pairCallLatches[expected] ?? TestLatch()
+        pairCallLatches[expected] = latch
+        await latch.wait()
     }
 
     func resolvePair(_ result: BudgetTemplateApplyPreviewPair? = nil) {
@@ -572,6 +574,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         month: String
     ) async throws -> BudgetTemplateApplyPreviewPair {
         pairCalls += 1
+        pairCallLatches[pairCalls]?.trip()
         if let error { throw error }
         if shouldSuspendPair {
             shouldSuspendPair = false

@@ -82,9 +82,11 @@ extension LocalFirstActualStoreTests {
     @discardableResult
     func makeBankSyncStore(
         transport: StubSimpleFINTransport,
-        additionalFixtureSQL: String = ""
+        additionalFixtureSQL: String = "",
+        keychainBackend: any KeychainBackend = SystemKeychainBackend()
     ) async throws -> OpenedWritableStoreBundle {
         let bundle = try await makeOpenedWritableStoreBundle(
+            keychainBackend: keychainBackend,
             simpleFINTransportFactory: { _ in transport },
             additionalFixtureSQL: additionalFixtureSQL + "\n" + Self.bankSyncColumnsSQL
         )

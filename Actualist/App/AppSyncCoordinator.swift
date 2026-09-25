@@ -8,6 +8,8 @@ enum AppSyncFailureReason: Equatable, Sendable {
     /// The server was reachable but refused this budget's sync (for example its
     /// encryption changed on the server). The connection itself is healthy.
     case budgetSyncRejected
+    /// A Keychain read needed for this operation failed without invalidating the local budget.
+    case credentialUnavailable(KeychainReadError)
 }
 
 enum AppSyncOperationOutcome: Equatable, Sendable {
@@ -23,7 +25,7 @@ extension AppSyncFailureReason {
     var connectionStatus: ServerConnectionStatus {
         switch self {
         case .budgetSyncRejected: .syncBlocked
-        case .authenticationRequired, .general: .offline
+        case .authenticationRequired, .general, .credentialUnavailable: .offline
         }
     }
 }
@@ -124,6 +126,7 @@ final class AppSyncCoordinator {
     /// domain conditions are the only errors that get a non-`.general` reason;
     /// every other failure keeps the existing offline presentation.
     private static func failureReason(for error: Error) -> AppSyncFailureReason {
+        if let error = error as? KeychainReadError { return .credentialUnavailable(error) }
         if (error as? ActualAPIError)?.isAuthenticationFailure == true {
             return .authenticationRequired
         }

@@ -11,7 +11,7 @@ struct AccountReconciliationCoordinatorTests {
         let coordinator = AccountReconciliationCoordinator()
 
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
 
         #expect(coordinator.targetEntry?.input.text == "123.45")
         let presentation = try #require(coordinator.targetPresentation(privacyModeEnabled: false))
@@ -30,7 +30,7 @@ struct AccountReconciliationCoordinatorTests {
         )
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
 
         coordinator.toggleTargetSign()
         #expect(coordinator.targetEntry?.input.text == "-123.45")
@@ -47,7 +47,7 @@ struct AccountReconciliationCoordinatorTests {
         let repository = ReconciliationCoordinatorRepository(snapshots: [snapshot(cleared: 0)])
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
 
         coordinator.updateTargetText("12.345")
         coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
@@ -65,13 +65,13 @@ struct AccountReconciliationCoordinatorTests {
         )
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
 
         coordinator.targetSheetDismissed()
         #expect(coordinator.state == .idle)
 
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
         coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
         coordinator.targetSheetDismissed()
 
@@ -84,18 +84,18 @@ struct AccountReconciliationCoordinatorTests {
         let coordinator = AccountReconciliationCoordinator()
         var mutationCount = 0
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
         coordinator.updateTargetText("20.00")
         coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
 
         coordinator.createAdjustment(repository: repository) { mutationCount += 1 }
         coordinator.createAdjustment(repository: repository) { mutationCount += 1 }
-        await waitUntil { repository.adjustmentCalls == 1 }
+        await repository.waitForAdjustmentCall()
 
         repository.finishAdjustment(
             with: mutationResult(snapshot: snapshot(cleared: 1_700), changed: true)
         )
-        await waitUntil { coordinator.submittingAction == nil }
+        await ObservedTestState { coordinator.submittingAction == nil }.wait()
 
         #expect(repository.adjustmentCalls == 1)
         #expect(mutationCount == 1)
@@ -116,12 +116,12 @@ struct AccountReconciliationCoordinatorTests {
         let coordinator = AccountReconciliationCoordinator()
         var mutationCount = 0
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
         coordinator.updateTargetText("20.00")
         coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
 
         coordinator.createAdjustment(repository: repository) { mutationCount += 1 }
-        await waitUntil { coordinator.submittingAction == nil }
+        await ObservedTestState { coordinator.submittingAction == nil }.wait()
 
         #expect(mutationCount == 0)
         #expect(coordinator.activeSession?.snapshot.clearedBalance == 1_000)
@@ -134,11 +134,11 @@ struct AccountReconciliationCoordinatorTests {
         repository.finishError = AccountReconciliationCommandError.balanceChanged
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
         coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
 
         coordinator.lockTransactions(repository: repository) {}
-        await waitUntil { coordinator.activeErrorMessage != nil }
+        await ObservedTestState { coordinator.activeErrorMessage != nil }.wait()
 
         #expect(coordinator.activeSession?.snapshot.clearedBalance == 900)
         #expect(coordinator.activeErrorMessage == "The cleared balance changed. Review the new difference before locking.")
@@ -150,20 +150,20 @@ struct AccountReconciliationCoordinatorTests {
         let lockCoordinator = AccountReconciliationCoordinator()
         var lockMutationCount = 0
         lockCoordinator.start(identity: identity, currency: .usd, repository: lockRepository)
-        await waitUntil { lockCoordinator.targetEntry != nil }
+        await ObservedTestState { lockCoordinator.targetEntry != nil }.wait()
         lockCoordinator.confirmTarget(locale: Locale(identifier: "en_US"))
         lockCoordinator.lockTransactions(repository: lockRepository) { lockMutationCount += 1 }
-        await waitUntil { lockCoordinator.state == .idle }
+        await ObservedTestState { lockCoordinator.state == .idle }.wait()
         #expect(lockMutationCount == 1)
 
         let exitRepository = ReconciliationCoordinatorRepository(snapshots: [snapshot(cleared: 1_000)])
         let exitCoordinator = AccountReconciliationCoordinator()
         exitCoordinator.start(identity: identity, currency: .usd, repository: exitRepository)
-        await waitUntil { exitCoordinator.targetEntry != nil }
+        await ObservedTestState { exitCoordinator.targetEntry != nil }.wait()
         exitCoordinator.updateTargetText("20.00")
         exitCoordinator.confirmTarget(locale: Locale(identifier: "en_US"))
         exitCoordinator.exit(repository: exitRepository) {}
-        await waitUntil { exitCoordinator.state == .idle }
+        await ObservedTestState { exitCoordinator.state == .idle }.wait()
         #expect(exitRepository.exitCalls == 1)
     }
 
@@ -172,7 +172,7 @@ struct AccountReconciliationCoordinatorTests {
         repository.suspendsSnapshot = true
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { repository.hasPendingSnapshot }
+        await repository.waitForPendingSnapshot()
 
         coordinator.cancel()
         repository.finishSnapshot(with: snapshot(cleared: 5_000))
@@ -186,7 +186,7 @@ struct AccountReconciliationCoordinatorTests {
         let repository = ReconciliationCoordinatorRepository(snapshots: [snapshot(cleared: 1_000)])
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
-        await waitUntil { coordinator.targetEntry != nil }
+        await ObservedTestState { coordinator.targetEntry != nil }.wait()
         coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
 
         coordinator.reconcileContext(AccountReconciliationIdentity(
@@ -280,15 +280,6 @@ struct AccountReconciliationCoordinatorTests {
         )
     }
 
-    private func waitUntil(
-        _ condition: @escaping @MainActor () -> Bool
-    ) async {
-        for _ in 0..<1_000 {
-            if condition() { return }
-            await Task.yield()
-        }
-        Issue.record("Timed out waiting for reconciliation state")
-    }
 }
 
 @MainActor
@@ -305,6 +296,8 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
     private(set) var exitCalls = 0
     private var snapshotContinuation: CheckedContinuation<AccountReconciliationSnapshot, any Error>?
     private var adjustmentContinuation: CheckedContinuation<AccountReconciliationMutationResult, any Error>?
+    private let snapshotPaused = TestLatch()
+    private let adjustmentStarted = TestLatch()
 
     init(snapshots: [AccountReconciliationSnapshot]) {
         self.snapshots = snapshots
@@ -322,7 +315,10 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
         accountID: String
     ) async throws -> AccountReconciliationSnapshot {
         if suspendsSnapshot {
-            return try await withCheckedThrowingContinuation { snapshotContinuation = $0 }
+            return try await withCheckedThrowingContinuation { continuation in
+                snapshotContinuation = continuation
+                snapshotPaused.trip()
+            }
         }
         return snapshots.removeFirst()
     }
@@ -333,6 +329,7 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
         targetBalance: Int
     ) async throws -> AccountReconciliationMutationResult {
         adjustmentCalls += 1
+        adjustmentStarted.trip()
         if suspendsAdjustment {
             return try await withCheckedThrowingContinuation { adjustmentContinuation = $0 }
         }
@@ -369,6 +366,14 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
         suspendsSnapshot = false
         snapshotContinuation?.resume(returning: snapshot)
         snapshotContinuation = nil
+    }
+
+    func waitForPendingSnapshot() async {
+        await snapshotPaused.wait()
+    }
+
+    func waitForAdjustmentCall() async {
+        await adjustmentStarted.wait()
     }
 
     func finishAdjustment(with result: AccountReconciliationMutationResult) {

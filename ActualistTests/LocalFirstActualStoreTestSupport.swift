@@ -272,6 +272,7 @@ extension LocalFirstActualStoreTests {
 
     func makeOpenedWritableStoreBundle(
         syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
+        keychainBackend: any KeychainBackend = SystemKeychainBackend(),
         connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {
             ActualServerSyncClient(baseURL: $0)
         },
@@ -348,7 +349,8 @@ extension LocalFirstActualStoreTests {
         let keychain = KeychainStore(
             service: "com.sporez.actualist.tests",
             account: UUID().uuidString,
-            simplefinAccessKeyAccount: UUID().uuidString
+            simplefinAccessKeyAccount: UUID().uuidString,
+            backend: keychainBackend
         )
         let store = LocalFirstActualStore(
             keychain: keychain,

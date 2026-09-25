@@ -102,10 +102,30 @@ extension LocalFirstActualStore {
         try await reloadAccountCaches(database: database, budgetID: budgetID)
     }
 
-    func reloadAccountCaches(database: BudgetDatabase, budgetID: String) async throws {
-        accountsByBudget[budgetID] = try await database.fetchAccountDisplays()
-        accountGroupsByBudget[budgetID] = try await database.fetchAccountGroups()
-        accountGroupManagementEnabledByBudget[budgetID] = try await database.accountGroupManagementEnabled()
+    func reloadAccountCaches(
+        database: BudgetDatabase,
+        budgetID: String,
+        bestEffort: Bool = false
+    ) async throws {
+        let generation = budgetSessionGeneration
+        let accounts: [AccountDisplay]?
+        if bestEffort { accounts = try? await database.fetchAccountDisplays() }
+        else { accounts = try await database.fetchAccountDisplays() }
+        #if DEBUG
+        if bestEffort { await launchWarmupSuspension?() }
+        #endif
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if let accounts { accountsByBudget[budgetID] = accounts }
+        let groups: [ActualAccountGroup]?
+        if bestEffort { groups = try? await database.fetchAccountGroups() }
+        else { groups = try await database.fetchAccountGroups() }
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if let groups { accountGroupsByBudget[budgetID] = groups }
+        let managementEnabled: Bool?
+        if bestEffort { managementEnabled = try? await database.accountGroupManagementEnabled() }
+        else { managementEnabled = try await database.accountGroupManagementEnabled() }
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if let managementEnabled { accountGroupManagementEnabledByBudget[budgetID] = managementEnabled }
     }
 
     func cachedPayeeManagementSnapshot(budgetID: String) -> PayeeManagementSnapshot? {
@@ -144,10 +164,12 @@ extension LocalFirstActualStore {
         month: String
     ) async throws {
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let maps = try await nameMaps(database)
         let transactions = try await database.fetchTransactions().filter { transaction in
             transaction.belongs(toCategory: categoryID, month: month)
         }
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         categoryTransactionsByKey[categoryTransactionKey(budgetID, categoryID, month)] = TransactionFeedPage(
             loaded: LoadedAccountTransactions(
                 transactions: transactions,
@@ -193,6 +215,7 @@ extension LocalFirstActualStore {
         month: String
     ) async throws -> LoadedUncategorizedTransactions {
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let maps = try await nameMaps(database)
         let transactions = try await database.fetchUncategorizedTransactions().filter { transaction in
             Self.isUncategorized(
@@ -201,6 +224,8 @@ extension LocalFirstActualStore {
                 offBudgetAccountIDs: maps.offBudgetAccountIDs
             )
         }
+        let categoryGroups = try await editorCategoryGroups(database: database, month: month, budgetID: budgetID)
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         let loaded = LoadedUncategorizedTransactions(
             transactions: transactions,
             accountNames: maps.accountNames,
@@ -209,7 +234,7 @@ extension LocalFirstActualStore {
             transferPayeeIDs: maps.transferPayeeIDs,
             transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
-            categoryGroups: try await editorCategoryGroups(database: database, month: month, budgetID: budgetID)
+            categoryGroups: categoryGroups
         )
         uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)] = loaded
         return loaded

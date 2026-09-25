@@ -81,7 +81,11 @@ struct ConnectionSyncSettingsView: View {
     }
 
     private var passwordPrompt: String {
-        appState.hasSyncCredentials ? "Re-enter to reconnect" : "Required"
+        switch appState.credentialAvailability {
+        case .available: "Re-enter to reconnect"
+        case .absent: "Required"
+        case .unavailable: "Saved login unavailable"
+        }
     }
 
     private var canSaveConnection: Bool {
@@ -203,6 +207,15 @@ struct ConnectionSyncSettingsView: View {
     @ViewBuilder
     private var statusSection: some View {
         Section("Status") {
+            if let recoveryMessage = appState.credentialRecoveryMessage {
+                Text(recoveryMessage)
+                    .foregroundStyle(ActualistTheme.warning)
+                Button("Try Again") {
+                    Task { await appState.retryCredentialAccess() }
+                }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("credentialRecoveryRetry")
+            }
             SettingsStatusRow(
                 status: appState.connectionStatus,
                 usedFallback: appState.localFirstSyncStatus?.lastSyncUsedFallback ?? false

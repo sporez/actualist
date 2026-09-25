@@ -83,7 +83,8 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         // Background refresh may run before the foreground scene restores AppState.
         if let reason = skipReason(
             settings: settings,
-            hasSyncCredentials: hasSyncCredentials
+            hasSyncCredentials: hasSyncCredentials,
+            keychain: store.keychain
         ) {
             return .skipped(reason)
         }
@@ -159,7 +160,8 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
 
     private func skipReason(
         settings: AppSettings,
-        hasSyncCredentials: Bool
+        hasSyncCredentials: Bool,
+        keychain: KeychainStore
     ) -> String? {
         var reasons: [String] = []
         // The background task serves alerts and experimental background bank
@@ -173,7 +175,10 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
             reasons.append("no selected budget")
         }
         if !hasSyncCredentials {
-            reasons.append("credentials missing")
+            switch AppSessionRecovery.credentialAvailability(keychain: keychain) {
+            case .unavailable: reasons.append("credentials unavailable on this device")
+            case .absent, .available: reasons.append("credentials missing")
+            }
         }
 
         guard !reasons.isEmpty else {

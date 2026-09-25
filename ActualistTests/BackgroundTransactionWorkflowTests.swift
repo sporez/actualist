@@ -397,10 +397,36 @@ struct BackgroundTransactionWorkflowTests {
             store: makeThrowawayStore()
         )
 
-        #expect(output.outcome == .failed("Sync transport unreachable"))
+        #expect(output.outcome == .failed(SafeSyncDiagnostic.genericFailure))
         let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
         #expect(run.succeeded == false)
-        #expect(run.message == "Sync transport unreachable")
+        #expect(run.message == SafeSyncDiagnostic.genericFailure)
+    }
+
+    @Test func unavailableBackgroundCredentialSkipsWithoutClearingPreferences() async throws {
+        let backend = FakeKeychainBackend()
+        let keychain = makeKeychain(backend: backend)
+        try keychain.saveActualSyncToken("synthetic-token")
+        backend.copyFailureStatus = errSecInteractionNotAllowed
+        let store = LocalFirstActualStore(keychain: keychain)
+        let (workflow, _) = makeWorkflow(runner: BackgroundTransactionRefreshRunner())
+        var settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+        settings.selectedBudgetID = "group-1"
+        settings.localFirstServerURLString = "https://synthetic.invalid"
+
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(1), isDemoMode: false,
+            settings: settings, selectedBudget: nil, budgets: [],
+            hasSyncCredentials: false, store: store
+        )
+        #expect(output.outcome == .success)
+        #expect(output.settings.backgroundTransactionRefreshEnabled)
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(run.message == "Skipped: credentials unavailable on this device")
+        #expect(SafeSyncDiagnostic.backgroundMessage(run.message, succeeded: run.succeeded)
+            == "Skipped: credentials unavailable on this device")
+        backend.copyFailureStatus = nil
+        #expect(try keychain.readActualSyncToken() == "synthetic-token")
     }
 
     // MARK: Helpers

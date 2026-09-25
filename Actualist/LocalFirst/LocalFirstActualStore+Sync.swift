@@ -5,6 +5,16 @@ extension LocalFirstActualStore {
         case succeeded, failed, cancelled
     }
 
+    func requireSyncSession(database: BudgetDatabase, budgetID: String, generation: Int) throws {
+        try Task.checkCancellation()
+        guard generation == budgetSessionGeneration,
+              self.database === database, openedBudgetID == budgetID else { throw CancellationError() }
+    }
+
+    private func ownsSyncSession(database: BudgetDatabase, budgetID: String, generation: Int) -> Bool {
+        generation == budgetSessionGeneration && self.database === database && openedBudgetID == budgetID
+    }
+
     func syncAndFindNewTransactions(
         budget: ActualBudget,
         serverURLString: String
@@ -23,18 +33,21 @@ extension LocalFirstActualStore {
         }
 
         let budgetID = budget.syncID
+        let refreshedDatabase = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let syncResult = try await pullAndReload(
             budgetID: budgetID,
             serverURLString: serverURLString
         )
 
-        let refreshedDatabase = try requireDatabase(for: budgetID)
+        try requireSyncSession(database: refreshedDatabase, budgetID: budgetID, generation: generation)
         let accountDisplays: [AccountDisplay]
         if let cachedDisplays = accountsByBudget[budgetID] {
             accountDisplays = cachedDisplays
         } else {
             accountDisplays = try await refreshedDatabase.fetchAccountDisplays()
         }
+        try requireSyncSession(database: refreshedDatabase, budgetID: budgetID, generation: generation)
         let accounts = accountDisplays.map(\.account).filter { !$0.closed }
 
         return accounts.compactMap { account in
@@ -51,13 +64,17 @@ extension LocalFirstActualStore {
     }
 
     func schedulePendingLocalMessageFlush(database: BudgetDatabase, budgetID: String) async {
+        let generation = budgetSessionGeneration
         let pendingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
+        guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
         if isDemoBudgetActive {
             // Demo mode keeps writes entirely local. CRDT application already
             // happened; drain the just-enqueued outbox rows so the pending count
             // stays at zero and no server round-trip is ever attempted.
             let drainedCount = (try? await database.drainAllPendingLocalSyncMessages()) ?? 0
+            guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
             await recordSyncStatus(budgetID: budgetID, uploadedCount: nil, appliedCount: nil, error: nil)
+            guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
             recordSyncDebugEvent(
                 outcome: .queued,
                 pendingBefore: pendingCount,
@@ -69,6 +86,7 @@ extension LocalFirstActualStore {
             return
         }
         await recordSyncStatus(budgetID: budgetID, uploadedCount: nil, appliedCount: nil, error: nil)
+        guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
         recordSyncDebugEvent(
             outcome: .queued,
             pendingBefore: pendingCount,
@@ -97,9 +115,10 @@ extension LocalFirstActualStore {
         budgetID: String,
         serverURLString: String
     ) async {
+        let generation = budgetSessionGeneration
         for delay in pendingLocalMessageFlushRetryDelays {
             guard !Task.isCancelled,
-                  openedBudgetID == budgetID,
+                  ownsSyncSession(database: database, budgetID: budgetID, generation: generation),
                   openedServerURLString == serverURLString else {
                 break
             }
@@ -118,7 +137,9 @@ extension LocalFirstActualStore {
                 break
             }
         }
-        pendingLocalMessageFlushTask = nil
+        if ownsSyncSession(database: database, budgetID: budgetID, generation: generation) {
+            pendingLocalMessageFlushTask = nil
+        }
     }
 
     func flushPendingLocalMessagesIfPossible(
@@ -126,15 +147,19 @@ extension LocalFirstActualStore {
         budgetID: String,
         serverURLString: String
     ) async -> PendingLocalMessageFlushOutcome {
+        let generation = budgetSessionGeneration
         do {
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let result = try await flushPendingLocalMessagesSerialized(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             if result.appliedRemoteMessageCount > 0 {
                 try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
             }
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             if result.pushedMessageCount > 0 || result.appliedRemoteMessageCount > 0 {
                 await recordSyncStatus(
                     budgetID: budgetID,
@@ -145,7 +170,10 @@ extension LocalFirstActualStore {
             }
             return .succeeded
         } catch {
-            guard !error.isCancellation else { return .cancelled }
+            guard !error.isCancellation,
+                  ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else {
+                return .cancelled
+            }
             await recordSyncStatus(
                 budgetID: budgetID,
                 uploadedCount: nil,
@@ -161,25 +189,32 @@ extension LocalFirstActualStore {
         budgetID: String,
         serverURLString: String
     ) async throws -> LocalFirstSyncResult {
+        let generation = budgetSessionGeneration
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         while isFlushingPendingLocalMessages {
             shouldFlushPendingLocalMessagesAgain = true
             await waitForPendingLocalMessageFlushToFinish()
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         }
 
         isFlushingPendingLocalMessages = true
         defer {
-            isFlushingPendingLocalMessages = false
-            resumePendingLocalMessageFlushWaiters()
+            if ownsSyncSession(database: database, budgetID: budgetID, generation: generation) {
+                isFlushingPendingLocalMessages = false
+                resumePendingLocalMessageFlushWaiters()
+            }
         }
 
         var totalResult = LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
         repeat {
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             shouldFlushPendingLocalMessagesAgain = false
             let result = try await flushPendingLocalMessages(
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             totalResult = LocalFirstSyncResult(
                 pushedMessageCount: totalResult.pushedMessageCount + result.pushedMessageCount,
                 appliedRemoteMessageCount: totalResult.appliedRemoteMessageCount + result.appliedRemoteMessageCount,
@@ -188,7 +223,7 @@ extension LocalFirstActualStore {
                     result.insertedTransactionIDsByAccount
                 )
             )
-        } while shouldFlushPendingLocalMessagesAgain && openedBudgetID == budgetID
+        } while shouldFlushPendingLocalMessagesAgain
 
         return totalResult
     }
@@ -210,12 +245,15 @@ extension LocalFirstActualStore {
         budgetID: String,
         serverURLString: String
     ) async throws -> LocalFirstSyncResult {
+        let generation = budgetSessionGeneration
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         let pending = try await database.pendingLocalSyncMessages()
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         guard !pending.isEmpty else {
             return LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
         }
-        let token = keychain.readActualSyncToken()
-        guard !token.isEmpty else {
+        let token = try keychain.readActualSyncToken()
+        guard let token else {
             throw LocalFirstError.missingSyncToken
         }
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
@@ -228,11 +266,19 @@ extension LocalFirstActualStore {
                     client: client,
                     token: token,
                     messages: pending.map(\.message),
-                    since: pending.map(\.baseTimestamp).min()
+                    since: pending.map(\.baseTimestamp).min(),
+                    sessionIsCurrent: { [self] in
+                        await ownsSyncSession(
+                            database: database, budgetID: budgetID, generation: generation
+                        )
+                    }
                 )
             }
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             try await database.deletePendingLocalSyncMessages(pending)
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             recordSyncDebugEvent(
                 outcome: .succeeded,
                 pendingBefore: pending.count,
@@ -249,8 +295,11 @@ extension LocalFirstActualStore {
                 error,
                 serverURLString: serverURLString
             )
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             try? await database.markPendingLocalSyncMessagesFailed(pending, error: resolvedError)
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? pending.count
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             recordSyncDebugEvent(
                 outcome: .failed,
                 pendingBefore: pending.count,
@@ -268,11 +317,13 @@ extension LocalFirstActualStore {
         budgetID: String,
         serverURLString: String
     ) async throws -> LocalFirstSyncResult {
+        let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         if isDemoBudgetActive {
             // Local-only: never touch transports. Reload caches from the local
             // database so a manual refresh still re-reads the local data.
-            let database = try requireDatabase(for: budgetID)
             try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             await recordSyncStatus(
                 budgetID: budgetID,
                 uploadedCount: 0,
@@ -281,12 +332,10 @@ extension LocalFirstActualStore {
             )
             return LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
         }
-        let token = keychain.readActualSyncToken()
-        guard !token.isEmpty else {
+        let token = try keychain.readActualSyncToken()
+        guard let token else {
             throw LocalFirstError.missingSyncToken
         }
-        let database = try requireDatabase(for: budgetID)
-
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.lastSyncAttemptAt = Date()
         syncStatus = status
@@ -296,18 +345,26 @@ extension LocalFirstActualStore {
                 budgetID: budgetID,
                 serverURLString: serverURLString
             )
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let pullResult = try await withSyncFailover(serverURLString: serverURLString) { client in
                 try await self.syncClient.pullAndApply(
                     database: database,
                     client: client,
-                    token: token
+                    token: token,
+                    sessionIsCurrent: { [self] in
+                        await ownsSyncSession(
+                            database: database, budgetID: budgetID, generation: generation
+                        )
+                    }
                 )
             }
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             #if DEBUG
             print("[Actualist LocalFirst] Applied \(pullResult.appliedMessageCount) remote sync messages")
             #endif
 
             try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let result = LocalFirstSyncResult(
                 pushedMessageCount: flushedResult.pushedMessageCount,
                 appliedRemoteMessageCount: (
@@ -326,10 +383,12 @@ extension LocalFirstActualStore {
             )
             return result
         } catch {
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let resolvedError = await resolvedSyncFailure(
                 error,
                 serverURLString: serverURLString
             )
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             await recordSyncStatus(
                 budgetID: budgetID,
                 uploadedCount: nil,
@@ -377,8 +436,8 @@ extension LocalFirstActualStore {
         guard let fileID = await syncClient.configuration?.fileID else {
             return false
         }
-        let token = keychain.readActualSyncToken()
-        guard !token.isEmpty else {
+        let token = try? keychain.readActualSyncToken()
+        guard let token else {
             return false
         }
         let remote: ActualSyncRemoteFile?
@@ -407,13 +466,20 @@ extension LocalFirstActualStore {
     }
 
     func reloadAfterRemoteSync(database: BudgetDatabase, budgetID: String) async throws {
+        let generation = budgetSessionGeneration
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         try await reloadSelectedBudgetCache(budgetID: budgetID)
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
-        payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        let payees = try await database.fetchPayeeManagementSnapshot()
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        payeesByBudget[budgetID] = payees
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
 
         try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
     }
 
     func recordSyncStatus(
@@ -422,13 +488,15 @@ extension LocalFirstActualStore {
         appliedCount: Int?,
         error: Error?
     ) async {
+        guard let database else { return }
+        let generation = budgetSessionGeneration
+        guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.fileID = budgetID
         status.groupID = openedGroupID
         status.encryptionKeyID = openedEncryptionContext?.keyID
-        if let database {
-            status.pendingLocalMessageCount = (try? await database.pendingLocalSyncMessageCount()) ?? status.pendingLocalMessageCount
-        }
+        status.pendingLocalMessageCount = (try? await database.pendingLocalSyncMessageCount()) ?? status.pendingLocalMessageCount
+        guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
         if let appliedCount, let uploadedCount {
             let lastSyncedAt = Date()
             status.lastSyncedAt = lastSyncedAt
@@ -438,24 +506,23 @@ extension LocalFirstActualStore {
             }
             status.lastError = nil
             status.lastSyncUsedFallback = (lastSyncEndpoint == .fallback)
-            if let database {
-                do {
-                    try await database.saveLocalSyncCheckpoint(
-                        BudgetDatabase.LocalSyncCheckpoint(
-                            lastSyncedAt: lastSyncedAt,
-                            lastAppliedMessageCount: status.lastAppliedMessageCount,
-                            lastUploadedMessageCount: status.lastUploadedMessageCount
-                        )
+            do {
+                try await database.saveLocalSyncCheckpoint(
+                    BudgetDatabase.LocalSyncCheckpoint(
+                        lastSyncedAt: lastSyncedAt,
+                        lastAppliedMessageCount: status.lastAppliedMessageCount,
+                        lastUploadedMessageCount: status.lastUploadedMessageCount
                     )
-                } catch {
-                    #if DEBUG
-                    print("[Actualist LocalFirst] Could not persist the last sync checkpoint")
-                    #endif
-                }
+                )
+            } catch {
+                #if DEBUG
+                print("[Actualist LocalFirst] Could not persist the last sync checkpoint")
+                #endif
             }
         } else if let error, !error.isCancellation {
             status.lastError = SafeSyncDiagnostic.description(for: error)
         }
+        guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
         syncStatus = status
     }
 

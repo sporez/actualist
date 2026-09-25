@@ -514,10 +514,10 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
     private(set) var dryRunCount = 0
     private var saved: [[BudgetTemplateDraft]] = []
     private var blockSnapshot = false
-    private var snapshotStarted = false
+    private let snapshotStartedLatch = TestLatch()
     private var snapshotContinuation: CheckedContinuation<Void, Never>?
     private var blockSave = false
-    private var saveStarted = false
+    private let saveStartedLatch = TestLatch()
     private var saveContinuation: CheckedContinuation<Void, Never>?
 
     init(snapshot: BudgetTemplateEditorSnapshot) {
@@ -529,9 +529,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
     func blockNextSnapshot() { blockSnapshot = true }
 
     func waitUntilSnapshotStarts() async {
-        while !snapshotStarted {
-            await Task.yield()
-        }
+        await snapshotStartedLatch.wait()
     }
 
     func releaseSnapshot() {
@@ -542,9 +540,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
     func blockNextSave() { blockSave = true }
 
     func waitUntilSaveStarts() async {
-        while !saveStarted {
-            await Task.yield()
-        }
+        await saveStartedLatch.wait()
     }
 
     func releaseSave() {
@@ -558,7 +554,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
     ) async throws -> BudgetTemplateEditorSnapshot {
         if blockSnapshot {
             blockSnapshot = false
-            snapshotStarted = true
+            snapshotStartedLatch.trip()
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 snapshotContinuation = continuation
             }
@@ -597,7 +593,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
     ) async throws -> LoadedBudgetMonth {
         if blockSave {
             blockSave = false
-            saveStarted = true
+            saveStartedLatch.trip()
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 saveContinuation = continuation
             }

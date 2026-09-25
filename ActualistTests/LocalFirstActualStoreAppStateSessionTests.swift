@@ -7,6 +7,179 @@ import ZIPFoundation
 @testable import Actualist
 
 extension LocalFirstActualStoreTests {
+    @Test func customHeaderReadFailurePreservesOpenBudgetAndRetryActuallySynchronizes() async throws {
+        let backend = FakeKeychainBackend()
+        let transport = RecordingSyncTransport()
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in transport }, keychainBackend: backend
+        )
+        try bundle.keychain.saveActualSyncToken("synthetic-token")
+        backend.copyFailureAccountStatuses["custom-http-headers"] = errSecInteractionNotAllowed
+        let state = try makeAppState(for: bundle)
+        await state.beginForegroundSession()
+        #expect(state.setupPhase == .ready)
+        #expect(try bundle.keychain.readActualSyncToken() == "synthetic-token")
+        #expect(!(await state.refreshLocalFirstData(budgetID: "group-1")))
+        #expect(state.connectionStatus == .offline)
+        #expect(state.credentialRecoveryMessage == KeychainReadError.unavailable(errSecInteractionNotAllowed).localizedDescription)
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+        backend.copyFailureAccountStatuses = [:]
+        await state.retryCredentialAccess()
+        #expect(state.connectionStatus == .online)
+        #expect(state.credentialRecoveryMessage == nil)
+        #expect(await transport.messageCounts() == [0])
+    }
+
+    @Test func cachedOpenReportsUnreadableHeadersWithoutCallingBudgetOnline() async throws {
+        let backend = FakeKeychainBackend()
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in RecordingSyncTransport() }, keychainBackend: backend
+        )
+        try bundle.keychain.saveActualSyncToken("synthetic-token")
+        let state = try makeAppState(for: bundle)
+        bundle.store.reset()
+        backend.copyFailureAccountStatuses["custom-http-headers"] = errSecAuthFailed
+        let budget = ActualBudget(budgetID: "file-1", cloudFileId: "file-1", groupId: "group-1", name: "Budget", state: nil)
+        await state.selectBudgetForCurrentBackend(budget)
+        #expect(state.setupPhase == .ready)
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+        #expect(state.connectionStatus == .offline)
+        #expect(state.credentialRecoveryMessage == KeychainReadError.unavailable(errSecAuthFailed).localizedDescription)
+        backend.copyFailureAccountStatuses = [:]
+        await state.retryCredentialAccess()
+        #expect(state.connectionStatus == .online)
+        #expect(state.credentialRecoveryMessage == nil)
+    }
+
+    @Test func logoutDuringRecoveryCannotCommitOldConnectionOrReopenBudget() async throws {
+        let remote = ActualSyncRemoteFile(fileID: "file-1", groupID: "group-1", name: "Sample Budget")
+        let transport = StubConnectionTransport(files: [remote], loginMethodsDelay: .milliseconds(250))
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in RecordingSyncTransport() },
+            connectionTransportFactory: { _ in transport }
+        )
+        try bundle.keychain.saveActualSyncToken("old-synthetic-token")
+        let state = try makeAppState(for: bundle)
+        await state.beginForegroundSession()
+        let pending = Task {
+            await state.saveLocalFirstConnection(serverURLString: "https://sync.example", password: "synthetic-password")
+        }
+        await transport.waitForLoginMethodsRequest()
+        #expect(await transport.loginMethodsRequestCount > 0)
+        state.disconnectAndEraseLocalData()
+        #expect(!(await pending.value))
+        #expect(state.setupPhase == .needsConnection)
+        #expect(state.settings.selectedBudgetID == nil)
+        #expect(try bundle.keychain.readActualSyncToken() == nil)
+        #expect(!bundle.store.hasOpenBudget)
+    }
+
+    @Test func unavailableTokenOpensCachedBudgetAndRecoversWithoutReimport() async throws {
+        let transport = RecordingSyncTransport()
+        let backend = FakeKeychainBackend()
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in transport }, keychainBackend: backend
+        )
+        try bundle.keychain.saveActualSyncToken("synthetic-token")
+        bundle.store.reset()
+        backend.copyFailureStatus = errSecInteractionNotAllowed
+        let state = try makeAppState(for: bundle)
+
+        await state.beginForegroundSession()
+        #expect(state.setupPhase == .ready)
+        #expect(state.connectionStatus == .offline)
+        #expect(state.credentialRecoveryMessage != nil)
+        #expect(!state.requiresReauthentication)
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+        let originalDirectory = try bundle.fileManager.budgetDirectory(fileID: "file-1")
+        #expect(FileManager.default.fileExists(atPath: originalDirectory.path))
+
+        backend.copyFailureStatus = nil
+        await state.retryCredentialAccess()
+        #expect(state.setupPhase == .ready)
+        #expect(state.credentialRecoveryMessage == nil)
+        #expect(state.connectionStatus == .online)
+        #expect(FileManager.default.fileExists(atPath: originalDirectory.path))
+        #expect(try bundle.keychain.readActualSyncToken() == "synthetic-token")
+    }
+
+    @Test func noCacheAndUnavailableTokenBlocksInsteadOfOnboarding() async throws {
+        let backend = FakeKeychainBackend()
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in RecordingSyncTransport() }, keychainBackend: backend
+        )
+        try bundle.keychain.saveActualSyncToken("synthetic-token")
+        bundle.store.reset()
+        try FileManager.default.removeItem(at: bundle.fileManager.budgetDirectory(fileID: "file-1"))
+        backend.copyFailureStatus = errSecAuthFailed
+        let state = try makeAppState(for: bundle)
+
+        await state.beginForegroundSession()
+        #expect(state.setupPhase == .credentialUnavailable)
+        #expect(state.credentialRecoveryMessage != nil)
+        #expect(state.settings.selectedBudgetID == "group-1")
+        #expect(!state.requiresReauthentication)
+        backend.copyFailureStatus = nil
+        try bundle.keychain.removeActualSyncToken()
+        await state.retryCredentialAccess()
+        #expect(state.setupPhase == .needsConnection)
+        #expect(state.settings.selectedBudgetID == "group-1")
+    }
+
+    @Test func unavailableEncryptionKeyDoesNotRequestNewPasswordOrClearSelection() async throws {
+        let backend = FakeKeychainBackend()
+        let bundle = try await makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in RecordingSyncTransport() }, keychainBackend: backend
+        )
+        try bundle.keychain.saveActualSyncToken("synthetic-token")
+        let metadataURL = try bundle.fileManager.metadataURL(fileID: "file-1")
+        let original = try JSONDecoder.actual.decode(LocalFirstBudgetMetadata.self, from: Data(contentsOf: metadataURL))
+        let encrypted = LocalFirstBudgetMetadata(
+            localBudgetID: original.localBudgetID, cloudFileID: original.cloudFileID,
+            groupID: original.groupID, budgetName: original.budgetName,
+            encryptionKeyID: "key-1", nodeID: original.nodeID
+        )
+        try JSONEncoder.actual.encode(encrypted).write(to: metadataURL)
+        try bundle.keychain.saveLocalFirstEncryptionKey(Data(repeating: 5, count: 32), fileID: "file-1", keyID: "key-1")
+        bundle.store.reset()
+        backend.copyFailureStatus = errSecInteractionNotAllowed
+        let state = try makeAppState(for: bundle)
+
+        await state.beginForegroundSession()
+        #expect(state.setupPhase == .credentialUnavailable)
+        #expect(state.lastErrorMessage != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription)
+        #expect(state.settings.selectedBudgetID == "group-1")
+        backend.copyFailureStatus = nil
+        await state.retryCredentialAccess()
+        #expect(state.setupPhase == .ready)
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+    }
+
+    @Test func encryptedSelectionUnavailableKeyKeepsPreviouslyOpenBudget() async throws {
+        let backend = FakeKeychainBackend()
+        let bundle = try await makeOpenedWritableStoreBundle(keychainBackend: backend)
+        let state = try makeAppState(for: bundle)
+        await state.beginForegroundSession()
+        let target = ActualBudget(
+            budgetID: "file-2", cloudFileId: "file-2", groupId: "group-2",
+            name: "Encrypted Sample", state: nil
+        )
+        bundle.store.remoteFilesByFileID["file-2"] = ActualSyncRemoteFile(
+            fileID: "file-2", groupID: "group-2", name: "Encrypted Sample",
+            encryptKeyID: "key-2", requiresEncryptionPassword: true
+        )
+        backend.copyFailureAccountStatuses["actual-encryption-key:file-2:key-2"] = errSecAuthFailed
+
+        await state.selectBudgetForCurrentBackend(target)
+
+        #expect(state.setupPhase == .ready)
+        #expect(state.settings.selectedBudgetID == "group-1")
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
+        #expect(state.lastErrorMessage == KeychainReadError.unavailable(errSecAuthFailed).localizedDescription)
+        #expect(state.lastErrorMessage != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription)
+        #expect(state.credentialRecoveryMessage != nil)
+    }
+
     @Test func appStateConcurrentManualRefreshesJoinOneSync() async throws {
         let transport = RecordingSyncTransport(delayNanoseconds: 80_000_000)
         let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
@@ -167,9 +340,7 @@ extension LocalFirstActualStoreTests {
         let selectionTask = Task {
             await appState.selectBudgetForCurrentBackend(targetBudget)
         }
-        for _ in 0..<100 where !appState.isBudgetSwitchInProgress {
-            await Task.yield()
-        }
+        await ObservedTestState { appState.isBudgetSwitchInProgress }.wait()
 
         #expect(appState.isBudgetSwitchInProgress)
         #expect(appState.setupPhase == .ready)
@@ -348,7 +519,7 @@ extension LocalFirstActualStoreTests {
         let appState = fixture.appState
 
         #expect(appState.setupPhase == .restoringBudget)
-        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+        #expect(try fixture.keychain.readActualSyncToken() == nil)
         await appState.beginForegroundSession()
         #expect(appState.setupPhase == .needsConnection)
 
@@ -364,7 +535,7 @@ extension LocalFirstActualStoreTests {
         #expect(appState.settings.selectedBudgetID == nil)
         #expect(appState.settings.selectedLocalFirstFileID == nil)
         #expect(fixture.settingsStore.load().selectedBudgetID == nil)
-        #expect(fixture.keychain.readActualSyncToken() == "renewed-token")
+        #expect(try fixture.keychain.readActualSyncToken() == "renewed-token")
     }
 
     @Test func restoredSelectionForUnavailableRemoteBudgetKeepsExistingState() async throws {
@@ -389,7 +560,7 @@ extension LocalFirstActualStoreTests {
         )
         #expect(fixture.appState.settings.selectedBudgetID == "group-1")
         #expect(fixture.settingsStore.load().selectedBudgetID == "group-1")
-        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+        #expect(try fixture.keychain.readActualSyncToken() == nil)
     }
 
     @Test func connectingToDifferentServerClearsRestoredSelection() async throws {
@@ -414,7 +585,7 @@ extension LocalFirstActualStoreTests {
         #expect(fixture.appState.settings.selectedBudgetID == nil)
         #expect(fixture.appState.settings.selectedLocalFirstFileID == nil)
         #expect(fixture.appState.setupPhase == .selectingBudget)
-        #expect(fixture.keychain.readActualSyncToken() == "new-token")
+        #expect(try fixture.keychain.readActualSyncToken() == "new-token")
     }
 
     @Test func restoredSelectionWithPresentCorruptCacheStillFailsValidation() async throws {
@@ -451,7 +622,7 @@ extension LocalFirstActualStoreTests {
         #expect(!authenticated)
         #expect(fixture.appState.settings.selectedBudgetID == "group-1")
         #expect(fixture.settingsStore.load().selectedBudgetID == "group-1")
-        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+        #expect(try fixture.keychain.readActualSyncToken() == nil)
         #expect(fixture.fileManager.importedDatabaseExists(fileID: "file-1"))
     }
 
@@ -474,7 +645,7 @@ extension LocalFirstActualStoreTests {
         #expect(!authenticated)
         #expect(fixture.appState.lastErrorMessage == "The server password is incorrect.")
         #expect(fixture.appState.settings.selectedBudgetID == "group-1")
-        #expect(fixture.keychain.readActualSyncToken().isEmpty)
+        #expect(try fixture.keychain.readActualSyncToken() == nil)
     }
 
     @Test func restoredEncryptedSelectionCanUnlockAndDownloadAfterRecovery() async throws {

@@ -53,7 +53,8 @@ struct AccountTransactionsViewModelReadStateTests {
         let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
         model.searchText = "market"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await AccountTransactionsViewModelTests.waitUntil { !model.isSearching && repository.searchLimits.count == 1 }
+        await repository.waitForSearch("market|all|0")
+        await ObservedTestState { !model.isSearching }.wait()
         await model.loadOlder(budgetID: "budget", repository: repository)
 
         await model.refresh(budgetID: "budget", repository: repository, sync: {}, onChanged: {})
@@ -84,7 +85,8 @@ struct AccountTransactionsViewModelReadStateTests {
         let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
         model.searchText = "market"
         model.scheduleSearch(budgetID: "budget", repository: repository)
-        await AccountTransactionsViewModelTests.waitUntil { !model.isSearching && repository.searchLimits.count == 1 }
+        await repository.waitForSearch("market|all|0")
+        await ObservedTestState { !model.isSearching }.wait()
         await model.loadOlder(budgetID: "budget", repository: repository)
 
         await model.refresh(budgetID: "budget", repository: repository, sync: {}, onChanged: {})
@@ -101,7 +103,7 @@ struct AccountTransactionsViewModelReadStateTests {
         let repository = AccountTransactionsRecordingRepository(suspendsSearches: true)
         let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
         model.searchTextDidChange("market", budgetID: "budget", repository: repository)
-        await AccountTransactionsViewModelTests.waitUntil { repository.searchRequests.count == 1 }
+        await repository.waitForSearch("market|all|0")
 
         model.feedDidDisappear(editorIsPresented: true)
         #expect(!model.isSearchLoading(budgetID: "budget"))
@@ -114,11 +116,11 @@ struct AccountTransactionsViewModelReadStateTests {
                                                  pendingNewTransactionIDs: [], privacyModeEnabled: false)
         #expect(cancelledDisplay.transactionCount == 0)
         model.editorPresentationChanged(editorDismissed: true, budgetID: "budget", repository: repository)
-        await AccountTransactionsViewModelTests.waitUntil { repository.searchRequests.count == 2 }
+        await repository.waitForSearch("market|all|0", occurrence: 2)
         await repository.finishSearch("market", with: AccountTransactionsViewModelTests.loaded([
             AccountTransactionsViewModelTests.transaction(id: "resumed-result")
         ]))
-        await AccountTransactionsViewModelTests.waitUntil { !model.isSearching }
+        await ObservedTestState { !model.isSearching }.wait()
 
         let resumed = model.displayState(budgetID: "budget", repository: repository,
                                          pendingNewTransactionIDs: [], privacyModeEnabled: false)
@@ -146,11 +148,11 @@ struct AccountTransactionsViewModelReadStateTests {
         let staleLoad = Task {
             await model.selectFilter(.uncleared, budgetID: "budget", repository: repository)
         }
-        await AccountTransactionsViewModelTests.waitUntil { repository.refreshFilters.contains(.uncleared) }
+        await repository.waitForRefresh(.uncleared)
         let currentLoad = Task {
             await model.selectFilter(.cleared, budgetID: "budget", repository: repository)
         }
-        await AccountTransactionsViewModelTests.waitUntil { repository.refreshFilters.contains(.cleared) }
+        await repository.waitForRefresh(.cleared)
 
         await repository.finishRefresh(.cleared)
         await currentLoad.value

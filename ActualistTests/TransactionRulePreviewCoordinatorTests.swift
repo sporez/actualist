@@ -24,9 +24,7 @@ struct TransactionRulePreviewCoordinatorTests {
                 currentRequest: { currentRequest }
             )
         }
-        while await !repository.isRulePreviewPaused(payeeName: "Old Payee") {
-            await Task.yield()
-        }
+        await repository.waitForRulePreviewPaused(payeeName: "Old Payee")
 
         currentRequest = newRequest
         let newOutcome = await coordinator.preview(
@@ -57,9 +55,7 @@ struct TransactionRulePreviewCoordinatorTests {
                 currentRequest: { currentRequest }
             )
         }
-        while await !repository.isRulePreviewPaused(payeeName: "Delayed") {
-            await Task.yield()
-        }
+        await repository.waitForRulePreviewPaused(payeeName: "Delayed")
 
         currentRequest = Self.request(payeeName: "Delayed", amount: -2_000)
         await repository.resumeRulePreview(payeeName: "Delayed")
@@ -82,9 +78,7 @@ struct TransactionRulePreviewCoordinatorTests {
                 currentRequest: { request }
             )
         }
-        while await !repository.isRulePreviewPaused(payeeName: "Delayed") {
-            await Task.yield()
-        }
+        await repository.waitForRulePreviewPaused(payeeName: "Delayed")
 
         coordinator.cancel()
         await repository.resumeRulePreview(payeeName: "Delayed")
@@ -108,9 +102,7 @@ struct TransactionRulePreviewCoordinatorTests {
                 currentRequest: { request }
             )
         }
-        while await !repository.isRulePreviewPaused(payeeName: "Delayed") {
-            await Task.yield()
-        }
+        await repository.waitForRulePreviewPaused(payeeName: "Delayed")
 
         task.cancel()
         await repository.resumeRulePreview(payeeName: "Delayed")

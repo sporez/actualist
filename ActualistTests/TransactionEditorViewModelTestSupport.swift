@@ -73,8 +73,8 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
     private let pauseAfterDidCreate: Bool
     private let editorOptionsResult: TransactionEditorOptions?
     private let pausedEditorOptionsMonths: Set<String>
-    private var didCreateCallbackFinished = false
-    private var pausedBeforeDidCreate = false
+    private let didCreateFinishedLatch = TestLatch()
+    private let beforeDidCreateEnteredLatch = TestLatch()
     private var beforeDidCreateContinuation: CheckedContinuation<Void, Never>?
     private var afterDidCreateContinuation: CheckedContinuation<Void, Never>?
     private let editorAccounts: [ActualAccount]
@@ -85,7 +85,9 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
     private var deleteAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
     private var unlockTransactionIDs: [String] = []
     private var pausedRulePreviewContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var pausedRulePreviewLatches: [String: TestLatch] = [:]
     private var pausedEditorOptionsContinuations: [String: CheckedContinuation<Void, Never>] = [:]
+    private var pausedEditorOptionsLatches: [String: TestLatch] = [:]
 
     init(
         rulePreview: TransactionRulePreview = TransactionRulePreview(categoryID: nil, notes: nil),
@@ -119,6 +121,9 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         if pausedEditorOptionsMonths.contains(month) {
             await withCheckedContinuation { continuation in
                 pausedEditorOptionsContinuations[month] = continuation
+                let latch = pausedEditorOptionsLatches[month] ?? TestLatch()
+                pausedEditorOptionsLatches[month] = latch
+                latch.trip()
             }
         }
         return editorOptionsResult ?? TransactionEditorOptions(accounts: editorAccounts, categories: [], categoryGroups: [], payees: [])
@@ -146,6 +151,9 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         if pausedRulePreviewPayeeNames.contains(draft.payeeName) {
             await withCheckedContinuation { continuation in
                 pausedRulePreviewContinuations[draft.payeeName] = continuation
+                let latch = pausedRulePreviewLatches[draft.payeeName] ?? TestLatch()
+                pausedRulePreviewLatches[draft.payeeName] = latch
+                latch.trip()
             }
         }
         if let previewError {
@@ -163,10 +171,9 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
 
         if pauseBeforeDidCreate {
             await withCheckedContinuation { continuation in
-                pausedBeforeDidCreate = true
                 beforeDidCreateContinuation = continuation
+                beforeDidCreateEnteredLatch.trip()
             }
-            pausedBeforeDidCreate = false
         }
 
         if let createError {
@@ -174,7 +181,7 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         }
 
         await didCreate()
-        didCreateCallbackFinished = true
+        didCreateFinishedLatch.trip()
 
         if pauseAfterDidCreate {
             await withCheckedContinuation { continuation in
@@ -218,7 +225,6 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         }
 
         await didUpdate()
-        didCreateCallbackFinished = true
 
         if let refreshError {
             throw refreshError
@@ -313,7 +319,6 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         }
 
         await didDelete()
-        didCreateCallbackFinished = true
 
         if let refreshError {
             throw refreshError
@@ -411,16 +416,20 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         rulePreviewDrafts.count
     }
 
-    func isRulePreviewPaused(payeeName: String) async -> Bool {
-        pausedRulePreviewContinuations[payeeName] != nil
+    func waitForRulePreviewPaused(payeeName: String) async {
+        let latch = pausedRulePreviewLatches[payeeName] ?? TestLatch()
+        pausedRulePreviewLatches[payeeName] = latch
+        await latch.wait()
     }
 
     func resumeRulePreview(payeeName: String) async {
         pausedRulePreviewContinuations.removeValue(forKey: payeeName)?.resume()
     }
 
-    func isEditorOptionsPaused(month: String) async -> Bool {
-        pausedEditorOptionsContinuations[month] != nil
+    func waitForEditorOptionsPaused(month: String) async {
+        let latch = pausedEditorOptionsLatches[month] ?? TestLatch()
+        pausedEditorOptionsLatches[month] = latch
+        await latch.wait()
     }
 
     func resumeEditorOptions(month: String) async {
@@ -431,12 +440,12 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         drafts.count
     }
 
-    func didCreateFinished() async -> Bool {
-        didCreateCallbackFinished
+    func waitForPauseBeforeDidCreate() async {
+        await beforeDidCreateEnteredLatch.wait()
     }
 
-    func isPausedBeforeDidCreate() async -> Bool {
-        pausedBeforeDidCreate
+    func waitForDidCreateFinished() async {
+        await didCreateFinishedLatch.wait()
     }
 
     func resumeBeforeDidCreate() async {

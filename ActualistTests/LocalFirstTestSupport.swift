@@ -6,6 +6,29 @@ enum LocalFirstTestSyncError: Error, Equatable {
     case failed
 }
 
+actor StubConnectionWaitGate {
+    private(set) var didEnter = false
+    private var continuation: CheckedContinuation<Void, Never>?
+    private let entered = TestLatch()
+
+    func wait() async {
+        didEnter = true
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            entered.trip()
+        }
+    }
+
+    func waitForEntry() async {
+        await entered.wait()
+    }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 actor StubConnectionTransport: ActualServerConnectionTransport {
     enum FailurePoint: Sendable, Equatable {
         case none
@@ -21,6 +44,16 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
     let downloadData: Data
     let openIDAuthorizationURL: URL
     let loginMethodsData: Data
+    let loginMethodsDelay: Duration
+    let listUserFilesDelay: Duration
+    let listUserFilesGate: StubConnectionWaitGate?
+    let downloadGate: StubConnectionWaitGate?
+    let userKeyGate: StubConnectionWaitGate?
+    let userKeyResponse: ActualUserKeyResponse?
+    private(set) var loginMethodsRequestCount = 0
+    private(set) var listUserFilesRequestCount = 0
+    private var loginMethodsStarted = TestLatch()
+    private var listUserFilesStarted: [Int: TestLatch] = [:]
     private(set) var capturedOpenIDReturnURL: URL?
     private(set) var capturedFirstTimeLoginPassword: String?
 
@@ -30,7 +63,13 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
         token: String = "staged-token",
         downloadData: Data = Data(),
         openIDAuthorizationURL: URL = URL(string: "https://identity.example/authorize")!,
-        loginMethodsData: Data = Data(#"{"methods":["password"]}"#.utf8)
+        loginMethodsData: Data = Data(#"{"methods":["password"]}"#.utf8),
+        loginMethodsDelay: Duration = .zero,
+        listUserFilesDelay: Duration = .zero,
+        listUserFilesGate: StubConnectionWaitGate? = nil,
+        downloadGate: StubConnectionWaitGate? = nil,
+        userKeyGate: StubConnectionWaitGate? = nil,
+        userKeyResponse: ActualUserKeyResponse? = nil
     ) {
         self.failurePoint = failurePoint
         self.files = files
@@ -38,9 +77,18 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
         self.downloadData = downloadData
         self.openIDAuthorizationURL = openIDAuthorizationURL
         self.loginMethodsData = loginMethodsData
+        self.loginMethodsDelay = loginMethodsDelay
+        self.listUserFilesDelay = listUserFilesDelay
+        self.listUserFilesGate = listUserFilesGate
+        self.downloadGate = downloadGate
+        self.userKeyGate = userKeyGate
+        self.userKeyResponse = userKeyResponse
     }
 
     func loginMethods() async throws -> ActualLoginMethodsResponse {
+        loginMethodsRequestCount += 1
+        loginMethodsStarted.trip()
+        if loginMethodsDelay > .zero { try await Task.sleep(for: loginMethodsDelay) }
         if failurePoint == .loginMethods {
             throw LocalFirstTestSyncError.failed
         }
@@ -76,10 +124,25 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
     }
 
     func listUserFiles(token: String) async throws -> [ActualSyncRemoteFile] {
+        listUserFilesRequestCount += 1
+        listUserFilesStarted[listUserFilesRequestCount]?.trip()
+        if listUserFilesDelay > .zero { try await Task.sleep(for: listUserFilesDelay) }
+        if let listUserFilesGate { await listUserFilesGate.wait() }
         if failurePoint == .listBudgets {
             throw LocalFirstTestSyncError.failed
         }
         return files
+    }
+
+    func waitForLoginMethodsRequest() async {
+        await loginMethodsStarted.wait()
+    }
+
+    func waitForListUserFilesRequest(atLeast expected: Int = 1) async {
+        if listUserFilesRequestCount >= expected { return }
+        let latch = listUserFilesStarted[expected] ?? TestLatch()
+        listUserFilesStarted[expected] = latch
+        await latch.wait()
     }
 
     func userFileInfo(fileID: String, token: String) async throws -> ActualSyncRemoteFile? {
@@ -92,9 +155,12 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
             throw LocalFirstTestSyncError.failed
         }
         try downloadData.write(to: destinationURL)
+        if let downloadGate { await downloadGate.wait() }
     }
 
     func userKey(fileID: String, token: String) async throws -> ActualUserKeyResponse {
+        if let userKeyGate { await userKeyGate.wait() }
+        if let userKeyResponse { return userKeyResponse }
         throw LocalFirstTestSyncError.failed
     }
 }
@@ -425,6 +491,7 @@ final class FakeKeychainBackend: KeychainBackend, @unchecked Sendable {
     var addFailureStatus: OSStatus?
     var deleteFailureStatus: OSStatus?
     var copyFailureStatus: OSStatus?
+    var copyFailureAccountStatuses: [String: OSStatus] = [:]
     private(set) var updateCallCount = 0
 
     private var items: [String: [String: Any]] = [:]
@@ -440,10 +507,12 @@ final class FakeKeychainBackend: KeychainBackend, @unchecked Sendable {
     }
 
     func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus {
+        let query = query as NSDictionary
+        if let account = query[kSecAttrAccount as String] as? String,
+           let status = copyFailureAccountStatuses[account] { return status }
         if let copyFailureStatus {
             return copyFailureStatus
         }
-        let query = query as NSDictionary
         let service = query[kSecAttrService as String] as? String ?? ""
         let account = query[kSecAttrAccount as String] as? String
         let returnsAttributes = (query[kSecReturnAttributes as String] as? Bool) == true
