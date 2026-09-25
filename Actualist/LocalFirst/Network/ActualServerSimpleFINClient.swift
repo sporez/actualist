@@ -155,7 +155,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     init(baseURL: URL, customHeaders: HTTPHeaderFields = .empty, session: URLSession? = nil) {
         self.baseURL = baseURL
         self.customHeaders = customHeaders
-        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(fields: customHeaders)
+        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(baseURL: baseURL, fields: customHeaders)
         self.session = session ?? URLSession(
             configuration: ActualServerSyncClient.secureSessionConfiguration()
         )
@@ -427,6 +427,9 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
 
     private func post(path: String, token: String, body: some Encodable) async throws -> Data? {
         var request = try Self.endpointURL(baseURL: baseURL, path: path)
+        guard redirectDelegate.permits(source: baseURL, destination: request.url) else {
+            throw ActualAPIError.invalidURL
+        }
         customHeaders.apply(to: &request)
         request.httpMethod = "POST"
         request.timeoutInterval = 60
@@ -441,6 +444,8 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             (data, response) = try await session.data(for: request, delegate: redirectDelegate)
         } catch where error.isCancellation {
             throw CancellationError()
+        } catch let error as ActualAPIError {
+            throw error
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {
@@ -450,6 +455,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ActualAPIError.invalidResponse
         }
+        if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         let statusCode = httpResponse.statusCode
         // A server without these routes is "cannot sync", not an error.
         if statusCode == 404 || statusCode == 405 || statusCode == 501 {

@@ -209,6 +209,43 @@ extension LocalFirstActualStoreTests {
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == pendingCount)
     }
 
+    @Test func refusedRedirectDuringFlushKeepsLocalBudgetAndOutboxWithoutFallback() async throws {
+        let fallback = RecordingSyncTransport()
+        let primary = ErroringSyncTransport(error: .redirectRefused)
+        let bundle = try await makeOpenedWritableStoreBundle(syncTransportFactory: { url in
+            url.host == "fallback.example" ? (fallback as any ActualSyncTransport) : primary
+        })
+        bundle.store.fallbackServerURLString = "https://fallback.example"
+        try bundle.keychain.saveActualSyncToken("token")
+
+        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+            categoryID: "groceries", budgeted: 62_500, budgetID: "group-1", month: "2026-07"
+        ) {}
+        let database = try #require(bundle.store.database)
+        let pendingBefore = try await database.pendingLocalSyncMessages().map { $0.message }
+        #expect(!pendingBefore.isEmpty)
+
+        do {
+            try await bundle.store.refresh(budgetID: "group-1", serverURLString: "https://primary.example")
+            Issue.record("Expected redirect refusal")
+        } catch ActualAPIError.redirectRefused {
+            // The endpoint change must be explicit, not an automatic fallback.
+        }
+
+        let pendingAfter = try await database.pendingLocalSyncMessages().map { $0.message }
+        #expect(pendingAfter == pendingBefore)
+        #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingBefore.count)
+        #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == ActualAPIError.redirectRefused.localizedDescription)
+        #expect(bundle.store.lastSyncEndpoint == .primary)
+        #expect(await fallback.messageCounts().isEmpty)
+        let month = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
+        let groceries = month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        let storedMonth = try await database.fetchBudgetMonth(month: "2026-07")
+        let storedGroceries = storedMonth.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
+        #expect(groceries?.budgeted == 62_500)
+        #expect(storedGroceries?.budgeted == 62_500)
+    }
+
     @Test func scheduledFlushRetriesTransientFailureAndConfirmsUpload() async throws {
         let transport = RecordingSyncTransport(failureCount: 1)
         let bundle = try await makeOpenedWritableStoreBundle(

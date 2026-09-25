@@ -180,7 +180,29 @@ struct HTTPHeaderFields: Sendable, Equatable, CustomStringConvertible, CustomDeb
 /// Per-task delegate protects injected sessions as well as production sessions.
 final class CustomHTTPHeaderRedirectDelegate: NSObject, URLSessionTaskDelegate, Sendable {
     let fields: HTTPHeaderFields
-    init(fields: HTTPHeaderFields) { self.fields = fields }
+    private let endpointOrigin: HTTPOrigin?
+
+    init(baseURL: URL, fields: HTTPHeaderFields) {
+        self.fields = fields
+        endpointOrigin = try? HTTPOrigin(url: baseURL)
+    }
+
+    func permits(source: URL?, destination: URL?) -> Bool {
+        guard let endpointOrigin,
+              let source, let destination,
+              (try? HTTPOrigin(url: source)) == endpointOrigin,
+              (try? HTTPOrigin(url: destination)) == endpointOrigin else { return false }
+        return true
+    }
+
+    func refuses(_ response: HTTPURLResponse) -> Bool {
+        guard [301, 302, 303, 307, 308].contains(response.statusCode),
+              let location = response.value(forHTTPHeaderField: "Location") else { return false }
+        return !permits(
+            source: response.url,
+            destination: URL(string: location, relativeTo: response.url)?.absoluteURL
+        )
+    }
 
     func urlSession(
         _ session: URLSession,
@@ -189,6 +211,10 @@ final class CustomHTTPHeaderRedirectDelegate: NSObject, URLSessionTaskDelegate, 
         newRequest request: URLRequest,
         completionHandler: @escaping @Sendable (URLRequest?) -> Void
     ) {
+        guard permits(source: response.url, destination: request.url) else {
+            completionHandler(nil)
+            return
+        }
         completionHandler(fields.redirectRequest(request, from: response.url))
     }
 }

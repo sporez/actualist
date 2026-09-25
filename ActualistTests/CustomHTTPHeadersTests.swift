@@ -65,6 +65,29 @@ struct CustomHTTPHeadersTests {
         }
     }
 
+    @Test func apiRedirectOriginIsIndependentOfCustomHeaders() throws {
+        let base = URL(string: "https://EXAMPLE.com/prefix")!
+        let policy = CustomHTTPHeaderRedirectDelegate(baseURL: base, fields: .empty)
+        #expect(policy.permits(source: base, destination: URL(string: "https://example.com:443/other")))
+        for destination in [
+            "http://example.com/", "https://example.com:444/", "https://other.example/",
+            "https://user@example.com/", "file:///private/secret", "https://example.com:0/"
+        ] {
+            #expect(!policy.permits(source: base, destination: URL(string: destination)))
+        }
+        #expect(!policy.permits(source: nil, destination: base))
+        #expect(!policy.permits(source: base, destination: nil))
+        #expect(!policy.permits(source: URL(string: "https://other.example"), destination: base))
+        let invalid = CustomHTTPHeaderRedirectDelegate(baseURL: URL(fileURLWithPath: "/private/file"), fields: .empty)
+        #expect(!invalid.permits(source: base, destination: base))
+        let response = HTTPURLResponse(url: base, statusCode: 307, httpVersion: nil,
+            headerFields: ["Location": "https://other.example/"])!
+        #expect(policy.refuses(response))
+        let same = HTTPURLResponse(url: base, statusCode: 308, httpVersion: nil,
+            headerFields: ["Location": "/another-path"])!
+        #expect(!policy.refuses(same))
+    }
+
     @Test @MainActor func keychainAtomicIsolationEraseAndBackgroundAccessibility() throws {
         let backend = FakeKeychainBackend()
         let keychain = KeychainStore(service: UUID().uuidString, account: "token", backend: backend)

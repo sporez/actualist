@@ -43,7 +43,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     ) {
         self.baseURL = baseURL
         self.customHeaders = customHeaders
-        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(fields: customHeaders)
+        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(baseURL: baseURL, fields: customHeaders)
         self.session = session ?? URLSession(configuration: Self.secureSessionConfiguration())
         self.resourceLimits = resourceLimits
         self.firstConnectionRetryDelays = firstConnectionRetryDelays
@@ -237,7 +237,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             components?.queryItems = existingQueryItems + queryItems
         }
 
-        guard let url = components?.url else {
+        guard let url = components?.url, redirectDelegate.permits(source: baseURL, destination: url) else {
             throw ActualAPIError.invalidURL
         }
         return url
@@ -274,6 +274,8 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             throw CancellationError()
         } catch let error as LocalFirstError {
             throw error
+        } catch let error as ActualAPIError {
+            throw error
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {
@@ -283,6 +285,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ActualAPIError.invalidResponse
         }
+        if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         Self.debugLogResponse(httpResponse, data: data)
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw customHeaders.sanitized(Self.apiError(statusCode: httpResponse.statusCode, data: data))
@@ -344,6 +347,8 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
     private func limitedData(for request: URLRequest, maximumBytes: Int) async throws -> (Data, URLResponse) {
         let (bytes, response) = try await session.bytes(for: request, delegate: redirectDelegate)
+        if let httpResponse = response as? HTTPURLResponse,
+           redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         if response.expectedContentLength > Int64(maximumBytes) {
             throw LocalFirstError.remoteDataLimitExceeded
         }
@@ -388,6 +393,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ActualAPIError.invalidResponse
             }
+            if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
             if !(200..<300).contains(httpResponse.statusCode) {
                 var errorData = Data()
                 for try await byte in bytes {
@@ -595,6 +601,7 @@ enum ActualSyncRejectionReason: String, Sendable, CaseIterable {
 
 enum ActualAPIError: LocalizedError {
     case invalidURL
+    case redirectRefused
     case invalidResponse
     case missingTransactionID
     case unsupportedAuthenticationMethod(String)
@@ -635,6 +642,8 @@ enum ActualAPIError: LocalizedError {
         return switch self {
         case .invalidURL:
             "The server URL is invalid."
+        case .redirectRefused:
+            "The server redirected the request to a different address. Enter the final server URL directly."
         case .invalidResponse:
             "The server returned an invalid response."
         case .missingTransactionID:
