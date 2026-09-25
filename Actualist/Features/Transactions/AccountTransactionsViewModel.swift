@@ -6,29 +6,63 @@ import Observation
 final class AccountTransactionsViewModel {
     let scope: TransactionFeedScope
 
-    var isLoading = true
-    var isLoadingOlder = false
+    var isLoading: Bool { readSession.isLoading || deletingTransactionID != nil }
     var searchText = ""
-    private(set) var isSearching = false
-    private(set) var searchErrorMessage: String?
-    var errorMessage: String?
+    private let readSession: TransactionFeedReadSession
+    var isLoadingOlder: Bool { readSession.isLoadingOlder }
+    var isSearching: Bool {
+        readSession.state.identity?.query != nil
+            && (readSession.state.phase == .debouncing || readSession.state.phase == .loading)
+    }
+    func isSearchLoading(budgetID: String?) -> Bool {
+        guard !scope.isCategory, let identity = readIdentity(budgetID: budgetID) else { return false }
+        return readSession.isSearchLoading(identity)
+    }
+    var searchErrorMessage: String? {
+        guard let identity = readSession.state.identity, identity.query != nil else { return nil }
+        return readSession.loadError(for: identity)
+    }
+    var loadErrorMessage: String? {
+        guard let identity = readSession.state.identity, identity.query == nil else { return nil }
+        return readSession.loadError(for: identity)
+    }
+    private(set) var errorMessage: String?
     var deletePresentation: TransactionDeletePresentation?
     private(set) var deletingTransactionID: String?
     private(set) var deleteIntentFeedback = 0
     private(set) var deleteSuccessFeedback = 0
 
-    @ObservationIgnored private var searchTask: Task<Void, Never>?
-    @ObservationIgnored private var searchGeneration = 0
     @ObservationIgnored private var deleteRequestGeneration = 0
-    @ObservationIgnored private let searchDelay: Duration
-    private var searchResult: SearchResult?
 
     init(
         scope: TransactionFeedScope,
         searchDelay: Duration = .milliseconds(250)
     ) {
         self.scope = scope
-        self.searchDelay = searchDelay
+        self.readSession = TransactionFeedReadSession(searchDelay: searchDelay)
+    }
+
+    var statusFilter: TransactionStatusFilter { readSession.statusFilter }
+
+    func selectFilter(_ filter: TransactionStatusFilter, budgetID: String?,
+                      repository: any TransactionRepositoryProtocol) async {
+        guard let budgetID, readSession.acceptsBudget(budgetID) else { return }
+        let query = scope.isCategory ? nil : activeQuery
+        let identity = TransactionFeedReadSession.Identity(
+            budgetID: budgetID, statusFilter: filter, query: query
+        )
+        guard let selected = readSession.select(filter, identity: identity) else { return }
+        errorMessage = nil
+        if selected.query != nil {
+            readSession.startSearch(selected, scope: scope, repository: repository, debounced: false)
+        } else {
+            await loadLocal(selected, repository: repository)
+        }
+    }
+
+    func resetFeedSelection() {
+        readSession.cancelAndReset()
+        searchText = ""
     }
 
     var trimmedSearchText: String {
@@ -37,6 +71,16 @@ final class AccountTransactionsViewModel {
 
     var isSearchActive: Bool {
         !trimmedSearchText.isEmpty
+    }
+
+    private var activeQuery: String? {
+        guard isSearchActive, !scope.isCategory else { return nil }
+        return trimmedSearchText
+    }
+
+    private func readIdentity(budgetID: String?) -> TransactionFeedReadSession.Identity? {
+        guard let budgetID else { return nil }
+        return readSession.identity(budgetID: budgetID, query: activeQuery)
     }
 
     func displayState(
@@ -113,10 +157,8 @@ final class AccountTransactionsViewModel {
         }
 
         deletingTransactionID = transaction.rowID
-        isLoading = true
         errorMessage = nil
         defer {
-            isLoading = false
             deletingTransactionID = nil
         }
 
@@ -153,23 +195,30 @@ final class AccountTransactionsViewModel {
         budgetID: String?,
         repository: any TransactionRepositoryProtocol
     ) async {
-        guard let budgetID else {
-            isLoading = false
-            return
+        guard let budgetID, readSession.acceptsBudget(budgetID),
+              let identity = readIdentity(budgetID: budgetID) else { return }
+        if identity.query != nil {
+            await readSession.refreshSearch(identity, scope: scope, repository: repository)
+        } else {
+            await loadLocal(identity, repository: repository)
         }
+    }
 
-        let hadLoadedSnapshot = cachedSnapshot(budgetID: budgetID, repository: repository) != nil
-        isLoading = !hadLoadedSnapshot
+    private func loadLocal(
+        _ identity: TransactionFeedReadSession.Identity,
+        repository: any TransactionRepositoryProtocol
+    ) async {
+        guard readSession.acceptsBudget(identity.budgetID) else { return }
+        let hadLoadedSnapshot = cachedSnapshot(identity, repository: repository) != nil
         errorMessage = nil
+        let requestID = readSession.beginLocalRead(identity, hasCachedPage: hadLoadedSnapshot)
 
         do {
-            try await refreshSnapshot(budgetID: budgetID, repository: repository)
+            try await refreshSnapshot(identity, repository: repository)
+            readSession.finish(requestID, identity: identity)
         } catch {
-            if cachedSnapshot(budgetID: budgetID, repository: repository) == nil {
-                errorMessage = error.userFacingMessage
-            }
+            readSession.fail(requestID, identity: identity, error: error)
         }
-        isLoading = false
     }
 
     func refresh(
@@ -182,37 +231,105 @@ final class AccountTransactionsViewModel {
             return
         }
         await sync()
-        await loadLocal(budgetID: budgetID, repository: repository)
+        guard let budgetID, readSession.acceptsBudget(budgetID) else { return }
+        await refreshCurrentData(budgetID: budgetID, repository: repository)
         onChanged()
+    }
+
+    func localDataDidChange(budgetID: String?, repository: any TransactionRepositoryProtocol) async {
+        guard let budgetID, readSession.acceptsBudget(budgetID) else { return }
+        await refreshCurrentData(budgetID: budgetID, repository: repository)
+    }
+
+    func budgetDidChange(to budgetID: String?, repository: any TransactionRepositoryProtocol) async {
+        guard let budgetID else {
+            resetFeedSelection()
+            return
+        }
+        searchText = ""
+        let identity = readSession.resetBudget(to: budgetID)
+        errorMessage = nil
+        await loadLocal(identity, repository: repository)
+    }
+
+    func feedDidDisappear(editorIsPresented: Bool) {
+        if editorIsPresented {
+            readSession.cancelCurrentRequest()
+        } else {
+            resetFeedSelection()
+        }
+    }
+
+    func editorPresentationChanged(
+        editorDismissed: Bool,
+        budgetID: String?,
+        repository: any TransactionRepositoryProtocol
+    ) {
+        guard editorDismissed, let budgetID, readSession.acceptsBudget(budgetID),
+              let identity = readIdentity(budgetID: budgetID),
+              readSession.state.phase == .cancelled else { return }
+        if identity.query != nil {
+            readSession.startSearch(identity, scope: scope, repository: repository, debounced: false)
+        } else {
+            Task { await loadLocal(identity, repository: repository) }
+        }
+    }
+
+    func searchTextDidChange(_ value: String, budgetID: String?, repository: any TransactionRepositoryProtocol) {
+        guard let budgetID, readSession.acceptsBudget(budgetID) else { return }
+        searchText = value
+        guard let identity = readIdentity(budgetID: budgetID) else { return }
+        readSession.activate(identity)
+        if identity.query != nil {
+            readSession.startSearch(identity, scope: scope, repository: repository, debounced: true)
+        } else if cachedSnapshot(identity, repository: repository) == nil {
+            Task { await loadLocal(identity, repository: repository) }
+        }
+    }
+
+    private func refreshCurrentData(budgetID: String?, repository: any TransactionRepositoryProtocol) async {
+        guard let budgetID, readSession.acceptsBudget(budgetID),
+              let identity = readIdentity(budgetID: budgetID) else { return }
+        if identity.query != nil {
+            await readSession.refreshSearch(identity, scope: scope, repository: repository)
+        } else {
+            await loadLocal(identity, repository: repository)
+        }
     }
 
     func loadOlder(
         budgetID: String?,
         repository: any TransactionRepositoryProtocol
     ) async {
-        guard let budgetID,
-              let loaded = cachedSnapshot(budgetID: budgetID, repository: repository),
+        guard let budgetID, readSession.acceptsBudget(budgetID),
+              let identity = readIdentity(budgetID: budgetID),
+              let loaded = activeCachedSnapshot(identity, repository: repository),
               !loaded.reachedEnd,
-              !isLoading,
               !isLoadingOlder else {
             return
         }
 
-        isLoadingOlder = true
-        errorMessage = nil
-        defer { isLoadingOlder = false }
+        if identity.query != nil {
+            await readSession.loadOlderSearch(identity, scope: scope, repository: repository)
+            return
+        }
+        guard !isLoading else { return }
+        let requestID = readSession.beginOlderLocal(identity)
 
         do {
             switch scope {
             case .account(let account):
-                try await repository.loadOlderTransactions(budgetID: budgetID, accountID: account.id)
+                try await repository.loadOlderTransactions(budgetID: identity.budgetID, accountID: account.id,
+                                                           statusFilter: identity.statusFilter)
             case .spending:
-                try await repository.loadOlderSpendingTransactions(budgetID: budgetID)
+                try await repository.loadOlderSpendingTransactions(budgetID: identity.budgetID,
+                                                                  statusFilter: identity.statusFilter)
             case .category:
                 return
             }
+            readSession.finish(requestID, identity: identity)
         } catch {
-            errorMessage = error.userFacingMessage
+            readSession.fail(requestID, identity: identity, error: error)
         }
     }
 
@@ -220,50 +337,29 @@ final class AccountTransactionsViewModel {
         budgetID: String?,
         repository: any TransactionRepositoryProtocol
     ) {
-        searchTask?.cancel()
-        searchGeneration += 1
-        searchResult = nil
-        searchErrorMessage = nil
-
-        let query = trimmedSearchText
-        guard let budgetID, !query.isEmpty else {
-            isSearching = false
-            return
-        }
-        guard !scope.isCategory else {
-            isSearching = false
-            return
-        }
-
-        let request = SearchRequest(
-            generation: searchGeneration,
-            budgetID: budgetID,
-            query: query
-        )
-        isSearching = true
-        searchTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await Task.sleep(for: searchDelay)
-            } catch {
-                return
-            }
-            await performSearch(request, repository: repository)
-        }
+        guard let budgetID, readSession.acceptsBudget(budgetID),
+              let identity = readIdentity(budgetID: budgetID), identity.query != nil else { return }
+        readSession.startSearch(identity, scope: scope, repository: repository, debounced: true)
     }
 
-    func clearSearch() {
-        searchTask?.cancel()
-        searchGeneration += 1
+    func clearSearch(budgetID: String?, repository: any TransactionRepositoryProtocol) {
+        guard let budgetID, readSession.acceptsBudget(budgetID) else {
+            searchText = ""
+            readSession.cancelCurrentRequest()
+            return
+        }
         searchText = ""
-        searchResult = nil
-        searchErrorMessage = nil
-        isSearching = false
+        guard let identity = readIdentity(budgetID: budgetID) else { return }
+        readSession.activate(identity)
+        if cachedSnapshot(identity, repository: repository) == nil {
+            Task { await loadLocal(identity, repository: repository) }
+        }
     }
 
-    func cancelSearch() {
-        searchTask?.cancel()
-        isSearching = false
+    func retrySearch(budgetID: String?, repository: any TransactionRepositoryProtocol) {
+        guard let budgetID, readSession.acceptsBudget(budgetID),
+              let identity = readIdentity(budgetID: budgetID), identity.query != nil else { return }
+        readSession.startSearch(identity, scope: scope, repository: repository, debounced: false)
     }
 
     func clearPendingNewTransactions(
@@ -275,88 +371,71 @@ final class AccountTransactionsViewModel {
     }
 
     private func refreshSnapshot(
-        budgetID: String,
+        _ identity: TransactionFeedReadSession.Identity,
         repository: any TransactionRepositoryProtocol
     ) async throws {
         switch scope {
         case .account(let account):
-            try await repository.refreshAccountTransactions(budgetID: budgetID, accountID: account.id)
+            try await repository.refreshAccountTransactions(
+                budgetID: identity.budgetID, accountID: account.id, statusFilter: identity.statusFilter
+            )
         case .spending:
-            try await repository.refreshSpendingTransactions(budgetID: budgetID)
+            try await repository.refreshSpendingTransactions(
+                budgetID: identity.budgetID, statusFilter: identity.statusFilter
+            )
         case .category(let details):
             try await repository.refreshCategoryTransactions(
-                budgetID: budgetID,
+                budgetID: identity.budgetID, categoryID: details.category.id, month: details.month
+            )
+        }
+    }
+
+    private func cachedSnapshot(
+        _ identity: TransactionFeedReadSession.Identity,
+        repository: any TransactionRepositoryProtocol
+    ) -> LoadedAccountTransactions? {
+        switch scope {
+        case .account(let account):
+            return repository.cachedAccountTransactions(
+                budgetID: identity.budgetID, accountID: account.id, statusFilter: identity.statusFilter
+            )
+        case .spending:
+            return repository.cachedSpendingTransactions(
+                budgetID: identity.budgetID, statusFilter: identity.statusFilter
+            )
+        case .category(let details):
+            return repository.cachedCategoryTransactions(
+                budgetID: identity.budgetID,
                 categoryID: details.category.id,
                 month: details.month
             )
         }
     }
 
-    private func performSearch(
-        _ request: SearchRequest,
-        repository: any TransactionRepositoryProtocol
-    ) async {
-        do {
-            let loaded: LoadedAccountTransactions
-            switch scope {
-            case .account(let account):
-                loaded = try await repository.searchAccountTransactions(
-                    budgetID: request.budgetID,
-                    accountID: account.id,
-                    query: request.query,
-                    limit: 50,
-                    offset: 0
-                )
-            case .spending:
-                loaded = try await repository.searchSpendingTransactions(
-                    budgetID: request.budgetID,
-                    query: request.query,
-                    limit: 50,
-                    offset: 0
-                )
-            case .category:
-                return
-            }
-            guard isCurrent(request), !Task.isCancelled else { return }
-            searchResult = SearchResult(request: request, loaded: loaded)
-            isSearching = false
-        } catch {
-            guard isCurrent(request), !Task.isCancelled else { return }
-            searchErrorMessage = error.userFacingMessage
-            isSearching = false
-        }
-    }
-
-    private func isCurrent(_ request: SearchRequest) -> Bool {
-        request.generation == searchGeneration && request.query == trimmedSearchText
-    }
-
-    private func matchingSearchResult(budgetID: String?) -> SearchResult? {
-        guard let result = searchResult,
-              result.request.budgetID == budgetID,
-              result.request.query == trimmedSearchText else {
-            return nil
-        }
-        return result
-    }
-
-    private func cachedSnapshot(
-        budgetID: String?,
-        repository: any TransactionRepositoryProtocol
+    private func unfilteredSnapshot(
+        budgetID: String?, repository: any TransactionRepositoryProtocol
     ) -> LoadedAccountTransactions? {
         guard let budgetID else { return nil }
         switch scope {
         case .account(let account):
-            return repository.cachedAccountTransactions(budgetID: budgetID, accountID: account.id)
+            return repository.cachedAccountTransactions(budgetID: budgetID, accountID: account.id,
+                                                        statusFilter: .all)
         case .spending:
-            return repository.cachedSpendingTransactions(budgetID: budgetID)
+            return repository.cachedSpendingTransactions(budgetID: budgetID, statusFilter: .all)
         case .category(let details):
-            return repository.cachedCategoryTransactions(
-                budgetID: budgetID,
-                categoryID: details.category.id,
-                month: details.month
-            )
+            return repository.cachedCategoryTransactions(budgetID: budgetID,
+                categoryID: details.category.id, month: details.month)
         }
+    }
+
+    private func activeCachedSnapshot(
+        _ identity: TransactionFeedReadSession.Identity,
+        repository: any TransactionRepositoryProtocol
+    ) -> LoadedAccountTransactions? {
+        if identity.query != nil {
+            return readSession.page(for: identity)
+        }
+        return cachedSnapshot(identity, repository: repository)
     }
 
     private func projection(
@@ -368,8 +447,11 @@ final class AccountTransactionsViewModel {
     ) -> AccountTransactionFeedProjection {
         AccountTransactionFeedProjection(
             scope: scope,
-            loaded: cachedSnapshot(budgetID: budgetID, repository: repository),
-            searchLoaded: matchingSearchResult(budgetID: budgetID)?.loaded,
+            loaded: unfilteredSnapshot(budgetID: budgetID, repository: repository),
+            activePage: readIdentity(budgetID: budgetID).flatMap {
+                activeCachedSnapshot($0, repository: repository)
+            },
+            statusFilter: readSession.statusFilter,
             query: trimmedSearchText,
             pendingNewTransactionIDs: pendingNewTransactionIDs,
             privacyModeEnabled: privacyModeEnabled,
@@ -377,16 +459,6 @@ final class AccountTransactionsViewModel {
         )
     }
 
-    private struct SearchRequest: Hashable {
-        let generation: Int
-        let budgetID: String
-        let query: String
-    }
-
-    private struct SearchResult {
-        let request: SearchRequest
-        let loaded: LoadedAccountTransactions
-    }
 }
 
 private extension TransactionFeedScope {

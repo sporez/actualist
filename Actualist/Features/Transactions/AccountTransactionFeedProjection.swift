@@ -33,6 +33,8 @@ struct AccountTransactionsDisplayState: Hashable {
     let categorySummary: AccountTransactionCategorySummaryPresentation?
     let hasLoadedSnapshot: Bool
     let reachedEnd: Bool
+    let statusFilter: TransactionStatusFilter
+    let isSearchActive: Bool
 
     var transactionCount: Int {
         groups.reduce(into: 0) { $0 += $1.rows.count }
@@ -48,7 +50,8 @@ enum AccountTransactionBalanceTone: Equatable {
 struct AccountTransactionFeedProjection {
     let scope: TransactionFeedScope
     let loaded: LoadedAccountTransactions?
-    let searchLoaded: LoadedAccountTransactions?
+    let activePage: LoadedAccountTransactions?
+    let statusFilter: TransactionStatusFilter
     let query: String
     let pendingNewTransactionIDs: Set<String>
     let privacyModeEnabled: Bool
@@ -67,8 +70,10 @@ struct AccountTransactionFeedProjection {
             balanceText: balanceText,
             groups: groups,
             categorySummary: categorySummary,
-            hasLoadedSnapshot: loaded != nil,
-            reachedEnd: loaded?.reachedEnd ?? false
+            hasLoadedSnapshot: activePage != nil,
+            reachedEnd: activePage?.reachedEnd ?? false,
+            statusFilter: statusFilter,
+            isSearchActive: !query.isEmpty
         )
     }
 
@@ -104,15 +109,12 @@ struct AccountTransactionFeedProjection {
         )
     }
 
-    private var activeLoaded: LoadedAccountTransactions? {
-        searchLoaded ?? loaded
-    }
-
     private var displayedTransactions: [ActualTransaction] {
-        guard !query.isEmpty else { return loaded?.transactions ?? [] }
-        if let searchLoaded { return searchLoaded.transactions }
-        guard let loaded else { return [] }
-        return loaded.transactions.filter { transaction in
+        guard !query.isEmpty, case .category = scope else {
+            return activePage?.transactions ?? []
+        }
+        guard let activePage else { return [] }
+        return activePage.transactions.filter { transaction in
             matches(payeeName(for: transaction))
                 || categoryNames(for: transaction).contains(where: matches)
                 || matches(accountName(for: transaction))
@@ -139,11 +141,11 @@ struct AccountTransactionFeedProjection {
 
     private var lookup: TransactionRowLookup {
         TransactionRowLookup(
-            payeeNames: activeLoaded?.payeeNames ?? [:],
-            categoryNames: activeLoaded?.categoryNames ?? [:],
-            transferPayeeIDs: activeLoaded?.transferPayeeIDs ?? [],
-            transferAccountIDsByPayeeID: activeLoaded?.transferAccountIDsByPayeeID ?? [:],
-            offBudgetAccountIDs: activeLoaded?.offBudgetAccountIDs ?? []
+            payeeNames: activePage?.payeeNames ?? [:],
+            categoryNames: activePage?.categoryNames ?? [:],
+            transferPayeeIDs: activePage?.transferPayeeIDs ?? [],
+            transferAccountIDsByPayeeID: activePage?.transferAccountIDsByPayeeID ?? [:],
+            offBudgetAccountIDs: activePage?.offBudgetAccountIDs ?? []
         )
     }
 
@@ -157,7 +159,7 @@ struct AccountTransactionFeedProjection {
 
     private func accountName(for transaction: ActualTransaction) -> String? {
         guard scope.showsAccountNames else { return nil }
-        let name = activeLoaded?.accountNames[transaction.account]?
+        let name = activePage?.accountNames[transaction.account]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return name?.isEmpty == false ? name : "Unknown Account"
     }

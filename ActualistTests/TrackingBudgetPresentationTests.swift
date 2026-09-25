@@ -70,8 +70,9 @@ struct TrackingBudgetPresentationTests {
             #expect(hidden.budgeted > 0)
             let details = CategoryMonthDetails(category: month.categoryGroups[0].categories[0], month: month.month,
                 modeIdentity: Self.loaded(month).modeIdentity)
-            let projected = AccountTransactionFeedProjection(scope: .category(details), loaded: nil, searchLoaded: nil,
-                query: "", pendingNewTransactionIDs: [], privacyModeEnabled: true, currency: currency).displayState
+            let projected = AccountTransactionFeedProjection(scope: .category(details), loaded: nil,
+                activePage: nil, statusFilter: .all, query: "",
+                pendingNewTransactionIDs: [], privacyModeEnabled: true, currency: currency).displayState
             #expect(projected.categorySummary?.budgetedText == currency.formatted(income.budgeted))
             #expect(projected.categorySummary?.spentText == currency.formatted(income.spent))
             #expect(projected.title != details.category.name)

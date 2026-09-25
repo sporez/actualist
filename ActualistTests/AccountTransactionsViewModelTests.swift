@@ -25,6 +25,10 @@ struct AccountTransactionsViewModelTests {
 
         #expect(!model.isLoading)
         #expect(model.errorMessage == nil)
+        #expect(model.loadErrorMessage?.contains("Could not refresh all transactions") == true)
+        #expect(model.displayState(budgetID: "budget", repository: repository,
+                                   pendingNewTransactionIDs: [], privacyModeEnabled: false)
+            .groups.flatMap(\.rows).map(\.id) == ["cached"])
         #expect(repository.refreshCalls == ["account:checking"])
     }
 
@@ -37,7 +41,51 @@ struct AccountTransactionsViewModelTests {
         await model.loadLocal(budgetID: "budget", repository: repository)
 
         #expect(!model.isLoading)
-        #expect(model.errorMessage == "could not load")
+        #expect(model.loadErrorMessage?.contains("Could not load all transactions") == true)
+        #expect(model.loadErrorMessage?.contains("could not load") == true)
+    }
+
+    @Test func emptyAndFailedFilterStatesStayScopedToTheSelectedFilter() async {
+        let emptyRepository = AccountTransactionsRecordingRepository(
+            accountSnapshot: Self.loaded([], reachedEnd: true)
+        )
+        let emptyModel = AccountTransactionsViewModel(scope: .account(Self.account))
+        await emptyModel.selectFilter(.reconciled, budgetID: "budget", repository: emptyRepository)
+        let empty = emptyModel.displayState(budgetID: "budget", repository: emptyRepository,
+                                            pendingNewTransactionIDs: [], privacyModeEnabled: false)
+        #expect(empty.statusFilter == .reconciled)
+        #expect(empty.transactionCount == 0)
+        #expect(empty.reachedEnd)
+        #expect(empty.statusFilter.emptyMessage == "No reconciled transactions")
+
+        let failingRepository = AccountTransactionsRecordingRepository(
+            refreshError: FeedTestError("read failed")
+        )
+        let failingModel = AccountTransactionsViewModel(scope: .account(Self.account))
+        await failingModel.selectFilter(.cleared, budgetID: "budget", repository: failingRepository)
+        #expect(failingModel.loadErrorMessage?.contains("Could not load cleared transactions") == true)
+        #expect(failingModel.loadErrorMessage?.contains("read failed") == true)
+    }
+
+    @Test func selectedFilterNeverFallsBackToAllRowsAndKeepsTheAllBalance() async {
+        let allPage = Self.loaded([Self.transaction(id: "all-only")])
+        let repository = AccountTransactionsRecordingRepository(
+            accountSnapshot: allPage,
+            filterSnapshots: [
+                .all: allPage,
+                .cleared: Self.loaded([], reachedEnd: true),
+            ]
+        )
+        let model = AccountTransactionsViewModel(scope: .account(Self.account))
+        let before = model.displayState(budgetID: "budget", repository: repository,
+                                        pendingNewTransactionIDs: [], privacyModeEnabled: false)
+        await model.selectFilter(.cleared, budgetID: "budget", repository: repository)
+        let after = model.displayState(budgetID: "budget", repository: repository,
+                                       pendingNewTransactionIDs: [], privacyModeEnabled: false)
+
+        #expect(before.groups.flatMap(\.rows).map(\.id) == ["all-only"])
+        #expect(after.groups.flatMap(\.rows).isEmpty)
+        #expect(after.balanceText == before.balanceText)
     }
 
     @Test func loadingRoutesThroughEveryFeedScope() async {
@@ -147,6 +195,134 @@ struct AccountTransactionsViewModelTests {
         #expect(model.searchText == "second")
     }
 
+    @Test func filterChangeCancelsOldSearchAndSearchUsesSelectedFilter() async {
+        let repository = AccountTransactionsRecordingRepository(suspendsSearches: true)
+        let model = AccountTransactionsViewModel(scope: .account(Self.account), searchDelay: .zero)
+        model.searchText = "market"
+        model.scheduleSearch(budgetID: "budget", repository: repository)
+        await Self.waitUntil { repository.searchRequests.contains("market|all|0") }
+
+        await model.selectFilter(.cleared, budgetID: "budget", repository: repository)
+        await Self.waitUntil { repository.searchRequests.contains("market|cleared|0") }
+        await repository.finishSearch("market", filter: .cleared, with: Self.loaded([Self.transaction(id: "cleared")]))
+        await Self.waitUntil { !model.isSearching }
+        await repository.finishSearch("market", filter: .all, with: Self.loaded([Self.transaction(id: "stale")]))
+        await Task.yield()
+
+        let state = model.displayState(budgetID: "budget", repository: repository,
+                                       pendingNewTransactionIDs: [], privacyModeEnabled: false)
+        #expect(model.statusFilter == .cleared)
+        #expect(state.groups.flatMap(\.rows).map(\.id) == ["cleared"])
+    }
+
+    @Test func searchPaginationRequestsTheNextMatchOffset() async {
+        let firstPage = Self.loaded((0..<50).map { Self.transaction(id: "match-\($0)") }, reachedEnd: false)
+        let secondPage = Self.loaded([Self.transaction(id: "match-50")], reachedEnd: true)
+        let repository = AccountTransactionsRecordingRepository(
+            searchPages: ["market|all|0": firstPage, "market|all|50": secondPage]
+        )
+        let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
+        model.searchText = "market"
+        model.scheduleSearch(budgetID: "budget", repository: repository)
+        await Self.waitUntil { repository.searchRequests.contains("market|all|0") && !model.isSearching }
+
+        await model.loadOlder(budgetID: "budget", repository: repository)
+
+        let state = model.displayState(budgetID: "budget", repository: repository,
+                                       pendingNewTransactionIDs: [], privacyModeEnabled: false)
+        #expect(repository.searchRequests == ["market|all|0", "market|all|50"])
+        #expect(state.transactionCount == 51)
+        #expect(state.reachedEnd)
+    }
+
+    @Test func filterResetReturnsToAllAndClearsSearchIdentity() async {
+        let repository = AccountTransactionsRecordingRepository(
+            accountSnapshot: Self.loaded([Self.transaction(id: "all")])
+        )
+        let model = AccountTransactionsViewModel(scope: .account(Self.account))
+        await model.selectFilter(.reconciled, budgetID: "budget", repository: repository)
+        model.searchText = "old query"
+        model.scheduleSearch(budgetID: "budget", repository: repository)
+        model.resetFeedSelection()
+
+        #expect(model.statusFilter == .all)
+        #expect(model.searchText.isEmpty)
+    }
+
+    @Test func clearingSearchPreservesTheSelectedFilter() async {
+        let model = AccountTransactionsViewModel(scope: .spending)
+        model.searchText = "market"
+        model.scheduleSearch(budgetID: "budget", repository: AccountTransactionsRecordingRepository())
+        await Self.waitUntil { model.isSearching }
+        await model.selectFilter(.reconciled, budgetID: "budget",
+                                 repository: AccountTransactionsRecordingRepository())
+        model.clearSearch(budgetID: "budget", repository: AccountTransactionsRecordingRepository())
+
+        #expect(model.statusFilter == .reconciled)
+        #expect(model.searchText.isEmpty)
+        #expect(!model.isSearching)
+    }
+
+    @Test func newerBudgetSearchRejectsAnOlderBudgetCompletion() async {
+        let repository = AccountTransactionsRecordingRepository(suspendsSearches: true)
+        let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
+        model.searchText = "market"
+        model.scheduleSearch(budgetID: "old-budget", repository: repository)
+        await Self.waitUntil { repository.searchBudgetIDs.contains("old-budget") }
+        await model.budgetDidChange(to: "new-budget", repository: repository)
+        model.searchTextDidChange("market", budgetID: "new-budget", repository: repository)
+        await Self.waitUntil { repository.searchBudgetIDs.contains("new-budget") }
+
+        await repository.finishSearch("market", budgetID: "new-budget",
+                                      with: Self.loaded([Self.transaction(id: "new-budget-result")]))
+        await Self.waitUntil { !model.isSearching }
+        await repository.finishSearch("market", budgetID: "old-budget",
+                                      with: Self.loaded([Self.transaction(id: "old-budget-result")]))
+        await Task.yield()
+
+        let state = model.displayState(budgetID: "new-budget", repository: repository,
+                                       pendingNewTransactionIDs: [], privacyModeEnabled: false)
+        #expect(state.groups.flatMap(\.rows).map(\.id) == ["new-budget-result"])
+    }
+
+    @Test func oldOlderLoadCompletionDoesNotKeepNewFilterBusy() async {
+        let repository = AccountTransactionsRecordingRepository(
+            accountSnapshot: Self.loaded([Self.transaction(id: "older-page")], reachedEnd: false),
+            suspendsOlderLoads: true
+        )
+        let model = AccountTransactionsViewModel(scope: .account(Self.account))
+        await model.loadLocal(budgetID: "budget", repository: repository)
+        let olderLoad = Task { await model.loadOlder(budgetID: "budget", repository: repository) }
+        await Self.waitUntil { repository.olderLoadCalls == ["account:checking"] }
+
+        await model.selectFilter(.cleared, budgetID: "budget", repository: repository)
+        #expect(!model.isLoadingOlder)
+        await repository.finishOlderLoad()
+        await olderLoad.value
+
+        #expect(model.statusFilter == .cleared)
+        #expect(!model.isLoadingOlder)
+    }
+
+    @Test func refreshDuringSearchKeepsTheActiveSearchPage() async {
+        let result = Self.loaded([Self.transaction(id: "searched")])
+        let repository = AccountTransactionsRecordingRepository(
+            accountSnapshot: Self.loaded([Self.transaction(id: "base")]),
+            searchPages: ["market|all|0": result]
+        )
+        let model = AccountTransactionsViewModel(scope: .account(Self.account), searchDelay: .zero)
+        model.searchText = "market"
+        model.scheduleSearch(budgetID: "budget", repository: repository)
+        await Self.waitUntil { repository.searchRequests.contains("market|all|0") && !model.isSearching }
+
+        await model.refresh(budgetID: "budget", repository: repository, sync: {}, onChanged: {})
+
+        let state = model.displayState(budgetID: "budget", repository: repository,
+                                       pendingNewTransactionIDs: [], privacyModeEnabled: false)
+        #expect(state.groups.flatMap(\.rows).map(\.id) == ["searched"])
+        #expect(model.searchErrorMessage == nil)
+    }
+
     @Test func confirmedDeletePreservesFailureAndPublishesSuccess() async {
         let transaction = Self.transaction(id: "delete-me", payee: "market")
         let failingRepository = AccountTransactionsRecordingRepository(
@@ -180,7 +356,7 @@ struct AccountTransactionsViewModelTests {
         )
         #expect(model.errorMessage == nil)
         #expect(model.deleteSuccessFeedback == 1)
-        #expect(await successfulRepository.deletedTransactionIDs == ["delete-me"])
+        #expect(successfulRepository.deletedTransactionIDs == ["delete-me"])
     }
 
     @Test func reconciledDeleteUsesPreparedWarningAndExactAuthorization() async {
@@ -213,14 +389,14 @@ struct AccountTransactionsViewModelTests {
         #expect(repository.deletedTransactionIDs == ["locked"])
     }
 
-    private static let account = ActualAccount(
+    static let account = ActualAccount(
         id: "checking",
         name: "Checking",
         offbudget: false,
         closed: false
     )
 
-    private static let categoryDetails = CategoryMonthDetails(
+    static let categoryDetails = CategoryMonthDetails(
         category: BudgetMonthCategory(
             id: "groceries",
             name: "Groceries",
@@ -235,7 +411,7 @@ struct AccountTransactionsViewModelTests {
         month: "2026-08"
     )
 
-    private static func transaction(
+    static func transaction(
         id: String,
         payee: String = "market",
         category: String? = nil
@@ -254,10 +430,11 @@ struct AccountTransactionsViewModelTests {
         )
     }
 
-    private static func loaded(
+    static func loaded(
         _ transactions: [ActualTransaction],
         categoryNames: [String: String] = [:],
-        reachedEnd: Bool = true
+        reachedEnd: Bool = true,
+        nextOffset: Int? = nil
     ) -> LoadedAccountTransactions {
         LoadedAccountTransactions(
             transactions: transactions,
@@ -266,11 +443,12 @@ struct AccountTransactionsViewModelTests {
             categoryNames: categoryNames,
             payeeNames: ["market": "Market", "cafe": "Cafe", "station": "Station"],
             transferPayeeIDs: [],
-            reachedEnd: reachedEnd
+            reachedEnd: reachedEnd,
+            nextOffset: nextOffset
         )
     }
 
-    private static func waitUntil(
+    static func waitUntil(
         _ condition: @escaping @MainActor () async -> Bool
     ) async {
         for _ in 0..<1_000 {
@@ -281,7 +459,7 @@ struct AccountTransactionsViewModelTests {
     }
 }
 
-private struct FeedTestError: Error, LocalizedError, Sendable {
+struct FeedTestError: Error, LocalizedError, Sendable {
     let message: String
 
     init(_ message: String) {
@@ -292,7 +470,7 @@ private struct FeedTestError: Error, LocalizedError, Sendable {
 }
 
 @MainActor
-private final class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
+final class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
     let accountSnapshot: LoadedAccountTransactions?
     let spendingSnapshot: LoadedAccountTransactions?
     let categorySnapshot: LoadedAccountTransactions?
@@ -300,17 +478,25 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
     private let deleteError: FeedTestError?
     private let suspendsOlderLoads: Bool
     private let suspendsSearches: Bool
+    private let searchPages: [String: LoadedAccountTransactions]
+    private let searchPagesByLimit: [String: LoadedAccountTransactions]
+    private let searchErrorsByLimit: Set<String>
+    private let filterSnapshots: [TransactionStatusFilter: LoadedAccountTransactions]?
+    private let suspendsRefreshFilters: Set<TransactionStatusFilter>
     private let reconciliationReview: ReconciledTransactionMutationReview?
 
     private(set) var refreshCalls: [String] = []
     private(set) var olderLoadCalls: [String] = []
     private(set) var searchQueries: [String] = []
+    private(set) var searchRequests: [String] = []
+    private(set) var searchBudgetIDs: [String] = []
+    private(set) var searchLimits: [Int] = []
+    private(set) var refreshFilters: [TransactionStatusFilter] = []
     private(set) var deletedTransactionIDs: [String] = []
     private(set) var deleteAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
     private var olderLoadContinuation: CheckedContinuation<Void, any Error>?
-    private var searchContinuations: [
-        String: CheckedContinuation<LoadedAccountTransactions, any Error>
-    ] = [:]
+    private var searchContinuations: [String: CheckedContinuation<LoadedAccountTransactions, any Error>] = [:]
+    private var refreshContinuations: [TransactionStatusFilter: CheckedContinuation<Void, any Error>] = [:]
 
     init(
         accountSnapshot: LoadedAccountTransactions? = nil,
@@ -320,6 +506,11 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         deleteError: FeedTestError? = nil,
         suspendsOlderLoads: Bool = false,
         suspendsSearches: Bool = false,
+        searchPages: [String: LoadedAccountTransactions] = [:],
+        searchPagesByLimit: [String: LoadedAccountTransactions] = [:],
+        searchErrorsByLimit: Set<String> = [],
+        filterSnapshots: [TransactionStatusFilter: LoadedAccountTransactions]? = nil,
+        suspendsRefreshFilters: Set<TransactionStatusFilter> = [],
         reconciliationReview: ReconciledTransactionMutationReview? = nil
     ) {
         self.accountSnapshot = accountSnapshot
@@ -329,6 +520,11 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         self.deleteError = deleteError
         self.suspendsOlderLoads = suspendsOlderLoads
         self.suspendsSearches = suspendsSearches
+        self.searchPages = searchPages
+        self.searchPagesByLimit = searchPagesByLimit
+        self.searchErrorsByLimit = searchErrorsByLimit
+        self.filterSnapshots = filterSnapshots
+        self.suspendsRefreshFilters = suspendsRefreshFilters
         self.reconciliationReview = reconciliationReview
     }
 
@@ -336,12 +532,12 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         budgetID: String,
         accountID: String,
         statusFilter: TransactionStatusFilter
-    ) -> LoadedAccountTransactions? { accountSnapshot }
+    ) -> LoadedAccountTransactions? { filterSnapshots?[statusFilter] ?? (filterSnapshots == nil ? accountSnapshot : nil) }
 
     func cachedSpendingTransactions(
         budgetID: String,
         statusFilter: TransactionStatusFilter
-    ) -> LoadedAccountTransactions? { spendingSnapshot }
+    ) -> LoadedAccountTransactions? { filterSnapshots?[statusFilter] ?? (filterSnapshots == nil ? spendingSnapshot : nil) }
 
     func cachedCategoryTransactions(
         budgetID: String,
@@ -351,11 +547,19 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
 
     func refreshAccountTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {
         refreshCalls.append("account:\(accountID)")
+        refreshFilters.append(statusFilter)
+        if suspendsRefreshFilters.contains(statusFilter) {
+            try await withCheckedThrowingContinuation { refreshContinuations[statusFilter] = $0 }
+        }
         if let refreshError { throw refreshError }
     }
 
     func refreshSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {
         refreshCalls.append("spending")
+        refreshFilters.append(statusFilter)
+        if suspendsRefreshFilters.contains(statusFilter) {
+            try await withCheckedThrowingContinuation { refreshContinuations[statusFilter] = $0 }
+        }
         if let refreshError { throw refreshError }
     }
 
@@ -384,6 +588,10 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         olderLoadContinuation = nil
     }
 
+    func finishRefresh(_ filter: TransactionStatusFilter) async {
+        refreshContinuations.removeValue(forKey: filter)?.resume()
+    }
+
     func searchAccountTransactions(
         budgetID: String,
         accountID: String,
@@ -392,7 +600,7 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         offset: Int,
         statusFilter: TransactionStatusFilter
     ) async throws -> LoadedAccountTransactions {
-        try await search(query)
+        try await search(query, budgetID: budgetID, filter: statusFilter, limit: limit, offset: offset)
     }
 
     func searchSpendingTransactions(
@@ -402,13 +610,24 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         offset: Int,
         statusFilter: TransactionStatusFilter
     ) async throws -> LoadedAccountTransactions {
-        try await search(query)
+        try await search(query, budgetID: budgetID, filter: statusFilter, limit: limit, offset: offset)
     }
 
-    private func search(_ query: String) async throws -> LoadedAccountTransactions {
+    private func search(_ query: String, budgetID: String, filter: TransactionStatusFilter,
+                        limit: Int, offset: Int) async throws -> LoadedAccountTransactions {
         searchQueries.append(query)
+        searchBudgetIDs.append(budgetID)
+        searchLimits.append(limit)
+        let key = "\(query)|\(filter.rawValue)|\(offset)"
+        searchRequests.append(key)
+        let limitedKey = "\(key)|\(limit)"
+        if searchErrorsByLimit.contains(limitedKey) { throw FeedTestError("search refresh failed") }
+        if let page = searchPagesByLimit[limitedKey] { return page }
+        if let page = searchPages[key] { return page }
         if suspendsSearches {
-            return try await withCheckedThrowingContinuation { searchContinuations[query] = $0 }
+            return try await withCheckedThrowingContinuation {
+                searchContinuations["\(budgetID)|\(key)"] = $0
+            }
         }
         return LoadedAccountTransactions(
             transactions: [],
@@ -420,8 +639,10 @@ private final class AccountTransactionsRecordingRepository: TransactionRepositor
         )
     }
 
-    func finishSearch(_ query: String, with loaded: LoadedAccountTransactions) async {
-        searchContinuations.removeValue(forKey: query)?.resume(returning: loaded)
+    func finishSearch(_ query: String, budgetID: String = "budget", filter: TransactionStatusFilter = .all,
+                      offset: Int = 0, with loaded: LoadedAccountTransactions) async {
+        let key = "\(budgetID)|\(query)|\(filter.rawValue)|\(offset)"
+        searchContinuations.removeValue(forKey: key)?.resume(returning: loaded)
     }
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {

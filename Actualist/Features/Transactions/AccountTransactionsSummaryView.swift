@@ -24,6 +24,7 @@ struct AccountTransactionsSummaryView: View {
                     Text(displayState.balanceText)
                         .font(ActualistTypography.workScreenAmount(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
+                        .accessibilityIdentifier("account-working-balance")
                     Text("Working Balance")
                         .font(ActualistTypography.body(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)

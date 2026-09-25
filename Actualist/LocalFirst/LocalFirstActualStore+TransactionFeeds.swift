@@ -109,7 +109,7 @@ extension LocalFirstActualStore {
             throw CancellationError()
         }
         transactionFeedPagesByKey[key] = TransactionFeedPage(
-            loaded: combinedTransactions(current.loaded, older)
+            loaded: current.loaded.appendingPage(older)
         )
     }
 
@@ -270,29 +270,4 @@ extension LocalFirstActualStore {
         )
     }
 
-    func combinedTransactions(
-        _ current: LoadedAccountTransactions,
-        _ older: LoadedAccountTransactions
-    ) -> LoadedAccountTransactions {
-        let existingIDs = Set(current.transactions.map(transactionIdentity))
-        let appended = older.transactions.filter { !existingIDs.contains(transactionIdentity($0)) }
-        return LoadedAccountTransactions(
-            transactions: current.transactions + appended,
-            balance: older.balance ?? current.balance,
-            accountNames: older.accountNames.isEmpty ? current.accountNames : older.accountNames,
-            categoryNames: older.categoryNames.isEmpty ? current.categoryNames : older.categoryNames,
-            payeeNames: older.payeeNames.isEmpty ? current.payeeNames : older.payeeNames,
-            transferPayeeIDs: older.transferPayeeIDs.isEmpty ? current.transferPayeeIDs : older.transferPayeeIDs,
-            transferAccountIDsByPayeeID: older.transferAccountIDsByPayeeID.isEmpty
-                ? current.transferAccountIDsByPayeeID
-                : older.transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: older.offBudgetAccountIDs,
-            reachedEnd: older.reachedEnd,
-            nextOffset: older.nextOffset
-        )
-    }
-
-    func transactionIdentity(_ transaction: ActualTransaction) -> String {
-        transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(transaction.importedPayee ?? "")"
-    }
 }

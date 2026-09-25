@@ -321,6 +321,30 @@ struct LoadedAccountTransactions: Hashable, Sendable {
 }
 
 extension LoadedAccountTransactions {
+    func appendingPage(_ older: LoadedAccountTransactions) -> LoadedAccountTransactions {
+        let existingIDs = Set(transactions.map(Self.identity))
+        return LoadedAccountTransactions(
+            transactions: transactions + older.transactions.filter { !existingIDs.contains(Self.identity($0)) },
+            balance: older.balance ?? balance,
+            accountNames: older.accountNames.isEmpty ? accountNames : older.accountNames,
+            categoryNames: older.categoryNames.isEmpty ? categoryNames : older.categoryNames,
+            payeeNames: older.payeeNames.isEmpty ? payeeNames : older.payeeNames,
+            transferPayeeIDs: older.transferPayeeIDs.isEmpty ? transferPayeeIDs : older.transferPayeeIDs,
+            transferAccountIDsByPayeeID: older.transferAccountIDsByPayeeID.isEmpty
+                ? transferAccountIDsByPayeeID : older.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: older.offBudgetAccountIDs,
+            reachedEnd: older.reachedEnd,
+            nextOffset: older.nextOffset
+        )
+    }
+
+    private static func identity(_ transaction: ActualTransaction) -> String {
+        let importedPayee = transaction.importedPayee ?? ""
+        return transaction.id ?? "\(transaction.date)|\(transaction.account)|\(transaction.amount ?? 0)|\(importedPayee)"
+    }
+}
+
+extension LoadedAccountTransactions {
     func filtering(categoryID: String, month: String) -> LoadedAccountTransactions {
         LoadedAccountTransactions(
             transactions: transactions.filter { transaction in

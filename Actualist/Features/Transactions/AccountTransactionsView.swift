@@ -154,6 +154,20 @@ struct AccountTransactionsView: View {
                 }
             }
 
+            if scope.categoryDetails == nil {
+                Section {
+                    TransactionStatusFilterStrip(selection: viewModel.statusFilter) { filter in
+                        Task {
+                            await viewModel.selectFilter(filter, budgetID: budgetID,
+                                                         repository: transactionRepository)
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+            }
+
             transactionList(displayState)
 
             if viewModel.isSearchActive {
@@ -163,7 +177,7 @@ struct AccountTransactionsView: View {
             }
 
             if viewModel.isLoading {
-                ProgressView("Loading transactions")
+                ProgressView(viewModel.statusFilter.loadingMessage)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 16)
                     .listRowInsets(EdgeInsets())
@@ -171,7 +185,7 @@ struct AccountTransactionsView: View {
                     .listRowBackground(Color.clear)
             }
 
-            if let errorMessage = viewModel.errorMessage {
+            if let errorMessage = viewModel.loadErrorMessage ?? viewModel.errorMessage {
                 Text(errorMessage)
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.danger)
@@ -179,6 +193,17 @@ struct AccountTransactionsView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
+
+                if displayState.transactionCount == 0 {
+                    Button("Retry") {
+                        Task { await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository) }
+                    }
+                    .font(ActualistTypography.control(for: density))
+                    .frame(maxWidth: .infinity)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
             }
         }
         .listStyle(.plain)
@@ -255,7 +280,7 @@ struct AccountTransactionsView: View {
         }
         .onChange(of: appState.localDataRevision) {
             Task {
-                await viewModel.loadLocal(budgetID: budgetID, repository: transactionRepository)
+                await viewModel.localDataDidChange(budgetID: budgetID, repository: transactionRepository)
                 if let reconciliationIdentity {
                     reconciliationCoordinator.refreshIfActive(
                         identity: reconciliationIdentity,
@@ -264,14 +289,21 @@ struct AccountTransactionsView: View {
                 }
             }
         }
+        .onChange(of: budgetID) { _, _ in
+            Task { await viewModel.budgetDidChange(to: budgetID, repository: transactionRepository) }
+        }
+        .onChange(of: transactionPresenter.presentation == nil) { _, editorDismissed in
+            viewModel.editorPresentationChanged(
+                editorDismissed: editorDismissed,
+                budgetID: budgetID,
+                repository: transactionRepository
+            )
+        }
         .onChange(of: reconciliationIdentity) {
             reconciliationCoordinator.reconcileContext(reconciliationIdentity)
         }
-        .onChange(of: viewModel.searchText) {
-            viewModel.scheduleSearch(budgetID: budgetID, repository: transactionRepository)
-        }
         .onDisappear {
-            viewModel.cancelSearch()
+            viewModel.feedDidDisappear(editorIsPresented: transactionPresenter.presentation != nil)
             reconciliationCoordinator.cancel()
             viewModel.clearPendingNewTransactions(budgetID: budgetID) { budgetID, accountID in
                 if let accountID {
@@ -409,7 +441,11 @@ struct AccountTransactionsView: View {
                 "Search Transactions",
                 text: Binding(
                     get: { viewModel.searchText },
-                    set: { viewModel.searchText = $0 }
+                    set: { value in
+                        viewModel.searchTextDidChange(
+                            value, budgetID: budgetID, repository: transactionRepository
+                        )
+                    }
                 )
             )
                 .focused($isSearchFieldFocused)
@@ -422,7 +458,7 @@ struct AccountTransactionsView: View {
 
             Button {
                 if viewModel.isSearchActive {
-                    viewModel.clearSearch()
+                    viewModel.clearSearch(budgetID: budgetID, repository: transactionRepository)
                     isSearchFieldFocused = true
                 } else {
                     hideSearch()
@@ -471,15 +507,52 @@ struct AccountTransactionsView: View {
     @ViewBuilder
     private func searchFooter(_ displayState: AccountTransactionsDisplayState) -> some View {
         Group {
-            if viewModel.isSearching {
-                ProgressView("Searching transactions")
+            if viewModel.isSearchLoading(budgetID: budgetID) {
+                ProgressView(viewModel.statusFilter.searchingMessage)
                     .font(ActualistTypography.rowBadge(for: density))
             } else if let searchErrorMessage = viewModel.searchErrorMessage {
-                Text(searchErrorMessage)
-                    .font(ActualistTypography.rowTitle(for: density))
-                    .foregroundStyle(ActualistTheme.danger)
+                VStack(spacing: 8) {
+                    Text(searchErrorMessage)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.danger)
+                    Button("Retry Search") {
+                        viewModel.retrySearch(budgetID: budgetID, repository: transactionRepository)
+                    }
+                    .font(ActualistTypography.control(for: density))
+                    if displayState.transactionCount > 0, !displayState.reachedEnd {
+                        Button {
+                            Task { await viewModel.loadOlder(budgetID: budgetID, repository: transactionRepository) }
+                        } label: {
+                            if viewModel.isLoadingOlder {
+                                ProgressView("Loading older transactions")
+                            } else {
+                                Label("Load older transactions", systemImage: "clock.arrow.circlepath")
+                            }
+                        }
+                        .font(ActualistTypography.control(for: density))
+                        .buttonStyle(.plain)
+                    }
+                }
             } else if displayState.transactionCount == 0 {
-                Text("No matching transactions")
+                Text(viewModel.statusFilter == .all
+                     ? "No matching transactions"
+                     : "No matching \(viewModel.statusFilter.title.lowercased()) transactions")
+                    .font(ActualistTypography.rowBadge(for: density))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            } else if !displayState.reachedEnd {
+                Button {
+                    Task { await viewModel.loadOlder(budgetID: budgetID, repository: transactionRepository) }
+                } label: {
+                    if viewModel.isLoadingOlder {
+                        ProgressView("Loading older transactions")
+                    } else {
+                        Label("Load older transactions", systemImage: "clock.arrow.circlepath")
+                    }
+                }
+                .font(ActualistTypography.control(for: density))
+                .buttonStyle(.plain)
+            } else if displayState.transactionCount > 0 {
+                Text("Beginning of history")
                     .font(ActualistTypography.rowBadge(for: density))
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -496,8 +569,14 @@ struct AccountTransactionsView: View {
     private func olderTransactionsFooter(_ displayState: AccountTransactionsDisplayState) -> some View {
         if displayState.hasLoadedSnapshot {
             Group {
-                if displayState.reachedEnd {
-                    Text("Beginning of history")
+                if displayState.transactionCount == 0 {
+                    Text(viewModel.statusFilter.emptyMessage)
+                        .font(ActualistTypography.rowBadge(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                } else if displayState.reachedEnd {
+                    Text(viewModel.statusFilter == .all
+                         ? "Beginning of history"
+                         : "End of \(viewModel.statusFilter.title.lowercased()) transactions")
                         .font(ActualistTypography.rowBadge(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
                 } else if viewModel.isLoadingOlder {
@@ -619,7 +698,7 @@ struct AccountTransactionsView: View {
     }
 
     private func hideSearch() {
-        viewModel.clearSearch()
+        viewModel.clearSearch(budgetID: budgetID, repository: transactionRepository)
         isSearchFieldFocused = false
 
         withAnimation(.snappy(duration: 0.2)) {
