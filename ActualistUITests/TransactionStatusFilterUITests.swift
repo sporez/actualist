@@ -4,34 +4,26 @@ import XCTest
 final class TransactionStatusFilterUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
-    func testSpendingStatusStripKeepsFullOptionsAndSelectedTrait() throws {
+    func testSpendingFilterMenuAndClearIndicator() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = launchSpending()
-        let all = app.buttons["All"]
-        XCTAssertTrue(all.waitForExistence(timeout: 10))
-        XCTAssertTrue(all.isSelected)
-        XCTAssertTrue(app.otherElements["Transaction filters"].exists
-                      || app.scrollViews["Transaction filters"].exists)
-
+        let filterMenu = app.buttons["Filter Transactions"]
+        XCTAssertTrue(filterMenu.waitForExistence(timeout: 10))
+        filterMenu.tap()
+        assertAllFilterChoices(in: app)
         app.buttons["Uncleared"].tap()
-        XCTAssertTrue(app.buttons["Uncleared"].isSelected)
-        XCTAssertFalse(all.isSelected)
 
-        let strip = app.scrollViews["Transaction filters"]
-        if strip.exists { strip.swipeLeft() }
-        let reconciled = app.buttons["Reconciled"]
-        XCTAssertTrue(reconciled.waitForExistence(timeout: 3))
-        XCTAssertTrue(reconciled.isHittable)
-        reconciled.tap()
-        XCTAssertTrue(reconciled.isSelected)
-        XCUIDevice.shared.orientation = .landscapeLeft
-        XCTAssertTrue(reconciled.waitForExistence(timeout: 3))
-        XCTAssertTrue(reconciled.isHittable)
+        let indicator = app.buttons["Clear Uncleared Filter"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 5))
+        XCTAssertTrue(indicator.label.contains("Uncleared"))
+        attachScreenshot(named: "spending-status-filter-dark", app: app)
 
-        attachScreenshot(named: "spending-status-filters-dark", app: app)
+        indicator.tap()
+        XCTAssertFalse(indicator.waitForExistence(timeout: 2))
+        XCTAssertTrue(filterMenu.exists)
     }
 
-    func testStatusLabelsRemainReachableAtAccessibilityTextSize() throws {
+    func testFilterMenuRemainsReachableAtAccessibilityTextSize() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
         app.launchArguments = [
@@ -40,18 +32,16 @@ final class TransactionStatusFilterUITests: XCTestCase {
         ]
         app.launch()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 15))
-        let strip = app.scrollViews["Transaction filters"]
-        XCTAssertTrue(strip.waitForExistence(timeout: 5))
-        strip.swipeLeft()
-
-        let reconciled = app.buttons["Reconciled"]
-        XCTAssertEqual(reconciled.label, "Reconciled")
-        XCTAssertTrue(reconciled.isHittable)
-        reconciled.tap()
-        XCTAssertTrue(reconciled.isSelected)
+        let filterMenu = app.buttons["Filter Transactions"]
+        XCTAssertTrue(filterMenu.waitForExistence(timeout: 5))
+        XCTAssertTrue(filterMenu.isHittable)
+        filterMenu.tap()
+        assertAllFilterChoices(in: app)
+        app.buttons["Reconciled"].tap()
+        XCTAssertTrue(app.buttons["Clear Reconciled Filter"].waitForExistence(timeout: 5))
     }
 
-    func testSearchKeyboardLeavesStatusChipsUsable() throws {
+    func testSearchKeyboardLeavesFilterMenuUsable() throws {
         let app = launchSpending()
         app.buttons["Search Transactions"].tap()
         let search = app.textFields["Search Transactions"]
@@ -60,33 +50,51 @@ final class TransactionStatusFilterUITests: XCTestCase {
         search.typeText("market")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
 
-        let strip = app.scrollViews["Transaction filters"]
-        XCTAssertTrue(strip.exists)
-        strip.swipeLeft()
-        let reconciled = app.buttons["Reconciled"]
-        XCTAssertTrue(reconciled.isHittable)
-        reconciled.tap()
-        XCTAssertTrue(reconciled.isSelected)
+        let filterMenu = app.buttons["Filter Transactions"]
+        XCTAssertTrue(filterMenu.isHittable)
+        filterMenu.tap()
+        app.buttons["Reconciled"].tap()
+        XCTAssertTrue(app.buttons["Clear Reconciled Filter"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.exists)
     }
 
-    func testAccountBalanceRemainsWhenStatusFilterChanges() throws {
+    func testAccountFilterMenuPreservesBalanceAndToolbarActions() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "accounts"]
         app.launch()
-        let accounts = app.navigationBars["Accounts"]
-        XCTAssertTrue(accounts.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 15))
         app.staticTexts["Everyday Checking"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 5))
 
         let summary = app.staticTexts["account-working-balance"]
         XCTAssertTrue(summary.waitForExistence(timeout: 5))
         let balance = summary.label
+        XCTAssertTrue(app.buttons["Account Actions"].exists)
+        XCTAssertTrue(app.buttons["Search Transactions"].exists)
+        XCTAssertTrue(app.buttons["Add Transaction"].exists)
+
+        app.buttons["Account Actions"].tap()
+        app.buttons["Filter Transactions"].tap()
+        XCTAssertTrue(app.buttons["All"].isSelected)
         app.buttons["Cleared"].tap()
-        XCTAssertTrue(app.buttons["Cleared"].isSelected)
+        let indicator = app.buttons["Clear Cleared Filter"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 5))
+        XCTAssertTrue(indicator.isHittable)
         XCTAssertEqual(summary.label, balance)
-        attachScreenshot(named: "account-status-filters-dark", app: app)
+        attachScreenshot(named: "account-status-filter-dark", app: app)
+
+        // On iPad the List gives this button the full row's accessibility frame;
+        // the balance marks the center of the visible detail pane, not the sidebar.
+        app.coordinate(withNormalizedOffset: CGVector(
+            dx: summary.frame.midX / app.frame.width,
+            dy: indicator.frame.midY / app.frame.height
+        )).tap()
+        XCTAssertFalse(indicator.waitForExistence(timeout: 5))
+
+        app.buttons["Account Actions"].tap()
+        app.buttons["Filter Transactions"].tap()
+        XCTAssertTrue(app.buttons["All"].isSelected)
     }
 
     func testSpendingStatusFiltersInLightAppearance() throws {
@@ -104,29 +112,31 @@ final class TransactionStatusFilterUITests: XCTestCase {
         app.terminate()
 
         let spending = launchSpending()
-        XCTAssertTrue(spending.buttons["All"].waitForExistence(timeout: 10))
-        XCTAssertTrue(spending.buttons["Reconciled"].exists)
-        attachScreenshot(named: "spending-status-filters-light", app: spending)
+        XCTAssertTrue(spending.buttons["Filter Transactions"].waitForExistence(timeout: 10))
+        spending.buttons["Filter Transactions"].tap()
+        spending.buttons["Reconciled"].tap()
+        XCTAssertTrue(spending.buttons["Clear Reconciled Filter"].waitForExistence(timeout: 5))
+        attachScreenshot(named: "spending-status-filter-light", app: spending)
     }
 
     func testFilterSurvivesEditorReturnAndResetsAfterTabExit() throws {
         let app = launchSpending()
-        let cleared = app.buttons["Cleared"]
-        cleared.tap()
-        XCTAssertTrue(cleared.isSelected)
+        selectSpendingFilter("Cleared", in: app)
+        let indicator = app.buttons["Clear Cleared Filter"]
+        XCTAssertTrue(indicator.waitForExistence(timeout: 5))
 
         app.buttons["Add Transaction"].tap()
         XCTAssertTrue(app.navigationBars["Add Transaction"].waitForExistence(timeout: 5))
         app.navigationBars["Add Transaction"].buttons.firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 5))
-        XCTAssertTrue(cleared.isSelected)
+        XCTAssertTrue(indicator.waitForExistence(timeout: 5))
 
         app.tabBars.buttons["Accounts"].tap()
         XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Spending"].tap()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["All"].isSelected)
-        XCTAssertFalse(cleared.isSelected)
+        XCTAssertFalse(indicator.exists)
+        XCTAssertTrue(app.buttons["Filter Transactions"].exists)
     }
 
     private func launchSpending() -> XCUIApplication {
@@ -135,6 +145,17 @@ final class TransactionStatusFilterUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 15))
         return app
+    }
+
+    private func selectSpendingFilter(_ filter: String, in app: XCUIApplication) {
+        app.buttons["Filter Transactions"].tap()
+        app.buttons[filter].tap()
+    }
+
+    private func assertAllFilterChoices(in app: XCUIApplication) {
+        for filter in ["All", "Uncategorized", "Uncleared", "Cleared", "Reconciled"] {
+            XCTAssertTrue(app.buttons[filter].exists, "Missing \(filter) filter choice")
+        }
     }
 
     private func attachScreenshot(named name: String, app: XCUIApplication) {

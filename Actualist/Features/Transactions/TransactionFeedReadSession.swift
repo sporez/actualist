@@ -230,7 +230,7 @@ final class TransactionFeedReadSession {
             : "\(identity.statusFilter.title.lowercased()) search results"
         state = State(identity: identity, requestID: nil, phase: .failed,
                       searchPage: state.searchPage,
-                      errorMessage: "Could not \(action) \(description). \(error.userFacingMessage)")
+                      errorMessage: "Could not \(action) \(description). \(error.userFacingMessage ?? "")")
         searchTask = nil
     }
 
@@ -244,7 +244,7 @@ final class TransactionFeedReadSession {
         }
         state = State(identity: identity, requestID: nil, phase: .failed,
                       searchPage: state.searchPage,
-                      errorMessage: "Could not load older \(identity.statusFilter.title.lowercased()) transactions. \(error.userFacingMessage)")
+                      errorMessage: "Could not load older \(identity.statusFilter.title.lowercased()) transactions. \(error.userFacingMessage ?? "")")
         searchTask = nil
     }
 

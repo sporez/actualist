@@ -143,6 +143,20 @@ struct AccountTransactionsView: View {
                 }
             }
 
+            if scope.categoryDetails == nil, viewModel.statusFilter != .all {
+                Section {
+                    TransactionStatusFilterIndicator(selection: viewModel.statusFilter) {
+                        Task {
+                            await viewModel.selectFilter(.all, budgetID: budgetID,
+                                                         repository: transactionRepository)
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                }
+            }
+
             if let presentation = reconciliationCoordinator.panelPresentation(
                 privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled
             ) {
@@ -151,20 +165,6 @@ struct AccountTransactionsView: View {
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
-                }
-            }
-
-            if scope.categoryDetails == nil {
-                Section {
-                    TransactionStatusFilterStrip(selection: viewModel.statusFilter) { filter in
-                        Task {
-                            await viewModel.selectFilter(filter, budgetID: budgetID,
-                                                         repository: transactionRepository)
-                        }
-                    }
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
                 }
             }
 
@@ -231,21 +231,41 @@ struct AccountTransactionsView: View {
                     }
                 }
 
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if scope.account != nil {
+                if scope.account != nil {
+                    ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button {
                                 startReconciliation()
                             } label: {
                                 Label("Reconcile", systemImage: "checkmark.seal")
                             }
+                            TransactionStatusFilterMenu(selection: viewModel.statusFilter, showsTitle: true) { filter in
+                                Task {
+                                    await viewModel.selectFilter(filter, budgetID: budgetID,
+                                                                 repository: transactionRepository)
+                                }
+                            }
                         } label: {
-                            Image(systemName: "ellipsis.circle")
+                            Image(systemName: "ellipsis")
                         }
-                        .actualistToolbarGlassButton()
                         .accessibilityLabel("Account Actions")
                     }
+                } else if scope.categoryDetails == nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        TransactionStatusFilterMenu(selection: viewModel.statusFilter) { filter in
+                            Task {
+                                await viewModel.selectFilter(filter, budgetID: budgetID,
+                                                             repository: transactionRepository)
+                            }
+                        }
+                    }
+                }
 
+                if scope.categoryDetails == nil {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         showSearch()
                     } label: {
