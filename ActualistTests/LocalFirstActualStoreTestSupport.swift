@@ -272,7 +272,10 @@ extension LocalFirstActualStoreTests {
 
     func makeOpenedWritableStoreBundle(
         syncTransportFactory: @escaping @Sendable (URL) -> any ActualSyncTransport = { ActualServerSyncClient(baseURL: $0) },
-        keychainBackend: any KeychainBackend = SystemKeychainBackend(),
+        // Synthetic store fixtures do not need the real system Keychain.
+        // A fresh fake is created for each omitted argument. Explicit backends
+        // are still forwarded. This fake is not a general thread-safe store.
+        keychainBackend: any KeychainBackend = FakeKeychainBackend(),
         connectionTransportFactory: @escaping @Sendable (URL) -> any ActualServerConnectionTransport = {
             ActualServerSyncClient(baseURL: $0)
         },

@@ -6,6 +6,10 @@ import Testing
 import ZIPFoundation
 @testable import Actualist
 
+// Serialized internally so this large suite does not pile its resumptions
+// onto the same main-actor queue as every other suite. Other suites stay
+// eligible for parallel execution. This is not a universal test-count limit.
+@Suite(.serialized)
 @MainActor
 struct LocalFirstActualStoreTests {
     enum ReimportFailureScenario: CaseIterable, Sendable {

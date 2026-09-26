@@ -83,7 +83,9 @@ extension LocalFirstActualStoreTests {
     func makeBankSyncStore(
         transport: StubSimpleFINTransport,
         additionalFixtureSQL: String = "",
-        keychainBackend: any KeychainBackend = SystemKeychainBackend()
+        // Same fresh-fake default as makeOpenedWritableStoreBundle. Explicit
+        // backends are forwarded unchanged.
+        keychainBackend: any KeychainBackend = FakeKeychainBackend()
     ) async throws -> OpenedWritableStoreBundle {
         let bundle = try await makeOpenedWritableStoreBundle(
             keychainBackend: keychainBackend,

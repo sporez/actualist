@@ -2,11 +2,13 @@ import Foundation
 import Synchronization
 
 /// Continuation-backed one-shot latch for test coordination. Waiters suspend
-/// on a continuation instead of spinning `Task.yield()` loops: yield-spinning
-/// keeps a task permanently runnable, so under Swift Testing's in-process
-/// concurrency a handful of spinners dominate the cooperative executor queue
-/// and starve every other test's actor hops (observed 2026-09-25: ~800 tests
-/// slowed 100x, coordination tests hitting their 120s limits).
+/// on a continuation instead of spinning `Task.yield()` loops. Yield-spinning
+/// keeps a task runnable and should not be reintroduced. Replacing those loops
+/// did not remove the original full-suite time-limit fingerprint; later
+/// samples showed synchronous system-Keychain waits, and two fixture defaults
+/// plus internal serialization of `LocalFirstActualStoreTests` were the
+/// accepted scheduling candidate. Do not treat this latch as proof of an
+/// unbounded runner or of a universal test-count limit.
 ///
 /// Tripping is broadcast: every current and future waiter proceeds after the
 /// latch opens. A latch never re-closes; create one per coordination point.
