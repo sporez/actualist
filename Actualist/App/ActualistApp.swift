@@ -200,9 +200,11 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         }
 
         didRegisterTask = true
+        // This launch closure inherits MainActor; nil would deliver it on a
+        // background queue and trap at the Swift 6 isolation check.
         let didRegister = BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.taskIdentifier,
-            using: nil
+            using: .main
         ) { [weak self] task in
             guard let refreshTask = task as? BGAppRefreshTask else {
                 task.setTaskCompleted(success: false)
