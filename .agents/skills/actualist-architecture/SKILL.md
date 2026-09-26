@@ -58,11 +58,13 @@ Start here for launch, session, routing, background refresh, or app-wide state:
 - `Actualist/App/AppStateModels.swift` — small app-state enums/value types.
 - `Actualist/App/AppSyncCoordinator.swift` — foreground sync coordination and status publication.
 - `Actualist/App/BackgroundTransactionWorkflow.swift` and `BackgroundTransactionRefreshRunner.swift` — background transaction/bank work.
-- `Actualist/App/LaunchWarmup.swift` and `LaunchInstrumentation.swift` — post-open warmup and launch measurements.
-- `Actualist/Features/Root/RootView.swift` — setup-to-main-shell boundary.
-- `Actualist/Features/Root/MainTabView.swift` — compact native tab shell.
+- `Actualist/App/LaunchWarmup.swift` and `LaunchInstrumentation.swift` — post-open warmup and launch measurements. Store cache warming is `LocalFirstActualStore+LaunchWarmup.swift`, not more work in `AppState`.
+- `Actualist/App/AppTab.swift` — native tab identity. `BudgetCalendarCoordinator.swift` owns local month-boundary invalidation. `SpringboardQuickActionCoordinator.swift` owns home-screen quick actions.
+- `Actualist/Features/Root/RootView.swift` — setup-to-main-shell boundary. `CredentialRecoveryView.swift` is the credential-recovery surface.
+- `Actualist/Features/Root/MainTabView.swift` — compact native tab shell: Budget, Spending, Accounts, and Reports.
 - `Actualist/Features/Root/AdaptiveRootShell.swift` — adaptive/iPad shell.
 - `Actualist/Features/Root/AdaptiveBudgetSession.swift` — retained Budget presentation session across shell changes.
+- `Actualist/Features/Root/RootTransactionEditorPresenter.swift` — shell-owned transaction editor presentation, including shortcut and quick-action entry. The editor screens themselves stay in Transactions.
 - `Actualist/Features/Shortcuts/Routing/AppRouteCoordinator.swift` and `AppRoute.swift` — app routes and external/deep-link navigation.
 
 Do not add a feature workflow to `AppState`. Put it in the feature view model or a focused coordinator and let `AppState` coordinate only its app-wide boundary.
@@ -74,14 +76,18 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Screen composition: `Actualist/Features/Budget/BudgetView.swift`, `BudgetWorkspaceView.swift`, `BudgetCompactMonthContent.swift`, and `BudgetRows.swift`.
 - State and derived display logic: `BudgetViewModel.swift`, `BudgetViewportModel.swift`, and nearby `*Presentation.swift`, `*Policy.swift`, and draft-model files.
 - Month navigation and layout: `BudgetMonthSwipeModifier.swift`, `BudgetAssignmentViewport.swift`, `BudgetAssignmentScrollPresentation.swift`, and viewport/layout helpers.
-- Assignment/move workflows: Budget feature view-model extensions and draft helpers; persistence enters through `BudgetRepositoryProtocol` and store mutation extensions.
+- Assignment and move-money workflows: `BudgetMoveMoneyWorkflow.swift` and `BudgetMoveMoneyView.swift`; persistence enters through `BudgetRepositoryProtocol` and `LocalFirstActualStore+AssignMove.swift`.
+- Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `LocalFirstActualStore+CategoryLifecycle.swift`; SQLite is `BudgetDatabase+CategoryLifecycle*.swift` and `+CategoryVisibility.swift`.
+- Hold for next month: `BudgetDatabase+EnvelopeHolds.swift`, close to the stored budget calculation.
 - Uncategorized flow: `UncategorizedTransactionsView.swift` and its view model/coordinator siblings.
 - Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `+ActionLog.swift`; `BudgetDatabase+BudgetReads.swift`, `+BudgetWrites.swift`, and `+ActionLog*.swift`.
 
 ### Transactions and spending
 
-- Account feed and summaries: `Actualist/Features/Transactions/AccountTransactionsView.swift`, `AccountTransactionsViewModel.swift`, `AccountTransactionFeedProjection.swift`, and presentation siblings.
-- Editor UI/state: `TransactionEditorView.swift`, `TransactionEditorViewModel.swift`, `TransactionEditorSession.swift`.
+- Spending tab: `SpendingTransactionsView.swift`, hosted by `MainTabView` and `AdaptiveRootShell`. It is not a separate feature directory.
+- Account feed and summaries: `AccountTransactionsView.swift`, `AccountTransactionsViewModel.swift`, `AccountTransactionFeedProjection.swift`, and presentation siblings.
+- Cached feed reads: `LocalFirstActualStore+TransactionFeeds.swift` and `+TransactionFeedCache.swift`, with `TransactionFeedCacheKey.swift` and `TransactionFeedCacheRefreshGate.swift`. Do not add a second feed cache in the view model.
+- Editor UI/state: `TransactionEditorView.swift`, `TransactionEditorViewModel.swift`, `TransactionEditorSession.swift`. Shell presentation is `RootTransactionEditorPresenter.swift`.
 - Submission and guarded mutation: `TransactionEditorSubmissionCoordinator.swift`, `TransactionEditorMutationCoordinator.swift`, and reconciled-mutation presentation files.
 - Protocol/model seam: `Actualist/Repositories/TransactionRepository.swift` and `TransactionModels.swift`.
 - Store writes: `LocalFirstActualStore+TransactionMutations.swift` and related mutation extensions.
@@ -104,7 +110,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Provider clients: `Actualist/LocalFirst/Network/ActualServerSimpleFINClient.swift` and `SimpleFINBridgeClient.swift`.
 - Pure reconciliation/mapping: `Actualist/Shared/BankSyncReconciler.swift`, `BankSyncFieldMapping.swift`, `BankSyncSupport.swift`, and `WalletTransactionMapping.swift`.
 - Atomic persistence: `Actualist/LocalFirst/Database/BudgetDatabase+BankSync.swift`.
-- Wallet import: `LocalFirstActualStore+WalletImport.swift` plus shared wallet mapping.
+- Wallet import UI: `Actualist/Features/Settings/WalletImportView.swift`, `WalletImportViewModel.swift`, and `WalletImportSettingsSection.swift`. Apply path: `LocalFirstActualStore+WalletImport.swift` plus shared wallet mapping.
 
 ### Templates
 
@@ -115,7 +121,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 ### Rules and payees
 
-- Settings UI: `Actualist/Features/Settings/RuleEditorView.swift`, rules-list files, and `PayeesView.swift`.
+- Settings UI: `BudgetRulesView.swift` and `PayeeRulesView.swift` for the lists, `RuleEditorView.swift` for editing, and `PayeesView.swift` for payees.
 - Protocol/display seam: `Actualist/Repositories/RuleRepository.swift`, `RulePresentation.swift`, and `PayeeRepository.swift`.
 - Store seam: `LocalFirstActualStore+Rules.swift`.
 - Evaluation/persistence: `Actualist/LocalFirst/Database/BudgetDatabase+Rules.swift`, `RuleConditionEvaluator.swift`, `RuleFormulaEvaluator.swift`, `RuleSplitActionExecutor.swift`, `RuleRanking.swift`, and schedule helpers.
@@ -150,12 +156,14 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 - `+Connection` — authenticate, select/open/import/reset budget sessions.
 - `+Sync` — pull/apply/flush sync and resolve sync failures.
-- `+Reads` / `+BudgetCache` / `+BudgetLaunchSnapshot` — cached local reads and launch snapshots.
-- `+Mutations`, `+TransactionMutations`, `+AssignMove` — local CRDT write flows.
+- `+Reads` / `+BudgetCache` / `+BudgetLaunchSnapshot` — cached budget-month reads and launch snapshots.
+- `+TransactionFeeds` / `+TransactionFeedCache` — cached account and Spending feeds. Do not duplicate this cache.
+- `+LaunchWarmup` — store-side cache warming after open.
+- `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle` — local CRDT write flows.
 - `+BankSyncPlanning`, `+BankSync`, `+WalletImport` — imported transaction flows.
 - `+Templates`, `+Rules`, `+Notes`, `+Reports`, `+Widgets`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
 - `+Failover` and `ServerEndpointHealth.swift` — endpoint failover and health.
-- `DemoMode/` — offline bundled-budget session.
+- `DemoMode/` — offline bundled-budget session. Bundled files are `Actualist/Resources/DemoBudget.zip` and `TrackingDemoBudget.zip`.
 
 When adding a store operation, extend the workflow-specific file rather than growing the base type or creating a second concrete repository.
 
@@ -165,7 +173,8 @@ When adding a store operation, extend the workflow-specific file rather than gro
 
 - `+BasicReads`, `+BudgetReads`, `+TransactionReads`, `+Reports` — query families.
 - `+Sync` — CRDT application, local atomic mutation, and outbox behavior.
-- `+BudgetWrites`, `+TransactionCreation`, `+TransactionUpdates`, `+TransactionSplitWrites` — mutation families.
+- `+BudgetWrites`, `+EnvelopeHolds`, `+TransactionCreation`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.
+- `+CategoryLifecycle`, `+CategoryLifecycleDeletion`, `+CategoryVisibility` — category structure and hidden-category persistence.
 - `+Schema`, `+LocalMigrations`, `+AccountGroupCompatibility` — local/schema compatibility.
 - `+Rules`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
@@ -218,7 +227,7 @@ Network clients transport/decode. They do not become a read source for screens.
 - Start with the production type or workflow name under flat `ActualistTests/`: `BudgetViewModel…Tests`, `LocalFirstActualStore…Tests`, `BudgetDatabase…Tests`, `BankSync…Tests`, and so on.
 - Shared test construction lives in files ending in `TestSupport.swift`; reuse it instead of inventing a second fixture style.
 - SQLite/schema/oracle fixtures live under `ActualistTests/Fixtures/`.
-- UI suites under `ActualistUITests/` are named by visible surface or interaction, such as adaptive settings, reconciliation, iPad review, notes, tracking budget, or month swipe.
+- UI suites under `ActualistUITests/` are named by visible surface or interaction, such as adaptive settings, reconciliation, iPad review, notes, tracking budget, month swipe, category lifecycle, credential recovery, or Springboard quick actions.
 - `scripts/test.sh unit <Suite>...` and `scripts/test.sh ui <Suite[/testMethod]>...` are the supported focused runners.
 - `scripts/run-ios-simulator.sh --boot --reset --demo --screen <path> --screenshot` is the supported visual path.
 - `scripts/check.sh` is always required before handoff but does not replace behavior-specific verification.
