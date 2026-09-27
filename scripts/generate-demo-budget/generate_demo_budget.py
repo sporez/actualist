@@ -80,7 +80,7 @@ from pathlib import Path
 
 # --- Identity (must match DemoBudget.swift) ---------------------------------
 
-DEMO_FILE_ID = "actualist-demo-budget-v5"
+DEMO_FILE_ID = "actualist-demo-budget-v6"
 DEMO_GROUP_ID = "actualist-demo-group-v1"
 DEMO_NODE_ID = "demo-node-00000001"
 DEMO_BUDGET_NAME = "Demo Budget"
@@ -128,6 +128,10 @@ CREATE TABLE zero_budgets (
     carryover INTEGER NOT NULL DEFAULT 0,
     goal INTEGER,
     long_goal INTEGER
+);
+CREATE TABLE zero_budget_months (
+    id TEXT PRIMARY KEY,
+    buffered INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE transactions (
     id TEXT PRIMARY KEY,

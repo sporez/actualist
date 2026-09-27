@@ -16,6 +16,7 @@ struct BudgetView: View {
     @State private var pendingTemplateConfirmation: BudgetTemplateConfirmation?
     @State private var templateEditorTarget: BudgetTemplateEditorTarget?
     @State private var noteTarget: ActualNoteTarget?
+    @State private var holdTarget: BudgetHoldTarget?
     @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
     @State private var categoryLifecycleSheet: BudgetCategoryLifecycleSheet?
     @State private var categoryLifecycle = BudgetCategoryLifecycleController()
@@ -185,6 +186,17 @@ struct BudgetView: View {
                                     Label("Templates", systemImage: "doc.text")
                                 }
                             }
+
+                            if showsHoldMenuFallback {
+                                Divider()
+
+                                Button {
+                                    presentHold()
+                                } label: {
+                                    Label("Hold / Release…", systemImage: "lock")
+                                }
+                                .accessibilityIdentifier("budget-hold-open")
+                            }
                         } label: {
                             Image(systemName: "ellipsis")
                         }
@@ -225,11 +237,16 @@ struct BudgetView: View {
                     visibilityWorkflow.cancel()
                     dismissCategoryLifecycle()
                     noteTarget = nil
+                    holdTarget = nil
                     applyShortcutRoute()
                 }
                 .onChange(of: appState.settings.selectedBudgetID) {
                     dismissCategoryLifecycle()
                     noteTarget = nil
+                    holdTarget = nil
+                }
+                .onChange(of: viewModel.modeIdentity) {
+                    holdTarget = nil
                 }
                 .sheet(isPresented: $isHistoryPresented) {
                     HistoryView()
@@ -286,6 +303,10 @@ struct BudgetView: View {
                         .appSwitcherPrivacyProtected(using: appState)
                     }
                 }
+                .sheet(item: $holdTarget) { target in
+                    BudgetHoldSheet(target: target)
+                        .appSwitcherPrivacyProtected(using: appState)
+                }
                 .sheet(isPresented: $isOverspentCategoriesPresented) {
                     BudgetOverspentCategoriesView(
                         viewModel: viewModel,
@@ -325,7 +346,7 @@ struct BudgetView: View {
         isHistoryPresented || isMonthPickerPresented || isUncategorizedTransactionsPresented
             || categoryDetailsPresentation != nil || isOverspentCategoriesPresented
             || pendingTemplateConfirmation != nil || templateEditorTarget != nil || noteTarget != nil
-            || categoryLifecycleSheet != nil
+            || holdTarget != nil || categoryLifecycleSheet != nil
             || transactionPresenter.presentation != nil || appState.routeCoordinator.isSettingsPresented
             || visibilityWorkflow.isSubmitting || categoryLifecycle.isSubmitting
     }
@@ -459,7 +480,7 @@ struct BudgetView: View {
     }
 
     private func open(_ alert: BudgetAlert) {
-        guard alert.isActionable else {
+        guard alert.isActionable || alert.kind == .toBudget else {
             return
         }
 
@@ -469,8 +490,37 @@ struct BudgetView: View {
         case .overspending:
             isOverspentCategoriesPresented = true
         case .toBudget:
-            break
+            presentHold()
         }
+    }
+
+    private var showsHoldMenuFallback: Bool {
+        !appState.settings.randomizedDisplayValuesEnabled
+            && !viewModel.isTrackingBudget
+            && !viewModel.isSubmittingAssignment
+            && viewModel.budgetMonth?.toBudget == 0
+            && !appState.settings.showTotalAssigned
+            && viewModel.loadedBudgetID == appState.settings.selectedBudgetID
+            && viewModel.selectedMonth != nil
+    }
+
+    private func presentHold() {
+        guard !appState.settings.randomizedDisplayValuesEnabled,
+              !viewModel.isTrackingBudget,
+              !viewModel.isSubmittingAssignment,
+              let budgetID = viewModel.loadedBudgetID,
+              budgetID == appState.settings.selectedBudgetID,
+              let month = viewModel.selectedMonth else {
+            return
+        }
+        dismissAssignmentKeypad {
+            viewModel.cancelAssignmentEditing()
+        }
+        holdTarget = BudgetHoldTarget(
+            budgetID: budgetID,
+            month: month,
+            modeIdentity: viewModel.modeIdentity
+        )
     }
 
     private var cachedUncategorizedTransactions: LoadedUncategorizedTransactions? {

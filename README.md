@@ -37,8 +37,8 @@ and iOS Liquid Glass controls.
 ## Features
 
 - Envelope and tracking budgets, category assignments and organization,
-  rollover, templates, notes, and overspending review. Move Money is available
-  for envelope budgets.
+  rollover, templates, notes, and overspending review. Move Money and
+  Hold / Release for Next Month are available for envelope budgets.
 - Searchable transaction feeds, with create, edit, delete, categorize,
   split, transfer, and eligible undo actions.
 - Accounts with on-budget, off-budget, and closed balances, plus notes. Add
@@ -61,6 +61,12 @@ budgets show **Budgeted / Balance** for expenses and **Budgeted / Received** for
 income, with **Projected Savings** for current/future months and **Saved** or
 **Overspent** for past months. Tracking expense balances reset monthly unless
 rollover is enabled.
+
+Tap **To Budget** to hold unassigned money for next month or review releasing
+held money back to the selected month. If To Budget is hidden at zero, use
+**Hold / Release** in the Budget actions menu. Holding reduces this month's
+To Budget without changing bank balances or category assignments; the money
+is available in the following month.
 
 Add or edit templates from a category or Settings → Templates. Saving a template
 changes its setup; **Apply Template** previews and assigns the money separately.

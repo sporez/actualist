@@ -172,6 +172,29 @@ struct DemoModeStoreTests {
         #expect(await transport.messageCounts().isEmpty)
     }
 
+    @Test func demoHoldAndReleasePersistWithoutServerContact() async throws {
+        let transport = RecordingSyncTransport()
+        let (store, _) = makeDemoStore(transport: transport)
+        try await store.openDemoBudget()
+        let review = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
+        let held = try await store.applyBudgetHoldAndRefresh(
+            command: .hold(amount: 100), review: review, budgetID: DemoBudget.groupID
+        )
+        #expect(held.month.forNextMonth == 100)
+        #expect(held.month.toBudget == review.toBudget - 100)
+        store.closeOpenBudget()
+        try await store.openDemoBudget()
+        let reopened = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
+        #expect(reopened.heldAmount == 100)
+        let released = try await store.applyBudgetHoldAndRefresh(
+            command: .reset, review: reopened, budgetID: DemoBudget.groupID
+        )
+        #expect(released.month.toBudget == review.toBudget)
+        #expect(released.month.forNextMonth == 0)
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: DemoBudget.groupID) == 0)
+        #expect(await transport.messageCounts().isEmpty)
+    }
+
     @Test func importedBudgetGoneAfterExit() async throws {
         let transport = RecordingSyncTransport()
         let (store, fileManager) = makeDemoStore(transport: transport)

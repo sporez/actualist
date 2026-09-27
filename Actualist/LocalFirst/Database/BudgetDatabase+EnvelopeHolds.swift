@@ -22,9 +22,42 @@ extension BudgetDatabase {
         return try inferredIncomeCarryoverHold(month: month, db: db)
     }
 
+    func budgetHoldReview(month: String) throws -> BudgetHoldReview {
+        try queue.read { db in try budgetHoldReview(month: month, db: db) }
+    }
+
+    func budgetHoldReview(month: String, db: Database) throws -> BudgetHoldReview {
+        guard canonicalMonthID(month) == month else {
+            throw LocalFirstError.invalidLocalWrite("invalid hold month")
+        }
+        let table = try budgetTable(db: db)
+        guard BudgetActionEligibility.allows(.holdForNextMonth, in: table) else {
+            throw BudgetModeWriteError.unsupportedAction
+        }
+        let modeIdentity = try budgetModeIdentity(db: db)
+        let manualHeldAmount = try manualEnvelopeHold(month: month, db: db)
+        let automaticHeldAmount = try inferredIncomeCarryoverHold(month: month, db: db)
+        let heldAmount = manualHeldAmount == 0 ? automaticHeldAmount : manualHeldAmount
+        let revision = try budgetHoldReviewRevision(
+            month: month,
+            modeIdentity: modeIdentity,
+            db: db
+        )
+        return BudgetHoldReview(
+            month: month,
+            modeIdentity: modeIdentity,
+            currency: try budgetCurrency(db: db),
+            toBudget: try envelopeToBudget(month: month, db: db),
+            heldAmount: heldAmount,
+            manualHeldAmount: manualHeldAmount,
+            automaticHeldAmount: automaticHeldAmount,
+            revision: revision
+        )
+    }
+
     /// Explicit hold from `zero_budget_months`. Row IDs are sheet months ("2026-08"); some
     /// databases store bare numeric IDs, so they are canonicalized before comparing.
-    private func manualEnvelopeHold(month: String, db: Database) throws -> Int {
+    func manualEnvelopeHold(month: String, db: Database) throws -> Int {
         guard try tableExists("zero_budget_months", db: db) else {
             return 0
         }
@@ -58,7 +91,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func incomeCategoryIDs(db: Database) throws -> Set<String> {
+    func incomeCategoryIDs(db: Database) throws -> Set<String> {
         guard try tableExists("categories", db: db) else {
             return []
         }

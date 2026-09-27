@@ -22,11 +22,13 @@ struct MoneyAmountEntryField: View {
     let focus: FocusState<Bool>.Binding
     let accessibilityLabel: String
     let accessibilityIdentifier: String
+    var alignment: TextAlignment = .center
+    var font: Font? = nil
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: alignment == .leading ? .leading : .center) {
             Text(displayText)
-                .font(ActualistTypography.editorAmount(for: density))
+                .font(font ?? ActualistTypography.editorAmount(for: density))
                 .foregroundStyle(foreground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.55)
@@ -35,9 +37,9 @@ struct MoneyAmountEntryField: View {
 
             TextField(accessibilityLabel, text: $text)
                 .focused(focus)
-                .font(ActualistTypography.editorAmount(for: density))
+                .font(font ?? ActualistTypography.editorAmount(for: density))
                 .foregroundStyle(foreground)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(alignment)
                 .keyboardType(keyboard == .digits ? .numberPad : .decimalPad)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()

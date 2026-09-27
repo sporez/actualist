@@ -7,6 +7,7 @@ enum BudgetWorkspaceSheet: Identifiable, Equatable {
     case moveMoney
     case note(ActualNoteTarget)
     case templates(BudgetTemplateEditorTarget)
+    case hold(BudgetHoldTarget)
     case categoryLifecycle(BudgetCategoryLifecycleSheet)
 
     var id: String {
@@ -17,6 +18,7 @@ enum BudgetWorkspaceSheet: Identifiable, Equatable {
         case .moveMoney: "move-money"
         case .note(let target): "note:\(target.id)"
         case .templates(let target): "templates:\(target.id)"
+        case .hold(let target): "hold:\(target.id)"
         case .categoryLifecycle(let sheet): "category-lifecycle:\(sheet.id)"
         }
     }
@@ -153,6 +155,39 @@ final class BudgetWorkspaceActions {
         guard let target = ActualNoteTarget.budgetMonth(month: month, title: month) else { return }
         actionMonth = month
         sheet = .note(target)
+    }
+
+    func canOpenHold(_ month: String, using appState: AppState) -> Bool {
+        !appState.settings.randomizedDisplayValuesEnabled
+            && viewport.budgetID == appState.settings.selectedBudgetID
+            && !viewport.assignmentWorkflow.isSubmitting
+            && viewport.snapshot(for: month)?.isTrackingBudget == false
+    }
+
+    func openHold(_ month: String, using appState: AppState) {
+        guard canOpenHold(month, using: appState),
+              let budgetID = viewport.budgetID,
+              let snapshot = viewport.snapshot(for: month) else {
+            return
+        }
+        viewport.cancelAssignmentEditing()
+        clearActionContext()
+        actionMonth = month
+        actionBudgetID = budgetID
+        sheet = .hold(BudgetHoldTarget(
+            budgetID: budgetID,
+            month: month,
+            modeIdentity: snapshot.modeIdentity
+        ))
+    }
+
+    func reconcileHoldPresentation(budgetID: String?, modeIdentity: BudgetModeIdentity?) {
+        guard case .hold(let target) = sheet else { return }
+        guard target.budgetID == budgetID,
+              target.modeIdentity == modeIdentity else {
+            dismissSheet()
+            return
+        }
     }
 
     func openCategoryNote(_ category: BudgetMonthCategory, month: String) {

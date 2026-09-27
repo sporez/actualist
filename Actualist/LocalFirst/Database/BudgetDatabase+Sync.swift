@@ -173,12 +173,14 @@ extension BudgetDatabase {
         expectedMode: BudgetModeIdentity? = nil,
         expectedBankLink: BankSyncLinkIdentity? = nil,
         reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil,
-        expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil
+        expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil,
+        expectedHoldReview: BudgetHoldReview? = nil
     ) throws -> Int {
         guard !drafts.isEmpty else {
             try queue.read { db in
                 try validateBankSyncLink(expectedBankLink, db: db)
                 try validateBudgetTemplateReviewRevision(expectedTemplateReviewRevision, db: db)
+                try validateBudgetHoldReview(expectedHoldReview, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
                 try validateReconciledMutationPrecondition(
@@ -201,6 +203,7 @@ extension BudgetDatabase {
                 }
                 try validateBankSyncLink(expectedBankLink, db: db)
                 try validateBudgetTemplateReviewRevision(expectedTemplateReviewRevision, db: db)
+                try validateBudgetHoldReview(expectedHoldReview, db: db)
                 try validateBudgetWrite(drafts, expectedMode: expectedMode,
                     descriptor: actionLogCommit?.descriptor, db: db)
                 try validateReconciledMutationPrecondition(

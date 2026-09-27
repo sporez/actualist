@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct BudgetGridMonthHeaders: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
     private var sizing: BudgetGridDensityMetrics { .init(density: density) }
     let presentation: BudgetGridPresentation
@@ -37,17 +38,17 @@ struct BudgetGridMonthHeaders: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(month.title), month actions")
 
-                    VStack(spacing: 2) {
-                        Text(summary.text)
-                            .font(ActualistTypography.rowTitle(for: density).bold())
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        Text(summary.title).font(.caption)
+                    if actions.canOpenHold(month.id, using: appState) {
+                        Button {
+                            actions.openHold(month.id, using: appState)
+                        } label: {
+                            summaryLabel(summary, month: month)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("budget-hold-open-\(month.id)")
+                    } else {
+                        summaryLabel(summary, month: month)
                     }
-                    .foregroundStyle(summary.amount < 0 ? (summary.isTracking ? ActualistTheme.danger : ActualistTheme.warning) : summary.amount == 0 ? ActualistTheme.secondaryText : ActualistTheme.positive)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(month.title), \(summary.title), \(summary.text)")
 
                     if let savings = month.savings {
                         Text(savings.incomeText).font(.caption)
@@ -89,5 +90,22 @@ struct BudgetGridMonthHeaders: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(ActualistTheme.separator).frame(height: 1)
         }
+    }
+
+    private func summaryLabel(
+        _ summary: BudgetGridPresentation.Summary,
+        month: BudgetGridPresentation.Month
+    ) -> some View {
+        VStack(spacing: 2) {
+            Text(summary.text)
+                .font(ActualistTypography.rowTitle(for: density).bold())
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            Text(summary.title).font(.caption)
+        }
+        .foregroundStyle(summary.amount < 0 ? (summary.isTracking ? ActualistTheme.danger : ActualistTheme.warning) : summary.amount == 0 ? ActualistTheme.secondaryText : ActualistTheme.positive)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(month.title), \(summary.title), \(summary.text)")
     }
 }

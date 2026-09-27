@@ -152,6 +152,8 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private let suspendsCarryover: Bool
     private let moveError: Error?
     private let templateError: Error?
+    private let holdReview: (@Sendable () async throws -> BudgetHoldReview)?
+    private let holdApply: (@Sendable (BudgetHoldCommand, BudgetHoldReview) async throws -> LoadedBudgetMonth)?
     private var assignments: [RecordedBudgetAssignment] = []
     private var carryoverUpdates: [RecordedBudgetCarryoverUpdate] = []
     private var moves: [RecordedBudgetMove] = []
@@ -191,7 +193,9 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         carryoverError: Error? = nil,
         suspendsCarryover: Bool = false,
         moveError: Error? = nil,
-        templateError: Error? = nil
+        templateError: Error? = nil,
+        holdReview: (@Sendable () async throws -> BudgetHoldReview)? = nil,
+        holdApply: (@Sendable (BudgetHoldCommand, BudgetHoldReview) async throws -> LoadedBudgetMonth)? = nil
     ) {
         self.loadedMonth = loadedMonth
         self.assignError = assignError
@@ -199,6 +203,20 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         self.suspendsCarryover = suspendsCarryover
         self.moveError = moveError
         self.templateError = templateError
+        self.holdReview = holdReview
+        self.holdApply = holdApply
+    }
+
+    func budgetHoldReview(budgetID: String, month: String) async throws -> BudgetHoldReview {
+        guard let holdReview else { throw LocalFirstError.unsupportedWrite }
+        return try await holdReview()
+    }
+
+    func applyBudgetHoldAndRefresh(
+        command: BudgetHoldCommand, review: BudgetHoldReview, budgetID: String
+    ) async throws -> LoadedBudgetMonth {
+        guard let holdApply else { throw LocalFirstError.unsupportedWrite }
+        return try await holdApply(command, review)
     }
 
     func budgets() async throws -> [ActualBudget] {

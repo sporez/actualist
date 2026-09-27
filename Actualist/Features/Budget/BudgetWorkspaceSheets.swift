@@ -23,6 +23,15 @@ struct BudgetWorkspaceSheets: ViewModifier {
                     Task { await actions.applyConfirmation(confirmation, reviewRevision: reviewRevision, using: appState) }
                 }
             ))
+            .onChange(of: appState.settings.selectedBudgetID) { _, budgetID in
+                actions.reconcileHoldPresentation(budgetID: budgetID, modeIdentity: nil)
+            }
+            .onChange(of: viewport.budgetID) { _, budgetID in
+                actions.reconcileHoldPresentation(budgetID: budgetID, modeIdentity: viewport.modeIdentity)
+            }
+            .onChange(of: viewport.modeIdentity) { _, modeIdentity in
+                actions.reconcileHoldPresentation(budgetID: viewport.budgetID, modeIdentity: modeIdentity)
+            }
     }
 
     @ViewBuilder
@@ -61,6 +70,8 @@ struct BudgetWorkspaceSheets: ViewModifier {
             BudgetTemplateEditorView(target: target) {
                 Task { await viewport.refreshVisibleMonths() }
             }
+        case .hold(let target):
+            BudgetHoldSheet(target: target)
         case .categoryLifecycle(let lifecycleSheet):
             BudgetCategoryLifecycleContent(
                 controller: actions.categoryLifecycle,

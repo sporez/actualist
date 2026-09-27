@@ -58,18 +58,27 @@ struct BudgetCompactMonthContent: View {
             BudgetSavingsBanner(presentation: savings)
         }
         ForEach(displayedBudgetAlerts) { alert in
-            if alert.isActionable {
+            if alert.isActionable || canOpenHold(alert) {
                 Button {
                     action(.alert(alert))
                 } label: {
                     budgetAlertLabel(alert)
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("budget-alert-\(alert.id)")
+                .accessibilityIdentifier(alert.kind == .toBudget ? "budget-hold-open" : "budget-alert-\(alert.id)")
             } else {
                 budgetAlertLabel(alert)
             }
         }
+    }
+
+    private func canOpenHold(_ alert: BudgetAlert) -> Bool {
+        alert.kind == .toBudget
+            && !appState.settings.randomizedDisplayValuesEnabled
+            && !viewModel.isTrackingBudget
+            && !viewModel.isSubmittingAssignment
+            && viewModel.loadedBudgetID == appState.settings.selectedBudgetID
+            && viewModel.selectedMonth != nil
     }
 
     private func budgetAlertLabel(_ alert: BudgetAlert) -> some View {
