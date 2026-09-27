@@ -31,6 +31,10 @@ CRDT replay is asserted independently from that result.
 - Peers are cloned from one local baseline, assigned different CRDT clock nodes,
   kept offline, and activated sequentially because loot-core owns one global
   database/runtime at a time.
+- The fixed peer matrix uses unique deterministic 16-character hexadecimal
+  clock-node IDs. Human-readable peer labels remain evidence labels only. Before
+  case 1, the harness rejects duplicate/invalid IDs and verifies every node
+  through Actual's serialized-clock format and `Timestamp.parse` round trip.
 - Vitest replaces `uuid.v4` with one deterministic process-global counter.
   Production handlers use random UUIDs. Distinct oracle IDs prove separate
   generation events; they do not prove production randomness.

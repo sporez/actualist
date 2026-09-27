@@ -92,8 +92,51 @@ export type ExchangeStep = {
 
 let activePeer: Peer | null = null;
 
-function normalizedNode(node: string): string {
-  return node.padStart(16, '0').slice(-16);
+const PEER_NODE_ID_PATTERN = /^[0-9A-F]{16}$/;
+
+function validatedPeerNodeID(node: string, label: string): string {
+  if (!PEER_NODE_ID_PATTERN.test(node)) {
+    throw new Error(
+      `Oracle peer ${label} has invalid CRDT node ID ${JSON.stringify(node)}; expected 16 uppercase hexadecimal characters`,
+    );
+  }
+  return node;
+}
+
+export function assertPeerNodeClockRoundTrips(
+  nodeIDs: Readonly<Record<string, string>>,
+): void {
+  const ownersByNodeID = new Map<string, string>();
+
+  for (const [owner, candidate] of Object.entries(nodeIDs)) {
+    const nodeID = validatedPeerNodeID(candidate, owner);
+    const existingOwner = ownersByNodeID.get(nodeID);
+    if (existingOwner != null) {
+      throw new Error(
+        `Oracle peer node ID collision: ${existingOwner} and ${owner} both use ${nodeID}`,
+      );
+    }
+    ownersByNodeID.set(nodeID, owner);
+
+    const serializedClock = serializeClock(
+      makeClock(new Timestamp(0, 0, nodeID)),
+    );
+    const clockRecord = JSON.parse(serializedClock) as { timestamp?: unknown };
+    const serializedTimestamp = clockRecord.timestamp;
+    const parsedTimestamp =
+      typeof serializedTimestamp === 'string'
+        ? Timestamp.parse(serializedTimestamp)
+        : null;
+    if (
+      parsedTimestamp == null ||
+      parsedTimestamp.node() !== nodeID ||
+      parsedTimestamp.toString() !== serializedTimestamp
+    ) {
+      throw new Error(
+        `Oracle peer ${owner} node ID does not round-trip through Actual clock serialization: ${JSON.stringify(serializedTimestamp)}`,
+      );
+    }
+  }
 }
 
 async function saveAndCloseActivePeer(): Promise<void> {
@@ -184,7 +227,7 @@ export async function makePeer(
   const peer = {
     bytes: new Uint8Array(seed),
     label,
-    node: normalizedNode(node),
+    node: validatedPeerNodeID(node, label),
   };
   await activatePeer(peer);
 
