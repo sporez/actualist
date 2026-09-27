@@ -66,6 +66,24 @@ final class ReportExplorerViewModel {
     var customEndDate: Date {
         ReportCalendar.date(fromDayID: query.endDay) ?? .distantPast
     }
+    var filterCatalog: ReportExplorerFilterCatalog {
+        displaySnapshot?.filterCatalog ?? snapshot?.filterCatalog ?? .empty
+    }
+    var filters: ReportExplorerFilters { query.filters }
+    var drilldownRequest: TransactionDrilldownRequest? {
+        guard let drilldown = snapshot?.drilldown,
+              case .transactions(let request) = drilldown else { return nil }
+        return request
+    }
+    var activeFilterCount: Int {
+        var count = 0
+        if !query.filters.accounts.isAll { count += 1 }
+        if query.metric.supportsCategoryFilters, !query.filters.categories.isAll { count += 1 }
+        if query.filters.includesOffBudget { count += 1 }
+        if query.metric.supportsActivityVisibility, !query.filters.includesHiddenCategories { count += 1 }
+        if query.metric.supportsActivityVisibility, !query.filters.includesUncategorized { count += 1 }
+        return count
+    }
 
     func selectPreset(_ preset: ReportExplorerRangePreset, now: Date = Date()) {
         guard !usesComparisonMonthSelection else { return }
@@ -117,6 +135,21 @@ final class ReportExplorerViewModel {
         guard isPrivacyModeEnabled != isEnabled else { return }
         isPrivacyModeEnabled = isEnabled
         displaySnapshot = snapshot.map(sanitized)
+    }
+
+    func applyFilters(_ filters: ReportExplorerFilters) {
+        var normalized = filters
+        if query.metric == .netWorth {
+            normalized.categories = .all
+            normalized.includesHiddenCategories = true
+            normalized.includesUncategorized = true
+        }
+        updateQuery(
+            startDay: query.startDay,
+            endDay: query.endDay,
+            interval: query.interval,
+            filters: normalized
+        )
     }
 
     func load(using appState: AppState) async {
@@ -231,12 +264,18 @@ final class ReportExplorerViewModel {
         currency.formatted(amount)
     }
 
-    private func updateQuery(startDay: String, endDay: String, interval: ReportInterval) {
+    private func updateQuery(
+        startDay: String,
+        endDay: String,
+        interval: ReportInterval,
+        filters: ReportExplorerFilters? = nil
+    ) {
         let updated = ReportExplorerQuery(
             metric: query.metric,
             startDay: startDay,
             endDay: endDay,
-            interval: interval
+            interval: interval,
+            filters: filters ?? query.filters
         )
         guard updated != query else { return }
         requestGeneration &+= 1
@@ -311,7 +350,11 @@ final class ReportExplorerViewModel {
                     ? points.last?.comparison ?? 0
                     : 0
             ),
-            hasData: snapshot.hasData
+            hasData: snapshot.hasData,
+            filterCatalog: sanitized(snapshot.filterCatalog),
+            drilldown: snapshot.drilldown,
+            activityQuerySignature: snapshot.activityQuerySignature,
+            historyQuerySignature: snapshot.historyQuerySignature
         )
     }
 
@@ -351,7 +394,36 @@ final class ReportExplorerViewModel {
                 budgeted: 0,
                 averageSpending: 0
             ),
-            hasData: snapshot.hasData
+            hasData: snapshot.hasData,
+            filterCatalog: sanitized(snapshot.filterCatalog),
+            drilldown: snapshot.drilldown,
+            activityQuerySignature: snapshot.activityQuerySignature,
+            historyQuerySignature: snapshot.historyQuerySignature
+        )
+    }
+
+    private func sanitized(_ catalog: ReportExplorerFilterCatalog) -> ReportExplorerFilterCatalog {
+        ReportExplorerFilterCatalog(
+            accounts: catalog.accounts.map { option in
+                ReportExplorerAccountFilterOption(
+                    id: option.id,
+                    name: PrivacyDisplay.name(for: .account, seed: option.id),
+                    isOffBudget: option.isOffBudget,
+                    isClosed: option.isClosed
+                )
+            },
+            categories: catalog.categories.map { option in
+                ReportExplorerCategoryFilterOption(
+                    id: option.id,
+                    name: PrivacyDisplay.name(for: .category, seed: option.id),
+                    groupID: option.groupID,
+                    groupName: option.groupID.map {
+                        PrivacyDisplay.name(for: .categoryGroup, seed: $0)
+                    } ?? "Categories",
+                    isIncome: option.isIncome,
+                    isHidden: option.isHidden
+                )
+            }
         )
     }
 

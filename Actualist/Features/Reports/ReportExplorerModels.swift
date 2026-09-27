@@ -83,6 +83,21 @@ struct ReportExplorerQuery: Hashable, Sendable {
     let startDay: String
     let endDay: String
     let interval: ReportInterval
+    let filters: ReportExplorerFilters
+
+    init(
+        metric: ReportExplorerMetric,
+        startDay: String,
+        endDay: String,
+        interval: ReportInterval,
+        filters: ReportExplorerFilters = .default
+    ) {
+        self.metric = metric
+        self.startDay = startDay
+        self.endDay = endDay
+        self.interval = interval
+        self.filters = filters
+    }
 
     var hasValidRange: Bool {
         validationError == nil
@@ -97,6 +112,12 @@ struct ReportExplorerQuery: Hashable, Sendable {
         if metric == .spendingAverage,
            String(startDay.prefix(7)) != String(endDay.prefix(7)) {
             return .spendingAverageRequiresSingleMonth
+        }
+        if metric == .netWorth,
+           (!filters.categories.isAll
+            || !filters.includesHiddenCategories
+            || !filters.includesUncategorized) {
+            return .unsupportedNetWorthCategoryFilter
         }
         return nil
     }
@@ -194,11 +215,36 @@ struct ReportExplorerSnapshot: Equatable, Sendable {
     let points: [ReportExplorerPoint]
     let totals: ReportExplorerTotals
     let hasData: Bool
+    let filterCatalog: ReportExplorerFilterCatalog
+    let drilldown: ReportDrilldownAvailability
+    let activityQuerySignature: TransactionQuerySignature?
+    let historyQuerySignature: TransactionQuerySignature?
+
+    init(
+        query: ReportExplorerQuery,
+        points: [ReportExplorerPoint],
+        totals: ReportExplorerTotals,
+        hasData: Bool,
+        filterCatalog: ReportExplorerFilterCatalog = .empty,
+        drilldown: ReportDrilldownAvailability = .unavailable(.noContributingTransactions),
+        activityQuerySignature: TransactionQuerySignature? = nil,
+        historyQuerySignature: TransactionQuerySignature? = nil
+    ) {
+        self.query = query
+        self.points = points
+        self.totals = totals
+        self.hasData = hasData
+        self.filterCatalog = filterCatalog
+        self.drilldown = drilldown
+        self.activityQuerySignature = activityQuerySignature
+        self.historyQuerySignature = historyQuerySignature
+    }
 }
 
 enum ReportExplorerError: LocalizedError, Equatable {
     case invalidRange
     case spendingAverageRequiresSingleMonth
+    case unsupportedNetWorthCategoryFilter
 
     var errorDescription: String? {
         switch self {
@@ -206,6 +252,8 @@ enum ReportExplorerError: LocalizedError, Equatable {
             "The report start date must be on or before its end date."
         case .spendingAverageRequiresSingleMonth:
             "Spending Average compares one month at a time."
+        case .unsupportedNetWorthCategoryFilter:
+            "Net Worth supports account filters, not category filters."
         }
     }
 }

@@ -42,6 +42,47 @@ extension LocalFirstActualStore {
         return snapshot
     }
 
+    func reportTransactionDrilldown(
+        budgetID: String,
+        request: TransactionDrilldownRequest
+    ) async throws -> ReportTransactionDrilldownSnapshot {
+        let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
+        let result = try await database.fetchTransactionDrilldown(request)
+        let maps = try await nameMaps(database)
+        guard reportExplorerSessionIsCurrent(
+            database: database,
+            budgetID: budgetID,
+            generation: generation
+        ) else {
+            throw CancellationError()
+        }
+        let contributingIDs = Set(result.contributingTransactions.compactMap(\.id))
+        let loaded = LoadedAccountTransactions(
+            transactions: result.displayTransactions,
+            balance: nil,
+            accountNames: maps.accountNames,
+            categoryNames: maps.categoryNames,
+            payeeNames: maps.payeeNames,
+            transferPayeeIDs: maps.transferPayeeIDs,
+            transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: maps.offBudgetAccountIDs,
+            reachedEnd: true,
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: result.totalMatchCount,
+                querySignature: result.querySignature,
+                matchingTransactionIDs: result.matchingTransactionIDs,
+                contributingTransactionIDs: contributingIDs,
+                attachedContextTransactionIDs: result.attachedContextTransactionIDs
+            )
+        )
+        return ReportTransactionDrilldownSnapshot(
+            request: request,
+            loaded: loaded,
+            contributingTransactionIDs: contributingIDs
+        )
+    }
+
     func reportExplorerSessionIsCurrent(
         database: BudgetDatabase,
         budgetID: String,
