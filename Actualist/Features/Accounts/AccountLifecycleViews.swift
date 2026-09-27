@@ -167,6 +167,10 @@ struct AccountLifecycleReviewSheet: View {
     @Environment(\.actualistDensity) private var density
 
     let presentation: AccountLifecycleReviewPresentation
+    let didReplaceReview: Bool
+    let isSubmitting: Bool
+    let onDestinationChange: (String?) -> Void
+    let onCategoryChange: (String?) -> Void
     let onConfirm: (() -> Void)?
     let onCancel: () -> Void
 
@@ -187,6 +191,16 @@ struct AccountLifecycleReviewSheet: View {
                                     .foregroundStyle(ActualistTheme.secondaryText)
                             }
 
+                            if didReplaceReview {
+                                Label(
+                                    "The account changed while you were reviewing it. Check the updated effects before continuing.",
+                                    systemImage: "arrow.triangle.2.circlepath"
+                                )
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.warning)
+                                .accessibilityIdentifier("account-lifecycle-review-changed")
+                            }
+
                             VStack(spacing: 0) {
                                 ForEach(Array(presentation.rows.enumerated()), id: \.element.id) { index, row in
                                     consequenceRow(row)
@@ -201,6 +215,26 @@ struct AccountLifecycleReviewSheet: View {
                                 in: RoundedRectangle(cornerRadius: 22, style: .continuous)
                             )
 
+                            if presentation.showsDestinationPicker {
+                                lifecyclePicker(
+                                    title: "Transfer to",
+                                    choices: presentation.destinationChoices,
+                                    selection: presentation.selectedDestinationID,
+                                    accessibilityIdentifier: "account-lifecycle-destination-picker",
+                                    onChange: onDestinationChange
+                                )
+                            }
+
+                            if presentation.showsCategoryPicker {
+                                lifecyclePicker(
+                                    title: "Category",
+                                    choices: presentation.categoryChoices,
+                                    selection: presentation.selectedCategoryID,
+                                    accessibilityIdentifier: "account-lifecycle-category-picker",
+                                    onChange: onCategoryChange
+                                )
+                            }
+
                             ForEach(presentation.blockerMessages, id: \.self) { message in
                                 Label(message, systemImage: "exclamationmark.triangle.fill")
                                     .font(ActualistTypography.rowTitle(for: density))
@@ -208,11 +242,17 @@ struct AccountLifecycleReviewSheet: View {
                             }
 
                             if let actionTitle = presentation.actionTitle, let onConfirm {
-                                Button(actionTitle, role: .destructive, action: onConfirm)
-                                    .buttonStyle(.glassProminent)
-                                    .tint(ActualistTheme.danger)
-                                    .frame(maxWidth: .infinity)
-                                    .disabled(!presentation.canConfirm)
+                                Button(role: .destructive, action: onConfirm) {
+                                    if isSubmitting {
+                                        ProgressView().frame(maxWidth: .infinity)
+                                    } else {
+                                        Text(actionTitle).frame(maxWidth: .infinity)
+                                    }
+                                }
+                                .buttonStyle(.glassProminent)
+                                .tint(ActualistTheme.danger)
+                                .disabled(!presentation.canConfirm || isSubmitting)
+                                .accessibilityIdentifier("account-lifecycle-close-button")
                             }
                         }
                         .padding(.horizontal, 18)
@@ -247,6 +287,31 @@ struct AccountLifecycleReviewSheet: View {
                 .multilineTextAlignment(.trailing)
         }
         .padding(.vertical, 14)
+    }
+
+
+    private func lifecyclePicker(
+        title: String,
+        choices: [AccountLifecycleChoice],
+        selection: String?,
+        accessibilityIdentifier: String,
+        onChange: @escaping (String?) -> Void
+    ) -> some View {
+        Picker(
+            title,
+            selection: Binding(
+                get: { selection },
+                set: onChange
+            )
+        ) {
+            Text("Choose…").tag(String?.none)
+            ForEach(choices) { choice in
+                Text(choice.name).tag(Optional(choice.id))
+            }
+        }
+        .pickerStyle(.menu)
+        .disabled(isSubmitting)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 

@@ -312,7 +312,12 @@ struct AccountLifecycleAtomicCommitTests {
         ).first)
         #expect(row.title == "Added Checking")
 
-        for operation in [AccountLifecycleOperation.rename, .reopen] {
+        for (operation, verb) in [
+            (AccountLifecycleOperation.rename, "Renamed"),
+            (.reopen, "Reopened"),
+            (.close, "Closed"),
+            (.delete, "Deleted"),
+        ] {
             let action = AccountBudgetAction(
                 name: "Daily Spending",
                 offbudget: true,
@@ -328,7 +333,7 @@ struct AccountLifecycleAtomicCommitTests {
             let title = HistoryRowPresentation.gestureSummary(
                 for: record, categoryNames: [:], currency: .usd, privacyEnabled: false
             )
-            #expect(title == (operation == .rename ? "Renamed Daily Spending" : "Reopened Daily Spending"))
+            #expect(title == "\(verb) Daily Spending")
             let privateTitle = HistoryRowPresentation.gestureSummary(
                 for: record, categoryNames: [:], currency: .usd, privacyEnabled: true
             )

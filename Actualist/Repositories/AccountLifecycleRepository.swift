@@ -17,4 +17,9 @@ protocol AccountLifecycleRepositoryProtocol: Sendable {
         budgetID: String,
         command: AccountReopenCommand
     ) async throws -> AccountLifecycleCommitResult
+
+    @MainActor
+    func commitAccountLifecycleAndRefresh(
+        reviewed: AccountLifecycleReview
+    ) async throws -> AccountLifecycleCommitResult
 }

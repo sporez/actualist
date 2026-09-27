@@ -36,6 +36,8 @@ extension BudgetDatabase {
                     case .reopen:
                         column = "closed"
                         value = .bool(false)
+                    case .close, .delete:
+                        throw AccountLifecycleCommandError.invalidPreparedMutation
                     }
                     let draft = try builder.makeMessage(
                         dataset: "accounts", row: outcome.account.id, column: column, value: value

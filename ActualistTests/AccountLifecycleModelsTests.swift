@@ -64,6 +64,10 @@ struct AccountLifecycleModelsTests {
                 budgetID: "budget",
                 accountID: account.id,
                 action: .close(destinationAccountID: nil, categoryID: category.id),
+                localDay: AccountLifecycleDay(
+                    isoDate: "2026-09-27",
+                    transactionDate: 20260927
+                ),
                 sourceFacts: AccountLifecycleSourceFacts(
                     account: account,
                     liveBalance: -12_345,
@@ -129,6 +133,7 @@ struct AccountLifecycleModelsTests {
         #expect(!presentation.canConfirm)
         #expect(unprotectedCopy.contains(category.name))
         #expect(unprotectedCopy.contains(schedule.name))
+        #expect(unprotectedCopy.contains("Posting pauses while closed"))
         #expect(!unprotectedPresentation.isPrivacyProtected)
     }
 

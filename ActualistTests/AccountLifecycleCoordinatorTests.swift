@@ -185,6 +185,37 @@ struct AccountLifecycleCoordinatorTests {
         #expect(coordinator.review?.identity.accountID == "checking")
     }
 
+    @Test func closeConfirmationPublishesMutationAndReplacesStaleReview() async throws {
+        let repository = LifecycleCoordinatorRepository()
+        let coordinator = AccountLifecycleCoordinator()
+        let request = AccountLifecycleReviewRequest(
+            budgetID: "budget",
+            accountID: "checking",
+            requestedAction: .close(destinationAccountID: nil, categoryID: nil)
+        )
+        let initial = review(request: request)
+        repository.reviewResult = initial
+        coordinator.loadReview(request: request, repository: repository)
+        await ObservedTestState { coordinator.review != nil }.wait()
+
+        let replacement = review(request: request)
+        repository.closeResult = .reviewChanged(replacement)
+        let stale = try #require(coordinator.confirmReview(repository: repository) { _ in
+            Issue.record("A replacement review must not publish a mutation")
+        })
+        await stale.value
+        #expect(coordinator.review == replacement)
+        #expect(coordinator.didReplaceReview)
+        #expect(repository.closeCalls == 1)
+
+        repository.closeResult = .applied(outcome(operation: .close, account: closedAccount))
+        var mutation: AccountLifecycleOutcome?
+        let applied = try #require(coordinator.confirmReview(repository: repository) { mutation = $0 })
+        await applied.value
+        #expect(mutation?.operation == .close)
+        #expect(repository.closeCalls == 2)
+    }
+
     @Test func accountOrBudgetContextChangeCancelsPresentedWorkflow() {
         let coordinator = AccountLifecycleCoordinator()
         coordinator.beginReopen(identity: identity, account: closedAccount)
@@ -394,6 +425,10 @@ struct AccountLifecycleCoordinatorTests {
                 budgetID: request.budgetID,
                 accountID: request.accountID,
                 action: request.requestedAction,
+                localDay: AccountLifecycleDay(
+                    isoDate: "2026-09-27",
+                    transactionDate: 20260927
+                ),
                 sourceFacts: AccountLifecycleSourceFacts(
                     account: openAccount,
                     liveBalance: 0,
@@ -428,12 +463,14 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     var suspendReopen = false
     var renameResult: AccountLifecycleCommitResult?
     var reopenResult: AccountLifecycleCommitResult?
+    var closeResult: AccountLifecycleCommitResult?
     var reviewResult: AccountLifecycleReview?
     var reviewError: Error?
     var mutationError: Error?
     private(set) var renameCalls = 0
     private(set) var reopenCalls = 0
     private(set) var reviewCalls = 0
+    private(set) var closeCalls = 0
     private(set) var lastRenameCommand: AccountRenameCommand?
     private(set) var lastReopenCommand: AccountReopenCommand?
 
@@ -499,6 +536,23 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
                 offBudget: false,
                 isClosed: false,
                 accountGroupID: "group"
+            )
+        ))
+    }
+
+    func commitAccountLifecycleAndRefresh(
+        reviewed: AccountLifecycleReview
+    ) async throws -> AccountLifecycleCommitResult {
+        closeCalls += 1
+        if let mutationError { throw mutationError }
+        return closeResult ?? .applied(AccountLifecycleOutcome(
+            operation: .close,
+            account: AccountLifecycleAccount(
+                id: reviewed.account.id,
+                name: reviewed.account.name,
+                offBudget: reviewed.account.offBudget,
+                isClosed: true,
+                accountGroupID: reviewed.account.accountGroupID
             )
         ))
     }

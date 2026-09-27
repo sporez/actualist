@@ -14,12 +14,12 @@ extension BudgetDatabase {
 
     func accountLifecycleReview(
         request: AccountLifecycleReviewRequest,
-        today: String? = nil
+        localDay: AccountLifecycleDay = .localGregorian()
     ) throws -> AccountLifecycleReview {
         try queue.read { db in
             try accountLifecycleReview(
                 request: request,
-                today: today ?? Self.accountLifecycleToday(),
+                localDay: localDay,
                 db: db
             )
         }
@@ -27,7 +27,7 @@ extension BudgetDatabase {
 
     func accountLifecycleReview(
         request: AccountLifecycleReviewRequest,
-        today: String,
+        localDay: AccountLifecycleDay,
         db: Database
     ) throws -> AccountLifecycleReview {
         let accountID = request.accountID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -56,8 +56,8 @@ extension BudgetDatabase {
         if !schedules.inspectionAvailable {
             blockers.append(.scheduleInspectionUnavailable)
         }
-        if let bankLink, bankLink.provider == .unknown {
-            blockers.append(.unsupportedBankProvider(.unknown))
+        if let bankLink, bankLink.provider != .simpleFIN {
+            blockers.append(.unsupportedBankProvider(bankLink.provider))
         }
 
         var destinationFacts: AccountLifecycleDestinationFacts?
@@ -96,13 +96,13 @@ extension BudgetDatabase {
                     if let category {
                         categoryFacts = AccountLifecycleCategoryFacts(category: category)
                     }
-                    if blockers.isEmpty || blockers.allSatisfy({ $0 == .scheduleInspectionUnavailable }) {
+                    if blockers.isEmpty {
                         resolvedAction = .closeWithTransfer(AccountClosingTransfer(
                             destinationAccountID: destination.id,
                             sourceAmount: try accountLifecycleNegated(graph.liveBalance),
                             destinationAmount: graph.liveBalance,
                             categoryID: categoryRequired ? category?.id : nil,
-                            date: today,
+                            date: localDay.isoDate,
                             notes: "Closing account"
                         ))
                     }
@@ -122,6 +122,7 @@ extension BudgetDatabase {
                 budgetID: request.budgetID,
                 accountID: accountID,
                 action: request.requestedAction,
+                localDay: localDay,
                 sourceFacts: sourceFacts,
                 destinationFacts: destinationFacts,
                 categoryFacts: categoryFacts,
@@ -208,12 +209,6 @@ private extension BudgetDatabase {
         }
     }
 
-    struct AccountLifecycleScheduleFacts {
-        let references: [AccountScheduleReference]
-        let digest: String
-        let inspectionAvailable: Bool
-    }
-
     func accountLifecycleTransactionGraph(
         accountID: String,
         db: Database
@@ -275,7 +270,7 @@ private extension BudgetDatabase {
                     count += 1
                 }
             },
-            digest: accountLifecycleDigest(digestRows.flatMap(\.canonicalComponents))
+            digest: AccountLifecycleDigest.make(digestRows.flatMap(\.canonicalComponents))
         )
     }
 
@@ -368,12 +363,12 @@ private extension BudgetDatabase {
             sql: "SELECT \(remote) AS remote_id, \(source) AS sync_source, \(bank) AS bank_id FROM accounts WHERE id = ?",
             arguments: [accountID]
         ) else { return nil }
-        let remoteID = row["remote_id"] as String? ?? ""
-        let syncSource = row["sync_source"] as String? ?? ""
-        let bankID = row["bank_id"] as String?
-        guard !remoteID.isEmpty || !syncSource.isEmpty || bankID?.isEmpty == false else { return nil }
+        let remoteID = accountLifecycleNonempty(row["remote_id"] as String?)
+        let syncSource = accountLifecycleNonempty(row["sync_source"] as String?)
+        let bankID = accountLifecycleNonempty(row["bank_id"] as String?)
+        guard remoteID != nil || syncSource != nil || bankID != nil else { return nil }
         let provider: AccountLifecycleBankProvider
-        switch syncSource.lowercased() {
+        switch syncSource?.lowercased() {
         case "simplefin": provider = .simpleFIN
         case "gocardless": provider = .goCardless
         case "pluggyai": provider = .pluggyAI
@@ -381,8 +376,9 @@ private extension BudgetDatabase {
         case "enablebanking": provider = .enableBanking
         default: provider = .unknown
         }
+        let verifiedProvider = remoteID == nil ? AccountLifecycleBankProvider.unknown : provider
         return AccountLifecycleBankLink(
-            provider: provider,
+            provider: verifiedProvider,
             identity: AccountLifecycleBankLinkIdentity(
                 remoteAccountID: remoteID,
                 syncSource: syncSource,
@@ -391,81 +387,9 @@ private extension BudgetDatabase {
         )
     }
 
-    func accountLifecycleScheduleFacts(
-        accountID: String,
-        db: Database
-    ) throws -> AccountLifecycleScheduleFacts {
-        let schedulesExist = try tableExists("schedules", db: db)
-        let rulesExist = try tableExists("rules", db: db)
-        guard schedulesExist || rulesExist else {
-            return AccountLifecycleScheduleFacts(
-                references: [], digest: accountLifecycleDigest([]), inspectionAvailable: true
-            )
-        }
-        guard schedulesExist, rulesExist else {
-            return AccountLifecycleScheduleFacts(
-                references: [], digest: accountLifecycleDigest(["unavailable"]), inspectionAvailable: false
-            )
-        }
-        let scheduleColumns = try columnSet(for: "schedules", db: db)
-        let ruleColumns = try columnSet(for: "rules", db: db)
-        guard scheduleColumns.isSuperset(of: ["id", "rule"]),
-              ruleColumns.isSuperset(of: ["id", "conditions"]) else {
-            return AccountLifecycleScheduleFacts(
-                references: [], digest: accountLifecycleDigest(["unavailable"]), inspectionAvailable: false
-            )
-        }
-
-        let name = column("name", fallback: "id", columns: scheduleColumns)
-        let completed = column("completed", fallback: "0", columns: scheduleColumns)
-        let completedExpression = completed == "0" ? "0" : "s.\(completed)"
-        let rows = try Row.fetchAll(
-            db,
-            sql: """
-                SELECT s.id, \(name == "id" ? "s.id" : "s.\(name)") AS name,
-                       s.rule, r.conditions
-                FROM schedules s
-                JOIN rules r ON r.id = s.rule
-                WHERE \(predicateForLiveRows(columns: scheduleColumns, tableAlias: "s"))
-                  AND \(predicateForLiveRows(columns: ruleColumns, tableAlias: "r"))
-                  AND COALESCE(\(completedExpression), 0) = 0
-                ORDER BY s.id
-                """
-        )
-        let decoder = JSONDecoder()
-        var references: [AccountScheduleReference] = []
-        var digestComponents: [String] = []
-        for row in rows {
-            guard let id = row["id"] as String?,
-                  let conditionsJSON = row["conditions"] as String?,
-                  let data = conditionsJSON.data(using: .utf8),
-                  let conditions = try? decoder.decode([RuleCondition].self, from: data),
-                  conditions.contains(where: { accountLifecycleCondition($0, references: accountID) }) else {
-                continue
-            }
-            let scheduleName = row["name"] as String? ?? id
-            references.append(AccountScheduleReference(id: id, name: scheduleName))
-            digestComponents.append(contentsOf: [id, scheduleName, row["rule"] as String? ?? "", conditionsJSON])
-        }
-        return AccountLifecycleScheduleFacts(
-            references: references,
-            digest: accountLifecycleDigest(digestComponents),
-            inspectionAvailable: true
-        )
-    }
-
-    func accountLifecycleCondition(_ condition: RuleCondition, references accountID: String) -> Bool {
-        guard condition.field == "account" else { return false }
-        return accountLifecycleJSONValue(condition.value, contains: accountID)
-    }
-
-    func accountLifecycleJSONValue(_ value: RuleJSONValue, contains accountID: String) -> Bool {
-        switch value {
-        case .string(let value): value == accountID
-        case .array(let values): values.contains { accountLifecycleJSONValue($0, contains: accountID) }
-        case .object(let values): values.values.contains { accountLifecycleJSONValue($0, contains: accountID) }
-        case .null, .bool, .number: false
-        }
+    func accountLifecycleNonempty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     func accountLifecycleInteger(_ value: DatabaseValueConvertible?) throws -> Int {
@@ -486,28 +410,4 @@ private extension BudgetDatabase {
         return result
     }
 
-    func accountLifecycleDigest(_ components: [String]) -> String {
-        var hash: UInt64 = 14_695_981_039_346_656_037
-        for component in components {
-            for byte in component.utf8 {
-                hash ^= UInt64(byte)
-                hash &*= 1_099_511_628_211
-            }
-            hash ^= 0xff
-            hash &*= 1_099_511_628_211
-        }
-        return String(format: "%016llx", hash)
-    }
-
-    static func accountLifecycleToday() -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
-        let components = calendar.dateComponents([.year, .month, .day], from: Date())
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 1970,
-            components.month ?? 1,
-            components.day ?? 1
-        )
-    }
 }

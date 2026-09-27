@@ -1,0 +1,3991 @@
+{
+  "schemaVersion": 1,
+  "syntheticDataOnly": true,
+  "amountUnits": "integer minor units",
+  "fixedDay": "2026-09-27",
+  "normalization": {
+    "omitted": [
+      "messages_crdt.id",
+      "messages_crdt.timestamp"
+    ],
+    "preserved": [
+      "CRDT emission order",
+      "dataset",
+      "row",
+      "column",
+      "typed value",
+      "selected raw relational rows"
+    ]
+  },
+  "cases": [
+    {
+      "id": "rename-open-history",
+      "input": {
+        "account": {
+          "id": "source",
+          "name": "Before",
+          "closed": false
+        },
+        "name": "After"
+      },
+      "assertions": [
+        "account-update emits only accounts.name",
+        "History undo restores the previous name on the same account ID"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "name",
+            "value": "After"
+          }
+        ],
+        "afterOperation": {
+          "id": "source",
+          "name": "After",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": null,
+          "account_group_id": null
+        },
+        "undoMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "name",
+            "value": "Before"
+          }
+        ],
+        "afterUndo": {
+          "id": "source",
+          "name": "Before",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": null,
+          "account_group_id": null
+        }
+      }
+    },
+    {
+      "id": "rename-closed",
+      "input": {
+        "account": {
+          "id": "source",
+          "name": "Closed before",
+          "closed": true
+        },
+        "name": "Closed after"
+      },
+      "assertions": [
+        "closed accounts accept account-update",
+        "the exact normalized CRDT delta is accounts.name only"
+      ],
+      "observed": {
+        "before": {
+          "id": "source",
+          "name": "Closed before",
+          "offbudget": 0,
+          "closed": 1,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": null,
+          "account_group_id": null
+        },
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "name",
+            "value": "Closed after"
+          }
+        ],
+        "after": {
+          "id": "source",
+          "name": "Closed after",
+          "offbudget": 0,
+          "closed": 1,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": null,
+          "account_group_id": null
+        }
+      }
+    },
+    {
+      "id": "rename-handler-input-boundary",
+      "input": {
+        "source": {
+          "id": "source",
+          "name": "Original"
+        },
+        "peer": {
+          "id": "peer",
+          "name": "Duplicate"
+        },
+        "submittedNames": [
+          "Original",
+          "  Original  ",
+          "Duplicate",
+          "duplicate"
+        ]
+      },
+      "assertions": [
+        "the core handler emits a name cell even when the value is unchanged",
+        "the core handler does not trim outer whitespace",
+        "the core handler does not reject exact or case-variant duplicate names",
+        "desktop input validation is therefore a separate boundary, not handler behavior"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "name",
+            "value": "Original"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "name",
+            "value": "  Original  "
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "name",
+            "value": "Duplicate"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "name",
+            "value": "duplicate"
+          }
+        ],
+        "after": {
+          "accounts": [
+            {
+              "id": "peer",
+              "name": "Duplicate",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 32768,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "duplicate",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-peer",
+              "name": "",
+              "transfer_acct": "peer",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "reopen-repeat-history",
+      "input": {
+        "account": {
+          "id": "source",
+          "closed": true
+        },
+        "repeatedCalls": 2
+      },
+      "assertions": [
+        "reopen writes accounts.closed = 0 on the same ID",
+        "History undo restores closed = 1",
+        "the pinned upstream handler emits another closed = 0 cell for a repeated reopen"
+      ],
+      "observed": {
+        "firstMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 0
+          }
+        ],
+        "undoMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          }
+        ],
+        "repeatMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 0
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 0
+          }
+        ],
+        "afterRepeat": {
+          "id": "source",
+          "name": "Closed",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": null,
+          "account_group_id": null
+        }
+      }
+    },
+    {
+      "id": "close-empty-history",
+      "input": {
+        "account": {
+          "id": "source",
+          "livePhysicalTransactionCount": 0
+        }
+      },
+      "assertions": [
+        "empty close tombstones the account instead of setting closed",
+        "empty close leaves the transfer payee live",
+        "History undo resurrects the account"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "tombstone",
+            "value": 1
+          }
+        ],
+        "afterOperation": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Empty",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 1,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "undoMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "tombstone",
+            "value": 0
+          }
+        ],
+        "afterUndo": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Empty",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "close-zero",
+      "input": {
+        "account": {
+          "id": "source",
+          "physicalRows": [
+            {
+              "id": "zero-row",
+              "amount": 0
+            }
+          ]
+        }
+      },
+      "assertions": [
+        "a physical live row prevents empty deletion",
+        "exact zero closes with accounts.closed = 1 and creates no transfer"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          }
+        ],
+        "after": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Zero",
+              "offbudget": 0,
+              "closed": 1,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "zero-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 0,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "close-positive-on-to-on-history",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": false,
+          "balance": 4250
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": false
+        }
+      },
+      "assertions": [
+        "source closing amount is -balance and destination amount is balance",
+        "same-budget-type transfer category is null",
+        "History restores open state and tombstones both created transfer legs"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "description",
+            "value": "transfer-destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "amount",
+            "value": -4250
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "acct",
+            "value": "source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "cleared",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "acct",
+            "value": "destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "amount",
+            "value": 4250
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "description",
+            "value": "transfer-source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "transferred_id",
+            "value": "id2"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "cleared",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": "id3"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "category",
+            "value": null
+          }
+        ],
+        "afterOperation": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Synthetic destination",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 32768,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 1,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -4250,
+              "description": "transfer-destination",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id3",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "id3",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": 4250,
+              "description": "transfer-source",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "opening-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 4250,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "sourceTransaction": {
+          "id": "id2",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "source",
+          "category": null,
+          "amount": -4250,
+          "description": "transfer-destination",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id3",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 1,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        },
+        "destinationTransaction": {
+          "id": "id3",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "destination",
+          "category": null,
+          "amount": 4250,
+          "description": "transfer-source",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id2",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 0,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        },
+        "undoMessages": [
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "category",
+            "value": null
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": null
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 0
+          }
+        ],
+        "afterUndo": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Synthetic destination",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 32768,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -4250,
+              "description": "transfer-destination",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "id3",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": 4250,
+              "description": "transfer-source",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "opening-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 4250,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "close-negative-on-to-on",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": false,
+          "balance": -2300
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": false
+        }
+      },
+      "assertions": [
+        "negative balances use the same source = -balance rule",
+        "the paired destination keeps the original signed balance"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "description",
+            "value": "transfer-destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "amount",
+            "value": 2300
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "acct",
+            "value": "source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "cleared",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "acct",
+            "value": "destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "amount",
+            "value": -2300
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "description",
+            "value": "transfer-source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "transferred_id",
+            "value": "id2"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "cleared",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": "id3"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "category",
+            "value": null
+          }
+        ],
+        "afterOperation": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Synthetic destination",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 32768,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 1,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 2300,
+              "description": "transfer-destination",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id3",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "id3",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": -2300,
+              "description": "transfer-source",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "opening-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -2300,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "sourceTransaction": {
+          "id": "id2",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "source",
+          "category": null,
+          "amount": 2300,
+          "description": "transfer-destination",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id3",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 1,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        },
+        "destinationTransaction": {
+          "id": "id3",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "destination",
+          "category": null,
+          "amount": -2300,
+          "description": "transfer-source",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id2",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 0,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        }
+      }
+    },
+    {
+      "id": "close-on-to-off-hidden-category",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": false,
+          "balance": 3100
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": true
+        },
+        "category": {
+          "id": "hidden-category",
+          "hidden": true
+        }
+      },
+      "assertions": [
+        "on-budget to off-budget keeps the supplied category on the source leg",
+        "a hidden live category is accepted by the real handler path",
+        "the paired destination leg remains uncategorized"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "description",
+            "value": "transfer-destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "amount",
+            "value": -3100
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "acct",
+            "value": "source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "category",
+            "value": "hidden-category"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "cleared",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "acct",
+            "value": "destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "amount",
+            "value": 3100
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "description",
+            "value": "transfer-source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "transferred_id",
+            "value": "id2"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "cleared",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": "id3"
+          }
+        ],
+        "afterOperation": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Synthetic destination",
+              "offbudget": 1,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 1,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": "hidden-category",
+              "amount": -3100,
+              "description": "transfer-destination",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id3",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "id3",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": 3100,
+              "description": "transfer-source",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "opening-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 3100,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "sourceTransaction": {
+          "id": "id2",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "source",
+          "category": "hidden-category",
+          "amount": -3100,
+          "description": "transfer-destination",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id3",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 1,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        },
+        "destinationTransaction": {
+          "id": "id3",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "destination",
+          "category": null,
+          "amount": 3100,
+          "description": "transfer-source",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id2",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 0,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        }
+      }
+    },
+    {
+      "id": "close-off-to-on",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": true,
+          "balance": 1700
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": false
+        },
+        "category": null
+      },
+      "assertions": [
+        "off-budget to on-budget succeeds without a category",
+        "both persisted transfer legs are uncategorized"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "description",
+            "value": "transfer-destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "amount",
+            "value": -1700
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "acct",
+            "value": "source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "cleared",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "acct",
+            "value": "destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "amount",
+            "value": 1700
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "description",
+            "value": "transfer-source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "transferred_id",
+            "value": "id2"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "cleared",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": "id3"
+          }
+        ],
+        "afterOperation": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Synthetic destination",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 1,
+              "closed": 1,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -1700,
+              "description": "transfer-destination",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id3",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "id3",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": 1700,
+              "description": "transfer-source",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "opening-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 1700,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "sourceTransaction": {
+          "id": "id2",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "source",
+          "category": null,
+          "amount": -1700,
+          "description": "transfer-destination",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id3",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 1,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        },
+        "destinationTransaction": {
+          "id": "id3",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "destination",
+          "category": null,
+          "amount": 1700,
+          "description": "transfer-source",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id2",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 0,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        }
+      }
+    },
+    {
+      "id": "close-off-to-off",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": true,
+          "balance": 900
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": true
+        },
+        "category": null
+      },
+      "assertions": [
+        "off-budget to off-budget succeeds without a category",
+        "same-type transfer cleanup leaves both legs uncategorized"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "description",
+            "value": "transfer-destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "amount",
+            "value": -900
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "acct",
+            "value": "source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "cleared",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "acct",
+            "value": "destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "amount",
+            "value": 900
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "description",
+            "value": "transfer-source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "transferred_id",
+            "value": "id2"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "cleared",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": "id3"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "category",
+            "value": null
+          }
+        ],
+        "afterOperation": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Synthetic destination",
+              "offbudget": 1,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 32768,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 1,
+              "closed": 1,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -900,
+              "description": "transfer-destination",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id3",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "id3",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": 900,
+              "description": "transfer-source",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "opening-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 900,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "sourceTransaction": {
+          "id": "id2",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "source",
+          "category": null,
+          "amount": -900,
+          "description": "transfer-destination",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id3",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 1,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        },
+        "destinationTransaction": {
+          "id": "id3",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "destination",
+          "category": null,
+          "amount": 900,
+          "description": "transfer-source",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id2",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 0,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        }
+      }
+    },
+    {
+      "id": "close-self-transfer-refusal",
+      "input": {
+        "source": {
+          "id": "source",
+          "balance": 500
+        },
+        "transferAccountId": "source"
+      },
+      "assertions": [
+        "self transfer throws the pinned API error",
+        "refusal emits zero CRDT cells and leaves selected domain rows unchanged"
+      ],
+      "observed": {
+        "operationMessages": [],
+        "before": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Self",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "balance-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 500,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "after": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Self",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "balance-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 500,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "close-split-balance",
+      "input": {
+        "source": {
+          "id": "source",
+          "rows": [
+            {
+              "id": "split-parent",
+              "amount": 1000,
+              "isParent": true
+            },
+            {
+              "id": "split-child-a",
+              "amount": 400,
+              "isChild": true
+            },
+            {
+              "id": "split-child-b",
+              "amount": 600,
+              "isChild": true
+            },
+            {
+              "id": "ordinary-row",
+              "amount": 300
+            }
+          ]
+        },
+        "destination": {
+          "id": "destination"
+        }
+      },
+      "assertions": [
+        "close balance sums live non-parent rows: 400 + 600 + 300",
+        "the physical parent still contributes to transaction count",
+        "the source closing leg is -1300 rather than double-counting the parent"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "description",
+            "value": "transfer-destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "amount",
+            "value": -1300
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "acct",
+            "value": "source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "cleared",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "acct",
+            "value": "destination"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "amount",
+            "value": 1300
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "description",
+            "value": "transfer-source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "transferred_id",
+            "value": "id2"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "notes",
+            "value": "Closing account"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "cleared",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id3",
+            "column": "reconciled",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": "id3"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "category",
+            "value": null
+          }
+        ],
+        "after": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Split destination",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 32768,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Split source",
+              "offbudget": 0,
+              "closed": 1,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -1300,
+              "description": "transfer-destination",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id3",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "id3",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": 1300,
+              "description": "transfer-source",
+              "notes": "Closing account",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "ordinary-row",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 300,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "split-child-a",
+              "isParent": 0,
+              "isChild": 1,
+              "parent_id": "split-parent",
+              "acct": "source",
+              "category": null,
+              "amount": 400,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "split-child-b",
+              "isParent": 0,
+              "isChild": 1,
+              "parent_id": "split-parent",
+              "acct": "source",
+              "category": null,
+              "amount": 600,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "split-parent",
+              "isParent": 1,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 1000,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "sourceClosingRow": {
+          "id": "id2",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "source",
+          "category": null,
+          "amount": -1300,
+          "description": "transfer-destination",
+          "notes": "Closing account",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": "id3",
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 1,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        }
+      }
+    },
+    {
+      "id": "forced-delete-simple",
+      "input": {
+        "account": {
+          "id": "source",
+          "transactionIDs": [
+            "simple-a",
+            "simple-b"
+          ]
+        }
+      },
+      "assertions": [
+        "forced close tombstones every source transaction",
+        "forced close tombstones the source transfer payee and account",
+        "no synthetic balancing transfer is created"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "transactions",
+            "row": "simple-a",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "simple-b",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "payees",
+            "row": "transfer-source",
+            "column": "tombstone",
+            "value": 1
+          }
+        ],
+        "after": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Forced simple",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 1,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 1
+            }
+          ],
+          "transactions": [
+            {
+              "id": "simple-a",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 100,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "simple-b",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -40,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "forced-delete-split-transfer-graph",
+      "input": {
+        "source": {
+          "id": "source",
+          "splitFamily": [
+            "split-parent",
+            "split-child-a",
+            "split-child-b"
+          ],
+          "transfer": "source-transfer"
+        },
+        "destination": {
+          "id": "destination",
+          "counterpartID": "id2"
+        }
+      },
+      "assertions": [
+        "forced close tombstones split parent, split children, and source transfer",
+        "the opposite transfer row survives with amount/date/notes/account intact",
+        "the opposite row clears payee and transfer_id only",
+        "the source transfer payee and account are tombstoned"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "description",
+            "value": null
+          },
+          {
+            "dataset": "transactions",
+            "row": "id2",
+            "column": "transferred_id",
+            "value": null
+          },
+          {
+            "dataset": "transactions",
+            "row": "source-transfer",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "split-child-a",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "split-child-b",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "transactions",
+            "row": "split-parent",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "tombstone",
+            "value": 1
+          },
+          {
+            "dataset": "payees",
+            "row": "transfer-source",
+            "column": "tombstone",
+            "value": 1
+          }
+        ],
+        "seededRows": [
+          {
+            "id": "id2",
+            "isParent": 0,
+            "isChild": 0,
+            "parent_id": null,
+            "acct": "destination",
+            "category": null,
+            "amount": 700,
+            "description": "transfer-source",
+            "notes": "Synthetic existing transfer",
+            "date": 20260927,
+            "financial_id": null,
+            "transferred_id": "source-transfer",
+            "sort_order": 1790510400000,
+            "tombstone": 0,
+            "cleared": 0,
+            "reconciled": 0,
+            "schedule": null,
+            "starting_balance_flag": 0
+          },
+          {
+            "id": "source-transfer",
+            "isParent": 0,
+            "isChild": 0,
+            "parent_id": null,
+            "acct": "source",
+            "category": null,
+            "amount": -700,
+            "description": "transfer-destination",
+            "notes": "Synthetic existing transfer",
+            "date": 20260927,
+            "financial_id": null,
+            "transferred_id": "id2",
+            "sort_order": 1790510400000,
+            "tombstone": 0,
+            "cleared": 1,
+            "reconciled": 0,
+            "schedule": null,
+            "starting_balance_flag": 0
+          },
+          {
+            "id": "split-child-a",
+            "isParent": 0,
+            "isChild": 1,
+            "parent_id": "split-parent",
+            "acct": "source",
+            "category": null,
+            "amount": 400,
+            "description": null,
+            "notes": null,
+            "date": 20260927,
+            "financial_id": null,
+            "transferred_id": null,
+            "sort_order": 1790510400000,
+            "tombstone": 0,
+            "cleared": 1,
+            "reconciled": 0,
+            "schedule": null,
+            "starting_balance_flag": 0
+          },
+          {
+            "id": "split-child-b",
+            "isParent": 0,
+            "isChild": 1,
+            "parent_id": "split-parent",
+            "acct": "source",
+            "category": null,
+            "amount": 600,
+            "description": null,
+            "notes": null,
+            "date": 20260927,
+            "financial_id": null,
+            "transferred_id": null,
+            "sort_order": 1790510400000,
+            "tombstone": 0,
+            "cleared": 1,
+            "reconciled": 0,
+            "schedule": null,
+            "starting_balance_flag": 0
+          },
+          {
+            "id": "split-parent",
+            "isParent": 1,
+            "isChild": 0,
+            "parent_id": null,
+            "acct": "source",
+            "category": null,
+            "amount": 1000,
+            "description": null,
+            "notes": null,
+            "date": 20260927,
+            "financial_id": null,
+            "transferred_id": null,
+            "sort_order": 1790510400000,
+            "tombstone": 0,
+            "cleared": 1,
+            "reconciled": 0,
+            "schedule": null,
+            "starting_balance_flag": 0
+          }
+        ],
+        "after": {
+          "accounts": [
+            {
+              "id": "destination",
+              "name": "Graph destination",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 32768,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            },
+            {
+              "id": "source",
+              "name": "Graph source",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 1,
+              "sort_order": 16384,
+              "account_id": null,
+              "bank": null,
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": null,
+              "bank_sync_status": null,
+              "last_sync": null,
+              "account_group_id": null
+            }
+          ],
+          "banks": [],
+          "payees": [
+            {
+              "id": "transfer-destination",
+              "name": "",
+              "transfer_acct": "destination",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            },
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 1
+            }
+          ],
+          "transactions": [
+            {
+              "id": "id2",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "destination",
+              "category": null,
+              "amount": 700,
+              "description": null,
+              "notes": "Synthetic existing transfer",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 0,
+              "cleared": 0,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "source-transfer",
+              "isParent": 0,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": -700,
+              "description": "transfer-destination",
+              "notes": "Synthetic existing transfer",
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": "id2",
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "split-child-a",
+              "isParent": 0,
+              "isChild": 1,
+              "parent_id": "split-parent",
+              "acct": "source",
+              "category": null,
+              "amount": 400,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "split-child-b",
+              "isParent": 0,
+              "isChild": 1,
+              "parent_id": "split-parent",
+              "acct": "source",
+              "category": null,
+              "amount": 600,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            },
+            {
+              "id": "split-parent",
+              "isParent": 1,
+              "isChild": 0,
+              "parent_id": null,
+              "acct": "source",
+              "category": null,
+              "amount": 1000,
+              "description": null,
+              "notes": null,
+              "date": 20260927,
+              "financial_id": null,
+              "transferred_id": null,
+              "sort_order": 1790510400000,
+              "tombstone": 1,
+              "cleared": 1,
+              "reconciled": 0,
+              "schedule": null,
+              "starting_balance_flag": 0
+            }
+          ],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        },
+        "counterpart": {
+          "id": "id2",
+          "isParent": 0,
+          "isChild": 0,
+          "parent_id": null,
+          "acct": "destination",
+          "category": null,
+          "amount": 700,
+          "description": null,
+          "notes": "Synthetic existing transfer",
+          "date": 20260927,
+          "financial_id": null,
+          "transferred_id": null,
+          "sort_order": 1790510400000,
+          "tombstone": 0,
+          "cleared": 0,
+          "reconciled": 0,
+          "schedule": null,
+          "starting_balance_flag": 0
+        }
+      }
+    },
+    {
+      "id": "unlink-simplefin",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "simpleFin",
+          "linked": true,
+          "lastSync": "synthetic-last-sync"
+        }
+      },
+      "assertions": [
+        "SimpleFIN unlink clears the seven pinned local link/balance/status cells",
+        "last_sync is preserved",
+        "SimpleFIN unlink makes no remote provider call"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_current",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_available",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_limit",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": null
+          }
+        ],
+        "after": {
+          "id": "source",
+          "name": "SimpleFIN",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": "synthetic-last-sync",
+          "account_group_id": null
+        },
+        "remoteCalls": []
+      }
+    },
+    {
+      "id": "unlink-gocardless-last-reference",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "bankReferenceCount": 1
+      },
+      "assertions": [
+        "local unlink happens before remote removal",
+        "the last bank reference calls the mocked remove-account route once",
+        "fixture output records token presence but not token bytes"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_current",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_available",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_limit",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": null
+          }
+        ],
+        "after": {
+          "id": "source",
+          "name": "GoCardless last",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": "synthetic-last-sync",
+          "account_group_id": null
+        },
+        "remoteCalls": [
+          {
+            "url": "https://test.env/gocardless/remove-account",
+            "body": {
+              "requisitionId": "remote-bank-gocardless"
+            },
+            "tokenHeaderPresent": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "unlink-gocardless-shared-bank",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "peer": {
+          "id": "peer",
+          "sameBank": true
+        }
+      },
+      "assertions": [
+        "source local link cells clear",
+        "a remaining shared-bank reference suppresses remote removal",
+        "the peer link is unchanged"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_current",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_available",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_limit",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": null
+          }
+        ],
+        "source": {
+          "id": "source",
+          "name": "GoCardless A",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": "synthetic-last-sync",
+          "account_group_id": null
+        },
+        "peer": {
+          "id": "peer",
+          "name": "GoCardless B",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 32768,
+          "account_id": "remote-account-b",
+          "bank": "bank-gocardless",
+          "balance_current": 12345,
+          "balance_available": 12000,
+          "balance_limit": 50000,
+          "account_sync_source": "goCardless",
+          "bank_sync_status": "ok",
+          "last_sync": "synthetic-last-sync",
+          "account_group_id": null
+        },
+        "remoteCalls": []
+      }
+    },
+    {
+      "id": "unlink-gocardless-without-token",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "userTokenPresent": false
+      },
+      "assertions": [
+        "GoCardless local link cells clear before token lookup decides remote work",
+        "an absent token suppresses remote removal without reverting local unlink"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_current",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_available",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_limit",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": null
+          }
+        ],
+        "after": {
+          "id": "source",
+          "name": "GoCardless no token",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": "synthetic-last-sync",
+          "account_group_id": null
+        },
+        "remoteCalls": []
+      }
+    },
+    {
+      "id": "unlink-gocardless-remote-failure",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "remoteResult": "synthetic rejection"
+      },
+      "assertions": [
+        "remote removal is mocked and attempted once",
+        "the handler swallows the remote rejection",
+        "local unlink remains committed"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_current",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_available",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_limit",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": null
+          }
+        ],
+        "after": {
+          "id": "source",
+          "name": "GoCardless remote failure",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": "synthetic-last-sync",
+          "account_group_id": null
+        },
+        "remoteCalls": [
+          {
+            "url": "https://test.env/gocardless/remove-account",
+            "body": {
+              "requisitionId": "remote-bank-gocardless"
+            },
+            "tokenHeaderPresent": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "close-unlink-undo-boundary",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "simpleFin",
+          "balance": 0
+        }
+      },
+      "assertions": [
+        "close operation emits seven unlink cells followed by closed = 1",
+        "History undo emits only closed = 0",
+        "the local provider link remains cleared after undo"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_current",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_available",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "balance_limit",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          }
+        ],
+        "undoMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 0
+          }
+        ],
+        "afterUndo": {
+          "id": "source",
+          "name": "Linked close",
+          "offbudget": 0,
+          "closed": 0,
+          "tombstone": 0,
+          "sort_order": 16384,
+          "account_id": null,
+          "bank": null,
+          "balance_current": null,
+          "balance_available": null,
+          "balance_limit": null,
+          "account_sync_source": null,
+          "bank_sync_status": null,
+          "last_sync": "synthetic-last-sync",
+          "account_group_id": null
+        }
+      }
+    },
+    {
+      "id": "schedule-close-reopen-eligibility",
+      "input": {
+        "account": {
+          "id": "source"
+        },
+        "schedule": {
+          "id": "schedule-source",
+          "postsTransaction": true,
+          "amount": -775,
+          "date": "2026-09-27"
+        }
+      },
+      "assertions": [
+        "close and reopen emit no schedule/rule/date cells",
+        "the schedule account reference remains byte-for-byte unchanged",
+        "automatic service posts nothing while the account is closed",
+        "automatic service posts the scheduled transaction after reopen"
+      ],
+      "observed": {
+        "before": {
+          "rules": [
+            {
+              "id": "id2",
+              "stage": null,
+              "conditions": "[{\"op\":\"is\",\"field\":\"acct\",\"value\":\"source\"},{\"op\":\"is\",\"field\":\"amount\",\"value\":-775},{\"op\":\"is\",\"field\":\"date\",\"value\":\"2026-09-27\"}]",
+              "conditions_op": "and",
+              "actions": "[{\"op\":\"link-schedule\",\"value\":\"schedule-source\"}]",
+              "tombstone": 0
+            }
+          ],
+          "schedules": [
+            {
+              "id": "schedule-source",
+              "name": "Synthetic schedule",
+              "rule": "id2",
+              "active": 0,
+              "completed": 0,
+              "posts_transaction": 1,
+              "custom_upcoming_length": null,
+              "tombstone": 0,
+              "sort_order": 0
+            }
+          ],
+          "scheduleDates": [
+            {
+              "id": "id3",
+              "schedule_id": "schedule-source",
+              "local_next_date": 20260927,
+              "local_next_date_ts": 1790510400000,
+              "base_next_date": 20260927,
+              "base_next_date_ts": 1790510400000
+            }
+          ]
+        },
+        "closeMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 1
+          }
+        ],
+        "afterClose": {
+          "rules": [
+            {
+              "id": "id2",
+              "stage": null,
+              "conditions": "[{\"op\":\"is\",\"field\":\"acct\",\"value\":\"source\"},{\"op\":\"is\",\"field\":\"amount\",\"value\":-775},{\"op\":\"is\",\"field\":\"date\",\"value\":\"2026-09-27\"}]",
+              "conditions_op": "and",
+              "actions": "[{\"op\":\"link-schedule\",\"value\":\"schedule-source\"}]",
+              "tombstone": 0
+            }
+          ],
+          "schedules": [
+            {
+              "id": "schedule-source",
+              "name": "Synthetic schedule",
+              "rule": "id2",
+              "active": 0,
+              "completed": 0,
+              "posts_transaction": 1,
+              "custom_upcoming_length": null,
+              "tombstone": 0,
+              "sort_order": 0
+            }
+          ],
+          "scheduleDates": [
+            {
+              "id": "id3",
+              "schedule_id": "schedule-source",
+              "local_next_date": 20260927,
+              "local_next_date_ts": 1790510400000,
+              "base_next_date": 20260927,
+              "base_next_date_ts": 1790510400000
+            }
+          ]
+        },
+        "closedServiceMessages": [],
+        "closedScheduledTransactions": [],
+        "reopenMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "closed",
+            "value": 0
+          }
+        ],
+        "afterReopen": {
+          "rules": [
+            {
+              "id": "id2",
+              "stage": null,
+              "conditions": "[{\"op\":\"is\",\"field\":\"acct\",\"value\":\"source\"},{\"op\":\"is\",\"field\":\"amount\",\"value\":-775},{\"op\":\"is\",\"field\":\"date\",\"value\":\"2026-09-27\"}]",
+              "conditions_op": "and",
+              "actions": "[{\"op\":\"link-schedule\",\"value\":\"schedule-source\"}]",
+              "tombstone": 0
+            }
+          ],
+          "schedules": [
+            {
+              "id": "schedule-source",
+              "name": "Synthetic schedule",
+              "rule": "id2",
+              "active": 0,
+              "completed": 0,
+              "posts_transaction": 1,
+              "custom_upcoming_length": null,
+              "tombstone": 0,
+              "sort_order": 0
+            }
+          ],
+          "scheduleDates": [
+            {
+              "id": "id3",
+              "schedule_id": "schedule-source",
+              "local_next_date": 20260927,
+              "local_next_date_ts": 1790510400000,
+              "base_next_date": 20260927,
+              "base_next_date_ts": 1790510400000
+            }
+          ]
+        },
+        "openServiceMessages": [
+          {
+            "dataset": "transactions",
+            "row": "id4",
+            "column": "acct",
+            "value": "source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id4",
+            "column": "amount",
+            "value": -775
+          },
+          {
+            "dataset": "transactions",
+            "row": "id4",
+            "column": "date",
+            "value": 20260927
+          },
+          {
+            "dataset": "transactions",
+            "row": "id4",
+            "column": "schedule",
+            "value": "schedule-source"
+          },
+          {
+            "dataset": "transactions",
+            "row": "id4",
+            "column": "cleared",
+            "value": 0
+          },
+          {
+            "dataset": "transactions",
+            "row": "id4",
+            "column": "sort_order",
+            "value": 1790510400000
+          },
+          {
+            "dataset": "transactions",
+            "row": "id4",
+            "column": "reconciled",
+            "value": 0
+          }
+        ],
+        "openScheduledTransactions": [
+          {
+            "id": "id4",
+            "isParent": 0,
+            "isChild": 0,
+            "parent_id": null,
+            "acct": "source",
+            "category": null,
+            "amount": -775,
+            "description": null,
+            "notes": null,
+            "date": 20260927,
+            "financial_id": null,
+            "transferred_id": null,
+            "sort_order": 1790510400000,
+            "tombstone": 0,
+            "cleared": 0,
+            "reconciled": 0,
+            "schedule": "schedule-source",
+            "starting_balance_flag": 0
+          }
+        ]
+      }
+    }
+  ]
+}

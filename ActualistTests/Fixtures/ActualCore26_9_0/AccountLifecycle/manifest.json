@@ -1,0 +1,603 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-27T19:12:54.491Z",
+  "actual": {
+    "tag": "v26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+    "packageVersion": "26.9.0"
+  },
+  "toolchain": {
+    "node": "v24.21.0",
+    "yarn": "4.17.1"
+  },
+  "generation": {
+    "workingDirectory": "<isolated-actual-checkout>",
+    "argv": [
+      "node",
+      ".yarn/releases/yarn-4.17.1.cjs",
+      "workspace",
+      "@actual-app/core",
+      "run",
+      "test:node",
+      "src/server/accounts/account-lifecycle-parity.test.ts",
+      "--bail=1",
+      "--reporter=json",
+      "--outputFile=<isolated-actual-checkout>/.actualist-account-lifecycle-vitest-<invocation-id>.json"
+    ],
+    "environment": {
+      "ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT": "<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json",
+      "TZ": "UTC"
+    },
+    "executionCeilingMilliseconds": 180000,
+    "terminationGraceMilliseconds": 5000,
+    "processOwnership": "detached POSIX process group"
+  },
+  "generator": {
+    "path": "scripts/account-lifecycle-parity/generate.mjs",
+    "sha256": "8dfdf3cb40efcbc7b4665436bde97e0789f973f45229ffabc18690f5adeb39c9",
+    "manifestSchemaPath": "scripts/account-lifecycle-parity/manifest.schema.json",
+    "manifestSchemaSha256": "e784898632a9fe4dbec5607d854788235c227dac4c547c408fa03c6bca257925"
+  },
+  "harnessFiles": [
+    {
+      "path": "scripts/account-lifecycle-parity/harness/account-lifecycle-parity.test.ts",
+      "sha256": "08469eac4de7f45f74ef63bb0588f05af8312effd08f5e449efa5c464d085a51"
+    },
+    {
+      "path": "scripts/account-lifecycle-parity/harness/account-lifecycle-parity-support.ts",
+      "sha256": "db0de6d121e834998da2fb223a3b83a5abf3c75d2594f9e99231170635888d32"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/package.json",
+      "sha256": "4d389497f25f389c33d94567949eb59184f072302dff2937e718fd8317898a56"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/setup.ts",
+      "sha256": "1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70"
+    },
+    {
+      "path": "packages/loot-core/src/server/accounts/app.ts",
+      "sha256": "83d3b730b8155abbb653a64b8f92abe05d978cf3865a1ff7ba69bccf85971b0e"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "18513a21d4990088f3e1a70de55f849756adcdc65334fdffa802c76e812e280f"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/mappings.ts",
+      "sha256": "6ec833744859b6e14f9a83a91cbfa99980bfe1b69750c567a146e7b2ff0573b9"
+    },
+    {
+      "path": "packages/loot-core/src/server/sql/init.sql",
+      "sha256": "922a2b0b8ce621a2537293b887a4b75ceee6a375859f443407f8129bb6c29d3d"
+    },
+    {
+      "path": "packages/loot-core/src/server/mutators.ts",
+      "sha256": "f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f"
+    },
+    {
+      "path": "packages/loot-core/src/server/schedules/app.ts",
+      "sha256": "f07d7134c203c72c2881826cd43c2c42ea6ab7090f70c7dcf44bbb7af45f352e"
+    },
+    {
+      "path": "packages/loot-core/src/server/sync/index.ts",
+      "sha256": "d1e9cba5cbb714b767f3aa8fd9583c597c8f5f1f71e12646d5ec3568e7c504a2"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/app.ts",
+      "sha256": "6fbfa6064e60e2817fa9870a8e1762a69ee10d1b87893f40ab49dd683cac767c"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/index.ts",
+      "sha256": "8ad3ce105e7c772ded42d420c1cc0c765407e6b9b2da2c854972ccfdcdc12551"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transfer.ts",
+      "sha256": "309ebae609b20dee6053bc0a84e80e310a0d53fd4aed7c284d7e4379c9305701"
+    },
+    {
+      "path": "packages/loot-core/src/server/undo.ts",
+      "sha256": "2b664e329d843c8022f935d131b7a88a40f85b3e64904faed50f8aeffd5deafe"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/CloseAccountModal.tsx",
+      "sha256": "04d3581b112a62bef5c9aa9be36a0f29c841f3d9f8edc58ec29d5f254d85d4fb"
+    },
+    {
+      "path": "packages/desktop-client/src/components/util/accountValidation.ts",
+      "sha256": "745da1c3dd1ba474871bb27072552a0abf457e8eac083e4e72825ac40172813d"
+    }
+  ],
+  "dependencies": {
+    "lockfile": {
+      "path": "yarn.lock",
+      "sha256": "88434e0e9b17c4009e2623eebae4b358f2927cbf644d299ace7ce113d74c6fa0"
+    },
+    "yarnConfiguration": {
+      "path": ".yarnrc.yml",
+      "sha256": "0d71cb2b9e27b6d36fd0319f0c16c96698ced674036ffc6ae5bed01511763ff9"
+    },
+    "installState": {
+      "path": "node_modules/.yarn-state.yml",
+      "sha256": "de160c3fe5e928826d188a704dc99894b8ef458a3f376dde81aef60a0cab87c2"
+    },
+    "nativeSQLite": {
+      "packageName": "better-sqlite3",
+      "version": "12.11.1",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "packageManifest": {
+        "path": "node_modules/better-sqlite3/package.json",
+        "sha256": "4665126292eff5dffe6c0ffabf98c4de18e479aa0b53edd775028eb567b3ecc1"
+      },
+      "resolvedEntry": {
+        "path": "node_modules/better-sqlite3/lib/index.js",
+        "sha256": "82db11c4ee43a41d859988c5db42c3771dff565371f94bacbd1e4d8d6ceb47cd"
+      },
+      "binary": {
+        "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+        "sha256": "c6fac315df023cf5efec45a3511e6515c6b0f7461a4a284b1b7a79c7ef8febe7"
+      }
+    }
+  },
+  "fixture": {
+    "path": "ActualistTests/Fixtures/ActualCore26_9_0/AccountLifecycle/account-lifecycle-oracle.json",
+    "sha256": "e1407a1db647e00c5eaed766da249ec66f655365e5539d62088e7868b887af5c",
+    "caseCount": 22,
+    "caseIDs": [
+      "rename-open-history",
+      "rename-closed",
+      "rename-handler-input-boundary",
+      "reopen-repeat-history",
+      "close-empty-history",
+      "close-zero",
+      "close-positive-on-to-on-history",
+      "close-negative-on-to-on",
+      "close-on-to-off-hidden-category",
+      "close-off-to-on",
+      "close-off-to-off",
+      "close-self-transfer-refusal",
+      "close-split-balance",
+      "forced-delete-simple",
+      "forced-delete-split-transfer-graph",
+      "unlink-simplefin",
+      "unlink-gocardless-last-reference",
+      "unlink-gocardless-shared-bank",
+      "unlink-gocardless-without-token",
+      "unlink-gocardless-remote-failure",
+      "close-unlink-undo-boundary",
+      "schedule-close-reopen-eligibility"
+    ]
+  },
+  "cases": [
+    {
+      "id": "rename-open-history",
+      "input": {
+        "account": {
+          "id": "source",
+          "name": "Before",
+          "closed": false
+        },
+        "name": "After"
+      },
+      "assertions": [
+        "account-update emits only accounts.name",
+        "History undo restores the previous name on the same account ID"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/0"
+    },
+    {
+      "id": "rename-closed",
+      "input": {
+        "account": {
+          "id": "source",
+          "name": "Closed before",
+          "closed": true
+        },
+        "name": "Closed after"
+      },
+      "assertions": [
+        "closed accounts accept account-update",
+        "the exact normalized CRDT delta is accounts.name only"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/1"
+    },
+    {
+      "id": "rename-handler-input-boundary",
+      "input": {
+        "source": {
+          "id": "source",
+          "name": "Original"
+        },
+        "peer": {
+          "id": "peer",
+          "name": "Duplicate"
+        },
+        "submittedNames": [
+          "Original",
+          "  Original  ",
+          "Duplicate",
+          "duplicate"
+        ]
+      },
+      "assertions": [
+        "the core handler emits a name cell even when the value is unchanged",
+        "the core handler does not trim outer whitespace",
+        "the core handler does not reject exact or case-variant duplicate names",
+        "desktop input validation is therefore a separate boundary, not handler behavior"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/2"
+    },
+    {
+      "id": "reopen-repeat-history",
+      "input": {
+        "account": {
+          "id": "source",
+          "closed": true
+        },
+        "repeatedCalls": 2
+      },
+      "assertions": [
+        "reopen writes accounts.closed = 0 on the same ID",
+        "History undo restores closed = 1",
+        "the pinned upstream handler emits another closed = 0 cell for a repeated reopen"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/3"
+    },
+    {
+      "id": "close-empty-history",
+      "input": {
+        "account": {
+          "id": "source",
+          "livePhysicalTransactionCount": 0
+        }
+      },
+      "assertions": [
+        "empty close tombstones the account instead of setting closed",
+        "empty close leaves the transfer payee live",
+        "History undo resurrects the account"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/4"
+    },
+    {
+      "id": "close-zero",
+      "input": {
+        "account": {
+          "id": "source",
+          "physicalRows": [
+            {
+              "id": "zero-row",
+              "amount": 0
+            }
+          ]
+        }
+      },
+      "assertions": [
+        "a physical live row prevents empty deletion",
+        "exact zero closes with accounts.closed = 1 and creates no transfer"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/5"
+    },
+    {
+      "id": "close-positive-on-to-on-history",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": false,
+          "balance": 4250
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": false
+        }
+      },
+      "assertions": [
+        "source closing amount is -balance and destination amount is balance",
+        "same-budget-type transfer category is null",
+        "History restores open state and tombstones both created transfer legs"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/6"
+    },
+    {
+      "id": "close-negative-on-to-on",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": false,
+          "balance": -2300
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": false
+        }
+      },
+      "assertions": [
+        "negative balances use the same source = -balance rule",
+        "the paired destination keeps the original signed balance"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/7"
+    },
+    {
+      "id": "close-on-to-off-hidden-category",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": false,
+          "balance": 3100
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": true
+        },
+        "category": {
+          "id": "hidden-category",
+          "hidden": true
+        }
+      },
+      "assertions": [
+        "on-budget to off-budget keeps the supplied category on the source leg",
+        "a hidden live category is accepted by the real handler path",
+        "the paired destination leg remains uncategorized"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/8"
+    },
+    {
+      "id": "close-off-to-on",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": true,
+          "balance": 1700
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": false
+        },
+        "category": null
+      },
+      "assertions": [
+        "off-budget to on-budget succeeds without a category",
+        "both persisted transfer legs are uncategorized"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/9"
+    },
+    {
+      "id": "close-off-to-off",
+      "input": {
+        "source": {
+          "id": "source",
+          "offBudget": true,
+          "balance": 900
+        },
+        "destination": {
+          "id": "destination",
+          "offBudget": true
+        },
+        "category": null
+      },
+      "assertions": [
+        "off-budget to off-budget succeeds without a category",
+        "same-type transfer cleanup leaves both legs uncategorized"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/10"
+    },
+    {
+      "id": "close-self-transfer-refusal",
+      "input": {
+        "source": {
+          "id": "source",
+          "balance": 500
+        },
+        "transferAccountId": "source"
+      },
+      "assertions": [
+        "self transfer throws the pinned API error",
+        "refusal emits zero CRDT cells and leaves selected domain rows unchanged"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/11"
+    },
+    {
+      "id": "close-split-balance",
+      "input": {
+        "source": {
+          "id": "source",
+          "rows": [
+            {
+              "id": "split-parent",
+              "amount": 1000,
+              "isParent": true
+            },
+            {
+              "id": "split-child-a",
+              "amount": 400,
+              "isChild": true
+            },
+            {
+              "id": "split-child-b",
+              "amount": 600,
+              "isChild": true
+            },
+            {
+              "id": "ordinary-row",
+              "amount": 300
+            }
+          ]
+        },
+        "destination": {
+          "id": "destination"
+        }
+      },
+      "assertions": [
+        "close balance sums live non-parent rows: 400 + 600 + 300",
+        "the physical parent still contributes to transaction count",
+        "the source closing leg is -1300 rather than double-counting the parent"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/12"
+    },
+    {
+      "id": "forced-delete-simple",
+      "input": {
+        "account": {
+          "id": "source",
+          "transactionIDs": [
+            "simple-a",
+            "simple-b"
+          ]
+        }
+      },
+      "assertions": [
+        "forced close tombstones every source transaction",
+        "forced close tombstones the source transfer payee and account",
+        "no synthetic balancing transfer is created"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/13"
+    },
+    {
+      "id": "forced-delete-split-transfer-graph",
+      "input": {
+        "source": {
+          "id": "source",
+          "splitFamily": [
+            "split-parent",
+            "split-child-a",
+            "split-child-b"
+          ],
+          "transfer": "source-transfer"
+        },
+        "destination": {
+          "id": "destination",
+          "counterpartID": "id2"
+        }
+      },
+      "assertions": [
+        "forced close tombstones split parent, split children, and source transfer",
+        "the opposite transfer row survives with amount/date/notes/account intact",
+        "the opposite row clears payee and transfer_id only",
+        "the source transfer payee and account are tombstoned"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/14"
+    },
+    {
+      "id": "unlink-simplefin",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "simpleFin",
+          "linked": true,
+          "lastSync": "synthetic-last-sync"
+        }
+      },
+      "assertions": [
+        "SimpleFIN unlink clears the seven pinned local link/balance/status cells",
+        "last_sync is preserved",
+        "SimpleFIN unlink makes no remote provider call"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/15"
+    },
+    {
+      "id": "unlink-gocardless-last-reference",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "bankReferenceCount": 1
+      },
+      "assertions": [
+        "local unlink happens before remote removal",
+        "the last bank reference calls the mocked remove-account route once",
+        "fixture output records token presence but not token bytes"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/16"
+    },
+    {
+      "id": "unlink-gocardless-shared-bank",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "peer": {
+          "id": "peer",
+          "sameBank": true
+        }
+      },
+      "assertions": [
+        "source local link cells clear",
+        "a remaining shared-bank reference suppresses remote removal",
+        "the peer link is unchanged"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/17"
+    },
+    {
+      "id": "unlink-gocardless-without-token",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "userTokenPresent": false
+      },
+      "assertions": [
+        "GoCardless local link cells clear before token lookup decides remote work",
+        "an absent token suppresses remote removal without reverting local unlink"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/18"
+    },
+    {
+      "id": "unlink-gocardless-remote-failure",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "goCardless"
+        },
+        "remoteResult": "synthetic rejection"
+      },
+      "assertions": [
+        "remote removal is mocked and attempted once",
+        "the handler swallows the remote rejection",
+        "local unlink remains committed"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/19"
+    },
+    {
+      "id": "close-unlink-undo-boundary",
+      "input": {
+        "account": {
+          "id": "source",
+          "provider": "simpleFin",
+          "balance": 0
+        }
+      },
+      "assertions": [
+        "close operation emits seven unlink cells followed by closed = 1",
+        "History undo emits only closed = 0",
+        "the local provider link remains cleared after undo"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/20"
+    },
+    {
+      "id": "schedule-close-reopen-eligibility",
+      "input": {
+        "account": {
+          "id": "source"
+        },
+        "schedule": {
+          "id": "schedule-source",
+          "postsTransaction": true,
+          "amount": -775,
+          "date": "2026-09-27"
+        }
+      },
+      "assertions": [
+        "close and reopen emit no schedule/rule/date cells",
+        "the schedule account reference remains byte-for-byte unchanged",
+        "automatic service posts nothing while the account is closed",
+        "automatic service posts the scheduled transaction after reopen"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/21"
+    }
+  ]
+}
