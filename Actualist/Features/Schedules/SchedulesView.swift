@@ -235,7 +235,7 @@ private struct ScheduleRowView: View {
             }
 
             if let limitationText = row.limitationText {
-                Label(limitationText, systemImage: "lock.trianglebadge.exclamationmark")
+                Label(limitationText, systemImage: "exclamationmark.triangle.fill")
                     .font(ActualistTypography.rowLabel(for: density))
                     .foregroundStyle(ActualistTheme.warning)
             }
