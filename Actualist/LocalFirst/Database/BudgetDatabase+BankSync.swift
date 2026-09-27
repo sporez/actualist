@@ -393,43 +393,51 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
-            let columns = try columnSet(for: "accounts", db: db)
-            guard columns.contains("account_id"),
-                  columns.contains("account_sync_source"),
-                  let link = try Row.fetchOne(
-                    db,
-                    sql: "SELECT account_id, account_sync_source FROM accounts WHERE id = ? LIMIT 1",
-                    arguments: [accountID]
-                  ),
-                  let remoteAccountID = link["account_id"] as String?,
-                  !remoteAccountID.isEmpty,
-                  BankSyncLinkEligibility.isSimpleFIN(
-                    syncSource: link["account_sync_source"] as String?
-                  ) else {
-                throw LocalFirstError.invalidLocalWrite(
-                    "only SimpleFIN-linked accounts can be unlinked here"
-                )
-            }
-            let clearedColumns = [
-                "account_id",
-                "account_sync_source",
-                "bank",
-                "balance_current",
-                "balance_available",
-                "balance_limit",
-                "bank_sync_status"
-            ].filter { columns.contains($0) }
-            guard !clearedColumns.isEmpty else {
-                throw LocalFirstError.invalidLocalWrite("missing accounts link columns")
-            }
-            return try clearedColumns.map { columnName in
-                try builder.makeMessage(
-                    dataset: "accounts",
-                    row: accountID,
-                    column: columnName,
-                    value: .null
-                )
-            }
+            try makeBankSyncUnlinkMessages(accountID: accountID, builder: &builder, db: db)
+        }
+    }
+
+    func makeBankSyncUnlinkMessages(
+        accountID: String,
+        builder: inout LocalFirstSyncMessageBuilder,
+        db: Database
+    ) throws -> [ActualSyncDecodedMessage] {
+        let columns = try columnSet(for: "accounts", db: db)
+        guard columns.contains("account_id"),
+              columns.contains("account_sync_source"),
+              let link = try Row.fetchOne(
+                db,
+                sql: "SELECT account_id, account_sync_source FROM accounts WHERE id = ? LIMIT 1",
+                arguments: [accountID]
+              ),
+              let remoteAccountID = link["account_id"] as String?,
+              !remoteAccountID.isEmpty,
+              BankSyncLinkEligibility.isSimpleFIN(
+                syncSource: link["account_sync_source"] as String?
+              ) else {
+            throw LocalFirstError.invalidLocalWrite(
+                "only SimpleFIN-linked accounts can be unlinked here"
+            )
+        }
+        let clearedColumns = [
+            "account_id",
+            "bank",
+            "balance_current",
+            "balance_available",
+            "balance_limit",
+            "account_sync_source",
+            "bank_sync_status"
+        ].filter { columns.contains($0) }
+        guard !clearedColumns.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing accounts link columns")
+        }
+        return try clearedColumns.map { columnName in
+            try builder.makeMessage(
+                dataset: "accounts",
+                row: accountID,
+                column: columnName,
+                value: .null
+            )
         }
     }
 

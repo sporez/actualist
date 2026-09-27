@@ -211,6 +211,8 @@ enum HistoryRowPresentation {
             switch account.operation {
             case .rename: verb = "Renamed"
             case .reopen: verb = "Reopened"
+            case .close: verb = "Closed"
+            case .delete: verb = "Deleted"
             case nil: verb = "Added"
             }
             return ("\(verb) \(name)", account.offbudget ? "Off-budget account" : "Account")

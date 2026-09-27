@@ -54,6 +54,56 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         #expect(bundle.store.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account.closed == false)
     }
 
+    @Test func ordinaryCloseRefreshesClosedMembershipBeforeReturning() async throws {
+        let bundle = try await support.makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: """
+                UPDATE transactions SET amount = 0 WHERE id = 'txn';
+                """
+        )
+        let request = AccountLifecycleReviewRequest(
+            budgetID: "group-1",
+            accountID: "checking",
+            requestedAction: .close(destinationAccountID: nil, categoryID: nil)
+        )
+        let review = try await bundle.store.accountLifecycleReview(request: request)
+
+        let result = try await bundle.store.commitAccountLifecycleAndRefresh(reviewed: review)
+
+        guard case .applied(let outcome) = result else {
+            Issue.record("Expected a durable close")
+            return
+        }
+        #expect(!outcome.refreshPending)
+        #expect(outcome.account.isClosed)
+        #expect(bundle.store.accountDisplays(budgetID: "group-1")
+            .first { $0.id == "checking" }?.account.closed == true)
+    }
+
+    @Test func closeRefreshFailureReportsCommittedRefreshPendingWithoutDuplicateWrite() async throws {
+        let (store, hook) = try await makeStoreWithFeedHook(additionalFixtureSQL: """
+            UPDATE transactions SET amount = 0 WHERE id = 'txn';
+            """)
+        let request = AccountLifecycleReviewRequest(
+            budgetID: "group-1",
+            accountID: "checking",
+            requestedAction: .close(destinationAccountID: nil, categoryID: nil)
+        )
+        let review = try await store.accountLifecycleReview(request: request)
+        hook.action = { throw LocalFirstTestSyncError.failed }
+
+        let result = try await store.commitAccountLifecycleAndRefresh(reviewed: review)
+
+        guard case .applied(let outcome) = result else {
+            Issue.record("Refresh failure must retain the committed close")
+            return
+        }
+        #expect(outcome.refreshPending)
+        let database = try #require(store.database)
+        #expect(try await database.fetchAccounts().first { $0.id == "checking" }?.closed == true)
+        #expect(try await database.pendingLocalSyncMessageCount() == 1)
+        #expect(try await database.recentBudgetActions().count == 1)
+    }
+
     @Test func refreshFailureReturnsCommittedOutcomeAndRetryDoesNotDuplicateHistory() async throws {
         let (store, hook) = try await makeStoreWithFeedHook()
         hook.action = { throw LocalFirstTestSyncError.failed }
@@ -152,8 +202,12 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         )
     }
 
-    private func makeStoreWithFeedHook() async throws -> (LocalFirstActualStore, FeedHook) {
-        let bundle = try await support.makeOpenedWritableStoreBundle()
+    private func makeStoreWithFeedHook(
+        additionalFixtureSQL: String = ""
+    ) async throws -> (LocalFirstActualStore, FeedHook) {
+        let bundle = try await support.makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: additionalFixtureSQL
+        )
         let hook = FeedHook()
         let store = LocalFirstActualStore(
             keychain: bundle.keychain,

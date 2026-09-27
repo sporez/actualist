@@ -98,6 +98,50 @@ final class AccountLifecycleUITests: XCTestCase {
         attachScreenshot(named: "account-lifecycle-reopened-off-budget-\(layoutName(for: app))", app: app)
     }
 
+    func testOrdinaryCloseReviewsTransferBeforeConfirmation() throws {
+        let app = launchMutableAccounts()
+
+        try openCheckingCloseReview(in: app)
+
+        XCTAssertTrue(app.staticTexts["Everyday Checking"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Balance"].exists)
+        XCTAssertTrue(app.staticTexts["Transactions"].exists)
+        XCTAssertTrue(app.staticTexts[
+            "Choose an open account for the remaining balance."
+        ].exists)
+        let close = try selectClosingDestination("High-Yield Savings", in: app)
+        XCTAssertTrue(close.isEnabled)
+        attachScreenshot(named: "account-lifecycle-close-review-\(layoutName(for: app))", app: app)
+
+        app.navigationBars["Transfer Balance and Close"].buttons["Cancel"].tap()
+        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(accountOverviewButton(
+            accountID: "checking",
+            expectedName: "Everyday Checking",
+            in: app
+        ).exists)
+    }
+
+    func testOrdinaryCloseSubmissionMovesAccountToClosed() throws {
+        let app = launchMutableAccounts()
+        try openCheckingCloseReview(in: app)
+        let close = try selectClosingDestination("High-Yield Savings", in: app)
+
+        close.tap()
+
+        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 10))
+        let closedSection = sectionButton(beginningWith: "Closed (2)", in: app)
+        XCTAssertTrue(closedSection.waitForExistence(timeout: 10))
+        closedSection.tap()
+        let closedChecking = accountOverviewButton(
+            accountID: "checking",
+            expectedName: "Everyday Checking",
+            in: app
+        )
+        XCTAssertTrue(closedChecking.waitForExistence(timeout: 8))
+        attachScreenshot(named: "account-lifecycle-close-submitted-\(layoutName(for: app))", app: app)
+    }
+
     func testSampleValuesDisableRenameAndReopenActions() throws {
         let privacy = launchDemo(screen: "settings/privacy", replaceDemo: true)
         setSampleValues(true, in: privacy)
@@ -216,6 +260,36 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(rename.isEnabled)
         rename.tap()
         XCTAssertTrue(app.navigationBars["Rename Account"].waitForExistence(timeout: 5))
+    }
+
+    private func openCheckingCloseReview(in app: XCUIApplication) throws {
+        _ = accountOverviewButton(
+            accountID: "checking",
+            expectedName: "Everyday Checking",
+            in: app
+        )
+        openOverviewActions(accountID: "checking", in: app)
+        let close = app.buttons["account-lifecycle-close-action"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(close.isEnabled)
+        close.tap()
+        XCTAssertTrue(app.navigationBars["Review Account"].waitForExistence(timeout: 8))
+    }
+
+    private func selectClosingDestination(
+        _ destination: String,
+        in app: XCUIApplication
+    ) throws -> XCUIElement {
+        let picker = app.buttons["account-lifecycle-destination-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        let destinationButton = app.buttons[destination]
+        XCTAssertTrue(destinationButton.waitForExistence(timeout: 5))
+        destinationButton.tap()
+        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForExistence(timeout: 8))
+        let close = app.buttons["account-lifecycle-close-button"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        return close
     }
 
     private func replaceRenameField(

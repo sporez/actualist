@@ -64,6 +64,10 @@ struct AccountLifecycleModelsTests {
                 budgetID: "budget",
                 accountID: account.id,
                 action: .close(destinationAccountID: nil, categoryID: category.id),
+                localDay: AccountLifecycleDay(
+                    isoDate: "2026-09-27",
+                    transactionDate: 20260927
+                ),
                 sourceFacts: AccountLifecycleSourceFacts(
                     account: account,
                     liveBalance: -12_345,
@@ -98,7 +102,7 @@ struct AccountLifecycleModelsTests {
             eligibleDestinations: [],
             eligibleCategories: [category],
             resolvedAction: .closeAtZero,
-            blockers: [.activeSchedules([schedule])]
+            blockers: []
         )
 
         let presentation = AccountLifecyclePresentation.review(
@@ -124,11 +128,12 @@ struct AccountLifecycleModelsTests {
         #expect(!joinedCopy.contains("bank-secret"))
         #expect(!joinedCopy.contains(category.name))
         #expect(!joinedCopy.contains(schedule.name))
-        #expect(!presentation.blockerMessages.joined().contains(schedule.name))
+        #expect(presentation.blockerMessages.isEmpty)
         #expect(presentation.isPrivacyProtected)
         #expect(!presentation.canConfirm)
         #expect(unprotectedCopy.contains(category.name))
         #expect(unprotectedCopy.contains(schedule.name))
+        #expect(unprotectedCopy.contains("Posting pauses while closed"))
         #expect(!unprotectedPresentation.isPrivacyProtected)
     }
 

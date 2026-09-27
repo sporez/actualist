@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://actualist.app/schemas/account-lifecycle-parity-manifest-v1.json",
+  "title": "Actualist account lifecycle parity fixture manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "actual",
+    "toolchain",
+    "generation",
+    "generator",
+    "harnessFiles",
+    "sourceFiles",
+    "dependencies",
+    "fixture",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "actual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "commit", "packageVersion"],
+      "properties": {
+        "tag": { "const": "v26.9.0" },
+        "commit": {
+          "const": "59fe126f637d858c061e1eeedbef5436c8f2225a"
+        },
+        "packageVersion": { "const": "26.9.0" }
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "yarn"],
+      "properties": {
+        "node": { "type": "string", "pattern": "^v24\\." },
+        "yarn": { "const": "4.17.1" }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workingDirectory",
+        "argv",
+        "environment",
+        "executionCeilingMilliseconds",
+        "terminationGraceMilliseconds",
+        "processOwnership"
+      ],
+      "properties": {
+        "workingDirectory": { "const": "<isolated-actual-checkout>" },
+        "argv": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "prefixItems": [
+            { "const": "node" },
+            { "const": ".yarn/releases/yarn-4.17.1.cjs" },
+            { "const": "workspace" },
+            { "const": "@actual-app/core" },
+            { "const": "run" },
+            { "const": "test:node" },
+            { "const": "src/server/accounts/account-lifecycle-parity.test.ts" },
+            { "const": "--bail=1" },
+            { "const": "--reporter=json" },
+            {
+              "const": "--outputFile=<isolated-actual-checkout>/.actualist-account-lifecycle-vitest-<invocation-id>.json"
+            }
+          ],
+          "items": false
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT", "TZ"],
+          "properties": {
+            "ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT": {
+              "const": "<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json"
+            },
+            "TZ": { "const": "UTC" }
+          }
+        },
+        "executionCeilingMilliseconds": { "const": 180000 },
+        "terminationGraceMilliseconds": { "const": 5000 },
+        "processOwnership": { "const": "detached POSIX process group" }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "manifestSchemaPath", "manifestSchemaSha256"],
+      "properties": {
+        "path": { "const": "scripts/account-lifecycle-parity/generate.mjs" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "manifestSchemaPath": {
+          "const": "scripts/account-lifecycle-parity/manifest.schema.json"
+        },
+        "manifestSchemaSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "harnessFiles": { "$ref": "#/$defs/hashedFiles" },
+    "sourceFiles": { "$ref": "#/$defs/hashedFiles" },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lockfile",
+        "yarnConfiguration",
+        "installState",
+        "nativeSQLite"
+      ],
+      "properties": {
+        "lockfile": {
+          "allOf": [
+            { "$ref": "#/$defs/hashedFile" },
+            { "properties": { "path": { "const": "yarn.lock" } } }
+          ]
+        },
+        "yarnConfiguration": {
+          "allOf": [
+            { "$ref": "#/$defs/hashedFile" },
+            { "properties": { "path": { "const": ".yarnrc.yml" } } }
+          ]
+        },
+        "installState": {
+          "allOf": [
+            { "$ref": "#/$defs/hashedFile" },
+            {
+              "properties": {
+                "path": { "const": "node_modules/.yarn-state.yml" }
+              }
+            }
+          ]
+        },
+        "nativeSQLite": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "packageName",
+            "version",
+            "platform",
+            "architecture",
+            "packageManifest",
+            "resolvedEntry",
+            "binary"
+          ],
+          "properties": {
+            "packageName": { "const": "better-sqlite3" },
+            "version": { "const": "12.11.1" },
+            "platform": { "type": "string", "minLength": 1 },
+            "architecture": { "type": "string", "minLength": 1 },
+            "packageManifest": {
+              "allOf": [
+                { "$ref": "#/$defs/hashedFile" },
+                {
+                  "properties": {
+                    "path": {
+                      "const": "node_modules/better-sqlite3/package.json"
+                    }
+                  }
+                }
+              ]
+            },
+            "resolvedEntry": {
+              "allOf": [
+                { "$ref": "#/$defs/hashedFile" },
+                {
+                  "properties": {
+                    "path": {
+                      "const": "node_modules/better-sqlite3/lib/index.js"
+                    }
+                  }
+                }
+              ]
+            },
+            "binary": {
+              "allOf": [
+                { "$ref": "#/$defs/hashedFile" },
+                {
+                  "properties": {
+                    "path": {
+                      "pattern": "^node_modules/better-sqlite3/.+/better_sqlite3\\.node$"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "caseCount", "caseIDs"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "caseCount": { "type": "integer", "minimum": 1 },
+        "caseIDs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "input", "assertions", "outputPointer"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "input": { "type": "object" },
+          "assertions": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "outputPointer": {
+            "type": "string",
+            "pattern": "^account-lifecycle-oracle\\.json#/cases/"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "hashedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "hashedFiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/hashedFile" }
+    }
+  }
+}

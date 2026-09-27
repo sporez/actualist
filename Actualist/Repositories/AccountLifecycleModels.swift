@@ -56,6 +56,29 @@ enum AccountLifecycleMutationPrecondition: Hashable, Sendable {
 enum AccountLifecycleOperation: String, Codable, Hashable, Sendable {
     case rename
     case reopen
+    case close
+    case delete
+}
+
+struct AccountLifecycleDay: Hashable, Sendable {
+    let isoDate: String
+    let transactionDate: Int
+
+    static func localGregorian(
+        now: Date = Date(),
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> Self {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.year, .month, .day], from: now)
+        let year = components.year ?? 1970
+        let month = components.month ?? 1
+        let day = components.day ?? 1
+        return Self(
+            isoDate: String(format: "%04d-%02d-%02d", year, month, day),
+            transactionDate: year * 10_000 + month * 100 + day
+        )
+    }
 }
 
 struct AccountLifecycleOutcome: Hashable, Sendable {
@@ -175,8 +198,8 @@ enum AccountLifecycleBankProvider: String, Hashable, Sendable {
 }
 
 struct AccountLifecycleBankLinkIdentity: Hashable, Sendable {
-    let remoteAccountID: String
-    let syncSource: String
+    let remoteAccountID: String?
+    let syncSource: String?
     let bankRowID: String?
 }
 
@@ -210,6 +233,7 @@ struct AccountLifecycleReviewIdentity: Hashable, Sendable {
     let budgetID: String
     let accountID: String
     let action: AccountLifecycleRequestedAction
+    let localDay: AccountLifecycleDay
     let sourceFacts: AccountLifecycleSourceFacts
     let destinationFacts: AccountLifecycleDestinationFacts?
     let categoryFacts: AccountLifecycleCategoryFacts?
@@ -241,7 +265,6 @@ enum AccountLifecycleBlocker: Hashable, Sendable {
     case categoryRequired
     case categoryUnavailable
     case unsupportedBankProvider(AccountLifecycleBankProvider)
-    case activeSchedules([AccountScheduleReference])
     case scheduleInspectionUnavailable
 }
 

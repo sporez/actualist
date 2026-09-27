@@ -15,6 +15,8 @@ enum AccountLifecycleState: Hashable, Sendable {
     case submittingReopen(AccountReopenSession)
     case loadingReview(AccountLifecycleReviewRequest)
     case reviewing(AccountLifecycleReview)
+    case reviewChanged(AccountLifecycleReview)
+    case submittingReview(AccountLifecycleReview)
     case completed(AccountLifecycleOutcome)
     case failed(AccountLifecycleRecoveryState, message: String)
 }
@@ -56,7 +58,7 @@ final class AccountLifecycleCoordinator {
 
     var review: AccountLifecycleReview? {
         switch state {
-        case .reviewing(let review):
+        case .reviewing(let review), .reviewChanged(let review), .submittingReview(let review):
             review
         default:
             nil
@@ -65,7 +67,7 @@ final class AccountLifecycleCoordinator {
 
     var isSubmitting: Bool {
         switch state {
-        case .submittingRename, .submittingReopen:
+        case .submittingRename, .submittingReopen, .submittingReview:
             true
         default:
             false
@@ -89,6 +91,17 @@ final class AccountLifecycleCoordinator {
     var canConfirmReopen: Bool {
         guard !isPrivacyModeEnabled, case .reopening = state else { return false }
         return true
+    }
+
+    var canConfirmReview: Bool {
+        guard !isPrivacyModeEnabled, let review,
+              state.isReviewingWithoutSubmission else { return false }
+        return review.blockers.isEmpty && review.resolvedAction != nil
+    }
+
+    var didReplaceReview: Bool {
+        if case .reviewChanged = state { return true }
+        return false
     }
 
     func beginRename(
@@ -117,7 +130,7 @@ final class AccountLifecycleCoordinator {
     @discardableResult
     func submitRename(
         repository: any AccountLifecycleRepositoryProtocol,
-        didMutate: @escaping @MainActor (AccountLifecycleOutcome) -> Void
+        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
     ) -> Task<Void, Never>? {
         guard !isPrivacyModeEnabled, case .renaming(var draft) = state else { return nil }
         guard let command = draft.command else {
@@ -139,7 +152,7 @@ final class AccountLifecycleCoordinator {
                 case .applied(let outcome):
                     state = .completed(outcome)
                     finishOperation(requestGeneration)
-                    didMutate(outcome)
+                    onCommitted(draft.identity, outcome)
                     return
                 case .noChange(let outcome):
                     state = .completed(outcome)
@@ -168,7 +181,7 @@ final class AccountLifecycleCoordinator {
     @discardableResult
     func confirmReopen(
         repository: any AccountLifecycleRepositoryProtocol,
-        didMutate: @escaping @MainActor (AccountLifecycleOutcome) -> Void
+        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
     ) -> Task<Void, Never>? {
         guard !isPrivacyModeEnabled, case .reopening(let session) = state else { return nil }
         let requestGeneration = beginOperation()
@@ -185,7 +198,7 @@ final class AccountLifecycleCoordinator {
                 case .applied(let outcome):
                     state = .completed(outcome)
                     finishOperation(requestGeneration)
-                    didMutate(outcome)
+                    onCommitted(session.identity, outcome)
                     return
                 case .noChange(let outcome):
                     state = .completed(outcome)
@@ -202,11 +215,12 @@ final class AccountLifecycleCoordinator {
         return operationTask
     }
 
+    @discardableResult
     func loadReview(
         request: AccountLifecycleReviewRequest,
         repository: any AccountLifecycleRepositoryProtocol
-    ) {
-        guard !isPrivacyModeEnabled, !isSubmitting else { return }
+    ) -> Task<Void, Never>? {
+        guard !isPrivacyModeEnabled, !isSubmitting else { return nil }
         let requestGeneration = beginOperation()
         state = .loadingReview(request)
         operationTask = Task { [weak self] in
@@ -230,6 +244,91 @@ final class AccountLifecycleCoordinator {
                 finishOperation(requestGeneration)
             }
         }
+        return operationTask
+    }
+
+    func selectCloseDestination(
+        _ destinationAccountID: String?,
+        repository: any AccountLifecycleRepositoryProtocol
+    ) {
+        guard let review, state.isReviewingWithoutSubmission else { return }
+        loadReview(
+            request: AccountLifecycleReviewRequest(
+                budgetID: review.identity.budgetID,
+                accountID: review.identity.accountID,
+                requestedAction: .close(
+                    destinationAccountID: destinationAccountID,
+                    categoryID: nil
+                )
+            ),
+            repository: repository
+        )
+    }
+
+    func selectCloseCategory(
+        _ categoryID: String?,
+        repository: any AccountLifecycleRepositoryProtocol
+    ) {
+        guard let review, state.isReviewingWithoutSubmission,
+              case .close(let destinationAccountID, _) = review.identity.action else { return }
+        loadReview(
+            request: AccountLifecycleReviewRequest(
+                budgetID: review.identity.budgetID,
+                accountID: review.identity.accountID,
+                requestedAction: .close(
+                    destinationAccountID: destinationAccountID,
+                    categoryID: categoryID
+                )
+            ),
+            repository: repository
+        )
+    }
+
+    @discardableResult
+    func confirmReview(
+        repository: any AccountLifecycleRepositoryProtocol,
+        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
+    ) -> Task<Void, Never>? {
+        guard canConfirmReview, let review else { return nil }
+        let requestGeneration = beginOperation()
+        state = .submittingReview(review)
+        operationTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await repository.commitAccountLifecycleAndRefresh(reviewed: review)
+                let identity = AccountLifecycleIdentity(
+                    budgetID: review.identity.budgetID,
+                    accountID: review.identity.accountID
+                )
+                guard isCurrent(requestGeneration, identity: identity) else { return }
+                switch result {
+                case .applied(let outcome):
+                    state = .completed(outcome)
+                    finishOperation(requestGeneration)
+                    onCommitted(identity, outcome)
+                    return
+                case .reviewChanged(let fresh):
+                    state = .reviewChanged(fresh)
+                case .noChange(let outcome):
+                    state = .completed(outcome)
+                }
+                finishOperation(requestGeneration)
+            } catch {
+                let identity = AccountLifecycleIdentity(
+                    budgetID: review.identity.budgetID,
+                    accountID: review.identity.accountID
+                )
+                guard isCurrent(requestGeneration, identity: identity) else { return }
+                let request = AccountLifecycleReviewRequest(
+                    budgetID: review.identity.budgetID,
+                    accountID: review.identity.accountID,
+                    requestedAction: review.identity.action
+                )
+                state = .failed(.review(request), message: message(for: error))
+                finishOperation(requestGeneration)
+            }
+        }
+        return operationTask
     }
 
     func retry(repository: any AccountLifecycleRepositoryProtocol) {
@@ -270,7 +369,7 @@ final class AccountLifecycleCoordinator {
             session.identity
         case .loadingReview(let request):
             AccountLifecycleIdentity(budgetID: request.budgetID, accountID: request.accountID)
-        case .reviewing(let review):
+        case .reviewing(let review), .reviewChanged(let review), .submittingReview(let review):
             AccountLifecycleIdentity(
                 budgetID: review.identity.budgetID,
                 accountID: review.identity.accountID
@@ -316,5 +415,16 @@ final class AccountLifecycleCoordinator {
             return commandError.localizedDescription
         }
         return error.userFacingMessage ?? error.localizedDescription
+    }
+}
+
+private extension AccountLifecycleState {
+    var isReviewingWithoutSubmission: Bool {
+        switch self {
+        case .reviewing, .reviewChanged:
+            true
+        default:
+            false
+        }
     }
 }

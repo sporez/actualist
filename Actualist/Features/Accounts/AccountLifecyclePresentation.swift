@@ -6,6 +6,11 @@ struct AccountLifecycleConsequenceRow: Identifiable, Hashable, Sendable {
     let value: String
 }
 
+struct AccountLifecycleChoice: Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+}
+
 struct AccountLifecycleReviewPresentation: Hashable, Sendable {
     let accountName: String
     let title: String
@@ -14,11 +19,17 @@ struct AccountLifecycleReviewPresentation: Hashable, Sendable {
     let isPrivacyProtected: Bool
     let blockerMessages: [String]
     let rows: [AccountLifecycleConsequenceRow]
+    let destinationChoices: [AccountLifecycleChoice]
+    let selectedDestinationID: String?
+    let showsDestinationPicker: Bool
+    let categoryChoices: [AccountLifecycleChoice]
+    let selectedCategoryID: String?
+    let showsCategoryPicker: Bool
 }
 
 enum AccountLifecyclePresentation {
     enum MutationSheet: Equatable {
-        case rename, reopen, savedRefreshPending
+        case rename, reopen, review, savedRefreshPending
     }
 
     static func mutationSheet(for state: AccountLifecycleState) -> MutationSheet? {
@@ -27,9 +38,11 @@ enum AccountLifecyclePresentation {
             .rename
         case .reopening, .submittingReopen, .failed(.reopen, _):
             .reopen
+        case .loadingReview, .reviewing, .reviewChanged, .submittingReview, .failed(.review, _):
+            .review
         case .completed(let outcome):
             outcome.refreshPending ? .savedRefreshPending : nil
-        case .idle, .loadingReview, .reviewing, .failed(.review, _):
+        case .idle:
             nil
         }
     }
@@ -67,6 +80,19 @@ enum AccountLifecyclePresentation {
                 id: "destination", label: "Transfer to", value: name
             ))
         }
+        if case .closeWithTransfer(let transfer) = review.resolvedAction {
+            let transferText = privacyModeEnabled
+                ? PrivacyDisplay.money(
+                    transfer.destinationAmount,
+                    seed: "account-lifecycle-transfer-\(review.account.id)",
+                    currency: currency,
+                    maximumDollars: 15_000
+                )
+                : currency.formatted(transfer.destinationAmount)
+            rows.append(AccountLifecycleConsequenceRow(
+                id: "transfer-amount", label: "Destination change", value: transferText
+            ))
+        }
         if let category = review.identity.categoryFacts?.category {
             let name = privacyModeEnabled
                 ? PrivacyDisplay.name(for: .category, seed: category.id)
@@ -88,6 +114,12 @@ enum AccountLifecyclePresentation {
                     privacyModeEnabled ? privateScheduleName(seed: $0.id) : $0.name
                 }.joined(separator: ", ")
             ))
+            let consequence = review.resolvedAction == .deleteEmptyAccount
+                ? "Scheduled posting stops because this account will be deleted."
+                : "Posting pauses while closed and resumes if the account is reopened."
+            rows.append(AccountLifecycleConsequenceRow(
+                id: "schedule-posting", label: "Scheduled posting", value: consequence
+            ))
         }
 
         let actionTitle: String?
@@ -107,7 +139,7 @@ enum AccountLifecyclePresentation {
             actionTitle = nil
         }
         let blockerMessages = review.blockers.map {
-            blockerMessage($0, privacyModeEnabled: privacyModeEnabled)
+            blockerMessage($0)
         }
         return AccountLifecycleReviewPresentation(
             accountName: accountName,
@@ -116,25 +148,33 @@ enum AccountLifecyclePresentation {
             canConfirm: !privacyModeEnabled && review.blockers.isEmpty && review.resolvedAction != nil,
             isPrivacyProtected: privacyModeEnabled,
             blockerMessages: blockerMessages,
-            rows: rows
+            rows: rows,
+            destinationChoices: review.eligibleDestinations.map {
+                AccountLifecycleChoice(id: $0.id, name: $0.name)
+            },
+            selectedDestinationID: review.identity.destinationFacts?.account.id,
+            showsDestinationPicker: review.liveTransactionCount > 0 && review.liveBalance != 0,
+            categoryChoices: review.eligibleCategories.map {
+                AccountLifecycleChoice(id: $0.id, name: $0.name)
+            },
+            selectedCategoryID: review.identity.categoryFacts?.category.id,
+            showsCategoryPicker: !review.account.offBudget
+                && review.identity.destinationFacts?.account.offBudget == true
         )
     }
 
     private static func bankProviderName(_ provider: AccountLifecycleBankProvider) -> String {
         switch provider {
-        case .simpleFIN: "SimpleFIN connection will be removed"
-        case .goCardless: "GoCardless connection will be removed"
-        case .pluggyAI: "Pluggy.ai connection will be removed"
-        case .akahu: "Akahu connection will be removed"
-        case .enableBanking: "Enable Banking connection will be removed"
-        case .unknown: "Unsupported connection"
+        case .simpleFIN: "SimpleFIN connection will be removed and cannot be restored from History"
+        case .goCardless: "Unlink GoCardless in a supported client first"
+        case .pluggyAI: "Unlink Pluggy.ai in a supported client first"
+        case .akahu: "Unlink Akahu in a supported client first"
+        case .enableBanking: "Unlink Enable Banking in a supported client first"
+        case .unknown: "Unlink this connection in a supported client first"
         }
     }
 
-    private static func blockerMessage(
-        _ blocker: AccountLifecycleBlocker,
-        privacyModeEnabled: Bool
-    ) -> String {
+    private static func blockerMessage(_ blocker: AccountLifecycleBlocker) -> String {
         switch blocker {
         case .accountAlreadyClosed:
             return "This account is already closed."
@@ -150,11 +190,6 @@ enum AccountLifecyclePresentation {
             return "The selected category is no longer available."
         case .unsupportedBankProvider:
             return "This bank connection cannot be removed safely yet."
-        case .activeSchedules(let schedules):
-            let names = schedules.map {
-                privacyModeEnabled ? privateScheduleName(seed: $0.id) : $0.name
-            }
-            return "Active schedules still use this account: \(names.joined(separator: ", "))."
         case .scheduleInspectionUnavailable:
             return "Active schedules could not be checked."
         }

@@ -5,6 +5,13 @@ import Observation
 @Observable
 final class AppRouteCoordinator {
     private(set) var pendingRoute: AppRoute?
+    private(set) var pendingAccountLifecycleReceipt: AccountLifecycleRouteReceipt?
+
+    var readyAccountLifecycleReceiptID: UUID? {
+        guard let receipt = pendingAccountLifecycleReceipt,
+              !receipt.awaitsSavedNoticeDismissal else { return nil }
+        return receipt.id
+    }
     var settingsPath: [SettingsPage] = []
     private var settingsPresentation: SettingsPresentation = .hidden
 
@@ -63,12 +70,29 @@ final class AppRouteCoordinator {
     /// continuation too: it navigates toward state the teardown destroyed.
     func reset() {
         pendingRoute = nil
+        pendingAccountLifecycleReceipt = nil
         settingsPath = []
         settingsPresentation = .hidden
     }
 
     func enqueue(_ route: AppRoute) {
         pendingRoute = route
+    }
+
+    func publishAccountLifecycleReceipt(_ receipt: AccountLifecycleRouteReceipt) {
+        pendingAccountLifecycleReceipt = receipt
+    }
+
+    func consumeAccountLifecycleReceipt(id: UUID) -> AccountLifecycleRouteReceipt? {
+        guard let receipt = pendingAccountLifecycleReceipt,
+              receipt.id == id, !receipt.awaitsSavedNoticeDismissal else { return nil }
+        pendingAccountLifecycleReceipt = nil
+        return receipt
+    }
+
+    func accountLifecycleSavedNoticeDismissed(receiptID: UUID) {
+        guard pendingAccountLifecycleReceipt?.id == receiptID else { return }
+        pendingAccountLifecycleReceipt?.awaitsSavedNoticeDismissal = false
     }
 
     @discardableResult

@@ -62,6 +62,14 @@ struct RootView: View {
         .onChange(of: transactionPresenter.presentation?.id) { _, id in
             if id == nil { transactionPresenter.consumeNewTransaction(using: appState) }
         }
+        .onChange(of: appState.routeCoordinator.readyAccountLifecycleReceiptID) { _, id in
+            guard let id else { return }
+            adaptiveSelection = AccountLifecycleRouting.consume(
+                receiptID: id,
+                using: appState,
+                selection: adaptiveSelection
+            )
+        }
         .task {
             if budgetSession == nil {
                 budgetSession = AdaptiveBudgetSession(repository: appState.localFirstStore)

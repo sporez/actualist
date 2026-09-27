@@ -36,6 +36,24 @@ struct AccountLifecycleMenu: View {
                 }
                 .disabled(appState.settings.randomizedDisplayValuesEnabled || coordinator.isSubmitting)
                 .accessibilityIdentifier("account-lifecycle-reopen-action")
+            } else {
+                Button(role: .destructive) {
+                    coordinator.loadReview(
+                        request: AccountLifecycleReviewRequest(
+                            budgetID: context.identity.budgetID,
+                            accountID: context.identity.accountID,
+                            requestedAction: .close(
+                                destinationAccountID: nil,
+                                categoryID: nil
+                            )
+                        ),
+                        repository: appState.localFirstStore
+                    )
+                } label: {
+                    Label("Close Account", systemImage: "xmark.circle")
+                }
+                .disabled(appState.settings.randomizedDisplayValuesEnabled || coordinator.isSubmitting)
+                .accessibilityIdentifier("account-lifecycle-close-action")
             }
         }
     }
@@ -45,6 +63,7 @@ struct AccountLifecycleMenu: View {
 /// Its bindings only dismiss presentation; commands and errors stay in the coordinator.
 struct AccountLifecyclePresentationHost: ViewModifier {
     @Environment(AppState.self) private var appState
+    @Environment(\.budgetCurrency) private var currency
     let coordinator: AccountLifecycleCoordinator
 
     func body(content: Content) -> some View {
@@ -72,6 +91,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
     private var sheetContent: some View {
         switch AccountLifecyclePresentation.mutationSheet(for: coordinator.state) {
         case .savedRefreshPending:
+            let receiptID = appState.routeCoordinator.pendingAccountLifecycleReceipt?.id
             NavigationStack {
                 ContentUnavailableView(
                     "Account Change Saved",
@@ -85,22 +105,94 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 }
             }
             .presentationDetents([.medium])
+            .onDisappear {
+                if let receiptID {
+                    appState.routeCoordinator.accountLifecycleSavedNoticeDismissed(receiptID: receiptID)
+                }
+            }
         case .rename:
             AccountRenameSheet(coordinator: coordinator) {
-                coordinator.submitRename(repository: appState.localFirstStore) { _ in
-                    appState.recordLocalDataMutation()
-                }
+                coordinator.submitRename(
+                    repository: appState.localFirstStore,
+                    onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
+                )
             }
             .safeAreaInset(edge: .bottom) { retryButton }
         case .reopen:
             AccountReopenSheet(coordinator: coordinator) {
-                coordinator.confirmReopen(repository: appState.localFirstStore) { _ in
-                    appState.recordLocalDataMutation()
-                }
+                coordinator.confirmReopen(
+                    repository: appState.localFirstStore,
+                    onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
+                )
             }
             .safeAreaInset(edge: .bottom) { retryButton }
+        case .review:
+            reviewSheet
         case nil:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var reviewSheet: some View {
+        if let review = coordinator.review {
+            AccountLifecycleReviewSheet(
+                presentation: AccountLifecyclePresentation.review(
+                    review,
+                    currency: currency,
+                    privacyModeEnabled: coordinator.isPrivacyModeEnabled
+                ),
+                didReplaceReview: coordinator.didReplaceReview,
+                isSubmitting: coordinator.isSubmitting,
+                onDestinationChange: {
+                    coordinator.selectCloseDestination(
+                        $0,
+                        repository: appState.localFirstStore
+                    )
+                },
+                onCategoryChange: {
+                    coordinator.selectCloseCategory(
+                        $0,
+                        repository: appState.localFirstStore
+                    )
+                },
+                onConfirm: {
+                    coordinator.confirmReview(
+                        repository: appState.localFirstStore,
+                        onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
+                    )
+                },
+                onCancel: { coordinator.cancel() }
+            )
+        } else if let error = coordinator.errorMessage {
+            NavigationStack {
+                ContentUnavailableView(
+                    "Account Review Unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(error)
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { coordinator.cancel() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Review Again") {
+                            coordinator.retry(repository: appState.localFirstStore)
+                        }
+                    }
+                }
+            }
+        } else {
+            NavigationStack {
+                ProgressView("Reviewing account…")
+                    .navigationTitle("Close Account")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { coordinator.cancel() }
+                        }
+                    }
+            }
         }
     }
 
