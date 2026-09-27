@@ -4,6 +4,32 @@ import Foundation
 /// cached reads touch the store snapshot and write completions refresh UI.
 @MainActor
 protocol TransactionRepositoryProtocol: AnyObject {
+    func cachedTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) -> LoadedAccountTransactions?
+    func refreshTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws
+    func loadOlderTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws
+    func transactionPage(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions
+    func transactionDrilldown(
+        budgetID: String,
+        request: TransactionDrilldownRequest
+    ) async throws -> TransactionDrilldownResult
     func cachedAccountTransactions(
         budgetID: String,
         accountID: String,
@@ -132,6 +158,104 @@ protocol TransactionRepositoryProtocol: AnyObject {
 }
 
 extension TransactionRepositoryProtocol {
+    func cachedTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) -> LoadedAccountTransactions? {
+        guard query.text == nil, !query.hasStructuredConditions else { return nil }
+        switch scope {
+        case .account(let accountID):
+            return cachedAccountTransactions(
+                budgetID: budgetID,
+                accountID: accountID,
+                statusFilter: query.status
+            )
+        case .spending:
+            return cachedSpendingTransactions(budgetID: budgetID, statusFilter: query.status)
+        }
+    }
+
+    func refreshTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        guard query.text == nil, !query.hasStructuredConditions else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        switch scope {
+        case .account(let accountID):
+            try await refreshAccountTransactions(
+                budgetID: budgetID,
+                accountID: accountID,
+                statusFilter: query.status
+            )
+        case .spending:
+            try await refreshSpendingTransactions(budgetID: budgetID, statusFilter: query.status)
+        }
+    }
+
+    func loadOlderTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        guard query.text == nil, !query.hasStructuredConditions else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        switch scope {
+        case .account(let accountID):
+            try await loadOlderTransactions(
+                budgetID: budgetID,
+                accountID: accountID,
+                statusFilter: query.status
+            )
+        case .spending:
+            try await loadOlderSpendingTransactions(budgetID: budgetID, statusFilter: query.status)
+        }
+    }
+
+    func transactionPage(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions {
+        guard !query.hasStructuredConditions, let text = query.text else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        let loaded: LoadedAccountTransactions
+        switch scope {
+        case .account(let accountID):
+            loaded = try await searchAccountTransactions(
+                budgetID: budgetID,
+                accountID: accountID,
+                query: text,
+                limit: limit,
+                offset: offset,
+                statusFilter: query.status
+            )
+        case .spending:
+            loaded = try await searchSpendingTransactions(
+                budgetID: budgetID,
+                query: text,
+                limit: limit,
+                offset: offset,
+                statusFilter: query.status
+            )
+        }
+        return loaded.replacingQueryMetadata(signature: query.signature)
+    }
+
+    func transactionDrilldown(
+        budgetID: String,
+        request: TransactionDrilldownRequest
+    ) async throws -> TransactionDrilldownResult {
+        throw LocalFirstError.unsupportedWrite
+    }
+
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
         cachedAccountTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
     }
@@ -294,6 +418,11 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let offBudgetAccountIDs: Set<String>
     let reachedEnd: Bool
     let nextOffset: Int
+    let totalMatchCount: Int
+    let querySignature: TransactionQuerySignature
+    let matchingTransactionIDs: Set<String>
+    let contributingTransactionIDs: Set<String>
+    let attachedContextTransactionIDs: Set<String>
 
     init(
         transactions: [ActualTransaction],
@@ -305,7 +434,12 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         transferAccountIDsByPayeeID: [String: String] = [:],
         offBudgetAccountIDs: Set<String> = [],
         reachedEnd: Bool,
-        nextOffset: Int? = nil
+        nextOffset: Int? = nil,
+        totalMatchCount: Int? = nil,
+        querySignature: TransactionQuerySignature = TransactionFeedQuery.all.signature,
+        matchingTransactionIDs: Set<String>? = nil,
+        contributingTransactionIDs: Set<String>? = nil,
+        attachedContextTransactionIDs: Set<String> = []
     ) {
         self.transactions = transactions
         self.balance = balance
@@ -317,11 +451,21 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         self.offBudgetAccountIDs = offBudgetAccountIDs
         self.reachedEnd = reachedEnd
         self.nextOffset = nextOffset ?? transactions.count
+        self.totalMatchCount = totalMatchCount ?? transactions.count
+        self.querySignature = querySignature
+        let physicalTransactions = transactions.flatMap { [$0] + $0.subtransactions }
+        let physicalIDs = Set(physicalTransactions.compactMap(\.id))
+        self.matchingTransactionIDs = matchingTransactionIDs ?? physicalIDs
+        self.contributingTransactionIDs = contributingTransactionIDs ?? Set(
+            physicalTransactions.filter { !$0.isParent }.compactMap(\.id)
+        )
+        self.attachedContextTransactionIDs = attachedContextTransactionIDs
     }
 }
 
 extension LoadedAccountTransactions {
     func appendingPage(_ older: LoadedAccountTransactions) -> LoadedAccountTransactions {
+        guard querySignature == older.querySignature else { return self }
         let existingIDs = Set(transactions.map(Self.identity))
         return LoadedAccountTransactions(
             transactions: transactions + older.transactions.filter { !existingIDs.contains(Self.identity($0)) },
@@ -334,7 +478,32 @@ extension LoadedAccountTransactions {
                 ? transferAccountIDsByPayeeID : older.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: older.offBudgetAccountIDs,
             reachedEnd: older.reachedEnd,
-            nextOffset: older.nextOffset
+            nextOffset: older.nextOffset,
+            totalMatchCount: older.totalMatchCount,
+            querySignature: querySignature,
+            matchingTransactionIDs: matchingTransactionIDs.union(older.matchingTransactionIDs),
+            contributingTransactionIDs: contributingTransactionIDs.union(older.contributingTransactionIDs),
+            attachedContextTransactionIDs: attachedContextTransactionIDs.union(older.attachedContextTransactionIDs)
+        )
+    }
+
+    func replacingQueryMetadata(signature: TransactionQuerySignature) -> LoadedAccountTransactions {
+        LoadedAccountTransactions(
+            transactions: transactions,
+            balance: balance,
+            accountNames: accountNames,
+            categoryNames: categoryNames,
+            payeeNames: payeeNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: offBudgetAccountIDs,
+            reachedEnd: reachedEnd,
+            nextOffset: nextOffset,
+            totalMatchCount: totalMatchCount,
+            querySignature: signature,
+            matchingTransactionIDs: matchingTransactionIDs,
+            contributingTransactionIDs: contributingTransactionIDs,
+            attachedContextTransactionIDs: attachedContextTransactionIDs
         )
     }
 
@@ -358,7 +527,12 @@ extension LoadedAccountTransactions {
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
             offBudgetAccountIDs: offBudgetAccountIDs,
             reachedEnd: reachedEnd,
-            nextOffset: nextOffset
+            nextOffset: nextOffset,
+            totalMatchCount: totalMatchCount,
+            querySignature: querySignature,
+            matchingTransactionIDs: matchingTransactionIDs,
+            contributingTransactionIDs: contributingTransactionIDs,
+            attachedContextTransactionIDs: attachedContextTransactionIDs
         )
     }
 }

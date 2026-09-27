@@ -86,6 +86,20 @@ extension BudgetDatabase {
         month: String? = nil,
         statusFilter: TransactionStatusFilter = .all
     ) throws -> TransactionFetchResult {
+        if splits == nil, month == nil {
+            let scope = accountID.map(TransactionQueryScope.account) ?? .spending
+            let page = try fetchTransactionQueryPage(
+                scope: scope,
+                query: TransactionFeedQuery(status: statusFilter, text: query),
+                limit: limit,
+                offset: offset
+            )
+            return TransactionFetchResult(
+                transactions: page.transactions,
+                reachedEnd: page.reachedEnd,
+                nextOffset: page.nextOffset
+            )
+        }
         try queue.read { db in
             guard try tableExists("transactions", db: db) else {
                 return TransactionFetchResult(transactions: [], reachedEnd: true, nextOffset: max(0, offset))
@@ -287,7 +301,7 @@ extension BudgetDatabase {
     }
 }
 
-private struct TransactionReadJoins {
+struct TransactionReadJoins {
     let sql: String
     let mappedPayee: String
     let mappedCategory: String
@@ -295,14 +309,14 @@ private struct TransactionReadJoins {
     let categoryNameSelect: String
 }
 
-private struct UncategorizedReadContext {
+struct UncategorizedReadContext {
     let split: TransactionSplitQueryExpressions
     let normalizedDate: String
     let joins: TransactionReadJoins
     let conditions: [String]
 }
 
-private extension BudgetDatabase {
+extension BudgetDatabase {
     func transactionReadJoins(
         db: Database,
         split: TransactionSplitQueryExpressions,
