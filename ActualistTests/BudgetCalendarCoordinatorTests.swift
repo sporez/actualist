@@ -24,6 +24,35 @@ struct BudgetCalendarCoordinatorTests {
         #expect(appState.localDataRevision == revisionAfterFirstRefresh)
         #expect(publications == 1)
         #expect(coordinator.currentMonth == "2026-07")
+        #expect(coordinator.currentDay != nil)
+        coordinator.endForeground()
+    }
+
+    @Test func foregroundReturnRefreshesWhenTheLocalDayChangedWithinTheSameMonth() async throws {
+        let fixtures = LocalFirstActualStoreTests()
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        let timeZoneID = "America/Los_Angeles"
+        var clock = Self.dayDate("2026-07-01", timeZoneID: timeZoneID)
+        var publications = 0
+        let coordinator = BudgetCalendarCoordinator(
+            now: { clock },
+            currentTimeZoneID: { timeZoneID },
+            publishWidgets: { publications += 1 }
+        )
+        coordinator.configure(appState: appState)
+
+        await coordinator.beginForeground()?.value
+        coordinator.endForeground()
+        let revisionBeforeReturn = appState.localDataRevision
+        clock = Self.dayDate("2026-07-02", timeZoneID: timeZoneID)
+
+        await coordinator.beginForeground()?.value
+
+        #expect(coordinator.currentMonth == "2026-07")
+        #expect(coordinator.currentDay == "2026-07-02")
+        #expect(appState.localDataRevision == revisionBeforeReturn + 1)
+        #expect(publications == 2)
         coordinator.endForeground()
     }
 
@@ -104,6 +133,12 @@ struct BudgetCalendarCoordinatorTests {
 
     private static func date(_ month: String) -> Date {
         ReportCalendar.date(fromMonthID: month, calendar: ReportCalendar.gregorianLocal)!
+    }
+
+    private static func dayDate(_ day: String, timeZoneID: String) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: timeZoneID)!
+        return ReportCalendar.date(fromDayID: day, calendar: calendar)!
     }
 
     @MainActor

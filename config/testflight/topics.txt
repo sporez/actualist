@@ -11,6 +11,7 @@ payees
 privacy
 reports
 rules
+schedules
 settings
 shortcuts
 sync

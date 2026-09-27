@@ -7,6 +7,7 @@ struct BudgetView: View {
     @State private var viewModel: BudgetViewModel
     @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
     @State private var isHistoryPresented = false
+    @State private var isSchedulesPresented = false
     @State private var isMonthPickerPresented = false
     @State private var isUncategorizedTransactionsPresented = false
     @State private var uncategorizedRouteMonth: String?
@@ -156,6 +157,11 @@ struct BudgetView: View {
                                 Label("History", systemImage: "clock.arrow.circlepath")
                             }
 
+                            Button("Schedules", systemImage: "calendar.badge.clock") {
+                                isSchedulesPresented = true
+                            }
+                            .accessibilityIdentifier("budget-schedules-open")
+
                             Divider()
 
                             Button {
@@ -252,6 +258,10 @@ struct BudgetView: View {
                     HistoryView()
                         .appSwitcherPrivacyProtected(using: appState)
                 }
+                .sheet(isPresented: $isSchedulesPresented) {
+                    SchedulesSheet()
+                        .appSwitcherPrivacyProtected(using: appState)
+                }
                 .fullScreenCover(
                     isPresented: Binding(
                         get: { appState.routeCoordinator.isSettingsPresented },
@@ -343,7 +353,7 @@ struct BudgetView: View {
     }
 
     private var monthSwipePresentationBlocked: Bool {
-        isHistoryPresented || isMonthPickerPresented || isUncategorizedTransactionsPresented
+        isHistoryPresented || isSchedulesPresented || isMonthPickerPresented || isUncategorizedTransactionsPresented
             || categoryDetailsPresentation != nil || isOverspentCategoriesPresented
             || pendingTemplateConfirmation != nil || templateEditorTarget != nil || noteTarget != nil
             || holdTarget != nil || categoryLifecycleSheet != nil

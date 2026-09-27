@@ -1,8 +1,20 @@
+import Foundation
 import Testing
 @testable import Actualist
 
 @Suite("Schedule presentation")
 struct SchedulePresentationTests {
+    @Test func currentDayUsesLocalGregorianDateAcrossUTCAndYearBoundaries() throws {
+        let midnightUTC = try #require(ISO8601DateFormatter().date(from: "2026-01-01T00:00:00Z"))
+        let west = try #require(TimeZone(secondsFromGMT: -8 * 60 * 60))
+        let east = try #require(TimeZone(secondsFromGMT: 14 * 60 * 60))
+        #expect(SchedulesViewContext.currentDay(now: midnightUTC, timeZone: west) == "2025-12-31")
+        #expect(SchedulesViewContext.currentDay(now: midnightUTC, timeZone: east) == "2026-01-01")
+        #expect(SchedulesViewContext.currentDay(
+            now: midnightUTC.addingTimeInterval(12 * 60 * 60), timeZone: east
+        ) == "2026-01-02")
+    }
+
     @Test func loadIdentityRefreshInputsDoNotChangeBudgetSessionIdentity() {
         let context = context()
         let initial = SchedulesLoadIdentity(

@@ -174,6 +174,52 @@ struct SchedulesViewModelTests {
         #expect(!model.isRefreshing)
     }
 
+    @Test func preCancelledLoadReleasedAfterValidRefreshStartsCannotSupersedeIt() async {
+        let obsoleteMayEnter = TestLatch()
+        let validEntered = TestLatch()
+        let validRelease = TestLatch()
+        let repository = ScheduleRepositoryFake(
+            results: [
+                "old": .success(snapshot(budgetID: "old", ids: ["obsolete"])),
+                "new": .success(snapshot(budgetID: "new", ids: ["fresh"]))
+            ],
+            entered: ["new": validEntered],
+            release: ["new": validRelease]
+        )
+        let oldContext = context(budgetID: "old")
+        let newContext = context(budgetID: "new")
+        let model = SchedulesViewModel(context: oldContext)
+        let obsolete = Task {
+            await obsoleteMayEnter.wait()
+            await model.load(context: oldContext, repository: repository)
+        }
+        obsolete.cancel()
+
+        let valid = Task {
+            defer { validEntered.trip() }
+            await model.load(context: newContext, repository: repository)
+        }
+        await withTaskCancellationHandler {
+            await validEntered.wait()
+        } onCancel: {
+            validEntered.trip()
+            obsoleteMayEnter.trip()
+            validRelease.trip()
+        }
+        #expect(model.loadedIdentity == newContext.identity)
+        #expect(model.isLoading)
+        if Task.isCancelled { valid.cancel() }
+        obsoleteMayEnter.trip()
+        await obsolete.value
+        validRelease.trip()
+        await valid.value
+
+        #expect(model.loadedIdentity == newContext.identity)
+        #expect(model.snapshot?.schedules.map(\.id) == ["fresh"])
+        #expect(!model.isLoading)
+        #expect(!model.isRefreshing)
+    }
+
     @Test func statusGroupsStayDistinctAndCompletedRemainsCollapsed() async {
         let schedules = ScheduleStatus.allCases.map {
             summary(id: $0.rawValue, name: $0.rawValue, status: $0)

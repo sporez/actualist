@@ -6,6 +6,7 @@ extension LocalFirstActualStore {
     func reloadSelectedBudgetCache(budgetID: String, now: Date = Date()) async throws {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
+        invalidateScheduleCache(budgetID: budgetID)
         budgetReadGeneration &+= 1
         monthsByBudget[budgetID] = nil
         templateBrowserByBudget[budgetID] = nil

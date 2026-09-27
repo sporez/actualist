@@ -66,6 +66,7 @@ final class SchedulesViewModel {
         context: SchedulesViewContext,
         repository: any ScheduleRepositoryProtocol
     ) async {
+        guard !Task.isCancelled else { return }
         loadGeneration &+= 1
         let generation = loadGeneration
         let previousIdentity = loadedIdentity

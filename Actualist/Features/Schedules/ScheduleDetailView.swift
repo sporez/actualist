@@ -58,7 +58,7 @@ struct ScheduleDetailView: View {
                 LabeledContent("Upcoming window", value: presentation.upcomingWindowText)
             }
 
-            Section("Transaction") {
+            Section {
                 LabeledContent("Amount", value: presentation.amountText)
                 referenceRow(
                     title: "Account",
@@ -75,11 +75,13 @@ struct ScheduleDetailView: View {
                     tone: presentation.payeeIsMissing ? .warning : .neutral
                 )
                 LabeledContent("Automatic posting", value: presentation.automaticPostingText)
+            } header: {
+                Text("Transaction")
             } footer: {
                 Text("Automatic posting is shown as stored in the budget. This read-only screen does not post transactions.")
             }
 
-            Section("Availability") {
+            Section {
                 Label("Read-only in Actualist", systemImage: "lock.fill")
                     .foregroundStyle(ActualistTheme.secondaryText)
 
@@ -87,6 +89,8 @@ struct ScheduleDetailView: View {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(ActualistTheme.warning)
                 }
+            } header: {
+                Text("Availability")
             } footer: {
                 Text(
                     presentation.unsupportedMessages.isEmpty

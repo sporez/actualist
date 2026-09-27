@@ -151,7 +151,11 @@ struct BudgetDatabaseScheduleReadTests {
         """
         ALTER TABLE transactions ADD COLUMN schedule TEXT;
         ALTER TABLE transactions ADD COLUMN transferred_id TEXT;
-        ALTER TABLE payee_mapping ADD COLUMN targetId TEXT;
+        CREATE TABLE payee_mapping (
+            id TEXT PRIMARY KEY,
+            transferId TEXT,
+            targetId TEXT
+        );
         CREATE TABLE payees (
             id TEXT PRIMARY KEY,
             name TEXT,

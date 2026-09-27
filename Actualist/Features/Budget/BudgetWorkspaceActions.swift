@@ -2,6 +2,7 @@ import Observation
 
 enum BudgetWorkspaceSheet: Identifiable, Equatable {
     case history
+    case schedules
     case uncategorized(String)
     case overspent
     case moveMoney
@@ -13,6 +14,7 @@ enum BudgetWorkspaceSheet: Identifiable, Equatable {
     var id: String {
         switch self {
         case .history: "history"
+        case .schedules: "schedules"
         case .uncategorized(let month): "uncategorized:\(month)"
         case .overspent: "overspent"
         case .moveMoney: "move-money"
@@ -91,6 +93,11 @@ final class BudgetWorkspaceActions {
     func openHistory() {
         clearActionContext()
         sheet = .history
+    }
+
+    func openSchedules() {
+        clearActionContext()
+        sheet = .schedules
     }
 
     func openCreateCategory() {

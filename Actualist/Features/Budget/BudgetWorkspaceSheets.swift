@@ -39,6 +39,8 @@ struct BudgetWorkspaceSheets: ViewModifier {
         switch sheet {
         case .history:
             HistoryView()
+        case .schedules:
+            SchedulesSheet()
         case .uncategorized(let month):
             UncategorizedTransactionsView(
                 month: month,

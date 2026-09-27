@@ -70,6 +70,7 @@ extension LocalFirstActualStore {
     }
 
     private func reloadAfterRuleMutation(database: BudgetDatabase, budgetID: String) async throws {
+        invalidateScheduleCache(budgetID: budgetID)
         rulesByBudget[budgetID] = try await database.fetchRules()
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)

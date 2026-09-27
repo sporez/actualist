@@ -10,6 +10,7 @@ final class BudgetCalendarCoordinator: NSObject {
     private var foregroundRefreshTask: Task<Void, Never>?
     private var generation = 0
     private(set) var currentMonth: String?
+    private(set) var currentDay: String?
     private var timeZoneID: String?
     private let now: @MainActor () -> Date
     private let currentTimeZoneID: @MainActor () -> String
@@ -45,9 +46,13 @@ final class BudgetCalendarCoordinator: NSObject {
             await refreshTask.value
             while !Task.isCancelled {
                 guard let date = self?.now() else { return }
-                let delay = max(1, WidgetMonthID.nextBoundary(after: date, graceInterval: 0).timeIntervalSince(date))
+                guard let self else { return }
+                let delay = max(
+                    1,
+                    self.nextLocalDayBoundary(after: date).timeIntervalSince(date)
+                )
                 do { try await Task.sleep(for: .seconds(delay)) } catch { return }
-                guard let self, requested == self.generation else { return }
+                guard requested == self.generation else { return }
                 await self.refresh(force: false, generation: requested)
             }
         }
@@ -77,9 +82,11 @@ final class BudgetCalendarCoordinator: NSObject {
     private func refresh(force: Bool, generation requested: Int) async {
         guard !Task.isCancelled, requested == generation else { return }
         let date = now()
-        let month = WidgetMonthID.current(now: date)
         let zone = currentTimeZoneID()
-        guard force || month != currentMonth || zone != timeZoneID else { return }
+        let calendar = localGregorianCalendar(timeZoneID: zone)
+        let month = WidgetMonthID.current(now: date, calendar: calendar)
+        let day = ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
+        guard force || day != currentDay || zone != timeZoneID else { return }
         guard let appState else { return }
         if let budgetID = appState.settings.selectedBudgetID,
            appState.localFirstStore.isOpen(budgetID: budgetID) {
@@ -87,10 +94,24 @@ final class BudgetCalendarCoordinator: NSObject {
         }
         guard !Task.isCancelled, requested == generation else { return }
         currentMonth = month
+        currentDay = day
         timeZoneID = zone
         // Also redraw cached summaries if a local read failed. Their typed
         // planned/actual values can select the new headline without SQLite.
         appState.recordLocalDataMutation()
         publishWidgets()
+    }
+
+    private func nextLocalDayBoundary(after date: Date) -> Date {
+        localGregorianCalendar(timeZoneID: currentTimeZoneID())
+            .dateInterval(of: .day, for: date)?.end
+            ?? date.addingTimeInterval(6 * 60 * 60)
+    }
+
+    private func localGregorianCalendar(timeZoneID: String) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(identifier: timeZoneID) ?? .autoupdatingCurrent
+        return calendar
     }
 }

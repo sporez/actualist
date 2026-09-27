@@ -4,7 +4,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, EntityNotesRepositoryProtocol, PayeeRepositoryProtocol, RuleRepositoryProtocol, TransactionRepositoryProtocol, ReportsRepositoryProtocol {
+final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, EntityNotesRepositoryProtocol, PayeeRepositoryProtocol, RuleRepositoryProtocol, ScheduleRepositoryProtocol, TransactionRepositoryProtocol, ReportsRepositoryProtocol {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: (@Sendable (URL) -> any ActualSyncTransport)?
@@ -49,6 +49,9 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var monthsByBudget: [String: [String]] = [:]
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
     var templateBrowserByBudget: [String: BudgetTemplateBrowserSnapshot] = [:]
+    var schedulesByBudget: [String: LoadedSchedules] = [:]
+    @ObservationIgnored var scheduleRequestIdentity = ScheduleRequestIdentity()
+    @ObservationIgnored var scheduleReadHook: ScheduleReadHook?
     var transactionFeedPagesByKey: [TransactionFeedCacheKey: TransactionFeedPage] = [:]
     @ObservationIgnored var transactionFeedRequestIdentity = TransactionFeedRequestIdentity()
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
@@ -209,6 +212,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     func closeOpenBudget() {
         activeReimportID = nil
         database?.invalidateSessionWrites()
+        scheduleRequestIdentity.resetSession()
         transactionFeedRequestIdentity.resetSession()
         budgetReadGeneration &+= 1
         budgetSessionGeneration &+= 1
@@ -236,6 +240,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         monthsByBudget = [:]
         loadedBudgetMonthsByBudget = [:]
         templateBrowserByBudget = [:]
+        schedulesByBudget = [:]
         transactionFeedPagesByKey = [:]
         categoryTransactionsByKey = [:]
         uncategorizedTransactionsByKey = [:]

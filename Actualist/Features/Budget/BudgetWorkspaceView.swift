@@ -167,6 +167,8 @@ struct BudgetWorkspaceView: View {
                 }
                 .pickerStyle(.menu)
                 Button("History", systemImage: "clock.arrow.circlepath") { actions.openHistory() }
+                Button("Schedules", systemImage: "calendar.badge.clock") { actions.openSchedules() }
+                    .accessibilityIdentifier("budget-schedules-open")
                 Toggle("Show Hidden Categories", isOn: Binding(
                     get: { appState.settings.showHiddenCategories },
                     set: { appState.updateShowHiddenCategories($0) }

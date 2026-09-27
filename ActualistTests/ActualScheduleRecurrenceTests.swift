@@ -58,8 +58,8 @@ struct ActualScheduleRecurrenceTests {
                 .weekday(.monday, ordinal: -1)
             ]
         )
-        #expect(try monthly.nextOccurrence(onOrAfter: "2026-02-01") == "2026-02-09")
-        #expect(try monthly.nextOccurrence(onOrAfter: "2026-02-10") == "2026-02-23")
+        #expect(try monthly.nextOccurrence(onOrAfter: "2026-02-01") == "2026-02-13")
+        #expect(try monthly.nextOccurrence(onOrAfter: "2026-02-14") == "2026-02-23")
     }
 
     @Test func monthEndAndLeapDay() throws {

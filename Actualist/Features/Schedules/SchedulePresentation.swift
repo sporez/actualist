@@ -10,6 +10,12 @@ struct SchedulesViewContext: Hashable, Sendable {
     let currency: BudgetCurrency
     let isPrivacyModeEnabled: Bool
     let asOfDayID: String
+
+    static func currentDay(now: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
+    }
 }
 
 enum ScheduleListSectionKind: String, CaseIterable, Identifiable, Sendable {
