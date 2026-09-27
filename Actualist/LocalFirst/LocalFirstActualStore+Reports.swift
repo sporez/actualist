@@ -18,6 +18,14 @@ extension LocalFirstActualStore {
         return snapshot
     }
 
+    func reportExplorerSnapshot(
+        budgetID: String,
+        query: ReportExplorerQuery
+    ) async throws -> ReportExplorerSnapshot {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.fetchReportExplorer(query: query)
+    }
+
     func invalidateReports(budgetID: String? = nil) {
         guard let budgetID else {
             reportsByKey = [:]

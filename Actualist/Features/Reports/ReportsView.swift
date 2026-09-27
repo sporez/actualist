@@ -40,6 +40,9 @@ struct ReportsView: View {
             .background(ActualistTheme.background)
             .navigationTitle("Reports")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: ReportCardKind.self) { reportCard in
+                ReportExplorerView(reportCard: reportCard)
+            }
             .task { await viewModel.load(using: appState) }
             .refreshable { await viewModel.refresh(using: appState) }
             .onChange(of: appState.localDataRevision) {
@@ -77,20 +80,24 @@ struct ReportsDashboardContent: View {
     var body: some View {
         VStack(spacing: 14) {
             ForEach(reportCardOrder) { reportCard in
-                switch reportCard {
-                case .netWorth:
-                    NetWorthReportCard(snapshot: snapshot, viewModel: viewModel)
-                case .cashFlow:
-                    CashFlowReportCard(snapshot: snapshot, viewModel: viewModel)
-                case .monthComparison:
-                    MonthComparisonReportCard(snapshot: snapshot, viewModel: viewModel)
-                case .budgetOverview:
-                    BudgetOverviewReportCard(snapshot: snapshot, viewModel: viewModel)
-                case .threeMonthAverage:
-                    ThreeMonthAverageReportCard(snapshot: snapshot, viewModel: viewModel)
-                case .transactionCalendar:
-                    TransactionCalendarReportCard(snapshot: snapshot, viewModel: viewModel)
+                NavigationLink(value: reportCard) {
+                    switch reportCard {
+                    case .netWorth:
+                        NetWorthReportCard(snapshot: snapshot, viewModel: viewModel)
+                    case .cashFlow:
+                        CashFlowReportCard(snapshot: snapshot, viewModel: viewModel)
+                    case .monthComparison:
+                        MonthComparisonReportCard(snapshot: snapshot, viewModel: viewModel)
+                    case .budgetOverview:
+                        BudgetOverviewReportCard(snapshot: snapshot, viewModel: viewModel)
+                    case .threeMonthAverage:
+                        ThreeMonthAverageReportCard(snapshot: snapshot, viewModel: viewModel)
+                    case .transactionCalendar:
+                        TransactionCalendarReportCard(snapshot: snapshot, viewModel: viewModel)
+                    }
                 }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens report details")
             }
         }
     }
@@ -172,6 +179,10 @@ private struct ReportCard<Content: View>: View {
                         .multilineTextAlignment(.trailing)
                         .minimumScaleFactor(0.72)
                 }
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .accessibilityHidden(true)
             }
 
             content
@@ -524,7 +535,7 @@ private struct TransactionCalendarCell: View {
     }
 }
 
-private extension ReportValueTone {
+extension ReportValueTone {
     var color: Color {
         switch self {
         case .neutral: ActualistTheme.primaryText

@@ -571,4 +571,11 @@ private final class FakeReportsRepository: ReportsRepositoryProtocol {
         guard !refreshed.isEmpty else { throw ReportsTestError.failed }
         return refreshed.removeFirst()
     }
+
+    func reportExplorerSnapshot(
+        budgetID: String,
+        query: ReportExplorerQuery
+    ) async throws -> ReportExplorerSnapshot {
+        throw ReportsTestError.failed
+    }
 }
