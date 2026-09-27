@@ -304,7 +304,8 @@ private func makeSnapshot(query: ReportExplorerQuery, total: Int) -> ReportExplo
         expenses: 0,
         net: total,
         endingBalance: total,
-        budgeted: 0
+        budgeted: 0,
+        comparison: 0
     )
     return ReportExplorerSnapshot(
         query: query,
@@ -338,7 +339,8 @@ private func makeNetWorthSnapshot(
             expenses: 0,
             net: 0,
             endingBalance: ending,
-            budgeted: 0
+            budgeted: 0,
+            comparison: 0
         )],
         totals: ReportExplorerTotals(
             income: 0,

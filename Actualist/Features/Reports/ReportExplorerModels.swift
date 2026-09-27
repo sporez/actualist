@@ -119,6 +119,29 @@ struct ReportExplorerQuery: Hashable, Sendable {
             }
         }
     }
+
+    var spendingAverageComparison: ReportSpendingAverageComparison? {
+        guard metric == .spendingAverage, hasValidRange else { return nil }
+        let comparison = ReportExplorerPeriod(startDay: startDay, endDay: endDay)
+        let history = (-3 ... -1).map { offset in
+            let month = ReportCalendar.shiftedMonth(String(startDay.prefix(7)), by: offset)
+            return ReportExplorerPeriod(
+                startDay: ReportCalendar.dayID(month: month, day: 1),
+                endDay: ReportCalendar.dayID(
+                    month: month,
+                    day: max(ReportCalendar.days(in: month), 1)
+                )
+            )
+        }
+        return ReportSpendingAverageComparison(comparison: comparison, history: history)
+    }
+}
+
+/// Spending Average compares the selected range with corresponding-day values
+/// from the three completed months before its start month.
+struct ReportSpendingAverageComparison: Equatable, Sendable {
+    let comparison: ReportExplorerPeriod
+    let history: [ReportExplorerPeriod]
 }
 
 struct ReportExplorerPeriod: Identifiable, Hashable, Sendable {
@@ -136,6 +159,7 @@ struct ReportExplorerPoint: Identifiable, Equatable, Sendable {
     let net: Int
     let endingBalance: Int
     let budgeted: Int
+    let comparison: Int
 
     var id: String { period.id }
 }
@@ -194,18 +218,16 @@ extension ReportCardKind {
         switch self {
         case .netWorth:
             .sixMonths
-        case .threeMonthAverage:
-            .threeMonths
-        case .cashFlow, .monthComparison, .budgetOverview, .transactionCalendar:
+        case .cashFlow, .monthComparison, .budgetOverview, .threeMonthAverage, .transactionCalendar:
             .monthToDate
         }
     }
 
     var explorerDefaultInterval: ReportInterval {
         switch self {
-        case .netWorth, .cashFlow, .threeMonthAverage:
+        case .netWorth, .cashFlow:
             .month
-        case .monthComparison, .budgetOverview, .transactionCalendar:
+        case .monthComparison, .budgetOverview, .threeMonthAverage, .transactionCalendar:
             .day
         }
     }

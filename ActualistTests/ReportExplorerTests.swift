@@ -32,6 +32,21 @@ struct ReportExplorerTests {
             interval: .day
         )
         #expect(daily.periods.map(\.startDay) == ["2024-02-28", "2024-02-29", "2024-03-01"])
+
+        let average = ReportExplorerQuery(
+            metric: .spendingAverage,
+            startDay: "2026-01-01",
+            endDay: "2026-01-15",
+            interval: .day
+        )
+        #expect(average.spendingAverageComparison == ReportSpendingAverageComparison(
+            comparison: ReportExplorerPeriod(startDay: "2026-01-01", endDay: "2026-01-15"),
+            history: [
+                ReportExplorerPeriod(startDay: "2025-10-01", endDay: "2025-10-31"),
+                ReportExplorerPeriod(startDay: "2025-11-01", endDay: "2025-11-30"),
+                ReportExplorerPeriod(startDay: "2025-12-01", endDay: "2025-12-31"),
+            ]
+        ))
     }
 
     @Test func allReportCardsHaveTruthfulDistinctDetailConfigurations() {
@@ -44,7 +59,7 @@ struct ReportExplorerTests {
             "cashFlow|cashFlow|monthToDate|month",
             "monthComparison|spending|monthToDate|day",
             "budgetOverview|budgetOverview|monthToDate|day",
-            "threeMonthAverage|spendingAverage|threeMonths|month",
+            "threeMonthAverage|spendingAverage|monthToDate|day",
             "transactionCalendar|cashFlow|monthToDate|day",
         ])
     }
@@ -95,20 +110,113 @@ struct ReportExplorerTests {
         #expect(snapshot.totals.net == -11_000)
     }
 
-    @Test func budgetOverviewAddsAProportionalBudgetSeries() async throws {
-        let database = try BudgetDatabase(databaseURL: makeFixture())
-        let query = ReportExplorerQuery(
+    @Test func budgetOverviewDailyDefaultIsCumulativeFromTheInclusiveRangeStart() async throws {
+        let database = try BudgetDatabase(databaseURL: makeFixture(extraSQL: """
+            INSERT INTO transactions VALUES (
+                'budget-day-two', 'checking', 20260102, -2000,
+                'groceries', NULL, 0, NULL, 0, 0, NULL
+            );
+            """))
+        let monthToDate = ReportExplorerQuery(
+            metric: .budgetOverview,
+            startDay: "2026-01-01",
+            endDay: "2026-01-03",
+            interval: .day
+        )
+
+        let snapshot = try await database.fetchReportExplorer(query: monthToDate)
+
+        #expect(snapshot.points.map(\.expenses) == [0, 2_000, 2_000])
+        #expect(snapshot.points.map(\.budgeted) == [1_000, 2_000, 3_000])
+        #expect(snapshot.totals.expenses == 2_000)
+        #expect(snapshot.totals.budgeted == 3_000)
+
+        let partialRange = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .budgetOverview,
+            startDay: "2026-01-02",
+            endDay: "2026-01-03",
+            interval: .day
+        ))
+        #expect(partialRange.points.map(\.expenses) == [2_000, 2_000])
+        #expect(partialRange.points.map(\.budgeted) == [1_000, 2_000])
+        #expect(partialRange.totals.expenses == 2_000)
+        #expect(partialRange.totals.budgeted == 2_000)
+
+        let fullMonth = try await database.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .budgetOverview,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
-            interval: .month
-        )
+            interval: .day
+        ))
+        #expect(fullMonth.points.count == 28)
+        #expect(fullMonth.points.last?.period == ReportExplorerPeriod(
+            startDay: "2026-01-28",
+            endDay: "2026-01-31"
+        ))
+        #expect(fullMonth.points.last?.budgeted == 31_000)
+        #expect(fullMonth.points.last?.expenses == 13_000)
+    }
 
-        let snapshot = try await database.fetchReportExplorer(query: query)
+    @Test func spendingAverageUsesThreePriorMonthsAndCorrespondingDayCutoffs() async throws {
+        let database = try BudgetDatabase(databaseURL: makeFixture(extraSQL: """
+            INSERT INTO transactions VALUES ('oct-base', 'checking', 20251001, -30000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
+            INSERT INTO transactions VALUES ('nov-base', 'checking', 20251101, -30000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
+            INSERT INTO transactions VALUES ('dec-base', 'checking', 20251201, -30000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
+            INSERT INTO transactions VALUES ('oct-end', 'checking', 20251031, -3000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
+            INSERT INTO transactions VALUES ('nov-end', 'checking', 20251130, -3000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
+            INSERT INTO transactions VALUES ('dec-end', 'checking', 20251231, -3000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
+            """))
 
-        #expect(snapshot.points.map(\.expenses) == [11_000])
-        #expect(snapshot.points.map(\.budgeted) == [31_000])
-        #expect(snapshot.totals.budgeted == 31_000)
+        let monthToDate = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .spendingAverage,
+            startDay: "2026-01-01",
+            endDay: "2026-01-15",
+            interval: .day
+        ))
+        #expect(monthToDate.points.last?.expenses == 0)
+        #expect(monthToDate.points.last?.comparison == 30_000)
+        #expect(monthToDate.totals.averageSpending == 30_000)
+
+        let throughDay30 = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .spendingAverage,
+            startDay: "2026-01-01",
+            endDay: "2026-01-30",
+            interval: .day
+        ))
+        #expect(throughDay30.points.last?.period == ReportExplorerPeriod(
+            startDay: "2026-01-28",
+            endDay: "2026-01-30"
+        ))
+        #expect(throughDay30.points.last?.comparison == 33_000)
+
+        let throughDay31 = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .spendingAverage,
+            startDay: "2026-01-01",
+            endDay: "2026-01-31",
+            interval: .day
+        ))
+        #expect(throughDay31.points.last?.expenses == 11_000)
+        #expect(throughDay31.points.last?.comparison == 33_000)
+    }
+
+    @Test func spendingAverageHasZeroBenchmarkWhenAllThreeHistoryMonthsAreEmpty() async throws {
+        let database = try BudgetDatabase(databaseURL: makeFixture(extraSQL: """
+            INSERT INTO transactions VALUES (
+                'current-only', 'checking', 20260102, -5000,
+                'groceries', NULL, 0, NULL, 0, 0, NULL
+            );
+            """))
+        let snapshot = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .spendingAverage,
+            startDay: "2026-01-01",
+            endDay: "2026-01-15",
+            interval: .day
+        ))
+
+        #expect(snapshot.points.last?.expenses == 5_000)
+        #expect(snapshot.points.last?.comparison == 0)
+        #expect(snapshot.totals.averageSpending == 0)
+        #expect(snapshot.hasData)
     }
 
     @Test func netWorthReadUsesOpeningBalanceAndExactInclusiveEndDay() async throws {
@@ -195,7 +303,7 @@ struct ReportExplorerTests {
         }
     }
 
-    private func makeFixture() throws -> URL {
+    private func makeFixture(extraSQL: String = "") throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "ActualistReportExplorerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -270,6 +378,9 @@ struct ReportExplorerTests {
                 INSERT INTO transactions VALUES ('deleted', 'checking', 20260125, -777, 'groceries', NULL, 1, NULL, 0, 0, NULL);
                 INSERT INTO transactions VALUES ('after-end', 'checking', 20260301, 9000, 'salary', NULL, 0, NULL, 0, 0, NULL);
                 """)
+            if !extraSQL.isEmpty {
+                try db.execute(sql: extraSQL)
+            }
         }
         return url
     }

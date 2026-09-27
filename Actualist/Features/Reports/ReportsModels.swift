@@ -234,6 +234,13 @@ enum ReportCalendar {
         Int(dayID.suffix(2)) ?? 0
     }
 
+    static func shiftedDay(_ dayID: String, byMonths offset: Int) -> String {
+        let sourceMonth = String(dayID.prefix(7))
+        let targetMonth = shiftedMonth(sourceMonth, by: offset)
+        let day = min(max(dayNumber(from: dayID), 1), max(days(in: targetMonth), 1))
+        return self.dayID(month: targetMonth, day: day)
+    }
+
     static func dayIDs(from startDay: String, through endDay: String, calendar: Calendar = gregorianUTC) -> [String] {
         guard let start = date(fromDayID: startDay, calendar: calendar),
               let end = date(fromDayID: endDay, calendar: calendar),

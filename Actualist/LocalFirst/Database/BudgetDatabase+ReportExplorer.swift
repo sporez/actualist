@@ -6,6 +6,34 @@ private struct RawReportExplorerAmount: Sendable {
     let amount: Int
 }
 
+private struct ReportExplorerSpendingPrefix: Sendable {
+    let dayIndex: [String: Int]
+    let cumulative: [Int]
+
+    init(spendingByDay: [String: Int], from startDay: String, through endDay: String) throws {
+        var dayIndex: [String: Int] = [:]
+        var cumulative: [Int] = []
+        var running = 0
+        for dayID in ReportCalendar.dayIDs(from: startDay, through: endDay) {
+            running = try ReportArithmetic.add(running, spendingByDay[dayID] ?? 0)
+            dayIndex[dayID] = cumulative.count
+            cumulative.append(running)
+        }
+        self.dayIndex = dayIndex
+        self.cumulative = cumulative
+    }
+
+    func amount(from startDay: String, through endDay: String) throws -> Int {
+        guard let startIndex = dayIndex[startDay],
+              let endIndex = dayIndex[endDay],
+              startIndex <= endIndex else {
+            return 0
+        }
+        let beforeStart = startIndex > 0 ? cumulative[startIndex - 1] : 0
+        return try ReportArithmetic.subtract(cumulative[endIndex], beforeStart)
+    }
+}
+
 extension BudgetDatabase {
     func fetchReportExplorer(query: ReportExplorerQuery) throws -> ReportExplorerSnapshot {
         guard query.hasValidRange else { throw ReportExplorerError.invalidRange }
@@ -18,8 +46,10 @@ extension BudgetDatabase {
             return try buildNetWorthExplorer(query: query, rows: rows)
         case .cashFlow, .spending, .budgetOverview, .spendingAverage:
             let result = try queue.read { db in
+                let activityStartDay = query.spendingAverageComparison?.history.first?.startDay
+                    ?? query.startDay
                 let rows = try reportActivityDays(
-                    from: query.startDay,
+                    from: activityStartDay,
                     through: query.endDay,
                     db: db
                 )
@@ -98,7 +128,8 @@ extension BudgetDatabase {
                 expenses: 0,
                 net: 0,
                 endingBalance: balance,
-                budgeted: 0
+                budgeted: 0,
+                comparison: 0
             ))
         }
         return ReportExplorerSnapshot(
@@ -123,10 +154,19 @@ extension BudgetDatabase {
         rows: [RawReportActivityDay],
         budgetedByMonth: [String: Int]
     ) throws -> ReportExplorerSnapshot {
+        if query.metric == .spendingAverage {
+            return try buildSpendingAverageExplorer(query: query, rows: rows)
+        }
+
         let rowsByDay = Dictionary(grouping: rows, by: \.dayID)
         var points: [ReportExplorerPoint] = []
         var hasContributingData = false
-        for period in query.periods {
+        var cumulativeSpending = 0
+        var cumulativeBudget = 0
+        let periods = query.metric == .budgetOverview
+            ? reportExplorerCumulativePeriods(query: query)
+            : query.periods
+        for period in periods {
             var income = 0
             var expenses = 0
             let budgeted: Int
@@ -148,7 +188,7 @@ extension BudgetDatabase {
                         } else if row.amount < 0 {
                             expenses = try ReportArithmetic.subtract(expenses, row.amount)
                         }
-                    case .spending, .budgetOverview, .spendingAverage:
+                    case .spending, .budgetOverview:
                         if !row.isIncome {
                             hasContributingData = hasContributingData || row.amount != 0
                             expenses = try ReportArithmetic.subtract(expenses, row.amount)
@@ -158,21 +198,34 @@ extension BudgetDatabase {
                     }
                 }
             }
+            let pointExpenses: Int
+            let pointBudgeted: Int
+            if query.metric == .budgetOverview {
+                cumulativeSpending = try ReportArithmetic.add(cumulativeSpending, expenses)
+                cumulativeBudget = try ReportArithmetic.add(cumulativeBudget, budgeted)
+                pointExpenses = cumulativeSpending
+                pointBudgeted = cumulativeBudget
+            } else {
+                pointExpenses = expenses
+                pointBudgeted = budgeted
+            }
             points.append(ReportExplorerPoint(
                 period: period,
                 income: income,
-                expenses: expenses,
-                net: try ReportArithmetic.subtract(income, expenses),
+                expenses: pointExpenses,
+                net: try ReportArithmetic.subtract(income, pointExpenses),
                 endingBalance: 0,
-                budgeted: budgeted
+                budgeted: pointBudgeted,
+                comparison: 0
             ))
         }
         let income = try ReportArithmetic.sum(points.map(\.income))
-        let expenses = try ReportArithmetic.sum(points.map(\.expenses))
-        let budgeted = try ReportArithmetic.sum(points.map(\.budgeted))
-        let averageSpending = query.metric == .spendingAverage && !points.isEmpty
-            ? try ReportArithmetic.scaled(expenses, multiplier: 1, divisor: points.count)
-            : 0
+        let expenses = query.metric == .budgetOverview
+            ? points.last?.expenses ?? 0
+            : try ReportArithmetic.sum(points.map(\.expenses))
+        let budgeted = query.metric == .budgetOverview
+            ? points.last?.budgeted ?? 0
+            : try ReportArithmetic.sum(points.map(\.budgeted))
         return ReportExplorerSnapshot(
             query: query,
             points: points,
@@ -184,10 +237,129 @@ extension BudgetDatabase {
                 balanceChange: 0,
                 openingBalance: 0,
                 budgeted: budgeted,
-                averageSpending: averageSpending
+                averageSpending: 0
             ),
             hasData: hasContributingData || budgeted != 0
         )
+    }
+
+    private func buildSpendingAverageExplorer(
+        query: ReportExplorerQuery,
+        rows: [RawReportActivityDay]
+    ) throws -> ReportExplorerSnapshot {
+        guard let comparison = query.spendingAverageComparison,
+              let firstHistory = comparison.history.first else {
+            throw ReportExplorerError.invalidRange
+        }
+
+        let spendingByDay = try reportExplorerSpendingByDay(rows)
+        let prefix = try ReportExplorerSpendingPrefix(
+            spendingByDay: spendingByDay,
+            from: firstHistory.startDay,
+            through: query.endDay
+        )
+        let historyOffsets = Array(-3 ... -1)
+        var points: [ReportExplorerPoint] = []
+        for period in reportExplorerCumulativePeriods(query: query) {
+            let current = try prefix.amount(
+                from: comparison.comparison.startDay,
+                through: period.endDay
+            )
+            let historical = try zip(historyOffsets, comparison.history).map { offset, range in
+                try prefix.amount(
+                    from: ReportCalendar.shiftedDay(
+                        comparison.comparison.startDay,
+                        byMonths: offset
+                    ),
+                    through: ReportCalendar.dayNumber(from: period.endDay) >= 28
+                        ? range.endDay
+                        : ReportCalendar.shiftedDay(period.endDay, byMonths: offset)
+                )
+            }
+            let average = try ReportArithmetic.scaled(
+                ReportArithmetic.sum(historical),
+                multiplier: 1,
+                divisor: comparison.history.count
+            )
+            points.append(ReportExplorerPoint(
+                period: period,
+                income: 0,
+                expenses: current,
+                net: try ReportArithmetic.subtract(0, current),
+                endingBalance: 0,
+                budgeted: 0,
+                comparison: average
+            ))
+        }
+        let current = points.last?.expenses ?? 0
+        let average = points.last?.comparison ?? 0
+        return ReportExplorerSnapshot(
+            query: query,
+            points: points,
+            totals: ReportExplorerTotals(
+                income: 0,
+                expenses: current,
+                net: try ReportArithmetic.subtract(0, current),
+                endingBalance: 0,
+                balanceChange: 0,
+                openingBalance: 0,
+                budgeted: 0,
+                averageSpending: average
+            ),
+            hasData: points.contains { $0.expenses != 0 || $0.comparison != 0 }
+        )
+    }
+
+    private func reportExplorerSpendingByDay(
+        _ rows: [RawReportActivityDay]
+    ) throws -> [String: Int] {
+        var spendingByDay: [String: Int] = [:]
+        for row in rows where !row.isIncome {
+            let spending = try ReportArithmetic.subtract(0, row.amount)
+            spendingByDay[row.dayID] = try ReportArithmetic.add(
+                spendingByDay[row.dayID] ?? 0,
+                spending
+            )
+        }
+        return spendingByDay
+    }
+
+    /// Actual's cumulative spending graphs use one bucket per calendar day
+    /// through day 27, then fold day 28 through month-end into the final bucket.
+    private func reportExplorerCumulativePeriods(
+        query: ReportExplorerQuery
+    ) -> [ReportExplorerPeriod] {
+        guard query.interval == .day else { return query.periods }
+
+        var periods: [ReportExplorerPeriod] = []
+        for month in ReportCalendar.monthIDs(
+            from: String(query.startDay.prefix(7)),
+            through: String(query.endDay.prefix(7))
+        ) {
+            let monthStart = ReportCalendar.dayID(month: month, day: 1)
+            let monthEnd = ReportCalendar.dayID(
+                month: month,
+                day: max(ReportCalendar.days(in: month), 1)
+            )
+            let startDay = max(query.startDay, monthStart)
+            let endDay = min(query.endDay, monthEnd)
+            let startNumber = ReportCalendar.dayNumber(from: startDay)
+            let endNumber = ReportCalendar.dayNumber(from: endDay)
+
+            if startNumber <= min(endNumber, 27) {
+                for day in startNumber ... min(endNumber, 27) {
+                    let dayID = ReportCalendar.dayID(month: month, day: day)
+                    periods.append(ReportExplorerPeriod(startDay: dayID, endDay: dayID))
+                }
+            }
+            if endNumber >= 28 {
+                periods.append(ReportExplorerPeriod(
+                    startDay: max(startDay, ReportCalendar.dayID(month: month, day: 28)),
+                    endDay: endDay
+                ))
+            }
+        }
+        return periods
     }
 
     private func reportExplorerBudgetedAmount(

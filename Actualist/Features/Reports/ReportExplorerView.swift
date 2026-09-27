@@ -235,7 +235,7 @@ private struct ReportExplorerChart: View {
                     .position(by: .value("Type", "Expenses"))
                     .foregroundStyle(ActualistTheme.danger)
                     .cornerRadius(3)
-                case .spending, .spendingAverage:
+                case .spending:
                     BarMark(
                         x: .value("Period", point.period.date),
                         y: .value("Spending", point.expenses)
@@ -243,24 +243,32 @@ private struct ReportExplorerChart: View {
                     .foregroundStyle(ActualistTheme.danger)
                     .cornerRadius(3)
                 case .budgetOverview:
-                    BarMark(
+                    LineMark(
                         x: .value("Period", point.period.date),
                         y: .value("Spending", point.expenses)
                     )
                     .foregroundStyle(ActualistTheme.danger)
-                    .cornerRadius(3)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     LineMark(
                         x: .value("Period", point.period.date),
                         y: .value("Budgeted", point.budgeted)
                     )
                     .foregroundStyle(ActualistTheme.warning)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 4]))
-                }
-            }
-            if snapshot.query.metric == .spendingAverage {
-                RuleMark(y: .value("Average", snapshot.totals.averageSpending))
+                case .spendingAverage:
+                    LineMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Spending", point.expenses)
+                    )
+                    .foregroundStyle(ActualistTheme.danger)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    LineMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Average", point.comparison)
+                    )
                     .foregroundStyle(ActualistTheme.warning)
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 4]))
+                }
             }
         }
         .chartLegend(.hidden)

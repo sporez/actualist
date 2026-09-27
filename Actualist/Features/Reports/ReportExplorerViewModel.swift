@@ -177,7 +177,7 @@ final class ReportExplorerViewModel {
         case .cashFlow: "Net cash flow"
         case .spending: "Total spending"
         case .budgetOverview: "Spending"
-        case .spendingAverage: query.interval == .month ? "Average monthly spending" : "Average daily spending"
+        case .spendingAverage: "3-month average spending"
         }
     }
 
@@ -196,7 +196,7 @@ final class ReportExplorerViewModel {
         case .budgetOverview:
             return [("Budgeted", currency.formatted(totals.budgeted), .neutral)]
         case .spendingAverage:
-            return [("Total spending", currency.formatted(totals.expenses), .danger)]
+            return [("This range", currency.formatted(totals.expenses), .danger)]
         }
     }
 
@@ -235,12 +235,21 @@ final class ReportExplorerViewModel {
                 expenses: expenses,
                 net: income - expenses,
                 endingBalance: 0,
-                budgeted: masked(point.budgeted, seed: "report-detail-budgeted-\(point.period.id)")
+                budgeted: masked(point.budgeted, seed: "report-detail-budgeted-\(point.period.id)"),
+                comparison: masked(point.comparison, seed: "report-detail-comparison-\(point.period.id)")
             )
         }
         let income = points.reduce(0) { $0 + $1.income }
-        let expenses = points.reduce(0) { $0 + $1.expenses }
-        let budgeted = points.reduce(0) { $0 + $1.budgeted }
+        let expenses: Int
+        let budgeted: Int
+        switch snapshot.query.metric {
+        case .budgetOverview, .spendingAverage:
+            expenses = points.last?.expenses ?? 0
+            budgeted = points.last?.budgeted ?? 0
+        default:
+            expenses = points.reduce(0) { $0 + $1.expenses }
+            budgeted = points.reduce(0) { $0 + $1.budgeted }
+        }
         return ReportExplorerSnapshot(
             query: snapshot.query,
             points: points,
@@ -252,7 +261,9 @@ final class ReportExplorerViewModel {
                 balanceChange: 0,
                 openingBalance: 0,
                 budgeted: budgeted,
-                averageSpending: roundedAverage(expenses, count: points.count)
+                averageSpending: snapshot.query.metric == .spendingAverage
+                    ? points.last?.comparison ?? 0
+                    : 0
             ),
             hasData: snapshot.hasData
         )
@@ -277,7 +288,8 @@ final class ReportExplorerViewModel {
                 endingBalance: index == snapshot.points.count - 1
                     ? endingBalance
                     : masked(point.endingBalance, seed: "report-detail-balance-\(point.period.id)"),
-                budgeted: 0
+                budgeted: 0,
+                comparison: 0
             )
         }
         return ReportExplorerSnapshot(
@@ -295,14 +307,6 @@ final class ReportExplorerViewModel {
             ),
             hasData: snapshot.hasData
         )
-    }
-
-    private func roundedAverage(_ amount: Int, count: Int) -> Int {
-        guard count > 0 else { return 0 }
-        let quotient = amount / count
-        let remainder = amount % count
-        guard remainder.magnitude * 2 >= count.magnitude else { return quotient }
-        return quotient + (amount >= 0 ? 1 : -1)
     }
 
     private func bind(to sessionIdentity: ReportExplorerSessionIdentity?) {
