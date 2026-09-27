@@ -1,10 +1,7 @@
 import Foundation
 import Observation
 
-/// Screen state machine for the Settings → Budget & Data → Bank Sync page
-/// (plan Phase 4, Settings-only MVP cut). Owns download/apply coordination
-/// and derived display state; the views only render `BankSyncDisplay` and
-/// call intents.
+/// Owns one-tap download/apply coordination and Bank Sync display state.
 @MainActor
 @Observable
 final class BankSyncViewModel {
@@ -13,7 +10,6 @@ final class BankSyncViewModel {
         case loading
         case ready
         case downloading
-        case reviewing
         case applying
         case failed(String)
     }
@@ -52,8 +48,8 @@ final class BankSyncViewModel {
         let changes: [String]
     }
 
-    /// Per-account review section, pre-formatted for the review sheet.
-    struct ReviewLine: Identifiable, Equatable {
+    /// Completed or blocked account outcome, never uncommitted proposed counts.
+    struct ResultLine: Identifiable, Equatable {
         let id: String
         let accountName: String
         let addedCount: Int
@@ -78,41 +74,35 @@ final class BankSyncViewModel {
     private(set) var accountLines: [AccountLine] = []
     private(set) var remoteAccounts: [SimpleFINRemoteAccount] = []
     private(set) var remoteAccountsStatus: RemoteAccountsStatus = .idle
-    private(set) var reviewLines: [ReviewLine] = []
-    /// Downloaded plans behind `reviewLines`; held privately so the sheet
-    /// only ever sees display values, and confirm applies exactly what was
-    /// reviewed.
-    private var reviewPlans: [BankSyncReview.AccountPlan] = []
+    private(set) var resultLines: [ResultLine] = []
     private(set) var selectedAccountID: String?
-    /// Summary shown after a confirmed apply.
+    /// Summary includes completed work even when a later account fails.
     private(set) var resultSummary: String?
 
-    var isReviewPresented: Bool {
-        phase == .reviewing
-    }
-
-    var reviewHasProblems: Bool {
-        reviewPlans.contains { !$0.problems.isEmpty }
-    }
-
-    var canConfirmReview: Bool {
-        phase == .reviewing
-            && !reviewPlans.isEmpty
-            && !reviewHasProblems
-    }
+    var isSyncing: Bool { phase == .downloading || phase == .applying }
 
     var canSyncAll: Bool {
         providerAvailable
             && accountLines.contains { $0.isSyncable }
-            && phase == .ready
+            && (phase == .ready || isFailed)
+            && sessionIsCurrent
+            && !isDemoMode
+            && !isClaiming
+    }
+
+    private var isFailed: Bool {
+        if case .failed = phase { return true }
+        return false
     }
 
     var canLinkAccounts: Bool {
-        providerAvailable
+        providerAvailable && !isSyncing && sessionIsCurrent
     }
 
     var canClaimDeviceToken: Bool {
         !isClaiming
+            && !isSyncing
+            && sessionIsCurrent
             && !draftSetupToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -125,13 +115,23 @@ final class BankSyncViewModel {
     }
 
     var syncButtonTitle: String {
-        phase == .downloading ? "Downloading…" : "Sync All"
+        switch phase {
+        case .downloading: "Downloading…"
+        case .applying: "Applying…"
+        default: "Sync All"
+        }
     }
 
     private let store: LocalFirstActualStore
     private let budgetID: String
     private let currency: BudgetCurrency
     private let isDemoMode: Bool
+    private let sessionGeneration: Int
+    private var loadGeneration = 0
+
+    private var sessionIsCurrent: Bool {
+        store.budgetSessionGeneration == sessionGeneration && store.isOpen(budgetID: budgetID)
+    }
 
     init(
         store: LocalFirstActualStore,
@@ -143,14 +143,20 @@ final class BankSyncViewModel {
         self.budgetID = budgetID
         self.currency = currency
         self.isDemoMode = isDemoMode
+        self.sessionGeneration = store.budgetSessionGeneration
     }
 
     func load() async {
+        guard !isSyncing, sessionIsCurrent else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
         // Deliberately keeps resultSummary so the last apply result survives
         // the post-apply reload. Do not start in `.loading` when a cached
         // provider can enable Sync All immediately.
         do {
             let rows = try await store.bankSyncAccountRows(budgetID: budgetID)
+            guard sessionIsCurrent, generation == loadGeneration else { return }
+            try Task.checkCancellation()
             accountLines = rows.map(\.toLine)
             if isDemoMode {
                 serverSupport = nil
@@ -171,10 +177,14 @@ final class BankSyncViewModel {
                 phase = .loading
             }
             do {
-                serverSupport = try await store.bankSyncSupport(budgetID: budgetID)
+                let support = try await store.bankSyncSupport(budgetID: budgetID)
+                guard sessionIsCurrent, generation == loadGeneration else { return }
+                try Task.checkCancellation()
+                serverSupport = support
                 applyCachedRemoteAccounts()
                 phase = .ready
             } catch {
+                guard sessionIsCurrent, generation == loadGeneration else { return }
                 if hasDeviceKey {
                     serverSupport = nil
                     applyCachedRemoteAccounts()
@@ -186,6 +196,7 @@ final class BankSyncViewModel {
                 }
             }
         } catch {
+            guard sessionIsCurrent, generation == loadGeneration else { return }
             phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
@@ -208,14 +219,17 @@ final class BankSyncViewModel {
         remoteAccountsStatus = .loading
         do {
             let accounts = try await store.bankSyncRemoteAccounts(budgetID: budgetID)
+            guard sessionIsCurrent else { return }
             try Task.checkCancellation()
             remoteAccounts = accounts
             remoteAccountsStatus = .ready
         } catch where error.isCancellation {
+            guard sessionIsCurrent else { return }
             if case .loading = remoteAccountsStatus {
                 remoteAccountsStatus = .idle
             }
         } catch {
+            guard sessionIsCurrent else { return }
             remoteAccountsStatus = .failed(error.localizedDescription)
         }
     }
@@ -240,74 +254,92 @@ final class BankSyncViewModel {
         return false
     }
 
-    /// Download every syncable linked account, then present one review sheet.
-    /// Writes nothing until `confirmReview`.
+    /// Preflight the whole download before the first write, as the background
+    /// path does. Each account still commits through the store's guarded writer.
     func syncAll() async {
-        guard phase == .ready else {
-            return
-        }
+        guard canSyncAll else { return }
+        loadGeneration += 1
         phase = .downloading
         resultSummary = nil
+        resultLines = []
         let syncableAccountIDs = accountLines.filter(\.isSyncable).map(\.id)
-        let collected: [BankSyncReview.AccountPlan]
-        do {
-            collected = try await store.downloadBankSyncPlans(
-                accountIDs: syncableAccountIDs,
-                budgetID: budgetID
-            )
-        } catch {
-            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
-            return
-        }
-        guard !collected.isEmpty else {
-            phase = .failed("Nothing to sync.")
-            return
-        }
-        reviewPlans = collected
-        let names = accountNames
-        reviewLines = collected.map { $0.toLine(accountNames: names, currency: currency) }
-        phase = .reviewing
-    }
-
-    func cancelReview() {
-        guard phase == .reviewing else {
-            return
-        }
-        reviewPlans = []
-        reviewLines = []
-        phase = .ready
-    }
-
-    /// Applies every reviewed plan in order. The plans were validated
-    /// generation-wise at download time; the store refuses a stale one.
-    func confirmReview() async {
-        guard canConfirmReview else {
-            return
-        }
-        phase = .applying
         var inserted = 0
         var updated = 0
         var openings = 0
+        var completed = 0
+        var skipped = 0
+        var applyingAccountName: String?
         do {
-            for plan in reviewPlans {
-                let result = try await store.applyBankSyncPlan(plan, budgetID: budgetID)
+            let plans = try await store.downloadBankSyncPlans(
+                accountIDs: syncableAccountIDs,
+                budgetID: budgetID
+            )
+            guard sessionIsCurrent else { return }
+            try Task.checkCancellation()
+            guard !plans.isEmpty else {
+                phase = .failed("Nothing to sync.")
+                return
+            }
+            guard plans.allSatisfy(\.problems.isEmpty) else {
+                resultLines = plans.map {
+                    $0.toLine(accountNames: accountNames, currency: currency, applied: false)
+                }
+                phase = .failed("Nothing was saved. Some bank transactions could not be read; see the account details below.")
+                return
+            }
+            phase = .applying
+            for plan in plans {
+                guard sessionIsCurrent else { return }
+                try Task.checkCancellation()
+                applyingAccountName = accountNames[plan.link.accountID] ?? "Account"
+                let result: BankSyncReview.ApplyResult
+                var refreshFailure: BankSyncCommittedRefreshError?
+                do {
+                    result = try await store.applyBankSyncPlan(plan, budgetID: budgetID)
+                } catch let error as BankSyncCommittedRefreshError {
+                    result = error.result
+                    refreshFailure = error
+                }
+                guard sessionIsCurrent else { return }
                 inserted += result.insertedCount
                 updated += result.updatedCount
-                if result.openingBalanceInserted {
-                    openings += 1
-                }
+                openings += result.openingBalanceInserted ? 1 : 0
+                completed += 1
+                skipped += plan.durableStatus == .ok ? 0 : 1
+                resultLines.append(plan.toLine(accountNames: accountNames, currency: currency, applied: true))
+                if let refreshFailure { throw refreshFailure }
             }
-            reviewPlans = []
-            reviewLines = []
-            resultSummary = BankSyncCopy.applySummary(
-                inserted: inserted,
-                updated: updated,
-                openings: openings
-            )
-            await load()
+            resultSummary = skipped == plans.count
+                ? "No accounts synced. \(skipped) skipped."
+                : (skipped > 0 ? "Synced \(completed - skipped) of \(plans.count) accounts. " : "")
+                    + BankSyncCopy.applySummary(inserted: inserted, updated: updated, openings: openings)
+                    + BankSyncCopy.skippedSuffix(skipped)
+            phase = .ready
         } catch {
-            phase = error.userFacingMessage.map(Phase.failed) ?? .ready
+            guard sessionIsCurrent else { return }
+            if completed > 0 {
+                resultSummary = "Sync stopped after \(completed) of \(syncableAccountIDs.count) accounts. "
+                    + (completed == skipped ? "No transactions imported."
+                        : BankSyncCopy.applySummary(inserted: inserted, updated: updated, openings: openings))
+                    + BankSyncCopy.skippedSuffix(skipped)
+            }
+            phase = error.userFacingMessage.map { message in
+                .failed((applyingAccountName.map { "\($0): " } ?? "") + message)
+            } ?? .ready
         }
+        // Refresh status without a new capability request or reopening the run.
+        // Keep the active phase until this read finishes to reject repeated taps.
+        let outcome = phase
+        phase = .applying
+        do {
+            let rows = try await store.bankSyncAccountRows(budgetID: budgetID)
+            guard sessionIsCurrent else { return }
+            accountLines = rows.map(\.toLine)
+        } catch {
+            // The run outcome remains authoritative if the status read fails.
+        }
+        guard sessionIsCurrent else { return }
+        phase = outcome
     }
 
     // MARK: - Device token (Phase 5)
@@ -331,6 +363,7 @@ final class BankSyncViewModel {
 
     /// Disconnect forgets the device key only. Links and transactions stay.
     func forgetDeviceKey() async {
+        guard !isSyncing, sessionIsCurrent else { return }
         do {
             try store.forgetBankSyncDeviceKey()
             hasDeviceKey = try store.hasBankSyncDeviceKey()
@@ -343,6 +376,7 @@ final class BankSyncViewModel {
     // MARK: - Link / unlink sheet
 
     func selectAccount(_ id: String) {
+        guard !isSyncing else { return }
         selectedAccountID = id
     }
 
@@ -443,14 +477,15 @@ private extension LocalFirstActualStore.BankSyncAccountStatusRow {
 private extension BankSyncReview.AccountPlan {
     func toLine(
         accountNames: [String: String],
-        currency: BudgetCurrency
-    ) -> BankSyncViewModel.ReviewLine {
-        BankSyncViewModel.ReviewLine(
+        currency: BudgetCurrency,
+        applied: Bool
+    ) -> BankSyncViewModel.ResultLine {
+        BankSyncViewModel.ResultLine(
             id: link.accountID,
             accountName: accountNames[link.accountID] ?? "Account",
-            addedCount: inserts.count + (openingBalance != nil ? 1 : 0),
-            updatedCount: updates.count,
-            matchLines: matchDetails.map { detail in
+            addedCount: applied ? inserts.count + (openingBalance != nil ? 1 : 0) : 0,
+            updatedCount: applied ? updates.count : 0,
+            matchLines: (applied ? matchDetails : []).map { detail in
                 BankSyncViewModel.ReviewMatchLine(
                     id: detail.transactionID,
                     title: detail.currentPayeeName ?? "Transaction",
@@ -459,13 +494,13 @@ private extension BankSyncReview.AccountPlan {
                     changes: detail.changes.map(BankSyncCopy.matchChangeText)
                 )
             },
-            unchangedCount: unchangedCount,
+            unchangedCount: applied ? unchangedCount : 0,
             problemCount: problems.count,
             problemSummary: BankSyncCopy.problemSummary(problems),
             statusText: durableStatus == .ok
-                ? nil
+                ? (applied ? nil : "Not saved")
                 : "Skipped · \(BankSyncCopy.statusText(durableStatus: durableStatus.rawValue) ?? "Failed")",
-            openingBalanceText: openingBalance.map {
+            openingBalanceText: (applied ? openingBalance : nil).map {
                 currency.formatted($0.amountMinorUnits)
             }
         )
@@ -659,6 +694,11 @@ enum BankSyncCopy {
             parts.append(openings == 1 ? "Added 1 opening balance" : "Added \(openings) opening balances")
         }
         return parts.isEmpty ? "Everything already matches." : parts.joined(separator: " · ")
+    }
+
+    static func skippedSuffix(_ count: Int) -> String {
+        guard count > 0 else { return "" }
+        return count == 1 ? " · 1 account skipped" : " · \(count) accounts skipped"
     }
 
 }

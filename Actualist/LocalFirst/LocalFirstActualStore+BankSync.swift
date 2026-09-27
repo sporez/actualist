@@ -1,8 +1,8 @@
 import Foundation
 
 /// SimpleFIN bank-sync orchestration (plan Phase 3): download → normalize →
-/// rule projection → reconciler plan → review DTO → confirm → CRDT writes.
-/// The UI (Phase 4) only renders `BankSyncReview.AccountPlan` and calls the
+/// rule projection → validated plan → CRDT writes.
+/// The UI only renders the resulting display values and calls the
 /// intents here; all payload math, state, and write orchestration live in
 /// this file and `BudgetDatabase+BankSync.swift`.
 extension LocalFirstActualStore {
@@ -17,7 +17,7 @@ extension LocalFirstActualStore {
         var errorDescription: String? {
             switch self {
             case .staleGeneration:
-                return "This bank sync review is stale. Download again."
+                return "This bank sync download is stale. Sync again."
             case .unresolvedProblems:
                 return "Bank sync found transactions it could not safely read. Nothing was saved."
             case .notLinked:
@@ -49,8 +49,11 @@ extension LocalFirstActualStore {
     }
 
     func bankSyncSupport(budgetID: String) async throws -> SimpleFINServerSupport {
+        let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let context = try bankSyncContext(budgetID: budgetID)
         let support = try await context.transport.simpleFINStatus(token: context.token)
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         rememberBankSyncSupport(support)
         return support
     }
@@ -105,10 +108,12 @@ extension LocalFirstActualStore {
         budgetID: String,
         deviceFallback: Bool = true
     ) async throws -> BankSyncProvider {
-        _ = try requireDatabase(for: budgetID)
+        let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         do {
             let context = try bankSyncContext(budgetID: budgetID)
             let support = try await context.transport.simpleFINStatus(token: context.token)
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             rememberBankSyncSupport(support)
             return try resolvedBankSyncProvider(
                 support: support,
@@ -116,6 +121,7 @@ extension LocalFirstActualStore {
                 deviceFallback: deviceFallback
             )
         } catch let error as ActualAPIError {
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             if deviceFallback, !error.isCancellation, case .transport = error,
                let device = try bankSyncDeviceClientIfPresent() {
                 return .device(device)
@@ -189,6 +195,8 @@ extension LocalFirstActualStore {
     /// Remote SimpleFIN-side accounts through the resolved provider
     /// (server first, device-claimed bridge fallback).
     func bankSyncRemoteAccounts(budgetID: String) async throws -> [SimpleFINRemoteAccount] {
+        let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let context = try bankSyncContext(budgetID: budgetID)
         let provider: BankSyncProvider
         if let cached = cachedBankSyncSupport() {
@@ -201,6 +209,7 @@ extension LocalFirstActualStore {
             provider = try await bankSyncProvider(budgetID: budgetID)
         }
         let accounts = try await provider.remoteAccounts()
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         rememberBankSyncRemoteAccounts(accounts)
         return accounts
     }
@@ -252,7 +261,7 @@ extension LocalFirstActualStore {
 
     // MARK: - Apply
 
-    /// Writes a confirmed plan: opening balance, match updates (with the
+    /// Writes a validated plan: opening balance, match updates (with the
     /// split-parent cleared cascade), inserts oldest-first, then
     /// account-balance and completion metadata. Bank Sync does not learn
     /// payee→category rules; Actual's batch update defaults `learnCategories`
@@ -262,6 +271,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws -> BankSyncReview.ApplyResult {
         let database = try requireDatabase(for: budgetID)
+        let sessionGeneration = budgetSessionGeneration
         guard bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
             throw BankSyncStoreError.staleGeneration
         }
@@ -390,24 +400,31 @@ extension LocalFirstActualStore {
               bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
             throw BankSyncStoreError.staleGeneration
         }
-        // Consume before awaiting the commit so overlapping confirmations cannot
-        // both apply the same prepared inserts. A failed apply requires a new review.
+        // Consume before awaiting the commit so overlapping runs cannot
+        // both apply the same prepared inserts. A failed apply requires a new download.
         bankSyncGenerationByAccount[plan.link.accountID] = nil
         _ = try await database.commitBankSyncMessages(messages, expectedLink: plan.link)
 
-        try await reloadAfterTransactionMutation(
-            database: database,
-            budgetID: budgetID,
-            accountIDs: Array(affectedAccountIDs),
-            monthIDs: Array(monthIDs)
-        )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
-        return BankSyncReview.ApplyResult(
+        let result = BankSyncReview.ApplyResult(
             insertedCount: insertedCount,
             updatedCount: updatedCount,
             openingBalanceInserted: plan.openingBalance != nil,
             insertedTransactionIDs: collectedInsertedIDs
         )
+        do {
+            try requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
+            try await reloadAfterTransactionMutation(
+                database: database,
+                budgetID: budgetID,
+                accountIDs: Array(affectedAccountIDs),
+                monthIDs: Array(monthIDs)
+            )
+        } catch {
+            // A committed write cannot be reported as though it rolled back.
+            throw BankSyncCommittedRefreshError(result: result, underlyingError: error)
+        }
+        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        return result
     }
 
     private func bankSyncInsertDraft(

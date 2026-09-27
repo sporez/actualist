@@ -8,13 +8,10 @@ struct BankSyncLinkIdentity: Equatable, Sendable {
     let syncSource: String
 }
 
-/// Review DTO between a confirmed SimpleFIN download and the apply step
-/// (plan Phase 3). Pure: assembled by the store from the reconciler plan,
-/// shown by the Phase 4 review sheet, and written only after an explicit
-/// confirm. Cancel / staleness simply discards the value — no rows, no
-/// `last_sync`.
+/// Immutable download plans and apply outcomes. The store validates each plan
+/// before writing; the feature renders saved effects and blocked accounts.
 enum BankSyncReview {
-    /// Exact account-balance effect of confirming a review. A successful
+    /// Exact account-balance effect of applying a download. A successful
     /// download either replaces or clears stale bank evidence; a failed
     /// download leaves the prior value untouched.
     enum BalanceDisposition: Equatable, Sendable {
@@ -55,8 +52,8 @@ enum BankSyncReview {
     }
 
     /// Exact user-visible effects of one matched transaction. This snapshot
-    /// is assembled from the same `MatchedUpdate` that Confirm will apply, so
-    /// review copy never guesses from aggregate counts.
+    /// is assembled from the same `MatchedUpdate` the store applies, so
+    /// result details never guess from aggregate counts.
     struct MatchDetail: Equatable, Sendable {
         let transactionID: String
         let dayID: String
@@ -82,8 +79,7 @@ enum BankSyncReview {
         let newValue: String?
     }
 
-    /// One linked account's planned writes. `openingBalance` counts as an
-    /// added row on the review sheet.
+    /// One linked account's planned writes, including its opening balance.
     struct AccountPlan: Equatable, Sendable {
         let link: BankSyncLinkIdentity
         let durableStatus: ActualBankSyncDurableStatus
@@ -108,6 +104,17 @@ enum BankSyncReview {
         /// balance), so the background path can feed the existing
         /// new-transaction notification pipeline.
         let insertedTransactionIDs: [String]
+    }
+}
+
+/// The account committed atomically, but its local display refresh failed.
+/// Carries the actual outcome so a stopped run retains its saved counts.
+struct BankSyncCommittedRefreshError: LocalizedError {
+    let result: BankSyncReview.ApplyResult
+    let underlyingError: any Error
+
+    var errorDescription: String? {
+        "Changes were saved locally, but the display could not refresh. Sync again to refresh and continue."
     }
 }
 

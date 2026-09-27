@@ -7,6 +7,9 @@ extension Error {
     /// even if the caller was cancelled while the write was completing.
     var isCancellation: Bool {
         if self is CancellationError { return true }
+        if let error = self as? BankSyncCommittedRefreshError {
+            return error.underlyingError.isCancellation
+        }
         if case .cancelled? = self as? ActualOpenIDAuthenticationError { return true }
         if case .transport(.cancelled)? = self as? ActualAPIError { return true }
         let error = self as NSError

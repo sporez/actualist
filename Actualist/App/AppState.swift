@@ -69,11 +69,7 @@ final class AppState {
             applicationBadgeUpdater: applicationBadgeUpdater
         )
         self.providedLocalFirstStore = localFirstStore
-        var loaded = settingsStore.load()
-        if !loaded.isExperimentalFeatureEnabled(.bankSync), loaded.simplefinBackgroundSyncEnabled {
-            loaded.simplefinBackgroundSyncEnabled = false
-            settingsStore.save(loaded)
-        }
+        let loaded = settingsStore.load()
         self.settings = loaded
         ActualistTheme.activate(loaded.theme)
         let (phase, status) = sessionRecovery.initialSession(settings: loaded, keychain: keychain)
@@ -649,25 +645,6 @@ final class AppState {
         isAppSwitcherCoverSuppressedForSystemUI = false
     }
 
-    func isExperimentalFeatureEnabled(_ feature: ExperimentalFeature) -> Bool {
-        settings.isExperimentalFeatureEnabled(feature)
-    }
-
-    func updateExperimentalFeature(_ feature: ExperimentalFeature, isEnabled: Bool) {
-        if isEnabled {
-            settings.enabledExperimentalFeatures.insert(feature)
-        } else {
-            settings.enabledExperimentalFeatures.remove(feature)
-            if feature == .bankSync {
-                settings.simplefinBackgroundSyncEnabled = false
-            }
-        }
-        settingsStore.save(settings)
-        if feature == .bankSync {
-            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
-        }
-    }
-
     func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
         settings.developerModeUnlocked = isUnlocked
         resetDeveloperUnlockProgress()
@@ -753,12 +730,11 @@ final class AppState {
         }
     }
 
-    /// Phase 6: enabling background bank sync promotes Keychain items for
-    /// background access (like the alerts toggle) but never requests
-    /// notification authorization — it posts nothing.
+    /// Enabling background bank sync promotes Keychain items for background
+    /// access (like the alerts toggle) but never requests notification
+    /// authorization — it posts nothing.
     func updateSimpleFINBackgroundSyncEnabled(_ isEnabled: Bool) async {
-        let enable = isEnabled && isExperimentalFeatureEnabled(.bankSync)
-        let outcome = backgroundTransactionWorkflow.enableBankSync(enable, keychain: keychain)
+        let outcome = backgroundTransactionWorkflow.enableBankSync(isEnabled, keychain: keychain)
         if case .credentialPromotionFailed(let message) = outcome {
             lastErrorMessage = message
         }

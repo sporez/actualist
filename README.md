@@ -48,7 +48,7 @@ and iOS Liquid Glass controls.
 - History in the Budget ⋯ menu shows the last 25 changes on this device, with
   review and undo for the most recent eligible budget or transaction change.
 - Reports for net worth, cash flow, spending, and budget comparisons.
-- SimpleFIN Bank Sync and selected Apple Wallet imports, with review before save.
+- One-tap SimpleFIN Bank Sync, plus selected Apple Wallet imports with review before save.
 - Payee and rule management under Settings → Budget & Data.
 - Widgets for balances, budget overview, recent activity, net worth, and quick
   actions. Configure them through Apple's **Edit Widget** controls.
@@ -114,9 +114,11 @@ changes are lost if the app or local data is removed, or the device is lost.**
 Before erasing or replacing a device, connect and confirm **Pending Sync: None**
 in Settings. Synced changes can be restored from your Actual server.
 
-**Background Bank Sync** is experimental and off by default on the Settings →
-Budget & Data → Bank Sync page. Enabling it automatically saves downloaded bank
-changes. Manual Bank Sync lets you review changes before saving.
+**Background Bank Sync** is off by default on the Settings → Budget & Data →
+Bank Sync page. Enabling it automatically saves bank changes downloaded through
+your Actual server. Device-only tokens are not used in the background.
+Manual **Sync All** downloads and saves changes in one tap, with progress,
+results, and any skipped or blocked accounts shown on the Bank Sync page.
 
 ## Current Limitations
 

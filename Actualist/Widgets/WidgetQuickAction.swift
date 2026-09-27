@@ -71,7 +71,7 @@ enum WidgetQuickAction: String, CaseIterable, Identifiable, Sendable {
         case .rules:
             ("Rules", "wand.and.stars", .transactions, "Manage transaction rules.")
         case .bankSync:
-            ("Bank Sync", "arrow.triangle.2.circlepath", .accounts, "Open Bank Sync to download and review transactions.")
+            ("Bank Sync", "arrow.triangle.2.circlepath", .accounts, "Open Bank Sync to download and save transactions.")
         case .reports:
             ("Reports", "chart.xyaxis.line", .reports, "Explore spending, trends, and net worth.")
         case .reportOrder:
@@ -87,7 +87,7 @@ enum WidgetQuickAction: String, CaseIterable, Identifiable, Sendable {
         case .budgetData:
             ("Budget & Data", "folder.fill", .settings, "Manage your selected budget and account preferences.")
         case .advanced:
-            ("Advanced", "wrench.and.screwdriver.fill", .settings, "Open experimental features and advanced settings.")
+            ("Advanced", "wrench.and.screwdriver.fill", .settings, "Open advanced developer tools when unlocked.")
         case .support:
             ("Support", "questionmark.circle.fill", .settings, "Find help and diagnostic information.")
         }

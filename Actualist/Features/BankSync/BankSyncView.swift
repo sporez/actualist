@@ -52,24 +52,21 @@ private struct BankSyncScreen: View {
             serverSection
             if !isDemoMode, viewModel.serverSupport != .configured {
                 deviceTokenSection
+                    .disabled(viewModel.isSyncing)
             }
-            if appState.isExperimentalFeatureEnabled(.bankSync) {
-                backgroundSyncSection
-            }
+            backgroundSyncSection
             if WalletImportAvailability.isFinancialDataAvailable {
                 WalletImportSettingsSection(isWalletPickerPresented: $isWalletPickerPresented)
             }
             accountsSection
-        }
-        .sheet(isPresented: Binding(
-            get: { viewModel.isReviewPresented },
-            set: { presented in
-                if !presented {
-                    viewModel.cancelReview()
+            if !viewModel.resultLines.isEmpty {
+                Section("Sync Results") {
+                    ForEach(viewModel.resultLines) { line in
+                        BankSyncResultRow(line: line)
+                    }
                 }
+                .settingsSectionChrome()
             }
-        )) {
-            BankSyncReviewSheet(viewModel: viewModel)
         }
         .sheet(item: Binding(
             get: { viewModel.selectedLine },
@@ -116,10 +113,13 @@ private struct BankSyncScreen: View {
             Button {
                 Task { await viewModel.syncAll() }
             } label: {
-                SettingsActionLabel(
-                    title: viewModel.syncButtonTitle,
-                    systemImage: "arrow.triangle.2.circlepath"
-                )
+                HStack {
+                    SettingsActionLabel(
+                        title: viewModel.syncButtonTitle,
+                        systemImage: "arrow.triangle.2.circlepath"
+                    )
+                    if viewModel.isSyncing { ProgressView() }
+                }
             }
             .disabled(!viewModel.canSyncAll)
         } header: {
@@ -214,6 +214,7 @@ private struct BankSyncScreen: View {
                     BankSyncAccountRow(line: line)
                 }
                 .buttonStyle(.plain)
+                .disabled(viewModel.isSyncing)
             }
         } header: {
             Text("Accounts")

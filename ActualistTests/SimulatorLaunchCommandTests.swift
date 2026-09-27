@@ -81,7 +81,7 @@ struct SimulatorLaunchCommandTests {
         #expect(SettingsPage.stack(fromScreenPath: ["templates"]) == [.templates])
     }
 
-    @Test func bankSyncLaunchPathIsKeptWithoutExperimentalFeature() {
+    @Test func bankSyncLaunchPathIsAvailableDirectly() {
         let path = ["settings", "budget-data", "bank-sync"]
         #expect(SettingsPage.stack(fromScreenPath: path) == [.budgetData, .bankSync])
         #expect(SettingsPage.stack(fromScreenPath: ["bank-sync"]) == [.bankSync])

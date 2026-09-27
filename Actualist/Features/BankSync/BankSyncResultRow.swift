@@ -1,67 +1,9 @@
 import SwiftUI
 
-/// Review sheet shown after a successful download, before any write
-/// (Decision Log: review, then apply). Confirm applies every reviewed plan;
-/// cancel writes nothing.
-struct BankSyncReviewSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let viewModel: BankSyncViewModel
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text("Matched transactions keep their amount and date. The details below list every other transaction field Confirm will change. Unchanged transactions are not modified; skipped accounts only save their bank status.")
-                        .font(.caption)
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-                .settingsSectionChrome()
-
-                Section {
-                    ForEach(viewModel.reviewLines) { line in
-                        BankSyncReviewRow(line: line)
-                    }
-                } footer: {
-                    Text(viewModel.reviewHasProblems
-                         ? "Nothing can be saved because some bank transactions could not be read. Cancel and retry."
-                         : "Nothing is saved until you confirm.")
-                        .font(.caption)
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-                .settingsSectionChrome()
-            }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle("Review Bank Sync")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        viewModel.cancelReview()
-                        dismiss()
-                    }
-                    .disabled(viewModel.phase == .applying)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Confirm") {
-                        Task {
-                            await viewModel.confirmReview()
-                            dismiss()
-                        }
-                    }
-                    .disabled(!viewModel.canConfirmReview)
-                }
-            }
-            .interactiveDismissDisabled(viewModel.phase == .applying)
-        }
-    }
-}
-
-private struct BankSyncReviewRow: View {
-    let line: BankSyncViewModel.ReviewLine
-    @State private var showsMatchDetails = true
+/// Inline outcomes; expansion is presentation-only.
+struct BankSyncResultRow: View {
+    let line: BankSyncViewModel.ResultLine
+    @State private var showsMatchDetails = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -69,7 +11,7 @@ private struct BankSyncReviewRow: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(ActualistTheme.primaryText)
 
-            HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
                 if line.addedCount > 0 {
                     Label("\(line.addedCount) added", systemImage: "plus.circle")
                         .foregroundStyle(ActualistTheme.positive)
@@ -120,8 +62,8 @@ private struct BankSyncReviewRow: View {
                     .padding(.top, 8)
                 } label: {
                     Text(line.matchLines.count == 1
-                         ? "Exact changes for 1 match"
-                         : "Exact changes for \(line.matchLines.count) matches")
+                          ? "Changes saved for 1 match"
+                          : "Changes saved for \(line.matchLines.count) matches")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(ActualistTheme.primaryText)
                 }

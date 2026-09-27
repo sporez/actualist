@@ -23,7 +23,7 @@ extension LocalFirstActualStoreTests {
         #expect(settings.localFirstServerURLString == "https://actual.example.com")
         #expect(settings.selectedBudgetID == "budget")
         #expect(settings.selectedLocalFirstFileID == nil)
-        #expect(settings.enabledExperimentalFeatures.isEmpty)
+        #expect(!settings.simplefinBackgroundSyncEnabled)
         #expect(settings.reportCardOrder == ReportCardOrderPreference.defaultOrder)
         #expect(settings.localFirstSyncDebug == LocalFirstSyncDebugInfo())
         #expect(!settings.greenIncomeTransactionAmountsEnabled)
@@ -281,47 +281,60 @@ extension LocalFirstActualStoreTests {
         #expect(!String(reflecting: error).contains("unlabeled-token-qq7"))
     }
 
-    @Test func experimentalFeaturesPersistInSettings() throws {
+    @Test func backgroundBankSyncPreferencePersistsWithoutRetiredExperimentState() throws {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let store = AppSettingsStore(defaults: defaults)
-        var settings = AppSettings()
-        settings.enabledExperimentalFeatures = [.bankSync]
 
-        store.save(settings)
+        for isEnabled in [true, false] {
+            let settings = AppSettings(simplefinBackgroundSyncEnabled: isEnabled)
+            store.save(settings)
 
-        #expect(store.load().enabledExperimentalFeatures == [.bankSync])
+            #expect(store.load().simplefinBackgroundSyncEnabled == isEnabled)
+            let data = try JSONEncoder.actual.encode(settings)
+            let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(object["enabledExperimentalFeatures"] == nil)
+        }
     }
 
-    @Test func retiredBudgetTemplateExperimentIsIgnoredWithoutDisablingBankSync() throws {
-        let data = Data(#"{"enabledExperimentalFeatures":["budgetTemplates","bankSync"]}"#.utf8)
+    @Test func retiredExperimentalFlagsNeverOverrideBackgroundBankSyncOrUnrelatedPreferences() throws {
+        let payloads: [(String, Bool)] = [
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":true}"#, true),
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":true,"enabledExperimentalFeatures":[]}"#, true),
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":true,"enabledExperimentalFeatures":["retiredFeature"]}"#, true),
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":true,"enabledExperimentalFeatures":["bankSync"]}"#, true),
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":false}"#, false),
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":false,"enabledExperimentalFeatures":[]}"#, false),
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":false,"enabledExperimentalFeatures":["retiredFeature"]}"#, false),
+            (#"{"shortcutsEnabled":false,"backgroundTransactionRefreshEnabled":true,"simplefinBackgroundSyncEnabled":false,"enabledExperimentalFeatures":["bankSync"]}"#, false)
+        ]
 
-        let settings = try JSONDecoder.actual.decode(AppSettings.self, from: data)
-
-        #expect(settings.enabledExperimentalFeatures == [.bankSync])
+        for (payload, expectedBackgroundBankSync) in payloads {
+            let settings = try JSONDecoder.actual.decode(
+                AppSettings.self,
+                from: Data(payload.utf8)
+            )
+            #expect(settings.simplefinBackgroundSyncEnabled == expectedBackgroundBankSync)
+            #expect(settings.backgroundTransactionRefreshEnabled)
+            #expect(!settings.shortcutsEnabled)
+        }
     }
 
-    @Test func backgroundBankSyncAndRefreshSchedulingHonorExperimentalGate() {
+    @Test func backgroundBankSyncAndAlertsIndependentlyRequestBackgroundRefresh() {
         var settings = AppSettings()
-        settings.simplefinBackgroundSyncEnabled = true
 
-        #expect(!settings.isExperimentalFeatureEnabled(.bankSync))
-        #expect(!settings.isBackgroundBankSyncEnabled)
+        #expect(!settings.simplefinBackgroundSyncEnabled)
         #expect(!settings.wantsBackgroundAppRefresh)
+
+        settings.simplefinBackgroundSyncEnabled = true
+        #expect(settings.wantsBackgroundAppRefresh)
 
         settings.backgroundTransactionRefreshEnabled = true
         #expect(settings.wantsBackgroundAppRefresh)
-        #expect(!settings.isBackgroundBankSyncEnabled)
 
-        settings.enabledExperimentalFeatures = [.bankSync]
-        #expect(settings.isExperimentalFeatureEnabled(.bankSync))
-        #expect(settings.isBackgroundBankSyncEnabled)
+        settings.simplefinBackgroundSyncEnabled = false
         #expect(settings.wantsBackgroundAppRefresh)
 
         settings.backgroundTransactionRefreshEnabled = false
-        #expect(settings.wantsBackgroundAppRefresh)
-
-        settings.simplefinBackgroundSyncEnabled = false
-        #expect(!settings.isBackgroundBankSyncEnabled)
         #expect(!settings.wantsBackgroundAppRefresh)
     }
 

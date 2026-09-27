@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Advanced settings: experimental features and developer tools.
+/// Advanced settings: developer tools unlocked from the Settings title.
 struct AdvancedSettingsView: View {
     @Environment(AppState.self) private var appState
 
@@ -12,36 +12,6 @@ struct AdvancedSettingsView: View {
 
     var body: some View {
         List {
-            Section {
-                Label {
-                    Text("Experimental features are unfinished and may break or corrupt your budget. Enable them only if you accept that risk.")
-                        .font(.caption)
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(ActualistTheme.warning)
-                }
-
-                ForEach(ExperimentalFeature.allCases) { feature in
-                    Toggle(isOn: experimentalFeatureSelection(feature)) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(feature.title)
-                                .foregroundStyle(ActualistTheme.primaryText)
-                            Text(feature.detail)
-                                .font(.caption)
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                        }
-                    }
-                }
-            } header: {
-                Text("Experimental Features")
-            } footer: {
-                Text("These features stay off until you enable them here.")
-                    .font(.caption)
-                    .foregroundStyle(ActualistTheme.secondaryText)
-            }
-            .settingsSectionChrome()
-
             if appState.settings.developerModeUnlocked {
                 Section("Developer") {
                     Button {
@@ -51,6 +21,9 @@ struct AdvancedSettingsView: View {
                     }
                 }
                 .settingsSectionChrome()
+            } else {
+                Text("Developer tools are locked.")
+                    .foregroundStyle(ActualistTheme.secondaryText)
             }
         }
         .scrollContentBackground(.hidden)
@@ -84,14 +57,6 @@ struct AdvancedSettingsView: View {
             )
             .environment(appState)
             #endif
-        }
-    }
-
-    private func experimentalFeatureSelection(_ feature: ExperimentalFeature) -> Binding<Bool> {
-        Binding {
-            appState.isExperimentalFeatureEnabled(feature)
-        } set: { isEnabled in
-            appState.updateExperimentalFeature(feature, isEnabled: isEnabled)
         }
     }
 

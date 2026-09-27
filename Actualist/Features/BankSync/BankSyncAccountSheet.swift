@@ -130,7 +130,7 @@ struct BankSyncAccountSheet: View {
         } header: {
             Text("Link a Bank Account")
         } footer: {
-            Text("Linking does not download anything yet. Use Sync All afterwards to review and import transactions.")
+            Text("Linking does not download anything yet. Use Sync All afterwards to download and save transactions.")
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }

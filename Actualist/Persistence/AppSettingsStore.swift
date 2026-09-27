@@ -27,25 +27,6 @@ enum AppSwitcherPrivacyMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum ExperimentalFeature: String, Codable, CaseIterable, Identifiable {
-    case bankSync
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .bankSync: "Background Bank Sync"
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .bankSync:
-            "Enables automatic bank downloads after a background budget sync. Bank Sync itself is always under Settings → Budget & Data."
-        }
-    }
-}
-
 struct AppSettings: Codable, Equatable {
     var localFirstServerURLString: String = ""
     var fallbackServerURLString: String = ""
@@ -65,18 +46,15 @@ struct AppSettings: Codable, Equatable {
     var randomizedDisplayValuesEnabled: Bool = false
     var shortcutsEnabled: Bool = true
     var appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded
-    var enabledExperimentalFeatures: Set<ExperimentalFeature> = []
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var defaultAccountIDByBudgetID: [String: String] = [:]
     var reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
     var backgroundTransactionRefreshEnabled: Bool = false
-    /// Optional SimpleFIN background bank sync (bank-sync plan Phase 6).
-    /// Default off; the toggle is consent to auto-apply server SimpleFIN
-    /// downloads after a background `/sync/sync`. Inert unless experimental
-    /// Background Bank Sync is also on. Never reads the Phase 5 device key;
-    /// demo mode never runs it. New Transaction Alerts do not depend on this
-    /// flag. The Bank Sync page is not gated by this.
+    /// Optional SimpleFIN background bank sync. Default off; the toggle is
+    /// consent to auto-apply server SimpleFIN downloads after a background
+    /// `/sync/sync`. Never reads the device key; demo mode never runs it. New
+    /// Transaction Alerts do not depend on this flag.
     var simplefinBackgroundSyncEnabled: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
     var localFirstSyncDebug = LocalFirstSyncDebugInfo()
@@ -101,7 +79,6 @@ struct AppSettings: Codable, Equatable {
         randomizedDisplayValuesEnabled: Bool = false,
         shortcutsEnabled: Bool = true,
         appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded,
-        enabledExperimentalFeatures: Set<ExperimentalFeature> = [],
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         defaultAccountIDByBudgetID: [String: String] = [:],
@@ -130,7 +107,6 @@ struct AppSettings: Codable, Equatable {
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
         self.shortcutsEnabled = shortcutsEnabled
         self.appSwitcherPrivacyMode = appSwitcherPrivacyMode
-        self.enabledExperimentalFeatures = enabledExperimentalFeatures
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.defaultAccountIDByBudgetID = defaultAccountIDByBudgetID
@@ -186,13 +162,6 @@ struct AppSettings: Codable, Equatable {
             AppSwitcherPrivacyMode.self,
             forKey: .appSwitcherPrivacyMode
         ) ?? .whenBackgrounded
-        let persistedExperimentalFeatures = try container.decodeIfPresent(
-            [String].self,
-            forKey: .enabledExperimentalFeatures
-        ) ?? []
-        enabledExperimentalFeatures = Set(
-            persistedExperimentalFeatures.compactMap(ExperimentalFeature.init(rawValue:))
-        )
         developerModeUnlocked = try container.decodeIfPresent(
             Bool.self,
             forKey: .developerModeUnlocked
@@ -234,22 +203,10 @@ struct AppSettings: Codable, Equatable {
         ) ?? [:]
     }
 
-    func isExperimentalFeatureEnabled(_ feature: ExperimentalFeature) -> Bool {
-        enabledExperimentalFeatures.contains(feature)
-    }
-
-    /// Phase 6 auto-apply. Requires the experimental Background Bank Sync
-    /// feature and the explicit Background Bank Sync toggle. The Bank Sync
-    /// page and foreground writes are not gated. New Transaction Alerts never
-    /// consult this; leftover toggle state is inert while experimental is off.
-    var isBackgroundBankSyncEnabled: Bool {
-        isExperimentalFeatureEnabled(.bankSync) && simplefinBackgroundSyncEnabled
-    }
-
-    /// BGAppRefresh stays registered for alerts, or for experimental background
-    /// bank auto-apply. Alerts do not depend on Bank Sync.
+    /// BGAppRefresh stays registered for alerts or background bank auto-apply.
+    /// Alerts do not depend on Bank Sync.
     var wantsBackgroundAppRefresh: Bool {
-        backgroundTransactionRefreshEnabled || isBackgroundBankSyncEnabled
+        backgroundTransactionRefreshEnabled || simplefinBackgroundSyncEnabled
     }
 }
 

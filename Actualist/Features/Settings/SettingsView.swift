@@ -157,12 +157,14 @@ struct SettingsView: View {
             .settingsSectionChrome(isSidebar: isSplit)
 
             Section {
-                NavigationLink(value: SettingsPage.advanced) {
-                    SettingsCategoryRow(
-                        systemImage: "wrench.and.screwdriver",
-                        title: "Advanced",
-                        subtitle: isSplit ? nil : advancedSubtitle
-                    )
+                if appState.settings.developerModeUnlocked {
+                    NavigationLink(value: SettingsPage.advanced) {
+                        SettingsCategoryRow(
+                            systemImage: "wrench.and.screwdriver",
+                            title: "Advanced",
+                            subtitle: isSplit ? nil : "Developer tools"
+                        )
+                    }
                 }
 
                 NavigationLink(value: SettingsPage.support) {
@@ -344,12 +346,6 @@ struct SettingsView: View {
         appState.settings.reportCardOrder == ReportCardOrderPreference.defaultOrder
             ? "Default order"
             : "Custom order"
-    }
-
-    private var advancedSubtitle: String {
-        appState.settings.developerModeUnlocked
-            ? "Developer · Experimental"
-            : "Experimental Features"
     }
 
     private var supportSubtitle: String {

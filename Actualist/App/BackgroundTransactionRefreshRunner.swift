@@ -164,10 +164,7 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         keychain: KeychainStore
     ) -> String? {
         var reasons: [String] = []
-        // The background task serves alerts and experimental background bank
-        // sync independently. Alerts never require the Background Bank Sync
-        // experimental flag. With only effective bank sync on, the pull still
-        // runs.
+        // Alerts and bank sync independently request the background pull.
         if !settings.wantsBackgroundAppRefresh {
             reasons.append("alerts and bank sync disabled")
         }

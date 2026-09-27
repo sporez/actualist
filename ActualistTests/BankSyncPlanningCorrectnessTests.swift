@@ -180,9 +180,8 @@ extension LocalFirstActualStoreTests {
         await model.load()
 
         await model.syncAll()
-        #expect(model.phase == .reviewing)
-        #expect((model.reviewLines.first?.addedCount ?? 0) >= 1)
-        await model.confirmReview()
+        #expect(model.phase == .ready)
+        #expect((model.resultLines.first?.addedCount ?? 0) >= 1)
 
         let row = try #require(try storedCorrectnessRow(
             in: bundle,
@@ -232,8 +231,7 @@ extension LocalFirstActualStoreTests {
         await model.load()
 
         await model.syncAll()
-        #expect(model.phase == .reviewing)
-        await model.confirmReview()
+        #expect(model.phase == .ready)
 
         let row = try #require(try storedCorrectnessRow(
             in: bundle,
@@ -335,7 +333,6 @@ extension LocalFirstActualStoreTests {
         )
         await model.load()
         await model.syncAll()
-        await model.confirmReview()
 
         let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["category"] as String? == "groceries")
@@ -361,7 +358,6 @@ extension LocalFirstActualStoreTests {
         )
         await model.load()
         await model.syncAll()
-        await model.confirmReview()
 
         let source = try #require(try storedTransactionRow(in: bundle, id: "xfer-src"))
         #expect(source["category"] as String? == "groceries")
@@ -490,7 +486,6 @@ extension LocalFirstActualStoreTests {
         )
         await model.load()
         await model.syncAll()
-        await model.confirmReview()
 
         let row = try #require(try storedCorrectnessRow(
             in: bundle,
@@ -531,7 +526,6 @@ extension LocalFirstActualStoreTests {
         )
         await model.load()
         await model.syncAll()
-        await model.confirmReview()
 
         let source = try #require(try storedCorrectnessRow(
             in: bundle,

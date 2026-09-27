@@ -28,29 +28,32 @@ struct AppFeatureTests {
         #expect(count == 3)
     }
 
-    @Test func bankSyncRequiresExperimentalFeatureAndDoesNotClearAlerts() {
-        let state = makeAppState()
+    @Test func backgroundBankSyncToggleDoesNotClearAlerts() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        let backend = FakeKeychainBackend()
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString,
+            backend: backend
+        )
+        try keychain.saveActualSyncToken("token")
+        let state = AppState(settingsStore: settingsStore, keychain: keychain)
         state.settings.backgroundTransactionRefreshEnabled = true
-        state.settings.simplefinBackgroundSyncEnabled = true
 
-        #expect(!state.isExperimentalFeatureEnabled(.bankSync))
-        #expect(!state.settings.isBackgroundBankSyncEnabled)
-        #expect(state.settings.wantsBackgroundAppRefresh)
-
-        state.updateExperimentalFeature(.bankSync, isEnabled: true)
-        #expect(state.isExperimentalFeatureEnabled(.bankSync))
-        #expect(state.settings.isBackgroundBankSyncEnabled)
+        await state.updateSimpleFINBackgroundSyncEnabled(true)
+        #expect(state.settings.simplefinBackgroundSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
+        #expect(settingsStore.load().simplefinBackgroundSyncEnabled)
 
-        state.updateExperimentalFeature(.bankSync, isEnabled: false)
-        #expect(!state.isExperimentalFeatureEnabled(.bankSync))
+        await state.updateSimpleFINBackgroundSyncEnabled(false)
         #expect(!state.settings.simplefinBackgroundSyncEnabled)
-        #expect(!state.settings.isBackgroundBankSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
         #expect(state.settings.wantsBackgroundAppRefresh)
+        #expect(!settingsStore.load().simplefinBackgroundSyncEnabled)
     }
 
-    @Test func leftoverBackgroundBankSyncClearsWhenExperimentalIsOff() {
+    @Test func persistedBackgroundBankSyncSurvivesAppStateStartup() {
         let defaultsName = "ActualistTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: defaultsName)!
         let store = AppSettingsStore(defaults: defaults)
@@ -67,19 +70,9 @@ struct AppFeatureTests {
             )
         )
 
-        #expect(!state.isExperimentalFeatureEnabled(.bankSync))
-        #expect(!state.settings.simplefinBackgroundSyncEnabled)
+        #expect(state.settings.simplefinBackgroundSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
         #expect(state.settings.wantsBackgroundAppRefresh)
-    }
-
-    @Test func backgroundBankSyncToggleRequiresExperimentalFeature() async {
-        let state = makeAppState()
-
-        await state.updateSimpleFINBackgroundSyncEnabled(true)
-
-        #expect(!state.settings.simplefinBackgroundSyncEnabled)
-        #expect(!state.settings.isBackgroundBankSyncEnabled)
     }
 
     @Test func transactionNotificationRoutingSelectsSpending() async {

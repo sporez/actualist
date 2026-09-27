@@ -100,7 +100,6 @@ enum ActualistDiagnosticReportBuilder {
             "Background transaction alerts: \(yesNo(settings.backgroundTransactionRefreshEnabled))",
             "Background bank sync: \(yesNo(settings.simplefinBackgroundSyncEnabled))",
             "Developer mode unlocked: \(yesNo(settings.developerModeUnlocked))",
-            "Experimental features enabled: \(list(settings.enabledExperimentalFeatures.map(\.rawValue).sorted()))",
             "Report card order: \(settings.reportCardOrder.map(\.rawValue).joined(separator: ", "))",
             "",
             "[Selected Budget Metadata]",
@@ -372,10 +371,6 @@ enum ActualistDiagnosticReportBuilder {
 
     private static func yesNo(_ value: Bool) -> String {
         value ? "yes" : "no"
-    }
-
-    private static func list(_ values: [String]) -> String {
-        values.isEmpty ? "none" : values.joined(separator: ", ")
     }
 
     private static func timestamp(_ date: Date?) -> String {

@@ -2,9 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 4 view-model state machine (plan `simplefin-bank-sync-plan.md`):
-/// idle → ready → downloading → reviewing → applying → done / failed, with
-/// cancel writing nothing.
+/// One-tap Bank Sync through the real local store and synthetic providers.
 extension LocalFirstActualStoreTests {
     @MainActor
     private func makeViewModel(
@@ -67,7 +65,7 @@ extension LocalFirstActualStoreTests {
         await transport.setFailure(.transport(.cancelled))
         await model.syncAll()
         #expect(model.phase == .ready)
-        #expect(!model.isReviewPresented)
+        #expect(model.resultLines.isEmpty)
         #expect(model.canSyncAll)
         try bundle.keychain.saveSimpleFINAccessURL("https://test:test@bridge.example/user")
         do {
@@ -114,7 +112,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
-    @Test func syncAllPresentsReviewThenConfirmAppliesAndFinishes() async throws {
+    @Test func syncAllAppliesAndFinishesWithoutConfirmation() async throws {
         let transport = stubbedTransport(transactions: [
             SimpleFINRemoteTransaction(
                 id: "d1",
@@ -133,16 +131,12 @@ extension LocalFirstActualStoreTests {
         #expect(model.linkedAccountDisplayName(for: savings) == "Savings")
         #expect(model.canSyncAll)
         await model.syncAll()
-        #expect(model.phase == .reviewing)
-        #expect(model.isReviewPresented)
-        let line = try #require(model.reviewLines.first)
+        let line = try #require(model.resultLines.first)
         #expect(line.accountName == "Savings")
         #expect(line.addedCount == 1)
         #expect(line.updatedCount == 0)
 
-        await model.confirmReview()
         #expect(model.phase == .ready)
-        #expect(!model.isReviewPresented)
         #expect(model.resultSummary?.contains("Added 1 transaction") == true)
 
         // The write really happened.
@@ -181,7 +175,7 @@ extension LocalFirstActualStoreTests {
 
         await model.syncAll()
 
-        let line = try #require(model.reviewLines.first)
+        let line = try #require(model.resultLines.first)
         #expect(line.updatedCount == 1)
         let match = try #require(line.matchLines.first)
         #expect(match.title == "Coffee Shop")
@@ -193,7 +187,6 @@ extension LocalFirstActualStoreTests {
             "Cleared: No → Yes"
         ])
 
-        await model.confirmReview()
         let messages = try storedCRDTMessages(
             at: try bundle.fileManager.databaseURL(fileID: "file-1")
         ).filter { $0.dataset == "transactions" && $0.row == "local-match" }
@@ -206,7 +199,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
-    @Test func cancelReviewWritesNothing() async throws {
+    @Test func repeatingSyncAllIsIdempotent() async throws {
         let transport = stubbedTransport(transactions: [
             SimpleFINRemoteTransaction(
                 id: "d1",
@@ -222,17 +215,17 @@ extension LocalFirstActualStoreTests {
         let (model, bundle) = try await makeViewModel(transport: transport, linkSavings: true)
 
         await model.syncAll()
-        #expect(model.phase == .reviewing)
-        model.cancelReview()
+        #expect(model.resultSummary == "Added 1 transaction")
+        await model.syncAll()
         #expect(model.phase == .ready)
-        #expect(model.reviewLines.isEmpty)
+        #expect(model.resultSummary == "Everything already matches.")
 
         let messages = try storedCRDTMessages(at: try bundle.fileManager.databaseURL(fileID: "file-1"))
-        #expect(!messages.contains { $0.dataset == "transactions" && $0.column == "financial_id" })
+        #expect(messages.filter { $0.dataset == "transactions" && $0.column == "financial_id" }.count == 1)
     }
 
     @MainActor
-    @Test func reviewWithNormalizationProblemsCannotConfirm() async throws {
+    @Test func normalizationProblemsBlockOneTapApplyAndRemainVisible() async throws {
         let transport = stubbedTransport(transactions: [
             SimpleFINRemoteTransaction(
                 id: "bad-amount",
@@ -245,16 +238,16 @@ extension LocalFirstActualStoreTests {
                 accountID: "sfin-1"
             )
         ])
-        let (model, _) = try await makeViewModel(transport: transport, linkSavings: true)
+        let (model, bundle) = try await makeViewModel(transport: transport, linkSavings: true)
 
         await model.syncAll()
-        #expect(model.phase == .reviewing)
-        #expect(model.reviewLines.first?.problemCount == 1)
-        #expect(model.reviewLines.first?.problemSummary == "1× Unreadable amount")
-        #expect(model.reviewHasProblems)
-        #expect(!model.canConfirmReview)
-        await model.confirmReview()
-        #expect(model.phase == .reviewing)
+        guard case .failed = model.phase else { Issue.record("Expected blocked run"); return }
+        #expect(model.resultLines.first?.problemCount == 1)
+        #expect(model.resultLines.first?.problemSummary == "1× Unreadable amount")
+        #expect(model.resultLines.first?.addedCount == 0)
+        #expect(model.canSyncAll)
+        let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
+        #expect(!messages.contains { $0.dataset == "transactions" })
     }
 
     @MainActor
@@ -343,17 +336,15 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
-    @Test func downloadFailureSurfacesFailedPhase() async throws {
+    @Test func noLinkedAccountsDoesNotStartDownload() async throws {
         let transport = stubbedTransport(transactions: [])
         let (model, _) = try await makeViewModel(transport: transport, linkSavings: false)
 
-        // Nothing is linked, so the download intent fails per account.
+        #expect(!model.canSyncAll)
         await model.syncAll()
-        guard case .failed = model.phase else {
-            Issue.record("expected failed phase, got \(model.phase)")
-            return
-        }
-        #expect(!model.isReviewPresented)
+        #expect(model.phase == .ready)
+        #expect(model.resultSummary == nil)
+        #expect(await transport.transactionsRequests.isEmpty)
     }
 }
 
