@@ -45,6 +45,33 @@ struct ReportExplorerViewModelTests {
         #expect(repository.requestedQueries.isEmpty)
     }
 
+    @Test func spendingAverageSelectsOneComparisonMonthAndIgnoresRangeIntents() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 15)
+        let model = ReportExplorerViewModel(reportCard: .threeMonthAverage, now: now)
+        let initialQuery = model.query
+
+        #expect(model.usesComparisonMonthSelection)
+        #expect(model.query.startDay == "2026-01-01")
+        #expect(model.query.endDay == "2026-01-15")
+        #expect(model.rangeSelectionTitle == ReportCalendar.monthTitle("2026-01"))
+
+        model.selectPreset(.threeMonths, now: now)
+        model.selectCustomRange(
+            start: try reportDate(year: 2025, month: 11, day: 1),
+            end: now
+        )
+        #expect(model.query == initialQuery)
+
+        model.selectPreviousComparisonMonth(now: now)
+        #expect(model.query.startDay == "2025-12-01")
+        #expect(model.query.endDay == "2025-12-31")
+        #expect(model.rangeSelectionTitle == ReportCalendar.monthTitle("2025-12"))
+
+        model.selectNextComparisonMonth(now: now)
+        #expect(model.query.startDay == "2026-01-01")
+        #expect(model.query.endDay == "2026-01-15")
+    }
+
     @Test func budgetSwitchClearsOldSnapshotWhileNewBudgetIsPendingThenPublishesNewResult() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)

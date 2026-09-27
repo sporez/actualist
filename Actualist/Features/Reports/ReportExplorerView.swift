@@ -45,26 +45,45 @@ struct ReportExplorerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    ForEach(ReportExplorerRangePreset.allCases.filter { $0 != .custom }, id: \.self) { preset in
+                if viewModel.usesComparisonMonthSelection {
+                    Menu {
                         Button {
-                            viewModel.selectPreset(preset)
+                            viewModel.selectPreviousComparisonMonth()
                         } label: {
-                            if preset == viewModel.selectedPreset {
-                                Label(preset.title, systemImage: "checkmark")
-                            } else {
-                                Text(preset.title)
+                            Label("Previous Month", systemImage: "chevron.left")
+                        }
+                        Button {
+                            viewModel.selectNextComparisonMonth()
+                        } label: {
+                            Label("Next Month", systemImage: "chevron.right")
+                        }
+                        .disabled(!viewModel.canSelectNextComparisonMonth)
+                    } label: {
+                        Image(systemName: "calendar")
+                    }
+                    .accessibilityLabel("Comparison month")
+                } else {
+                    Menu {
+                        ForEach(ReportExplorerRangePreset.allCases.filter { $0 != .custom }, id: \.self) { preset in
+                            Button {
+                                viewModel.selectPreset(preset)
+                            } label: {
+                                if preset == viewModel.selectedPreset {
+                                    Label(preset.title, systemImage: "checkmark")
+                                } else {
+                                    Text(preset.title)
+                                }
                             }
                         }
+                        Divider()
+                        Button("Custom Range…") {
+                            isCustomRangePresented = true
+                        }
+                    } label: {
+                        Image(systemName: "calendar")
                     }
-                    Divider()
-                    Button("Custom Range…") {
-                        isCustomRangePresented = true
-                    }
-                } label: {
-                    Image(systemName: "calendar")
+                    .accessibilityLabel("Report date range")
                 }
-                .accessibilityLabel("Report date range")
             }
             if viewModel.errorMessage != nil {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -130,7 +149,7 @@ private struct ReportExplorerRangeSummary: View {
                     Text(viewModel.rangeTitle)
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
-                    Text(viewModel.selectedPreset.title)
+                    Text(viewModel.rangeSelectionTitle)
                         .font(ActualistTypography.rowLabel(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }

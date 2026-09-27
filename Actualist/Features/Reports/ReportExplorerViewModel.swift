@@ -41,11 +41,20 @@ final class ReportExplorerViewModel {
 
     var title: String { reportCard.title }
     var rangeTitle: String { query.rangeTitle }
+    var usesComparisonMonthSelection: Bool { query.metric == .spendingAverage }
+    var rangeSelectionTitle: String {
+        usesComparisonMonthSelection
+            ? ReportCalendar.monthTitle(String(query.startDay.prefix(7)))
+            : selectedPreset.title
+    }
+    var canSelectNextComparisonMonth: Bool {
+        canAdvanceComparisonMonth(through: Date())
+    }
     var isLoading: Bool { loadState == .loading }
     var isRefreshing: Bool { loadState == .refreshing }
     var invalidRangeMessage: String? {
         guard loadState == .invalidRange else { return nil }
-        return ReportExplorerError.invalidRange.errorDescription
+        return query.validationError?.errorDescription
     }
     var errorMessage: String? {
         guard case .failed(let message) = loadState else { return nil }
@@ -59,12 +68,14 @@ final class ReportExplorerViewModel {
     }
 
     func selectPreset(_ preset: ReportExplorerRangePreset, now: Date = Date()) {
+        guard !usesComparisonMonthSelection else { return }
         guard let range = preset.range(through: now) else { return }
         selectedPreset = preset
         updateQuery(startDay: range.startDay, endDay: range.endDay, interval: query.interval)
     }
 
     func selectCustomRange(start: Date, end: Date) {
+        guard !usesComparisonMonthSelection else { return }
         selectedPreset = .custom
         updateQuery(
             startDay: ReportCalendar.dayID(for: start),
@@ -75,6 +86,22 @@ final class ReportExplorerViewModel {
 
     func selectInterval(_ interval: ReportInterval) {
         updateQuery(startDay: query.startDay, endDay: query.endDay, interval: interval)
+    }
+
+    func selectPreviousComparisonMonth(now: Date = Date()) {
+        guard usesComparisonMonthSelection else { return }
+        selectComparisonMonth(
+            ReportCalendar.shiftedMonth(String(query.startDay.prefix(7)), by: -1),
+            now: now
+        )
+    }
+
+    func selectNextComparisonMonth(now: Date = Date()) {
+        guard canAdvanceComparisonMonth(through: now) else { return }
+        selectComparisonMonth(
+            ReportCalendar.shiftedMonth(String(query.startDay.prefix(7)), by: 1),
+            now: now
+        )
     }
 
     func reload() {
@@ -218,6 +245,25 @@ final class ReportExplorerViewModel {
         displaySnapshot = nil
         loadState = updated.hasValidRange ? .idle : .invalidRange
         requestIdentity = UUID()
+    }
+
+    private func selectComparisonMonth(_ month: String, now: Date) {
+        let currentMonth = ReportCalendar.monthID(for: now, calendar: ReportCalendar.gregorianLocal)
+        guard month <= currentMonth else { return }
+        let endDay = month == currentMonth
+            ? ReportCalendar.dayID(for: now, calendar: ReportCalendar.gregorianLocal)
+            : ReportCalendar.dayID(month: month, day: max(ReportCalendar.days(in: month), 1))
+        updateQuery(
+            startDay: ReportCalendar.dayID(month: month, day: 1),
+            endDay: endDay,
+            interval: query.interval
+        )
+    }
+
+    private func canAdvanceComparisonMonth(through date: Date) -> Bool {
+        guard usesComparisonMonthSelection else { return false }
+        let currentMonth = ReportCalendar.monthID(for: date, calendar: ReportCalendar.gregorianLocal)
+        return String(query.startDay.prefix(7)) < currentMonth
     }
 
     private func sanitized(_ snapshot: ReportExplorerSnapshot) -> ReportExplorerSnapshot {

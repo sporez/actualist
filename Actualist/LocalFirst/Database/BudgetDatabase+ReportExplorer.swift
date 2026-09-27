@@ -36,7 +36,9 @@ private struct ReportExplorerSpendingPrefix: Sendable {
 
 extension BudgetDatabase {
     func fetchReportExplorer(query: ReportExplorerQuery) throws -> ReportExplorerSnapshot {
-        guard query.hasValidRange else { throw ReportExplorerError.invalidRange }
+        if let validationError = query.validationError {
+            throw validationError
+        }
 
         switch query.metric {
         case .netWorth:

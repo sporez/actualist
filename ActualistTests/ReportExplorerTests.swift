@@ -219,6 +219,25 @@ struct ReportExplorerTests {
         #expect(snapshot.hasData)
     }
 
+    @Test func spendingAverageRejectsCrossMonthComparisonRanges() async throws {
+        let query = ReportExplorerQuery(
+            metric: .spendingAverage,
+            startDay: "2025-11-01",
+            endDay: "2026-01-31",
+            interval: .day
+        )
+
+        #expect(query.validationError == .spendingAverageRequiresSingleMonth)
+        #expect(!query.hasValidRange)
+        #expect(query.periods.isEmpty)
+        #expect(query.spendingAverageComparison == nil)
+
+        let database = try BudgetDatabase(databaseURL: makeFixture())
+        await #expect(throws: ReportExplorerError.spendingAverageRequiresSingleMonth) {
+            _ = try await database.fetchReportExplorer(query: query)
+        }
+    }
+
     @Test func netWorthReadUsesOpeningBalanceAndExactInclusiveEndDay() async throws {
         let database = try BudgetDatabase(databaseURL: makeFixture())
         let query = ReportExplorerQuery(

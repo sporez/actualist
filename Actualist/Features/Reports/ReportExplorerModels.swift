@@ -85,11 +85,20 @@ struct ReportExplorerQuery: Hashable, Sendable {
     let interval: ReportInterval
 
     var hasValidRange: Bool {
+        validationError == nil
+    }
+
+    var validationError: ReportExplorerError? {
         guard ReportCalendar.date(fromDayID: startDay) != nil,
               ReportCalendar.date(fromDayID: endDay) != nil else {
-            return false
+            return .invalidRange
         }
-        return startDay <= endDay
+        guard startDay <= endDay else { return .invalidRange }
+        if metric == .spendingAverage,
+           String(startDay.prefix(7)) != String(endDay.prefix(7)) {
+            return .spendingAverageRequiresSingleMonth
+        }
+        return nil
     }
 
     var rangeTitle: String {
@@ -189,11 +198,14 @@ struct ReportExplorerSnapshot: Equatable, Sendable {
 
 enum ReportExplorerError: LocalizedError, Equatable {
     case invalidRange
+    case spendingAverageRequiresSingleMonth
 
     var errorDescription: String? {
         switch self {
         case .invalidRange:
             "The report start date must be on or before its end date."
+        case .spendingAverageRequiresSingleMonth:
+            "Spending Average compares one month at a time."
         }
     }
 }
