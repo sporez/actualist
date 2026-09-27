@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import {
   getClock,
   makeClock,
@@ -126,7 +128,10 @@ export async function activatePeer(peer: Peer): Promise<void> {
   }
 
   await saveAndCloseActivePeer();
-  db.setDatabase(await sqlite.openDatabase(new Uint8Array(peer.bytes)));
+  // The pinned node/electron backend accepts an in-memory database only as a
+  // Node Buffer. A plain Uint8Array is valid for the browser backend but is
+  // interpreted as an invalid filename by better-sqlite3.
+  db.setDatabase(await sqlite.openDatabase(Buffer.from(peer.bytes)));
   await db.loadClock();
   await reloadRuntimeForCurrentDatabase();
   activePeer = peer;
