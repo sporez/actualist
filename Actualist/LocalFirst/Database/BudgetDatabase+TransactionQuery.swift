@@ -119,6 +119,10 @@ private extension BudgetDatabase {
     ) throws -> CompiledTransactionQuery {
         let columns = try columnSet(for: "transactions", db: db)
         let split = transactionSplitQueryExpressions(columns: columns)
+        // Actual's logical transfer_id maps to transferred_id in persisted budgets.
+        let transferIDExpression = ["transferred_id", "transfer_id"]
+            .first(where: columns.contains)
+            .map { "\(split.tableAlias).\($0)" } ?? "NULL"
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
         var joins = try transactionReadJoins(db: db, split: split, includeNames: true)
         var conditions = [split.liveEffectivePredicate()]
@@ -149,6 +153,7 @@ private extension BudgetDatabase {
                     condition,
                     split: split,
                     joins: joins,
+                    transferIDExpression: transferIDExpression,
                     normalizedDate: normalizedDate,
                     arguments: &conditionArguments
                 )
@@ -500,6 +505,7 @@ private extension BudgetDatabase {
         _ condition: TransactionQueryCondition,
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
+        transferIDExpression: String,
         normalizedDate: String,
         arguments: inout [DatabaseValueConvertible]
     ) -> String {
@@ -511,9 +517,13 @@ private extension BudgetDatabase {
         case .payee(let ids):
             return idPredicate(ids, expression: joins.mappedPayee, arguments: &arguments)
         case .category(let ids):
+            let category = split.effectiveCategory(mappedCategory: joins.mappedCategory)
+            if ids.operation == .isEqual, ids.values == [nil] {
+                return "(\(category) IS NULL AND \(transferIDExpression) IS NULL AND \(split.qualifiedIsParent) = 0)"
+            }
             return idPredicate(
                 ids,
-                expression: split.effectiveCategory(mappedCategory: joins.mappedCategory),
+                expression: category,
                 arguments: &arguments
             )
         }

@@ -158,6 +158,47 @@ struct TransactionStructuredQueryDatabaseTests {
         #expect(emptyNotOneOfPage.totalMatchCount == 0)
     }
 
+    @Test func scalarNullCategoryExcludesTransfersAndSplitParentsAcrossTransferStorageShapes() async throws {
+        let mappedTransferDatabase = try categoryNullDatabase(transferColumn: .actualMapped)
+        let directTransferDatabase = try categoryNullDatabase(transferColumn: .directCompatibility)
+        let scalarNull = TransactionFeedQuery(conditions: [.category(.equals(nil))])
+
+        let mappedPage = try await mappedTransferDatabase.fetchTransactionQueryPage(
+            scope: .spending,
+            query: scalarNull
+        )
+        let directPage = try await directTransferDatabase.fetchTransactionQueryPage(
+            scope: .spending,
+            query: scalarNull
+        )
+
+        #expect(mappedPage.transactions.map(\.id) == ["null-normal"])
+        #expect(mappedPage.matchingTransactionIDs == ["null-normal"])
+        #expect(mappedPage.totalMatchCount == 1)
+        #expect(directPage.transactions.map(\.id) == ["null-normal"])
+        #expect(directPage.matchingTransactionIDs == ["null-normal"])
+        #expect(directPage.totalMatchCount == 1)
+
+        let mixedNullSet = TransactionFeedQuery(
+            conditions: [.category(.oneOf([nil, "groceries"]))]
+        )
+        let mixedPage = try await mappedTransferDatabase.fetchTransactionQueryPage(
+            scope: .spending,
+            query: mixedNullSet
+        )
+
+        #expect(mixedPage.transactions.map(\.id) == [
+            "null-normal", "null-transfer", "split-parent", "categorized-normal",
+        ])
+        #expect(mixedPage.matchingTransactionIDs == [
+            "null-normal", "null-transfer", "split-parent", "split-child", "categorized-normal",
+        ])
+        #expect(
+            mixedPage.transactions.first(where: { $0.id == "split-parent" })?.subtransactions.map(\.id)
+                == ["split-child"]
+        )
+    }
+
     @Test func everyDateOperationUsesCanonicalInclusiveBoundaries() async throws {
         let database = try database()
         let septemberNinth = try #require(TransactionQueryDay(rawValue: "2026-09-09"))
@@ -334,6 +375,40 @@ struct TransactionStructuredQueryDatabaseTests {
                      'dead child', 20260908, 7, 0, 'dead-parent', 0, 0),
                     ('missing-parent-child', 0, 1, 'checking', 'raw-groceries', -100, 'raw-coffee',
                      'missing parent', 20260908, 6, 0, 'missing-parent', 0, 0);
+                """)
+        }
+        return try BudgetDatabase(databaseURL: url)
+    }
+
+    private enum TransferStorageColumn: String {
+        case actualMapped = "transferred_id"
+        case directCompatibility = "transfer_id"
+    }
+
+    private func categoryNullDatabase(transferColumn: TransferStorageColumn) throws -> BudgetDatabase {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistCategoryNull-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appending(path: "db.sqlite")
+        let queue = try DatabaseQueue(path: url.path)
+        let transferColumn = transferColumn.rawValue
+        try queue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE transactions (
+                    id TEXT PRIMARY KEY, isParent INTEGER DEFAULT 0, isChild INTEGER DEFAULT 0,
+                    acct TEXT, category TEXT, amount INTEGER, description TEXT, notes TEXT,
+                    date INTEGER, sort_order REAL, tombstone INTEGER DEFAULT 0,
+                    parent_id TEXT, \(transferColumn) TEXT
+                );
+                INSERT INTO transactions (
+                    id, isParent, isChild, acct, category, amount, date, sort_order,
+                    tombstone, parent_id, \(transferColumn)
+                ) VALUES
+                    ('null-normal', 0, 0, 'checking', NULL, -100, 20260910, 40, 0, NULL, NULL),
+                    ('null-transfer', 0, 0, 'checking', NULL, -100, 20260909, 30, 0, NULL, 'pair'),
+                    ('split-parent', 1, 0, 'checking', 'groceries', -100, 20260908, 20, 0, NULL, NULL),
+                    ('split-child', 0, 1, 'checking', 'groceries', -100, 20260908, 15, 0, 'split-parent', NULL),
+                    ('categorized-normal', 0, 0, 'checking', 'groceries', -100, 20260907, 10, 0, NULL, NULL);
                 """)
         }
         return try BudgetDatabase(databaseURL: url)
