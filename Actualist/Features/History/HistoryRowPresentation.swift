@@ -207,7 +207,13 @@ enum HistoryRowPresentation {
             let name = privacyEnabled
                 ? PrivacyDisplay.name(for: .account, seed: recordID)
                 : account.name
-            return ("Added \(name)", account.offbudget ? "Off-budget account" : "Account")
+            let verb: String
+            switch account.operation {
+            case .rename: verb = "Renamed"
+            case .reopen: verb = "Reopened"
+            case nil: verb = "Added"
+            }
+            return ("\(verb) \(name)", account.offbudget ? "Off-budget account" : "Account")
         case .carryover(let carryover):
             let noun = carryover.categoryCount == 1 ? "category" : "categories"
             let countText = carryover.categoryCount == 0 ? "all expense categories" : noun

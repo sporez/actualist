@@ -170,14 +170,17 @@ struct AccountTransactionFeedProjection {
     }
 
     private var scopeTitle: String {
-        guard privacyModeEnabled else { return scope.title }
         switch scope {
         case .account(let account):
-            return PrivacyDisplay.name(for: .account, seed: account.id)
+            if privacyModeEnabled {
+                return PrivacyDisplay.name(for: .account, seed: account.id)
+            }
+            return loaded?.accountNames[account.id] ?? activePage?.accountNames[account.id] ?? account.name
         case .spending:
             return scope.title
         case .category(let details):
-            return PrivacyDisplay.name(for: .category, seed: details.category.id)
+            return privacyModeEnabled
+                ? PrivacyDisplay.name(for: .category, seed: details.category.id) : scope.title
         }
     }
 

@@ -2,17 +2,11 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
-    /// Closing/reimporting waits only for a synchronous bank commit already in
-    /// progress. Retained handles cannot commit another result after close.
-    nonisolated func invalidateBankSyncWrites() {
-        bankSyncWritesAllowed.withLock { $0 = false }
-    }
-
     func commitBankSyncMessages(
         _ messages: [ActualSyncDecodedMessage],
         expectedLink: BankSyncLinkIdentity
     ) throws -> Int {
-        try bankSyncWritesAllowed.withLock { allowed in
+        try sessionWritesAllowed.withLock { allowed in
             guard allowed else { throw LocalFirstError.budgetNotOpened }
             try Task.checkCancellation()
             return try commitLocalSyncMessagesAndEnqueue(messages, expectedBankLink: expectedLink)

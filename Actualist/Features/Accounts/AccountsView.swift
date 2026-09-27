@@ -7,6 +7,7 @@ struct AccountsView: View {
     @State private var viewModel = AccountsViewModel()
     @State private var expandedSections: Set<AccountListLayout.Kind> = [.budget, .offBudget]
     @State private var noteTarget: ActualNoteTarget?
+    @State private var lifecycleCoordinator = AccountLifecycleCoordinator()
 
     private var sections: [AccountListLayout.Section] {
         _ = viewModel.contentRevision
@@ -150,8 +151,9 @@ struct AccountsView: View {
                 )
                 .presentationDetents([.medium])
                 .appSwitcherPrivacyAwareDragIndicator()
-                .appSwitcherPrivacyProtected(using: appState)
+                    .appSwitcherPrivacyProtected(using: appState)
             }
+            .modifier(AccountLifecyclePresentationHost(coordinator: lifecycleCoordinator))
         }
     }
 
@@ -385,23 +387,23 @@ struct AccountsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("account-row-\(row.account.id)")
                     .contextMenu {
                         accountActionsMenu(row)
                     }
 
-                    if canManageGroups, hasGroupActions(for: row) {
-                        Menu {
-                            accountActionsMenu(row)
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(ActualistTheme.secondaryText)
-                                .frame(width: 36, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Account actions")
+                    Menu {
+                        accountActionsMenu(row)
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                            .frame(width: 36, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Account actions")
+                    .accessibilityIdentifier("account-actions-\(row.account.id)")
                 }
             }
         }
@@ -414,6 +416,8 @@ struct AccountsView: View {
 
     @ViewBuilder
     private func accountActionsMenu(_ row: AccountDisplay) -> some View {
+        AccountLifecycleMenu(accountID: row.account.id, coordinator: lifecycleCoordinator)
+
         Button {
             noteTarget = ActualNoteTarget.account(
                 id: row.account.id,

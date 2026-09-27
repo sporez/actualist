@@ -300,6 +300,57 @@ struct AccountLifecycleCoordinatorTests {
 
     private let identity = AccountLifecycleIdentity(budgetID: "budget", accountID: "checking")
 
+    @Test func failedRenameRequiresReviewAgainBeforeEditingOrResubmitting() async throws {
+        let repository = LifecycleCoordinatorRepository()
+        repository.mutationError = AccountLifecycleCommandError.reviewChanged
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginRename(identity: identity, account: openAccount, existingAccounts: [openAccount])
+        coordinator.updateRenameName("Daily Spending")
+        let failed = try #require(coordinator.submitRename(repository: repository) { _ in })
+        await failed.value
+        #expect(coordinator.errorMessage != nil)
+        #expect(!coordinator.canEditRename)
+        #expect(!coordinator.canSubmitRename)
+        #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == .rename)
+        coordinator.updateRenameName("Ignored Name")
+        #expect(coordinator.renameDraft?.name == "Daily Spending")
+        #expect(coordinator.submitRename(repository: repository) { _ in } == nil)
+        #expect(repository.renameCalls == 1)
+
+        coordinator.retry(repository: repository)
+        #expect(coordinator.canEditRename)
+        #expect(coordinator.canSubmitRename)
+        repository.mutationError = nil
+        coordinator.updateRenameName("Reviewed Name")
+        let retried = try #require(coordinator.submitRename(repository: repository) { _ in })
+        await retried.value
+        #expect(repository.renameCalls == 2)
+        #expect(repository.lastRenameCommand?.newName == "Reviewed Name")
+        #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == nil)
+    }
+
+    @Test func failedReopenRequiresReviewAgainBeforeResubmitting() async throws {
+        let repository = LifecycleCoordinatorRepository()
+        repository.mutationError = AccountLifecycleCommandError.reviewChanged
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginReopen(identity: identity, account: closedAccount)
+        let failed = try #require(coordinator.confirmReopen(repository: repository) { _ in })
+        await failed.value
+        #expect(coordinator.errorMessage != nil)
+        #expect(!coordinator.canConfirmReopen)
+        #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == .reopen)
+        #expect(coordinator.confirmReopen(repository: repository) { _ in } == nil)
+        #expect(repository.reopenCalls == 1)
+
+        coordinator.retry(repository: repository)
+        #expect(coordinator.canConfirmReopen)
+        repository.mutationError = nil
+        let retried = try #require(coordinator.confirmReopen(repository: repository) { _ in })
+        await retried.value
+        #expect(repository.reopenCalls == 2)
+        #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == nil)
+    }
+
     private var openAccount: AccountLifecycleAccount {
         AccountLifecycleAccount(
             id: "checking",
@@ -379,6 +430,7 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     var reopenResult: AccountLifecycleCommitResult?
     var reviewResult: AccountLifecycleReview?
     var reviewError: Error?
+    var mutationError: Error?
     private(set) var renameCalls = 0
     private(set) var reopenCalls = 0
     private(set) var reviewCalls = 0
@@ -407,6 +459,7 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     ) async throws -> AccountLifecycleCommitResult {
         renameCalls += 1
         lastRenameCommand = command
+        if let mutationError { throw mutationError }
         renameStarted.trip()
         if suspendRename {
             // Intentionally ignores cancellation until the test releases the
@@ -431,6 +484,7 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     ) async throws -> AccountLifecycleCommitResult {
         reopenCalls += 1
         lastReopenCommand = command
+        if let mutationError { throw mutationError }
         reopenStarted.trip()
         if suspendReopen {
             // Intentionally ignores cancellation until the test releases the

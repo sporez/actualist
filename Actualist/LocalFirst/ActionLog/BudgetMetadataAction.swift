@@ -61,6 +61,8 @@ struct RuleBudgetAction: Codable, Equatable, Sendable {
 struct AccountBudgetAction: Codable, Equatable, Sendable {
     var name: String
     var offbudget: Bool
+    // Existing History rows omit this field and represent account creation.
+    var operation: AccountLifecycleOperation? = nil
 }
 
 struct CarryoverBudgetAction: Codable, Equatable, Sendable {
@@ -92,6 +94,7 @@ struct RuleActionDescriptor: Equatable, Sendable {
 struct AccountActionDescriptor: Equatable, Sendable {
     var name: String
     var offbudget: Bool
+    var operation: AccountLifecycleOperation? = nil
 }
 
 struct CarryoverActionDescriptor: Equatable, Sendable {

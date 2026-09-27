@@ -53,7 +53,7 @@ enum AccountLifecycleMutationPrecondition: Hashable, Sendable {
     case reopen(AccountReopenCommand)
 }
 
-enum AccountLifecycleOperation: String, Hashable, Sendable {
+enum AccountLifecycleOperation: String, Codable, Hashable, Sendable {
     case rename
     case reopen
 }
@@ -61,6 +61,7 @@ enum AccountLifecycleOperation: String, Hashable, Sendable {
 struct AccountLifecycleOutcome: Hashable, Sendable {
     let operation: AccountLifecycleOperation
     let account: AccountLifecycleAccount
+    var refreshPending = false
 }
 
 enum AccountLifecycleCommitResult: Hashable, Sendable {

@@ -37,6 +37,7 @@ struct AccountTransactionsView: View {
     @State private var isSearchFieldVisible = false
     @State private var viewModel: AccountTransactionsViewModel
     @State private var reconciliationCoordinator = AccountReconciliationCoordinator()
+    @State private var lifecycleCoordinator = AccountLifecycleCoordinator()
 
     init(account: ActualAccount) {
         self.scope = .account(account)
@@ -234,6 +235,9 @@ struct AccountTransactionsView: View {
                 if scope.account != nil {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
+                            if let account = scope.account {
+                                AccountLifecycleMenu(accountID: account.id, coordinator: lifecycleCoordinator)
+                            }
                             Button {
                                 startReconciliation()
                             } label: {
@@ -343,6 +347,7 @@ struct AccountTransactionsView: View {
             )
             .appSwitcherPrivacyProtected(using: appState)
         }
+        .modifier(AccountLifecyclePresentationHost(coordinator: lifecycleCoordinator))
     }
 
     private var deletePresentationBinding: Binding<TransactionDeletePresentation?> {

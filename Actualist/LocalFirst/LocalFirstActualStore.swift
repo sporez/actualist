@@ -208,7 +208,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
         activeReimportID = nil
-        database?.invalidateBankSyncWrites()
+        database?.invalidateSessionWrites()
         transactionFeedRequestIdentity.resetSession()
         budgetReadGeneration &+= 1
         budgetSessionGeneration &+= 1
