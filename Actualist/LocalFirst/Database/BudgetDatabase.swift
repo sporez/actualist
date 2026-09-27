@@ -3,7 +3,7 @@ import GRDB
 import Synchronization
 
 actor BudgetDatabase {
-    nonisolated let bankSyncWritesAllowed = Mutex(true)
+    nonisolated let sessionWritesAllowed = Mutex(true)
     let databaseURL: URL
     let queue: DatabaseQueue
     var localClock: HybridLogicalClock?

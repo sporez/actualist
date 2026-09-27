@@ -17,6 +17,23 @@ struct AccountLifecycleReviewPresentation: Hashable, Sendable {
 }
 
 enum AccountLifecyclePresentation {
+    enum MutationSheet: Equatable {
+        case rename, reopen, savedRefreshPending
+    }
+
+    static func mutationSheet(for state: AccountLifecycleState) -> MutationSheet? {
+        switch state {
+        case .renaming, .submittingRename, .failed(.rename, _):
+            .rename
+        case .reopening, .submittingReopen, .failed(.reopen, _):
+            .reopen
+        case .completed(let outcome):
+            outcome.refreshPending ? .savedRefreshPending : nil
+        case .idle, .loadingReview, .reviewing, .failed(.review, _):
+            nil
+        }
+    }
+
     static func review(
         _ review: AccountLifecycleReview,
         currency: BudgetCurrency,

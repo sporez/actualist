@@ -1,85 +1,64 @@
 import Foundation
 import GRDB
 
-enum AccountLifecycleMutationDecision: Equatable, Sendable {
+private enum AccountLifecycleMutationDecision: Equatable, Sendable {
     case apply(AccountLifecycleOutcome)
     case noChange(AccountLifecycleOutcome)
 }
 
-enum AccountLifecyclePreparedWrite: Equatable, Sendable {
-    case apply(
-        precondition: AccountLifecycleMutationPrecondition,
-        messages: [ActualSyncDecodedMessage],
-        outcome: AccountLifecycleOutcome
-    )
-    case noChange(AccountLifecycleOutcome)
-}
-
 extension BudgetDatabase {
-    func prepareAccountRename(
-        command: AccountRenameCommand,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> AccountLifecyclePreparedWrite {
-        let command = try command.normalized()
-        return try queue.read { db in
-            let precondition = AccountLifecycleMutationPrecondition.rename(command)
-            switch try validateAccountLifecycleMutation(precondition, db: db) {
-            case .noChange(let outcome):
-                return .noChange(outcome)
-            case .apply(let outcome):
-                let message = try builder.makeMessage(
-                    dataset: "accounts",
-                    row: command.accountID,
-                    column: "name",
-                    value: .string(command.newName)
-                )
-                return .apply(
-                    precondition: precondition,
-                    messages: [message],
-                    outcome: outcome
-                )
-            }
+    /// Rebuild the command's exact cell from fresh facts in the atomic commit.
+    /// No preparation result, including an advisory no-op, authorizes a write.
+    func commitAccountLifecycleMutation(
+        _ precondition: AccountLifecycleMutationPrecondition,
+        actionID: String = UUID().uuidString,
+        now: Date = Date()
+    ) throws -> AccountLifecycleCommitResult {
+        try sessionWritesAllowed.withLock { allowed in
+            guard allowed else { throw LocalFirstError.budgetNotOpened }
+            try Task.checkCancellation()
+            return try commitLocalPlan(now: now) { db in
+                let decision = try validateAccountLifecycleMutation(precondition, db: db)
+                switch decision {
+                case .noChange(let outcome):
+                    return LocalCommitPlan(
+                        drafts: [], action: nil,
+                        outcome: AccountLifecycleCommitResult.noChange(outcome)
+                    )
+                case .apply(let outcome):
+                    var builder = LocalFirstSyncMessageBuilder()
+                    let column: String
+                    let value: LocalFirstSyncValue
+                    switch outcome.operation {
+                    case .rename:
+                        column = "name"
+                        value = .string(outcome.account.name)
+                    case .reopen:
+                        column = "closed"
+                        value = .bool(false)
+                    }
+                    let draft = try builder.makeMessage(
+                        dataset: "accounts", row: outcome.account.id, column: column, value: value
+                    )
+                    return LocalCommitPlan(
+                        drafts: [draft],
+                        action: ActionLogCommit(
+                            descriptor: .account(AccountActionDescriptor(
+                                name: outcome.account.name,
+                                offbudget: outcome.account.offBudget,
+                                operation: outcome.operation
+                            )),
+                            source: .ui,
+                            actionID: actionID
+                        ),
+                        outcome: AccountLifecycleCommitResult.applied(outcome)
+                    )
+                }
+            }.outcome
         }
     }
 
-    func prepareAccountReopen(
-        command: AccountReopenCommand,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> AccountLifecyclePreparedWrite {
-        let command = try command.normalized()
-        return try queue.read { db in
-            let precondition = AccountLifecycleMutationPrecondition.reopen(command)
-            switch try validateAccountLifecycleMutation(precondition, db: db) {
-            case .noChange(let outcome):
-                return .noChange(outcome)
-            case .apply(let outcome):
-                let message = try builder.makeMessage(
-                    dataset: "accounts",
-                    row: command.accountID,
-                    column: "closed",
-                    value: .bool(false)
-                )
-                return .apply(
-                    precondition: precondition,
-                    messages: [message],
-                    outcome: outcome
-                )
-            }
-        }
-    }
-
-    func validateAccountLifecycleMutation(
-        _ precondition: AccountLifecycleMutationPrecondition
-    ) throws -> AccountLifecycleMutationDecision {
-        try queue.read { db in
-            try validateAccountLifecycleMutation(precondition, db: db)
-        }
-    }
-
-    /// Integration contract: call this with the active `queue.write` database
-    /// handle immediately before draft stamping/application. `.noChange` must
-    /// return without advancing the clock or writing CRDT/outbox/action-log rows.
-    func validateAccountLifecycleMutation(
+    private func validateAccountLifecycleMutation(
         _ precondition: AccountLifecycleMutationPrecondition,
         db: Database
     ) throws -> AccountLifecycleMutationDecision {

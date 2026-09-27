@@ -24,7 +24,7 @@ struct AccountRenameSheet: View {
                                     .foregroundStyle(ActualistTheme.primaryText)
                                     .textInputAutocapitalization(.words)
                                     .submitLabel(.done)
-                                    .disabled(coordinator.isSubmitting)
+                                    .disabled(!coordinator.canEditRename)
                                     .onSubmit(onSubmit)
                                     .accessibilityIdentifier("account-lifecycle-rename-field")
                             }
@@ -53,7 +53,7 @@ struct AccountRenameSheet: View {
                             }
                             .buttonStyle(.glassProminent)
                             .tint(ActualistTheme.accent)
-                            .disabled(coordinator.renameDraft?.canSubmit != true || coordinator.isSubmitting)
+                            .disabled(!coordinator.canSubmitRename)
                             .accessibilityIdentifier("account-lifecycle-rename-button")
                         }
                         .padding(.horizontal, 18)
@@ -135,7 +135,7 @@ struct AccountReopenSheet: View {
                         }
                         .buttonStyle(.glassProminent)
                         .tint(ActualistTheme.accent)
-                        .disabled(coordinator.isSubmitting)
+                        .disabled(!coordinator.canConfirmReopen)
                         .accessibilityIdentifier("account-lifecycle-reopen-button")
                     }
                     .padding(24)

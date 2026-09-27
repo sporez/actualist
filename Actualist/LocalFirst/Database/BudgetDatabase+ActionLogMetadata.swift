@@ -26,7 +26,9 @@ extension BudgetDatabase {
                 affectedCategoryIDs: []
             )
         case .account(let account):
-            let payload = AccountBudgetAction(name: account.name, offbudget: account.offbudget)
+            let payload = AccountBudgetAction(
+                name: account.name, offbudget: account.offbudget, operation: account.operation
+            )
             return ActionLogFacts(
                 kind: .account,
                 month: "",

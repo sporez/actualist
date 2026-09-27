@@ -5,29 +5,23 @@ import Testing
 struct AccountLifecycleWriteTests {
     private let support = LocalFirstActualStoreTests()
 
-    @Test func renamePreparesExactlyOneNameCellAndPreservesClosedAccountFacts() async throws {
+    @Test func renameCommitsExactlyOneNameCellAndPreservesClosedAccountFacts() async throws {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
             UPDATE accounts SET closed = 1 WHERE id = 'checking';
-            """))
-        var builder = LocalFirstSyncMessageBuilder()
-        let prepared = try await database.prepareAccountRename(
-            command: AccountRenameCommand(
+            """), localNodeID: "lifecycle-test")
+        let result = try await database.commitAccountLifecycleMutation(
+            .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: " Daily Spending "
-            ),
-            builder: &builder
+            ))
         )
 
-        guard case .apply(let precondition, let messages, let outcome) = prepared else {
-            Issue.record("Expected a prepared rename")
+        guard case .applied(let outcome) = result else {
+            Issue.record("Expected a committed rename")
             return
         }
-        #expect(precondition == .rename(AccountRenameCommand(
-            accountID: "checking",
-            expectedCurrentName: "Checking",
-            newName: "Daily Spending"
-        )))
+        let messages = try await database.pendingLocalSyncMessages().map(\.message)
         #expect(messages.count == 1)
         #expect(messages.first?.dataset == "accounts")
         #expect(messages.first?.row == "checking")
@@ -39,14 +33,12 @@ struct AccountLifecycleWriteTests {
 
     @Test func unchangedRenameAndPeerCompletedRenameAreNoChangeWithoutDrafts() async throws {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture())
-        var builder = LocalFirstSyncMessageBuilder()
-        let unchanged = try await database.prepareAccountRename(
-            command: AccountRenameCommand(
+        let unchanged = try await database.commitAccountLifecycleMutation(
+            .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: " Checking "
-            ),
-            builder: &builder
+            ))
         )
         guard case .noChange(let unchangedOutcome) = unchanged else {
             Issue.record("Expected unchanged rename to be a no-op")
@@ -64,7 +56,7 @@ struct AccountLifecycleWriteTests {
             peerMessage(column: "name", value: "S:Daily Spending")
         ])
 
-        let decision = try await database.validateAccountLifecycleMutation(precondition)
+        let decision = try await database.commitAccountLifecycleMutation(precondition)
         guard case .noChange(let outcome) = decision else {
             Issue.record("Expected peer-completed rename to be a no-op")
             return
@@ -75,29 +67,26 @@ struct AccountLifecycleWriteTests {
     @Test func renameRejectsChangedReviewAndExactDuplicateButAllowsCaseVariant() async throws {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
             INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 2);
-            """))
-        var builder = LocalFirstSyncMessageBuilder()
+            """), localNodeID: "lifecycle-test")
 
         await #expect(throws: AccountLifecycleCommandError.duplicateName("Savings")) {
-            try await database.prepareAccountRename(
-                command: AccountRenameCommand(
+            try await database.commitAccountLifecycleMutation(
+                .rename(AccountRenameCommand(
                     accountID: "checking",
                     expectedCurrentName: "Checking",
                     newName: "Savings"
-                ),
-                builder: &builder
+                ))
             )
         }
 
-        let caseVariant = try await database.prepareAccountRename(
-            command: AccountRenameCommand(
+        let caseVariant = try await database.commitAccountLifecycleMutation(
+            .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "savings"
-            ),
-            builder: &builder
+            ))
         )
-        guard case .apply = caseVariant else {
+        guard case .applied = caseVariant else {
             Issue.record("Expected exact-case duplicate semantics")
             return
         }
@@ -106,7 +95,7 @@ struct AccountLifecycleWriteTests {
             peerMessage(column: "name", value: "S:Peer Name")
         ])
         await #expect(throws: AccountLifecycleCommandError.reviewChanged) {
-            try await database.validateAccountLifecycleMutation(.rename(AccountRenameCommand(
+            try await database.commitAccountLifecycleMutation(.rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "Local Name"
@@ -114,19 +103,18 @@ struct AccountLifecycleWriteTests {
         }
     }
 
-    @Test func reopenPreparesOnlyClosedCellAndPeerCompletedReopenIsNoChange() async throws {
+    @Test func reopenCommitsOnlyClosedCellAndPeerCompletedReopenIsNoChange() async throws {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
             UPDATE accounts SET closed = 1 WHERE id = 'checking';
-            """))
+            """), localNodeID: "lifecycle-test")
         let command = AccountReopenCommand(accountID: "checking", expectedClosed: true)
-        var builder = LocalFirstSyncMessageBuilder()
-        let prepared = try await database.prepareAccountReopen(command: command, builder: &builder)
+        let result = try await database.commitAccountLifecycleMutation(.reopen(command))
 
-        guard case .apply(let precondition, let messages, let outcome) = prepared else {
-            Issue.record("Expected a prepared reopen")
+        guard case .applied(let outcome) = result else {
+            Issue.record("Expected a committed reopen")
             return
         }
-        #expect(precondition == .reopen(command))
+        let messages = try await database.pendingLocalSyncMessages().map(\.message)
         #expect(messages.count == 1)
         #expect(messages.first?.dataset == "accounts")
         #expect(messages.first?.row == "checking")
@@ -134,15 +122,19 @@ struct AccountLifecycleWriteTests {
         #expect(messages.first?.serializedValue == "N:0")
         #expect(!outcome.account.isClosed)
 
-        _ = try await database.applyRemoteSyncMessages([
+        let peerDatabase = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
+            UPDATE accounts SET closed = 1 WHERE id = 'checking';
+            """))
+        _ = try await peerDatabase.applyRemoteSyncMessages([
             peerMessage(column: "closed", value: "N:0")
         ])
-        let decision = try await database.validateAccountLifecycleMutation(precondition)
+        let decision = try await peerDatabase.commitAccountLifecycleMutation(.reopen(command))
         guard case .noChange(let peerOutcome) = decision else {
             Issue.record("Expected peer-completed reopen to be a no-op")
             return
         }
         #expect(!peerOutcome.account.isClosed)
+        #expect(try await peerDatabase.pendingLocalSyncMessageCount() == 0)
     }
 
     @Test func tombstonedAccountCannotPassSameTransactionValidation() async throws {
@@ -157,13 +149,13 @@ struct AccountLifecycleWriteTests {
         ])
 
         await #expect(throws: AccountLifecycleCommandError.accountNotFound) {
-            try await database.validateAccountLifecycleMutation(precondition)
+            try await database.commitAccountLifecycleMutation(precondition)
         }
     }
 
     private func peerMessage(column: String, value: String) -> ActualSyncDecodedMessage {
         ActualSyncDecodedMessage(
-            timestamp: "2026-09-27T12:00:00.000Z-0000-peer000000000000",
+            timestamp: "2030-09-27T12:00:00.000Z-0000-peer000000000000",
             dataset: "accounts",
             row: "checking",
             column: column,

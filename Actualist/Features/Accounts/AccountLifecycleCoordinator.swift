@@ -77,6 +77,20 @@ final class AccountLifecycleCoordinator {
         return message
     }
 
+    var canEditRename: Bool {
+        guard !isPrivacyModeEnabled, case .renaming = state else { return false }
+        return true
+    }
+
+    var canSubmitRename: Bool {
+        canEditRename && renameDraft?.canSubmit == true
+    }
+
+    var canConfirmReopen: Bool {
+        guard !isPrivacyModeEnabled, case .reopening = state else { return false }
+        return true
+    }
+
     func beginRename(
         identity: AccountLifecycleIdentity,
         account: AccountLifecycleAccount,
