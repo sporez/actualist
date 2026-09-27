@@ -196,7 +196,11 @@ The generator stops without promoting fixtures if any of these occurs:
   does not match;
 - run evidence cannot be archived before cleanup and fixture promotion.
 
-The approved execution budget is one coordinator-owned generation/investigation
-and, only after a concrete correction, at most one post-correction generation.
+The initial investigation, post-correction run, and explicitly approved extra
+mock-correction run have all been consumed without full-matrix acceptance. The
+calendar correction is source-reviewed only. The user subsequently approved one
+additional invocation using the single-use `calendar-correction-evidence` directory,
+the unchanged 22-case matrix, and the existing execution ceiling. Any further run
+requires another explicit allowance.
 Do not retry unchanged code, broaden to the upstream suite, run another worker's
 checkout, or count source inspection as oracle proof.
