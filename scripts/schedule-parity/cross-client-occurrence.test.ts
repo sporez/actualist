@@ -777,6 +777,31 @@ async function automaticCollisionScenario({
     right,
     `${rightLabel}-automatic-service`,
   );
+  const leftIsolated = await snapshotAndRecord(
+    left,
+    `${id}-left-isolated`,
+    scheduleID,
+  );
+  const rightIsolated = await snapshotAndRecord(
+    right,
+    `${id}-right-isolated`,
+    scheduleID,
+  );
+  requireOracle(
+    leftIsolated.occurrenceTransactionIDs.length === 1 &&
+      rightIsolated.occurrenceTransactionIDs.length === 1,
+    `${id} each originating peer independently generates one transaction`,
+    {
+      left: leftIsolated.occurrenceTransactionIDs,
+      right: rightIsolated.occurrenceTransactionIDs,
+    },
+  );
+  const generatedIDs = {
+    left: leftIsolated.occurrenceTransactionIDs,
+    right: rightIsolated.occurrenceTransactionIDs,
+  };
+  const isolatedIDsEqual =
+    generatedIDs.left[0] === generatedIDs.right[0];
   const merged = await mergeBothOrders({
     batchA: leftBatch,
     batchB: rightBatch,
@@ -802,11 +827,15 @@ async function automaticCollisionScenario({
   );
   recordOccurrenceIdentity(id, mergedCount);
   return {
+    generatedIDs,
+    isolatedIDsEqual,
     leftBatch,
+    leftIsolated,
     leftReceivesRight,
     merged,
     mergedCount,
     rightBatch,
+    rightIsolated,
     rightReceivesLeft,
   };
 }
@@ -834,14 +863,22 @@ async function caseAutomaticVersusAutomatic(): Promise<CaseEvidence> {
       actualPeersIdentityFinding: occurrenceIdentityFinding(
         actualPeers.mergedCount,
       ),
+      actualPeersGeneratedIDs: actualPeers.generatedIDs,
+      actualPeersIsolatedIDsEqual: actualPeers.isolatedIDsEqual,
       actualistLeftSurrogateCount: actualistLeft.mergedCount,
+      actualistLeftSurrogateGeneratedIDs: actualistLeft.generatedIDs,
       actualistLeftSurrogateIdentityFinding: occurrenceIdentityFinding(
         actualistLeft.mergedCount,
       ),
+      actualistLeftSurrogateIsolatedIDsEqual:
+        actualistLeft.isolatedIDsEqual,
       actualistRightSurrogateCount: actualistRight.mergedCount,
+      actualistRightSurrogateGeneratedIDs: actualistRight.generatedIDs,
       actualistRightSurrogateIdentityFinding: occurrenceIdentityFinding(
         actualistRight.mergedCount,
       ),
+      actualistRightSurrogateIsolatedIDsEqual:
+        actualistRight.isolatedIDsEqual,
       productGate: evidence.productGate.automaticPosting,
       roleImplementation:
         'all peers execute pinned Actual v26.9.0 handler; Actualist labels are direction-only surrogates',

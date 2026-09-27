@@ -31,13 +31,19 @@ CRDT replay is asserted independently from that result.
 The runner requires both the read-only pinned source and a distinct writable
 clone. It rejects identical checkout paths and shared git-common-directory
 identity, so the overlay cannot target the supplied source checkout or one of
-its linked worktrees. It also rejects wrong source revisions, tracked changes,
-existing overlay files, or a spent run label.
+its linked worktrees. Before creating any evidence path, it also rejects an
+evidence root equal to or nested beneath either checkout. It rejects wrong
+source revisions, tracked changes, existing overlay files, or a spent run label.
 
 The invocation has a 600-second ceiling and a 10-second termination grace. Its
 supervisor creates one process group for this invocation and signals only that
 group. It never uses a blanket process kill. Exit `124` means timeout; `130` or
-`143` means interruption. Every outcome is written numerically.
+`143` means interruption. The outer signal trap owns the exact supervisor and
+recorded child process group, waits for confirmed termination before removing
+the overlay, and captures post-cleanup git status on interruption. Every outcome
+is written numerically. Startup identity, graceful termination, and forced-stop
+confirmation are each bounded to 10 seconds, for a 30-second outer-cleanup
+ceiling in the worst signal race.
 
 ## Exact coordinator command shape
 
@@ -103,11 +109,13 @@ Review `oracle-result.json`; do not infer uniqueness from process exit alone.
    one-or-two-row count and IDs determine the finding. Replaying A's exact CRDT
    batch must add no message or transaction.
 6. **Automatic versus automatic and role reversal:** two Actual handlers run on
-   isolated peers, then both role directions repeat with labels reversed. Counts
-   are recorded neutrally with the same convergence and replay assertions. Until
-   Actualist has a posting implementation, its label is a pinned-Actual-handler
-   surrogate and is not interoperability evidence. Automatic posting stays
-   blocked regardless of this surrogate result.
+   isolated peers, then both role directions repeat with labels reversed. Before
+   exchange, each originating peer must contain one occurrence; both generated
+   IDs and their observational equality are recorded without presuming they
+   differ. Counts are recorded neutrally with the same convergence and replay
+   assertions. Until Actualist has a posting implementation, its label is a
+   pinned-Actual-handler surrogate and is not interoperability evidence.
+   Automatic posting stays blocked regardless of this surrogate result.
 7. **Split and transfer propagation:** a real schedule rule creates a split whose
    parent alone carries `schedule`; a real transfer handler creates two linked
    legs and both carry `schedule`. Each graph is exchanged to a second peer and

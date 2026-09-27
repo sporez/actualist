@@ -58,6 +58,32 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 actualist_root=$(cd "$script_dir/../.." && pwd -P)
 source_checkout=$(cd "$source_checkout" && pwd -P)
 actual_checkout=$(cd "$actual_checkout" && pwd -P)
+python_path=$(command -v python3)
+evidence_root=$("$python_path" -c \
+  'import os, sys; print(os.path.realpath(os.path.abspath(sys.argv[1])))' \
+  "$evidence_root")
+
+path_is_equal_or_nested() {
+  local candidate=$1
+  local parent=$2
+  case "$candidate" in
+    "$parent"|"$parent"/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+if path_is_equal_or_nested "$evidence_root" "$source_checkout"; then
+  echo 'schedule parity oracle: evidence root must be outside the shared source checkout' >&2
+  exit 66
+fi
+if path_is_equal_or_nested "$evidence_root" "$actual_checkout"; then
+  echo 'schedule parity oracle: evidence root must be outside the writable clone' >&2
+  exit 66
+fi
 
 git_common_directory() {
   local checkout=$1
@@ -92,7 +118,6 @@ mkdir -p "$run_dir"
 
 node_path=$(command -v node)
 yarn_bootstrap_path=$(command -v yarn || true)
-python_path=$(command -v python3)
 yarn_release_path="$actual_checkout/.yarn/releases/yarn-4.17.1.cjs"
 vitest_path="$actual_checkout/node_modules/.bin/vitest"
 vitest_package="$actual_checkout/node_modules/vitest/package.json"
@@ -164,17 +189,146 @@ if [[ -e "$test_target" || -e "$support_target" ]]; then
   exit 66
 fi
 
-cleanup() {
+supervisor_pid=''
+supervisor_expected=0
+supervisor_pid_file="$run_dir/supervisor.pid"
+supervisor_pgid_file="$run_dir/supervisor-child-pgid"
+
+cleanup_overlay() {
   rm -f "$test_target" "$support_target"
 }
-shell_interrupted() {
-  local status=$1
-  printf '%s\n' "$status" > "$run_dir/oracle.exit"
-  printf 'outcome=interrupted\nstatus=%s\n' "$status" > "$run_dir/outcome.env"
-  cleanup
-  exit "$status"
+
+owned_child_pgid() {
+  local pgid=''
+  if [[ -f "$supervisor_pgid_file" ]]; then
+    pgid=$(cat "$supervisor_pgid_file")
+  fi
+  if [[ "$pgid" =~ ^[0-9]+$ && "$pgid" -gt 1 ]]; then
+    printf '%s\n' "$pgid"
+  fi
 }
-trap cleanup EXIT
+
+owned_supervisor_pid() {
+  local pid=$supervisor_pid
+  if [[ -z "$pid" && -f "$supervisor_pid_file" ]]; then
+    pid=$(cat "$supervisor_pid_file")
+  fi
+  if [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 1 ]]; then
+    printf '%s\n' "$pid"
+  fi
+}
+
+wait_for_supervisor_identity() {
+  local attempts=$((TERMINATION_GRACE_SECONDS * 10))
+  local attempt
+  [[ "$supervisor_expected" -eq 1 ]] || return 0
+  for ((attempt = 0; attempt < attempts; attempt += 1)); do
+    if [[ -n "$(owned_supervisor_pid)" ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+}
+
+process_is_running() {
+  local pid=$1
+  local state=''
+  [[ -n "$pid" ]] || return 1
+  state=$(ps -o stat= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+  [[ -n "$state" && "$state" != Z* ]]
+}
+
+process_group_is_running() {
+  local pgid=$1
+  [[ -n "$pgid" ]] || return 1
+  /bin/kill -0 "-$pgid" 2>/dev/null
+}
+
+signal_owned_processes() {
+  local signal_name=$1
+  local pgid=''
+  local pid=''
+  wait_for_supervisor_identity
+  pgid=$(owned_child_pgid)
+  pid=$(owned_supervisor_pid)
+  if [[ -n "$pgid" ]]; then
+    /bin/kill "-$signal_name" "-$pgid" 2>/dev/null || true
+  fi
+  if process_is_running "$pid"; then
+    /bin/kill "-$signal_name" "$pid" 2>/dev/null || true
+  fi
+}
+
+wait_for_owned_termination() {
+  local attempts=$((TERMINATION_GRACE_SECONDS * 10))
+  local pgid=''
+  local pid=''
+  local attempt
+  for ((attempt = 0; attempt < attempts; attempt += 1)); do
+    pgid=$(owned_child_pgid)
+    pid=$(owned_supervisor_pid)
+    if ! process_is_running "$pid" &&
+      ! process_group_is_running "$pgid"; then
+      if [[ -n "$pid" ]]; then
+        wait "$pid" 2>/dev/null || true
+      fi
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+terminate_owned_processes() {
+  signal_owned_processes TERM
+  if wait_for_owned_termination; then
+    return 0
+  fi
+
+  signal_owned_processes KILL
+  wait_for_owned_termination
+}
+
+record_run_outcome() {
+  local exit_status=$1
+  local outcome=$2
+  printf '%s\n' "$exit_status" > "$run_dir/oracle.exit"
+  printf 'outcome=%s\nstatus=%s\n' \
+    "$outcome" \
+    "$exit_status" > "$run_dir/outcome.env"
+}
+
+capture_post_cleanup_status() {
+  git -C "$actual_checkout" status --short > \
+    "$run_dir/post-cleanup-git-status.txt"
+}
+
+shell_interrupted() {
+  local exit_status=$1
+  trap - EXIT INT TERM
+  if terminate_owned_processes; then
+    cleanup_overlay
+    record_run_outcome "$exit_status" interrupted
+  else
+    record_run_outcome "$exit_status" interrupted-cleanup-blocked
+  fi
+  capture_post_cleanup_status
+  exit "$exit_status"
+}
+
+shell_exited() {
+  local exit_status=$1
+  trap - EXIT INT TERM
+  if [[ "$supervisor_expected" -eq 1 ]] && ! terminate_owned_processes; then
+    record_run_outcome "$exit_status" exit-cleanup-blocked
+    capture_post_cleanup_status
+    exit "$exit_status"
+  fi
+  cleanup_overlay
+  capture_post_cleanup_status
+  exit "$exit_status"
+}
+trap 'shell_exited $?' EXIT
 trap 'shell_interrupted 130' INT
 trap 'shell_interrupted 143' TERM
 
@@ -204,6 +358,8 @@ cp "$script_dir/run-oracle.sh" "$run_dir/oracle-source/run-oracle.sh"
   printf 'tz=%s\n' "$ORACLE_TZ"
   printf 'ceiling_seconds=%s\n' "$CEILING_SECONDS"
   printf 'termination_grace_seconds=%s\n' "$TERMINATION_GRACE_SECONDS"
+  printf 'outer_termination_max_seconds=%s\n' \
+    "$((TERMINATION_GRACE_SECONDS * 3))"
   printf 'run_label=%s\n' "$run_label"
   printf 'source_checkout=%s\n' "$source_checkout"
   printf 'actual_checkout=%s\n' "$actual_checkout"
@@ -241,16 +397,19 @@ EOF
 
 printf '%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "$marker"
 set +e
+supervisor_expected=1
 "$python_path" - \
   "$CEILING_SECONDS" \
   "$TERMINATION_GRACE_SECONDS" \
   "$actual_checkout" \
   "$run_dir/oracle.log" \
   "$run_dir/oracle-result.json" \
+  "$supervisor_pid_file" \
+  "$supervisor_pgid_file" \
   "$ORACLE_TZ" \
   "$node_path" \
   "$yarn_release_path" \
-  "$vitest_path" <<'PY'
+  "$vitest_path" <<'PY' &
 import os
 import signal
 import subprocess
@@ -262,14 +421,16 @@ grace = int(sys.argv[2])
 cwd = sys.argv[3]
 log_path = sys.argv[4]
 result_path = sys.argv[5]
-timezone = sys.argv[6]
+supervisor_pid_path = sys.argv[6]
+pgid_path = sys.argv[7]
+timezone = sys.argv[8]
 command = [
-    sys.argv[7],
-    sys.argv[8],
+    sys.argv[9],
+    sys.argv[10],
     'workspace',
     '@actual-app/core',
     'exec',
-    sys.argv[9],
+    sys.argv[11],
     '--run',
     'src/server/schedules/cross-client-occurrence.test.ts',
     '--reporter=verbose',
@@ -279,7 +440,7 @@ environment = os.environ.copy()
 environment.update({
     'ACTUAL_SCHEDULE_PARITY_EVIDENCE': result_path,
     'ENV': 'node',
-    'PATH': os.path.dirname(sys.argv[7]) + os.pathsep + environment['PATH'],
+    'PATH': os.path.dirname(sys.argv[9]) + os.pathsep + environment['PATH'],
     'TZ': timezone,
 })
 requested_signal = None
@@ -291,6 +452,17 @@ def request_stop(signum, _frame):
 signal.signal(signal.SIGINT, request_stop)
 signal.signal(signal.SIGTERM, request_stop)
 
+with open(supervisor_pid_path, 'w', encoding='utf-8') as supervisor_pid_file:
+    supervisor_pid_file.write(f'{os.getpid()}\n')
+    supervisor_pid_file.flush()
+    os.fsync(supervisor_pid_file.fileno())
+
+def signal_group(process_group, requested):
+    try:
+        os.killpg(process_group, requested)
+    except ProcessLookupError:
+        pass
+
 with open(log_path, 'wb') as output:
     process = subprocess.Popen(
         command,
@@ -300,6 +472,10 @@ with open(log_path, 'wb') as output:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
+    with open(pgid_path, 'w', encoding='utf-8') as pgid_file:
+        pgid_file.write(f'{process.pid}\n')
+        pgid_file.flush()
+        os.fsync(pgid_file.fileno())
     deadline = time.monotonic() + ceiling
     stop_status = None
     while process.poll() is None:
@@ -312,11 +488,11 @@ with open(log_path, 'wb') as output:
         time.sleep(0.2)
 
     if stop_status is not None and process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
+        signal_group(process.pid, signal.SIGTERM)
         try:
             process.wait(timeout=grace)
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
+            signal_group(process.pid, signal.SIGKILL)
             process.wait()
 
     if stop_status is not None:
@@ -324,10 +500,14 @@ with open(log_path, 'wb') as output:
     return_code = process.returncode
     sys.exit(128 - return_code if return_code < 0 else return_code)
 PY
-status=$?
+supervisor_pid=$!
+wait "$supervisor_pid"
+oracle_status=$?
+supervisor_pid=''
+supervisor_expected=0
 set -e
-printf '%s\n' "$status" > "$run_dir/oracle.exit"
-case "$status" in
+printf '%s\n' "$oracle_status" > "$run_dir/oracle.exit"
+case "$oracle_status" in
   0)
     outcome='completed-success'
     ;;
@@ -341,9 +521,11 @@ case "$status" in
     outcome='completed-failure'
     ;;
 esac
-printf 'outcome=%s\nstatus=%s\n' "$outcome" "$status" > "$run_dir/outcome.env"
+printf 'outcome=%s\nstatus=%s\n' \
+  "$outcome" \
+  "$oracle_status" > "$run_dir/outcome.env"
 
-cleanup
+cleanup_overlay
+capture_post_cleanup_status
 trap - EXIT INT TERM
-git -C "$actual_checkout" status --short > "$run_dir/post-cleanup-git-status.txt"
-exit "$status"
+exit "$oracle_status"
