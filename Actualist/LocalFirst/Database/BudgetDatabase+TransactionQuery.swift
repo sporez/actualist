@@ -34,22 +34,29 @@ extension BudgetDatabase {
         _ request: TransactionDrilldownRequest
     ) throws -> TransactionDrilldownResult {
         try queue.read { db in
-            let selection = try transactionQuerySelection(
-                db: db,
-                scope: request.scope,
-                query: request.query,
-                limit: nil,
-                offset: 0
-            )
-            return TransactionDrilldownResult(
-                querySignature: request.query.signature,
-                displayTransactions: selection.page.transactions,
-                matchingTransactionIDs: selection.page.matchingTransactionIDs,
-                contributingTransactions: selection.contributingTransactions,
-                attachedContextTransactionIDs: selection.page.attachedContextTransactionIDs,
-                totalMatchCount: selection.page.totalMatchCount
-            )
+            try transactionDrilldown(request, db: db)
         }
+    }
+
+    func transactionDrilldown(
+        _ request: TransactionDrilldownRequest,
+        db: Database
+    ) throws -> TransactionDrilldownResult {
+        let selection = try transactionQuerySelection(
+            db: db,
+            scope: request.scope,
+            query: request.query,
+            limit: nil,
+            offset: 0
+        )
+        return TransactionDrilldownResult(
+            querySignature: request.query.signature,
+            displayTransactions: selection.page.transactions,
+            matchingTransactionIDs: selection.page.matchingTransactionIDs,
+            contributingTransactions: selection.contributingTransactions,
+            attachedContextTransactionIDs: selection.page.attachedContextTransactionIDs,
+            totalMatchCount: selection.page.totalMatchCount
+        )
     }
 }
 
@@ -119,12 +126,13 @@ private extension BudgetDatabase {
     ) throws -> CompiledTransactionQuery {
         let columns = try columnSet(for: "transactions", db: db)
         let split = transactionSplitQueryExpressions(columns: columns)
-        // Actual's logical transfer_id maps to transferred_id in persisted budgets.
-        let transferIDExpression = ["transferred_id", "transfer_id"]
-            .first(where: columns.contains)
-            .map { "\(split.tableAlias).\($0)" } ?? "NULL"
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-        var joins = try transactionReadJoins(db: db, split: split, includeNames: true)
+        var joins = try transactionReadJoins(
+            db: db,
+            split: split,
+            transactionColumns: columns,
+            includeNames: true
+        )
         var conditions = [split.liveEffectivePredicate()]
         var arguments: [DatabaseValueConvertible] = []
 
@@ -154,7 +162,6 @@ private extension BudgetDatabase {
                     condition,
                     split: split,
                     joins: joins,
-                    transferIDExpression: transferIDExpression,
                     normalizedDate: normalizedDate,
                     arguments: &conditionArguments
                 ))
@@ -173,7 +180,7 @@ private extension BudgetDatabase {
         let hasOnlyParentSafeConditions = query.conditions.allSatisfy { condition in
             switch condition {
             case .date, .account: true
-            case .payee, .category: false
+            case .payee, .category, .transfer: false
             }
         }
         let usesGroupedParentSelection = query.text == nil
@@ -506,7 +513,6 @@ private extension BudgetDatabase {
         _ condition: TransactionQueryCondition,
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
-        transferIDExpression: String,
         normalizedDate: String,
         arguments: inout [DatabaseValueConvertible]
     ) -> String {
@@ -520,13 +526,19 @@ private extension BudgetDatabase {
         case .category(let ids):
             let category = split.effectiveCategory(mappedCategory: joins.mappedCategory)
             if ids.operation == .isEqual, ids.values == [nil] {
-                return "(\(category) IS NULL AND \(transferIDExpression) IS NULL AND \(split.qualifiedIsParent) = 0)"
+                return """
+                    (\(category) IS NULL
+                     AND \(joins.transferIDExpression) IS NULL
+                     AND \(split.qualifiedIsParent) = 0)
+                    """
             }
             return idPredicate(
                 ids,
                 expression: category,
                 arguments: &arguments
             )
+        case .transfer(let isTransfer):
+            return "(\(joins.isTransferExpression)) = \(isTransfer ? 1 : 0)"
         }
     }
 

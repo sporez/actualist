@@ -36,7 +36,12 @@ extension BudgetDatabase {
             let columns = try columnSet(for: "transactions", db: db)
             let split = transactionSplitQueryExpressions(columns: columns)
             let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-            let joins = try transactionReadJoins(db: db, split: split, includeNames: false)
+            let joins = try transactionReadJoins(
+                db: db,
+                split: split,
+                transactionColumns: columns,
+                includeNames: false
+            )
             let familyPredicate: String
             let arguments: [DatabaseValueConvertible]
             if split.hasParentIDColumn {
@@ -108,7 +113,12 @@ extension BudgetDatabase {
             let columns = try columnSet(for: "transactions", db: db)
             let split = transactionSplitQueryExpressions(columns: columns)
             let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-            var joins = try transactionReadJoins(db: db, split: split, includeNames: true)
+            var joins = try transactionReadJoins(
+                db: db,
+                split: split,
+                transactionColumns: columns,
+                includeNames: true
+            )
             let mode = splits ?? ((query?.isEmpty ?? true) ? .grouped : .all)
 
             var conditions: [String] = [split.liveEffectivePredicate()]
@@ -305,6 +315,8 @@ struct TransactionReadJoins {
     let sql: String
     let mappedPayee: String
     let mappedCategory: String
+    let transferIDExpression: String
+    let isTransferExpression: String
     let payeeNameSelect: String
     let categoryNameSelect: String
 }
@@ -320,6 +332,7 @@ extension BudgetDatabase {
     func transactionReadJoins(
         db: Database,
         split: TransactionSplitQueryExpressions,
+        transactionColumns: Set<String>,
         includeNames: Bool
     ) throws -> TransactionReadJoins {
         let transferColumn = try categoryMappingTransferColumn(db: db)
@@ -330,27 +343,62 @@ extension BudgetDatabase {
             ? ""
             : "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
 
-        let hasPayeeMapping = try tableExists("payee_mapping", db: db)
-        let mappedPayee = hasPayeeMapping
-            ? "COALESCE(pm.targetId, \(split.qualifiedPayee))"
-            : split.qualifiedPayee
-        let payeeMappingJoin = hasPayeeMapping
-            ? "LEFT JOIN payee_mapping pm ON pm.id = \(split.qualifiedPayee)"
-            : ""
+        let hasTransactionPayee = ["description", "payee"].contains {
+            transactionColumns.contains($0)
+        }
+        let payeeMappingTarget: String?
+        if hasTransactionPayee, try tableExists("payee_mapping", db: db) {
+            let mappingColumns = try columnSet(for: "payee_mapping", db: db)
+            payeeMappingTarget = ["targetId", "target_id"].first(where: mappingColumns.contains)
+        } else {
+            payeeMappingTarget = nil
+        }
+        let mappedPayee = payeeMappingTarget.map {
+            "COALESCE(pm.\($0), \(split.qualifiedPayee))"
+        } ?? split.qualifiedPayee
+        let payeeMappingJoin = payeeMappingTarget == nil
+            ? ""
+            : "LEFT JOIN payee_mapping pm ON pm.id = \(split.qualifiedPayee)"
 
-        var payeeNameJoin = ""
+        // Actual's logical transfer_id maps to transferred_id in persisted budgets.
+        let transferIDColumn = ["transferred_id", "transfer_id"]
+            .first(where: transactionColumns.contains)
+        let transferIDExpression = transferIDColumn.map { "\(split.tableAlias).\($0)" } ?? "NULL"
+        var transferPredicates: [String] = []
+        if transferIDColumn != nil {
+            transferPredicates.append(
+                "(\(transferIDExpression) IS NOT NULL AND \(transferIDExpression) != '')"
+            )
+        }
+
+        var payeeJoin = ""
+        var payeeAccountJoin = ""
         var payeeNameSelect = "NULL"
-        if includeNames, try tableExists("payees", db: db) {
+        if try tableExists("payees", db: db) {
             let payeeColumns = try columnSet(for: "payees", db: db)
-            let hasAccounts = try tableExists("accounts", db: db)
-            if hasAccounts, payeeColumns.contains("transfer_acct") {
-                payeeNameJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee) LEFT JOIN accounts pax ON pax.id = py.transfer_acct"
-                payeeNameSelect = "COALESCE(NULLIF(py.name, ''), pax.name)"
-            } else {
-                payeeNameJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee)"
-                payeeNameSelect = "py.name"
+            let transferAccount = ["transfer_acct", "transfer_account"]
+                .first(where: payeeColumns.contains)
+            if includeNames || (hasTransactionPayee && transferAccount != nil) {
+                payeeJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee)"
+            }
+            if hasTransactionPayee, let transferAccount {
+                transferPredicates.append(
+                    "(py.\(transferAccount) IS NOT NULL AND py.\(transferAccount) != '')"
+                )
+            }
+            if includeNames {
+                if let transferAccount, try tableExists("accounts", db: db) {
+                    payeeAccountJoin = "LEFT JOIN accounts pax ON pax.id = py.\(transferAccount)"
+                    payeeNameSelect = "COALESCE(NULLIF(py.name, ''), pax.name)"
+                } else {
+                    payeeNameSelect = "py.name"
+                }
             }
         }
+        // Reports and backend transaction queries must classify both graph and payee transfers.
+        let isTransferExpression = transferPredicates.isEmpty
+            ? "0"
+            : "CASE WHEN \(transferPredicates.joined(separator: " OR ")) THEN 1 ELSE 0 END"
 
         var categoryNameJoin = ""
         var categoryNameSelect = "NULL"
@@ -360,11 +408,13 @@ extension BudgetDatabase {
         }
 
         return TransactionReadJoins(
-            sql: [categoryMappingJoin, payeeMappingJoin, payeeNameJoin, categoryNameJoin]
+            sql: [categoryMappingJoin, payeeMappingJoin, payeeJoin, payeeAccountJoin, categoryNameJoin]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n"),
             mappedPayee: mappedPayee,
             mappedCategory: mappedCategory,
+            transferIDExpression: transferIDExpression,
+            isTransferExpression: isTransferExpression,
             payeeNameSelect: payeeNameSelect,
             categoryNameSelect: categoryNameSelect
         )
@@ -390,7 +440,12 @@ extension BudgetDatabase {
         let columns = try columnSet(for: "transactions", db: db)
         let split = transactionSplitQueryExpressions(columns: columns)
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-        let joins = try transactionReadJoins(db: db, split: split, includeNames: true)
+        let joins = try transactionReadJoins(
+            db: db,
+            split: split,
+            transactionColumns: columns,
+            includeNames: true
+        )
 
         var extraJoin = ""
         var conditions: [String] = [
@@ -416,6 +471,8 @@ extension BudgetDatabase {
                 sql: [joins.sql, extraJoin].filter { !$0.isEmpty }.joined(separator: "\n"),
                 mappedPayee: joins.mappedPayee,
                 mappedCategory: joins.mappedCategory,
+                transferIDExpression: joins.transferIDExpression,
+                isTransferExpression: joins.isTransferExpression,
                 payeeNameSelect: joins.payeeNameSelect,
                 categoryNameSelect: joins.categoryNameSelect
             ),

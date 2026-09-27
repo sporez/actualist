@@ -124,6 +124,7 @@ enum TransactionQueryCondition: Hashable, Sendable {
     case account(TransactionQueryIDCondition)
     case payee(TransactionQueryIDCondition)
     case category(TransactionQueryIDCondition)
+    case transfer(Bool)
 
     fileprivate var canonicalKey: String {
         switch self {
@@ -135,6 +136,8 @@ enum TransactionQueryCondition: Hashable, Sendable {
             return idCanonicalKey(field: "payee", condition: condition)
         case .category(let condition):
             return idCanonicalKey(field: "category", condition: condition)
+        case .transfer(let isTransfer):
+            return "transfer|\(isTransfer)"
         }
     }
 
