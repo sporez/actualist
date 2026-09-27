@@ -7,28 +7,37 @@ EXPECTED_TAG='v26.9.0'
 EXPECTED_VERSION='26.9.0'
 EXPECTED_NODE_PREFIX='v24.21.'
 EXPECTED_YARN='4.17.1'
+ORACLE_TZ='UTC'
+CEILING_SECONDS=600
+TERMINATION_GRACE_SECONDS=10
 
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/schedule-parity/run-oracle.sh \
-  --actual-checkout <writable-isolated-actual-v26.9.0-copy> \
-  --evidence <evidence-directory> \
+  --source-checkout <read-only-pinned-actual-v26.9.0-source> \
+  --actual-checkout <writable-distinct-clone> \
+  --evidence <evidence-root> \
   --run-label <investigation|post-correction>
 EOF
   exit 64
 }
 
+source_checkout=''
 actual_checkout=''
-evidence=''
+evidence_root=''
 run_label=''
 while (($# > 0)); do
   case "$1" in
+    --source-checkout)
+      source_checkout=${2:-}
+      shift 2
+      ;;
     --actual-checkout)
       actual_checkout=${2:-}
       shift 2
       ;;
     --evidence)
-      evidence=${2:-}
+      evidence_root=${2:-}
       shift 2
       ;;
     --run-label)
@@ -41,34 +50,93 @@ while (($# > 0)); do
   esac
 done
 
-[[ -n "$actual_checkout" && -n "$evidence" && -n "$run_label" ]] || usage
+[[ -n "$source_checkout" && -n "$actual_checkout" ]] || usage
+[[ -n "$evidence_root" && -n "$run_label" ]] || usage
 [[ "$run_label" == 'investigation' || "$run_label" == 'post-correction' ]] || usage
 
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-actualist_root=$(cd "$script_dir/../.." && pwd)
-actual_checkout=$(cd "$actual_checkout" && pwd)
-mkdir -p "$evidence"
-evidence=$(cd "$evidence" && pwd)
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+actualist_root=$(cd "$script_dir/../.." && pwd -P)
+source_checkout=$(cd "$source_checkout" && pwd -P)
+actual_checkout=$(cd "$actual_checkout" && pwd -P)
 
-marker="$evidence/$run_label.started"
+git_common_directory() {
+  local checkout=$1
+  local common
+  common=$(git -C "$checkout" rev-parse --git-common-dir)
+  if [[ "$common" != /* ]]; then
+    common="$checkout/$common"
+  fi
+  (cd "$common" && pwd -P)
+}
+
+source_git_common=$(git_common_directory "$source_checkout")
+actual_git_common=$(git_common_directory "$actual_checkout")
+if [[ "$source_checkout" == "$actual_checkout" ]]; then
+  echo 'schedule parity oracle: writable checkout is the shared pinned source' >&2
+  exit 66
+fi
+if [[ "$source_git_common" == "$actual_git_common" ]]; then
+  echo 'schedule parity oracle: writable checkout shares the source git worktree identity' >&2
+  exit 66
+fi
+
+mkdir -p "$evidence_root"
+evidence_root=$(cd "$evidence_root" && pwd -P)
+run_dir="$evidence_root/$run_label"
+marker="$run_dir/started"
 if [[ -e "$marker" ]]; then
   echo "schedule parity oracle: run label already spent: $run_label" >&2
   exit 65
 fi
+mkdir -p "$run_dir"
 
-observed_commit=$(git -C "$actual_checkout" rev-parse HEAD) || exit $?
-observed_tag=$(git -C "$actual_checkout" describe --tags --exact-match HEAD) || exit $?
-observed_version=$(node -p "require(process.argv[1]).version" \
-  "$actual_checkout/packages/loot-core/package.json") || exit $?
-observed_node=$(node --version) || exit $?
-observed_yarn=$(cd "$actual_checkout" && yarn --version) || exit $?
+node_path=$(command -v node)
+yarn_bootstrap_path=$(command -v yarn || true)
+python_path=$(command -v python3)
+yarn_release_path="$actual_checkout/.yarn/releases/yarn-4.17.1.cjs"
+vitest_path="$actual_checkout/node_modules/.bin/vitest"
+vitest_package="$actual_checkout/node_modules/vitest/package.json"
+[[ -f "$yarn_release_path" ]] || {
+  echo "schedule parity oracle: missing Yarn release $yarn_release_path" >&2
+  exit 66
+}
+[[ -x "$vitest_path" ]] || {
+  echo "schedule parity oracle: missing Vitest executable $vitest_path" >&2
+  exit 66
+}
+[[ -f "$vitest_package" ]] || {
+  echo "schedule parity oracle: missing Vitest package metadata $vitest_package" >&2
+  exit 66
+}
 
-if [[ "$observed_commit" != "$EXPECTED_COMMIT" ]]; then
-  echo "schedule parity oracle: expected Actual $EXPECTED_COMMIT, found $observed_commit" >&2
+vitest_link=$(readlink "$vitest_path" || true)
+if [[ -n "$vitest_link" ]]; then
+  if [[ "$vitest_link" == /* ]]; then
+    vitest_real_path="$vitest_link"
+  else
+    vitest_real_path=$(cd "$(dirname "$vitest_path")/$(dirname "$vitest_link")" && pwd -P)/$(basename "$vitest_link")
+  fi
+else
+  vitest_real_path="$vitest_path"
+fi
+
+observed_commit=$(git -C "$actual_checkout" rev-parse HEAD)
+observed_tag=$(git -C "$actual_checkout" describe --tags --exact-match HEAD)
+source_commit=$(git -C "$source_checkout" rev-parse HEAD)
+source_tag=$(git -C "$source_checkout" describe --tags --exact-match HEAD)
+observed_version=$("$node_path" -p "require(process.argv[1]).version" \
+  "$actual_checkout/packages/loot-core/package.json")
+observed_node=$("$node_path" --version)
+observed_yarn=$("$node_path" "$yarn_release_path" --version)
+observed_vitest=$("$node_path" -p "require(process.argv[1]).version" \
+  "$vitest_package")
+
+if [[ "$observed_commit" != "$EXPECTED_COMMIT" || "$source_commit" != "$EXPECTED_COMMIT" ]]; then
+  echo 'schedule parity oracle: source or writable clone is not at the pinned commit' >&2
   exit 66
 fi
-if [[ "$observed_tag" != "$EXPECTED_TAG" ]]; then
-  echo "schedule parity oracle: expected tag $EXPECTED_TAG, found $observed_tag" >&2
+if [[ "$observed_tag" != "$EXPECTED_TAG" || "$source_tag" != "$EXPECTED_TAG" ]]; then
+  echo 'schedule parity oracle: source or writable clone is not at the pinned tag' >&2
   exit 66
 fi
 if [[ "$observed_version" != "$EXPECTED_VERSION" ]]; then
@@ -84,7 +152,7 @@ if [[ "$observed_yarn" != "$EXPECTED_YARN" ]]; then
   exit 66
 fi
 if [[ -n "$(git -C "$actual_checkout" status --porcelain --untracked-files=no)" ]]; then
-  echo 'schedule parity oracle: isolated Actual copy has tracked changes before overlay' >&2
+  echo 'schedule parity oracle: writable clone has tracked changes before overlay' >&2
   exit 66
 fi
 
@@ -99,27 +167,54 @@ fi
 cleanup() {
   rm -f "$test_target" "$support_target"
 }
-trap cleanup EXIT INT TERM
+shell_interrupted() {
+  local status=$1
+  printf '%s\n' "$status" > "$run_dir/oracle.exit"
+  printf 'outcome=interrupted\nstatus=%s\n' "$status" > "$run_dir/outcome.env"
+  cleanup
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'shell_interrupted 130' INT
+trap 'shell_interrupted 143' TERM
 
 cp "$script_dir/cross-client-occurrence.test.ts" "$test_target"
 cp "$script_dir/schedule-occurrence-oracle-support.ts" "$support_target"
-mkdir -p "$evidence/oracle-source"
-cp "$script_dir/README.md" "$evidence/oracle-source/README.md"
+mkdir -p "$run_dir/oracle-source"
+cp "$script_dir/README.md" "$run_dir/oracle-source/README.md"
 cp "$script_dir/cross-client-occurrence.test.ts" \
-  "$evidence/oracle-source/cross-client-occurrence.test.ts"
+  "$run_dir/oracle-source/cross-client-occurrence.test.ts"
 cp "$script_dir/schedule-occurrence-oracle-support.ts" \
-  "$evidence/oracle-source/schedule-occurrence-oracle-support.ts"
-cp "$script_dir/run-oracle.sh" "$evidence/oracle-source/run-oracle.sh"
+  "$run_dir/oracle-source/schedule-occurrence-oracle-support.ts"
+cp "$script_dir/run-oracle.sh" "$run_dir/oracle-source/run-oracle.sh"
 
 {
   printf 'actual_commit=%s\n' "$observed_commit"
   printf 'actual_tag=%s\n' "$observed_tag"
   printf 'core_version=%s\n' "$observed_version"
-  printf 'node=%s\n' "$observed_node"
-  printf 'yarn=%s\n' "$observed_yarn"
+  printf 'node_version=%s\n' "$observed_node"
+  printf 'yarn_version=%s\n' "$observed_yarn"
+  printf 'vitest_version=%s\n' "$observed_vitest"
+  printf 'node_path=%s\n' "$node_path"
+  printf 'yarn_bootstrap_path=%s\n' "${yarn_bootstrap_path:-not-on-path}"
+  printf 'yarn_release_path=%s\n' "$yarn_release_path"
+  printf 'vitest_path=%s\n' "$vitest_path"
+  printf 'vitest_real_path=%s\n' "$vitest_real_path"
+  printf 'python_path=%s\n' "$python_path"
+  printf 'tz=%s\n' "$ORACLE_TZ"
+  printf 'ceiling_seconds=%s\n' "$CEILING_SECONDS"
+  printf 'termination_grace_seconds=%s\n' "$TERMINATION_GRACE_SECONDS"
   printf 'run_label=%s\n' "$run_label"
+  printf 'source_checkout=%s\n' "$source_checkout"
   printf 'actual_checkout=%s\n' "$actual_checkout"
+  printf 'source_git_common=%s\n' "$source_git_common"
+  printf 'actual_git_common=%s\n' "$actual_git_common"
   printf 'actualist_source=%s\n' "$actualist_root"
+  printf 'node_sha256=%s\n' "$(shasum -a 256 "$node_path" | awk '{print $1}')"
+  printf 'yarn_release_sha256=%s\n' \
+    "$(shasum -a 256 "$yarn_release_path" | awk '{print $1}')"
+  printf 'vitest_sha256=%s\n' \
+    "$(shasum -a 256 "$vitest_real_path" | awk '{print $1}')"
   printf 'test_sha256=%s\n' "$(shasum -a 256 "$test_target" | awk '{print $1}')"
   printf 'support_sha256=%s\n' "$(shasum -a 256 "$support_target" | awk '{print $1}')"
   printf 'schedule_app_sha256=%s\n' \
@@ -138,29 +233,117 @@ cp "$script_dir/run-oracle.sh" "$evidence/oracle-source/run-oracle.sh"
     "$(shasum -a 256 "$actual_checkout/packages/loot-core/migrations/1618975177358_schedules.sql" | awk '{print $1}')"
   printf 'transfer_schedule_migration_sha256=%s\n' \
     "$(shasum -a 256 "$actual_checkout/packages/loot-core/migrations/1720310586000_link_transfer_schedules.sql" | awk '{print $1}')"
-} > "$evidence/provenance.env"
+} > "$run_dir/provenance.env"
 
-command_file="$evidence/exact-command.txt"
-cat > "$command_file" <<EOF
-cd '$actual_checkout' && ENV=node ACTUAL_SCHEDULE_PARITY_EVIDENCE='$evidence/oracle-result.json' yarn workspace @actual-app/core exec vitest --run src/server/schedules/cross-client-occurrence.test.ts --reporter=verbose --bail=1
+cat > "$run_dir/exact-command.txt" <<EOF
+cd '$actual_checkout' && PATH='$(dirname "$node_path")':"\$PATH" TZ='$ORACLE_TZ' ENV=node ACTUAL_SCHEDULE_PARITY_EVIDENCE='$run_dir/oracle-result.json' '$node_path' '$yarn_release_path' workspace @actual-app/core exec '$vitest_path' --run src/server/schedules/cross-client-occurrence.test.ts --reporter=verbose --bail=1
 EOF
 
 printf '%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "$marker"
 set +e
-(
-  cd "$actual_checkout" || exit $?
-  ENV=node \
-    ACTUAL_SCHEDULE_PARITY_EVIDENCE="$evidence/oracle-result.json" \
-    yarn workspace @actual-app/core exec vitest --run \
-      src/server/schedules/cross-client-occurrence.test.ts \
-      --reporter=verbose \
-      --bail=1
-) > "$evidence/oracle.log" 2>&1
+"$python_path" - \
+  "$CEILING_SECONDS" \
+  "$TERMINATION_GRACE_SECONDS" \
+  "$actual_checkout" \
+  "$run_dir/oracle.log" \
+  "$run_dir/oracle-result.json" \
+  "$ORACLE_TZ" \
+  "$node_path" \
+  "$yarn_release_path" \
+  "$vitest_path" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+import time
+
+ceiling = int(sys.argv[1])
+grace = int(sys.argv[2])
+cwd = sys.argv[3]
+log_path = sys.argv[4]
+result_path = sys.argv[5]
+timezone = sys.argv[6]
+command = [
+    sys.argv[7],
+    sys.argv[8],
+    'workspace',
+    '@actual-app/core',
+    'exec',
+    sys.argv[9],
+    '--run',
+    'src/server/schedules/cross-client-occurrence.test.ts',
+    '--reporter=verbose',
+    '--bail=1',
+]
+environment = os.environ.copy()
+environment.update({
+    'ACTUAL_SCHEDULE_PARITY_EVIDENCE': result_path,
+    'ENV': 'node',
+    'PATH': os.path.dirname(sys.argv[7]) + os.pathsep + environment['PATH'],
+    'TZ': timezone,
+})
+requested_signal = None
+
+def request_stop(signum, _frame):
+    global requested_signal
+    requested_signal = signum
+
+signal.signal(signal.SIGINT, request_stop)
+signal.signal(signal.SIGTERM, request_stop)
+
+with open(log_path, 'wb') as output:
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=environment,
+        stdout=output,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + ceiling
+    stop_status = None
+    while process.poll() is None:
+        if requested_signal is not None:
+            stop_status = 128 + requested_signal
+            break
+        if time.monotonic() >= deadline:
+            stop_status = 124
+            break
+        time.sleep(0.2)
+
+    if stop_status is not None and process.poll() is None:
+        os.killpg(process.pid, signal.SIGTERM)
+        try:
+            process.wait(timeout=grace)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+
+    if stop_status is not None:
+        sys.exit(stop_status)
+    return_code = process.returncode
+    sys.exit(128 - return_code if return_code < 0 else return_code)
+PY
 status=$?
 set -e
-printf '%s\n' "$status" > "$evidence/oracle.exit"
+printf '%s\n' "$status" > "$run_dir/oracle.exit"
+case "$status" in
+  0)
+    outcome='completed-success'
+    ;;
+  124)
+    outcome='timeout'
+    ;;
+  130|143)
+    outcome='interrupted'
+    ;;
+  *)
+    outcome='completed-failure'
+    ;;
+esac
+printf 'outcome=%s\nstatus=%s\n' "$outcome" "$status" > "$run_dir/outcome.env"
 
 cleanup
 trap - EXIT INT TERM
-git -C "$actual_checkout" status --short > "$evidence/post-cleanup-git-status.txt"
+git -C "$actual_checkout" status --short > "$run_dir/post-cleanup-git-status.txt"
 exit "$status"

@@ -45,6 +45,7 @@ type CaseEvidence = {
   exchanges?: ExchangeStep[];
   final?: Record<string, ScheduleSnapshot>;
   name: string;
+  state?: 'running' | 'passed' | 'failed';
   snapshots?: Record<string, ScheduleSnapshot>;
   unresolvedBlockers?: string[];
 };
@@ -60,11 +61,18 @@ type OracleEvidence = {
     actualVersion: string;
     peerExecution: string;
     schemaVersion: number;
+    uuidGeneration: string;
   };
+  currentCase: CaseEvidence | null;
   productGate: {
     automaticPosting: string;
     duplicateFinding: string | null;
     manualPosting: string;
+    occurrenceObservations: Array<{
+      count: number;
+      finding: string;
+      scenario: string;
+    }>;
   };
   unresolvedBlockers: string[];
 };
@@ -72,6 +80,7 @@ type OracleEvidence = {
 const evidence: OracleEvidence = {
   cases: [],
   completed: false,
+  currentCase: null,
   failedCriterion: null,
   generatedAt: new Date().toISOString(),
   harness: {
@@ -81,16 +90,21 @@ const evidence: OracleEvidence = {
     peerExecution:
       'sequential global-database switching across independently cloned offline peers',
     schemaVersion: 1,
+    uuidGeneration:
+      'Vitest replaces uuid.v4 with one deterministic process-global counter; production handlers call random uuid.v4. Distinct test IDs demonstrate separate generation events, not production randomness.',
   },
   productGate: {
-    automaticPosting: 'blocked-pending-oracle-result',
+    automaticPosting: 'blocked-oracle-and-actualist-interoperability-unproven',
     duplicateFinding: null,
     manualPosting: 'blocked-pending-oracle-result',
+    occurrenceObservations: [],
   },
   unresolvedBlockers: [
     'Actualist has no posting implementation in this packet. Any peer labeled Actualist candidate below runs the pinned Actual v26.9.0 handler as an explicit surrogate; role reversal is not Actualist interoperability evidence.',
   ],
 };
+
+let currentCase: CaseEvidence | null = null;
 
 function writeEvidence(): void {
   if (!evidencePath) {
@@ -101,8 +115,95 @@ function writeEvidence(): void {
   writeFileSync(destination, `${JSON.stringify(evidence, null, 2)}\n`);
 }
 
+function beginCase(name: string): void {
+  currentCase = {
+    acceptance: {},
+    batches: [],
+    exchanges: [],
+    name,
+    snapshots: {},
+    state: 'running',
+  };
+  evidence.currentCase = currentCase;
+  writeEvidence();
+}
+
+function recordBatch(batch: CapturedBatch): CapturedBatch {
+  currentCase?.batches?.push(batch);
+  writeEvidence();
+  return batch;
+}
+
+function recordExchange(exchange: ExchangeStep): ExchangeStep {
+  currentCase?.exchanges?.push(exchange);
+  writeEvidence();
+  return exchange;
+}
+
+function recordSnapshot(
+  label: string,
+  snapshot: ScheduleSnapshot,
+): ScheduleSnapshot {
+  if (currentCase) {
+    currentCase.snapshots ??= {};
+    currentCase.snapshots[label] = snapshot;
+  }
+  writeEvidence();
+  return snapshot;
+}
+
+async function snapshotAndRecord(
+  peer: Peer,
+  label: string,
+  scheduleID: string,
+): Promise<ScheduleSnapshot> {
+  return recordSnapshot(label, await snapshotPeer(peer, scheduleID));
+}
+
+async function applyAndRecord(
+  receiver: Peer,
+  batch: CapturedBatch,
+  scheduleID: string,
+): Promise<ExchangeStep> {
+  return recordExchange(await applyBatch(receiver, batch, scheduleID));
+}
+
 function localNoon(year: number, month: number, day: number): Date {
   return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function occurrenceIdentityFinding(count: number): string {
+  if (count === 1) {
+    return 'one-row-converged';
+  }
+  if (count === 2) {
+    return 'two-independently-generated-rows-converged';
+  }
+  return `unexpected-converged-row-count-${count}`;
+}
+
+function recordOccurrenceIdentity(scenario: string, count: number): string {
+  const finding = occurrenceIdentityFinding(count);
+  evidence.productGate.occurrenceObservations.push({
+    count,
+    finding,
+    scenario,
+  });
+
+  const duplicateObserved = evidence.productGate.occurrenceObservations.some(
+    observation => observation.count === 2,
+  );
+  evidence.productGate.duplicateFinding = duplicateObserved
+    ? 'two-independently-generated-rows-observed'
+    : 'one-row-convergence-observed-in-completed-scenarios';
+  evidence.productGate.automaticPosting = duplicateObserved
+    ? 'blocked-cross-client-duplicate-observed'
+    : 'blocked-actualist-interoperability-unproven';
+  evidence.productGate.manualPosting = duplicateObserved
+    ? 'requires-explicit-multi-client-limitation-and-product-decision'
+    : 'actual-uniqueness-observed-requires-contract-and-actualist-review';
+  writeEvidence();
+  return finding;
 }
 
 async function createBaseSchedule({
@@ -171,16 +272,23 @@ async function createBaseSchedule({
 }
 
 async function manualPost(peer: Peer, scheduleID: string, today = false) {
-  return captureOperation(peer, today ? 'manual-post-today' : 'manual-post', () =>
-    schedulesApp.handlers['schedule/post-transaction']({
-      id: scheduleID,
-      ...(today ? { today: true } : {}),
-    }),
+  return recordBatch(
+    await captureOperation(
+      peer,
+      today ? 'manual-post-today' : 'manual-post',
+      () =>
+        schedulesApp.handlers['schedule/post-transaction']({
+          id: scheduleID,
+          ...(today ? { today: true } : {}),
+        }),
+    ),
   );
 }
 
 async function automaticAdvance(peer: Peer, operation: string) {
-  return captureOperation(peer, operation, () => advanceSchedulesService(true));
+  return recordBatch(
+    await captureOperation(peer, operation, () => advanceSchedulesService(true)),
+  );
 }
 
 async function mergeBothOrders({
@@ -197,11 +305,11 @@ async function mergeBothOrders({
   const observerAB = await makePeer(seed, 'observer-a-then-b', 'observer-ab');
   const observerBA = await makePeer(seed, 'observer-b-then-a', 'observer-ba');
 
-  const abFirst = await applyBatch(observerAB, batchA, scheduleID);
-  const abSecond = await applyBatch(observerAB, batchB, scheduleID);
-  const baFirst = await applyBatch(observerBA, batchB, scheduleID);
-  const baSecond = await applyBatch(observerBA, batchA, scheduleID);
-  const replay = await applyBatch(observerAB, batchA, scheduleID);
+  const abFirst = await applyAndRecord(observerAB, batchA, scheduleID);
+  const abSecond = await applyAndRecord(observerAB, batchB, scheduleID);
+  const baFirst = await applyAndRecord(observerBA, batchB, scheduleID);
+  const baSecond = await applyAndRecord(observerBA, batchA, scheduleID);
+  const replay = await applyAndRecord(observerAB, batchA, scheduleID);
 
   requireOracle(
     JSON.stringify(abSecond.after.graph) === JSON.stringify(baSecond.after.graph),
@@ -236,26 +344,26 @@ async function caseOneTimeManualThenPeerAdvance(): Promise<CaseEvidence> {
   });
   const actual = await makePeer(seed, 'actual-manual', 'case1-actual');
   const peer = await makePeer(seed, 'peer-advance', 'case1-peer');
-  const before = await snapshotPeer(actual, scheduleID);
+  const before = await snapshotAndRecord(actual, 'before', scheduleID);
   const posted = await manualPost(actual, scheduleID);
-  const exchange = await applyBatch(peer, posted, scheduleID);
+  const exchange = await applyAndRecord(peer, posted, scheduleID);
   const dueDayAdvance = await automaticAdvance(peer, 'advance-due-day');
-  const dueDay = await snapshotPeer(peer, scheduleID);
+  const dueDay = await snapshotAndRecord(peer, 'dueDay', scheduleID);
 
   MockDate.set(localNoon(2026, 9, 28));
   const nextDayAdvance = await automaticAdvance(peer, 'advance-next-day');
-  const nextDay = await snapshotPeer(peer, scheduleID);
-  MockDate.set(localNoon(2026, 9, 27));
-  const actualReceivesDueDay = await applyBatch(
+  const nextDay = await snapshotAndRecord(peer, 'nextDay', scheduleID);
+  const actualReceivesDueDay = await applyAndRecord(
     actual,
     dueDayAdvance,
     scheduleID,
   );
-  const actualReceivesNextDay = await applyBatch(
+  const actualReceivesNextDay = await applyAndRecord(
     actual,
     nextDayAdvance,
     scheduleID,
   );
+  MockDate.set(localNoon(2026, 9, 27));
 
   requireOracle(before.status === 'due', 'case 1 begins due', before.status);
   requireOracle(
@@ -313,25 +421,34 @@ async function caseRecurringManualSameDayRerun(): Promise<CaseEvidence> {
   const actual = await makePeer(seed, 'actual-manual', 'case2-actual');
   const peer = await makePeer(seed, 'peer-advance', 'case2-peer');
   const posted = await manualPost(actual, scheduleID);
-  const exchange = await applyBatch(peer, posted, scheduleID);
+  const exchange = await applyAndRecord(peer, posted, scheduleID);
   const advanced = await automaticAdvance(peer, 'advance-recurring');
-  const afterAdvance = await snapshotPeer(peer, scheduleID);
+  const afterAdvance = await snapshotAndRecord(peer, 'afterAdvance', scheduleID);
   const rerun = await automaticAdvance(peer, 'same-day-service-rerun');
-  const afterRerun = await snapshotPeer(peer, scheduleID);
+  const afterRerun = await snapshotAndRecord(peer, 'afterRerun', scheduleID);
 
-  const skipped = await captureOperation(peer, 'skip-next-date', () =>
-    skipNextDate({ id: scheduleID }),
+  const skipped = recordBatch(
+    await captureOperation(peer, 'skip-next-date', () =>
+      skipNextDate({ id: scheduleID }),
+    ),
   );
-  const afterSkip = await snapshotPeer(peer, scheduleID);
-  global.stepForwardInTime();
-  const reset = await captureOperation(peer, 'reset-next-date', () =>
-    setNextDate({ id: scheduleID, reset: true }),
+  const afterSkip = await snapshotAndRecord(peer, 'afterSkip', scheduleID);
+  MockDate.set(localNoon(2026, 9, 27).getTime() + 1_000);
+  const reset = recordBatch(
+    await captureOperation(peer, 'reset-next-date', () =>
+      setNextDate({ id: scheduleID, reset: true }),
+    ),
   );
-  const afterReset = await snapshotPeer(peer, scheduleID);
-  const actualReceivesAdvance = await applyBatch(actual, advanced, scheduleID);
-  const actualReceivesRerun = await applyBatch(actual, rerun, scheduleID);
-  const actualReceivesSkip = await applyBatch(actual, skipped, scheduleID);
-  const actualReceivesReset = await applyBatch(actual, reset, scheduleID);
+  const afterReset = await snapshotAndRecord(peer, 'afterReset', scheduleID);
+  const actualReceivesAdvance = await applyAndRecord(
+    actual,
+    advanced,
+    scheduleID,
+  );
+  const actualReceivesRerun = await applyAndRecord(actual, rerun, scheduleID);
+  const actualReceivesSkip = await applyAndRecord(actual, skipped, scheduleID);
+  const actualReceivesReset = await applyAndRecord(actual, reset, scheduleID);
+  MockDate.set(localNoon(2026, 9, 27));
 
   requireOracle(
     afterAdvance.occurrenceTransactionIDs.length === 1,
@@ -411,18 +528,30 @@ async function caseMissedCatchUp(): Promise<CaseEvidence> {
   const manualPeer = await makePeer(seed, 'actual-manual', 'case3-manual');
   const automaticPeer = await makePeer(seed, 'peer-catchup', 'case3-auto');
   const manual = await manualPost(manualPeer, scheduleID);
-  const manualSnapshot = await snapshotPeer(manualPeer, scheduleID);
-  const exchange = await applyBatch(automaticPeer, manual, scheduleID);
+  const manualSnapshot = await snapshotAndRecord(
+    manualPeer,
+    'manualIsolated',
+    scheduleID,
+  );
+  const exchange = await applyAndRecord(automaticPeer, manual, scheduleID);
   const catchup = await automaticAdvance(automaticPeer, 'automatic-catchup');
-  const afterCatchup = await snapshotPeer(automaticPeer, scheduleID);
+  const afterCatchup = await snapshotAndRecord(
+    automaticPeer,
+    'afterCatchup',
+    scheduleID,
+  );
   const retry = await automaticAdvance(automaticPeer, 'automatic-catchup-retry');
-  const afterRetry = await snapshotPeer(automaticPeer, scheduleID);
-  const manualReceivesCatchup = await applyBatch(
+  const afterRetry = await snapshotAndRecord(
+    automaticPeer,
+    'afterRetry',
+    scheduleID,
+  );
+  const manualReceivesCatchup = await applyAndRecord(
     manualPeer,
     catchup,
     scheduleID,
   );
-  const manualReceivesRetry = await applyBatch(
+  const manualReceivesRetry = await applyAndRecord(
     manualPeer,
     retry,
     scheduleID,
@@ -490,10 +619,14 @@ async function caseApproximatePostToday(): Promise<CaseEvidence> {
   const actual = await makePeer(seed, 'actual-post-today', 'case4-actual');
   const peer = await makePeer(seed, 'peer-advance', 'case4-peer');
   const posted = await manualPost(actual, scheduleID, true);
-  const exchange = await applyBatch(peer, posted, scheduleID);
+  const exchange = await applyAndRecord(peer, posted, scheduleID);
   const advanced = await automaticAdvance(peer, 'advance-after-post-today');
-  const final = await snapshotPeer(peer, scheduleID);
-  const actualReceivesAdvance = await applyBatch(actual, advanced, scheduleID);
+  const final = await snapshotAndRecord(peer, 'peerFinal', scheduleID);
+  const actualReceivesAdvance = await applyAndRecord(
+    actual,
+    advanced,
+    scheduleID,
+  );
 
   requireOracle(
     transactionDates(final).join(',') === '20260927',
@@ -538,8 +671,16 @@ async function caseManualVersusAutomatic(): Promise<CaseEvidence> {
   const automaticPeer = await makePeer(seed, 'actual-automatic', 'case5-auto');
   const manual = await manualPost(manualPeer, scheduleID);
   const automatic = await automaticAdvance(automaticPeer, 'automatic-service');
-  const manualIsolated = await snapshotPeer(manualPeer, scheduleID);
-  const automaticIsolated = await snapshotPeer(automaticPeer, scheduleID);
+  const manualIsolated = await snapshotAndRecord(
+    manualPeer,
+    'manualIsolated',
+    scheduleID,
+  );
+  const automaticIsolated = await snapshotAndRecord(
+    automaticPeer,
+    'automaticIsolated',
+    scheduleID,
+  );
 
   requireOracle(
     manualIsolated.occurrenceTransactionIDs.length === 1 &&
@@ -547,16 +688,6 @@ async function caseManualVersusAutomatic(): Promise<CaseEvidence> {
     'case 5 each isolated peer independently generates one transaction',
     { manual: manualIsolated, automatic: automaticIsolated },
   );
-  requireOracle(
-    manualIsolated.occurrenceTransactionIDs[0] !==
-      automaticIsolated.occurrenceTransactionIDs[0],
-    'case 5 independently generated transaction IDs are distinct',
-    {
-      manual: manualIsolated.occurrenceTransactionIDs,
-      automatic: automaticIsolated.occurrenceTransactionIDs,
-    },
-  );
-
   const merged = await mergeBothOrders({
     batchA: manual,
     batchB: automatic,
@@ -565,44 +696,47 @@ async function caseManualVersusAutomatic(): Promise<CaseEvidence> {
   });
   const mergedCount = merged.final.observerAB.occurrenceTransactionIDs.length;
   requireOracle(
-    mergedCount === 2,
-    'case 5 records the converged duplicate as a product-gate finding',
+    mergedCount === 1 || mergedCount === 2,
+    'case 5 converges to either one unique occurrence row or two generated rows',
     merged.final.observerAB.occurrenceTransactionIDs,
   );
-  const manualReceivesAutomatic = await applyBatch(
+  const manualReceivesAutomatic = await applyAndRecord(
     manualPeer,
     automatic,
     scheduleID,
   );
-  const automaticReceivesManual = await applyBatch(
+  const automaticReceivesManual = await applyAndRecord(
     automaticPeer,
     manual,
     scheduleID,
   );
   requireOracle(
-    manualReceivesAutomatic.after.occurrenceTransactionIDs.length === 2 &&
-      automaticReceivesManual.after.occurrenceTransactionIDs.length === 2,
-    'case 5 both originating peers retain both independently generated IDs after exchange',
+    manualReceivesAutomatic.after.occurrenceTransactionIDs.length === mergedCount &&
+      automaticReceivesManual.after.occurrenceTransactionIDs.length === mergedCount,
+    'case 5 both originating peers match the neutral merged occurrence count',
     {
       manualPeer: manualReceivesAutomatic.after.occurrenceTransactionIDs,
       automaticPeer: automaticReceivesManual.after.occurrenceTransactionIDs,
     },
   );
 
-  evidence.productGate.duplicateFinding =
-    'Pinned Actual converges two independently generated transaction IDs for one occurrence; exact replay remains idempotent.';
-  evidence.productGate.automaticPosting = 'blocked-cross-client-duplicate-observed';
-  evidence.productGate.manualPosting =
-    'requires-explicit-multi-client-limitation-and-product-decision';
+  const identityFinding = recordOccurrenceIdentity(
+    'case-5-manual-vs-automatic',
+    mergedCount,
+  );
 
   return {
     acceptance: {
-      convergedDuplicateCount: mergedCount,
+      convergedOccurrenceRowCount: mergedCount,
       generatedIDs: {
         automatic: automaticIsolated.occurrenceTransactionIDs,
         manual: manualIsolated.occurrenceTransactionIDs,
       },
-      productGate: 'automatic posting blocked',
+      identityFinding,
+      isolatedIDsEqual:
+        manualIsolated.occurrenceTransactionIDs[0] ===
+        automaticIsolated.occurrenceTransactionIDs[0],
+      productGate: evidence.productGate.automaticPosting,
       replayInsertedMessageCount:
         merged.exchanges[merged.exchanges.length - 1].insertedRawMessages.length,
     },
@@ -649,26 +783,29 @@ async function automaticCollisionScenario({
     scheduleID,
     seed,
   });
+  const mergedCount = merged.final.observerAB.occurrenceTransactionIDs.length;
   requireOracle(
-    merged.final.observerAB.occurrenceTransactionIDs.length === 2,
-    `${id} converges two independently auto-posted IDs`,
+    mergedCount === 1 || mergedCount === 2,
+    `${id} neutrally records one-row uniqueness or two generated rows`,
     merged.final.observerAB.occurrenceTransactionIDs,
   );
-  const leftReceivesRight = await applyBatch(left, rightBatch, scheduleID);
-  const rightReceivesLeft = await applyBatch(right, leftBatch, scheduleID);
+  const leftReceivesRight = await applyAndRecord(left, rightBatch, scheduleID);
+  const rightReceivesLeft = await applyAndRecord(right, leftBatch, scheduleID);
   requireOracle(
-    leftReceivesRight.after.occurrenceTransactionIDs.length === 2 &&
-      rightReceivesLeft.after.occurrenceTransactionIDs.length === 2,
-    `${id} leaves both originating peers with both generated IDs`,
+    leftReceivesRight.after.occurrenceTransactionIDs.length === mergedCount &&
+      rightReceivesLeft.after.occurrenceTransactionIDs.length === mergedCount,
+    `${id} leaves both originating peers at the neutral merged count`,
     {
       left: leftReceivesRight.after.occurrenceTransactionIDs,
       right: rightReceivesLeft.after.occurrenceTransactionIDs,
     },
   );
+  recordOccurrenceIdentity(id, mergedCount);
   return {
     leftBatch,
     leftReceivesRight,
     merged,
+    mergedCount,
     rightBatch,
     rightReceivesLeft,
   };
@@ -693,13 +830,19 @@ async function caseAutomaticVersusAutomatic(): Promise<CaseEvidence> {
 
   return {
     acceptance: {
-      actualPeersDuplicateCount:
-        actualPeers.merged.final.observerAB.occurrenceTransactionIDs.length,
-      actualistLeftSurrogateDuplicateCount:
-        actualistLeft.merged.final.observerAB.occurrenceTransactionIDs.length,
-      actualistRightSurrogateDuplicateCount:
-        actualistRight.merged.final.observerAB.occurrenceTransactionIDs.length,
-      productGate: 'automatic posting blocked',
+      actualPeersCount: actualPeers.mergedCount,
+      actualPeersIdentityFinding: occurrenceIdentityFinding(
+        actualPeers.mergedCount,
+      ),
+      actualistLeftSurrogateCount: actualistLeft.mergedCount,
+      actualistLeftSurrogateIdentityFinding: occurrenceIdentityFinding(
+        actualistLeft.mergedCount,
+      ),
+      actualistRightSurrogateCount: actualistRight.mergedCount,
+      actualistRightSurrogateIdentityFinding: occurrenceIdentityFinding(
+        actualistRight.mergedCount,
+      ),
+      productGate: evidence.productGate.automaticPosting,
       roleImplementation:
         'all peers execute pinned Actual v26.9.0 handler; Actualist labels are direction-only surrogates',
     },
@@ -759,7 +902,9 @@ async function configureSplitRule(scheduleID: string): Promise<void> {
 
 async function splitScheduleEvidence(): Promise<{
   batch: CapturedBatch;
-  snapshot: ScheduleSnapshot;
+  receiver: ScheduleSnapshot;
+  replay: ExchangeStep;
+  source: ScheduleSnapshot;
 }> {
   const { scheduleID } = await createBaseSchedule({
     date: TODAY,
@@ -774,11 +919,26 @@ async function splitScheduleEvidence(): Promise<{
     configuredRule.rawRule,
   );
   const seed = await exportSeedDatabase();
-  const peer = await makePeer(seed, 'actual-split', 'case7-split');
-  const batch = await manualPost(peer, scheduleID);
-  const snapshot = await snapshotPeer(peer, scheduleID);
-  const parent = snapshot.graph.find(transaction => transaction.is_parent === 1);
-  const children = snapshot.graph.filter(transaction => transaction.is_child === 1);
+  const sourcePeer = await makePeer(seed, 'actual-split', 'case7-split-source');
+  const receiverPeer = await makePeer(
+    seed,
+    'split-receiver',
+    'case7-split-recv',
+  );
+  const batch = await manualPost(sourcePeer, scheduleID);
+  const source = await snapshotAndRecord(
+    sourcePeer,
+    'splitSource',
+    scheduleID,
+  );
+  const exchange = await applyAndRecord(receiverPeer, batch, scheduleID);
+  const replay = await applyAndRecord(receiverPeer, batch, scheduleID);
+  const receiver = recordSnapshot(
+    'splitReceiver',
+    replay.after,
+  );
+  const parent = source.graph.find(transaction => transaction.is_parent === 1);
+  const children = source.graph.filter(transaction => transaction.is_child === 1);
 
   requireOracle(parent?.schedule === scheduleID, 'case 7 split parent owns schedule');
   requireOracle(children.length === 2, 'case 7 split has two child rows', children);
@@ -787,12 +947,25 @@ async function splitScheduleEvidence(): Promise<{
     'case 7 split children do not carry schedule identity',
     children,
   );
-  return { batch, snapshot };
+  requireOracle(
+    JSON.stringify(source.graph) === JSON.stringify(exchange.after.graph),
+    'case 7 split graph converges on a second peer',
+    { source: source.graph, receiver: exchange.after.graph },
+  );
+  requireOracle(
+    replay.insertedRawMessages.length === 0 &&
+      JSON.stringify(replay.before.graph) === JSON.stringify(replay.after.graph),
+    'case 7 split exact CRDT replay is idempotent',
+    replay,
+  );
+  return { batch, receiver, replay, source };
 }
 
 async function transferScheduleEvidence(): Promise<{
   batch: CapturedBatch;
-  snapshot: ScheduleSnapshot;
+  receiver: ScheduleSnapshot;
+  replay: ExchangeStep;
+  source: ScheduleSnapshot;
 }> {
   await resetOracleDatabase();
   const sourceAccount = 'case-7-transfer-source';
@@ -830,22 +1003,49 @@ async function transferScheduleEvidence(): Promise<{
     ],
   });
   const seed = await exportSeedDatabase();
-  const peer = await makePeer(seed, 'actual-transfer', 'case7-transfer');
-  const batch = await manualPost(peer, scheduleID);
-  const snapshot = await snapshotPeer(peer, scheduleID);
+  const sourcePeer = await makePeer(
+    seed,
+    'actual-transfer',
+    'case7-transfer-source',
+  );
+  const receiverPeer = await makePeer(
+    seed,
+    'transfer-receiver',
+    'case7-transfer-recv',
+  );
+  const batch = await manualPost(sourcePeer, scheduleID);
+  const source = await snapshotAndRecord(
+    sourcePeer,
+    'transferSource',
+    scheduleID,
+  );
+  const exchange = await applyAndRecord(receiverPeer, batch, scheduleID);
+  const replay = await applyAndRecord(receiverPeer, batch, scheduleID);
+  const receiver = recordSnapshot('transferReceiver', replay.after);
 
-  requireOracle(snapshot.graph.length === 2, 'case 7 transfer has two legs');
+  requireOracle(source.graph.length === 2, 'case 7 transfer has two legs');
   requireOracle(
-    snapshot.graph.every(transaction => transaction.schedule === scheduleID),
+    source.graph.every(transaction => transaction.schedule === scheduleID),
     'case 7 both transfer legs carry schedule identity',
-    snapshot.graph,
+    source.graph,
   );
   requireOracle(
-    snapshot.graph.every(transaction => transaction.transfer_id != null),
+    source.graph.every(transaction => transaction.transfer_id != null),
     'case 7 transfer legs point to each other',
-    snapshot.graph,
+    source.graph,
   );
-  return { batch, snapshot };
+  requireOracle(
+    JSON.stringify(source.graph) === JSON.stringify(exchange.after.graph),
+    'case 7 transfer graph converges on a second peer',
+    { source: source.graph, receiver: exchange.after.graph },
+  );
+  requireOracle(
+    replay.insertedRawMessages.length === 0 &&
+      JSON.stringify(replay.before.graph) === JSON.stringify(replay.after.graph),
+    'case 7 transfer exact CRDT replay is idempotent',
+    replay,
+  );
+  return { batch, receiver, replay, source };
 }
 
 async function caseSplitAndTransferPropagation(): Promise<CaseEvidence> {
@@ -854,20 +1054,27 @@ async function caseSplitAndTransferPropagation(): Promise<CaseEvidence> {
   return {
     acceptance: {
       split: {
-        graphRows: split.snapshot.graph.length,
-        scheduleOwners: split.snapshot.graph
+        graphRows: split.source.graph.length,
+        replayInsertedMessageCount: split.replay.insertedRawMessages.length,
+        scheduleOwners: split.source.graph
           .filter(transaction => transaction.schedule != null)
           .map(transaction => transaction.id),
       },
       transfer: {
-        graphRows: transfer.snapshot.graph.length,
-        scheduleOwners: transfer.snapshot.graph
+        graphRows: transfer.source.graph.length,
+        replayInsertedMessageCount: transfer.replay.insertedRawMessages.length,
+        scheduleOwners: transfer.source.graph
           .filter(transaction => transaction.schedule != null)
           .map(transaction => transaction.id),
       },
     },
     batches: [split.batch, transfer.batch],
-    final: { split: split.snapshot, transfer: transfer.snapshot },
+    final: {
+      splitReceiver: split.receiver,
+      splitSource: split.source,
+      transferReceiver: transfer.receiver,
+      transferSource: transfer.source,
+    },
     name: 'split-and-transfer-schedule-propagation',
   };
 }
@@ -878,18 +1085,52 @@ describe('Actual v26.9.0 cross-client schedule occurrence identity oracle', () =
     MockDate.set(localNoon(2026, 9, 27));
 
     const cases = [
-      caseOneTimeManualThenPeerAdvance,
-      caseRecurringManualSameDayRerun,
-      caseMissedCatchUp,
-      caseApproximatePostToday,
-      caseManualVersusAutomatic,
-      caseAutomaticVersusAutomatic,
-      caseSplitAndTransferPropagation,
+      {
+        name: 'one-time-manual-then-peer-advance',
+        run: caseOneTimeManualThenPeerAdvance,
+      },
+      {
+        name: 'recurring-manual-same-day-rerun',
+        run: caseRecurringManualSameDayRerun,
+      },
+      {
+        name: 'missed-two-occurrences-one-manual-before-catchup',
+        run: caseMissedCatchUp,
+      },
+      {
+        name: 'missed-approximate-post-today-peer-advance',
+        run: caseApproximatePostToday,
+      },
+      {
+        name: 'manual-vs-auto-isolated-both-exchange-orders',
+        run: caseManualVersusAutomatic,
+      },
+      {
+        name: 'auto-vs-auto-and-reversed-actualist-role',
+        run: caseAutomaticVersusAutomatic,
+      },
+      {
+        name: 'split-and-transfer-schedule-propagation',
+        run: caseSplitAndTransferPropagation,
+      },
     ];
 
     try {
-      for (const runCase of cases) {
-        evidence.cases.push(await runCase());
+      for (const item of cases) {
+        beginCase(item.name);
+        const result = await item.run();
+        requireOracle(currentCase, `${item.name} has an active evidence record`);
+        currentCase.acceptance = result.acceptance;
+        currentCase.final = result.final;
+        currentCase.snapshots = {
+          ...currentCase.snapshots,
+          ...result.snapshots,
+        };
+        currentCase.state = 'passed';
+        currentCase.unresolvedBlockers = result.unresolvedBlockers;
+        evidence.cases.push(currentCase);
+        currentCase = null;
+        evidence.currentCase = null;
         writeEvidence();
       }
       evidence.completed = true;
@@ -897,6 +1138,14 @@ describe('Actual v26.9.0 cross-client schedule occurrence identity oracle', () =
     } catch (error) {
       evidence.failedCriterion =
         error instanceof Error ? error.message : String(error);
+      if (currentCase) {
+        currentCase.acceptance = {
+          ...currentCase.acceptance,
+          failedCriterion: evidence.failedCriterion,
+        };
+        currentCase.state = 'failed';
+        evidence.currentCase = currentCase;
+      }
       writeEvidence();
       throw error;
     } finally {
