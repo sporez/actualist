@@ -94,12 +94,13 @@ struct BudgetTemplateEngineScheduleTests {
     }
 
     @Test func futureYearlyRepeatingScheduleKeepsNextOccurrenceForSinking() throws {
-        let recurrence = BudgetTemplateScheduleRecurrence(
+        let recurrence = try ActualScheduleRecurrence(
             start: try #require(BudgetTemplateCalendar.validatedDate("2027-01-15")),
             frequency: "yearly",
             interval: 1,
             skipWeekend: false,
-            weekendSolveMode: "after"
+            weekendSolveMode: "after",
+            calendar: BudgetTemplateCalendar.gregorian
         )
         let amounts = try writeAmounts(
             categories: [

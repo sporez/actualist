@@ -11,7 +11,7 @@ extension BudgetTemplateEngine {
         let completed: Bool
         let full: Bool
         let isRepeating: Bool
-        let recurrence: BudgetTemplateScheduleRecurrence?
+        let recurrence: ActualScheduleRecurrence?
         let monthlyRepeatingTarget: Int
     }
 
@@ -89,12 +89,17 @@ extension BudgetTemplateEngine {
             return schedule
         }
         let monthStart = try BudgetTemplateCalendar.monthStartDate(monthValue)
-        guard var cursor = try recurrence.nextDate(onOrAfter: monthStart) else {
+        guard var cursor = try recurrence.nextDate(
+            onOrAfter: monthStart,
+            calendar: BudgetTemplateCalendar.gregorian
+        ) else {
             return schedule
         }
 
         func displayDate(for date: Date) throws -> Date {
-            recurrence.skipWeekend ? try recurrence.skippedWeekend(date) : date
+            recurrence.skipWeekend
+                ? try recurrence.skippedWeekend(date, calendar: BudgetTemplateCalendar.gregorian)
+                : date
         }
 
         // Actual totals repeating occurrences through the month containing the
@@ -123,7 +128,10 @@ extension BudgetTemplateEngine {
                 value: 1,
                 to: cursor
             ),
-                  let advanced = try recurrence.nextDate(onOrAfter: next),
+                  let advanced = try recurrence.nextDate(
+                      onOrAfter: next,
+                      calendar: BudgetTemplateCalendar.gregorian
+                  ),
                   BudgetTemplateCalendar.gregorian.startOfDay(for: advanced)
                     != BudgetTemplateCalendar.gregorian.startOfDay(for: cursor) else {
                 break
@@ -190,10 +198,12 @@ extension BudgetTemplateEngine {
     }
 
     private func weeklyIntervalMonths(_ schedule: ResolvedSchedule) -> Int {
-        guard let date = BudgetTemplateCalendar.validatedDate(schedule.nextDate),
+        let intervalDays = schedule.interval.multipliedReportingOverflow(by: 7)
+        guard !intervalDays.overflow,
+              let date = BudgetTemplateCalendar.validatedDate(schedule.nextDate),
               let previous = BudgetTemplateCalendar.gregorian.date(
                 byAdding: .day,
-                value: -schedule.interval * 7,
+                value: -intervalDays.partialValue,
                 to: date
               ) else {
             return 1

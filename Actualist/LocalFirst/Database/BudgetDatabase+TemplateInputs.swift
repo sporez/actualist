@@ -523,7 +523,8 @@ extension BudgetDatabase {
         if let recurrence {
             guard let next = try recurrence.nextDateString(
                 onOrAfter: monthStart,
-                applyWeekendSkip: true
+                applyWeekendSkip: true,
+                calendar: BudgetTemplateCalendar.gregorian
             ) else {
                 throw LocalFirstError.unsupportedTemplate("schedule")
             }
@@ -597,7 +598,7 @@ extension BudgetDatabase {
 
     private func scheduleRecurrence(
         _ condition: RuleCondition
-    ) throws -> BudgetTemplateScheduleRecurrence? {
+    ) throws -> ActualScheduleRecurrence? {
         switch condition.value {
         case .string:
             return nil
@@ -619,14 +620,31 @@ extension BudgetDatabase {
                   ["daily", "weekly", "monthly", "yearly"].contains(frequency) else {
                 throw LocalFirstError.unsupportedTemplate("schedule")
             }
-            let interval = max(Int(object["interval"]?.numberValue ?? 1), 1)
-            return BudgetTemplateScheduleRecurrence(
-                start: start,
-                frequency: frequency,
-                interval: interval,
-                skipWeekend: object["skipWeekend"]?.boolValue ?? false,
-                weekendSolveMode: object["weekendSolveMode"]?.stringValue ?? "after"
-            )
+            let interval: Int
+            if let rawInterval = object["interval"] {
+                guard let value = rawInterval.numberValue,
+                      value.isFinite,
+                      value.rounded() == value,
+                      let parsed = Int(exactly: value),
+                      parsed > 0 else {
+                    throw LocalFirstError.unsupportedTemplate("schedule")
+                }
+                interval = parsed
+            } else {
+                interval = 1
+            }
+            do {
+                return try ActualScheduleRecurrence(
+                    start: start,
+                    frequency: frequency,
+                    interval: interval,
+                    skipWeekend: object["skipWeekend"]?.boolValue ?? false,
+                    weekendSolveMode: object["weekendSolveMode"]?.stringValue ?? "after",
+                    calendar: BudgetTemplateCalendar.gregorian
+                )
+            } catch {
+                throw LocalFirstError.unsupportedTemplate("schedule")
+            }
         default:
             throw LocalFirstError.unsupportedTemplate("schedule")
         }
