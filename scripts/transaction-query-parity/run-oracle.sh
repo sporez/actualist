@@ -225,6 +225,11 @@ if [[ -e "$test_target" || -e "$support_target" ]]; then
   exit 66
 fi
 
+actual_data_dir="$run_dir/actual-data"
+actual_data_owner_marker="$actual_data_dir/.actualist-transaction-query-parity-owner"
+actual_data_owner="transaction-query-parity:$run_label:$observed_commit"
+actual_data_prepared=0
+
 supervisor_pid=''
 supervisor_expected=0
 supervisor_pid_file="$run_dir/supervisor.pid"
@@ -232,6 +237,62 @@ supervisor_pgid_file="$run_dir/supervisor-child-pgid"
 
 cleanup_overlay() {
   rm -f "$test_target" "$support_target"
+}
+
+record_actual_data_cleanup() {
+  local result=$1
+  local reason=$2
+  local termination_confirmed=$3
+  {
+    printf 'actual_data_dir=%s\n' "$actual_data_dir"
+    printf 'ownership_marker=%s\n' "$actual_data_owner_marker"
+    printf 'result=%s\n' "$result"
+    printf 'reason=%s\n' "$reason"
+    printf 'termination_confirmed=%s\n' "$termination_confirmed"
+    printf 'non_scratch_evidence_retained=true\n'
+  } > "$run_dir/actual-data-cleanup.env"
+}
+
+prepare_actual_data_dir() {
+  if [[ -e "$actual_data_dir" ]]; then
+    echo "transaction query parity oracle: owned data directory already exists: $actual_data_dir" >&2
+    return 1
+  fi
+  mkdir "$actual_data_dir"
+  actual_data_prepared=1
+  printf '%s\n' "$actual_data_owner" > "$actual_data_owner_marker"
+}
+
+cleanup_actual_data_dir() {
+  local reason=$1
+  if [[ "$actual_data_prepared" -ne 1 ]]; then
+    if [[ ! -f "$run_dir/actual-data-cleanup.env" ]]; then
+      record_actual_data_cleanup not-created "$reason" true
+    fi
+    return 0
+  fi
+  if [[ "$actual_data_dir" != "$run_dir/actual-data" || \
+        ! -d "$actual_data_dir" || \
+        ! -f "$actual_data_owner_marker" || \
+        "$(cat "$actual_data_owner_marker")" != "$actual_data_owner" ]]; then
+    record_actual_data_cleanup retained-ownership-unconfirmed "$reason" true
+    return 1
+  fi
+  if ! rm -rf -- "$actual_data_dir" || [[ -e "$actual_data_dir" ]]; then
+    record_actual_data_cleanup retained-removal-failed "$reason" true
+    return 1
+  fi
+  actual_data_prepared=0
+  record_actual_data_cleanup removed "$reason" true
+}
+
+retain_actual_data_dir() {
+  local reason=$1
+  if [[ "$actual_data_prepared" -eq 1 && -d "$actual_data_dir" ]]; then
+    record_actual_data_cleanup retained "$reason" false
+  else
+    record_actual_data_cleanup not-created "$reason" false
+  fi
 }
 
 owned_identifier() {
@@ -342,8 +403,13 @@ shell_interrupted() {
   trap - EXIT HUP INT TERM
   if terminate_owned_processes; then
     cleanup_overlay
-    record_run_outcome "$exit_status" interrupted
+    if cleanup_actual_data_dir interrupted-owned-processes-terminated; then
+      record_run_outcome "$exit_status" interrupted
+    else
+      record_run_outcome "$exit_status" interrupted-data-cleanup-blocked
+    fi
   else
+    retain_actual_data_dir interrupted-termination-unconfirmed
     record_run_outcome "$exit_status" interrupted-cleanup-blocked
   fi
   capture_post_cleanup_status
@@ -354,11 +420,21 @@ shell_exited() {
   local exit_status=$1
   trap - EXIT HUP INT TERM
   if [[ "$supervisor_expected" -eq 1 ]] && ! terminate_owned_processes; then
+    if [[ "$exit_status" -eq 0 ]]; then
+      exit_status=74
+    fi
+    retain_actual_data_dir exit-termination-unconfirmed
     record_run_outcome "$exit_status" exit-cleanup-blocked
     capture_post_cleanup_status
     exit "$exit_status"
   fi
   cleanup_overlay
+  if ! cleanup_actual_data_dir exit-after-confirmed-termination; then
+    if [[ "$exit_status" -eq 0 ]]; then
+      exit_status=74
+    fi
+    record_run_outcome "$exit_status" exit-data-cleanup-blocked
+  fi
   if [[ ! -f "$run_dir/outcome.env" ]]; then
     record_run_outcome "$exit_status" pre-execution-failure
   fi
@@ -372,6 +448,7 @@ trap 'shell_interrupted 129' HUP
 trap 'shell_interrupted 130' INT
 trap 'shell_interrupted 143' TERM
 
+prepare_actual_data_dir
 cp "$script_dir/transaction-query-parity.test.ts" "$test_target"
 cp "$script_dir/transaction-query-parity-support.ts" "$support_target"
 mkdir -p "$run_dir/oracle-source"
@@ -409,6 +486,12 @@ hash_file() {
   printf 'source_git_common=%s\n' "$source_git_common"
   printf 'actual_git_common=%s\n' "$actual_git_common"
   printf 'actualist_source=%s\n' "$actualist_root"
+  printf 'actual_data_dir=%s\n' "$actual_data_dir"
+  printf 'actual_data_dir_source=runner-owned-explicit\n'
+  printf 'actual_data_dir_inheritance=overridden\n'
+  printf 'actual_data_owner_marker=%s\n' "$actual_data_owner_marker"
+  printf 'actual_data_owner_marker_sha256=%s\n' \
+    "$(hash_file "$actual_data_owner_marker")"
   printf 'node_sha256=%s\n' "$(hash_file "$node_path")"
   printf 'yarn_release_sha256=%s\n' "$(hash_file "$yarn_release_path")"
   printf 'yarn_lock_sha256=%s\n' "$(hash_file "$yarn_lock_path")"
@@ -446,10 +529,12 @@ hash_file() {
     "$(hash_file "$source_checkout/packages/loot-core/src/server/filters/app.ts")"
   printf 'source_transaction_executor_sha256=%s\n' \
     "$(hash_file "$source_checkout/packages/loot-core/src/server/aql/schema/executors.ts")"
+  printf 'electron_fs_sha256=%s\n' \
+    "$(hash_file "$actual_checkout/packages/loot-core/src/platform/server/fs/index.electron.ts")"
 } > "$run_dir/provenance.env"
 
 cat > "$run_dir/exact-command.txt" <<EOF
-cd '$actual_checkout' && PATH='$(dirname "$node_path")':"\$PATH" TZ='$ORACLE_TZ' ENV=node ACTUAL_TRANSACTION_QUERY_PARITY_EVIDENCE='$run_dir/oracle-result.json' ACTUAL_TRANSACTION_QUERY_PARITY_COMMIT='$observed_commit' ACTUAL_TRANSACTION_QUERY_PARITY_TAG='$observed_tag' ACTUAL_TRANSACTION_QUERY_PARITY_VERSION='$observed_version' '$node_path' '$yarn_release_path' workspace @actual-app/core exec '$vitest_path' --run src/server/transactions/transaction-query-parity.test.ts --reporter=verbose --bail=1
+cd '$actual_checkout' && PATH='$(dirname "$node_path")':"\$PATH" TZ='$ORACLE_TZ' ENV=node ACTUAL_DATA_DIR='$actual_data_dir' ACTUAL_TRANSACTION_QUERY_PARITY_EVIDENCE='$run_dir/oracle-result.json' ACTUAL_TRANSACTION_QUERY_PARITY_COMMIT='$observed_commit' ACTUAL_TRANSACTION_QUERY_PARITY_TAG='$observed_tag' ACTUAL_TRANSACTION_QUERY_PARITY_VERSION='$observed_version' '$node_path' '$yarn_release_path' workspace @actual-app/core exec '$vitest_path' --run src/server/transactions/transaction-query-parity.test.ts --reporter=verbose --bail=1
 EOF
 
 printf '%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "$marker"
@@ -464,6 +549,7 @@ supervisor_expected=1
   "$supervisor_pid_file" \
   "$supervisor_pgid_file" \
   "$ORACLE_TZ" \
+  "$actual_data_dir" \
   "$observed_commit" \
   "$observed_tag" \
   "$observed_version" \
@@ -484,16 +570,17 @@ result_path = sys.argv[5]
 supervisor_pid_path = sys.argv[6]
 pgid_path = sys.argv[7]
 timezone = sys.argv[8]
-actual_commit = sys.argv[9]
-actual_tag = sys.argv[10]
-actual_version = sys.argv[11]
+actual_data_dir = sys.argv[9]
+actual_commit = sys.argv[10]
+actual_tag = sys.argv[11]
+actual_version = sys.argv[12]
 command = [
-    sys.argv[12],
     sys.argv[13],
+    sys.argv[14],
     'workspace',
     '@actual-app/core',
     'exec',
-    sys.argv[14],
+    sys.argv[15],
     '--run',
     'src/server/transactions/transaction-query-parity.test.ts',
     '--reporter=verbose',
@@ -501,12 +588,13 @@ command = [
 ]
 environment = os.environ.copy()
 environment.update({
+    'ACTUAL_DATA_DIR': actual_data_dir,
     'ACTUAL_TRANSACTION_QUERY_PARITY_EVIDENCE': result_path,
     'ACTUAL_TRANSACTION_QUERY_PARITY_COMMIT': actual_commit,
     'ACTUAL_TRANSACTION_QUERY_PARITY_TAG': actual_tag,
     'ACTUAL_TRANSACTION_QUERY_PARITY_VERSION': actual_version,
     'ENV': 'node',
-    'PATH': os.path.dirname(sys.argv[12]) + os.pathsep + environment['PATH'],
+    'PATH': os.path.dirname(sys.argv[13]) + os.pathsep + environment['PATH'],
     'TZ': timezone,
 })
 requested_signal = None
@@ -571,8 +659,28 @@ supervisor_pid=$!
 wait "$supervisor_pid"
 oracle_status=$?
 supervisor_pid=''
-supervisor_expected=0
 set -e
+
+owned_process_cleanup='not-needed'
+if ! wait_for_owned_termination; then
+  owned_process_cleanup='required'
+  if terminate_owned_processes; then
+    owned_process_cleanup='terminated-and-confirmed'
+    if [[ "$oracle_status" -eq 0 ]]; then
+      oracle_status=74
+    fi
+  else
+    if [[ "$oracle_status" -eq 0 ]]; then
+      oracle_status=74
+    fi
+    retain_actual_data_dir oracle-finished-termination-unconfirmed
+    record_run_outcome "$oracle_status" oracle-finished-cleanup-blocked
+    capture_post_cleanup_status
+    trap - EXIT HUP INT TERM
+    exit "$oracle_status"
+  fi
+fi
+supervisor_expected=0
 
 case "$oracle_status" in
   0) outcome='completed-success' ;;
@@ -580,9 +688,18 @@ case "$oracle_status" in
   129|130|143) outcome='interrupted' ;;
   *) outcome='completed-failure' ;;
 esac
+if [[ "$owned_process_cleanup" == 'terminated-and-confirmed' ]]; then
+  outcome="$outcome-owned-processes-terminated"
+fi
 record_run_outcome "$oracle_status" "$outcome"
 
 cleanup_overlay
+if ! cleanup_actual_data_dir oracle-finished-owned-processes-terminated; then
+  if [[ "$oracle_status" -eq 0 ]]; then
+    oracle_status=74
+  fi
+  record_run_outcome "$oracle_status" "$outcome-data-cleanup-blocked"
+fi
 capture_post_cleanup_status
 if [[ -s "$run_dir/post-cleanup-git-status.txt" && "$oracle_status" -eq 0 ]]; then
   oracle_status=74

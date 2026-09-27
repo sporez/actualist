@@ -61,6 +61,11 @@ The normal loot-core node-test setup supplies the in-memory SQLite database and
 normal network mocks. All accounts, payees, categories, mappings, filters, and
 transactions are synthetic.
 
+The pinned Electron filesystem adapter requires `ACTUAL_DATA_DIR`. The runner
+does not inherit or infer it: every run creates the unique owned directory
+`<evidence>/<run-label>/actual-data`, marks its ownership, and passes that exact
+path explicitly to the child.
+
 ## Exact coordinator command
 
 Prepare a distinct dependency-ready clone first, then run:
@@ -88,7 +93,12 @@ The outer wall-clock ceiling is **180 seconds** and the harness test timeout is
 the supervisor PID and child process-group ID, forwards interruption only to
 those owned processes, waits 10 seconds after `TERM`, and uses `KILL` only for
 that still-live owned group. It retains the overlay if termination cannot be
-confirmed rather than deleting files under a live process.
+confirmed rather than deleting files under a live process. The owned
+`actual-data` directory is removed only after process termination and ownership
+are both confirmed. Ordinary assertion/runtime failures retain their JSON,
+logs, provenance, command, and exit evidence while removing only the confirmed
+owned scratch directory. Unconfirmed termination or ownership retains the
+scratch directory and records why.
 
 Run-label directories are single-use (`investigation` or `post-correction`),
 including a preflight failure. The evidence
@@ -109,6 +119,8 @@ Each run directory contains:
   source owners, dependency state, and native SQLite binding;
 - `exact-command.txt`;
 - `oracle-source/`: the exact harness and runner sources used;
+- `actual-data-cleanup.env`: owned scratch path, termination confirmation, and
+  whether cleanup removed or retained it;
 - `source-git-status.txt`, `pre-overlay-git-status.txt`, and
   `post-cleanup-git-status.txt`.
 
