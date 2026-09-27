@@ -523,7 +523,8 @@ extension BudgetDatabase {
         if let recurrence {
             guard let next = try recurrence.nextDateString(
                 onOrAfter: monthStart,
-                applyWeekendSkip: true
+                applyWeekendSkip: true,
+                calendar: BudgetTemplateCalendar.gregorian
             ) else {
                 throw LocalFirstError.unsupportedTemplate("schedule")
             }
@@ -597,7 +598,7 @@ extension BudgetDatabase {
 
     private func scheduleRecurrence(
         _ condition: RuleCondition
-    ) throws -> BudgetTemplateScheduleRecurrence? {
+    ) throws -> ActualScheduleRecurrence? {
         switch condition.value {
         case .string:
             return nil
@@ -613,20 +614,14 @@ extension BudgetDatabase {
                     "schedule end dates are not supported locally yet"
                 )
             }
-            guard let startString = object["start"]?.stringValue,
-                  let start = BudgetTemplateCalendar.validatedDate(startString),
-                  let frequency = object["frequency"]?.stringValue?.lowercased(),
-                  ["daily", "weekly", "monthly", "yearly"].contains(frequency) else {
+            do {
+                return try ScheduleRuleProjection.recurrence(
+                    from: condition.value,
+                    calendar: BudgetTemplateCalendar.gregorian
+                )
+            } catch {
                 throw LocalFirstError.unsupportedTemplate("schedule")
             }
-            let interval = max(Int(object["interval"]?.numberValue ?? 1), 1)
-            return BudgetTemplateScheduleRecurrence(
-                start: start,
-                frequency: frequency,
-                interval: interval,
-                skipWeekend: object["skipWeekend"]?.boolValue ?? false,
-                weekendSolveMode: object["weekendSolveMode"]?.stringValue ?? "after"
-            )
         default:
             throw LocalFirstError.unsupportedTemplate("schedule")
         }
@@ -647,13 +642,6 @@ private extension RuleJSONValue {
 
     var stringValue: String? {
         if case .string(let value) = self {
-            return value
-        }
-        return nil
-    }
-
-    var boolValue: Bool? {
-        if case .bool(let value) = self {
             return value
         }
         return nil
