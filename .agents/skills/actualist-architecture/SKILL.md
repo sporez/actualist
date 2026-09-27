@@ -78,7 +78,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Month navigation and layout: `BudgetMonthSwipeModifier.swift`, `BudgetAssignmentViewport.swift`, `BudgetAssignmentScrollPresentation.swift`, and viewport/layout helpers.
 - Assignment and move-money workflows: `BudgetMoveMoneyWorkflow.swift` and `BudgetMoveMoneyView.swift`; persistence enters through `BudgetRepositoryProtocol` and `LocalFirstActualStore+AssignMove.swift`.
 - Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `LocalFirstActualStore+CategoryLifecycle.swift`; SQLite is `BudgetDatabase+CategoryLifecycle*.swift` and `+CategoryVisibility.swift`.
-- Hold for next month: `BudgetDatabase+EnvelopeHolds.swift`, close to the stored budget calculation.
+- Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetDatabase+EnvelopeHolds.swift` owns the stored hold calculation; the focused hold store/database writers own persistence.
 - Uncategorized flow: `UncategorizedTransactionsView.swift` and its view model/coordinator siblings.
 - Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `+ActionLog.swift`; `BudgetDatabase+BudgetReads.swift`, `+BudgetWrites.swift`, and `+ActionLog*.swift`.
 

@@ -49,9 +49,13 @@ permits more work or easier validation.
 
 ## Phased Plans And Worker Delegation
 
-- Use bounded worker delegation when the task and available harness support it
-  and the work is genuinely independent. Worker-model and cost preferences
-  belong in the local overlay, not in repository-wide requirements.
+- Prefer bounded worker delegation for substantial, self-contained work that can
+  be handed back with concise findings or a focused diff. This includes
+  read-only codebase research, test/fixture inventories, targeted review, and
+  implementation—not only parallel coding. A worker can finish a sequential
+  task before the main agent continues; independence from other workers is not
+  required. Worker-model and cost preferences belong in the local overlay, not
+  in repository-wide requirements.
 - The main agent owns the plan, architecture decisions, dependency ordering,
   progress tracker, integration, and user communication.
 - Give each worker a precise scope, relevant foreseeable edge cases, constraints,
@@ -67,7 +71,8 @@ permits more work or easier validation.
   dependent phase. Do not rerun passing checks merely because a worker handed
   off, a phase ended, or a commit is being prepared.
 - Implement small or tightly coupled changes directly when delegation would add
-  more coordination than it saves.
+  more coordination or repeated investigation than it saves. Do not delegate
+  merely to create a worker task or duplicate analysis already completed.
 - Explicit instructions for a single-agent diagnostic take precedence over
   delegation preferences.
 
@@ -79,6 +84,8 @@ permits more work or easier validation.
   and stale-session identity without caching credential bytes.
 - `Actualist/Features/`: screens, feature view models, focused coordinators,
   presentation models, and feature-local pure logic.
+  Budget's `BudgetHoldViewModel` owns the shared compact/wide hold/release review;
+  its sheet stays presentation-only and writes through the repository seam.
 - `Actualist/Repositories/`: dependency-injection protocols and domain/display
   models. Production injects `LocalFirstActualStore`; there are no concrete
   repository structs.
