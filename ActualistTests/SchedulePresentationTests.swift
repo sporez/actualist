@@ -3,6 +3,30 @@ import Testing
 
 @Suite("Schedule presentation")
 struct SchedulePresentationTests {
+    @Test func loadIdentityRefreshInputsDoNotChangeBudgetSessionIdentity() {
+        let context = context()
+        let initial = SchedulesLoadIdentity(
+            context: context,
+            refreshRevision: 10,
+            manualRefreshGeneration: 0
+        )
+        let revisionRefresh = SchedulesLoadIdentity(
+            context: context,
+            refreshRevision: 11,
+            manualRefreshGeneration: 0
+        )
+        let manualRefresh = SchedulesLoadIdentity(
+            context: context,
+            refreshRevision: 10,
+            manualRefreshGeneration: 1
+        )
+
+        #expect(initial != revisionRefresh)
+        #expect(initial != manualRefresh)
+        #expect(initial.context.identity == revisionRefresh.context.identity)
+        #expect(initial.context.identity == manualRefresh.context.identity)
+    }
+
     @Test func privacyProjectionMasksEverySensitiveSearchField() {
         let schedule = ScheduleSummary(
             id: "rent",
