@@ -8,21 +8,42 @@ enum TransactionFeedCacheScope: Hashable, Sendable {
 struct TransactionFeedCacheKey: Hashable, Sendable {
     let budgetID: String
     let scope: TransactionFeedCacheScope
-    let statusFilter: TransactionStatusFilter
+    let query: TransactionFeedQuery
+
+    var querySignature: TransactionQuerySignature { query.signature }
 
     static func account(
         budgetID: String,
         accountID: String,
         statusFilter: TransactionStatusFilter = .all
     ) -> Self {
-        Self(budgetID: budgetID, scope: .account(accountID), statusFilter: statusFilter)
+        account(
+            budgetID: budgetID,
+            accountID: accountID,
+            query: TransactionFeedQuery(status: statusFilter)
+        )
+    }
+
+    static func account(
+        budgetID: String,
+        accountID: String,
+        query: TransactionFeedQuery
+    ) -> Self {
+        Self(budgetID: budgetID, scope: .account(accountID), query: query)
     }
 
     static func spending(
         budgetID: String,
         statusFilter: TransactionStatusFilter = .all
     ) -> Self {
-        Self(budgetID: budgetID, scope: .spending, statusFilter: statusFilter)
+        spending(budgetID: budgetID, query: TransactionFeedQuery(status: statusFilter))
+    }
+
+    static func spending(
+        budgetID: String,
+        query: TransactionFeedQuery
+    ) -> Self {
+        Self(budgetID: budgetID, scope: .spending, query: query)
     }
 }
 

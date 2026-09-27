@@ -4,6 +4,58 @@ import Testing
 @testable import Actualist
 
 extension LocalFirstActualStoreTests {
+    @Test func structuredQueryCachesRemainDistinctAndBulkRefreshUsesTheirTypedKeys() async throws {
+        let database = try TransactionStatusFilterTestSupport.database()
+        let store = makeStore()
+        store.openedBudgetID = "status-budget"
+        store.database = database
+        store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
+        let categoryQuery = TransactionFeedQuery(
+            conditions: [.category(.equals("groceries"))]
+        )
+        let accountQuery = TransactionFeedQuery(
+            conditions: [.account(.equals("savings"))]
+        )
+
+        try await store.refreshTransactions(
+            budgetID: "status-budget",
+            scope: .spending,
+            query: categoryQuery
+        )
+        try await store.refreshTransactions(
+            budgetID: "status-budget",
+            scope: .spending,
+            query: accountQuery
+        )
+
+        let categoryPage = try #require(store.cachedTransactions(
+            budgetID: "status-budget",
+            scope: .spending,
+            query: categoryQuery
+        ))
+        let accountPage = try #require(store.cachedTransactions(
+            budgetID: "status-budget",
+            scope: .spending,
+            query: accountQuery
+        ))
+        #expect(categoryPage.querySignature == categoryQuery.signature)
+        #expect(accountPage.querySignature == accountQuery.signature)
+        #expect(categoryPage != accountPage)
+
+        try await store.refreshLoadedTransactionFeedCaches(database: database, budgetID: "status-budget")
+
+        #expect(store.cachedTransactions(
+            budgetID: "status-budget",
+            scope: .spending,
+            query: categoryQuery
+        ) == categoryPage)
+        #expect(store.cachedTransactions(
+            budgetID: "status-budget",
+            scope: .spending,
+            query: accountQuery
+        ) == accountPage)
+    }
+
     @Test func filteredFeedCachesRemainDistinctAcrossSearchPaginationAndCacheRefresh() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
         let store = makeStore()
@@ -195,7 +247,10 @@ extension LocalFirstActualStoreTests {
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
 
         gate.holdNextRead { key, query, _, _ in
-            key == .spending(budgetID: "status-budget") && query == "status-search-needle"
+            key == .spending(
+                budgetID: "status-budget",
+                query: TransactionFeedQuery(text: "status-search-needle")
+            ) && query == "status-search-needle"
         }
         let search = Task {
             try await store.searchSpendingTransactions(

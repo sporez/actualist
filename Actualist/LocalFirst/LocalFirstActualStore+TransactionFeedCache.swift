@@ -36,7 +36,6 @@ extension LocalFirstActualStore {
                     database: database,
                     budgetID: budgetID,
                     key: key,
-                    query: nil,
                     limit: limit,
                     offset: 0
                 )
@@ -73,7 +72,7 @@ extension LocalFirstActualStore {
         let lhsScope = transactionFeedScopeOrder(lhs.scope)
         let rhsScope = transactionFeedScopeOrder(rhs.scope)
         if lhsScope != rhsScope { return lhsScope < rhsScope }
-        return lhs.statusFilter.rawValue < rhs.statusFilter.rawValue
+        return lhs.querySignature.stableSortKey < rhs.querySignature.stableSortKey
     }
 
     func transactionFeedScopeOrder(_ scope: TransactionFeedCacheScope) -> String {

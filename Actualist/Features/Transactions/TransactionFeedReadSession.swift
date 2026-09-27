@@ -6,8 +6,11 @@ import Observation
 final class TransactionFeedReadSession {
     struct Identity: Equatable {
         let budgetID: String
-        let statusFilter: TransactionStatusFilter
-        let query: String?
+        let scope: TransactionQueryScope?
+        let query: TransactionFeedQuery
+
+        var statusFilter: TransactionStatusFilter { query.status }
+        var searchText: String? { query.text }
     }
 
     enum Phase: Equatable {
@@ -29,7 +32,7 @@ final class TransactionFeedReadSession {
         let errorMessage: String?
     }
 
-    private(set) var statusFilter: TransactionStatusFilter = .all
+    private(set) var query = TransactionFeedQuery.all
     private(set) var state = State(
         identity: nil,
         requestID: nil,
@@ -50,8 +53,14 @@ final class TransactionFeedReadSession {
     }
     var isLoadingOlder: Bool { state.phase == .loadingOlder }
 
-    func identity(budgetID: String, query: String?) -> Identity {
-        Identity(budgetID: budgetID, statusFilter: statusFilter, query: query)
+    var statusFilter: TransactionStatusFilter { query.status }
+
+    func identity(
+        budgetID: String,
+        scope: TransactionQueryScope?,
+        query: TransactionFeedQuery
+    ) -> Identity {
+        Identity(budgetID: budgetID, scope: scope, query: query)
     }
 
     func acceptsBudget(_ budgetID: String) -> Bool {
@@ -60,14 +69,18 @@ final class TransactionFeedReadSession {
 
     func select(_ filter: TransactionStatusFilter, identity: Identity) -> Identity? {
         guard statusFilter != filter else { return nil }
-        statusFilter = filter
-        activate(Identity(budgetID: identity.budgetID, statusFilter: filter, query: identity.query))
+        activate(Identity(
+            budgetID: identity.budgetID,
+            scope: identity.scope,
+            query: identity.query.replacingStatus(filter)
+        ))
         return state.identity
     }
 
     func activate(_ identity: Identity) {
         guard state.identity != identity else { return }
         invalidateRequest()
+        query = identity.query
         state = State(identity: identity, requestID: nil, phase: .idle,
                       searchPage: nil, errorMessage: nil)
     }
@@ -115,7 +128,7 @@ final class TransactionFeedReadSession {
         repository: any TransactionRepositoryProtocol,
         debounced: Bool
     ) {
-        guard identity.query != nil else { return }
+        guard identity.searchText != nil else { return }
         let requestID = beginSearch(identity, debounced: debounced)
         let task = Task { [weak self] in
             guard let self else { return }
@@ -138,7 +151,7 @@ final class TransactionFeedReadSession {
         scope: TransactionFeedScope,
         repository: any TransactionRepositoryProtocol
     ) async {
-        guard identity.query != nil else { return }
+        guard identity.searchText != nil else { return }
         let requestID = beginSearchRefresh(identity)
         let task = Task { [weak self] in
             guard let self else { return }
@@ -166,11 +179,11 @@ final class TransactionFeedReadSession {
         scope: TransactionFeedScope,
         repository: any TransactionRepositoryProtocol
     ) async {
-        guard let query = identity.query,
+        guard identity.searchText != nil,
               let (requestID, page) = beginOlderSearch(identity) else { return }
         let task = Task { [weak self] in
             guard let self else { return }
-            await performOlderSearch(requestID, identity: identity, query: query, page: page,
+            await performOlderSearch(requestID, identity: identity, page: page,
                                      scope: scope, repository: repository)
         }
         searchTask = task
@@ -184,27 +197,19 @@ final class TransactionFeedReadSession {
     private func performOlderSearch(
         _ requestID: UUID,
         identity: Identity,
-        query: String,
         page: LoadedAccountTransactions,
         scope: TransactionFeedScope,
         repository: any TransactionRepositoryProtocol
     ) async {
         do {
-            let older: LoadedAccountTransactions
-            switch scope {
-            case .account(let account):
-                older = try await repository.searchAccountTransactions(
-                    budgetID: identity.budgetID, accountID: account.id, query: query,
-                    limit: 50, offset: page.nextOffset, statusFilter: identity.statusFilter
-                )
-            case .spending:
-                older = try await repository.searchSpendingTransactions(
-                    budgetID: identity.budgetID, query: query, limit: 50,
-                    offset: page.nextOffset, statusFilter: identity.statusFilter
-                )
-            case .category:
-                return
-            }
+            guard let queryScope = scope.queryScope else { return }
+            let older = try await repository.transactionPage(
+                budgetID: identity.budgetID,
+                scope: queryScope,
+                query: identity.query,
+                limit: 50,
+                offset: page.nextOffset
+            )
             finish(requestID, identity: identity, page: page.appendingPage(older))
         } catch {
             failOlderSearch(requestID, identity: identity, error: error)
@@ -225,7 +230,7 @@ final class TransactionFeedReadSession {
             return
         }
         let action = state.phase == .refreshing ? "refresh" : "load"
-        let description = identity.query == nil
+        let description = identity.searchText == nil
             ? "\(identity.statusFilter.title.lowercased()) transactions"
             : "\(identity.statusFilter.title.lowercased()) search results"
         state = State(identity: identity, requestID: nil, phase: .failed,
@@ -249,7 +254,7 @@ final class TransactionFeedReadSession {
     }
 
     func page(for identity: Identity) -> LoadedAccountTransactions? {
-        guard identity.query != nil, state.identity == identity else { return nil }
+        guard identity.searchText != nil, state.identity == identity else { return nil }
         return state.searchPage
     }
 
@@ -259,7 +264,7 @@ final class TransactionFeedReadSession {
     }
 
     func isSearchLoading(_ identity: Identity) -> Bool {
-        guard state.identity == identity, identity.query != nil else { return false }
+        guard state.identity == identity, identity.searchText != nil else { return false }
         return state.searchPage == nil
             && (state.phase == .debouncing || state.phase == .loading)
     }
@@ -291,14 +296,14 @@ final class TransactionFeedReadSession {
 
     func cancelAndReset() {
         invalidateRequest()
-        statusFilter = .all
+        query = .all
         state = State(identity: nil, requestID: nil, phase: .idle,
                       searchPage: nil, errorMessage: nil)
     }
 
-    func resetBudget(to budgetID: String) -> Identity {
+    func resetBudget(to budgetID: String, scope: TransactionQueryScope?) -> Identity {
         cancelAndReset()
-        let identity = Identity(budgetID: budgetID, statusFilter: .all, query: nil)
+        let identity = Identity(budgetID: budgetID, scope: scope, query: .all)
         state = State(identity: identity, requestID: nil, phase: .idle,
                       searchPage: nil, errorMessage: nil)
         return identity
@@ -315,26 +320,17 @@ final class TransactionFeedReadSession {
         scope: TransactionFeedScope,
         repository: any TransactionRepositoryProtocol
     ) async {
-        guard let query = identity.query else { return }
+        guard identity.searchText != nil else { return }
         let currentPage = state.identity == identity ? state.searchPage : nil
         do {
-            let loaded: LoadedAccountTransactions
-            switch scope {
-            case .account(let account):
-                loaded = try await repository.searchAccountTransactions(
-                    budgetID: identity.budgetID, accountID: account.id, query: query,
-                    limit: max(currentPage?.nextOffset ?? 50, 50), offset: 0,
-                    statusFilter: identity.statusFilter
-                )
-            case .spending:
-                loaded = try await repository.searchSpendingTransactions(
-                    budgetID: identity.budgetID, query: query,
-                    limit: max(currentPage?.nextOffset ?? 50, 50), offset: 0,
-                    statusFilter: identity.statusFilter
-                )
-            case .category:
-                return
-            }
+            guard let queryScope = scope.queryScope else { return }
+            let loaded = try await repository.transactionPage(
+                budgetID: identity.budgetID,
+                scope: queryScope,
+                query: identity.query,
+                limit: max(currentPage?.nextOffset ?? 50, 50),
+                offset: 0
+            )
             finish(requestID, identity: identity, page: loaded)
         } catch {
             fail(requestID, identity: identity, error: error)

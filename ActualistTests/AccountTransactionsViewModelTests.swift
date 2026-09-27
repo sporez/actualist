@@ -109,7 +109,11 @@ struct AccountTransactionsViewModelTests {
 
     @Test func paginationRejectsDuplicateRequestsWhileOneIsRunning() async {
         let repository = AccountTransactionsRecordingRepository(
-            accountSnapshot: Self.loaded([Self.transaction(id: "first")], reachedEnd: false),
+            accountSnapshot: Self.loaded(
+                [Self.transaction(id: "first")],
+                reachedEnd: false,
+                totalMatchCount: 2
+            ),
             suspendsOlderLoads: true
         )
         let model = AccountTransactionsViewModel(scope: .account(Self.account))
@@ -216,7 +220,11 @@ struct AccountTransactionsViewModelTests {
     }
 
     @Test func searchPaginationRequestsTheNextMatchOffset() async {
-        let firstPage = Self.loaded((0..<50).map { Self.transaction(id: "match-\($0)") }, reachedEnd: false)
+        let firstPage = Self.loaded(
+            (0..<50).map { Self.transaction(id: "match-\($0)") },
+            reachedEnd: false,
+            totalMatchCount: 51
+        )
         let secondPage = Self.loaded([Self.transaction(id: "match-50")], reachedEnd: true)
         let repository = AccountTransactionsRecordingRepository(
             searchPages: ["market|all|0": firstPage, "market|all|50": secondPage]
@@ -288,7 +296,11 @@ struct AccountTransactionsViewModelTests {
 
     @Test func oldOlderLoadCompletionDoesNotKeepNewFilterBusy() async {
         let repository = AccountTransactionsRecordingRepository(
-            accountSnapshot: Self.loaded([Self.transaction(id: "older-page")], reachedEnd: false),
+            accountSnapshot: Self.loaded(
+                [Self.transaction(id: "older-page")],
+                reachedEnd: false,
+                totalMatchCount: 2
+            ),
             suspendsOlderLoads: true
         )
         let model = AccountTransactionsViewModel(scope: .account(Self.account))
@@ -436,9 +448,13 @@ struct AccountTransactionsViewModelTests {
         _ transactions: [ActualTransaction],
         categoryNames: [String: String] = [:],
         reachedEnd: Bool = true,
-        nextOffset: Int? = nil
+        nextOffset: Int? = nil,
+        totalMatchCount: Int? = nil
     ) -> LoadedAccountTransactions {
-        LoadedAccountTransactions(
+        precondition(reachedEnd || totalMatchCount != nil, "Paged fixtures require an exact total")
+        let physical = transactions.flatMap { [$0] + $0.subtransactions }
+        let matchingIDs = Set(physical.compactMap(\.id))
+        return LoadedAccountTransactions(
             transactions: transactions,
             balance: 12_345,
             accountNames: ["checking": "Checking"],
@@ -446,7 +462,14 @@ struct AccountTransactionsViewModelTests {
             payeeNames: ["market": "Market", "cafe": "Cafe", "station": "Station"],
             transferPayeeIDs: [],
             reachedEnd: reachedEnd,
-            nextOffset: nextOffset
+            nextOffset: nextOffset,
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: totalMatchCount ?? transactions.count,
+                querySignature: TransactionFeedQuery.all.signature,
+                matchingTransactionIDs: matchingIDs,
+                contributingTransactionIDs: Set(physical.filter { !$0.isParent }.compactMap(\.id)),
+                attachedContextTransactionIDs: []
+            )
         )
     }
 }

@@ -11,7 +11,7 @@ final class AccountTransactionsViewModel {
     private let readSession: TransactionFeedReadSession
     var isLoadingOlder: Bool { readSession.isLoadingOlder }
     var isSearching: Bool {
-        readSession.state.identity?.query != nil
+        readSession.state.identity?.searchText != nil
             && (readSession.state.phase == .debouncing || readSession.state.phase == .loading)
     }
     func isSearchLoading(budgetID: String?) -> Bool {
@@ -19,11 +19,11 @@ final class AccountTransactionsViewModel {
         return readSession.isSearchLoading(identity)
     }
     var searchErrorMessage: String? {
-        guard let identity = readSession.state.identity, identity.query != nil else { return nil }
+        guard let identity = readSession.state.identity, identity.searchText != nil else { return nil }
         return readSession.loadError(for: identity)
     }
     var loadErrorMessage: String? {
-        guard let identity = readSession.state.identity, identity.query == nil else { return nil }
+        guard let identity = readSession.state.identity, identity.searchText == nil else { return nil }
         return readSession.loadError(for: identity)
     }
     private(set) var errorMessage: String?
@@ -47,13 +47,13 @@ final class AccountTransactionsViewModel {
     func selectFilter(_ filter: TransactionStatusFilter, budgetID: String?,
                       repository: any TransactionRepositoryProtocol) async {
         guard let budgetID, readSession.acceptsBudget(budgetID) else { return }
-        let query = scope.isCategory ? nil : activeQuery
+        let query = activeFeedQuery.replacingStatus(filter)
         let identity = TransactionFeedReadSession.Identity(
-            budgetID: budgetID, statusFilter: filter, query: query
+            budgetID: budgetID, scope: scope.queryScope, query: query
         )
         guard let selected = readSession.select(filter, identity: identity) else { return }
         errorMessage = nil
-        if selected.query != nil {
+        if selected.searchText != nil {
             readSession.startSearch(selected, scope: scope, repository: repository, debounced: false)
         } else {
             await loadLocal(selected, repository: repository)
@@ -73,14 +73,22 @@ final class AccountTransactionsViewModel {
         !trimmedSearchText.isEmpty
     }
 
-    private var activeQuery: String? {
+    private var activeSearchText: String? {
         guard isSearchActive, !scope.isCategory else { return nil }
         return trimmedSearchText
     }
 
+    var activeFeedQuery: TransactionFeedQuery {
+        readSession.query.replacingText(activeSearchText)
+    }
+
     private func readIdentity(budgetID: String?) -> TransactionFeedReadSession.Identity? {
         guard let budgetID else { return nil }
-        return readSession.identity(budgetID: budgetID, query: activeQuery)
+        return readSession.identity(
+            budgetID: budgetID,
+            scope: scope.queryScope,
+            query: activeFeedQuery
+        )
     }
 
     func displayState(
@@ -197,7 +205,7 @@ final class AccountTransactionsViewModel {
     ) async {
         guard let budgetID, readSession.acceptsBudget(budgetID),
               let identity = readIdentity(budgetID: budgetID) else { return }
-        if identity.query != nil {
+        if identity.searchText != nil {
             await readSession.refreshSearch(identity, scope: scope, repository: repository)
         } else {
             await loadLocal(identity, repository: repository)
@@ -247,7 +255,7 @@ final class AccountTransactionsViewModel {
             return
         }
         searchText = ""
-        let identity = readSession.resetBudget(to: budgetID)
+        let identity = readSession.resetBudget(to: budgetID, scope: scope.queryScope)
         errorMessage = nil
         await loadLocal(identity, repository: repository)
     }
@@ -268,7 +276,7 @@ final class AccountTransactionsViewModel {
         guard editorDismissed, let budgetID, readSession.acceptsBudget(budgetID),
               let identity = readIdentity(budgetID: budgetID),
               readSession.state.phase == .cancelled else { return }
-        if identity.query != nil {
+        if identity.searchText != nil {
             readSession.startSearch(identity, scope: scope, repository: repository, debounced: false)
         } else {
             Task { await loadLocal(identity, repository: repository) }
@@ -280,7 +288,7 @@ final class AccountTransactionsViewModel {
         searchText = value
         guard let identity = readIdentity(budgetID: budgetID) else { return }
         readSession.activate(identity)
-        if identity.query != nil {
+        if identity.searchText != nil {
             readSession.startSearch(identity, scope: scope, repository: repository, debounced: true)
         } else if cachedSnapshot(identity, repository: repository) == nil {
             Task { await loadLocal(identity, repository: repository) }
@@ -290,7 +298,7 @@ final class AccountTransactionsViewModel {
     private func refreshCurrentData(budgetID: String?, repository: any TransactionRepositoryProtocol) async {
         guard let budgetID, readSession.acceptsBudget(budgetID),
               let identity = readIdentity(budgetID: budgetID) else { return }
-        if identity.query != nil {
+        if identity.searchText != nil {
             await readSession.refreshSearch(identity, scope: scope, repository: repository)
         } else {
             await loadLocal(identity, repository: repository)
@@ -309,7 +317,7 @@ final class AccountTransactionsViewModel {
             return
         }
 
-        if identity.query != nil {
+        if identity.searchText != nil {
             await readSession.loadOlderSearch(identity, scope: scope, repository: repository)
             return
         }
@@ -319,11 +327,17 @@ final class AccountTransactionsViewModel {
         do {
             switch scope {
             case .account(let account):
-                try await repository.loadOlderTransactions(budgetID: identity.budgetID, accountID: account.id,
-                                                           statusFilter: identity.statusFilter)
+                try await repository.loadOlderTransactions(
+                    budgetID: identity.budgetID,
+                    scope: .account(account.id),
+                    query: identity.query
+                )
             case .spending:
-                try await repository.loadOlderSpendingTransactions(budgetID: identity.budgetID,
-                                                                  statusFilter: identity.statusFilter)
+                try await repository.loadOlderTransactions(
+                    budgetID: identity.budgetID,
+                    scope: .spending,
+                    query: identity.query
+                )
             case .category:
                 return
             }
@@ -338,7 +352,7 @@ final class AccountTransactionsViewModel {
         repository: any TransactionRepositoryProtocol
     ) {
         guard let budgetID, readSession.acceptsBudget(budgetID),
-              let identity = readIdentity(budgetID: budgetID), identity.query != nil else { return }
+              let identity = readIdentity(budgetID: budgetID), identity.searchText != nil else { return }
         readSession.startSearch(identity, scope: scope, repository: repository, debounced: true)
     }
 
@@ -358,8 +372,32 @@ final class AccountTransactionsViewModel {
 
     func retrySearch(budgetID: String?, repository: any TransactionRepositoryProtocol) {
         guard let budgetID, readSession.acceptsBudget(budgetID),
-              let identity = readIdentity(budgetID: budgetID), identity.query != nil else { return }
+              let identity = readIdentity(budgetID: budgetID), identity.searchText != nil else { return }
         readSession.startSearch(identity, scope: scope, repository: repository, debounced: false)
+    }
+
+    func applyStructuredConditions(
+        _ conditions: [TransactionQueryCondition],
+        join: TransactionQueryJoin,
+        budgetID: String?,
+        repository: any TransactionRepositoryProtocol
+    ) async {
+        guard !scope.isCategory,
+              let budgetID,
+              readSession.acceptsBudget(budgetID) else { return }
+        let query = activeFeedQuery.replacingConditions(join: join, conditions: conditions)
+        let identity = TransactionFeedReadSession.Identity(
+            budgetID: budgetID,
+            scope: scope.queryScope,
+            query: query
+        )
+        readSession.activate(identity)
+        errorMessage = nil
+        if identity.searchText != nil {
+            readSession.startSearch(identity, scope: scope, repository: repository, debounced: false)
+        } else {
+            await loadLocal(identity, repository: repository)
+        }
     }
 
     func clearPendingNewTransactions(
@@ -376,12 +414,16 @@ final class AccountTransactionsViewModel {
     ) async throws {
         switch scope {
         case .account(let account):
-            try await repository.refreshAccountTransactions(
-                budgetID: identity.budgetID, accountID: account.id, statusFilter: identity.statusFilter
+            try await repository.refreshTransactions(
+                budgetID: identity.budgetID,
+                scope: .account(account.id),
+                query: identity.query
             )
         case .spending:
-            try await repository.refreshSpendingTransactions(
-                budgetID: identity.budgetID, statusFilter: identity.statusFilter
+            try await repository.refreshTransactions(
+                budgetID: identity.budgetID,
+                scope: .spending,
+                query: identity.query
             )
         case .category(let details):
             try await repository.refreshCategoryTransactions(
@@ -396,12 +438,16 @@ final class AccountTransactionsViewModel {
     ) -> LoadedAccountTransactions? {
         switch scope {
         case .account(let account):
-            return repository.cachedAccountTransactions(
-                budgetID: identity.budgetID, accountID: account.id, statusFilter: identity.statusFilter
+            return repository.cachedTransactions(
+                budgetID: identity.budgetID,
+                scope: .account(account.id),
+                query: identity.query
             )
         case .spending:
-            return repository.cachedSpendingTransactions(
-                budgetID: identity.budgetID, statusFilter: identity.statusFilter
+            return repository.cachedTransactions(
+                budgetID: identity.budgetID,
+                scope: .spending,
+                query: identity.query
             )
         case .category(let details):
             return repository.cachedCategoryTransactions(
@@ -432,7 +478,7 @@ final class AccountTransactionsViewModel {
         _ identity: TransactionFeedReadSession.Identity,
         repository: any TransactionRepositoryProtocol
     ) -> LoadedAccountTransactions? {
-        if identity.query != nil {
+        if identity.searchText != nil {
             return readSession.page(for: identity)
         }
         return cachedSnapshot(identity, repository: repository)

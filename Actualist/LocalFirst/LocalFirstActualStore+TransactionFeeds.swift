@@ -1,21 +1,56 @@
 import Foundation
 
 extension LocalFirstActualStore {
+    func cachedTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) -> LoadedAccountTransactions? {
+        let key: TransactionFeedCacheKey = switch scope {
+        case .account(let accountID):
+            .account(budgetID: budgetID, accountID: accountID, query: query)
+        case .spending:
+            .spending(budgetID: budgetID, query: query)
+        }
+        return transactionFeedPagesByKey[key]?.loaded
+    }
+
     func cachedAccountTransactions(
         budgetID: String,
         accountID: String,
         statusFilter: TransactionStatusFilter = .all
     ) -> LoadedAccountTransactions? {
-        transactionFeedPagesByKey[.account(
-            budgetID: budgetID, accountID: accountID, statusFilter: statusFilter
-        )]?.loaded
+        cachedTransactions(
+            budgetID: budgetID,
+            scope: .account(accountID),
+            query: TransactionFeedQuery(status: statusFilter)
+        )
     }
 
     func cachedSpendingTransactions(
         budgetID: String,
         statusFilter: TransactionStatusFilter = .all
     ) -> LoadedAccountTransactions? {
-        transactionFeedPagesByKey[.spending(budgetID: budgetID, statusFilter: statusFilter)]?.loaded
+        cachedTransactions(
+            budgetID: budgetID,
+            scope: .spending,
+            query: TransactionFeedQuery(status: statusFilter)
+        )
+    }
+
+    func refreshTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        let database = try requireDatabase(for: budgetID)
+        let key: TransactionFeedCacheKey = switch scope {
+        case .account(let accountID):
+            .account(budgetID: budgetID, accountID: accountID, query: query)
+        case .spending:
+            .spending(budgetID: budgetID, query: query)
+        }
+        try await refreshTransactionFeed(key: key, database: database)
     }
 
     func refreshAccountTransactions(
@@ -23,10 +58,10 @@ extension LocalFirstActualStore {
         accountID: String,
         statusFilter: TransactionStatusFilter = .all
     ) async throws {
-        let database = try requireDatabase(for: budgetID)
-        try await refreshTransactionFeed(
-            key: .account(budgetID: budgetID, accountID: accountID, statusFilter: statusFilter),
-            database: database
+        try await refreshTransactions(
+            budgetID: budgetID,
+            scope: .account(accountID),
+            query: TransactionFeedQuery(status: statusFilter)
         )
     }
 
@@ -34,10 +69,10 @@ extension LocalFirstActualStore {
         budgetID: String,
         statusFilter: TransactionStatusFilter = .all
     ) async throws {
-        let database = try requireDatabase(for: budgetID)
-        try await refreshTransactionFeed(
-            key: .spending(budgetID: budgetID, statusFilter: statusFilter),
-            database: database
+        try await refreshTransactions(
+            budgetID: budgetID,
+            scope: .spending,
+            query: TransactionFeedQuery(status: statusFilter)
         )
     }
 
@@ -51,7 +86,6 @@ extension LocalFirstActualStore {
             database: database,
             budgetID: key.budgetID,
             key: key,
-            query: nil,
             limit: limit,
             offset: 0
         )
@@ -62,13 +96,28 @@ extension LocalFirstActualStore {
 
     func loadOlderTransactions(
         budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        let database = try requireDatabase(for: budgetID)
+        let key: TransactionFeedCacheKey = switch scope {
+        case .account(let accountID):
+            .account(budgetID: budgetID, accountID: accountID, query: query)
+        case .spending:
+            .spending(budgetID: budgetID, query: query)
+        }
+        try await loadOlderTransactionFeed(key: key, database: database)
+    }
+
+    func loadOlderTransactions(
+        budgetID: String,
         accountID: String,
         statusFilter: TransactionStatusFilter = .all
     ) async throws {
-        let database = try requireDatabase(for: budgetID)
-        try await loadOlderTransactionFeed(
-            key: .account(budgetID: budgetID, accountID: accountID, statusFilter: statusFilter),
-            database: database
+        try await loadOlderTransactions(
+            budgetID: budgetID,
+            scope: .account(accountID),
+            query: TransactionFeedQuery(status: statusFilter)
         )
     }
 
@@ -76,10 +125,10 @@ extension LocalFirstActualStore {
         budgetID: String,
         statusFilter: TransactionStatusFilter = .all
     ) async throws {
-        let database = try requireDatabase(for: budgetID)
-        try await loadOlderTransactionFeed(
-            key: .spending(budgetID: budgetID, statusFilter: statusFilter),
-            database: database
+        try await loadOlderTransactions(
+            budgetID: budgetID,
+            scope: .spending,
+            query: TransactionFeedQuery(status: statusFilter)
         )
     }
 
@@ -98,7 +147,6 @@ extension LocalFirstActualStore {
             database: database,
             budgetID: key.budgetID,
             key: key,
-            query: nil,
             limit: transactionPageSize,
             offset: current.nextOffset
         )
@@ -121,22 +169,13 @@ extension LocalFirstActualStore {
         offset: Int,
         statusFilter: TransactionStatusFilter = .all
     ) async throws -> LoadedAccountTransactions {
-        let database = try requireDatabase(for: budgetID)
-        let sessionID = transactionFeedRequestIdentity.sessionID
-        let loaded = try await loadTransactionFeedPage(
-            database: database,
+        try await transactionPage(
             budgetID: budgetID,
-            key: .account(budgetID: budgetID, accountID: accountID, statusFilter: statusFilter),
-            query: query,
+            scope: .account(accountID),
+            query: TransactionFeedQuery(status: statusFilter, text: query),
             limit: limit,
             offset: offset
         )
-        guard transactionFeedRequestIdentity.sessionID == sessionID,
-              self.database === database,
-              openedBudgetID == budgetID else {
-            throw CancellationError()
-        }
-        return loaded
     }
 
     func searchSpendingTransactions(
@@ -146,13 +185,34 @@ extension LocalFirstActualStore {
         offset: Int,
         statusFilter: TransactionStatusFilter = .all
     ) async throws -> LoadedAccountTransactions {
+        try await transactionPage(
+            budgetID: budgetID,
+            scope: .spending,
+            query: TransactionFeedQuery(status: statusFilter, text: query),
+            limit: limit,
+            offset: offset
+        )
+    }
+
+    func transactionPage(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions {
         let database = try requireDatabase(for: budgetID)
         let sessionID = transactionFeedRequestIdentity.sessionID
+        let key: TransactionFeedCacheKey = switch scope {
+        case .account(let accountID):
+            .account(budgetID: budgetID, accountID: accountID, query: query)
+        case .spending:
+            .spending(budgetID: budgetID, query: query)
+        }
         let loaded = try await loadTransactionFeedPage(
             database: database,
             budgetID: budgetID,
-            key: .spending(budgetID: budgetID, statusFilter: statusFilter),
-            query: query,
+            key: key,
             limit: limit,
             offset: offset
         )
@@ -168,30 +228,27 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         key: TransactionFeedCacheKey,
-        query: String?,
         limit: Int?,
         offset: Int
     ) async throws -> LoadedAccountTransactions {
-        try await transactionFeedPageReadHook?(key, query, limit, offset)
+        try await transactionFeedPageReadHook?(key, key.query.text, limit, offset)
         switch key.scope {
         case .account(let accountID):
             return try await loadedAccountTransactions(
                 database: database,
                 budgetID: budgetID,
                 accountID: accountID,
-                query: query,
+                query: key.query,
                 limit: limit,
-                offset: offset,
-                statusFilter: key.statusFilter
+                offset: offset
             )
         case .spending:
             return try await loadedSpendingTransactions(
                 database: database,
                 budgetID: budgetID,
-                query: query,
+                query: key.query,
                 limit: limit,
-                offset: offset,
-                statusFilter: key.statusFilter
+                offset: offset
             )
         }
     }
@@ -213,19 +270,17 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         accountID: String,
-        query: String?,
+        query: TransactionFeedQuery,
         limit: Int? = nil,
-        offset: Int = 0,
-        statusFilter: TransactionStatusFilter = .all
+        offset: Int = 0
     ) async throws -> LoadedAccountTransactions {
         let maps = try await nameMaps(database)
         let balance = accountsByBudget[budgetID]?.first(where: { $0.account.id == accountID })?.balance
-        let page = try await database.fetchTransactionPage(
-            accountID: accountID,
-            matching: query,
+        let page = try await database.fetchTransactionQueryPage(
+            scope: .account(accountID),
+            query: query,
             limit: limit,
-            offset: offset,
-            statusFilter: statusFilter
+            offset: offset
         )
         return LoadedAccountTransactions(
             transactions: page.transactions,
@@ -237,24 +292,30 @@ extension LocalFirstActualStore {
             transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             reachedEnd: page.reachedEnd,
-            nextOffset: page.nextOffset
+            nextOffset: page.nextOffset,
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: page.totalMatchCount,
+                querySignature: page.querySignature,
+                matchingTransactionIDs: page.matchingTransactionIDs,
+                contributingTransactionIDs: page.contributingTransactionIDs,
+                attachedContextTransactionIDs: page.attachedContextTransactionIDs
+            )
         )
     }
 
     func loadedSpendingTransactions(
         database: BudgetDatabase,
         budgetID: String,
-        query: String?,
+        query: TransactionFeedQuery,
         limit: Int? = nil,
-        offset: Int = 0,
-        statusFilter: TransactionStatusFilter = .all
+        offset: Int = 0
     ) async throws -> LoadedAccountTransactions {
         let maps = try await nameMaps(database)
-        let page = try await database.fetchTransactionPage(
-            matching: query,
+        let page = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: query,
             limit: limit,
-            offset: offset,
-            statusFilter: statusFilter
+            offset: offset
         )
         return LoadedAccountTransactions(
             transactions: page.transactions,
@@ -266,8 +327,30 @@ extension LocalFirstActualStore {
             transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             reachedEnd: page.reachedEnd,
-            nextOffset: page.nextOffset
+            nextOffset: page.nextOffset,
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: page.totalMatchCount,
+                querySignature: page.querySignature,
+                matchingTransactionIDs: page.matchingTransactionIDs,
+                contributingTransactionIDs: page.contributingTransactionIDs,
+                attachedContextTransactionIDs: page.attachedContextTransactionIDs
+            )
         )
+    }
+
+    func transactionDrilldown(
+        budgetID: String,
+        request: TransactionDrilldownRequest
+    ) async throws -> TransactionDrilldownResult {
+        let database = try requireDatabase(for: budgetID)
+        let sessionID = transactionFeedRequestIdentity.sessionID
+        let result = try await database.fetchTransactionDrilldown(request)
+        guard transactionFeedRequestIdentity.sessionID == sessionID,
+              self.database === database,
+              openedBudgetID == budgetID else {
+            throw CancellationError()
+        }
+        return result
     }
 
 }

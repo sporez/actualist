@@ -1,9 +1,43 @@
 import Foundation
 
+enum TransactionQueryCapabilityError: LocalizedError, Equatable, Sendable {
+    case unavailable
+
+    var errorDescription: String? {
+        "This transaction repository cannot provide exact query results."
+    }
+}
+
 /// Local-first transaction reads and writes. Isolated to the main actor because
 /// cached reads touch the store snapshot and write completions refresh UI.
 @MainActor
 protocol TransactionRepositoryProtocol: AnyObject {
+    func cachedTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) -> LoadedAccountTransactions?
+    func refreshTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws
+    func loadOlderTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws
+    func transactionPage(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions
+    func transactionDrilldown(
+        budgetID: String,
+        request: TransactionDrilldownRequest
+    ) async throws -> TransactionDrilldownResult
     func cachedAccountTransactions(
         budgetID: String,
         accountID: String,
@@ -132,6 +166,47 @@ protocol TransactionRepositoryProtocol: AnyObject {
 }
 
 extension TransactionRepositoryProtocol {
+    func cachedTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) -> LoadedAccountTransactions? {
+        nil
+    }
+
+    func refreshTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        throw TransactionQueryCapabilityError.unavailable
+    }
+
+    func loadOlderTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        throw TransactionQueryCapabilityError.unavailable
+    }
+
+    func transactionPage(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions {
+        throw TransactionQueryCapabilityError.unavailable
+    }
+
+    func transactionDrilldown(
+        budgetID: String,
+        request: TransactionDrilldownRequest
+    ) async throws -> TransactionDrilldownResult {
+        throw TransactionQueryCapabilityError.unavailable
+    }
+
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
         cachedAccountTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
     }
@@ -294,6 +369,15 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let offBudgetAccountIDs: Set<String>
     let reachedEnd: Bool
     let nextOffset: Int
+    /// Present only when the repository can authoritatively classify the
+    /// normalized query. Legacy snapshots intentionally leave this unavailable.
+    let queryMetadata: TransactionQueryPageMetadata?
+
+    var totalMatchCount: Int? { queryMetadata?.totalMatchCount }
+    var querySignature: TransactionQuerySignature? { queryMetadata?.querySignature }
+    var matchingTransactionIDs: Set<String>? { queryMetadata?.matchingTransactionIDs }
+    var contributingTransactionIDs: Set<String>? { queryMetadata?.contributingTransactionIDs }
+    var attachedContextTransactionIDs: Set<String>? { queryMetadata?.attachedContextTransactionIDs }
 
     init(
         transactions: [ActualTransaction],
@@ -305,7 +389,8 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         transferAccountIDsByPayeeID: [String: String] = [:],
         offBudgetAccountIDs: Set<String> = [],
         reachedEnd: Bool,
-        nextOffset: Int? = nil
+        nextOffset: Int? = nil,
+        queryMetadata: TransactionQueryPageMetadata? = nil
     ) {
         self.transactions = transactions
         self.balance = balance
@@ -317,11 +402,32 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         self.offBudgetAccountIDs = offBudgetAccountIDs
         self.reachedEnd = reachedEnd
         self.nextOffset = nextOffset ?? transactions.count
+        self.queryMetadata = queryMetadata
     }
 }
 
 extension LoadedAccountTransactions {
     func appendingPage(_ older: LoadedAccountTransactions) -> LoadedAccountTransactions {
+        let mergedMetadata: TransactionQueryPageMetadata?
+        switch (queryMetadata, older.queryMetadata) {
+        case (nil, nil):
+            mergedMetadata = nil
+        case let (.some(current), .some(next)):
+            guard current.querySignature == next.querySignature else { return self }
+            let matchingIDs = current.matchingTransactionIDs.union(next.matchingTransactionIDs)
+            mergedMetadata = TransactionQueryPageMetadata(
+                totalMatchCount: next.totalMatchCount,
+                querySignature: current.querySignature,
+                matchingTransactionIDs: matchingIDs,
+                contributingTransactionIDs: current.contributingTransactionIDs
+                    .union(next.contributingTransactionIDs),
+                attachedContextTransactionIDs: current.attachedContextTransactionIDs
+                    .union(next.attachedContextTransactionIDs)
+                    .subtracting(matchingIDs)
+            )
+        default:
+            return self
+        }
         let existingIDs = Set(transactions.map(Self.identity))
         return LoadedAccountTransactions(
             transactions: transactions + older.transactions.filter { !existingIDs.contains(Self.identity($0)) },
@@ -334,7 +440,8 @@ extension LoadedAccountTransactions {
                 ? transferAccountIDsByPayeeID : older.transferAccountIDsByPayeeID,
             offBudgetAccountIDs: older.offBudgetAccountIDs,
             reachedEnd: older.reachedEnd,
-            nextOffset: older.nextOffset
+            nextOffset: older.nextOffset,
+            queryMetadata: mergedMetadata
         )
     }
 
@@ -358,7 +465,8 @@ extension LoadedAccountTransactions {
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
             offBudgetAccountIDs: offBudgetAccountIDs,
             reachedEnd: reachedEnd,
-            nextOffset: nextOffset
+            nextOffset: nextOffset,
+            queryMetadata: nil
         )
     }
 }
