@@ -195,9 +195,6 @@ extension BudgetDatabase {
         query: ReportExplorerQuery,
         catalog: ReportExplorerFilterCatalog
     ) -> TransactionQueryIDCondition? {
-        if case .only(let selected) = query.filters.categories, selected.isEmpty {
-            return .oneOf([])
-        }
         let options = catalog.categories.filter {
             query.metric == .cashFlow || !$0.isIncome
         }.filter {
@@ -223,6 +220,9 @@ extension BudgetDatabase {
         var values = selectedIDs.map { Optional($0) }
         if query.filters.includesUncategorized {
             values.append(nil)
+        }
+        if values == [nil] {
+            return .equals(nil)
         }
         return .oneOf(values)
     }

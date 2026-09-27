@@ -535,7 +535,7 @@ struct ReportExplorerTests {
         }
     }
 
-    private func makeFixture(extraSQL: String = "") throws -> URL {
+    func makeFixture(extraSQL: String = "") throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "ActualistReportExplorerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

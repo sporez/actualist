@@ -16,28 +16,27 @@ final class ReportTransactionDrilldownViewModel {
     private(set) var isPrivacyModeEnabled = false
     private(set) var currency: BudgetCurrency = .usd
     private(set) var requestIdentity = UUID()
+    private var loadGeneration = 0
+    private var activeLoad: LoadContext?
 
-    var displayState: AccountTransactionsDisplayState? {
-        guard let loaded = snapshot?.loaded else { return nil }
-        return AccountTransactionFeedProjection(
-            scope: .spending,
-            loaded: loaded,
-            activePage: loaded,
-            statusFilter: .all,
-            query: "",
-            pendingNewTransactionIDs: [],
-            privacyModeEnabled: isPrivacyModeEnabled,
-            currency: currency
-        ).displayState
+    private struct LoadContext {
+        let generation: Int
+        let budgetID: String
+        let sessionIdentity: ReportExplorerSessionIdentity
+        let request: TransactionDrilldownRequest
+    }
+
+    var displayState: ReportTransactionDrilldownDisplayState? {
+        snapshot.map {
+            ReportTransactionDrilldownProjection(
+                snapshot: $0,
+                privacyModeEnabled: isPrivacyModeEnabled
+            ).displayState
+        }
     }
 
     var contributingCount: Int {
         snapshot?.contributingTransactionIDs.count ?? 0
-    }
-
-    func isContext(_ transaction: ActualTransaction) -> Bool {
-        guard let id = transaction.id else { return true }
-        return snapshot?.contributingTransactionIDs.contains(id) != true
     }
 
     func updatePrivacyMode(_ isEnabled: Bool) {
@@ -45,29 +44,86 @@ final class ReportTransactionDrilldownViewModel {
     }
 
     func retry() {
+        invalidateActiveLoad()
+        snapshot = nil
+        state = .loading
         requestIdentity = UUID()
     }
 
     func load(using appState: AppState, request: TransactionDrilldownRequest) async {
+        guard !Task.isCancelled else { return }
         guard let budgetID = appState.settings.selectedBudgetID else {
+            invalidateActiveLoad()
             snapshot = nil
             state = .failed("Open a budget before loading these transactions.")
             return
         }
-        isPrivacyModeEnabled = appState.settings.randomizedDisplayValuesEnabled
-        currency = appState.localFirstStore.budgetCurrency(budgetID: budgetID)
+        await load(
+            budgetID: budgetID,
+            request: request,
+            repository: appState.reportsRepository,
+            privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            currency: appState.localFirstStore.budgetCurrency(budgetID: budgetID)
+        )
+    }
+
+    func load(
+        budgetID: String,
+        request: TransactionDrilldownRequest,
+        repository: any ReportsRepositoryProtocol,
+        privacyModeEnabled: Bool,
+        currency: BudgetCurrency = .usd
+    ) async {
+        guard !Task.isCancelled else { return }
+        let sessionIdentity = repository.reportExplorerSessionIdentity(budgetID: budgetID)
+        loadGeneration &+= 1
+        let context = LoadContext(
+            generation: loadGeneration,
+            budgetID: budgetID,
+            sessionIdentity: sessionIdentity,
+            request: request
+        )
+        activeLoad = context
+        snapshot = nil
+        isPrivacyModeEnabled = privacyModeEnabled
+        self.currency = currency
         state = .loading
         do {
-            snapshot = try await appState.reportsRepository.reportTransactionDrilldown(
+            let loaded = try await repository.reportTransactionDrilldown(
                 budgetID: budgetID,
                 request: request
             )
-            guard !Task.isCancelled else { return }
+            guard loaded.request == context.request,
+                  accepts(context, repository: repository),
+                  !Task.isCancelled else { return }
+            snapshot = loaded
             state = .loaded
         } catch {
-            guard !error.isCancellation, !Task.isCancelled else { return }
+            guard accepts(context, repository: repository),
+                  !error.isCancellation,
+                  !Task.isCancelled else { return }
+            snapshot = nil
             state = .failed(error.userFacingMessage ?? "These transactions could not be loaded.")
         }
+    }
+
+    private func accepts(
+        _ context: LoadContext,
+        repository: any ReportsRepositoryProtocol
+    ) -> Bool {
+        guard let activeLoad else { return false }
+        return loadGeneration == context.generation
+            && activeLoad.generation == context.generation
+            && activeLoad.budgetID == context.budgetID
+            && activeLoad.request == context.request
+            && activeLoad.sessionIdentity == context.sessionIdentity
+            && repository.reportExplorerSessionIdentity(budgetID: context.budgetID)
+                == context.sessionIdentity
+    }
+
+    private func invalidateActiveLoad() {
+        loadGeneration &+= 1
+        activeLoad = nil
     }
 }
 
@@ -128,14 +184,7 @@ struct ReportTransactionDrilldownView: View {
                         .padding(.vertical, 8)
                     ForEach(group.rows) { row in
                         VStack(spacing: 0) {
-                            if viewModel.isContext(row.transaction) {
-                                Text("Split context — only matching split lines are counted")
-                                    .font(.caption)
-                                    .foregroundStyle(ActualistTheme.warning)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 14)
-                                    .padding(.top, 6)
-                            }
+                            relationshipLabel(for: row)
                             TransactionRow(
                                 transaction: row.transaction,
                                 semantics: row.semantics,
@@ -145,16 +194,50 @@ struct ReportTransactionDrilldownView: View {
                                 showsBottomSeparator: true
                             )
                         }
-                        .background(ActualistTheme.surface)
+                        .padding(.leading, row.relationship.isSplitChild ? 22 : 0)
+                        .background(row.role == .contributor
+                            ? ActualistTheme.surface
+                            : ActualistTheme.elevatedSurface)
+                        .accessibilityIdentifier("report-drilldown-row-\(row.id)")
                     }
                 }
             }
         }
     }
 
+    private func relationshipLabel(
+        for row: ReportTransactionDrilldownRowPresentation
+    ) -> some View {
+        HStack(spacing: 6) {
+            if row.relationship.isSplitChild {
+                Image(systemName: "arrow.turn.down.right")
+                    .accessibilityHidden(true)
+                Text("Split line")
+            } else if row.semantics.isParent {
+                Image(systemName: "square.split.1x2.fill")
+                    .accessibilityHidden(true)
+                Text("Split transaction")
+            }
+            Spacer(minLength: 8)
+            if row.role == .contributor {
+                Label("Counted", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(ActualistTheme.positive)
+                    .accessibilityIdentifier("report-drilldown-contributor-\(row.id)")
+            } else {
+                Label("Context only", systemImage: "info.circle.fill")
+                    .foregroundStyle(ActualistTheme.warning)
+                    .accessibilityIdentifier("report-drilldown-context-\(row.id)")
+            }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(ActualistTheme.secondaryText)
+        .padding(.horizontal, 14)
+        .padding(.top, 7)
+    }
+
     private var loadIdentity: ReportDrilldownLoadIdentity {
         ReportDrilldownLoadIdentity(
-            signature: request.query.signature,
+            request: request,
             requestID: viewModel.requestIdentity,
             budgetID: appState.settings.selectedBudgetID,
             sessionGeneration: appState.localFirstStore.budgetSessionGeneration
@@ -162,9 +245,15 @@ struct ReportTransactionDrilldownView: View {
     }
 }
 
-private struct ReportDrilldownLoadIdentity: Hashable {
-    let signature: TransactionQuerySignature
+struct ReportDrilldownLoadIdentity: Hashable {
+    let request: TransactionDrilldownRequest
     let requestID: UUID
     let budgetID: String?
     let sessionGeneration: Int
+}
+
+private extension ReportTransactionDrilldownRelationship {
+    var isSplitChild: Bool {
+        if case .splitChild = self { true } else { false }
+    }
 }
