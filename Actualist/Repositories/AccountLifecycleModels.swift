@@ -265,7 +265,6 @@ enum AccountLifecycleBlocker: Hashable, Sendable {
     case categoryRequired
     case categoryUnavailable
     case unsupportedBankProvider(AccountLifecycleBankProvider)
-    case activeSchedules([AccountScheduleReference])
     case scheduleInspectionUnavailable
 }
 

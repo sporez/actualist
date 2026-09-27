@@ -15,12 +15,12 @@ struct AccountLifecycleCoordinatorTests {
         )
 
         coordinator.updateRenameName(" Savings ")
-        coordinator.submitRename(repository: repository) { mutation = $0 }
+        coordinator.submitRename(repository: repository) { _, outcome in mutation = outcome }
         #expect(repository.renameCalls == 0)
         #expect(coordinator.renameDraft?.validationError == .duplicateName("Savings"))
 
         coordinator.updateRenameName(" Daily Spending ")
-        coordinator.submitRename(repository: repository) { mutation = $0 }
+        coordinator.submitRename(repository: repository) { _, outcome in mutation = outcome }
         await ObservedTestState {
             if case .completed = coordinator.state { return true }
             return false
@@ -42,8 +42,8 @@ struct AccountLifecycleCoordinatorTests {
         )
         coordinator.updateRenameName("Daily Spending")
 
-        let operation = try #require(coordinator.submitRename(repository: repository) { _ in })
-        coordinator.submitRename(repository: repository) { _ in }
+        let operation = try #require(coordinator.submitRename(repository: repository) { _, _ in })
+        coordinator.submitRename(repository: repository) { _, _ in }
         do {
             try await repository.waitForRenameStart()
         } catch {
@@ -78,7 +78,7 @@ struct AccountLifecycleCoordinatorTests {
         )
         coordinator.updateRenameName("Daily Spending")
 
-        let operation = coordinator.submitRename(repository: repository) { _ in
+        let operation = coordinator.submitRename(repository: repository) { _, _ in
             coordinator.cancel()
         }
         #expect(operation != nil)
@@ -97,7 +97,7 @@ struct AccountLifecycleCoordinatorTests {
         )
         coordinator.updateRenameName("Daily Spending")
 
-        let operation = coordinator.submitRename(repository: repository) { _ in
+        let operation = coordinator.submitRename(repository: repository) { _, _ in
             coordinator.beginReopen(identity: self.identity, account: self.closedAccount)
         }
         #expect(operation != nil)
@@ -116,7 +116,7 @@ struct AccountLifecycleCoordinatorTests {
         var mutationCount = 0
         coordinator.beginReopen(identity: identity, account: closedAccount)
 
-        coordinator.confirmReopen(repository: repository) { _ in mutationCount += 1 }
+        coordinator.confirmReopen(repository: repository) { _, _ in mutationCount += 1 }
         await ObservedTestState {
             if case .completed = coordinator.state { return true }
             return false
@@ -135,7 +135,7 @@ struct AccountLifecycleCoordinatorTests {
         let coordinator = AccountLifecycleCoordinator()
         coordinator.beginReopen(identity: identity, account: closedAccount)
 
-        let operation = coordinator.confirmReopen(repository: repository) { _ in
+        let operation = coordinator.confirmReopen(repository: repository) { _, _ in
             coordinator.cancel()
         }
         #expect(operation != nil)
@@ -149,7 +149,7 @@ struct AccountLifecycleCoordinatorTests {
         let coordinator = AccountLifecycleCoordinator()
         coordinator.beginReopen(identity: identity, account: closedAccount)
 
-        let operation = coordinator.confirmReopen(repository: repository) { _ in
+        let operation = coordinator.confirmReopen(repository: repository) { _, _ in
             coordinator.beginRename(
                 identity: self.identity,
                 account: self.openAccount,
@@ -200,7 +200,7 @@ struct AccountLifecycleCoordinatorTests {
 
         let replacement = review(request: request)
         repository.closeResult = .reviewChanged(replacement)
-        let stale = try #require(coordinator.confirmReview(repository: repository) { _ in
+        let stale = try #require(coordinator.confirmReview(repository: repository) { _, _ in
             Issue.record("A replacement review must not publish a mutation")
         })
         await stale.value
@@ -210,7 +210,9 @@ struct AccountLifecycleCoordinatorTests {
 
         repository.closeResult = .applied(outcome(operation: .close, account: closedAccount))
         var mutation: AccountLifecycleOutcome?
-        let applied = try #require(coordinator.confirmReview(repository: repository) { mutation = $0 })
+        let applied = try #require(coordinator.confirmReview(repository: repository) { _, outcome in
+            mutation = outcome
+        })
         await applied.value
         #expect(mutation?.operation == .close)
         #expect(repository.closeCalls == 2)
@@ -239,7 +241,7 @@ struct AccountLifecycleCoordinatorTests {
             existingAccounts: [openAccount]
         )
         coordinator.updateRenameName("Daily Spending")
-        let operation = try #require(coordinator.submitRename(repository: repository) { _ in
+        let operation = try #require(coordinator.submitRename(repository: repository) { _, _ in
             mutationCount += 1
         })
         do {
@@ -287,8 +289,8 @@ struct AccountLifecycleCoordinatorTests {
         )
         coordinator.beginReopen(identity: identity, account: closedAccount)
         coordinator.loadReview(request: request, repository: repository)
-        let renameOperation = coordinator.submitRename(repository: repository) { _ in }
-        let reopenOperation = coordinator.confirmReopen(repository: repository) { _ in }
+        let renameOperation = coordinator.submitRename(repository: repository) { _, _ in }
+        let reopenOperation = coordinator.confirmReopen(repository: repository) { _, _ in }
 
         #expect(coordinator.state == .idle)
         #expect(renameOperation == nil)
@@ -304,7 +306,7 @@ struct AccountLifecycleCoordinatorTests {
         let coordinator = AccountLifecycleCoordinator()
         var mutationCount = 0
         coordinator.beginReopen(identity: identity, account: closedAccount)
-        let operation = try #require(coordinator.confirmReopen(repository: repository) { _ in
+        let operation = try #require(coordinator.confirmReopen(repository: repository) { _, _ in
             mutationCount += 1
         })
         do {
@@ -337,7 +339,7 @@ struct AccountLifecycleCoordinatorTests {
         let coordinator = AccountLifecycleCoordinator()
         coordinator.beginRename(identity: identity, account: openAccount, existingAccounts: [openAccount])
         coordinator.updateRenameName("Daily Spending")
-        let failed = try #require(coordinator.submitRename(repository: repository) { _ in })
+        let failed = try #require(coordinator.submitRename(repository: repository) { _, _ in })
         await failed.value
         #expect(coordinator.errorMessage != nil)
         #expect(!coordinator.canEditRename)
@@ -345,7 +347,7 @@ struct AccountLifecycleCoordinatorTests {
         #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == .rename)
         coordinator.updateRenameName("Ignored Name")
         #expect(coordinator.renameDraft?.name == "Daily Spending")
-        #expect(coordinator.submitRename(repository: repository) { _ in } == nil)
+        #expect(coordinator.submitRename(repository: repository) { _, _ in } == nil)
         #expect(repository.renameCalls == 1)
 
         coordinator.retry(repository: repository)
@@ -353,7 +355,7 @@ struct AccountLifecycleCoordinatorTests {
         #expect(coordinator.canSubmitRename)
         repository.mutationError = nil
         coordinator.updateRenameName("Reviewed Name")
-        let retried = try #require(coordinator.submitRename(repository: repository) { _ in })
+        let retried = try #require(coordinator.submitRename(repository: repository) { _, _ in })
         await retried.value
         #expect(repository.renameCalls == 2)
         #expect(repository.lastRenameCommand?.newName == "Reviewed Name")
@@ -365,18 +367,18 @@ struct AccountLifecycleCoordinatorTests {
         repository.mutationError = AccountLifecycleCommandError.reviewChanged
         let coordinator = AccountLifecycleCoordinator()
         coordinator.beginReopen(identity: identity, account: closedAccount)
-        let failed = try #require(coordinator.confirmReopen(repository: repository) { _ in })
+        let failed = try #require(coordinator.confirmReopen(repository: repository) { _, _ in })
         await failed.value
         #expect(coordinator.errorMessage != nil)
         #expect(!coordinator.canConfirmReopen)
         #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == .reopen)
-        #expect(coordinator.confirmReopen(repository: repository) { _ in } == nil)
+        #expect(coordinator.confirmReopen(repository: repository) { _, _ in } == nil)
         #expect(repository.reopenCalls == 1)
 
         coordinator.retry(repository: repository)
         #expect(coordinator.canConfirmReopen)
         repository.mutationError = nil
-        let retried = try #require(coordinator.confirmReopen(repository: repository) { _ in })
+        let retried = try #require(coordinator.confirmReopen(repository: repository) { _, _ in })
         await retried.value
         #expect(repository.reopenCalls == 2)
         #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == nil)

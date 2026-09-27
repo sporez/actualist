@@ -352,26 +352,35 @@ private extension BudgetDatabase {
     ) throws -> AccountLifecycleBankLink? {
         let columns = try columnSet(for: "accounts", db: db)
         let remote = column("account_id", fallback: "NULL", columns: columns)
-        let source = column(
-            "account_sync_source",
-            fallback: column("bank_sync_source", fallback: "NULL", columns: columns),
-            columns: columns
-        )
+        let source = column("account_sync_source", fallback: "NULL", columns: columns)
+        let legacySource = column("bank_sync_source", fallback: "NULL", columns: columns)
         let bank = column("bank", fallback: "NULL", columns: columns)
         guard let row = try Row.fetchOne(
             db,
-            sql: "SELECT \(remote) AS remote_id, \(source) AS sync_source, \(bank) AS bank_id FROM accounts WHERE id = ?",
+            sql: """
+                SELECT \(remote) AS remote_id,
+                       \(source) AS sync_source,
+                       \(legacySource) AS legacy_sync_source,
+                       \(bank) AS bank_id
+                FROM accounts WHERE id = ?
+                """,
             arguments: [accountID]
         ) else { return nil }
         let remoteID = accountLifecycleNonempty(row["remote_id"] as String?)
         let syncSource = accountLifecycleNonempty(row["sync_source"] as String?)
+        let legacySyncSource = accountLifecycleNonempty(row["legacy_sync_source"] as String?)
         let bankID = accountLifecycleNonempty(row["bank_id"] as String?)
-        guard remoteID != nil || syncSource != nil || bankID != nil else { return nil }
+        guard remoteID != nil || syncSource != nil || legacySyncSource != nil || bankID != nil else {
+            return nil
+        }
         let provider: AccountLifecycleBankProvider
-        switch syncSource?.lowercased() {
-        case "simplefin": provider = .simpleFIN
-        case "gocardless": provider = .goCardless
-        case "pluggyai": provider = .pluggyAI
+        switch syncSource {
+        case let source where remoteID != nil
+            && BankSyncLinkEligibility.isSimpleFIN(syncSource: source)
+            && columns.isSuperset(of: accountLifecycleSimpleFINUnlinkColumns):
+            provider = .simpleFIN
+        case "goCardless": provider = .goCardless
+        case "pluggyAI": provider = .pluggyAI
         case "akahu": provider = .akahu
         case "enablebanking": provider = .enableBanking
         default: provider = .unknown
@@ -381,7 +390,7 @@ private extension BudgetDatabase {
             provider: verifiedProvider,
             identity: AccountLifecycleBankLinkIdentity(
                 remoteAccountID: remoteID,
-                syncSource: syncSource,
+                syncSource: syncSource ?? legacySyncSource,
                 bankRowID: bankID
             )
         )
@@ -411,3 +420,13 @@ private extension BudgetDatabase {
     }
 
 }
+
+private let accountLifecycleSimpleFINUnlinkColumns: Set<String> = [
+    "account_id",
+    "account_sync_source",
+    "bank",
+    "balance_current",
+    "balance_available",
+    "balance_limit",
+    "bank_sync_status",
+]

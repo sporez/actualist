@@ -14,11 +14,18 @@ struct AccountLifecycleReadTests {
             ALTER TABLE accounts ADD COLUMN account_id TEXT;
             ALTER TABLE accounts ADD COLUMN account_sync_source TEXT;
             ALTER TABLE accounts ADD COLUMN bank TEXT;
+            ALTER TABLE accounts ADD COLUMN balance_current INTEGER;
+            ALTER TABLE accounts ADD COLUMN balance_available INTEGER;
+            ALTER TABLE accounts ADD COLUMN balance_limit INTEGER;
+            ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT;
             UPDATE accounts SET account_id = 'remote-checking', account_sync_source = 'simpleFin', bank = 'bank-row'
                 WHERE id = 'checking';
-            INSERT INTO accounts VALUES ('tracking', 'Tracking', 1, 0, 0, 2, NULL, NULL, NULL);
-            INSERT INTO accounts VALUES ('closed', 'Closed', 0, 1, 0, 3, NULL, NULL, NULL);
-            INSERT INTO accounts VALUES ('deleted', 'Deleted', 0, 0, 1, 4, NULL, NULL, NULL);
+            INSERT INTO accounts (id, name, offbudget, closed, tombstone, sort_order)
+                VALUES ('tracking', 'Tracking', 1, 0, 0, 2);
+            INSERT INTO accounts (id, name, offbudget, closed, tombstone, sort_order)
+                VALUES ('closed', 'Closed', 0, 1, 0, 3);
+            INSERT INTO accounts (id, name, offbudget, closed, tombstone, sort_order)
+                VALUES ('deleted', 'Deleted', 0, 0, 1, 4);
             INSERT INTO categories VALUES ('hidden-expense', 'Hidden Expense', 'group', 0, 1, 0, 2);
             INSERT INTO categories VALUES ('income', 'Income', 'group', 1, 0, 0, 3);
             INSERT INTO transactions
@@ -187,7 +194,7 @@ struct AccountLifecycleReadTests {
         )
 
         #expect(review.activeScheduleReferences.map(\.id) == ["account-schedule", "acct-schedule"])
-        #expect(!review.blockers.contains { if case .activeSchedules = $0 { true } else { false } })
+        #expect(review.blockers.isEmpty)
     }
 
     @Test func everyLinkedProviderExceptVerifiedSimpleFINBlocksOrdinaryClose() async throws {
@@ -203,6 +210,10 @@ struct AccountLifecycleReadTests {
                 ALTER TABLE accounts ADD COLUMN account_id TEXT;
                 ALTER TABLE accounts ADD COLUMN account_sync_source TEXT;
                 ALTER TABLE accounts ADD COLUMN bank TEXT;
+                ALTER TABLE accounts ADD COLUMN balance_current INTEGER;
+                ALTER TABLE accounts ADD COLUMN balance_available INTEGER;
+                ALTER TABLE accounts ADD COLUMN balance_limit INTEGER;
+                ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT;
                 UPDATE accounts SET account_id = 'remote', account_sync_source = '\(source)', bank = 'bank'
                     WHERE id = 'checking';
                 """))

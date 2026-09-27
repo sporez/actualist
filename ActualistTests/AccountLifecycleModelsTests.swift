@@ -102,7 +102,7 @@ struct AccountLifecycleModelsTests {
             eligibleDestinations: [],
             eligibleCategories: [category],
             resolvedAction: .closeAtZero,
-            blockers: [.activeSchedules([schedule])]
+            blockers: []
         )
 
         let presentation = AccountLifecyclePresentation.review(
@@ -128,7 +128,7 @@ struct AccountLifecycleModelsTests {
         #expect(!joinedCopy.contains("bank-secret"))
         #expect(!joinedCopy.contains(category.name))
         #expect(!joinedCopy.contains(schedule.name))
-        #expect(!presentation.blockerMessages.joined().contains(schedule.name))
+        #expect(presentation.blockerMessages.isEmpty)
         #expect(presentation.isPrivacyProtected)
         #expect(!presentation.canConfirm)
         #expect(unprotectedCopy.contains(category.name))

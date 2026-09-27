@@ -139,7 +139,7 @@ enum AccountLifecyclePresentation {
             actionTitle = nil
         }
         let blockerMessages = review.blockers.map {
-            blockerMessage($0, privacyModeEnabled: privacyModeEnabled)
+            blockerMessage($0)
         }
         return AccountLifecycleReviewPresentation(
             accountName: accountName,
@@ -174,10 +174,7 @@ enum AccountLifecyclePresentation {
         }
     }
 
-    private static func blockerMessage(
-        _ blocker: AccountLifecycleBlocker,
-        privacyModeEnabled: Bool
-    ) -> String {
+    private static func blockerMessage(_ blocker: AccountLifecycleBlocker) -> String {
         switch blocker {
         case .accountAlreadyClosed:
             return "This account is already closed."
@@ -193,11 +190,6 @@ enum AccountLifecyclePresentation {
             return "The selected category is no longer available."
         case .unsupportedBankProvider:
             return "This bank connection cannot be removed safely yet."
-        case .activeSchedules(let schedules):
-            let names = schedules.map {
-                privacyModeEnabled ? privateScheduleName(seed: $0.id) : $0.name
-            }
-            return "Active schedules still use this account: \(names.joined(separator: ", "))."
         case .scheduleInspectionUnavailable:
             return "Active schedules could not be checked."
         }

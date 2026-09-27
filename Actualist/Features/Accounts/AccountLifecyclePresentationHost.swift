@@ -65,6 +65,15 @@ struct AccountLifecyclePresentationHost: ViewModifier {
     @Environment(AppState.self) private var appState
     @Environment(\.budgetCurrency) private var currency
     let coordinator: AccountLifecycleCoordinator
+    let onCommitted: @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
+
+    init(
+        coordinator: AccountLifecycleCoordinator,
+        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void = { _, _ in }
+    ) {
+        self.coordinator = coordinator
+        self.onCommitted = onCommitted
+    }
 
     func body(content: Content) -> some View {
         content
@@ -106,15 +115,17 @@ struct AccountLifecyclePresentationHost: ViewModifier {
             .presentationDetents([.medium])
         case .rename:
             AccountRenameSheet(coordinator: coordinator) {
-                coordinator.submitRename(repository: appState.localFirstStore) { _ in
+                coordinator.submitRename(repository: appState.localFirstStore) { identity, outcome in
                     appState.recordLocalDataMutation()
+                    onCommitted(identity, outcome)
                 }
             }
             .safeAreaInset(edge: .bottom) { retryButton }
         case .reopen:
             AccountReopenSheet(coordinator: coordinator) {
-                coordinator.confirmReopen(repository: appState.localFirstStore) { _ in
+                coordinator.confirmReopen(repository: appState.localFirstStore) { identity, outcome in
                     appState.recordLocalDataMutation()
+                    onCommitted(identity, outcome)
                 }
             }
             .safeAreaInset(edge: .bottom) { retryButton }
@@ -149,8 +160,9 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     )
                 },
                 onConfirm: {
-                    coordinator.confirmReview(repository: appState.localFirstStore) { _ in
+                    coordinator.confirmReview(repository: appState.localFirstStore) { identity, outcome in
                         appState.recordLocalDataMutation()
+                        onCommitted(identity, outcome)
                     }
                 },
                 onCancel: { coordinator.cancel() }

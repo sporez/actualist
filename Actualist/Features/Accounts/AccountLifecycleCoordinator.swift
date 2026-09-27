@@ -130,7 +130,7 @@ final class AccountLifecycleCoordinator {
     @discardableResult
     func submitRename(
         repository: any AccountLifecycleRepositoryProtocol,
-        didMutate: @escaping @MainActor (AccountLifecycleOutcome) -> Void
+        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
     ) -> Task<Void, Never>? {
         guard !isPrivacyModeEnabled, case .renaming(var draft) = state else { return nil }
         guard let command = draft.command else {
@@ -152,7 +152,7 @@ final class AccountLifecycleCoordinator {
                 case .applied(let outcome):
                     state = .completed(outcome)
                     finishOperation(requestGeneration)
-                    didMutate(outcome)
+                    onCommitted(draft.identity, outcome)
                     return
                 case .noChange(let outcome):
                     state = .completed(outcome)
@@ -181,7 +181,7 @@ final class AccountLifecycleCoordinator {
     @discardableResult
     func confirmReopen(
         repository: any AccountLifecycleRepositoryProtocol,
-        didMutate: @escaping @MainActor (AccountLifecycleOutcome) -> Void
+        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
     ) -> Task<Void, Never>? {
         guard !isPrivacyModeEnabled, case .reopening(let session) = state else { return nil }
         let requestGeneration = beginOperation()
@@ -198,7 +198,7 @@ final class AccountLifecycleCoordinator {
                 case .applied(let outcome):
                     state = .completed(outcome)
                     finishOperation(requestGeneration)
-                    didMutate(outcome)
+                    onCommitted(session.identity, outcome)
                     return
                 case .noChange(let outcome):
                     state = .completed(outcome)
@@ -285,7 +285,7 @@ final class AccountLifecycleCoordinator {
     @discardableResult
     func confirmReview(
         repository: any AccountLifecycleRepositoryProtocol,
-        didMutate: @escaping @MainActor (AccountLifecycleOutcome) -> Void
+        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
     ) -> Task<Void, Never>? {
         guard canConfirmReview, let review else { return nil }
         let requestGeneration = beginOperation()
@@ -303,7 +303,7 @@ final class AccountLifecycleCoordinator {
                 case .applied(let outcome):
                     state = .completed(outcome)
                     finishOperation(requestGeneration)
-                    didMutate(outcome)
+                    onCommitted(identity, outcome)
                     return
                 case .reviewChanged(let fresh):
                     state = .reviewChanged(fresh)
