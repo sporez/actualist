@@ -1,6 +1,13 @@
 import Foundation
 
 extension LocalFirstActualStore {
+    func reportExplorerSessionIdentity(budgetID: String) -> ReportExplorerSessionIdentity {
+        ReportExplorerSessionIdentity(
+            budgetID: budgetID,
+            generation: budgetSessionGeneration
+        )
+    }
+
     func cachedReportsDashboard(
         budgetID: String,
         range: ReportDateRange
@@ -23,7 +30,26 @@ extension LocalFirstActualStore {
         query: ReportExplorerQuery
     ) async throws -> ReportExplorerSnapshot {
         let database = try requireDatabase(for: budgetID)
-        return try await database.fetchReportExplorer(query: query)
+        let generation = budgetSessionGeneration
+        let snapshot = try await database.fetchReportExplorer(query: query)
+        guard reportExplorerSessionIsCurrent(
+            database: database,
+            budgetID: budgetID,
+            generation: generation
+        ) else {
+            throw CancellationError()
+        }
+        return snapshot
+    }
+
+    func reportExplorerSessionIsCurrent(
+        database: BudgetDatabase,
+        budgetID: String,
+        generation: Int
+    ) -> Bool {
+        self.database === database
+            && openedBudgetID == budgetID
+            && budgetSessionGeneration == generation
     }
 
     func invalidateReports(budgetID: String? = nil) {

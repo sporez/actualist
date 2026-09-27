@@ -4,12 +4,16 @@ enum ReportExplorerMetric: String, Hashable, Sendable {
     case netWorth
     case cashFlow
     case spending
+    case budgetOverview
+    case spendingAverage
 
     var title: String {
         switch self {
         case .netWorth: "Net Worth"
         case .cashFlow: "Cash Flow"
         case .spending: "Spending"
+        case .budgetOverview: "Budget Overview"
+        case .spendingAverage: "Spending Average"
         }
     }
 }
@@ -131,6 +135,7 @@ struct ReportExplorerPoint: Identifiable, Equatable, Sendable {
     let expenses: Int
     let net: Int
     let endingBalance: Int
+    let budgeted: Int
 
     var id: String { period.id }
 }
@@ -141,6 +146,14 @@ struct ReportExplorerTotals: Equatable, Sendable {
     let net: Int
     let endingBalance: Int
     let balanceChange: Int
+    let openingBalance: Int
+    let budgeted: Int
+    let averageSpending: Int
+}
+
+struct ReportExplorerSessionIdentity: Hashable, Sendable {
+    let budgetID: String
+    let generation: Int
 }
 
 struct ReportExplorerSnapshot: Equatable, Sendable {
@@ -168,8 +181,12 @@ extension ReportCardKind {
             .netWorth
         case .cashFlow, .transactionCalendar:
             .cashFlow
-        case .monthComparison, .budgetOverview, .threeMonthAverage:
+        case .monthComparison:
             .spending
+        case .budgetOverview:
+            .budgetOverview
+        case .threeMonthAverage:
+            .spendingAverage
         }
     }
 
@@ -177,10 +194,19 @@ extension ReportCardKind {
         switch self {
         case .netWorth:
             .sixMonths
-        case .monthComparison, .threeMonthAverage:
+        case .threeMonthAverage:
             .threeMonths
-        case .cashFlow, .budgetOverview, .transactionCalendar:
+        case .cashFlow, .monthComparison, .budgetOverview, .transactionCalendar:
             .monthToDate
+        }
+    }
+
+    var explorerDefaultInterval: ReportInterval {
+        switch self {
+        case .netWorth, .cashFlow, .threeMonthAverage:
+            .month
+        case .monthComparison, .budgetOverview, .transactionCalendar:
+            .day
         }
     }
 }

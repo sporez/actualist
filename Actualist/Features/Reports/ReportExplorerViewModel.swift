@@ -23,6 +23,7 @@ final class ReportExplorerViewModel {
     private(set) var currency: BudgetCurrency = .usd
     private(set) var isPrivacyModeEnabled = false
     private var requestGeneration = 0
+    private var activeSessionIdentity: ReportExplorerSessionIdentity?
 
     init(reportCard: ReportCardKind, now: Date = Date()) {
         self.reportCard = reportCard
@@ -34,7 +35,7 @@ final class ReportExplorerViewModel {
             metric: reportCard.explorerMetric,
             startDay: range.startDay,
             endDay: range.endDay,
-            interval: .month
+            interval: reportCard.explorerDefaultInterval
         )
     }
 
@@ -81,6 +82,10 @@ final class ReportExplorerViewModel {
         requestIdentity = UUID()
     }
 
+    func retry() {
+        reload()
+    }
+
     func updatePrivacyMode(_ isEnabled: Bool) {
         guard isPrivacyModeEnabled != isEnabled else { return }
         isPrivacyModeEnabled = isEnabled
@@ -89,6 +94,7 @@ final class ReportExplorerViewModel {
 
     func load(using appState: AppState) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
+            bind(to: nil)
             loadState = .failed("Open a budget before loading this report.")
             return
         }
@@ -106,6 +112,8 @@ final class ReportExplorerViewModel {
         privacyModeEnabled: Bool,
         currency: BudgetCurrency = .usd
     ) async {
+        let sessionIdentity = repository.reportExplorerSessionIdentity(budgetID: budgetID)
+        bind(to: sessionIdentity)
         guard query.hasValidRange else {
             loadState = .invalidRange
             return
@@ -114,6 +122,7 @@ final class ReportExplorerViewModel {
         requestGeneration &+= 1
         let generation = requestGeneration
         let requestedQuery = query
+        let requestedSessionIdentity = sessionIdentity
         self.currency = currency
         isPrivacyModeEnabled = privacyModeEnabled
         loadState = snapshot?.query == requestedQuery ? .refreshing : .loading
@@ -125,6 +134,8 @@ final class ReportExplorerViewModel {
             )
             guard requestGeneration == generation,
                   query == requestedQuery,
+                  activeSessionIdentity == requestedSessionIdentity,
+                  repository.reportExplorerSessionIdentity(budgetID: budgetID) == requestedSessionIdentity,
                   !Task.isCancelled else {
                 return
             }
@@ -132,7 +143,12 @@ final class ReportExplorerViewModel {
             displaySnapshot = sanitized(loaded)
             loadState = .loaded
         } catch {
-            guard requestGeneration == generation, query == requestedQuery else { return }
+            guard requestGeneration == generation,
+                  query == requestedQuery,
+                  activeSessionIdentity == requestedSessionIdentity,
+                  repository.reportExplorerSessionIdentity(budgetID: budgetID) == requestedSessionIdentity else {
+                return
+            }
             if error.isCancellation || Task.isCancelled {
                 loadState = snapshot == nil ? .idle : .loaded
             } else {
@@ -148,8 +164,10 @@ final class ReportExplorerViewModel {
             return currency.formatted(totals.endingBalance)
         case .cashFlow:
             return signedMoney(totals.net)
-        case .spending:
+        case .spending, .budgetOverview:
             return currency.formatted(totals.expenses)
+        case .spendingAverage:
+            return currency.formatted(totals.averageSpending)
         }
     }
 
@@ -158,6 +176,8 @@ final class ReportExplorerViewModel {
         case .netWorth: "Ending balance"
         case .cashFlow: "Net cash flow"
         case .spending: "Total spending"
+        case .budgetOverview: "Spending"
+        case .spendingAverage: query.interval == .month ? "Average monthly spending" : "Average daily spending"
         }
     }
 
@@ -173,6 +193,10 @@ final class ReportExplorerViewModel {
             ]
         case .spending:
             return []
+        case .budgetOverview:
+            return [("Budgeted", currency.formatted(totals.budgeted), .neutral)]
+        case .spendingAverage:
+            return [("Total spending", currency.formatted(totals.expenses), .danger)]
         }
     }
 
@@ -198,27 +222,25 @@ final class ReportExplorerViewModel {
 
     private func sanitized(_ snapshot: ReportExplorerSnapshot) -> ReportExplorerSnapshot {
         guard isPrivacyModeEnabled else { return snapshot }
+        if snapshot.query.metric == .netWorth {
+            return sanitizedNetWorth(snapshot)
+        }
+
         let points = snapshot.points.map { point in
-            ReportExplorerPoint(
+            let income = masked(point.income, seed: "report-detail-income-\(point.period.id)")
+            let expenses = masked(point.expenses, seed: "report-detail-expenses-\(point.period.id)")
+            return ReportExplorerPoint(
                 period: point.period,
-                income: masked(point.income, seed: "report-detail-income-\(point.period.id)"),
-                expenses: masked(point.expenses, seed: "report-detail-expenses-\(point.period.id)"),
-                net: 0,
-                endingBalance: masked(point.endingBalance, seed: "report-detail-balance-\(point.period.id)")
-            )
-        }.map { point in
-            ReportExplorerPoint(
-                period: point.period,
-                income: point.income,
-                expenses: point.expenses,
-                net: point.income - point.expenses,
-                endingBalance: point.endingBalance
+                income: income,
+                expenses: expenses,
+                net: income - expenses,
+                endingBalance: 0,
+                budgeted: masked(point.budgeted, seed: "report-detail-budgeted-\(point.period.id)")
             )
         }
         let income = points.reduce(0) { $0 + $1.income }
         let expenses = points.reduce(0) { $0 + $1.expenses }
-        let endingBalance = points.last?.endingBalance ?? 0
-        let firstBalance = points.first?.endingBalance ?? endingBalance
+        let budgeted = points.reduce(0) { $0 + $1.budgeted }
         return ReportExplorerSnapshot(
             query: snapshot.query,
             points: points,
@@ -226,11 +248,70 @@ final class ReportExplorerViewModel {
                 income: income,
                 expenses: expenses,
                 net: income - expenses,
-                endingBalance: endingBalance,
-                balanceChange: endingBalance - firstBalance
+                endingBalance: 0,
+                balanceChange: 0,
+                openingBalance: 0,
+                budgeted: budgeted,
+                averageSpending: roundedAverage(expenses, count: points.count)
             ),
             hasData: snapshot.hasData
         )
+    }
+
+    private func sanitizedNetWorth(_ snapshot: ReportExplorerSnapshot) -> ReportExplorerSnapshot {
+        let openingBalance = masked(
+            snapshot.totals.openingBalance,
+            seed: "report-detail-opening-balance"
+        )
+        let balanceChange = masked(
+            snapshot.totals.balanceChange,
+            seed: "report-detail-balance-change"
+        )
+        let endingBalance = openingBalance + balanceChange
+        let points = snapshot.points.enumerated().map { index, point in
+            ReportExplorerPoint(
+                period: point.period,
+                income: 0,
+                expenses: 0,
+                net: 0,
+                endingBalance: index == snapshot.points.count - 1
+                    ? endingBalance
+                    : masked(point.endingBalance, seed: "report-detail-balance-\(point.period.id)"),
+                budgeted: 0
+            )
+        }
+        return ReportExplorerSnapshot(
+            query: snapshot.query,
+            points: points,
+            totals: ReportExplorerTotals(
+                income: 0,
+                expenses: 0,
+                net: 0,
+                endingBalance: endingBalance,
+                balanceChange: balanceChange,
+                openingBalance: openingBalance,
+                budgeted: 0,
+                averageSpending: 0
+            ),
+            hasData: snapshot.hasData
+        )
+    }
+
+    private func roundedAverage(_ amount: Int, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        let quotient = amount / count
+        let remainder = amount % count
+        guard remainder.magnitude * 2 >= count.magnitude else { return quotient }
+        return quotient + (amount >= 0 ? 1 : -1)
+    }
+
+    private func bind(to sessionIdentity: ReportExplorerSessionIdentity?) {
+        guard activeSessionIdentity != sessionIdentity else { return }
+        requestGeneration &+= 1
+        activeSessionIdentity = sessionIdentity
+        snapshot = nil
+        displaySnapshot = nil
+        loadState = .idle
     }
 
     private func masked(_ amount: Int, seed: String) -> Int {

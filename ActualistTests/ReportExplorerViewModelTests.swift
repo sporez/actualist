@@ -8,7 +8,9 @@ struct ReportExplorerViewModelTests {
     @Test func initialLoadPublishesLocalSnapshotAndFormatsTheSelectedCurrency() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
-        let repository = ImmediateExplorerRepository(total: 12_345)
+        let repository = ControlledExplorerRepository(plans: [
+            "budget": [.success(total: 12_345)],
+        ])
 
         await model.load(
             budgetID: "budget",
@@ -26,7 +28,7 @@ struct ReportExplorerViewModelTests {
     @Test func invalidCustomRangeDoesNotCallTheRepository() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
-        let repository = ImmediateExplorerRepository(total: 1)
+        let repository = ControlledExplorerRepository()
 
         model.selectCustomRange(
             start: try reportDate(year: 2026, month: 2, day: 1),
@@ -43,27 +45,119 @@ struct ReportExplorerViewModelTests {
         #expect(repository.requestedQueries.isEmpty)
     }
 
+    @Test func budgetSwitchClearsOldSnapshotWhileNewBudgetIsPendingThenPublishesNewResult() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        let started = TestLatch()
+        let release = TestLatch()
+        let repository = ControlledExplorerRepository(plans: [
+            "A": [.success(total: 10)],
+            "B": [.suspendedSuccess(total: 20, started: started, release: release)],
+        ])
+
+        await model.load(budgetID: "A", repository: repository, privacyModeEnabled: false)
+        let budgetBLoad = Task {
+            await model.load(budgetID: "B", repository: repository, privacyModeEnabled: false)
+        }
+        await started.wait()
+
+        #expect(model.snapshot == nil)
+        #expect(model.displaySnapshot == nil)
+        #expect(model.loadState == .loading)
+
+        release.trip()
+        await budgetBLoad.value
+        #expect(model.displaySnapshot?.totals.net == 20)
+        #expect(model.loadState == .loaded)
+    }
+
+    @Test func budgetSwitchFailureNeverRestoresThePreviousBudgetSnapshot() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        let repository = ControlledExplorerRepository(plans: [
+            "A": [.success(total: 10)],
+            "B": [.failure],
+        ])
+
+        await model.load(budgetID: "A", repository: repository, privacyModeEnabled: false)
+        await model.load(budgetID: "B", repository: repository, privacyModeEnabled: false)
+
+        #expect(model.snapshot == nil)
+        #expect(model.displaySnapshot == nil)
+        #expect(model.errorMessage != nil)
+    }
+
+    @Test func sameBudgetNewSessionClearsThePreviousSessionSnapshot() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        let started = TestLatch()
+        let release = TestLatch()
+        let repository = ControlledExplorerRepository(plans: [
+            "budget": [
+                .success(total: 10),
+                .suspendedSuccess(total: 20, started: started, release: release),
+            ],
+        ])
+
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+        repository.sessionGenerationByBudget["budget"] = 1
+        let replacementLoad = Task {
+            await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+        }
+        await started.wait()
+
+        #expect(model.displaySnapshot == nil)
+        #expect(model.loadState == .loading)
+
+        release.trip()
+        await replacementLoad.value
+        #expect(model.displaySnapshot?.totals.net == 20)
+    }
+
+    @Test func cancellationInsensitiveLateBudgetSuccessCannotReplaceNewSession() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        let started = TestLatch()
+        let release = TestLatch()
+        let repository = ControlledExplorerRepository(plans: [
+            "A": [.suspendedSuccess(total: 10, started: started, release: release)],
+            "B": [.success(total: 20)],
+        ])
+
+        let oldLoad = Task {
+            await model.load(budgetID: "A", repository: repository, privacyModeEnabled: false)
+        }
+        await started.wait()
+        oldLoad.cancel()
+
+        await model.load(budgetID: "B", repository: repository, privacyModeEnabled: false)
+        release.trip()
+        await oldLoad.value
+
+        #expect(model.displaySnapshot?.totals.net == 20)
+        #expect(model.loadState == .loaded)
+    }
+
     @Test func staleCompletionCannotReplaceANewerRange() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
-        let repository = SuspendedExplorerRepository()
+        let started = TestLatch()
+        let release = TestLatch()
+        let repository = ControlledExplorerRepository(plans: [
+            "budget": [
+                .suspendedSuccess(total: 1, started: started, release: release),
+                .success(total: 2),
+            ],
+        ])
 
         let firstLoad = Task {
-            await model.load(
-                budgetID: "budget",
-                repository: repository,
-                privacyModeEnabled: false
-            )
+            await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
         }
-        await repository.firstRequestStarted.wait()
+        await started.wait()
 
         model.selectPreset(.threeMonths, now: now)
-        await model.load(
-            budgetID: "budget",
-            repository: repository,
-            privacyModeEnabled: false
-        )
-        repository.releaseFirstRequest.trip()
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+        release.trip()
         await firstLoad.value
 
         #expect(model.query.startDay == "2025-11-01")
@@ -72,21 +166,62 @@ struct ReportExplorerViewModelTests {
         #expect(model.loadState == .loaded)
     }
 
-    @Test func privacyModeReprojectsLoadedDetailAmounts() async throws {
+    @Test func sameSessionRefreshFailureRetainsSnapshotAndRetryCanRecover() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        let repository = ControlledExplorerRepository(plans: [
+            "budget": [.success(total: 10), .failure, .success(total: 30)],
+        ])
+
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+        model.reload()
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+
+        #expect(model.displaySnapshot?.totals.net == 10)
+        #expect(model.errorMessage != nil)
+
+        let failedRequestIdentity = model.requestIdentity
+        model.retry()
+        #expect(model.requestIdentity != failedRequestIdentity)
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+
+        #expect(model.displaySnapshot?.totals.net == 30)
+        #expect(model.loadState == .loaded)
+    }
+
+    @Test func privacyChangesDuringLoadUseCurrentModeAndOnePeriodNetWorthKeepsOpeningChange() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .netWorth, now: now)
-        let repository = ImmediateExplorerRepository(total: 123_456)
+        let started = TestLatch()
+        let release = TestLatch()
+        let repository = ControlledExplorerRepository(plans: [
+            "budget": [
+                .suspendedSnapshot(
+                    makeNetWorthSnapshot(query: model.query, opening: 100_000, ending: 123_456),
+                    started: started,
+                    release: release
+                ),
+            ],
+        ])
 
-        await model.load(
-            budgetID: "budget",
-            repository: repository,
-            privacyModeEnabled: false
-        )
-        let raw = try #require(model.displaySnapshot)
+        let load = Task {
+            await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+        }
+        await started.wait()
         model.updatePrivacyMode(true)
+        release.trip()
+        await load.value
 
-        #expect(model.displaySnapshot != raw)
-        #expect(model.displaySnapshot?.totals.endingBalance != raw.totals.endingBalance)
+        let privateSnapshot = try #require(model.displaySnapshot)
+        #expect(privateSnapshot.totals.openingBalance != 100_000)
+        #expect(privateSnapshot.totals.balanceChange != 0)
+        #expect(privateSnapshot.totals.endingBalance
+            == privateSnapshot.totals.openingBalance + privateSnapshot.totals.balanceChange)
+
+        model.updatePrivacyMode(false)
+        #expect(model.displaySnapshot?.totals.openingBalance == 100_000)
+        #expect(model.displaySnapshot?.totals.balanceChange == 23_456)
+        #expect(model.displaySnapshot?.totals.endingBalance == 123_456)
     }
 
     private func reportDate(year: Int, month: Int, day: Int) throws -> Date {
@@ -97,12 +232,27 @@ struct ReportExplorerViewModelTests {
 }
 
 @MainActor
-private final class ImmediateExplorerRepository: ReportsRepositoryProtocol {
-    let total: Int
+private final class ControlledExplorerRepository: ReportsRepositoryProtocol {
+    enum Plan {
+        case success(total: Int)
+        case suspendedSuccess(total: Int, started: TestLatch, release: TestLatch)
+        case suspendedSnapshot(ReportExplorerSnapshot, started: TestLatch, release: TestLatch)
+        case failure
+    }
+
+    var plans: [String: [Plan]]
+    var sessionGenerationByBudget: [String: Int] = [:]
     var requestedQueries: [ReportExplorerQuery] = []
 
-    init(total: Int) {
-        self.total = total
+    init(plans: [String: [Plan]] = [:]) {
+        self.plans = plans
+    }
+
+    func reportExplorerSessionIdentity(budgetID: String) -> ReportExplorerSessionIdentity {
+        ReportExplorerSessionIdentity(
+            budgetID: budgetID,
+            generation: sessionGenerationByBudget[budgetID] ?? 0
+        )
     }
 
     func cachedReportsDashboard(budgetID: String, range: ReportDateRange) -> ReportsDashboardSnapshot? { nil }
@@ -111,7 +261,7 @@ private final class ImmediateExplorerRepository: ReportsRepositoryProtocol {
         budgetID: String,
         range: ReportDateRange
     ) async throws -> ReportsDashboardSnapshot {
-        throw ReportExplorerError.invalidRange
+        throw ExplorerTestError.failed
     }
 
     func reportExplorerSnapshot(
@@ -119,37 +269,30 @@ private final class ImmediateExplorerRepository: ReportsRepositoryProtocol {
         query: ReportExplorerQuery
     ) async throws -> ReportExplorerSnapshot {
         requestedQueries.append(query)
-        return makeSnapshot(query: query, total: total)
+        guard var budgetPlans = plans[budgetID], !budgetPlans.isEmpty else {
+            throw ExplorerTestError.failed
+        }
+        let plan = budgetPlans.removeFirst()
+        plans[budgetID] = budgetPlans
+        switch plan {
+        case .success(let total):
+            return makeSnapshot(query: query, total: total)
+        case .suspendedSuccess(let total, let started, let release):
+            started.trip()
+            await release.wait()
+            return makeSnapshot(query: query, total: total)
+        case .suspendedSnapshot(let snapshot, let started, let release):
+            started.trip()
+            await release.wait()
+            return snapshot
+        case .failure:
+            throw ExplorerTestError.failed
+        }
     }
 }
 
-@MainActor
-private final class SuspendedExplorerRepository: ReportsRepositoryProtocol {
-    let firstRequestStarted = TestLatch()
-    let releaseFirstRequest = TestLatch()
-    private var requestCount = 0
-
-    func cachedReportsDashboard(budgetID: String, range: ReportDateRange) -> ReportsDashboardSnapshot? { nil }
-
-    func refreshReportsDashboard(
-        budgetID: String,
-        range: ReportDateRange
-    ) async throws -> ReportsDashboardSnapshot {
-        throw ReportExplorerError.invalidRange
-    }
-
-    func reportExplorerSnapshot(
-        budgetID: String,
-        query: ReportExplorerQuery
-    ) async throws -> ReportExplorerSnapshot {
-        requestCount += 1
-        let request = requestCount
-        if request == 1 {
-            firstRequestStarted.trip()
-            await releaseFirstRequest.wait()
-        }
-        return makeSnapshot(query: query, total: request)
-    }
+private enum ExplorerTestError: Error {
+    case failed
 }
 
 private func makeSnapshot(query: ReportExplorerQuery, total: Int) -> ReportExplorerSnapshot {
@@ -160,7 +303,8 @@ private func makeSnapshot(query: ReportExplorerQuery, total: Int) -> ReportExplo
         income: total,
         expenses: 0,
         net: total,
-        endingBalance: total
+        endingBalance: total,
+        budgeted: 0
     )
     return ReportExplorerSnapshot(
         query: query,
@@ -170,7 +314,41 @@ private func makeSnapshot(query: ReportExplorerQuery, total: Int) -> ReportExplo
             expenses: 0,
             net: total,
             endingBalance: total,
-            balanceChange: total
+            balanceChange: total,
+            openingBalance: 0,
+            budgeted: 0,
+            averageSpending: 0
+        ),
+        hasData: true
+    )
+}
+
+private func makeNetWorthSnapshot(
+    query: ReportExplorerQuery,
+    opening: Int,
+    ending: Int
+) -> ReportExplorerSnapshot {
+    let period = query.periods.first
+        ?? ReportExplorerPeriod(startDay: query.startDay, endDay: query.endDay)
+    return ReportExplorerSnapshot(
+        query: query,
+        points: [ReportExplorerPoint(
+            period: period,
+            income: 0,
+            expenses: 0,
+            net: 0,
+            endingBalance: ending,
+            budgeted: 0
+        )],
+        totals: ReportExplorerTotals(
+            income: 0,
+            expenses: 0,
+            net: 0,
+            endingBalance: ending,
+            balanceChange: ending - opening,
+            openingBalance: opening,
+            budgeted: 0,
+            averageSpending: 0
         ),
         hasData: true
     )

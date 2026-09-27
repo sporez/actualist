@@ -6,15 +6,6 @@ private struct RawNetWorthDay: Sendable {
     let amount: Int
 }
 
-private struct RawReportActivityDay: Sendable {
-    let dayID: String
-    let categoryID: String?
-    let isIncome: Bool
-    let isTransfer: Bool
-    let isInflow: Bool
-    let amount: Int
-}
-
 private struct RawCalendarActivityDay: Sendable {
     let dayID: String
     let isInflow: Bool
@@ -94,136 +85,6 @@ extension BudgetDatabase {
             guard let dayID = flexibleString(row["day"]) else { return nil }
             return RawNetWorthDay(
                 dayID: dayID,
-                amount: row["amount"] ?? 0
-            )
-        }
-    }
-
-    private func reportActivityDays(
-        from startDay: String,
-        through endDay: String,
-        db: Database
-    ) throws -> [RawReportActivityDay] {
-        guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
-            return []
-        }
-
-        let transactionColumns = try columnSet(for: "transactions", db: db)
-        let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = transactionSplitQueryExpressions(columns: transactionColumns)
-        let offBudget = column("offbudget", fallback: "0", columns: accountColumns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-
-        let hasCategoryMapping = try tableExists("category_mapping", db: db)
-        let mappedCategory: String
-        let categoryMappingJoin: String
-        if hasCategoryMapping {
-            let mappingColumns = try columnSet(for: "category_mapping", db: db)
-            if let transferCategory = ["transferId", "transfer_id"].first(where: mappingColumns.contains) {
-                mappedCategory = "COALESCE(cm.\(transferCategory), \(split.qualifiedCategory))"
-                categoryMappingJoin = "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
-            } else {
-                mappedCategory = split.qualifiedCategory
-                categoryMappingJoin = ""
-            }
-        } else {
-            mappedCategory = split.qualifiedCategory
-            categoryMappingJoin = ""
-        }
-
-        let hasCategories = try tableExists("categories", db: db)
-        let hasCategoryGroups = hasCategories ? try tableExists("category_groups", db: db) : false
-        let categoryJoin: String
-        let groupJoin: String
-        let isIncomeExpression: String
-        if hasCategories {
-            let categoryColumns = try columnSet(for: "categories", db: db)
-            let categoryIncome = column("is_income", fallback: "0", columns: categoryColumns)
-            let categoryGroup = column(
-                "cat_group",
-                fallback: column("group_id", fallback: "NULL", columns: categoryColumns),
-                columns: categoryColumns
-            )
-            categoryJoin = "LEFT JOIN categories c ON c.id = \(mappedCategory)"
-            if hasCategoryGroups {
-                let groupColumns = try columnSet(for: "category_groups", db: db)
-                let groupIncome = column("is_income", fallback: "0", columns: groupColumns)
-                groupJoin = "LEFT JOIN category_groups g ON g.id = c.\(categoryGroup)"
-                isIncomeExpression = "CASE WHEN COALESCE(c.\(categoryIncome), 0) != 0 OR COALESCE(g.\(groupIncome), 0) != 0 THEN 1 ELSE 0 END"
-            } else {
-                groupJoin = ""
-                isIncomeExpression = "CASE WHEN COALESCE(c.\(categoryIncome), 0) != 0 THEN 1 ELSE 0 END"
-            }
-        } else {
-            categoryJoin = ""
-            groupJoin = ""
-            isIncomeExpression = "0"
-        }
-
-        var transferPredicates: [String] = []
-        var payeeJoin = ""
-        if try tableExists("payees", db: db),
-           let payeeColumn = ["description", "payee"].first(where: transactionColumns.contains) {
-            let payeeColumns = try columnSet(for: "payees", db: db)
-            if let transferAccount = ["transfer_acct", "transfer_account"].first(where: payeeColumns.contains) {
-                if try tableExists("payee_mapping", db: db) {
-                    let mappingColumns = try columnSet(for: "payee_mapping", db: db)
-                    if let targetID = ["targetId", "target_id"].first(where: mappingColumns.contains) {
-                        payeeJoin = """
-                            LEFT JOIN payee_mapping pm ON pm.id = t.\(payeeColumn)
-                            LEFT JOIN payees py ON py.id = COALESCE(pm.\(targetID), t.\(payeeColumn))
-                            """
-                    } else {
-                        payeeJoin = "LEFT JOIN payees py ON py.id = t.\(payeeColumn)"
-                    }
-                } else {
-                    payeeJoin = "LEFT JOIN payees py ON py.id = t.\(payeeColumn)"
-                }
-                transferPredicates.append("(py.\(transferAccount) IS NOT NULL AND py.\(transferAccount) != '')")
-            }
-        }
-        let isTransferExpression = transferPredicates.isEmpty
-            ? "0"
-            : "CASE WHEN \(transferPredicates.joined(separator: " OR ")) THEN 1 ELSE 0 END"
-        let isInflowExpression = "CASE WHEN \(split.qualifiedAmount) > 0 THEN 1 ELSE 0 END"
-
-        let rows = try Row.fetchAll(
-            db,
-            sql: """
-                SELECT \(normalizedDate) AS day,
-                       \(mappedCategory) AS category_id,
-                       \(isIncomeExpression) AS is_income,
-                       \(isTransferExpression) AS is_transfer,
-                       \(isInflowExpression) AS is_inflow,
-                       SUM(\(split.qualifiedAmount)) AS amount
-                FROM transactions t
-                JOIN accounts a ON a.id = \(split.qualifiedAccount)
-                \(split.parentJoin())
-                \(categoryMappingJoin)
-                \(categoryJoin)
-                \(groupJoin)
-                \(payeeJoin)
-                WHERE \(split.liveInlinePredicate())
-                  AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
-                  AND COALESCE(a.\(offBudget), 0) = 0
-                  AND \(normalizedDate) BETWEEN ? AND ?
-                -- Group projected columns: a missing transfer field yields literal 0,
-                -- which SQLite would otherwise interpret as an invalid column index.
-                GROUP BY 1, 2, 3, 4, 5
-                ORDER BY \(normalizedDate)
-                """,
-            arguments: [startDay, endDay]
-        )
-
-        return rows.compactMap { row in
-            guard let dayID = flexibleString(row["day"]) else { return nil }
-            let categoryID = (row["category_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
-            return RawReportActivityDay(
-                dayID: dayID,
-                categoryID: categoryID,
-                isIncome: flexibleBool(row["is_income"]),
-                isTransfer: flexibleBool(row["is_transfer"]),
-                isInflow: flexibleBool(row["is_inflow"]),
                 amount: row["amount"] ?? 0
             )
         }
@@ -322,27 +183,6 @@ extension BudgetDatabase {
         return .all
     }
 
-    private func reportBudgetedExpenses(month: String, db: Database) throws -> Int {
-        let table = try budgetTable(db: db)
-        guard try tableExists(table.rawValue, db: db) else { return 0 }
-
-        let budgetColumns = try columnSet(for: table.rawValue, db: db)
-        let budgetAmount = column("amount", fallback: "0", columns: budgetColumns)
-        let budgetMonth = column("month", fallback: "NULL", columns: budgetColumns)
-        let normalizedMonth = normalizedMonthExpression("z.\(budgetMonth)")
-
-        let row = try Row.fetchOne(
-            db,
-            sql: """
-                SELECT SUM(z.\(budgetAmount)) AS amount
-                FROM \(quotedIdentifier(table.rawValue)) z
-                WHERE \(normalizedMonth) = ?
-                """,
-            arguments: [month]
-        )
-        return row?["amount"] ?? 0
-    }
-
     private func buildReportsDashboard(
         range: ReportDateRange,
         netWorthDays: [RawNetWorthDay],
@@ -355,17 +195,17 @@ extension BudgetDatabase {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()
             if !row.isIncome {
                 // Actual includes uncategorized rows and both sides of on-budget transfers.
-                activity.spending = try reportSubtract(activity.spending, row.amount)
+                activity.spending = try ReportArithmetic.subtract(activity.spending, row.amount)
             }
             if row.categoryID == nil {
                 if !row.isTransfer {
-                    activity.uncategorized = try reportAdd(activity.uncategorized, row.amount)
+                    activity.uncategorized = try ReportArithmetic.add(activity.uncategorized, row.amount)
                 }
             }
             if !row.isTransfer, row.isInflow {
-                activity.income = try reportAdd(activity.income, row.amount)
+                activity.income = try ReportArithmetic.add(activity.income, row.amount)
             } else if !row.isTransfer, row.amount < 0 {
-                activity.expenses = try reportSubtract(activity.expenses, row.amount)
+                activity.expenses = try ReportArithmetic.subtract(activity.expenses, row.amount)
             }
             activityByDay[row.dayID] = activity
         }
@@ -401,12 +241,12 @@ extension BudgetDatabase {
         let pointStartDay = ReportCalendar.dayID(month: pointStartMonth, day: 1)
         var changeByMonth: [String: Int] = [:]
         for (month, monthRows) in Dictionary(grouping: rows, by: { String($0.dayID.prefix(7)) }) {
-            changeByMonth[month] = try reportSum(monthRows.map(\.amount))
+            changeByMonth[month] = try ReportArithmetic.sum(monthRows.map(\.amount))
         }
-        var balance = try reportSum(rows.filter { $0.dayID < pointStartDay }.map(\.amount))
+        var balance = try ReportArithmetic.sum(rows.filter { $0.dayID < pointStartDay }.map(\.amount))
         var points: [ReportValuePoint] = []
         for month in ReportCalendar.monthIDs(from: pointStartMonth, through: range.anchorMonth) {
-            balance = try reportAdd(balance, changeByMonth[month] ?? 0)
+            balance = try ReportArithmetic.add(balance, changeByMonth[month] ?? 0)
             points.append(
                 ReportValuePoint(dayID: ReportCalendar.dayID(month: month, day: 1), value: balance)
             )
@@ -416,7 +256,7 @@ extension BudgetDatabase {
         return NetWorthReport(
             points: points,
             balance: latest,
-            change: try reportSubtract(latest, first)
+            change: try ReportArithmetic.subtract(latest, first)
         )
     }
 
@@ -427,14 +267,14 @@ extension BudgetDatabase {
         let activities = activityByDay
             .filter { $0.key.hasPrefix(range.anchorMonth) && $0.key <= range.endDay }
             .map(\.value)
-        let income = try reportSum(activities.map(\.income))
-        let expenses = try reportSum(activities.map(\.expenses))
-        let uncategorized = try reportSum(activities.map(\.uncategorized))
+        let income = try ReportArithmetic.sum(activities.map(\.income))
+        let expenses = try ReportArithmetic.sum(activities.map(\.expenses))
+        let uncategorized = try ReportArithmetic.sum(activities.map(\.uncategorized))
         return CashFlowSummary(
             month: range.anchorMonth,
             income: income,
             expenses: expenses,
-            net: try reportSubtract(income, expenses),
+            net: try ReportArithmetic.subtract(income, expenses),
             uncategorized: uncategorized
         )
     }
@@ -454,7 +294,7 @@ extension BudgetDatabase {
         for day in 1...28 {
             let current: Int?
             if day <= currentDay {
-                currentCumulative = try reportAdd(currentCumulative, spending(
+                currentCumulative = try ReportArithmetic.add(currentCumulative, spending(
                     in: range.anchorMonth,
                     dayBucket: day,
                     activityByDay: activityByDay
@@ -465,7 +305,7 @@ extension BudgetDatabase {
                 current = nil
             }
 
-            comparisonCumulative = try reportAdd(comparisonCumulative, spending(
+            comparisonCumulative = try ReportArithmetic.add(comparisonCumulative, spending(
                 in: comparisonMonth,
                 dayBucket: day,
                 activityByDay: activityByDay
@@ -487,7 +327,7 @@ extension BudgetDatabase {
             currentMonth: range.anchorMonth,
             comparisonMonth: comparisonMonth,
             points: points,
-            variance: try reportSubtract(currentAtComparableDay, comparisonAtComparableDay)
+            variance: try ReportArithmetic.subtract(currentAtComparableDay, comparisonAtComparableDay)
         )
     }
 
@@ -502,7 +342,7 @@ extension BudgetDatabase {
         var actualPoints: [ReportValuePoint] = []
         for day in 1...currentDay {
             let dayID = ReportCalendar.dayID(month: range.anchorMonth, day: day)
-            actualCumulative = try reportAdd(actualCumulative, spending(
+            actualCumulative = try ReportArithmetic.add(actualCumulative, spending(
                 in: range.anchorMonth,
                 dayBucket: day,
                 activityByDay: activityByDay
@@ -514,7 +354,7 @@ extension BudgetDatabase {
             let calendarDaysThroughBucket = day == 28 ? daysInMonth : day
             budgetPoints.append(ReportValuePoint(
                 dayID: ReportCalendar.dayID(month: range.anchorMonth, day: day),
-                value: try reportScaled(
+                value: try ReportArithmetic.scaled(
                     budgetedExpenses,
                     multiplier: calendarDaysThroughBucket,
                     divisor: daysInMonth
@@ -528,7 +368,7 @@ extension BudgetDatabase {
             budgetPoints: budgetPoints,
             actualExpenses: actualCumulative,
             budgetedExpenses: budgetedToDate,
-            variance: try reportSubtract(actualCumulative, budgetedToDate)
+            variance: try ReportArithmetic.subtract(actualCumulative, budgetedToDate)
         )
     }
 
@@ -547,7 +387,7 @@ extension BudgetDatabase {
         for day in 1...28 {
             let current: Int?
             if day <= currentDay {
-                currentCumulative = try reportAdd(currentCumulative, spending(
+                currentCumulative = try ReportArithmetic.add(currentCumulative, spending(
                     in: range.anchorMonth,
                     dayBucket: day,
                     activityByDay: activityByDay
@@ -559,7 +399,7 @@ extension BudgetDatabase {
             }
 
             for (index, month) in historyMonths.enumerated() {
-                historyCumulative[index] = try reportAdd(historyCumulative[index], spending(
+                historyCumulative[index] = try ReportArithmetic.add(historyCumulative[index], spending(
                     in: month,
                     dayBucket: day,
                     activityByDay: activityByDay
@@ -567,8 +407,8 @@ extension BudgetDatabase {
             }
             let average = historyCumulative.isEmpty
                 ? 0
-                : try reportScaled(
-                    reportSum(historyCumulative),
+                : try ReportArithmetic.scaled(
+                    ReportArithmetic.sum(historyCumulative),
                     multiplier: 1,
                     divisor: historyCumulative.count
                 )
@@ -583,7 +423,7 @@ extension BudgetDatabase {
             points: points,
             currentExpenses: currentAtComparableDay,
             averageExpenses: averageAtComparableDay,
-            variance: try reportSubtract(currentAtComparableDay, averageAtComparableDay)
+            variance: try ReportArithmetic.subtract(currentAtComparableDay, averageAtComparableDay)
         )
     }
 
@@ -596,7 +436,7 @@ extension BudgetDatabase {
         let lastDay = dayBucket == 28 ? max(ReportCalendar.days(in: month), 28) : dayBucket
         var result = 0
         for day in dayBucket...lastDay {
-            result = try reportAdd(
+            result = try ReportArithmetic.add(
                 result,
                 activityByDay[ReportCalendar.dayID(month: month, day: day)]?.spending ?? 0
             )
@@ -614,9 +454,9 @@ extension BudgetDatabase {
         for row in activityDays {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()
             if row.isInflow {
-                activity.income = try reportAdd(activity.income, row.amount)
+                activity.income = try ReportArithmetic.add(activity.income, row.amount)
             } else if row.amount < 0 {
-                activity.expenses = try reportSubtract(activity.expenses, row.amount)
+                activity.expenses = try ReportArithmetic.subtract(activity.expenses, row.amount)
             }
             activityByDay[row.dayID] = activity
         }
@@ -642,55 +482,10 @@ extension BudgetDatabase {
                 month: month,
                 leadingBlankCount: leadingBlankCount,
                 days: days,
-                income: try reportSum(days.map(\.income)),
-                expenses: try reportSum(days.map(\.expenses))
+                income: try ReportArithmetic.sum(days.map(\.income)),
+                expenses: try ReportArithmetic.sum(days.map(\.expenses))
             ))
         }
         return months
     }
-}
-
-private func reportAdd(_ lhs: Int, _ rhs: Int) throws -> Int {
-    let result = lhs.addingReportingOverflow(rhs)
-    guard !result.overflow else {
-        throw LocalFirstError.numericValueOutOfRange
-    }
-    return result.partialValue
-}
-
-private func reportSubtract(_ lhs: Int, _ rhs: Int) throws -> Int {
-    let result = lhs.subtractingReportingOverflow(rhs)
-    guard !result.overflow else {
-        throw LocalFirstError.numericValueOutOfRange
-    }
-    return result.partialValue
-}
-
-private func reportSum<S: Sequence>(_ values: S) throws -> Int where S.Element == Int {
-    var total = 0
-    for value in values {
-        total = try reportAdd(total, value)
-    }
-    return total
-}
-
-private func reportScaled(_ value: Int, multiplier: Int, divisor: Int) throws -> Int {
-    guard divisor > 0 else {
-        throw LocalFirstError.numericValueOutOfRange
-    }
-    let multiplied = value.multipliedReportingOverflow(by: multiplier)
-    guard !multiplied.overflow else {
-        throw LocalFirstError.numericValueOutOfRange
-    }
-
-    let quotient = multiplied.partialValue / divisor
-    let remainder = multiplied.partialValue % divisor
-    let doubledRemainder = remainder.multipliedReportingOverflow(by: 2)
-    guard !doubledRemainder.overflow else {
-        throw LocalFirstError.numericValueOutOfRange
-    }
-    guard doubledRemainder.partialValue.magnitude >= divisor.magnitude else {
-        return quotient
-    }
-    return try reportAdd(quotient, multiplied.partialValue >= 0 ? 1 : -1)
 }

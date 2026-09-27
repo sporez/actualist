@@ -6,12 +6,6 @@ private struct RawReportExplorerAmount: Sendable {
     let amount: Int
 }
 
-private struct RawReportExplorerActivity: Sendable {
-    let dayID: String
-    let isTransfer: Bool
-    let amount: Int
-}
-
 extension BudgetDatabase {
     func fetchReportExplorer(query: ReportExplorerQuery) throws -> ReportExplorerSnapshot {
         guard query.hasValidRange else { throw ReportExplorerError.invalidRange }
@@ -22,15 +16,31 @@ extension BudgetDatabase {
                 try reportExplorerBalanceChanges(through: query.endDay, db: db)
             }
             return try buildNetWorthExplorer(query: query, rows: rows)
-        case .cashFlow, .spending:
-            let rows = try queue.read { db in
-                try reportExplorerActivity(
+        case .cashFlow, .spending, .budgetOverview, .spendingAverage:
+            let result = try queue.read { db in
+                let rows = try reportActivityDays(
                     from: query.startDay,
                     through: query.endDay,
                     db: db
                 )
+                let budgetedByMonth: [String: Int]
+                if query.metric == .budgetOverview {
+                    budgetedByMonth = try Dictionary(uniqueKeysWithValues: ReportCalendar.monthIDs(
+                        from: String(query.startDay.prefix(7)),
+                        through: String(query.endDay.prefix(7))
+                    ).map { month in
+                        (month, try reportBudgetedExpenses(month: month, db: db))
+                    })
+                } else {
+                    budgetedByMonth = [:]
+                }
+                return (rows, budgetedByMonth)
             }
-            return try buildActivityExplorer(query: query, rows: rows)
+            return try buildActivityExplorer(
+                query: query,
+                rows: result.0,
+                budgetedByMonth: result.1
+            )
         }
     }
 
@@ -69,110 +79,26 @@ extension BudgetDatabase {
         }
     }
 
-    private func reportExplorerActivity(
-        from startDay: String,
-        through endDay: String,
-        db: Database
-    ) throws -> [RawReportExplorerActivity] {
-        guard try tableExists("transactions", db: db),
-              try tableExists("accounts", db: db) else {
-            return []
-        }
-
-        let transactionColumns = try columnSet(for: "transactions", db: db)
-        let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = transactionSplitQueryExpressions(columns: transactionColumns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-        let offBudget = column("offbudget", fallback: "0", columns: accountColumns)
-        let transfer = try reportExplorerTransferProjection(
-            transactionColumns: transactionColumns,
-            db: db
-        )
-        let rows = try Row.fetchAll(
-            db,
-            sql: """
-                SELECT \(normalizedDate) AS day,
-                       \(transfer.expression) AS is_transfer,
-                       SUM(\(split.qualifiedAmount)) AS amount
-                FROM transactions t
-                JOIN accounts a ON a.id = \(split.qualifiedAccount)
-                \(split.parentJoin())
-                \(transfer.joins)
-                WHERE \(split.liveInlinePredicate())
-                  AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
-                  AND COALESCE(a.\(offBudget), 0) = 0
-                  AND \(normalizedDate) BETWEEN ? AND ?
-                GROUP BY 1, 2
-                ORDER BY \(normalizedDate)
-                """,
-            arguments: [startDay, endDay]
-        )
-        return rows.compactMap { row in
-            guard let dayID = flexibleString(row["day"]) else { return nil }
-            return RawReportExplorerActivity(
-                dayID: dayID,
-                isTransfer: flexibleBool(row["is_transfer"]),
-                amount: row["amount"] ?? 0
-            )
-        }
-    }
-
-    private func reportExplorerTransferProjection(
-        transactionColumns: Set<String>,
-        db: Database
-    ) throws -> (joins: String, expression: String) {
-        var predicates: [String] = []
-        if let transferredID = ["transferred_id", "transfer_id"].first(where: transactionColumns.contains) {
-            predicates.append("(t.\(transferredID) IS NOT NULL AND t.\(transferredID) != '')")
-        }
-
-        var joins = ""
-        if try tableExists("payees", db: db),
-           let payeeColumn = ["description", "payee"].first(where: transactionColumns.contains) {
-            let payeeColumns = try columnSet(for: "payees", db: db)
-            if let transferAccount = ["transfer_acct", "transfer_account"].first(where: payeeColumns.contains) {
-                if try tableExists("payee_mapping", db: db) {
-                    let mappingColumns = try columnSet(for: "payee_mapping", db: db)
-                    if let targetID = ["targetId", "target_id"].first(where: mappingColumns.contains) {
-                        joins = """
-                            LEFT JOIN payee_mapping pm ON pm.id = t.\(payeeColumn)
-                            LEFT JOIN payees py ON py.id = COALESCE(pm.\(targetID), t.\(payeeColumn))
-                            """
-                    } else {
-                        joins = "LEFT JOIN payees py ON py.id = t.\(payeeColumn)"
-                    }
-                } else {
-                    joins = "LEFT JOIN payees py ON py.id = t.\(payeeColumn)"
-                }
-                predicates.append("(py.\(transferAccount) IS NOT NULL AND py.\(transferAccount) != '')")
-            }
-        }
-
-        let expression = predicates.isEmpty
-            ? "0"
-            : "CASE WHEN \(predicates.joined(separator: " OR ")) THEN 1 ELSE 0 END"
-        return (joins, expression)
-    }
-
     private func buildNetWorthExplorer(
         query: ReportExplorerQuery,
         rows: [RawReportExplorerAmount]
     ) throws -> ReportExplorerSnapshot {
-        let openingBalance = try explorerSum(rows.lazy.filter { $0.dayID < query.startDay }.map(\.amount))
+        let openingBalance = try ReportArithmetic.sum(rows.lazy.filter { $0.dayID < query.startDay }.map(\.amount))
         let changesByDay = try Dictionary(grouping: rows.filter { $0.dayID >= query.startDay }, by: \.dayID)
-            .mapValues { try explorerSum($0.map(\.amount)) }
+            .mapValues { try ReportArithmetic.sum($0.map(\.amount)) }
         var balance = openingBalance
         var points: [ReportExplorerPoint] = []
         for period in query.periods {
             for dayID in ReportCalendar.dayIDs(from: period.startDay, through: period.endDay) {
-                balance = try explorerAdd(balance, changesByDay[dayID] ?? 0)
+                balance = try ReportArithmetic.add(balance, changesByDay[dayID] ?? 0)
             }
             points.append(ReportExplorerPoint(
                 period: period,
                 income: 0,
                 expenses: 0,
                 net: 0,
-                endingBalance: balance
+                endingBalance: balance,
+                budgeted: 0
             ))
         }
         return ReportExplorerSnapshot(
@@ -183,7 +109,10 @@ extension BudgetDatabase {
                 expenses: 0,
                 net: 0,
                 endingBalance: balance,
-                balanceChange: try explorerSubtract(balance, openingBalance)
+                balanceChange: try ReportArithmetic.subtract(balance, openingBalance),
+                openingBalance: openingBalance,
+                budgeted: 0,
+                averageSpending: 0
             ),
             hasData: !rows.isEmpty
         )
@@ -191,19 +120,41 @@ extension BudgetDatabase {
 
     private func buildActivityExplorer(
         query: ReportExplorerQuery,
-        rows: [RawReportExplorerActivity]
+        rows: [RawReportActivityDay],
+        budgetedByMonth: [String: Int]
     ) throws -> ReportExplorerSnapshot {
         let rowsByDay = Dictionary(grouping: rows, by: \.dayID)
         var points: [ReportExplorerPoint] = []
+        var hasContributingData = false
         for period in query.periods {
             var income = 0
             var expenses = 0
+            let budgeted: Int
+            if query.metric == .budgetOverview {
+                budgeted = try reportExplorerBudgetedAmount(
+                    for: period,
+                    budgetedByMonth: budgetedByMonth
+                )
+            } else {
+                budgeted = 0
+            }
             for dayID in ReportCalendar.dayIDs(from: period.startDay, through: period.endDay) {
-                for row in rowsByDay[dayID] ?? [] where !row.isTransfer {
-                    if row.amount > 0 {
-                        income = try explorerAdd(income, row.amount)
-                    } else if row.amount < 0 {
-                        expenses = try explorerSubtract(expenses, row.amount)
+                for row in rowsByDay[dayID] ?? [] {
+                    switch query.metric {
+                    case .cashFlow where !row.isTransfer:
+                        hasContributingData = hasContributingData || row.amount != 0
+                        if row.isInflow {
+                            income = try ReportArithmetic.add(income, row.amount)
+                        } else if row.amount < 0 {
+                            expenses = try ReportArithmetic.subtract(expenses, row.amount)
+                        }
+                    case .spending, .budgetOverview, .spendingAverage:
+                        if !row.isIncome {
+                            hasContributingData = hasContributingData || row.amount != 0
+                            expenses = try ReportArithmetic.subtract(expenses, row.amount)
+                        }
+                    default:
+                        break
                     }
                 }
             }
@@ -211,43 +162,66 @@ extension BudgetDatabase {
                 period: period,
                 income: income,
                 expenses: expenses,
-                net: try explorerSubtract(income, expenses),
-                endingBalance: 0
+                net: try ReportArithmetic.subtract(income, expenses),
+                endingBalance: 0,
+                budgeted: budgeted
             ))
         }
-        let income = try explorerSum(points.map(\.income))
-        let expenses = try explorerSum(points.map(\.expenses))
+        let income = try ReportArithmetic.sum(points.map(\.income))
+        let expenses = try ReportArithmetic.sum(points.map(\.expenses))
+        let budgeted = try ReportArithmetic.sum(points.map(\.budgeted))
+        let averageSpending = query.metric == .spendingAverage && !points.isEmpty
+            ? try ReportArithmetic.scaled(expenses, multiplier: 1, divisor: points.count)
+            : 0
         return ReportExplorerSnapshot(
             query: query,
             points: points,
             totals: ReportExplorerTotals(
                 income: income,
                 expenses: expenses,
-                net: try explorerSubtract(income, expenses),
+                net: try ReportArithmetic.subtract(income, expenses),
                 endingBalance: 0,
-                balanceChange: 0
+                balanceChange: 0,
+                openingBalance: 0,
+                budgeted: budgeted,
+                averageSpending: averageSpending
             ),
-            hasData: !rows.isEmpty
+            hasData: hasContributingData || budgeted != 0
         )
     }
-}
 
-private func explorerAdd(_ lhs: Int, _ rhs: Int) throws -> Int {
-    let result = lhs.addingReportingOverflow(rhs)
-    guard !result.overflow else { throw LocalFirstError.numericValueOutOfRange }
-    return result.partialValue
-}
-
-private func explorerSubtract(_ lhs: Int, _ rhs: Int) throws -> Int {
-    let result = lhs.subtractingReportingOverflow(rhs)
-    guard !result.overflow else { throw LocalFirstError.numericValueOutOfRange }
-    return result.partialValue
-}
-
-private func explorerSum<S: Sequence>(_ values: S) throws -> Int where S.Element == Int {
-    var total = 0
-    for value in values {
-        total = try explorerAdd(total, value)
+    private func reportExplorerBudgetedAmount(
+        for period: ReportExplorerPeriod,
+        budgetedByMonth: [String: Int]
+    ) throws -> Int {
+        var amount = 0
+        for month in ReportCalendar.monthIDs(
+            from: String(period.startDay.prefix(7)),
+            through: String(period.endDay.prefix(7))
+        ) {
+            let dayCount = max(ReportCalendar.days(in: month), 1)
+            let firstDay = month == String(period.startDay.prefix(7))
+                ? ReportCalendar.dayNumber(from: period.startDay)
+                : 1
+            let lastDay = month == String(period.endDay.prefix(7))
+                ? ReportCalendar.dayNumber(from: period.endDay)
+                : dayCount
+            let monthlyAmount = budgetedByMonth[month] ?? 0
+            let throughLastDay = try ReportArithmetic.scaled(
+                monthlyAmount,
+                multiplier: lastDay,
+                divisor: dayCount
+            )
+            let beforeFirstDay = try ReportArithmetic.scaled(
+                monthlyAmount,
+                multiplier: max(firstDay - 1, 0),
+                divisor: dayCount
+            )
+            amount = try ReportArithmetic.add(
+                amount,
+                ReportArithmetic.subtract(throughLastDay, beforeFirstDay)
+            )
+        }
+        return amount
     }
-    return total
 }

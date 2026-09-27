@@ -66,6 +66,16 @@ struct ReportExplorerView: View {
                 }
                 .accessibilityLabel("Report date range")
             }
+            if viewModel.errorMessage != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        viewModel.retry()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .accessibilityLabel("Retry report")
+                }
+            }
         }
         .sheet(isPresented: $isCustomRangePresented) {
             ReportCustomRangeSheet(
@@ -75,7 +85,7 @@ struct ReportExplorerView: View {
                 viewModel.selectCustomRange(start: start, end: end)
             }
         }
-        .task(id: viewModel.requestIdentity) {
+        .task(id: loadIdentity) {
             await viewModel.load(using: appState)
         }
         .onChange(of: appState.localDataRevision) {
@@ -86,6 +96,14 @@ struct ReportExplorerView: View {
         }
         .environment(\.calendar, ReportCalendar.gregorianUTC)
         .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .gmt)
+    }
+
+    private var loadIdentity: ReportExplorerLoadIdentity {
+        ReportExplorerLoadIdentity(
+            requestID: viewModel.requestIdentity,
+            budgetID: appState.settings.selectedBudgetID,
+            sessionGeneration: appState.localFirstStore.budgetSessionGeneration
+        )
     }
 
     private func reportExplorerMessage(_ message: String, tone: ReportValueTone) -> some View {
@@ -186,43 +204,63 @@ private struct ReportExplorerChart: View {
     let viewModel: ReportExplorerViewModel
 
     var body: some View {
-        Chart(snapshot.points) { point in
-            switch snapshot.query.metric {
-            case .netWorth:
-                LineMark(
-                    x: .value("Period", point.period.date),
-                    y: .value("Balance", point.endingBalance)
-                )
-                .interpolationMethod(.monotone)
-                .foregroundStyle(ActualistTheme.positive)
-                .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                PointMark(
-                    x: .value("Period", point.period.date),
-                    y: .value("Balance", point.endingBalance)
-                )
-                .foregroundStyle(ActualistTheme.positive)
-            case .cashFlow:
-                BarMark(
-                    x: .value("Period", point.period.date),
-                    y: .value("Amount", point.income)
-                )
-                .position(by: .value("Type", "Income"))
-                .foregroundStyle(ActualistTheme.positive)
-                .cornerRadius(3)
-                BarMark(
-                    x: .value("Period", point.period.date),
-                    y: .value("Amount", point.expenses)
-                )
-                .position(by: .value("Type", "Expenses"))
-                .foregroundStyle(ActualistTheme.danger)
-                .cornerRadius(3)
-            case .spending:
-                BarMark(
-                    x: .value("Period", point.period.date),
-                    y: .value("Spending", point.expenses)
-                )
-                .foregroundStyle(ActualistTheme.danger)
-                .cornerRadius(3)
+        Chart {
+            ForEach(snapshot.points) { point in
+                switch snapshot.query.metric {
+                case .netWorth:
+                    LineMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Balance", point.endingBalance)
+                    )
+                    .interpolationMethod(.monotone)
+                    .foregroundStyle(ActualistTheme.positive)
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    PointMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Balance", point.endingBalance)
+                    )
+                    .foregroundStyle(ActualistTheme.positive)
+                case .cashFlow:
+                    BarMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Amount", point.income)
+                    )
+                    .position(by: .value("Type", "Income"))
+                    .foregroundStyle(ActualistTheme.positive)
+                    .cornerRadius(3)
+                    BarMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Amount", point.expenses)
+                    )
+                    .position(by: .value("Type", "Expenses"))
+                    .foregroundStyle(ActualistTheme.danger)
+                    .cornerRadius(3)
+                case .spending, .spendingAverage:
+                    BarMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Spending", point.expenses)
+                    )
+                    .foregroundStyle(ActualistTheme.danger)
+                    .cornerRadius(3)
+                case .budgetOverview:
+                    BarMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Spending", point.expenses)
+                    )
+                    .foregroundStyle(ActualistTheme.danger)
+                    .cornerRadius(3)
+                    LineMark(
+                        x: .value("Period", point.period.date),
+                        y: .value("Budgeted", point.budgeted)
+                    )
+                    .foregroundStyle(ActualistTheme.warning)
+                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 4]))
+                }
+            }
+            if snapshot.query.metric == .spendingAverage {
+                RuleMark(y: .value("Average", snapshot.totals.averageSpending))
+                    .foregroundStyle(ActualistTheme.warning)
+                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
             }
         }
         .chartLegend(.hidden)
@@ -250,6 +288,12 @@ private struct ReportExplorerChart: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(viewModel.title), \(viewModel.rangeTitle)")
     }
+}
+
+private struct ReportExplorerLoadIdentity: Hashable {
+    let requestID: UUID
+    let budgetID: String?
+    let sessionGeneration: Int
 }
 
 private struct ReportCustomRangeSheet: View {

@@ -2,6 +2,8 @@ import Foundation
 
 @MainActor
 protocol ReportsRepositoryProtocol: AnyObject {
+    func reportExplorerSessionIdentity(budgetID: String) -> ReportExplorerSessionIdentity
+
     func cachedReportsDashboard(
         budgetID: String,
         range: ReportDateRange
@@ -16,4 +18,10 @@ protocol ReportsRepositoryProtocol: AnyObject {
         budgetID: String,
         query: ReportExplorerQuery
     ) async throws -> ReportExplorerSnapshot
+}
+
+extension ReportsRepositoryProtocol {
+    func reportExplorerSessionIdentity(budgetID: String) -> ReportExplorerSessionIdentity {
+        ReportExplorerSessionIdentity(budgetID: budgetID, generation: 0)
+    }
 }
