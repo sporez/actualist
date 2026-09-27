@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://actualist.app/schemas/account-lifecycle-parity-manifest-v1.json",
+  "title": "Actualist account lifecycle parity fixture manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "actual",
+    "toolchain",
+    "generation",
+    "generator",
+    "harnessFiles",
+    "sourceFiles",
+    "fixture",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "actual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "commit", "packageVersion"],
+      "properties": {
+        "tag": { "const": "v26.9.0" },
+        "commit": {
+          "const": "59fe126f637d858c061e1eeedbef5436c8f2225a"
+        },
+        "packageVersion": { "const": "26.9.0" }
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "yarn"],
+      "properties": {
+        "node": { "type": "string", "pattern": "^v24\\." },
+        "yarn": { "const": "4.17.1" }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workingDirectory", "argv", "environment"],
+      "properties": {
+        "workingDirectory": { "const": "<isolated-actual-checkout>" },
+        "argv": {
+          "type": "array",
+          "minItems": 10,
+          "items": { "type": "string" }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT"],
+          "properties": {
+            "ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT": {
+              "const": "<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json"
+            }
+          }
+        }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "manifestSchemaPath", "manifestSchemaSha256"],
+      "properties": {
+        "path": { "const": "scripts/account-lifecycle-parity/generate.mjs" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "manifestSchemaPath": {
+          "const": "scripts/account-lifecycle-parity/manifest.schema.json"
+        },
+        "manifestSchemaSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "harnessFiles": { "$ref": "#/$defs/hashedFiles" },
+    "sourceFiles": { "$ref": "#/$defs/hashedFiles" },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "caseCount", "caseIDs"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "caseCount": { "type": "integer", "minimum": 1 },
+        "caseIDs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "input", "assertions", "outputPointer"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "input": { "type": "object" },
+          "assertions": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "outputPointer": {
+            "type": "string",
+            "pattern": "^account-lifecycle-oracle\\.json#/cases/"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "hashedFiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  }
+}
