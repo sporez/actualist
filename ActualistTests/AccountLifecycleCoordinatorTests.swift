@@ -63,6 +63,47 @@ struct AccountLifecycleCoordinatorTests {
         }.wait()
     }
 
+    @Test func renameMutationCallbackCanCancelCompletedWorkflow() async {
+        let repository = LifecycleCoordinatorRepository()
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginRename(
+            identity: identity,
+            account: openAccount,
+            existingAccounts: [openAccount]
+        )
+        coordinator.updateRenameName("Daily Spending")
+
+        let operation = coordinator.submitRename(repository: repository) { _ in
+            coordinator.cancel()
+        }
+        #expect(operation != nil)
+        await operation?.value
+
+        #expect(coordinator.state == .idle)
+    }
+
+    @Test func renameMutationCallbackCanBeginNewWorkflow() async {
+        let repository = LifecycleCoordinatorRepository()
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginRename(
+            identity: identity,
+            account: openAccount,
+            existingAccounts: [openAccount]
+        )
+        coordinator.updateRenameName("Daily Spending")
+
+        let operation = coordinator.submitRename(repository: repository) { _ in
+            coordinator.beginReopen(identity: self.identity, account: self.closedAccount)
+        }
+        #expect(operation != nil)
+        await operation?.value
+
+        #expect(coordinator.state == .reopening(AccountReopenSession(
+            identity: identity,
+            account: closedAccount
+        )))
+    }
+
     @Test func peerCompletedReopenCompletesWithoutPublishingMutation() async throws {
         let repository = LifecycleCoordinatorRepository()
         repository.reopenResult = .noChange(outcome(operation: .reopen, account: openAccount))
@@ -82,6 +123,38 @@ struct AccountLifecycleCoordinatorTests {
             expectedClosed: true
         ))
         #expect(mutationCount == 0)
+    }
+
+    @Test func reopenMutationCallbackCanCancelCompletedWorkflow() async {
+        let repository = LifecycleCoordinatorRepository()
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginReopen(identity: identity, account: closedAccount)
+
+        let operation = coordinator.confirmReopen(repository: repository) { _ in
+            coordinator.cancel()
+        }
+        #expect(operation != nil)
+        await operation?.value
+
+        #expect(coordinator.state == .idle)
+    }
+
+    @Test func reopenMutationCallbackCanBeginNewWorkflow() async {
+        let repository = LifecycleCoordinatorRepository()
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginReopen(identity: identity, account: closedAccount)
+
+        let operation = coordinator.confirmReopen(repository: repository) { _ in
+            coordinator.beginRename(
+                identity: self.identity,
+                account: self.openAccount,
+                existingAccounts: [self.openAccount]
+            )
+        }
+        #expect(operation != nil)
+        await operation?.value
+
+        #expect(coordinator.renameDraft?.identity == identity)
     }
 
     @Test func reviewLoadAndRetryKeepOneExplicitRecoveryState() async throws {
@@ -117,6 +190,95 @@ struct AccountLifecycleCoordinatorTests {
         ))
 
         #expect(coordinator.state == .idle)
+    }
+
+    @Test func suspendedLateRenameSuccessCannotRestoreChangedContext() async {
+        let repository = LifecycleCoordinatorRepository()
+        repository.suspendRename = true
+        let coordinator = AccountLifecycleCoordinator()
+        var mutationCount = 0
+        coordinator.beginRename(
+            identity: identity,
+            account: openAccount,
+            existingAccounts: [openAccount]
+        )
+        coordinator.updateRenameName("Daily Spending")
+        let operation = coordinator.submitRename(repository: repository) { _ in
+            mutationCount += 1
+        }
+        await repository.waitForRenameStart()
+
+        coordinator.contextDidChange(to: AccountLifecycleIdentity(
+            budgetID: "other-budget",
+            accountID: "checking"
+        ))
+        repository.finishRename(with: .applied(outcome(
+            operation: .rename,
+            account: AccountLifecycleAccount(
+                id: "checking",
+                name: "Daily Spending",
+                offBudget: false,
+                isClosed: false,
+                accountGroupID: "group"
+            )
+        )))
+        #expect(operation != nil)
+        await operation?.value
+
+        #expect(coordinator.state == .idle)
+        #expect(mutationCount == 0)
+    }
+
+    @Test func sampleValuesRefusesWorkflowBeginsAndSubmission() async {
+        let repository = LifecycleCoordinatorRepository()
+        let coordinator = AccountLifecycleCoordinator(isPrivacyModeEnabled: true)
+        let request = AccountLifecycleReviewRequest(
+            budgetID: "budget",
+            accountID: "checking",
+            requestedAction: .close(destinationAccountID: nil, categoryID: nil)
+        )
+
+        coordinator.beginRename(
+            identity: identity,
+            account: openAccount,
+            existingAccounts: [openAccount]
+        )
+        coordinator.beginReopen(identity: identity, account: closedAccount)
+        coordinator.loadReview(request: request, repository: repository)
+        let renameOperation = coordinator.submitRename(repository: repository) { _ in }
+        let reopenOperation = coordinator.confirmReopen(repository: repository) { _ in }
+
+        #expect(coordinator.state == .idle)
+        #expect(renameOperation == nil)
+        #expect(reopenOperation == nil)
+        #expect(repository.renameCalls == 0)
+        #expect(repository.reopenCalls == 0)
+        #expect(repository.reviewCalls == 0)
+    }
+
+    @Test func enablingSampleValuesCancelsSuspendedMutationAndRejectsLateSuccess() async {
+        let repository = LifecycleCoordinatorRepository()
+        repository.suspendReopen = true
+        let coordinator = AccountLifecycleCoordinator()
+        var mutationCount = 0
+        coordinator.beginReopen(identity: identity, account: closedAccount)
+        let operation = coordinator.confirmReopen(repository: repository) { _ in
+            mutationCount += 1
+        }
+        await repository.waitForReopenStart()
+
+        coordinator.updatePrivacyMode(true)
+        repository.finishReopen(with: .applied(outcome(
+            operation: .reopen,
+            account: openAccount
+        )))
+        #expect(operation != nil)
+        await operation?.value
+
+        #expect(coordinator.isPrivacyModeEnabled)
+        #expect(coordinator.state == .idle)
+        #expect(coordinator.reopenSession == nil)
+        #expect(mutationCount == 0)
     }
 
     private let identity = AccountLifecycleIdentity(budgetID: "budget", accountID: "checking")
@@ -195,6 +357,7 @@ struct AccountLifecycleCoordinatorTests {
 @MainActor
 private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryProtocol {
     var suspendRename = false
+    var suspendReopen = false
     var renameResult: AccountLifecycleCommitResult?
     var reopenResult: AccountLifecycleCommitResult?
     var reviewResult: AccountLifecycleReview?
@@ -206,7 +369,9 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     private(set) var lastReopenCommand: AccountReopenCommand?
 
     private var renameContinuation: CheckedContinuation<AccountLifecycleCommitResult, any Error>?
+    private var reopenContinuation: CheckedContinuation<AccountLifecycleCommitResult, any Error>?
     private let renameStarted = TestLatch()
+    private let reopenStarted = TestLatch()
 
     func accountLifecycleReview(
         request: AccountLifecycleReviewRequest
@@ -247,6 +412,10 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     ) async throws -> AccountLifecycleCommitResult {
         reopenCalls += 1
         lastReopenCommand = command
+        reopenStarted.trip()
+        if suspendReopen {
+            return try await withCheckedThrowingContinuation { reopenContinuation = $0 }
+        }
         return reopenResult ?? .applied(AccountLifecycleOutcome(
             operation: .reopen,
             account: AccountLifecycleAccount(
@@ -267,5 +436,15 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
         suspendRename = false
         renameContinuation?.resume(returning: result)
         renameContinuation = nil
+    }
+
+    func waitForReopenStart() async {
+        await reopenStarted.wait()
+    }
+
+    func finishReopen(with result: AccountLifecycleCommitResult) {
+        suspendReopen = false
+        reopenContinuation?.resume(returning: result)
+        reopenContinuation = nil
     }
 }

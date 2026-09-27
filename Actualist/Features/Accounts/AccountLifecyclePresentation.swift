@@ -11,6 +11,7 @@ struct AccountLifecycleReviewPresentation: Hashable, Sendable {
     let title: String
     let actionTitle: String?
     let canConfirm: Bool
+    let isPrivacyProtected: Bool
     let blockerMessages: [String]
     let rows: [AccountLifecycleConsequenceRow]
 }
@@ -50,8 +51,11 @@ enum AccountLifecyclePresentation {
             ))
         }
         if let category = review.identity.categoryFacts?.category {
+            let name = privacyModeEnabled
+                ? PrivacyDisplay.name(for: .category, seed: category.id)
+                : category.name
             rows.append(AccountLifecycleConsequenceRow(
-                id: "category", label: "Category", value: category.name
+                id: "category", label: "Category", value: name
             ))
         }
         if let bankLink = review.bankLink {
@@ -63,7 +67,9 @@ enum AccountLifecyclePresentation {
             rows.append(AccountLifecycleConsequenceRow(
                 id: "schedules",
                 label: "Active schedules",
-                value: review.activeScheduleReferences.map(\.name).joined(separator: ", ")
+                value: review.activeScheduleReferences.map {
+                    privacyModeEnabled ? privateScheduleName(seed: $0.id) : $0.name
+                }.joined(separator: ", ")
             ))
         }
 
@@ -83,12 +89,15 @@ enum AccountLifecyclePresentation {
             title = "Review Account"
             actionTitle = nil
         }
-        let blockerMessages = review.blockers.map(blockerMessage)
+        let blockerMessages = review.blockers.map {
+            blockerMessage($0, privacyModeEnabled: privacyModeEnabled)
+        }
         return AccountLifecycleReviewPresentation(
             accountName: accountName,
             title: title,
             actionTitle: actionTitle,
             canConfirm: !privacyModeEnabled && review.blockers.isEmpty && review.resolvedAction != nil,
+            isPrivacyProtected: privacyModeEnabled,
             blockerMessages: blockerMessages,
             rows: rows
         )
@@ -105,26 +114,37 @@ enum AccountLifecyclePresentation {
         }
     }
 
-    private static func blockerMessage(_ blocker: AccountLifecycleBlocker) -> String {
+    private static func blockerMessage(
+        _ blocker: AccountLifecycleBlocker,
+        privacyModeEnabled: Bool
+    ) -> String {
         switch blocker {
         case .accountAlreadyClosed:
-            "This account is already closed."
+            return "This account is already closed."
         case .destinationRequired:
-            "Choose an open account for the remaining balance."
+            return "Choose an open account for the remaining balance."
         case .destinationIsSource:
-            "Choose a different destination account."
+            return "Choose a different destination account."
         case .destinationUnavailable:
-            "The destination account is no longer available."
+            return "The destination account is no longer available."
         case .categoryRequired:
-            "Choose an expense category for this transfer."
+            return "Choose an expense category for this transfer."
         case .categoryUnavailable:
-            "The selected category is no longer available."
+            return "The selected category is no longer available."
         case .unsupportedBankProvider:
-            "This bank connection cannot be removed safely yet."
+            return "This bank connection cannot be removed safely yet."
         case .activeSchedules(let schedules):
-            "Active schedules still use this account: \(schedules.map(\.name).joined(separator: ", "))."
+            let names = schedules.map {
+                privacyModeEnabled ? privateScheduleName(seed: $0.id) : $0.name
+            }
+            return "Active schedules still use this account: \(names.joined(separator: ", "))."
         case .scheduleInspectionUnavailable:
-            "Active schedules could not be checked."
+            return "Active schedules could not be checked."
         }
+    }
+
+    private static func privateScheduleName(seed: String) -> String {
+        let suffix = Int((PrivacyDisplay.stableHash("schedule-\(seed)") / 17) % 90) + 10
+        return "Sample Schedule \(suffix)"
     }
 }
