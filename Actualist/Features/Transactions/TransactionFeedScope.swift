@@ -309,4 +309,12 @@ enum TransactionFeedScope: Hashable {
         if case .account = self { return false }
         return true
     }
+
+    var queryScope: TransactionQueryScope? {
+        switch self {
+        case .account(let account): .account(account.id)
+        case .spending: .spending
+        case .category: nil
+        }
+    }
 }
