@@ -121,7 +121,12 @@ final class ReportExplorerUITests: XCTestCase {
 
         openFilters(in: app)
         assertSwitch("report-filter-account-checking", equals: true, in: app)
-        assertSwitch("report-filter-off-budget", equals: false, in: app)
+        assertSwitch(
+            "report-filter-off-budget",
+            equals: false,
+            fallbackDirection: .down,
+            in: app
+        )
         XCTAssertFalse(app.switches["report-filter-uncategorized"].exists)
         XCTAssertEqual(elements(in: app, identifierPrefix: "report-filter-category-").count, 0)
         attachScreenshot(named: "reports-net-worth-filter-light-privacy-ax-\(layoutName(in: app))", app: app)
@@ -309,10 +314,29 @@ final class ReportExplorerUITests: XCTestCase {
     private func assertSwitch(
         _ identifier: String,
         equals enabled: Bool,
+        fallbackDirection: ScrollDirection = .up,
         in app: XCUIApplication
     ) -> XCUIElement {
         let toggle = app.switches[identifier]
-        scrollUntilHittable(toggle, in: filterScroller(in: app), direction: .up)
+        let scroller = filterScroller(in: app)
+        for _ in 0..<8 where !toggle.isHittable {
+            if toggle.exists {
+                if toggle.frame.minY < scroller.frame.minY {
+                    scroller.swipeDown()
+                } else {
+                    scroller.swipeUp()
+                }
+            } else {
+                switch fallbackDirection {
+                case .up:
+                    scroller.swipeUp()
+                case .down:
+                    scroller.swipeDown()
+                }
+            }
+        }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertTrue(toggle.isHittable)
         let expected = enabled ? "1" : "0"
         let value = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", expected),
