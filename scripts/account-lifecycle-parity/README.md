@@ -116,8 +116,8 @@ The generator stops without promoting fixtures if any of these occurs:
 - Vitest exits nonzero or its JSON report does not describe a passing run;
 - the raw output schema, case IDs, case count, or synthetic-data declaration
   differs from the reviewed contract;
-- a generated file fails manifest-schema validation or a recorded SHA-256 does
-  not match.
+- a generated file fails the reviewed manifest invariants or a recorded SHA-256
+  does not match.
 
 The approved execution budget is one coordinator-owned generation/investigation
 and, only after a concrete correction, at most one post-correction generation.

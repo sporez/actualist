@@ -260,6 +260,9 @@ for (const temporaryPath of [rawOutput, vitestOutput, stagingOutput]) {
     throw new Error(`Refusing to overwrite existing path: ${temporaryPath}`);
   }
 }
+if (existsSync(outputRoot)) {
+  throw new Error(`Refusing to replace existing fixture directory: ${outputRoot}`);
+}
 
 const yarnPath = join(checkout, '.yarn/releases/yarn-4.17.1.cjs');
 if (!existsSync(yarnPath)) {
@@ -359,9 +362,6 @@ try {
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
 
-  if (existsSync(outputRoot)) {
-    throw new Error(`Refusing to replace existing fixture directory: ${outputRoot}`);
-  }
   mkdirSync(dirname(outputRoot), { recursive: true });
   renameSync(stagingOutput, outputRoot);
   console.log(

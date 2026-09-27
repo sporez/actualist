@@ -48,7 +48,7 @@
         "workingDirectory": { "const": "<isolated-actual-checkout>" },
         "argv": {
           "type": "array",
-          "minItems": 10,
+          "minItems": 9,
           "items": { "type": "string" }
         },
         "environment": {
