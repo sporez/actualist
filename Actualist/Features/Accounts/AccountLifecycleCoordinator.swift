@@ -23,9 +23,14 @@ enum AccountLifecycleState: Hashable, Sendable {
 @Observable
 final class AccountLifecycleCoordinator {
     private(set) var state: AccountLifecycleState = .idle
+    private(set) var isPrivacyModeEnabled: Bool
 
     @ObservationIgnored private var operationTask: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
+
+    init(isPrivacyModeEnabled: Bool = false) {
+        self.isPrivacyModeEnabled = isPrivacyModeEnabled
+    }
 
     var renameDraft: AccountRenameDraft? {
         switch state {
@@ -77,7 +82,7 @@ final class AccountLifecycleCoordinator {
         account: AccountLifecycleAccount,
         existingAccounts: [AccountLifecycleAccount]
     ) {
-        guard !isSubmitting else { return }
+        guard !isPrivacyModeEnabled, !isSubmitting else { return }
         cancelOperation()
         state = .renaming(AccountRenameDraft(
             identity: identity,
@@ -95,15 +100,16 @@ final class AccountLifecycleCoordinator {
         state = .renaming(draft)
     }
 
+    @discardableResult
     func submitRename(
         repository: any AccountLifecycleRepositoryProtocol,
         didMutate: @escaping @MainActor (AccountLifecycleOutcome) -> Void
-    ) {
-        guard case .renaming(var draft) = state else { return }
+    ) -> Task<Void, Never>? {
+        guard !isPrivacyModeEnabled, case .renaming(var draft) = state else { return nil }
         guard let command = draft.command else {
             draft.validationMessage = draft.validationError?.localizedDescription
             state = .renaming(draft)
-            return
+            return nil
         }
         let requestGeneration = beginOperation()
         state = .submittingRename(draft)
@@ -117,8 +123,10 @@ final class AccountLifecycleCoordinator {
                 guard isCurrent(requestGeneration, identity: draft.identity) else { return }
                 switch result {
                 case .applied(let outcome):
-                    didMutate(outcome)
                     state = .completed(outcome)
+                    finishOperation(requestGeneration)
+                    didMutate(outcome)
+                    return
                 case .noChange(let outcome):
                     state = .completed(outcome)
                 case .reviewChanged(let review):
@@ -131,22 +139,24 @@ final class AccountLifecycleCoordinator {
                 finishOperation(requestGeneration)
             }
         }
+        return operationTask
     }
 
     func beginReopen(
         identity: AccountLifecycleIdentity,
         account: AccountLifecycleAccount
     ) {
-        guard !isSubmitting else { return }
+        guard !isPrivacyModeEnabled, !isSubmitting else { return }
         cancelOperation()
         state = .reopening(AccountReopenSession(identity: identity, account: account))
     }
 
+    @discardableResult
     func confirmReopen(
         repository: any AccountLifecycleRepositoryProtocol,
         didMutate: @escaping @MainActor (AccountLifecycleOutcome) -> Void
-    ) {
-        guard case .reopening(let session) = state else { return }
+    ) -> Task<Void, Never>? {
+        guard !isPrivacyModeEnabled, case .reopening(let session) = state else { return nil }
         let requestGeneration = beginOperation()
         state = .submittingReopen(session)
         operationTask = Task { [weak self] in
@@ -159,8 +169,10 @@ final class AccountLifecycleCoordinator {
                 guard isCurrent(requestGeneration, identity: session.identity) else { return }
                 switch result {
                 case .applied(let outcome):
-                    didMutate(outcome)
                     state = .completed(outcome)
+                    finishOperation(requestGeneration)
+                    didMutate(outcome)
+                    return
                 case .noChange(let outcome):
                     state = .completed(outcome)
                 case .reviewChanged(let review):
@@ -173,13 +185,14 @@ final class AccountLifecycleCoordinator {
                 finishOperation(requestGeneration)
             }
         }
+        return operationTask
     }
 
     func loadReview(
         request: AccountLifecycleReviewRequest,
         repository: any AccountLifecycleRepositoryProtocol
     ) {
-        guard !isSubmitting else { return }
+        guard !isPrivacyModeEnabled, !isSubmitting else { return }
         let requestGeneration = beginOperation()
         state = .loadingReview(request)
         operationTask = Task { [weak self] in
@@ -206,7 +219,7 @@ final class AccountLifecycleCoordinator {
     }
 
     func retry(repository: any AccountLifecycleRepositoryProtocol) {
-        guard case .failed(let recovery, _) = state else { return }
+        guard !isPrivacyModeEnabled, case .failed(let recovery, _) = state else { return }
         switch recovery {
         case .rename(let draft):
             state = .renaming(draft)
@@ -220,6 +233,14 @@ final class AccountLifecycleCoordinator {
     func contextDidChange(to identity: AccountLifecycleIdentity?) {
         guard stateIdentity != identity else { return }
         cancel()
+    }
+
+    func updatePrivacyMode(_ isEnabled: Bool) {
+        guard isPrivacyModeEnabled != isEnabled else { return }
+        isPrivacyModeEnabled = isEnabled
+        if isEnabled {
+            cancel()
+        }
     }
 
     func cancel() {

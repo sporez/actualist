@@ -50,11 +50,20 @@ struct AccountLifecycleModelsTests {
 
     @Test func reviewPresentationHidesFinancialIdentityAndRemoteBankValues() throws {
         let account = lifecycleAccount(id: "checking", name: "Checking")
+        let category = AccountLifecycleCategory(
+            id: "medical-category",
+            name: "Confidential Medical",
+            isHidden: false
+        )
+        let schedule = AccountScheduleReference(
+            id: "private-schedule",
+            name: "Private Therapy Schedule"
+        )
         let review = AccountLifecycleReview(
             identity: AccountLifecycleReviewIdentity(
                 budgetID: "budget",
                 accountID: account.id,
-                action: .close(destinationAccountID: nil, categoryID: nil),
+                action: .close(destinationAccountID: nil, categoryID: category.id),
                 sourceFacts: AccountLifecycleSourceFacts(
                     account: account,
                     liveBalance: -12_345,
@@ -63,7 +72,7 @@ struct AccountLifecycleModelsTests {
                     pairedTransferCount: 0
                 ),
                 destinationFacts: nil,
-                categoryFacts: nil,
+                categoryFacts: AccountLifecycleCategoryFacts(category: category),
                 transactionGraphDigest: "digest",
                 scheduleDigest: "schedule",
                 bankLinkIdentity: AccountLifecycleBankLinkIdentity(
@@ -85,11 +94,11 @@ struct AccountLifecycleModelsTests {
                     bankRowID: "bank-secret"
                 )
             ),
-            activeScheduleReferences: [],
+            activeScheduleReferences: [schedule],
             eligibleDestinations: [],
-            eligibleCategories: [],
+            eligibleCategories: [category],
             resolvedAction: .closeAtZero,
-            blockers: []
+            blockers: [.activeSchedules([schedule])]
         )
 
         let presentation = AccountLifecyclePresentation.review(
@@ -97,13 +106,30 @@ struct AccountLifecycleModelsTests {
             currency: .usd,
             privacyModeEnabled: true
         )
+        let unprotectedPresentation = AccountLifecyclePresentation.review(
+            review,
+            currency: .usd,
+            privacyModeEnabled: false
+        )
         let joinedCopy = ([presentation.accountName] + presentation.rows.map(\.value)).joined(separator: " ")
+        let unprotectedCopy = (
+            [unprotectedPresentation.accountName]
+                + unprotectedPresentation.rows.map(\.value)
+                + unprotectedPresentation.blockerMessages
+        ).joined(separator: " ")
 
         #expect(presentation.accountName != account.name)
         #expect(presentation.rows.first?.value != BudgetCurrency.usd.formatted(-12_345))
         #expect(!joinedCopy.contains("remote-secret"))
         #expect(!joinedCopy.contains("bank-secret"))
+        #expect(!joinedCopy.contains(category.name))
+        #expect(!joinedCopy.contains(schedule.name))
+        #expect(!presentation.blockerMessages.joined().contains(schedule.name))
+        #expect(presentation.isPrivacyProtected)
         #expect(!presentation.canConfirm)
+        #expect(unprotectedCopy.contains(category.name))
+        #expect(unprotectedCopy.contains(schedule.name))
+        #expect(!unprotectedPresentation.isPrivacyProtected)
     }
 
     private func lifecycleAccount(
