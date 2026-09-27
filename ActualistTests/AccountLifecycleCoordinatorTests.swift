@@ -1,0 +1,271 @@
+import Testing
+@testable import Actualist
+
+@MainActor
+struct AccountLifecycleCoordinatorTests {
+    @Test func renameValidatesInputAndPublishesAppliedOutcome() async throws {
+        let repository = LifecycleCoordinatorRepository()
+        let coordinator = AccountLifecycleCoordinator()
+        var mutation: AccountLifecycleOutcome?
+        coordinator.beginRename(
+            identity: identity,
+            account: openAccount,
+            existingAccounts: [openAccount, savingsAccount]
+        )
+
+        coordinator.updateRenameName(" Savings ")
+        coordinator.submitRename(repository: repository) { mutation = $0 }
+        #expect(repository.renameCalls == 0)
+        #expect(coordinator.renameDraft?.validationError == .duplicateName("Savings"))
+
+        coordinator.updateRenameName(" Daily Spending ")
+        coordinator.submitRename(repository: repository) { mutation = $0 }
+        await ObservedTestState {
+            if case .completed = coordinator.state { return true }
+            return false
+        }.wait()
+
+        #expect(repository.renameCalls == 1)
+        #expect(repository.lastRenameCommand?.newName == "Daily Spending")
+        #expect(mutation?.account.name == "Daily Spending")
+    }
+
+    @Test func duplicateRenameIntentIsSerializedWhileRepositoryIsSuspended() async throws {
+        let repository = LifecycleCoordinatorRepository()
+        repository.suspendRename = true
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginRename(
+            identity: identity,
+            account: openAccount,
+            existingAccounts: [openAccount]
+        )
+        coordinator.updateRenameName("Daily Spending")
+
+        coordinator.submitRename(repository: repository) { _ in }
+        coordinator.submitRename(repository: repository) { _ in }
+        await repository.waitForRenameStart()
+        #expect(repository.renameCalls == 1)
+        #expect(coordinator.isSubmitting)
+
+        repository.finishRename(with: .applied(outcome(
+            operation: .rename,
+            account: AccountLifecycleAccount(
+                id: "checking",
+                name: "Daily Spending",
+                offBudget: false,
+                isClosed: false,
+                accountGroupID: "group"
+            )
+        )))
+        await ObservedTestState {
+            if case .completed = coordinator.state { return true }
+            return false
+        }.wait()
+    }
+
+    @Test func peerCompletedReopenCompletesWithoutPublishingMutation() async throws {
+        let repository = LifecycleCoordinatorRepository()
+        repository.reopenResult = .noChange(outcome(operation: .reopen, account: openAccount))
+        let coordinator = AccountLifecycleCoordinator()
+        var mutationCount = 0
+        coordinator.beginReopen(identity: identity, account: closedAccount)
+
+        coordinator.confirmReopen(repository: repository) { _ in mutationCount += 1 }
+        await ObservedTestState {
+            if case .completed = coordinator.state { return true }
+            return false
+        }.wait()
+
+        #expect(repository.reopenCalls == 1)
+        #expect(repository.lastReopenCommand == AccountReopenCommand(
+            accountID: "checking",
+            expectedClosed: true
+        ))
+        #expect(mutationCount == 0)
+    }
+
+    @Test func reviewLoadAndRetryKeepOneExplicitRecoveryState() async throws {
+        let repository = LifecycleCoordinatorRepository()
+        repository.reviewError = AccountLifecycleCommandError.missingTransactionSchema
+        let coordinator = AccountLifecycleCoordinator()
+        let request = AccountLifecycleReviewRequest(
+            budgetID: "budget",
+            accountID: "checking",
+            requestedAction: .close(destinationAccountID: nil, categoryID: nil)
+        )
+
+        coordinator.loadReview(request: request, repository: repository)
+        await ObservedTestState { coordinator.errorMessage != nil }.wait()
+        #expect(coordinator.errorMessage == "Account maintenance is not available for this budget file.")
+
+        repository.reviewError = nil
+        repository.reviewResult = review(request: request)
+        coordinator.retry(repository: repository)
+        await ObservedTestState { coordinator.review != nil }.wait()
+
+        #expect(repository.reviewCalls == 2)
+        #expect(coordinator.review?.identity.accountID == "checking")
+    }
+
+    @Test func accountOrBudgetContextChangeCancelsPresentedWorkflow() {
+        let coordinator = AccountLifecycleCoordinator()
+        coordinator.beginReopen(identity: identity, account: closedAccount)
+
+        coordinator.contextDidChange(to: AccountLifecycleIdentity(
+            budgetID: "other-budget",
+            accountID: "checking"
+        ))
+
+        #expect(coordinator.state == .idle)
+    }
+
+    private let identity = AccountLifecycleIdentity(budgetID: "budget", accountID: "checking")
+
+    private var openAccount: AccountLifecycleAccount {
+        AccountLifecycleAccount(
+            id: "checking",
+            name: "Checking",
+            offBudget: false,
+            isClosed: false,
+            accountGroupID: "group"
+        )
+    }
+
+    private var closedAccount: AccountLifecycleAccount {
+        AccountLifecycleAccount(
+            id: "checking",
+            name: "Checking",
+            offBudget: false,
+            isClosed: true,
+            accountGroupID: "group"
+        )
+    }
+
+    private var savingsAccount: AccountLifecycleAccount {
+        AccountLifecycleAccount(
+            id: "savings",
+            name: "Savings",
+            offBudget: false,
+            isClosed: true,
+            accountGroupID: nil
+        )
+    }
+
+    private func outcome(
+        operation: AccountLifecycleOperation,
+        account: AccountLifecycleAccount
+    ) -> AccountLifecycleOutcome {
+        AccountLifecycleOutcome(operation: operation, account: account)
+    }
+
+    private func review(request: AccountLifecycleReviewRequest) -> AccountLifecycleReview {
+        AccountLifecycleReview(
+            identity: AccountLifecycleReviewIdentity(
+                budgetID: request.budgetID,
+                accountID: request.accountID,
+                action: request.requestedAction,
+                sourceFacts: AccountLifecycleSourceFacts(
+                    account: openAccount,
+                    liveBalance: 0,
+                    liveTransactionCount: 1,
+                    liveFamilyCount: 1,
+                    pairedTransferCount: 0
+                ),
+                destinationFacts: nil,
+                categoryFacts: nil,
+                transactionGraphDigest: "graph",
+                scheduleDigest: "schedule",
+                bankLinkIdentity: nil
+            ),
+            account: openAccount,
+            liveBalance: 0,
+            liveTransactionCount: 1,
+            liveFamilyCount: 1,
+            pairedTransferCount: 0,
+            bankLink: nil,
+            activeScheduleReferences: [],
+            eligibleDestinations: [],
+            eligibleCategories: [],
+            resolvedAction: .closeAtZero,
+            blockers: []
+        )
+    }
+}
+
+@MainActor
+private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryProtocol {
+    var suspendRename = false
+    var renameResult: AccountLifecycleCommitResult?
+    var reopenResult: AccountLifecycleCommitResult?
+    var reviewResult: AccountLifecycleReview?
+    var reviewError: Error?
+    private(set) var renameCalls = 0
+    private(set) var reopenCalls = 0
+    private(set) var reviewCalls = 0
+    private(set) var lastRenameCommand: AccountRenameCommand?
+    private(set) var lastReopenCommand: AccountReopenCommand?
+
+    private var renameContinuation: CheckedContinuation<AccountLifecycleCommitResult, any Error>?
+    private let renameStarted = TestLatch()
+
+    func accountLifecycleReview(
+        request: AccountLifecycleReviewRequest
+    ) async throws -> AccountLifecycleReview {
+        reviewCalls += 1
+        if let reviewError { throw reviewError }
+        guard let reviewResult else {
+            throw AccountLifecycleCommandError.invalidPreparedMutation
+        }
+        return reviewResult
+    }
+
+    func renameAccountAndRefresh(
+        budgetID: String,
+        command: AccountRenameCommand
+    ) async throws -> AccountLifecycleCommitResult {
+        renameCalls += 1
+        lastRenameCommand = command
+        renameStarted.trip()
+        if suspendRename {
+            return try await withCheckedThrowingContinuation { renameContinuation = $0 }
+        }
+        return renameResult ?? .applied(AccountLifecycleOutcome(
+            operation: .rename,
+            account: AccountLifecycleAccount(
+                id: command.accountID,
+                name: command.newName,
+                offBudget: false,
+                isClosed: false,
+                accountGroupID: "group"
+            )
+        ))
+    }
+
+    func reopenAccountAndRefresh(
+        budgetID: String,
+        command: AccountReopenCommand
+    ) async throws -> AccountLifecycleCommitResult {
+        reopenCalls += 1
+        lastReopenCommand = command
+        return reopenResult ?? .applied(AccountLifecycleOutcome(
+            operation: .reopen,
+            account: AccountLifecycleAccount(
+                id: command.accountID,
+                name: "Checking",
+                offBudget: false,
+                isClosed: false,
+                accountGroupID: "group"
+            )
+        ))
+    }
+
+    func waitForRenameStart() async {
+        await renameStarted.wait()
+    }
+
+    func finishRename(with result: AccountLifecycleCommitResult) {
+        suspendRename = false
+        renameContinuation?.resume(returning: result)
+        renameContinuation = nil
+    }
+}
