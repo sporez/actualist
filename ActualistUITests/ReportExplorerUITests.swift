@@ -9,6 +9,10 @@ final class ReportExplorerUITests: XCTestCase {
     func testAdaptiveReportEntryFiltersResetAndContributorDrilldownInDarkTheme() throws {
         prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
         let app = launchDemo(screen: "budget")
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
 
         try openReportsFromNativeNavigation(in: app)
         try openReportCard(named: "This Month", in: app)
@@ -30,6 +34,7 @@ final class ReportExplorerUITests: XCTestCase {
         assertSwitch("report-filter-uncategorized", equals: true, in: app)
 
         let noneButtons = try filterNoneButtons(in: app)
+        scrollUntilHittable(noneButtons[0], in: filterScroller(in: app), direction: .down)
         noneButtons[0].tap()
         scrollUntilHittable(noneButtons[1], in: filterScroller(in: app), direction: .up)
         noneButtons[1].tap()
@@ -97,14 +102,14 @@ final class ReportExplorerUITests: XCTestCase {
         app.buttons["Previous Month"].tap()
         let selectedMonth = waitForComparisonMonthChange(from: initialMonth, in: app)
         XCTAssertNotEqual(selectedMonth, initialMonth)
-        XCTAssertTrue(isSingleMonthRangeVisible(for: selectedMonth, in: app))
+        let expectedRange = try XCTUnwrap(completedMonthRangeTitle(for: selectedMonth))
+        XCTAssertTrue(app.staticTexts[expectedRange].waitForExistence(timeout: 8))
 
         openFilters(in: app)
-        let checking = app.switches["report-filter-account-checking"]
-        XCTAssertTrue(checking.waitForExistence(timeout: 5))
+        let checking = assertSwitch("report-filter-account-checking", equals: true, in: app)
         XCTAssertFalse(checking.label.contains("Everyday Checking"))
         XCTAssertFalse(app.staticTexts["Everyday Checking"].exists)
-        XCTAssertTrue(app.switches["report-filter-uncategorized"].exists)
+        assertSwitch("report-filter-uncategorized", equals: true, in: app)
         app.navigationBars["Report Filters"].buttons["Cancel"].tap()
         XCTAssertTrue(app.navigationBars["Report Filters"].waitForNonExistence(timeout: 5))
         attachScreenshot(named: "reports-average-light-privacy-ax-\(layoutName(in: app))", app: app)
@@ -115,8 +120,8 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertFalse(app.buttons["report-drilldown-button"].waitForExistence(timeout: 1))
 
         openFilters(in: app)
-        XCTAssertTrue(app.switches["report-filter-account-checking"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.switches["report-filter-off-budget"].exists)
+        assertSwitch("report-filter-account-checking", equals: true, in: app)
+        assertSwitch("report-filter-off-budget", equals: false, in: app)
         XCTAssertFalse(app.switches["report-filter-uncategorized"].exists)
         XCTAssertEqual(elements(in: app, identifierPrefix: "report-filter-category-").count, 0)
         attachScreenshot(named: "reports-net-worth-filter-light-privacy-ax-\(layoutName(in: app))", app: app)
@@ -185,7 +190,7 @@ final class ReportExplorerUITests: XCTestCase {
     }
 
     private func reportCard(named title: String, in app: XCUIApplication) -> XCUIElement {
-        app.buttons.containing(.staticText, identifier: title).firstMatch
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
     }
 
     private func returnToReports(from title: String, in app: XCUIApplication) {
@@ -215,7 +220,7 @@ final class ReportExplorerUITests: XCTestCase {
             for _ in 0..<5 where buttons.count < 2 { scroller.swipeUp() }
         }
         XCTAssertEqual(buttons.count, 2)
-        return buttons.allElementsBoundByIndex.sorted { $0.frame.minY < $1.frame.minY }
+        return buttons.allElementsBoundByIndex
     }
 
     private func revealCategoryGroup(_ title: String, in app: XCUIApplication) {
@@ -235,19 +240,27 @@ final class ReportExplorerUITests: XCTestCase {
         return month.label
     }
 
-    private func isSingleMonthRangeVisible(for monthTitle: String, in app: XCUIApplication) -> Bool {
-        let parts = monthTitle.split(separator: " ")
-        guard parts.count == 2 else { return false }
-        let monthPrefix = String(parts[0].prefix(3))
-        let year = String(parts[1])
-        let range = app.staticTexts.matching(
-            NSPredicate(
-                format: "label BEGINSWITH %@ AND label ENDSWITH %@ AND label CONTAINS '–'",
-                monthPrefix,
-                year
-            )
-        ).firstMatch
-        return range.waitForExistence(timeout: 5)
+    private func completedMonthRangeTitle(for monthTitle: String) -> String? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+
+        let monthFormatter = DateFormatter()
+        monthFormatter.calendar = calendar
+        monthFormatter.timeZone = calendar.timeZone
+        monthFormatter.locale = .current
+        monthFormatter.dateFormat = "MMMM yyyy"
+        guard let start = monthFormatter.date(from: monthTitle),
+              let nextMonth = calendar.date(byAdding: .month, value: 1, to: start),
+              let end = calendar.date(byAdding: .day, value: -1, to: nextMonth) else {
+            return nil
+        }
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.calendar = calendar
+        dayFormatter.timeZone = calendar.timeZone
+        dayFormatter.locale = .current
+        dayFormatter.dateFormat = "MMM d, yyyy"
+        return "\(dayFormatter.string(from: start)) – \(dayFormatter.string(from: end))"
     }
 
     private func waitForComparisonMonthChange(
@@ -265,8 +278,14 @@ final class ReportExplorerUITests: XCTestCase {
     }
 
     private func filterScroller(in app: XCUIApplication) -> XCUIElement {
-        let form = app.collectionViews.firstMatch
-        return form.exists ? form : app.scrollViews.firstMatch
+        let sheet = app.descendants(matching: .any)["report-filter-sheet"]
+        let form = sheet.descendants(matching: .collectionView)
+            .matching(NSPredicate(format: "hittable == true"))
+            .firstMatch
+        if form.exists { return form }
+        return sheet.descendants(matching: .scrollView)
+            .matching(NSPredicate(format: "hittable == true"))
+            .firstMatch
     }
 
     private func scrollUntilHittable(
@@ -286,15 +305,21 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertTrue(element.isHittable)
     }
 
-    private func assertSwitch(_ identifier: String, equals enabled: Bool, in app: XCUIApplication) {
+    @discardableResult
+    private func assertSwitch(
+        _ identifier: String,
+        equals enabled: Bool,
+        in app: XCUIApplication
+    ) -> XCUIElement {
         let toggle = app.switches[identifier]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        scrollUntilHittable(toggle, in: filterScroller(in: app), direction: .up)
         let expected = enabled ? "1" : "0"
         let value = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", expected),
             object: toggle
         )
         XCTAssertEqual(XCTWaiter.wait(for: [value], timeout: 5), .completed)
+        return toggle
     }
 
     private func setSampleValues(_ enabled: Bool, in app: XCUIApplication) {
