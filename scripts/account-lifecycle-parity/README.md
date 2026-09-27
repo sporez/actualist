@@ -13,6 +13,14 @@ every `#server/post` HTTP entry point and checks those seams before any case;
 unexpected methods fail rather than reaching a network. No Actual server URL,
 real token, bank account, or personal budget is used.
 
+Database and rule setup runs under loot-core's normal test environment. For
+each nonconcurrent case, the harness then fixes the clock at noon UTC on
+2026-09-27, temporarily selects Actual's real production-calendar path, and
+preflights the real `currentDay()` export before invoking handlers. That path
+remains active through schedule-service shutdown. Cleanup restores the exact
+prior `IS_TESTING` value and resets the clock even when a handler or cleanup
+step fails; the harness does not partially mock the cached months module.
+
 ## Ownership and prerequisites
 
 Only the sprint coordinator may run this oracle. The checkout passed to

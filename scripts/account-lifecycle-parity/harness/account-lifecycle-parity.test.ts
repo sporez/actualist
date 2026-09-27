@@ -19,6 +19,7 @@ import { app as schedulesApp } from '#server/schedules/app';
 import { setSyncingMode } from '#server/sync';
 import { loadRules } from '#server/transactions/transaction-rules';
 import { clearUndo } from '#server/undo';
+import { currentDay } from '#shared/months';
 
 import {
   accountRow,
@@ -74,6 +75,7 @@ type ClosingTransferResult = {
 };
 
 const cases: OracleCase[] = [];
+let previousIsTesting: boolean;
 const postMock = vi.mocked(serverPost.post);
 const tokenMock = vi.mocked(asyncStorage.getItem);
 const mockedTransportEntries = [
@@ -370,24 +372,50 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
-  vi.clearAllMocks();
-  await global.emptyDatabase()();
-  await loadMappings();
-  await loadRules();
-  clearUndo();
-  setSyncingMode('offline');
-  MockDate.set(`${FIXED_DAY}T12:00:00.000Z`);
-  tokenMock.mockResolvedValue(null);
-  postMock.mockRejectedValue(
-    new Error('Unexpected synthetic oracle post transport call'),
-  );
+  previousIsTesting = global.IS_TESTING;
+  try {
+    vi.clearAllMocks();
+    await global.emptyDatabase()();
+    await loadMappings();
+    await loadRules();
+    clearUndo();
+    setSyncingMode('offline');
+    tokenMock.mockResolvedValue(null);
+    postMock.mockRejectedValue(
+      new Error('Unexpected synthetic oracle post transport call'),
+    );
+
+    MockDate.set(`${FIXED_DAY}T12:00:00.000Z`);
+    global.IS_TESTING = false;
+    expect(currentDay()).toBe(FIXED_DAY);
+  } catch (error) {
+    try {
+      global.IS_TESTING = previousIsTesting;
+    } finally {
+      MockDate.reset();
+    }
+    throw error;
+  }
 });
 
 afterEach(async () => {
-  await schedulesApp.stopServices();
-  clearUndo();
-  setSyncingMode('disabled');
-  MockDate.reset();
+  try {
+    await schedulesApp.stopServices();
+  } finally {
+    try {
+      clearUndo();
+    } finally {
+      try {
+        setSyncingMode('disabled');
+      } finally {
+        try {
+          global.IS_TESTING = previousIsTesting;
+        } finally {
+          MockDate.reset();
+        }
+      }
+    }
+  }
 });
 
 afterAll(() => {
