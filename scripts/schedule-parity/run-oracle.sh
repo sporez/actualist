@@ -115,6 +115,13 @@ if [[ -e "$marker" ]]; then
   exit 65
 fi
 mkdir -p "$run_dir"
+synthetic_data_dir="$run_dir/synthetic-data"
+synthetic_data_cleanup_file="$run_dir/synthetic-data-cleanup.env"
+synthetic_data_created=0
+if [[ -e "$synthetic_data_dir" ]]; then
+  echo 'schedule parity oracle: synthetic data directory already exists' >&2
+  exit 66
+fi
 
 node_path=$(command -v node)
 yarn_bootstrap_path=$(command -v yarn || true)
@@ -196,6 +203,38 @@ supervisor_pgid_file="$run_dir/supervisor-child-pgid"
 
 cleanup_overlay() {
   rm -f "$test_target" "$support_target"
+}
+
+cleanup_synthetic_data() {
+  local cleanup_status='not-created'
+  local result=0
+  if [[ "$synthetic_data_created" -eq 1 ]]; then
+    case "$synthetic_data_dir" in
+      "$run_dir"/*)
+        if rm -rf -- "$synthetic_data_dir" && [[ ! -e "$synthetic_data_dir" ]]; then
+          cleanup_status='removed'
+        else
+          cleanup_status='blocked'
+          result=1
+        fi
+        ;;
+      *)
+        cleanup_status='refused-outside-run-directory'
+        result=1
+        ;;
+    esac
+  fi
+  printf 'path=%s\nstatus=%s\n' \
+    "$synthetic_data_dir" \
+    "$cleanup_status" > "$synthetic_data_cleanup_file"
+  return "$result"
+}
+
+cleanup_owned_files() {
+  local result=0
+  cleanup_overlay || result=1
+  cleanup_synthetic_data || result=1
+  return "$result"
 }
 
 owned_child_pgid() {
@@ -307,8 +346,11 @@ shell_interrupted() {
   local exit_status=$1
   trap - EXIT INT TERM
   if terminate_owned_processes; then
-    cleanup_overlay
-    record_run_outcome "$exit_status" interrupted
+    if cleanup_owned_files; then
+      record_run_outcome "$exit_status" interrupted
+    else
+      record_run_outcome "$exit_status" interrupted-cleanup-blocked
+    fi
   else
     record_run_outcome "$exit_status" interrupted-cleanup-blocked
   fi
@@ -324,7 +366,9 @@ shell_exited() {
     capture_post_cleanup_status
     exit "$exit_status"
   fi
-  cleanup_overlay
+  if ! cleanup_owned_files; then
+    record_run_outcome "$exit_status" exit-cleanup-blocked
+  fi
   capture_post_cleanup_status
   exit "$exit_status"
 }
@@ -332,6 +376,8 @@ trap 'shell_exited $?' EXIT
 trap 'shell_interrupted 130' INT
 trap 'shell_interrupted 143' TERM
 
+mkdir -m 700 "$synthetic_data_dir"
+synthetic_data_created=1
 cp "$script_dir/cross-client-occurrence.test.ts" "$test_target"
 cp "$script_dir/schedule-occurrence-oracle-support.ts" "$support_target"
 mkdir -p "$run_dir/oracle-source"
@@ -360,6 +406,9 @@ cp "$script_dir/run-oracle.sh" "$run_dir/oracle-source/run-oracle.sh"
   printf 'termination_grace_seconds=%s\n' "$TERMINATION_GRACE_SECONDS"
   printf 'outer_termination_max_seconds=%s\n' \
     "$((TERMINATION_GRACE_SECONDS * 3))"
+  printf 'actual_data_dir=%s\n' "$synthetic_data_dir"
+  printf 'actual_data_dir_ownership=run-label-exclusive-synthetic-temporary\n'
+  printf 'actual_data_dir_mode=700\n'
   printf 'run_label=%s\n' "$run_label"
   printf 'source_checkout=%s\n' "$source_checkout"
   printf 'actual_checkout=%s\n' "$actual_checkout"
@@ -392,7 +441,7 @@ cp "$script_dir/run-oracle.sh" "$run_dir/oracle-source/run-oracle.sh"
 } > "$run_dir/provenance.env"
 
 cat > "$run_dir/exact-command.txt" <<EOF
-cd '$actual_checkout' && PATH='$(dirname "$node_path")':"\$PATH" TZ='$ORACLE_TZ' ENV=node ACTUAL_SCHEDULE_PARITY_EVIDENCE='$run_dir/oracle-result.json' '$node_path' '$yarn_release_path' workspace @actual-app/core exec '$vitest_path' --run src/server/schedules/cross-client-occurrence.test.ts --reporter=verbose --bail=1
+cd '$actual_checkout' && PATH='$(dirname "$node_path")':"\$PATH" TZ='$ORACLE_TZ' ENV=node ACTUAL_DATA_DIR='$synthetic_data_dir' ACTUAL_SCHEDULE_PARITY_EVIDENCE='$run_dir/oracle-result.json' '$node_path' '$yarn_release_path' workspace @actual-app/core exec '$vitest_path' --run src/server/schedules/cross-client-occurrence.test.ts --reporter=verbose --bail=1
 EOF
 
 printf '%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "$marker"
@@ -404,6 +453,7 @@ supervisor_expected=1
   "$actual_checkout" \
   "$run_dir/oracle.log" \
   "$run_dir/oracle-result.json" \
+  "$synthetic_data_dir" \
   "$supervisor_pid_file" \
   "$supervisor_pgid_file" \
   "$ORACLE_TZ" \
@@ -421,16 +471,17 @@ grace = int(sys.argv[2])
 cwd = sys.argv[3]
 log_path = sys.argv[4]
 result_path = sys.argv[5]
-supervisor_pid_path = sys.argv[6]
-pgid_path = sys.argv[7]
-timezone = sys.argv[8]
+actual_data_dir = sys.argv[6]
+supervisor_pid_path = sys.argv[7]
+pgid_path = sys.argv[8]
+timezone = sys.argv[9]
 command = [
-    sys.argv[9],
     sys.argv[10],
+    sys.argv[11],
     'workspace',
     '@actual-app/core',
     'exec',
-    sys.argv[11],
+    sys.argv[12],
     '--run',
     'src/server/schedules/cross-client-occurrence.test.ts',
     '--reporter=verbose',
@@ -438,9 +489,10 @@ command = [
 ]
 environment = os.environ.copy()
 environment.update({
+    'ACTUAL_DATA_DIR': actual_data_dir,
     'ACTUAL_SCHEDULE_PARITY_EVIDENCE': result_path,
     'ENV': 'node',
-    'PATH': os.path.dirname(sys.argv[9]) + os.pathsep + environment['PATH'],
+    'PATH': os.path.dirname(sys.argv[10]) + os.pathsep + environment['PATH'],
     'TZ': timezone,
 })
 requested_signal = None
@@ -521,11 +573,10 @@ case "$oracle_status" in
     outcome='completed-failure'
     ;;
 esac
-printf 'outcome=%s\nstatus=%s\n' \
-  "$outcome" \
-  "$oracle_status" > "$run_dir/outcome.env"
-
-cleanup_overlay
+if ! cleanup_owned_files; then
+  outcome="${outcome}-cleanup-blocked"
+fi
+record_run_outcome "$oracle_status" "$outcome"
 capture_post_cleanup_status
 trap - EXIT INT TERM
 exit "$oracle_status"

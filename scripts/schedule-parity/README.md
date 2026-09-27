@@ -18,10 +18,23 @@ CRDT replay is asserted independently from that result.
 - Required prepared tools: Node `24.21.x`, Yarn `4.17.1`, and the checkout's
   installed Vitest executable.
 - Runtime timezone is pinned to `UTC` and recorded.
+- Native SQLite export requires `ACTUAL_DATA_DIR` because the pinned electron
+  backend backs an in-memory database up to a temporary file before reading its
+  bytes. The runner supplies a new mode-700 synthetic directory owned by the run
+  label, records it, and removes it only after the owned process group stops.
+- The same backend reopens serialized in-memory databases only from a Node
+  `Buffer`; the overlay converts its peer byte copies back to `Buffer` at that
+  boundary. Baselines otherwise stay in `:memory:` databases. Test-mode prefs
+  avoid document-directory writes, and Vitest mocks async storage, so no other
+  filesystem root is required by this harness.
 - Inputs are synthetic accounts, schedules, rules, and transactions only.
 - Peers are cloned from one local baseline, assigned different CRDT clock nodes,
   kept offline, and activated sequentially because loot-core owns one global
   database/runtime at a time.
+- The fixed peer matrix uses unique deterministic 16-character hexadecimal
+  clock-node IDs. Human-readable peer labels remain evidence labels only. Before
+  case 1, the harness rejects duplicate/invalid IDs and verifies every node
+  through Actual's serialized-clock format and `Timestamp.parse` round trip.
 - Vitest replaces `uuid.v4` with one deterministic process-global counter.
   Production handlers use random UUIDs. Distinct oracle IDs prove separate
   generation events; they do not prove production randomness.
@@ -58,7 +71,6 @@ WORK=${ACTUAL_ORACLE_CLONE:?set-distinct-writable-clone-path}
 EVIDENCE=${ACTUAL_ORACLE_EVIDENCE:?set-evidence-root-path}
 test ! -e "$WORK"
 cp -cR "$SOURCE" "$WORK"
-mkdir -p "$EVIDENCE"
 scripts/schedule-parity/run-oracle.sh \
   --source-checkout "$SOURCE" \
   --actual-checkout "$WORK" \
@@ -81,6 +93,10 @@ Each label writes only beneath `$EVIDENCE/<run-label>/`; a correction cannot
 overwrite the investigation's result, log, source, provenance, command, status,
 or cleanup evidence. Do not rename labels or create another evidence root to
 evade the allowance.
+
+The failed `investigation` evidence is durable and must remain untouched. The
+remaining authorized invocation uses `post-correction`, including its own
+synthetic data directory and evidence files.
 
 The single Vitest invocation contains one sequential test. It stops at the first
 failed invariant. The active case is checkpointed after each captured batch,
@@ -136,6 +152,8 @@ For each run label, the runner writes:
 - `exact-command.txt`: the exact single Vitest command using the recorded paths.
 - `oracle.log`, `oracle.exit`, and `outcome.env`: complete output, numeric status,
   and completed/timeout/interrupted classification.
+- `synthetic-data-cleanup.env`: the exact native-SQLite temporary directory and
+  whether it was removed, blocked, or never created.
 - `oracle-result.json`: top-level completion/failure and conditionally derived
   product-gate finding; completed cases plus the checkpointed current case; raw
   outbound CRDT batches; before/after exchange snapshots; transaction IDs,

@@ -19,6 +19,7 @@ import type { RuleActionEntity, RuleConditionEntity } from '#types/models';
 import {
   activatePeer,
   applyBatch,
+  assertPeerNodeClockRoundTrips,
   captureOperation,
   closeOracleDatabase,
   exportSeedDatabase,
@@ -38,6 +39,44 @@ import {
 const EXPECTED_COMMIT = '59fe126f637d858c061e1eeedbef5436c8f2225a';
 const TODAY = '2026-09-27';
 const evidencePath = process.env.ACTUAL_SCHEDULE_PARITY_EVIDENCE;
+
+// Actual's serialized HULC format permits a 16-character node field with no
+// hyphens. Keep opaque clock identities separate from human-readable labels.
+const PEER_NODE_IDS = {
+  case1Actual: '0000000000000001',
+  case1Peer: '0000000000000002',
+  case2Actual: '0000000000000003',
+  case2Peer: '0000000000000004',
+  case3Manual: '0000000000000005',
+  case3Automatic: '0000000000000006',
+  case4Actual: '0000000000000007',
+  case4Peer: '0000000000000008',
+  case5Manual: '0000000000000009',
+  case5Automatic: '000000000000000A',
+  case5ObserverAB: '000000000000000B',
+  case5ObserverBA: '000000000000000C',
+  case6ActualLeft: '000000000000000D',
+  case6ActualRight: '000000000000000E',
+  case6ActualObserverAB: '000000000000000F',
+  case6ActualObserverBA: '0000000000000010',
+  case6ActualistLeftSurrogate: '0000000000000011',
+  case6ActualistLeftActual: '0000000000000012',
+  case6ActualistLeftObserverAB: '0000000000000013',
+  case6ActualistLeftObserverBA: '0000000000000014',
+  case6ActualistRightActual: '0000000000000015',
+  case6ActualistRightSurrogate: '0000000000000016',
+  case6ActualistRightObserverAB: '0000000000000017',
+  case6ActualistRightObserverBA: '0000000000000018',
+  case7SplitSource: '0000000000000019',
+  case7SplitReceiver: '000000000000001A',
+  case7TransferSource: '000000000000001B',
+  case7TransferReceiver: '000000000000001C',
+} as const;
+
+type ObserverNodeIDs = {
+  aThenB: string;
+  bThenA: string;
+};
 
 type CaseEvidence = {
   acceptance: Record<string, unknown>;
@@ -294,16 +333,26 @@ async function automaticAdvance(peer: Peer, operation: string) {
 async function mergeBothOrders({
   batchA,
   batchB,
+  observerNodeIDs,
   scheduleID,
   seed,
 }: {
   batchA: CapturedBatch;
   batchB: CapturedBatch;
+  observerNodeIDs: ObserverNodeIDs;
   scheduleID: string;
   seed: Uint8Array;
 }) {
-  const observerAB = await makePeer(seed, 'observer-a-then-b', 'observer-ab');
-  const observerBA = await makePeer(seed, 'observer-b-then-a', 'observer-ba');
+  const observerAB = await makePeer(
+    seed,
+    'observer-a-then-b',
+    observerNodeIDs.aThenB,
+  );
+  const observerBA = await makePeer(
+    seed,
+    'observer-b-then-a',
+    observerNodeIDs.bThenA,
+  );
 
   const abFirst = await applyAndRecord(observerAB, batchA, scheduleID);
   const abSecond = await applyAndRecord(observerAB, batchB, scheduleID);
@@ -342,8 +391,12 @@ async function caseOneTimeManualThenPeerAdvance(): Promise<CaseEvidence> {
     id: 'case-1-one-time',
     postsTransaction: false,
   });
-  const actual = await makePeer(seed, 'actual-manual', 'case1-actual');
-  const peer = await makePeer(seed, 'peer-advance', 'case1-peer');
+  const actual = await makePeer(
+    seed,
+    'actual-manual',
+    PEER_NODE_IDS.case1Actual,
+  );
+  const peer = await makePeer(seed, 'peer-advance', PEER_NODE_IDS.case1Peer);
   const before = await snapshotAndRecord(actual, 'before', scheduleID);
   const posted = await manualPost(actual, scheduleID);
   const exchange = await applyAndRecord(peer, posted, scheduleID);
@@ -418,8 +471,12 @@ async function caseRecurringManualSameDayRerun(): Promise<CaseEvidence> {
     id: 'case-2-recurring',
     postsTransaction: false,
   });
-  const actual = await makePeer(seed, 'actual-manual', 'case2-actual');
-  const peer = await makePeer(seed, 'peer-advance', 'case2-peer');
+  const actual = await makePeer(
+    seed,
+    'actual-manual',
+    PEER_NODE_IDS.case2Actual,
+  );
+  const peer = await makePeer(seed, 'peer-advance', PEER_NODE_IDS.case2Peer);
   const posted = await manualPost(actual, scheduleID);
   const exchange = await applyAndRecord(peer, posted, scheduleID);
   const advanced = await automaticAdvance(peer, 'advance-recurring');
@@ -525,8 +582,16 @@ async function caseMissedCatchUp(): Promise<CaseEvidence> {
     id: 'case-3-missed-catchup',
     postsTransaction: true,
   });
-  const manualPeer = await makePeer(seed, 'actual-manual', 'case3-manual');
-  const automaticPeer = await makePeer(seed, 'peer-catchup', 'case3-auto');
+  const manualPeer = await makePeer(
+    seed,
+    'actual-manual',
+    PEER_NODE_IDS.case3Manual,
+  );
+  const automaticPeer = await makePeer(
+    seed,
+    'peer-catchup',
+    PEER_NODE_IDS.case3Automatic,
+  );
   const manual = await manualPost(manualPeer, scheduleID);
   const manualSnapshot = await snapshotAndRecord(
     manualPeer,
@@ -616,8 +681,12 @@ async function caseApproximatePostToday(): Promise<CaseEvidence> {
     id: 'case-4-approximate',
     postsTransaction: false,
   });
-  const actual = await makePeer(seed, 'actual-post-today', 'case4-actual');
-  const peer = await makePeer(seed, 'peer-advance', 'case4-peer');
+  const actual = await makePeer(
+    seed,
+    'actual-post-today',
+    PEER_NODE_IDS.case4Actual,
+  );
+  const peer = await makePeer(seed, 'peer-advance', PEER_NODE_IDS.case4Peer);
   const posted = await manualPost(actual, scheduleID, true);
   const exchange = await applyAndRecord(peer, posted, scheduleID);
   const advanced = await automaticAdvance(peer, 'advance-after-post-today');
@@ -667,8 +736,16 @@ async function caseManualVersusAutomatic(): Promise<CaseEvidence> {
     id: 'case-5-manual-vs-auto',
     postsTransaction: true,
   });
-  const manualPeer = await makePeer(seed, 'actual-manual', 'case5-manual');
-  const automaticPeer = await makePeer(seed, 'actual-automatic', 'case5-auto');
+  const manualPeer = await makePeer(
+    seed,
+    'actual-manual',
+    PEER_NODE_IDS.case5Manual,
+  );
+  const automaticPeer = await makePeer(
+    seed,
+    'actual-automatic',
+    PEER_NODE_IDS.case5Automatic,
+  );
   const manual = await manualPost(manualPeer, scheduleID);
   const automatic = await automaticAdvance(automaticPeer, 'automatic-service');
   const manualIsolated = await snapshotAndRecord(
@@ -691,6 +768,10 @@ async function caseManualVersusAutomatic(): Promise<CaseEvidence> {
   const merged = await mergeBothOrders({
     batchA: manual,
     batchB: automatic,
+    observerNodeIDs: {
+      aThenB: PEER_NODE_IDS.case5ObserverAB,
+      bThenA: PEER_NODE_IDS.case5ObserverBA,
+    },
     scheduleID,
     seed,
   });
@@ -759,10 +840,17 @@ async function caseManualVersusAutomatic(): Promise<CaseEvidence> {
 async function automaticCollisionScenario({
   id,
   leftLabel,
+  nodeIDs,
   rightLabel,
 }: {
   id: string;
   leftLabel: string;
+  nodeIDs: {
+    left: string;
+    observerAB: string;
+    observerBA: string;
+    right: string;
+  };
   rightLabel: string;
 }) {
   const { scheduleID, seed } = await createBaseSchedule({
@@ -770,8 +858,8 @@ async function automaticCollisionScenario({
     id,
     postsTransaction: true,
   });
-  const left = await makePeer(seed, leftLabel, `${id}-left`);
-  const right = await makePeer(seed, rightLabel, `${id}-right`);
+  const left = await makePeer(seed, leftLabel, nodeIDs.left);
+  const right = await makePeer(seed, rightLabel, nodeIDs.right);
   const leftBatch = await automaticAdvance(left, `${leftLabel}-automatic-service`);
   const rightBatch = await automaticAdvance(
     right,
@@ -805,6 +893,10 @@ async function automaticCollisionScenario({
   const merged = await mergeBothOrders({
     batchA: leftBatch,
     batchB: rightBatch,
+    observerNodeIDs: {
+      aThenB: nodeIDs.observerAB,
+      bThenA: nodeIDs.observerBA,
+    },
     scheduleID,
     seed,
   });
@@ -844,16 +936,34 @@ async function caseAutomaticVersusAutomatic(): Promise<CaseEvidence> {
   const actualPeers = await automaticCollisionScenario({
     id: 'case-6-actual-vs-actual',
     leftLabel: 'actual-a',
+    nodeIDs: {
+      left: PEER_NODE_IDS.case6ActualLeft,
+      observerAB: PEER_NODE_IDS.case6ActualObserverAB,
+      observerBA: PEER_NODE_IDS.case6ActualObserverBA,
+      right: PEER_NODE_IDS.case6ActualRight,
+    },
     rightLabel: 'actual-b',
   });
   const actualistLeft = await automaticCollisionScenario({
     id: 'case-6-actualist-left-surrogate',
     leftLabel: 'actualist-candidate-surrogate-using-actual-handler',
+    nodeIDs: {
+      left: PEER_NODE_IDS.case6ActualistLeftSurrogate,
+      observerAB: PEER_NODE_IDS.case6ActualistLeftObserverAB,
+      observerBA: PEER_NODE_IDS.case6ActualistLeftObserverBA,
+      right: PEER_NODE_IDS.case6ActualistLeftActual,
+    },
     rightLabel: 'actual',
   });
   const actualistRight = await automaticCollisionScenario({
     id: 'case-6-actualist-right-surrogate',
     leftLabel: 'actual',
+    nodeIDs: {
+      left: PEER_NODE_IDS.case6ActualistRightActual,
+      observerAB: PEER_NODE_IDS.case6ActualistRightObserverAB,
+      observerBA: PEER_NODE_IDS.case6ActualistRightObserverBA,
+      right: PEER_NODE_IDS.case6ActualistRightSurrogate,
+    },
     rightLabel: 'actualist-candidate-surrogate-using-actual-handler',
   });
 
@@ -956,11 +1066,15 @@ async function splitScheduleEvidence(): Promise<{
     configuredRule.rawRule,
   );
   const seed = await exportSeedDatabase();
-  const sourcePeer = await makePeer(seed, 'actual-split', 'case7-split-source');
+  const sourcePeer = await makePeer(
+    seed,
+    'actual-split',
+    PEER_NODE_IDS.case7SplitSource,
+  );
   const receiverPeer = await makePeer(
     seed,
     'split-receiver',
-    'case7-split-recv',
+    PEER_NODE_IDS.case7SplitReceiver,
   );
   const batch = await manualPost(sourcePeer, scheduleID);
   const source = await snapshotAndRecord(
@@ -1043,12 +1157,12 @@ async function transferScheduleEvidence(): Promise<{
   const sourcePeer = await makePeer(
     seed,
     'actual-transfer',
-    'case7-transfer-source',
+    PEER_NODE_IDS.case7TransferSource,
   );
   const receiverPeer = await makePeer(
     seed,
     'transfer-receiver',
-    'case7-transfer-recv',
+    PEER_NODE_IDS.case7TransferReceiver,
   );
   const batch = await manualPost(sourcePeer, scheduleID);
   const source = await snapshotAndRecord(
@@ -1153,6 +1267,7 @@ describe('Actual v26.9.0 cross-client schedule occurrence identity oracle', () =
     ];
 
     try {
+      assertPeerNodeClockRoundTrips(PEER_NODE_IDS);
       for (const item of cases) {
         beginCase(item.name);
         const result = await item.run();

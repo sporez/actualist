@@ -16,10 +16,11 @@ struct SchedulesViewModelTests {
             entered: ["budget": entered],
             release: ["budget": release]
         )
-        let model = SchedulesViewModel()
+        let context = context()
+        let model = SchedulesViewModel(context: context)
 
         let task = Task {
-            await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+            await model.load(context: context, repository: repository)
         }
         await entered.wait()
 
@@ -43,15 +44,16 @@ struct SchedulesViewModelTests {
                 ]
             )
         ])
-        let model = SchedulesViewModel()
-        await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        await model.load(context: context, repository: repository)
 
-        #expect(model.sections.flatMap(\.schedules).map(\.id) == ["cafe"])
+        #expect(model.sections.flatMap(\.rows).map(\.id) == ["cafe"])
         model.searchText = "CAFE"
-        #expect(model.sections.flatMap(\.schedules).map(\.id) == ["cafe"])
+        #expect(model.sections.flatMap(\.rows).map(\.id) == ["cafe"])
         model.searchText = ""
         model.showsCompleted = true
-        #expect(Set(model.sections.flatMap(\.schedules).map(\.id)) == ["cafe", "done"])
+        #expect(Set(model.sections.flatMap(\.rows).map(\.id)) == ["cafe", "done"])
     }
 
     @Test func searchUsesThePreparedDisplayedAmountLabel() async {
@@ -63,11 +65,17 @@ struct SchedulesViewModelTests {
                 schedules: [summary(id: "rent", name: "Rent", amount: amount, status: .upcoming)]
             )
         ])
-        let model = SchedulesViewModel(currency: currency)
-        await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+        let context = context(currency: currency)
+        let model = SchedulesViewModel(context: context)
+        await model.load(context: context, repository: repository)
 
-        model.searchText = SchedulePresentation.amountLabel(amount, currency: currency)
-        #expect(model.sections.flatMap(\.schedules).map(\.id) == ["rent"])
+        model.searchText = SchedulePresentation.amountLabel(
+            amount,
+            currency: currency,
+            privacyEnabled: false,
+            seed: "schedule-rent"
+        )
+        #expect(model.sections.flatMap(\.rows).map(\.id) == ["rent"])
     }
 
     @Test func emptyAndErrorStatesDoNotDiscardCachedData() async {
@@ -76,8 +84,9 @@ struct SchedulesViewModelTests {
             cached: ["budget": cached],
             results: ["budget": .failure(ScheduleTestError.failed)]
         )
-        let model = SchedulesViewModel()
-        await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        await model.load(context: context, repository: repository)
 
         #expect(model.snapshot == cached)
         #expect(model.errorMessage != nil)
@@ -97,14 +106,16 @@ struct SchedulesViewModelTests {
             entered: ["old": oldEntered, "new": newEntered],
             release: ["old": oldRelease, "new": newRelease]
         )
-        let model = SchedulesViewModel()
+        let oldContext = context(budgetID: "old")
+        let newContext = context(budgetID: "new")
+        let model = SchedulesViewModel(context: oldContext)
 
         let oldTask = Task {
-            await model.load(budgetID: "old", repository: repository, today: "2026-09-27")
+            await model.load(context: oldContext, repository: repository)
         }
         await oldEntered.wait()
         let newTask = Task {
-            await model.load(budgetID: "new", repository: repository, today: "2026-09-27")
+            await model.load(context: newContext, repository: repository)
         }
         await newEntered.wait()
         newRelease.trip()
@@ -124,9 +135,10 @@ struct SchedulesViewModelTests {
             entered: ["budget": entered],
             release: ["budget": release]
         )
-        let model = SchedulesViewModel()
+        let context = context()
+        let model = SchedulesViewModel(context: context)
         let task = Task {
-            await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+            await model.load(context: context, repository: repository)
         }
         await entered.wait()
         model.cancelLoad()
@@ -146,9 +158,10 @@ struct SchedulesViewModelTests {
             entered: ["budget": entered],
             release: ["budget": release]
         )
-        let model = SchedulesViewModel()
+        let context = context()
+        let model = SchedulesViewModel(context: context)
         let task = Task {
-            await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+            await model.load(context: context, repository: repository)
         }
         await entered.wait()
 
@@ -159,6 +172,75 @@ struct SchedulesViewModelTests {
         #expect(model.snapshot == nil)
         #expect(!model.isLoading)
         #expect(!model.isRefreshing)
+    }
+
+    @Test func statusGroupsStayDistinctAndCompletedRemainsCollapsed() async {
+        let schedules = ScheduleStatus.allCases.map {
+            summary(id: $0.rawValue, name: $0.rawValue, status: $0)
+        }
+        let repository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", schedules: schedules)
+        ])
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        await model.load(context: context, repository: repository)
+
+        #expect(model.sections.map(\.kind) == [.missed, .due, .upcoming, .paid, .later])
+        model.showsCompleted = true
+        #expect(model.sections.map(\.kind) == [.missed, .due, .upcoming, .paid, .later, .completed])
+    }
+
+    @Test func displayContextChangeClearsSearchAndReprojectsPrivacyAndCurrency() async {
+        let repository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(
+                budgetID: "budget",
+                schedules: [summary(id: "rent", name: "Real Rent", amount: .exact(-12_500), status: .due)]
+            )
+        ])
+        let visibleContext = context(currency: .usd)
+        let model = SchedulesViewModel(context: visibleContext)
+        await model.load(context: visibleContext, repository: repository)
+        model.searchText = "Real Rent"
+
+        let privateContext = context(currency: .jpy, privacyModeEnabled: true)
+        await model.load(context: privateContext, repository: repository)
+        let row = model.sections.first?.rows.first
+
+        #expect(model.searchText.isEmpty)
+        #expect(row?.title.hasPrefix("Sample Schedule ") == true)
+        #expect(row?.title != "Real Rent")
+        #expect(row?.referenceText != "No payee • Checking")
+        #expect(row?.amountText != BudgetCurrency.usd.formatted(-12_500))
+    }
+
+    @Test func sessionGenerationChangeClearsPriorSnapshotBeforeRefreshCompletes() async {
+        let originalRepository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", ids: ["old"])
+        ])
+        let originalContext = context(sessionGeneration: 1)
+        let model = SchedulesViewModel(context: originalContext)
+        await model.load(context: originalContext, repository: originalRepository)
+
+        let entered = TestLatch()
+        let release = TestLatch()
+        let nextRepository = ScheduleRepositoryFake(
+            cached: ["budget": snapshot(budgetID: "budget", ids: ["stale-cache"])],
+            results: ["budget": .success(snapshot(budgetID: "budget", ids: ["new"]))],
+            entered: ["budget": entered],
+            release: ["budget": release]
+        )
+        let nextContext = context(sessionGeneration: 2)
+        let task = Task {
+            await model.load(context: nextContext, repository: nextRepository)
+        }
+        await entered.wait()
+
+        #expect(model.snapshot == nil)
+        #expect(model.isLoading)
+
+        release.trip()
+        await task.value
+        #expect(model.snapshot?.schedules.map(\.id) == ["new"])
     }
 
     private func snapshot(budgetID: String, ids: [String]) -> LoadedSchedules {
@@ -191,6 +273,23 @@ struct SchedulesViewModelTests {
             postsTransaction: false,
             sortOrder: nil,
             unsupportedReasons: []
+        )
+    }
+
+    private func context(
+        budgetID: String = "budget",
+        sessionGeneration: Int = 1,
+        currency: BudgetCurrency = .usd,
+        privacyModeEnabled: Bool = false
+    ) -> SchedulesViewContext {
+        SchedulesViewContext(
+            identity: SchedulesBudgetIdentity(
+                budgetID: budgetID,
+                sessionGeneration: sessionGeneration
+            ),
+            currency: currency,
+            isPrivacyModeEnabled: privacyModeEnabled,
+            asOfDayID: "2026-09-27"
         )
     }
 }
