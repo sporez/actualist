@@ -8,9 +8,10 @@ evidence into Actualist's fixture directory.
 It is intentionally not a reimplementation of account lifecycle behavior. The
 harness calls `account-update`, `account-reopen`, `account-close`,
 `account-unlink`, schedule creation/advancement, and History undo through the
-pinned loot-core handler/mutator stack. Provider HTTP calls remain mocked by
-loot-core's normal node-test setup. No Actual server URL, token, bank account,
-or personal budget is used.
+pinned loot-core handler/mutator stack. The harness installs explicit mocks for
+every `#server/post` HTTP entry point and checks those seams before any case;
+unexpected methods fail rather than reaching a network. No Actual server URL,
+real token, bank account, or personal budget is used.
 
 ## Ownership and prerequisites
 
@@ -53,10 +54,12 @@ packages/loot-core/src/server/accounts/account-lifecycle-parity-support.ts
 .actualist-account-lifecycle-process.json
 ```
 
-The generator makes no network or server request. Provider calls remain inside
-loot-core's node-test `#server/post` mock. If a timed-out owned process group
-cannot be confirmed stopped, the generator reports its process-group ID and
-retains these temporary paths instead of claiming safe cleanup.
+The generator makes no network or server request. The overlaid harness replaces
+all `#server/post` HTTP exports; only its `post` spy accepts the synthetic
+GoCardless removal cases, while every other transport fails on invocation. If a
+timed-out owned process group cannot be confirmed stopped, the generator reports
+its process-group ID and retains these temporary paths instead of claiming safe
+cleanup.
 
 Every runtime attempt archives a unique evidence directory before cleanup or
 fixture promotion. Depending on which checkpoints were reached, it contains:

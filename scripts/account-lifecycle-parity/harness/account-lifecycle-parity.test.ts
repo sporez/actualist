@@ -1,12 +1,20 @@
 import MockDate from 'mockdate';
-import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  expect,
+  test,
+  vi,
+} from 'vitest';
 
 import * as asyncStorage from '#platform/server/asyncStorage';
 import * as db from '#server/db';
 import { loadMappings } from '#server/db/mappings';
 import { handlers } from '#server/main';
 import { runHandler } from '#server/mutators';
-import { post } from '#server/post';
+import * as serverPost from '#server/post';
 import { app as schedulesApp } from '#server/schedules/app';
 import { setSyncingMode } from '#server/sync';
 import { loadRules } from '#server/transactions/transaction-rules';
@@ -29,6 +37,23 @@ import {
   type OracleCase,
 } from './account-lifecycle-parity-support';
 
+vi.mock('#server/post', async importOriginal => {
+  const actual = await importOriginal<typeof import('#server/post')>();
+  const rejectUnexpectedTransport = (method: string) =>
+    vi.fn(() => {
+      throw new Error(`Unexpected synthetic oracle ${method} transport call`);
+    });
+
+  return {
+    ...actual,
+    del: rejectUnexpectedTransport('del'),
+    get: rejectUnexpectedTransport('get'),
+    patch: rejectUnexpectedTransport('patch'),
+    post: vi.fn(),
+    postBinary: rejectUnexpectedTransport('postBinary'),
+  };
+});
+
 type AccountSeed = {
   id: string;
   name: string;
@@ -49,8 +74,15 @@ type ClosingTransferResult = {
 };
 
 const cases: OracleCase[] = [];
-const postMock = vi.mocked(post);
+const postMock = vi.mocked(serverPost.post);
 const tokenMock = vi.mocked(asyncStorage.getItem);
+const mockedTransportEntries = [
+  ['del', serverPost.del],
+  ['get', serverPost.get],
+  ['patch', serverPost.patch],
+  ['post', serverPost.post],
+  ['postBinary', serverPost.postBinary],
+] as const;
 
 function jsonObject(value: unknown): Record<string, JSONValue> {
   const normalized: unknown = JSON.parse(JSON.stringify(value));
@@ -322,6 +354,21 @@ async function runClosingTransfer({
   };
 }
 
+beforeAll(() => {
+  if (!vi.isMockFunction(asyncStorage.getItem)) {
+    throw new Error(
+      'Account lifecycle oracle requires mocked asyncStorage.getItem',
+    );
+  }
+  for (const [name, transport] of mockedTransportEntries) {
+    if (!vi.isMockFunction(transport)) {
+      throw new Error(
+        `Account lifecycle oracle requires mocked #server/post.${name}`,
+      );
+    }
+  }
+});
+
 beforeEach(async () => {
   vi.clearAllMocks();
   await global.emptyDatabase()();
@@ -331,7 +378,9 @@ beforeEach(async () => {
   setSyncingMode('offline');
   MockDate.set(`${FIXED_DAY}T12:00:00.000Z`);
   tokenMock.mockResolvedValue(null);
-  postMock.mockResolvedValue({});
+  postMock.mockRejectedValue(
+    new Error('Unexpected synthetic oracle post transport call'),
+  );
 });
 
 afterEach(async () => {
@@ -1003,6 +1052,7 @@ test('GoCardless last bank reference calls mocked remote removal', async () => {
     },
   });
   tokenMock.mockResolvedValue('synthetic-token');
+  postMock.mockResolvedValueOnce({});
   clearUndo();
   const marker = await crdtMarker();
   await runHandler(
