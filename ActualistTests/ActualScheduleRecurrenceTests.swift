@@ -7,7 +7,6 @@ struct ActualScheduleRecurrenceTests {
     @Test func oneTimeDateIsRepresentedOutsideRecurrence() {
         let rule = ScheduleDateRule.oneTime(dayID: "2026-09-30", operation: "is")
         #expect(rule.recurrence == nil)
-        #expect(rule.usesExactOccurrenceMatching)
     }
 
     @Test func dailyAndInterval() throws {
@@ -154,6 +153,25 @@ struct ActualScheduleRecurrenceTests {
                 ])
             )
         }
+        #expect(throws: ActualScheduleRecurrenceError.invalidWeekendAdjustment) {
+            _ = try ScheduleRuleProjection.recurrence(
+                from: .object([
+                    "start": .string("2026-09-01"),
+                    "frequency": .string("daily"),
+                    "skipWeekend": .bool(true)
+                ])
+            )
+        }
+        #expect(throws: ActualScheduleRecurrenceError.invalidWeekendAdjustment) {
+            _ = try ScheduleRuleProjection.recurrence(
+                from: .object([
+                    "start": .string("2026-09-01"),
+                    "frequency": .string("daily"),
+                    "skipWeekend": .bool(true),
+                    "weekendSolveMode": .string("nearest")
+                ])
+            )
+        }
     }
 
     @Test func oversizedCustomUpcomingWindowFallsBackWithoutOverflowing() {
@@ -180,6 +198,31 @@ struct ActualScheduleRecurrenceTests {
         #expect(try limited.nextOccurrence(onOrAfter: "2026-01-03") == "2026-01-26")
         #expect(try limited.nextOccurrence(onOrAfter: "2026-01-27") == "2026-02-23")
         #expect(try limited.nextOccurrence(onOrAfter: "2026-02-24") == nil)
+    }
+
+    @Test func monthlySearchJumpsToTheSupportedCalendarUpperBound() throws {
+        let monthly = try recurrence(
+            start: "0001-01-31",
+            frequency: .monthly,
+            patterns: [.dayOfMonth(31)]
+        )
+        #expect(try monthly.nextOccurrence(onOrAfter: "9999-12-01") == "9999-12-31")
+    }
+
+    @Test func intervalsBeyondTheSupportedCalendarReturnNoOccurrence() throws {
+        let monthly = try recurrence(
+            start: "0001-01-31",
+            frequency: .monthly,
+            interval: .max
+        )
+        let yearly = try recurrence(
+            start: "0001-01-31",
+            frequency: .yearly,
+            interval: .max
+        )
+
+        #expect(try monthly.nextOccurrence(onOrAfter: "9999-12-01") == nil)
+        #expect(try yearly.nextOccurrence(onOrAfter: "9999-12-01") == nil)
     }
 
     private func recurrence(

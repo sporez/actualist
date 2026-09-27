@@ -7,10 +7,12 @@ struct ScheduleRuleProjection: Hashable, Sendable {
     let payeeMappingID: String?
     let amount: ScheduleAmount
     let dateRule: ScheduleDateRule
+    let occurrenceMatchingMode: ScheduleOccurrenceMatchingMode
     let capabilities: ScheduleMutationCapabilities
     let unsupportedReasons: [ScheduleUnsupportedReason]
 
     static func read(
+        scheduleID: String,
         conditionsJSON: String?,
         actionsJSON: String?
     ) -> ScheduleRuleProjection {
@@ -34,12 +36,16 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             )
         }
 
-        let account = conditions.first {
-            $0.operation == "is" && ($0.field == "account" || $0.field == "acct")
-        }?.value.string
-        let payee = conditions.first {
-            $0.operation == "is" && ($0.field == "payee" || $0.field == "description")
-        }?.value.string
+        let account = preferredReference(
+            in: conditions,
+            primaryField: "account",
+            fallbackField: "acct"
+        )
+        let payee = preferredReference(
+            in: conditions,
+            primaryField: "payee",
+            fallbackField: "description"
+        )
         let amountConditions = conditions.filter {
             ["is", "isapprox", "isbetween"].contains($0.operation) && $0.field == "amount"
         }
@@ -51,7 +57,12 @@ struct ScheduleRuleProjection: Hashable, Sendable {
 
         let amount = amountCondition.map(amount(from:)) ?? .unavailable
         let dateRule = dateCondition.map(dateRule(from:)) ?? .unavailable
+        let occurrenceMatchingMode: ScheduleOccurrenceMatchingMode =
+            dateCondition?.operation == "isapprox" ? .approximate : .exact
         let actionsCanExecute = actions.allSatisfy(\.canExecuteAtRuntime)
+        let linkActions = actions.filter { $0.operation == "link-schedule" }
+        let hasValidLinkage = linkActions.count == 1
+            && linkActions[0].value.string == scheduleID
         var reasons: [ScheduleUnsupportedReason] = []
         if amountConditions.isEmpty { reasons.append(.missingAmount) }
         else if amountConditions.count > 1 { reasons.append(.unsupportedAmount) }
@@ -61,6 +72,9 @@ struct ScheduleRuleProjection: Hashable, Sendable {
         else if dateRule == .unavailable { reasons.append(.unsupportedDate) }
         if !actionsCanExecute {
             reasons.append(.unsupportedActions)
+        }
+        if !hasValidLinkage {
+            reasons.append(.corruptRuleLinkage)
         }
 
         let definitionIsSupported = reasons.isEmpty
@@ -73,13 +87,18 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             payeeMappingID: payee,
             amount: amount,
             dateRule: dateRule,
+            occurrenceMatchingMode: occurrenceMatchingMode,
             capabilities: ScheduleMutationCapabilities(
                 canRead: true,
                 canEdit: definitionIsSupported,
-                canSkip: dateRule.recurrence != nil,
-                canComplete: hasSupportedDate && dateRule.recurrence == nil,
+                canSkip: hasValidLinkage && dateRule.recurrence != nil,
+                canComplete: hasValidLinkage && hasSupportedDate && dateRule.recurrence == nil,
                 canDelete: true,
-                canPost: hasSupportedDate && hasSupportedAmount && actionsCanExecute && account != nil
+                canPost: hasValidLinkage
+                    && hasSupportedDate
+                    && hasSupportedAmount
+                    && actionsCanExecute
+                    && account != nil
             ),
             unsupportedReasons: reasons
         )
@@ -120,6 +139,8 @@ struct ScheduleRuleProjection: Hashable, Sendable {
                 throw ActualScheduleRecurrenceError.invalidWeekendAdjustment
             }
             adjustmentText = parsed
+        } else if skipWeekend {
+            throw ActualScheduleRecurrenceError.invalidWeekendAdjustment
         } else {
             adjustmentText = "after"
         }
@@ -150,9 +171,22 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             payeeMappingID: nil,
             amount: .unavailable,
             dateRule: .unavailable,
+            occurrenceMatchingMode: .exact,
             capabilities: .readOnly,
             unsupportedReasons: [reason]
         )
+    }
+
+    private static func preferredReference(
+        in conditions: [RuleCondition],
+        primaryField: String,
+        fallbackField: String
+    ) -> String? {
+        conditions.first {
+            $0.operation == "is" && $0.field == primaryField
+        }?.value.string ?? conditions.first {
+            $0.operation == "is" && $0.field == fallbackField
+        }?.value.string
     }
 
     private static func amount(from condition: RuleCondition) -> ScheduleAmount {

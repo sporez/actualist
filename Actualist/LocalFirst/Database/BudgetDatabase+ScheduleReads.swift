@@ -27,7 +27,6 @@ extension BudgetDatabase {
         let accountFacts = try scheduleAccountFacts(db: db)
         let payeeFacts = try schedulePayeeFacts(db: db)
         let payeeTargets = try schedulePayeeTargets(db: db)
-        let transactionDates = try scheduleTransactionDates(db: db)
 
         let name = column("name", fallback: "NULL", columns: scheduleColumns)
         let rule = column("rule", fallback: "NULL", columns: scheduleColumns)
@@ -47,15 +46,38 @@ extension BudgetDatabase {
                 """
         )
 
-        var details: [ScheduleDetail] = []
+        var projectionsByScheduleID: [String: ScheduleRuleProjection] = [:]
+        var transactionLowerBounds: [String: String] = [:]
         for row in rows {
             guard let id = row["id"] as String?, !id.isEmpty else { continue }
             let ruleID = row["rule"] as String?
             let rawRule = ruleID.flatMap { rules[$0] }
             let projection = ScheduleRuleProjection.read(
+                scheduleID: id,
                 conditionsJSON: rawRule?.conditions,
                 actionsJSON: rawRule?.actions
             )
+            projectionsByScheduleID[id] = projection
+            let nextDateCandidates = nextDates[id] ?? []
+            guard nextDateCandidates.count == 1,
+                  let occurrenceDate = nextDateCandidates[0].effectiveDate else { continue }
+            transactionLowerBounds[id] = scheduleTransactionLowerBound(
+                occurrenceDate: occurrenceDate,
+                matchingMode: projection.occurrenceMatchingMode,
+                postsTransaction: flexibleBool(row["posts_transaction"])
+            )
+        }
+        let transactionDates = try scheduleTransactionDates(
+            lowerBoundsByScheduleID: transactionLowerBounds,
+            db: db
+        )
+
+        var details: [ScheduleDetail] = []
+        for row in rows {
+            guard let id = row["id"] as String?, !id.isEmpty else { continue }
+            let ruleID = row["rule"] as String?
+            let rawRule = ruleID.flatMap { rules[$0] }
+            guard let projection = projectionsByScheduleID[id] else { continue }
             let nextDateCandidates = nextDates[id] ?? []
             let selectedNextDate = nextDateCandidates.count == 1 ? nextDateCandidates[0] : nil
             let effectiveNextDate = selectedNextDate?.effectiveDate
@@ -80,7 +102,7 @@ extension BudgetDatabase {
                 scheduleHasMatchingTransaction(
                     dates: transactionDates[id] ?? [],
                     occurrenceDate: $0,
-                    dateRule: projection.dateRule,
+                    matchingMode: projection.occurrenceMatchingMode,
                     postsTransaction: postsTransaction
                 )
             } ?? false
@@ -278,28 +300,43 @@ extension BudgetDatabase {
         })
     }
 
-    private func scheduleTransactionDates(db: Database) throws -> [String: [String]] {
+    private func scheduleTransactionDates(
+        lowerBoundsByScheduleID: [String: String],
+        db: Database
+    ) throws -> [String: [String]] {
+        guard !lowerBoundsByScheduleID.isEmpty else { return [:] }
         guard try tableExists("transactions", db: db) else { return [:] }
         let columns = try columnSet(for: "transactions", db: db)
         guard columns.contains("schedule"), columns.contains("date") else { return [:] }
         let split = transactionSplitQueryExpressions(columns: columns)
         let parentAlias = "schedule_parent"
-        let rows = try Row.fetchAll(
-            db,
-            sql: """
-                SELECT \(split.qualifiedSchedule) AS schedule,
-                       \(normalizedDateExpression(split.qualifiedDate)) AS date
-                FROM transactions t
-                \(split.parentJoin(parentAlias: parentAlias))
-                WHERE \(split.qualifiedSchedule) IS NOT NULL
-                  AND \(split.liveEffectivePredicate(parentAlias: parentAlias))
-                """
-        )
         var result: [String: [String]] = [:]
-        for row in rows {
-            guard let scheduleID = row["schedule"] as String?,
-                  let dayID = canonicalScheduleDayID(row["date"]) else { continue }
-            result[scheduleID, default: []].append(dayID)
+        let bounds = lowerBoundsByScheduleID.sorted { $0.key < $1.key }
+        let chunkSize = 400
+        for start in stride(from: 0, to: bounds.count, by: chunkSize) {
+            let chunk = bounds[start..<min(start + chunkSize, bounds.count)]
+            let filters = chunk.map { _ in
+                "(\(split.qualifiedSchedule) = ? AND \(normalizedDateExpression(split.qualifiedDate)) >= ?)"
+            }.joined(separator: " OR ")
+            let arguments = StatementArguments(chunk.flatMap { [$0.key, $0.value] })
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT \(split.qualifiedSchedule) AS schedule,
+                           \(normalizedDateExpression(split.qualifiedDate)) AS date
+                    FROM transactions t
+                    \(split.parentJoin(parentAlias: parentAlias))
+                    WHERE \(split.qualifiedSchedule) IS NOT NULL
+                      AND \(split.liveEffectivePredicate(parentAlias: parentAlias))
+                      AND (\(filters))
+                    """,
+                arguments: arguments
+            )
+            for row in rows {
+                guard let scheduleID = row["schedule"] as String?,
+                      let dayID = canonicalScheduleDayID(row["date"]) else { continue }
+                result[scheduleID, default: []].append(dayID)
+            }
         }
         return result
     }
@@ -349,21 +386,36 @@ extension BudgetDatabase {
     private func scheduleHasMatchingTransaction(
         dates: [String],
         occurrenceDate: String,
-        dateRule: ScheduleDateRule,
+        matchingMode: ScheduleOccurrenceMatchingMode,
         postsTransaction: Bool
     ) -> Bool {
-        let lowerBound: String
-        if dateRule.usesExactOccurrenceMatching || postsTransaction {
-            lowerBound = occurrenceDate
-        } else if let occurrence = ActualScheduleRecurrence.date(from: occurrenceDate),
-                  let earlier = Calendar.actualScheduleGregorian.date(byAdding: .day, value: -2, to: occurrence) {
-            lowerBound = ActualScheduleRecurrence.dayID(from: earlier)
-        } else {
-            lowerBound = occurrenceDate
-        }
+        let lowerBound = scheduleTransactionLowerBound(
+            occurrenceDate: occurrenceDate,
+            matchingMode: matchingMode,
+            postsTransaction: postsTransaction
+        )
         // Pinned Actual's status query uses only this lower bound. Forecast
         // occurrence matching adds an upper bound, but that is a different read.
         return dates.contains { $0 >= lowerBound }
+    }
+
+    private func scheduleTransactionLowerBound(
+        occurrenceDate: String,
+        matchingMode: ScheduleOccurrenceMatchingMode,
+        postsTransaction: Bool
+    ) -> String {
+        if matchingMode == .exact || postsTransaction {
+            return occurrenceDate
+        }
+        guard let occurrence = ActualScheduleRecurrence.date(from: occurrenceDate),
+              let earlier = Calendar.actualScheduleGregorian.date(
+                byAdding: .day,
+                value: -2,
+                to: occurrence
+              ) else {
+            return occurrenceDate
+        }
+        return ActualScheduleRecurrence.dayID(from: earlier)
     }
 
     private func canonicalScheduleDayID(_ value: DatabaseValueConvertible?) -> String? {

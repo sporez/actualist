@@ -73,17 +73,15 @@ enum ScheduleDateRule: Hashable, Sendable {
     case recurring(ActualScheduleRecurrence, operation: String)
     case unavailable
 
-    var usesExactOccurrenceMatching: Bool {
-        switch self {
-        case .oneTime(_, let operation), .recurring(_, let operation): operation == "is"
-        case .unavailable: false
-        }
-    }
-
     var recurrence: ActualScheduleRecurrence? {
         guard case .recurring(let recurrence, _) = self else { return nil }
         return recurrence
     }
+}
+
+enum ScheduleOccurrenceMatchingMode: Hashable, Sendable {
+    case exact
+    case approximate
 }
 
 enum ScheduleReferenceAvailability: String, Hashable, Sendable {
@@ -113,6 +111,7 @@ enum ScheduleUnsupportedReason: Hashable, Sendable {
     case missingAmount
     case unsupportedAmount
     case unsupportedActions
+    case corruptRuleLinkage
     case missingNextDate
     case ambiguousNextDate
 
@@ -123,6 +122,7 @@ enum ScheduleUnsupportedReason: Hashable, Sendable {
         case .missingDate, .unsupportedDate: "The schedule uses date options Actualist cannot safely interpret."
         case .missingAmount, .unsupportedAmount: "The schedule uses amount options Actualist cannot safely interpret."
         case .unsupportedActions: "Created with schedule actions Actualist cannot safely edit."
+        case .corruptRuleLinkage: "The linked rule does not point back to this schedule."
         case .missingNextDate, .ambiguousNextDate: "The next occurrence is unavailable."
         }
     }

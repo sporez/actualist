@@ -57,6 +57,47 @@ struct BudgetDatabaseScheduleReadTests {
         #expect(!unsupported.capabilities.canEdit)
     }
 
+    @Test func preferredAliasesAndMalformedDateMatchingFollowPinnedReadSemantics() async throws {
+        let loaded = try await makeLoadedSchedules()
+        let aliases = try #require(loaded.detail(id: "preferred-aliases"))
+        #expect(aliases.account.id == "checking")
+        #expect(aliases.payee.id == "landlord")
+        #expect(loaded.detail(id: "malformed-exact")?.status == .upcoming)
+        #expect(loaded.detail(id: "malformed-approximate")?.status == .paid)
+    }
+
+    @Test func malformedWeekendAndRuleLinkageStayReadableButBlockMutations() async throws {
+        let loaded = try await makeLoadedSchedules()
+        let weekend = try #require(loaded.detail(id: "missing-weekend-mode"))
+        #expect(weekend.unsupportedReasons.contains(.unsupportedDate))
+        #expect(!weekend.capabilities.canEdit)
+        #expect(!weekend.capabilities.canPost)
+
+        for id in ["empty-link", "mismatched-link", "missing-link", "duplicate-link"] {
+            let detail = try #require(loaded.detail(id: id))
+            #expect(detail.unsupportedReasons.contains(.corruptRuleLinkage))
+            #expect(detail.capabilities.canRead)
+            #expect(!detail.capabilities.canEdit)
+            #expect(!detail.capabilities.canPost)
+        }
+    }
+
+    @Test func splitParentAndPairedTransferRowsMarkOccurrencesPaid() async throws {
+        let loaded = try await makeLoadedSchedules()
+        #expect(loaded.detail(id: "split-parent-paid")?.status == .paid)
+        #expect(loaded.detail(id: "transfer-paid")?.status == .paid)
+    }
+
+    @Test func nextDateTombstonesAreIgnoredAndLiveDuplicatesAreAmbiguous() async throws {
+        let loaded = try await makeLoadedSchedules()
+        #expect(loaded.detail(id: "due")?.effectiveNextDate == "2026-09-27")
+        let duplicate = try #require(loaded.detail(id: "duplicate-next"))
+        #expect(duplicate.effectiveNextDate == nil)
+        #expect(duplicate.unsupportedReasons.contains(.ambiguousNextDate))
+        #expect(!duplicate.capabilities.canEdit)
+        #expect(!duplicate.capabilities.canPost)
+    }
+
     @Test func capabilitiesRemainOperationSpecificForUnsupportedDefinitions() async throws {
         let loaded = try await makeLoadedSchedules()
         let detail = try #require(loaded.detail(id: "skip-safe"))
@@ -109,6 +150,7 @@ struct BudgetDatabaseScheduleReadTests {
     private var fixtureSQL: String {
         """
         ALTER TABLE transactions ADD COLUMN schedule TEXT;
+        ALTER TABLE transactions ADD COLUMN transferred_id TEXT;
         ALTER TABLE payee_mapping ADD COLUMN targetId TEXT;
         CREATE TABLE payees (
             id TEXT PRIMARY KEY,
@@ -146,6 +188,7 @@ struct BudgetDatabaseScheduleReadTests {
         INSERT INTO payees VALUES ('landlord', 'Landlord', 0);
         INSERT INTO payees VALUES ('gone-payee', 'Coincident ID', 0);
         INSERT INTO payee_mapping (id, transferId, targetId) VALUES ('landlord-map', NULL, 'landlord');
+        INSERT INTO payee_mapping (id, transferId, targetId) VALUES ('gone-map', NULL, 'gone-payee');
 
         INSERT INTO rules VALUES ('exact-rule',
           '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"description","value":"landlord-map"},{"op":"is","field":"amount","value":-10000},{"op":"is","field":"date","value":"2026-09-27"}]',
@@ -168,6 +211,36 @@ struct BudgetDatabaseScheduleReadTests {
         INSERT INTO rules VALUES ('ambiguous-date-rule',
           '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"isapprox","field":"date","value":{"start":"2026-10-01","frequency":"monthly"}},{"op":"is","field":"date","value":"2026-10-01"}]',
           '[{"op":"link-schedule","value":"ambiguous-date"}]', 0);
+        INSERT INTO rules VALUES ('preferred-alias-rule',
+          '[{"op":"is","field":"acct","value":"closed"},{"op":"is","field":"account","value":"checking"},{"op":"is","field":"description","value":"gone-map"},{"op":"is","field":"payee","value":"landlord-map"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-09-28"}]',
+          '[{"op":"link-schedule","value":"preferred-aliases"}]', 0);
+        INSERT INTO rules VALUES ('malformed-exact-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":{"start":"2026-09-29","frequency":"fortnightly"}}]',
+          '[{"op":"link-schedule","value":"malformed-exact"}]', 0);
+        INSERT INTO rules VALUES ('malformed-approximate-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"isapprox","field":"date","value":{"start":"2026-09-29","frequency":"fortnightly"}}]',
+          '[{"op":"link-schedule","value":"malformed-approximate"}]', 0);
+        INSERT INTO rules VALUES ('missing-weekend-mode-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"isapprox","field":"date","value":{"start":"2026-10-03","frequency":"weekly","skipWeekend":true}}]',
+          '[{"op":"link-schedule","value":"missing-weekend-mode"}]', 0);
+        INSERT INTO rules VALUES ('empty-link-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-10-01"}]',
+          '[]', 0);
+        INSERT INTO rules VALUES ('mismatched-link-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-10-01"}]',
+          '[{"op":"link-schedule","value":"other"}]', 0);
+        INSERT INTO rules VALUES ('missing-link-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-10-01"}]',
+          '[{"op":"set","field":"notes","value":"kept"}]', 0);
+        INSERT INTO rules VALUES ('duplicate-link-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-10-01"}]',
+          '[{"op":"link-schedule","value":"duplicate-link"},{"op":"link-schedule","value":"duplicate-link"}]', 0);
+        INSERT INTO rules VALUES ('split-parent-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-09-27"}]',
+          '[{"op":"link-schedule","value":"split-parent-paid"}]', 0);
+        INSERT INTO rules VALUES ('transfer-rule',
+          '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-09-27"}]',
+          '[{"op":"link-schedule","value":"transfer-paid"}]', 0);
 
         INSERT INTO schedules VALUES ('due', 'exact-rule', 'Due', 0, 0, NULL, 1, 0);
         INSERT INTO schedules VALUES ('base-reset', 'exact-rule', 'Reset', 0, 0, NULL, 2, 0);
@@ -183,6 +256,17 @@ struct BudgetDatabaseScheduleReadTests {
         INSERT INTO schedules VALUES ('skip-safe', 'skip-safe-rule', 'Skip safe', 0, 0, NULL, 12, 0);
         INSERT INTO schedules VALUES ('ambiguous-date', 'ambiguous-date-rule', 'Ambiguous date', 0, 0, NULL, 13, 0);
         INSERT INTO schedules VALUES ('deleted', 'exact-rule', 'Deleted', 0, 0, NULL, 14, 1);
+        INSERT INTO schedules VALUES ('preferred-aliases', 'preferred-alias-rule', 'Aliases', 0, 0, NULL, 15, 0);
+        INSERT INTO schedules VALUES ('malformed-exact', 'malformed-exact-rule', 'Malformed exact', 0, 0, NULL, 16, 0);
+        INSERT INTO schedules VALUES ('malformed-approximate', 'malformed-approximate-rule', 'Malformed approximate', 0, 0, NULL, 17, 0);
+        INSERT INTO schedules VALUES ('missing-weekend-mode', 'missing-weekend-mode-rule', 'Weekend', 0, 0, NULL, 18, 0);
+        INSERT INTO schedules VALUES ('empty-link', 'empty-link-rule', 'Empty link', 0, 0, NULL, 19, 0);
+        INSERT INTO schedules VALUES ('mismatched-link', 'mismatched-link-rule', 'Mismatched link', 0, 0, NULL, 20, 0);
+        INSERT INTO schedules VALUES ('missing-link', 'missing-link-rule', 'Missing link', 0, 0, NULL, 21, 0);
+        INSERT INTO schedules VALUES ('duplicate-link', 'duplicate-link-rule', 'Duplicate link', 0, 0, NULL, 22, 0);
+        INSERT INTO schedules VALUES ('split-parent-paid', 'split-parent-rule', 'Split parent', 0, 0, NULL, 23, 0);
+        INSERT INTO schedules VALUES ('transfer-paid', 'transfer-rule', 'Transfer', 0, 0, NULL, 24, 0);
+        INSERT INTO schedules VALUES ('duplicate-next', 'exact-rule', 'Duplicate next', 0, 0, NULL, 25, 0);
 
         INSERT INTO schedules_next_date VALUES ('nd-due', 'due', 20260927, 100, 20261001, 100, 0);
         INSERT INTO schedules_next_date VALUES ('nd-reset', 'base-reset', 20260927, 100, 20261005, 200, 0);
@@ -197,6 +281,19 @@ struct BudgetDatabaseScheduleReadTests {
         INSERT INTO schedules_next_date VALUES ('nd-custom-short', 'custom-short', 20260929, 100, 20260929, 100, 0);
         INSERT INTO schedules_next_date VALUES ('nd-skip-safe', 'skip-safe', 20261001, 100, 20261001, 100, 0);
         INSERT INTO schedules_next_date VALUES ('nd-ambiguous-date', 'ambiguous-date', 20261001, 100, 20261001, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-due-deleted', 'due', 20261010, 100, 20261010, 100, 1);
+        INSERT INTO schedules_next_date VALUES ('nd-alias', 'preferred-aliases', 20260928, 100, 20260928, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-malformed-exact', 'malformed-exact', 20260929, 100, 20260929, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-malformed-approximate', 'malformed-approximate', 20260929, 100, 20260929, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-weekend', 'missing-weekend-mode', 20261003, 100, 20261003, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-empty-link', 'empty-link', 20261001, 100, 20261001, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-mismatched-link', 'mismatched-link', 20261001, 100, 20261001, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-missing-link', 'missing-link', 20261001, 100, 20261001, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-duplicate-link', 'duplicate-link', 20261001, 100, 20261001, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-split-parent', 'split-parent-paid', 20260927, 100, 20260927, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-transfer', 'transfer-paid', 20260927, 100, 20260927, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-duplicate-a', 'duplicate-next', 20261001, 100, 20261001, 100, 0);
+        INSERT INTO schedules_next_date VALUES ('nd-duplicate-b', 'duplicate-next', 20261002, 100, 20261002, 100, 0);
 
         INSERT INTO transactions
           (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule)
@@ -210,6 +307,24 @@ struct BudgetDatabaseScheduleReadTests {
         INSERT INTO transactions
           (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule)
           VALUES ('completed-payment', 'checking', 20260927, -10000, NULL, 0, NULL, 0, 'completed');
+        INSERT INTO transactions
+          (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule)
+          VALUES ('malformed-exact-early', 'checking', 20260927, -100, NULL, 0, NULL, 0, 'malformed-exact');
+        INSERT INTO transactions
+          (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule)
+          VALUES ('malformed-approximate-early', 'checking', 20260927, -100, NULL, 0, NULL, 0, 'malformed-approximate');
+        INSERT INTO transactions
+          (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule)
+          VALUES ('split-parent', 'checking', 20260927, -100, NULL, 0, NULL, 1, 'split-parent-paid');
+        INSERT INTO transactions
+          (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule)
+          VALUES ('split-child', 'checking', 20260927, -100, NULL, 0, 'split-parent', 0, NULL);
+        INSERT INTO transactions
+          (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule, transferred_id)
+          VALUES ('transfer-source', 'checking', 20260927, -100, NULL, 0, NULL, 0, NULL, 'transfer-destination');
+        INSERT INTO transactions
+          (id, acct, date, amount, category, tombstone, parent_id, is_parent, schedule, transferred_id)
+          VALUES ('transfer-destination', 'checking', 20260927, 100, NULL, 0, NULL, 0, 'transfer-paid', 'transfer-source');
         """
     }
 }

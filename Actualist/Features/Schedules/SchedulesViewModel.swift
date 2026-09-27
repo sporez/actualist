@@ -4,6 +4,7 @@ import Observation
 @MainActor
 @Observable
 final class SchedulesViewModel {
+    private let currency: BudgetCurrency
     private(set) var budgetID: String?
     private(set) var snapshot: LoadedSchedules?
     private(set) var isLoading = false
@@ -13,6 +14,10 @@ final class SchedulesViewModel {
     var showsCompleted = false
 
     @ObservationIgnored private var loadGeneration = 0
+
+    init(currency: BudgetCurrency = .usd) {
+        self.currency = currency
+    }
 
     var sections: [ScheduleListSection] {
         let schedules = filteredSchedules
@@ -63,6 +68,7 @@ final class SchedulesViewModel {
 
         do {
             let refreshed = try await repository.refreshSchedules(budgetID: budgetID, asOf: today)
+            try Task.checkCancellation()
             guard generation == loadGeneration,
                   self.budgetID == budgetID,
                   refreshed.budgetID == budgetID else { return }
@@ -75,6 +81,11 @@ final class SchedulesViewModel {
             isRefreshing = false
         } catch {
             guard generation == loadGeneration, self.budgetID == budgetID else { return }
+            guard !Task.isCancelled else {
+                isLoading = false
+                isRefreshing = false
+                return
+            }
             errorMessage = error.userFacingMessage
             isLoading = false
             isRefreshing = false
@@ -96,7 +107,7 @@ final class SchedulesViewModel {
             locale: .current
         )
         return schedules.filter { schedule in
-            SchedulePresentation.searchableText(schedule)
+            SchedulePresentation.searchableText(schedule, currency: currency)
                 .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
                 .contains(normalizedQuery)
         }

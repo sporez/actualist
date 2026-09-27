@@ -614,32 +614,9 @@ extension BudgetDatabase {
                     "schedule end dates are not supported locally yet"
                 )
             }
-            guard let startString = object["start"]?.stringValue,
-                  let start = BudgetTemplateCalendar.validatedDate(startString),
-                  let frequency = object["frequency"]?.stringValue?.lowercased(),
-                  ["daily", "weekly", "monthly", "yearly"].contains(frequency) else {
-                throw LocalFirstError.unsupportedTemplate("schedule")
-            }
-            let interval: Int
-            if let rawInterval = object["interval"] {
-                guard let value = rawInterval.numberValue,
-                      value.isFinite,
-                      value.rounded() == value,
-                      let parsed = Int(exactly: value),
-                      parsed > 0 else {
-                    throw LocalFirstError.unsupportedTemplate("schedule")
-                }
-                interval = parsed
-            } else {
-                interval = 1
-            }
             do {
-                return try ActualScheduleRecurrence(
-                    start: start,
-                    frequency: frequency,
-                    interval: interval,
-                    skipWeekend: object["skipWeekend"]?.boolValue ?? false,
-                    weekendSolveMode: object["weekendSolveMode"]?.stringValue ?? "after",
+                return try ScheduleRuleProjection.recurrence(
+                    from: condition.value,
                     calendar: BudgetTemplateCalendar.gregorian
                 )
             } catch {
@@ -665,13 +642,6 @@ private extension RuleJSONValue {
 
     var stringValue: String? {
         if case .string(let value) = self {
-            return value
-        }
-        return nil
-    }
-
-    var boolValue: Bool? {
-        if case .bool(let value) = self {
             return value
         }
         return nil

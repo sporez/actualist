@@ -54,6 +54,22 @@ struct SchedulesViewModelTests {
         #expect(Set(model.sections.flatMap(\.schedules).map(\.id)) == ["cafe", "done"])
     }
 
+    @Test func searchUsesThePreparedDisplayedAmountLabel() async {
+        let currency = BudgetCurrency.none
+        let amount = ScheduleAmount.exact(-12_500)
+        let repository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(
+                budgetID: "budget",
+                schedules: [summary(id: "rent", name: "Rent", amount: amount, status: .upcoming)]
+            )
+        ])
+        let model = SchedulesViewModel(currency: currency)
+        await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+
+        model.searchText = SchedulePresentation.amountLabel(amount, currency: currency)
+        #expect(model.sections.flatMap(\.schedules).map(\.id) == ["rent"])
+    }
+
     @Test func emptyAndErrorStatesDoNotDiscardCachedData() async {
         let cached = snapshot(budgetID: "budget", ids: ["kept"])
         let repository = ScheduleRepositoryFake(
@@ -100,7 +116,7 @@ struct SchedulesViewModelTests {
         #expect(model.snapshot?.schedules.map(\.id) == ["new-row"])
     }
 
-    @Test func cancellationRejectsLateResult() async {
+    @Test func explicitCancellationRejectsLateResult() async {
         let entered = TestLatch()
         let release = TestLatch()
         let repository = ScheduleRepositoryFake(
@@ -114,6 +130,29 @@ struct SchedulesViewModelTests {
         }
         await entered.wait()
         model.cancelLoad()
+        release.trip()
+        await task.value
+
+        #expect(model.snapshot == nil)
+        #expect(!model.isLoading)
+        #expect(!model.isRefreshing)
+    }
+
+    @Test func taskCancellationRejectsLateResultFromCancellationIgnoringRepository() async {
+        let entered = TestLatch()
+        let release = TestLatch()
+        let repository = ScheduleRepositoryFake(
+            results: ["budget": .success(snapshot(budgetID: "budget", ids: ["late"]))],
+            entered: ["budget": entered],
+            release: ["budget": release]
+        )
+        let model = SchedulesViewModel()
+        let task = Task {
+            await model.load(budgetID: "budget", repository: repository, today: "2026-09-27")
+        }
+        await entered.wait()
+
+        task.cancel()
         release.trip()
         await task.value
 
@@ -138,12 +177,13 @@ struct SchedulesViewModelTests {
     private func summary(
         id: String,
         name: String,
+        amount: ScheduleAmount = .exact(-100),
         status: ScheduleStatus
     ) -> ScheduleSummary {
         ScheduleSummary(
             id: id,
             name: name,
-            amount: .exact(-100),
+            amount: amount,
             account: ScheduleAccountReference(id: "account", name: "Checking", availability: .available),
             payee: SchedulePayeeReference(id: nil, name: nil, isMissing: false),
             effectiveNextDate: "2026-09-28",

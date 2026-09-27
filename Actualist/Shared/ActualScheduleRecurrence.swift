@@ -257,9 +257,7 @@ struct ActualScheduleRecurrence: Hashable, Sendable {
         var monthIndex = (ordinalDistance / interval) * interval
         for _ in 0..<120_000 {
             let ordinalResult = startOrdinal.addingReportingOverflow(monthIndex)
-            guard !ordinalResult.overflow else {
-                throw ActualScheduleRecurrenceError.occurrenceLimitExceeded
-            }
+            guard !ordinalResult.overflow else { return nil }
             let ordinal = ordinalResult.partialValue
             guard ordinal <= 9_999 * 12 + 11 else { return nil }
             let year = ordinal / 12
@@ -271,9 +269,7 @@ struct ActualScheduleRecurrence: Hashable, Sendable {
                 return candidate
             }
             let nextIndex = monthIndex.addingReportingOverflow(interval)
-            guard !nextIndex.overflow else {
-                throw ActualScheduleRecurrenceError.occurrenceLimitExceeded
-            }
+            guard !nextIndex.overflow else { return nil }
             monthIndex = nextIndex.partialValue
         }
         throw ActualScheduleRecurrenceError.occurrenceLimitExceeded
@@ -298,9 +294,7 @@ struct ActualScheduleRecurrence: Hashable, Sendable {
                 return candidate
             }
             let nextYear = year.addingReportingOverflow(interval)
-            guard !nextYear.overflow else {
-                throw ActualScheduleRecurrenceError.occurrenceLimitExceeded
-            }
+            guard !nextYear.overflow else { return nil }
             year = nextYear.partialValue
         }
         throw ActualScheduleRecurrenceError.occurrenceLimitExceeded

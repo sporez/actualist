@@ -94,14 +94,17 @@ enum SchedulePresentation {
         }
     }
 
-    static func searchableText(_ schedule: ScheduleSummary) -> String {
+    static func searchableText(
+        _ schedule: ScheduleSummary,
+        currency: BudgetCurrency
+    ) -> String {
         [
             schedule.displayName,
             schedule.account.name ?? "Unavailable account",
             schedule.payee.name ?? (schedule.payee.isMissing ? "Unavailable payee" : "No payee"),
             schedule.effectiveNextDate ?? "Date unavailable",
             statusLabel(schedule.status),
-            schedule.amount.postingAmount.map(String.init) ?? "Amount unavailable"
+            amountLabel(schedule.amount, currency: currency)
         ].joined(separator: " ")
     }
 }
