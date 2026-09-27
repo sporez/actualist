@@ -25,20 +25,36 @@ Required inputs:
   `59fe126f637d858c061e1eeedbef5436c8f2225a`;
 - Node 24.x (the prepared checkout used Node 24.21.x);
 - the repository-pinned Yarn `4.17.1` release;
-- a completed focused `@actual-app/core` dependency setup, including its native
-  SQLite module;
+- a completed focused `@actual-app/core` dependency setup, including root
+  `node_modules/.yarn-state.yml` and the resolved `better-sqlite3` 12.11.1
+  native binary;
 - a clean tracked Actual checkout. The generator refuses tracked changes and
   refuses to overwrite an unowned harness overlay.
 
+Reuse the coordinator's approved immutable dependency-ready setup when
+preparing the isolated checkout; this tool never runs an install. It verifies
+and records hashes for `yarn.lock`, `.yarnrc.yml`,
+`node_modules/.yarn-state.yml`, the resolved `better-sqlite3` package manifest
+and entry point, and the native addon selected by the package's installed
+`bindings` resolver. These hashes identify the available install used by the
+run; they do not claim a byte-for-byte audit of every transitive dependency.
+
 The generator creates only these temporary untracked files in the isolated
-Actual checkout and removes them after a successful or failed invocation:
+Actual checkout and normally removes them after a successful or failed
+invocation:
 
 ```text
 packages/loot-core/src/server/accounts/account-lifecycle-parity.test.ts
 packages/loot-core/src/server/accounts/account-lifecycle-parity-support.ts
 .actualist-account-lifecycle-oracle.json
-.actualist-account-lifecycle-vitest.json
+.actualist-account-lifecycle-vitest-<invocation-id>.json
+.actualist-account-lifecycle-process.json
 ```
+
+The generator makes no network or server request. Provider calls remain inside
+loot-core's node-test `#server/post` mock. If a timed-out owned process group
+cannot be confirmed stopped, the generator reports its process-group ID and
+retains these temporary paths instead of claiming safe cleanup.
 
 ## Predetermined invocation
 
@@ -50,19 +66,35 @@ node scripts/account-lifecycle-parity/generate.mjs \
 ```
 
 The generator performs exactly one runtime command, from the isolated Actual
-checkout root:
+checkout root. The equivalent normalized command is:
 
 ```sh
+TZ=UTC \
+ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT='/absolute/path/to/isolated-actual-v26.9.0/.actualist-account-lifecycle-oracle.json' \
 node .yarn/releases/yarn-4.17.1.cjs workspace @actual-app/core run test:node \
   src/server/accounts/account-lifecycle-parity.test.ts \
+  --bail=1 \
   --reporter=json \
-  --outputFile=.actualist-account-lifecycle-vitest.json
+  --outputFile='/absolute/path/to/isolated-actual-v26.9.0/.actualist-account-lifecycle-vitest-<invocation-id>.json'
 ```
 
-`ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT` is set to the absolute temporary
-raw-output path for that process. The exact argv, normalized working directory,
-environment variable name, tool versions, source hashes, harness hashes, and
-generation date are written to the generated manifest.
+Both output paths passed to Vitest are absolute. `TZ=UTC` pins fixture dates;
+matching Actual's local-calendar close date remains an explicit B2 product gate,
+not a conclusion from this fixture. The exact normalized argv, working
+directory, pinned environment values, 180,000 ms execution ceiling, 5,000 ms
+termination grace, tool versions, dependency identities, source hashes, harness
+hashes, and generation date are written to the generated manifest.
+
+Vitest receives `--bail=1`. The generator owns the child and its descendants as
+one detached POSIX process group and durably records its PID/PGID in the
+isolated checkout. At the three-minute ceiling or a catchable parent interrupt,
+it sends `SIGTERM` only to that group and waits five seconds. It sends `SIGKILL`
+to that same group only if the recorded child is still active, avoiding a later
+signal after its PGID could be reused. It then waits one second to confirm exit.
+An abrupt parent exit makes a final synchronous `SIGTERM` attempt and leaves the
+ownership record for coordinator recovery. It never uses a blanket process
+kill. Fixture promotion cannot begin until the child exits successfully and the
+owned process group is gone.
 
 The intended generated files are:
 
@@ -78,8 +110,8 @@ predetermined case is present exactly once.
 
 ## Predetermined cases and assertions
 
-The harness has no case filter. One invocation must complete all of these
-groups:
+The harness has no case filter. One invocation must complete exactly 22 cases
+across all of these groups:
 
 - open/closed rename and History inverse, plus the core handler's unchanged,
   whitespace, exact-duplicate, and case-variant input boundary;
@@ -110,10 +142,14 @@ the remaining message order is preserved.
 The generator stops without promoting fixtures if any of these occurs:
 
 - the commit, tag, package version, Node major, or Yarn version differs;
+- dependency setup evidence or the resolved native SQLite 12.11.1 binary is
+  absent;
 - pinned source or harness files are missing;
 - the isolated checkout has tracked changes;
 - an overlay/output path already exists and is not owned by this invocation;
 - Vitest exits nonzero or its JSON report does not describe a passing run;
+- the three-minute execution ceiling is reached; if process-group exit cannot
+  be confirmed, temporary files are retained for coordinator-owned recovery;
 - the raw output schema, case IDs, case count, or synthetic-data declaration
   differs from the reviewed contract;
 - a generated file fails the reviewed manifest invariants or a recorded SHA-256
