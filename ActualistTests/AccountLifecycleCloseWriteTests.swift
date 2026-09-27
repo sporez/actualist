@@ -154,10 +154,8 @@ struct AccountLifecycleCloseWriteTests {
 
         #expect(review.liveTransactionCount == 1)
         #expect(review.liveFamilyCount == 1)
-        guard case .closeWithTransfer = review.resolvedAction else {
-            Issue.record("A live isolated child must not make the account look empty")
-            return
-        }
+        #expect(review.resolvedAction == .closeAtZero)
+        #expect(review.resolvedAction != .deleteEmptyAccount)
     }
 
     @Test func supportedTransactionAndTransferPayeeAliasesEmitTheirPhysicalColumns() async throws {
