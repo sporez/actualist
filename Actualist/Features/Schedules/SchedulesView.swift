@@ -1,11 +1,19 @@
 import SwiftUI
 
+struct SchedulesLoadIdentity: Hashable, Sendable {
+    let context: SchedulesViewContext
+    let refreshRevision: UInt64
+    let manualRefreshGeneration: UInt64
+}
+
 struct SchedulesView: View {
     @Environment(\.actualistDensity) private var density
 
     private let repository: any ScheduleRepositoryProtocol
     private let context: SchedulesViewContext
+    private let refreshRevision: UInt64
     @State private var viewModel: SchedulesViewModel
+    @State private var manualRefreshGeneration: UInt64 = 0
 
     init(
         repository: any ScheduleRepositoryProtocol,
@@ -13,6 +21,7 @@ struct SchedulesView: View {
         budgetSessionGeneration: Int,
         currency: BudgetCurrency,
         isPrivacyModeEnabled: Bool,
+        refreshRevision: UInt64,
         asOfDayID: String
     ) {
         let context = SchedulesViewContext(
@@ -26,6 +35,7 @@ struct SchedulesView: View {
         )
         self.repository = repository
         self.context = context
+        self.refreshRevision = refreshRevision
         _viewModel = State(initialValue: SchedulesViewModel(context: context))
     }
 
@@ -98,7 +108,7 @@ struct SchedulesView: View {
                         .accessibilityLabel("Refreshing schedules")
                 }
                 Button {
-                    reload()
+                    requestRefresh()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -106,7 +116,11 @@ struct SchedulesView: View {
                 .disabled(viewModel.isLoading || viewModel.isRefreshing)
             }
         }
-        .task(id: context) {
+        .task(id: SchedulesLoadIdentity(
+            context: context,
+            refreshRevision: refreshRevision,
+            manualRefreshGeneration: manualRefreshGeneration
+        )) {
             await viewModel.load(context: context, repository: repository)
         }
         .refreshable {
@@ -141,7 +155,7 @@ struct SchedulesView: View {
                     .font(ActualistTypography.body(for: density))
                     .foregroundStyle(ActualistTheme.danger)
                 Button("Retry", systemImage: "arrow.clockwise") {
-                    reload()
+                    requestRefresh()
                 }
                 .disabled(viewModel.isLoading || viewModel.isRefreshing)
             }
@@ -190,7 +204,7 @@ struct SchedulesView: View {
         } actions: {
             if showsRetry {
                 Button("Retry", systemImage: "arrow.clockwise") {
-                    reload()
+                    requestRefresh()
                 }
                 .buttonStyle(.glass)
             }
@@ -199,10 +213,8 @@ struct SchedulesView: View {
         .listRowBackground(Color.clear)
     }
 
-    private func reload() {
-        Task {
-            await viewModel.load(context: context, repository: repository)
-        }
+    private func requestRefresh() {
+        manualRefreshGeneration &+= 1
     }
 }
 

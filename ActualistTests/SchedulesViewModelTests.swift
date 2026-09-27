@@ -243,6 +243,29 @@ struct SchedulesViewModelTests {
         #expect(model.snapshot?.schedules.map(\.id) == ["new"])
     }
 
+    @Test func sameContextRefreshRetainsSearchAndCompletedDisclosure() async {
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        let originalRepository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(
+                budgetID: "budget",
+                schedules: [summary(id: "done", name: "Old bill", status: .completed)]
+            )
+        ])
+        await model.load(context: context, repository: originalRepository)
+        model.searchText = "Old bill"
+        model.showsCompleted = true
+
+        let refreshedRepository = ScheduleRepositoryFake(results: [
+            "budget": .success(snapshot(budgetID: "budget", ids: ["fresh"]))
+        ])
+        await model.load(context: context, repository: refreshedRepository)
+
+        #expect(model.searchText == "Old bill")
+        #expect(model.showsCompleted)
+        #expect(model.snapshot?.schedules.map(\.id) == ["fresh"])
+    }
+
     private func snapshot(budgetID: String, ids: [String]) -> LoadedSchedules {
         snapshot(budgetID: budgetID, schedules: ids.map { summary(id: $0, name: $0, status: .upcoming) })
     }
