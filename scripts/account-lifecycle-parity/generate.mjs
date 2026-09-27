@@ -16,7 +16,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const EXPECTED_TAG = 'v26.9.0';
@@ -34,8 +34,10 @@ const scriptPath = fileURLToPath(import.meta.url);
 const scriptRoot = dirname(scriptPath);
 const repositoryRoot = resolve(scriptRoot, '..', '..');
 const checkoutArgument = argument('--actual-checkout');
-if (!checkoutArgument) usage();
+const evidenceArgument = argument('--evidence');
+if (!checkoutArgument || !evidenceArgument) usage();
 const checkout = resolve(checkoutArgument);
+const evidenceRoot = resolve(evidenceArgument);
 const outputRoot = resolve(
   argument('--output') ??
     join(
@@ -48,6 +50,7 @@ const harnessFiles = [
   'account-lifecycle-parity.test.ts',
   'account-lifecycle-parity-support.ts',
 ];
+const invocationID = randomUUID();
 const sourceFiles = [
   'packages/loot-core/package.json',
   'packages/loot-core/src/mocks/setup.ts',
@@ -95,7 +98,7 @@ const overlayRoot = join(
   'packages/loot-core/src/server/accounts',
 );
 const rawOutput = join(checkout, '.actualist-account-lifecycle-oracle.json');
-const vitestOutputName = `.actualist-account-lifecycle-vitest-${randomUUID()}.json`;
+const vitestOutputName = `.actualist-account-lifecycle-vitest-${invocationID}.json`;
 const vitestOutput = join(
   checkout,
   vitestOutputName,
@@ -105,6 +108,7 @@ const ownershipRecord = join(
   '.actualist-account-lifecycle-process.json',
 );
 const stagingOutput = `${outputRoot}.staging-${process.pid}`;
+const evidenceStaging = `${evidenceRoot}.staging-${process.pid}-${invocationID}`;
 let ownedOracleProcessGroupMayRemain = false;
 
 function argument(name) {
@@ -114,13 +118,23 @@ function argument(name) {
 
 function usage() {
   console.error(
-    'Usage: node scripts/account-lifecycle-parity/generate.mjs --actual-checkout <isolated-path> [--output <path>]',
+    'Usage: node scripts/account-lifecycle-parity/generate.mjs --actual-checkout <isolated-path> --evidence <unique-path> [--output <path>]',
   );
   process.exit(2);
 }
 
 function sha256(data) {
   return createHash('sha256').update(data).digest('hex');
+}
+
+function isPathInside(parent, candidate) {
+  const pathFromParent = relative(parent, candidate);
+  return (
+    pathFromParent === '' ||
+    (!isAbsolute(pathFromParent) &&
+      pathFromParent !== '..' &&
+      !pathFromParent.startsWith(`..${sep}`))
+  );
 }
 
 function run(command, args, options = {}) {
@@ -171,6 +185,7 @@ async function runOracle(command, args, options) {
   }
 
   await new Promise((resolveRun, rejectRun) => {
+    const capture = options.capture;
     let child;
     let processGroupID;
     let stdout = '';
@@ -199,6 +214,10 @@ async function runOracle(command, args, options) {
       didSettle = true;
       if (timeoutHandle) clearTimeout(timeoutHandle);
       removeParentHandlers();
+      capture.stdout = stdout;
+      capture.stderr = stderr;
+      capture.endedAt = new Date().toISOString();
+      capture.error = error instanceof Error ? error.message : null;
       if (error) {
         process.stderr.write(stdout);
         process.stderr.write(stderr);
@@ -211,6 +230,7 @@ async function runOracle(command, args, options) {
     async function terminateOwnedProcessGroup(reason) {
       if (isTerminating || didSettle) return;
       isTerminating = true;
+      capture.terminationReason = reason;
       if (timeoutHandle) clearTimeout(timeoutHandle);
       try {
         if (processGroupID && childIsActive()) {
@@ -231,6 +251,8 @@ async function runOracle(command, args, options) {
         ) {
           ownedOracleProcessGroupMayRemain = true;
         }
+        capture.exitStatus = child?.exitCode ?? null;
+        capture.exitSignal = child?.signalCode ?? null;
         settle(
           new Error(
             `${reason}; ${ownedOracleProcessGroupMayRemain ? `owned process group ${String(processGroupID)} may remain and temporary files were retained` : `owned process group ${String(processGroupID)} was terminated`}`,
@@ -251,6 +273,7 @@ async function runOracle(command, args, options) {
         signal,
         () => {
           process.exitCode = signalExitCodes[signal];
+          capture.parentSignal = signal;
           void terminateOwnedProcessGroup(
             `Generator was interrupted by ${signal}`,
           );
@@ -279,6 +302,9 @@ async function runOracle(command, args, options) {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       processGroupID = child.pid;
+      capture.startedAt = new Date().toISOString();
+      capture.pid = processGroupID ?? null;
+      capture.processGroupID = processGroupID ?? null;
     } catch (error) {
       settle(error);
       return;
@@ -295,6 +321,8 @@ async function runOracle(command, args, options) {
     child.once('error', error => settle(error));
     child.once('close', (status, signal) => {
       if (isTerminating || didSettle) return;
+      capture.exitStatus = status;
+      capture.exitSignal = signal;
       let processGroupRemains = false;
       try {
         processGroupRemains = Boolean(
@@ -360,10 +388,12 @@ async function runOracle(command, args, options) {
       return;
     }
     timeoutHandle = setTimeout(
-      () =>
+      () => {
+        capture.timedOut = true;
         void terminateOwnedProcessGroup(
           `Oracle child ${String(processGroupID)} exceeded ${String(ORACLE_TIMEOUT_MILLISECONDS)}ms`,
-        ),
+        );
+      },
       ORACLE_TIMEOUT_MILLISECONDS,
     );
   });
@@ -389,6 +419,195 @@ function hashedPath(path) {
     path: manifestPath,
     sha256: sha256(readFileSync(path)),
   };
+}
+
+function writeEvidenceFile(name, data) {
+  const destination = join(evidenceStaging, name);
+  writeFileSync(destination, data, { flag: 'wx' });
+  const bytes = readFileSync(destination);
+  return { path: name, sha256: sha256(bytes), bytes: bytes.byteLength };
+}
+
+function copyEvidenceFile(source, name) {
+  if (!existsSync(source)) {
+    return { path: name, present: false };
+  }
+  const destination = join(evidenceStaging, name);
+  cpSync(source, destination, { errorOnExist: true });
+  const bytes = readFileSync(destination);
+  return {
+    path: name,
+    present: true,
+    sha256: sha256(bytes),
+    bytes: bytes.byteLength,
+  };
+}
+
+function preserveRunEvidence({ capture, error, didValidate, testArgv }) {
+  mkdirSync(dirname(evidenceRoot), { recursive: true });
+  mkdirSync(evidenceStaging, { recursive: false });
+
+  const artifacts = {
+    vitestReport: copyEvidenceFile(vitestOutput, 'vitest-report.json'),
+    rawCheckpoint: copyEvidenceFile(rawOutput, 'raw-oracle-checkpoint.json'),
+    ownership: copyEvidenceFile(ownershipRecord, 'ownership.json'),
+  };
+  artifacts.vitestLog = writeEvidenceFile(
+    'vitest.log',
+    [
+      '=== stdout ===',
+      capture.stdout ?? '',
+      '',
+      '=== stderr ===',
+      capture.stderr ?? '',
+      '',
+    ].join('\n'),
+  );
+  if (error) {
+    artifacts.generatorError = writeEvidenceFile(
+      'generator-error.log',
+      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+    );
+  }
+
+  const run = {
+    schemaVersion: 1,
+    invocationID,
+    recordedAt: new Date().toISOString(),
+    validationOutcome: error ? 'failed' : didValidate ? 'validated' : 'incomplete',
+    fixturePromotionEligible: !error && didValidate,
+    actual: { tag, commit, packageVersion },
+    toolchain: { node: process.version, yarn: yarnVersion },
+    generation: {
+      workingDirectory: '<isolated-actual-checkout>',
+      argv: [
+        'node',
+        ...testArgv.map(value =>
+          value === `--outputFile=${vitestOutput}`
+            ? '--outputFile=<isolated-actual-checkout>/.actualist-account-lifecycle-vitest-<invocation-id>.json'
+            : value,
+        ),
+      ],
+      environment: {
+        ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT:
+          '<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json',
+        TZ: 'UTC',
+      },
+      executionCeilingMilliseconds: ORACLE_TIMEOUT_MILLISECONDS,
+      terminationGraceMilliseconds: TERMINATION_GRACE_MILLISECONDS,
+      processOwnership: 'detached POSIX process group',
+    },
+    process: {
+      pid: capture.pid ?? null,
+      processGroupID: capture.processGroupID ?? null,
+      startedAt: capture.startedAt ?? null,
+      endedAt: capture.endedAt ?? null,
+      exitStatus: capture.exitStatus ?? null,
+      exitSignal: capture.exitSignal ?? null,
+      timedOut: capture.timedOut === true,
+      parentSignal: capture.parentSignal ?? null,
+      terminationReason: capture.terminationReason ?? null,
+      processGroupMayRemain: ownedOracleProcessGroupMayRemain,
+    },
+    generator: {
+      path: 'scripts/account-lifecycle-parity/generate.mjs',
+      sha256: sha256(readFileSync(scriptPath)),
+    },
+    dependencies: dependencyProvenance,
+    error: error
+      ? {
+          name: error instanceof Error ? error.name : 'NonError',
+          message: error instanceof Error ? error.message : String(error),
+        }
+      : null,
+    artifacts,
+  };
+  writeEvidenceFile('run.json', `${JSON.stringify(run, null, 2)}\n`);
+  renameSync(evidenceStaging, evidenceRoot);
+}
+
+function serializedError(error) {
+  if (!error) return null;
+  return {
+    name: error instanceof Error ? error.name : 'NonError',
+    message: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? (error.stack ?? null) : null,
+  };
+}
+
+function combineErrors(current, next, message) {
+  return current ? new AggregateError([current, next], message) : next;
+}
+
+function writeFinalEvidenceResult(result, replaceExisting = false) {
+  const destination = join(evidenceRoot, 'result.json');
+  if (!replaceExisting) {
+    writeFileSync(destination, `${JSON.stringify(result, null, 2)}\n`, {
+      flag: 'wx',
+    });
+    return;
+  }
+  const replacement = join(evidenceRoot, `.result-${process.pid}.json`);
+  writeFileSync(replacement, `${JSON.stringify(result, null, 2)}\n`, {
+    flag: 'wx',
+  });
+  renameSync(replacement, destination);
+}
+
+function reportPreservedVitestFailures() {
+  const reportPath = join(evidenceRoot, 'vitest-report.json');
+  const logPath = join(evidenceRoot, 'vitest.log');
+  if (!existsSync(reportPath)) {
+    console.error(`Vitest report was unavailable; preserved child log: ${logPath}`);
+    return;
+  }
+  try {
+    const report = JSON.parse(readFileSync(reportPath, 'utf8'));
+    const testResults = report.testResults ?? [];
+    const assertionFailures = testResults.flatMap(testFile =>
+      (testFile.assertionResults ?? [])
+        .filter(assertion => assertion.status === 'failed')
+        .map(assertion => ({
+          title: assertion.fullName ?? assertion.title ?? 'Unnamed assertion',
+          message: (assertion.failureMessages ?? [])
+            .join('\n')
+            .replaceAll(/\u001b\[[0-9;]*m/g, ''),
+        })),
+    );
+    const failures =
+      assertionFailures.length > 0
+        ? assertionFailures
+        : testResults
+            .filter(testFile => testFile.status === 'failed')
+            .map(testFile => ({
+              title: testFile.name ?? 'Unnamed test file',
+              message: String(testFile.message ?? '').replaceAll(
+                /\u001b\[[0-9;]*m/g,
+                '',
+              ),
+            }));
+    if (failures.length === 0) {
+      console.error(
+        `Vitest exited unsuccessfully; preserved JSON report: ${reportPath}`,
+      );
+      return;
+    }
+    console.error(
+      `Vitest reported ${String(failures.length)} failure(s); preserved JSON report: ${reportPath}`,
+    );
+    for (const failure of failures.slice(0, 10)) {
+      const firstMessageLine = failure.message
+        .split('\n')
+        .map(line => line.trim())
+        .find(Boolean);
+      const suffix = firstMessageLine ? ` — ${firstMessageLine.slice(0, 500)}` : '';
+      console.error(`- ${failure.title}${suffix}`);
+    }
+  } catch (error) {
+    console.error(
+      `Could not summarize preserved Vitest JSON; report: ${reportPath}; ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 function assertObject(value, label) {
@@ -518,6 +737,29 @@ function validateManifestShape(manifest) {
 
 if (!existsSync(join(checkout, '.git'))) {
   throw new Error(`Actual checkout is not a git worktree: ${checkout}`);
+}
+const evidenceParent = dirname(evidenceRoot);
+if (!existsSync(evidenceParent)) {
+  throw new Error(`Evidence parent directory does not exist: ${evidenceParent}`);
+}
+if (
+  isPathInside(checkout, evidenceRoot) ||
+  isPathInside(realpathSync(checkout), realpathSync(evidenceParent))
+) {
+  throw new Error(
+    `Evidence destination must be outside the isolated Actual checkout: ${evidenceRoot}`,
+  );
+}
+if (
+  isPathInside(outputRoot, evidenceRoot) ||
+  isPathInside(evidenceRoot, outputRoot)
+) {
+  throw new Error('Evidence and fixture output destinations must not overlap');
+}
+for (const evidencePath of [evidenceRoot, evidenceStaging]) {
+  if (existsSync(evidencePath)) {
+    throw new Error(`Refusing to overwrite evidence path: ${evidencePath}`);
+  }
 }
 if (process.platform === 'win32') {
   throw new Error(
@@ -689,6 +931,11 @@ const testArgv = [
   `--outputFile=${vitestOutput}`,
 ];
 
+const executionCapture = { timedOut: false };
+let runError = null;
+let didValidate = false;
+let evidenceArchived = false;
+
 try {
   for (const file of harnessFiles) {
     cpSync(join(scriptRoot, 'harness', file), join(overlayRoot, file), {
@@ -697,6 +944,7 @@ try {
   }
 
   await runOracle('node', testArgv, {
+    capture: executionCapture,
     env: {
       ...process.env,
       ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT: rawOutput,
@@ -777,25 +1025,87 @@ try {
     join(stagingOutput, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
+  didValidate = true;
+} catch (error) {
+  runError = error;
+}
 
-  mkdirSync(dirname(outputRoot), { recursive: true });
-  renameSync(stagingOutput, outputRoot);
-  console.log(
-    `Generated ${expectedCaseIDs.length} account lifecycle parity cases from ${EXPECTED_TAG}.`,
+try {
+  preserveRunEvidence({
+    capture: executionCapture,
+    error: runError,
+    didValidate,
+    testArgv,
+  });
+  evidenceArchived = true;
+} catch (error) {
+  const evidenceError = new Error(
+    `Could not preserve oracle evidence at ${evidenceRoot}: ${error instanceof Error ? error.message : String(error)}`,
   );
-} finally {
-  if (ownedOracleProcessGroupMayRemain) {
-    console.error(
-      [
-        'Oracle process-group exit could not be confirmed; refusing to remove temporary overlays or outputs:',
-        ...harnessFiles.map(file => `  ${join(overlayRoot, file)}`),
-        `  ${rawOutput}`,
-        `  ${vitestOutput}`,
-        `  ${ownershipRecord}`,
-        `  ${stagingOutput}`,
-      ].join('\n'),
+  runError = runError
+    ? new AggregateError(
+        [runError, evidenceError],
+        'Oracle failed and its evidence archive could not be completed',
+      )
+    : evidenceError;
+}
+
+let fixturePromoted = false;
+let resultRecordStarted = false;
+let cleanupStatus = 'not-started';
+if (evidenceArchived) {
+  try {
+    writeFinalEvidenceResult({
+      schemaVersion: 1,
+      invocationID,
+      completedAt: null,
+      success: false,
+      fixturePromoted: false,
+      promotionStatus: didValidate && !runError ? 'pending' : 'not-eligible',
+      cleanupStatus: 'pending',
+      error: serializedError(runError),
+    });
+    resultRecordStarted = true;
+  } catch (error) {
+    runError = combineErrors(
+      runError,
+      error,
+      'Oracle result record could not be initialized',
     );
-  } else {
+  }
+}
+
+if (!runError && didValidate && evidenceArchived && resultRecordStarted) {
+  try {
+    mkdirSync(dirname(outputRoot), { recursive: true });
+    renameSync(stagingOutput, outputRoot);
+    fixturePromoted = true;
+  } catch (error) {
+    runError = error;
+  }
+}
+
+if (
+  ownedOracleProcessGroupMayRemain ||
+  !evidenceArchived ||
+  !resultRecordStarted
+) {
+  cleanupStatus = ownedOracleProcessGroupMayRemain
+    ? 'retained-process-group'
+    : 'retained-evidence-incomplete';
+  console.error(
+    [
+      'Oracle temporary files were retained because safe evidence cleanup could not be established:',
+      ...harnessFiles.map(file => `  ${join(overlayRoot, file)}`),
+      `  ${rawOutput}`,
+      `  ${vitestOutput}`,
+      `  ${ownershipRecord}`,
+      `  ${stagingOutput}`,
+      `  ${evidenceStaging}`,
+    ].join('\n'),
+  );
+} else {
+  try {
     for (const file of harnessFiles) {
       rmSync(join(overlayRoot, file), { force: true });
     }
@@ -803,5 +1113,56 @@ try {
     rmSync(vitestOutput, { force: true });
     rmSync(ownershipRecord, { force: true });
     rmSync(stagingOutput, { recursive: true, force: true });
+    cleanupStatus = 'completed';
+  } catch (error) {
+    cleanupStatus = 'failed';
+    runError = combineErrors(runError, error, 'Oracle cleanup failed');
   }
 }
+
+if (resultRecordStarted) {
+  try {
+    writeFinalEvidenceResult(
+      {
+        schemaVersion: 1,
+        invocationID,
+        completedAt: new Date().toISOString(),
+        success:
+          !runError && fixturePromoted && cleanupStatus === 'completed',
+        fixturePromoted,
+        promotionStatus: fixturePromoted
+          ? 'completed'
+          : didValidate && !runError
+            ? 'pending'
+            : 'not-completed',
+        cleanupStatus,
+        error: serializedError(runError),
+      },
+      true,
+    );
+  } catch (error) {
+    runError = combineErrors(
+      runError,
+      error,
+      'Oracle final result record could not be completed',
+    );
+  }
+}
+
+if (runError) {
+  if (evidenceArchived) {
+    console.error(`Oracle evidence preserved at ${evidenceRoot}`);
+    if (
+      executionCapture.exitStatus !== 0 ||
+      executionCapture.timedOut === true
+    ) {
+      reportPreservedVitestFailures();
+    }
+  }
+  throw runError;
+}
+
+console.log(
+  `Generated ${expectedCaseIDs.length} account lifecycle parity cases from ${EXPECTED_TAG}.`,
+);
+console.log(`Oracle evidence preserved at ${evidenceRoot}`);

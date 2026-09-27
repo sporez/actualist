@@ -17,7 +17,10 @@ or personal budget is used.
 Only the sprint coordinator may run this oracle. The checkout passed to
 `--actual-checkout` must be an isolated disposable clone/worktree under that
 coordinator's sole ownership. Never point the generator at the shared
-read-only source checkout.
+read-only source checkout. `--evidence` is also required and must name a unique,
+not-yet-existing directory beneath an existing parent outside every Actual
+checkout. In particular, never write run evidence under the shared upstream
+source.
 
 Required inputs:
 
@@ -40,8 +43,7 @@ and entry point, and the native addon selected by the package's installed
 run; they do not claim a byte-for-byte audit of every transitive dependency.
 
 The generator creates only these temporary untracked files in the isolated
-Actual checkout and normally removes them after a successful or failed
-invocation:
+Actual checkout and removes them only after their run evidence is archived:
 
 ```text
 packages/loot-core/src/server/accounts/account-lifecycle-parity.test.ts
@@ -56,13 +58,36 @@ loot-core's node-test `#server/post` mock. If a timed-out owned process group
 cannot be confirmed stopped, the generator reports its process-group ID and
 retains these temporary paths instead of claiming safe cleanup.
 
+Every runtime attempt archives a unique evidence directory before cleanup or
+fixture promotion. Depending on which checkpoints were reached, it contains:
+
+```text
+run.json
+result.json
+ownership.json
+vitest-report.json
+raw-oracle-checkpoint.json
+vitest.log
+generator-error.log
+```
+
+`run.json` records the child and validation outcome, PID/PGID, normalized
+command, dependency identity, generator hash, and hashes of available evidence
+files. `result.json` is initialized before promotion or cleanup and then
+atomically records their final status; a surviving `pending` value means the
+generator did not establish completion. A failed raw checkpoint is diagnostic
+only: it may contain cases completed before `--bail=1` stopped Vitest and is
+never promoted as a fixture. If evidence archiving or result initialization
+fails, fixture promotion is refused and checkout-local checkpoints are retained.
+
 ## Predetermined invocation
 
 From the Actualist repository root:
 
 ```sh
 node scripts/account-lifecycle-parity/generate.mjs \
-  --actual-checkout /absolute/path/to/isolated-actual-v26.9.0
+  --actual-checkout /absolute/path/to/isolated-actual-v26.9.0 \
+  --evidence /absolute/path/to/actualist-artifacts/account-lifecycle-run-001
 ```
 
 The generator performs exactly one runtime command, from the isolated Actual
@@ -105,8 +130,10 @@ ActualistTests/Fixtures/ActualCore26_9_0/AccountLifecycle/
 ```
 
 An alternative destination may be supplied with `--output`. Promotion uses a
-temporary directory and rename only after Vitest exits zero and every
-predetermined case is present exactly once.
+temporary directory and rename only after Vitest exits zero, every predetermined
+case is present exactly once, and the run-specific evidence archive is complete.
+Both the final evidence path and its run-specific staging path must not already
+exist.
 
 ## Predetermined cases and assertions
 
@@ -147,13 +174,16 @@ The generator stops without promoting fixtures if any of these occurs:
 - pinned source or harness files are missing;
 - the isolated checkout has tracked changes;
 - an overlay/output path already exists and is not owned by this invocation;
+- the explicit evidence destination is absent, overlaps the fixture output, is
+  inside the isolated Actual checkout, or already exists;
 - Vitest exits nonzero or its JSON report does not describe a passing run;
 - the three-minute execution ceiling is reached; if process-group exit cannot
   be confirmed, temporary files are retained for coordinator-owned recovery;
 - the raw output schema, case IDs, case count, or synthetic-data declaration
   differs from the reviewed contract;
 - a generated file fails the reviewed manifest invariants or a recorded SHA-256
-  does not match.
+  does not match;
+- run evidence cannot be archived before cleanup and fixture promotion.
 
 The approved execution budget is one coordinator-owned generation/investigation
 and, only after a concrete correction, at most one post-correction generation.
