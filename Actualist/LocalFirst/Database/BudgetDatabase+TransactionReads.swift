@@ -163,7 +163,7 @@ extension BudgetDatabase {
                     normalizedDate: normalizedDate,
                     conditions: conditions,
                     arguments: arguments,
-                    selectsMatchedGroups: query?.isEmpty == false || statusFilter == .uncategorized,
+                    selectsMatchedGroups: query?.isEmpty == false || statusFilter != .all,
                     allowsUnfilteredFastPath: statusFilter == .all && query?.isEmpty != false,
                     rowLimit: rowLimit,
                     rowOffset: rowOffset

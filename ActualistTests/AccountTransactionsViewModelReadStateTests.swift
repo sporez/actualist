@@ -10,12 +10,26 @@ struct AccountTransactionsViewModelReadStateTests {
             transactions: [duplicate], balance: 10,
             categoryNames: ["food": "Food"], payeeNames: ["market": "Market"],
             transferPayeeIDs: ["transfer"], offBudgetAccountIDs: ["off-budget"],
-            reachedEnd: false, nextOffset: 1
+            reachedEnd: false, nextOffset: 1,
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: 2,
+                querySignature: TransactionFeedQuery.all.signature,
+                matchingTransactionIDs: ["duplicate"],
+                contributingTransactionIDs: ["duplicate"],
+                attachedContextTransactionIDs: []
+            )
         )
         let older = LoadedAccountTransactions(
             transactions: [duplicate, AccountTransactionsViewModelTests.transaction(id: "older")],
             balance: 20, categoryNames: [:], payeeNames: [:], transferPayeeIDs: [],
-            offBudgetAccountIDs: [], reachedEnd: true, nextOffset: 2
+            offBudgetAccountIDs: [], reachedEnd: true, nextOffset: 2,
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: 2,
+                querySignature: TransactionFeedQuery.all.signature,
+                matchingTransactionIDs: ["duplicate", "older"],
+                contributingTransactionIDs: ["duplicate", "older"],
+                attachedContextTransactionIDs: []
+            )
         )
 
         let merged = current.appendingPage(older)
@@ -34,17 +48,20 @@ struct AccountTransactionsViewModelReadStateTests {
         let first = AccountTransactionsViewModelTests.loaded(
             (0..<50).map { AccountTransactionsViewModelTests.transaction(id: "first-\($0)") },
             reachedEnd: false,
-            nextOffset: 50
+            nextOffset: 50,
+            totalMatchCount: 101
         )
         let second = AccountTransactionsViewModelTests.loaded(
             (0..<50).map { AccountTransactionsViewModelTests.transaction(id: "second-\($0)") },
             reachedEnd: false,
-            nextOffset: 100
+            nextOffset: 100,
+            totalMatchCount: 101
         )
         let refreshedWindow = AccountTransactionsViewModelTests.loaded(
             (0..<100).map { AccountTransactionsViewModelTests.transaction(id: "refresh-\($0)") },
             reachedEnd: false,
-            nextOffset: 100
+            nextOffset: 100,
+            totalMatchCount: 101
         )
         let repository = AccountTransactionsRecordingRepository(
             searchPages: ["market|all|0": first, "market|all|50": second],
@@ -71,12 +88,14 @@ struct AccountTransactionsViewModelReadStateTests {
         let first = AccountTransactionsViewModelTests.loaded(
             (0..<50).map { AccountTransactionsViewModelTests.transaction(id: "first-\($0)") },
             reachedEnd: false,
-            nextOffset: 50
+            nextOffset: 50,
+            totalMatchCount: 101
         )
         let second = AccountTransactionsViewModelTests.loaded(
             (0..<50).map { AccountTransactionsViewModelTests.transaction(id: "second-\($0)") },
             reachedEnd: false,
-            nextOffset: 100
+            nextOffset: 100,
+            totalMatchCount: 101
         )
         let repository = AccountTransactionsRecordingRepository(
             searchPages: ["market|all|0": first, "market|all|50": second],

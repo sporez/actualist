@@ -293,11 +293,13 @@ extension LocalFirstActualStore {
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             reachedEnd: page.reachedEnd,
             nextOffset: page.nextOffset,
-            totalMatchCount: page.totalMatchCount,
-            querySignature: page.querySignature,
-            matchingTransactionIDs: page.matchingTransactionIDs,
-            contributingTransactionIDs: page.contributingTransactionIDs,
-            attachedContextTransactionIDs: page.attachedContextTransactionIDs
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: page.totalMatchCount,
+                querySignature: page.querySignature,
+                matchingTransactionIDs: page.matchingTransactionIDs,
+                contributingTransactionIDs: page.contributingTransactionIDs,
+                attachedContextTransactionIDs: page.attachedContextTransactionIDs
+            )
         )
     }
 
@@ -326,11 +328,13 @@ extension LocalFirstActualStore {
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             reachedEnd: page.reachedEnd,
             nextOffset: page.nextOffset,
-            totalMatchCount: page.totalMatchCount,
-            querySignature: page.querySignature,
-            matchingTransactionIDs: page.matchingTransactionIDs,
-            contributingTransactionIDs: page.contributingTransactionIDs,
-            attachedContextTransactionIDs: page.attachedContextTransactionIDs
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: page.totalMatchCount,
+                querySignature: page.querySignature,
+                matchingTransactionIDs: page.matchingTransactionIDs,
+                contributingTransactionIDs: page.contributingTransactionIDs,
+                attachedContextTransactionIDs: page.attachedContextTransactionIDs
+            )
         )
     }
 

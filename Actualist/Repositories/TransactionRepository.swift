@@ -1,5 +1,13 @@
 import Foundation
 
+enum TransactionQueryCapabilityError: LocalizedError, Equatable, Sendable {
+    case unavailable
+
+    var errorDescription: String? {
+        "This transaction repository cannot provide exact query results."
+    }
+}
+
 /// Local-first transaction reads and writes. Isolated to the main actor because
 /// cached reads touch the store snapshot and write completions refresh UI.
 @MainActor
@@ -163,17 +171,7 @@ extension TransactionRepositoryProtocol {
         scope: TransactionQueryScope,
         query: TransactionFeedQuery
     ) -> LoadedAccountTransactions? {
-        guard query.text == nil, !query.hasStructuredConditions else { return nil }
-        switch scope {
-        case .account(let accountID):
-            return cachedAccountTransactions(
-                budgetID: budgetID,
-                accountID: accountID,
-                statusFilter: query.status
-            )
-        case .spending:
-            return cachedSpendingTransactions(budgetID: budgetID, statusFilter: query.status)
-        }
+        nil
     }
 
     func refreshTransactions(
@@ -181,19 +179,7 @@ extension TransactionRepositoryProtocol {
         scope: TransactionQueryScope,
         query: TransactionFeedQuery
     ) async throws {
-        guard query.text == nil, !query.hasStructuredConditions else {
-            throw LocalFirstError.unsupportedWrite
-        }
-        switch scope {
-        case .account(let accountID):
-            try await refreshAccountTransactions(
-                budgetID: budgetID,
-                accountID: accountID,
-                statusFilter: query.status
-            )
-        case .spending:
-            try await refreshSpendingTransactions(budgetID: budgetID, statusFilter: query.status)
-        }
+        throw TransactionQueryCapabilityError.unavailable
     }
 
     func loadOlderTransactions(
@@ -201,19 +187,7 @@ extension TransactionRepositoryProtocol {
         scope: TransactionQueryScope,
         query: TransactionFeedQuery
     ) async throws {
-        guard query.text == nil, !query.hasStructuredConditions else {
-            throw LocalFirstError.unsupportedWrite
-        }
-        switch scope {
-        case .account(let accountID):
-            try await loadOlderTransactions(
-                budgetID: budgetID,
-                accountID: accountID,
-                statusFilter: query.status
-            )
-        case .spending:
-            try await loadOlderSpendingTransactions(budgetID: budgetID, statusFilter: query.status)
-        }
+        throw TransactionQueryCapabilityError.unavailable
     }
 
     func transactionPage(
@@ -223,37 +197,14 @@ extension TransactionRepositoryProtocol {
         limit: Int,
         offset: Int
     ) async throws -> LoadedAccountTransactions {
-        guard !query.hasStructuredConditions, let text = query.text else {
-            throw LocalFirstError.unsupportedWrite
-        }
-        let loaded: LoadedAccountTransactions
-        switch scope {
-        case .account(let accountID):
-            loaded = try await searchAccountTransactions(
-                budgetID: budgetID,
-                accountID: accountID,
-                query: text,
-                limit: limit,
-                offset: offset,
-                statusFilter: query.status
-            )
-        case .spending:
-            loaded = try await searchSpendingTransactions(
-                budgetID: budgetID,
-                query: text,
-                limit: limit,
-                offset: offset,
-                statusFilter: query.status
-            )
-        }
-        return loaded.replacingQueryMetadata(signature: query.signature)
+        throw TransactionQueryCapabilityError.unavailable
     }
 
     func transactionDrilldown(
         budgetID: String,
         request: TransactionDrilldownRequest
     ) async throws -> TransactionDrilldownResult {
-        throw LocalFirstError.unsupportedWrite
+        throw TransactionQueryCapabilityError.unavailable
     }
 
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
@@ -418,11 +369,15 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     let offBudgetAccountIDs: Set<String>
     let reachedEnd: Bool
     let nextOffset: Int
-    let totalMatchCount: Int
-    let querySignature: TransactionQuerySignature
-    let matchingTransactionIDs: Set<String>
-    let contributingTransactionIDs: Set<String>
-    let attachedContextTransactionIDs: Set<String>
+    /// Present only when the repository can authoritatively classify the
+    /// normalized query. Legacy snapshots intentionally leave this unavailable.
+    let queryMetadata: TransactionQueryPageMetadata?
+
+    var totalMatchCount: Int? { queryMetadata?.totalMatchCount }
+    var querySignature: TransactionQuerySignature? { queryMetadata?.querySignature }
+    var matchingTransactionIDs: Set<String>? { queryMetadata?.matchingTransactionIDs }
+    var contributingTransactionIDs: Set<String>? { queryMetadata?.contributingTransactionIDs }
+    var attachedContextTransactionIDs: Set<String>? { queryMetadata?.attachedContextTransactionIDs }
 
     init(
         transactions: [ActualTransaction],
@@ -435,11 +390,7 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         offBudgetAccountIDs: Set<String> = [],
         reachedEnd: Bool,
         nextOffset: Int? = nil,
-        totalMatchCount: Int? = nil,
-        querySignature: TransactionQuerySignature = TransactionFeedQuery.all.signature,
-        matchingTransactionIDs: Set<String>? = nil,
-        contributingTransactionIDs: Set<String>? = nil,
-        attachedContextTransactionIDs: Set<String> = []
+        queryMetadata: TransactionQueryPageMetadata? = nil
     ) {
         self.transactions = transactions
         self.balance = balance
@@ -451,21 +402,32 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         self.offBudgetAccountIDs = offBudgetAccountIDs
         self.reachedEnd = reachedEnd
         self.nextOffset = nextOffset ?? transactions.count
-        self.totalMatchCount = totalMatchCount ?? transactions.count
-        self.querySignature = querySignature
-        let physicalTransactions = transactions.flatMap { [$0] + $0.subtransactions }
-        let physicalIDs = Set(physicalTransactions.compactMap(\.id))
-        self.matchingTransactionIDs = matchingTransactionIDs ?? physicalIDs
-        self.contributingTransactionIDs = contributingTransactionIDs ?? Set(
-            physicalTransactions.filter { !$0.isParent }.compactMap(\.id)
-        )
-        self.attachedContextTransactionIDs = attachedContextTransactionIDs
+        self.queryMetadata = queryMetadata
     }
 }
 
 extension LoadedAccountTransactions {
     func appendingPage(_ older: LoadedAccountTransactions) -> LoadedAccountTransactions {
-        guard querySignature == older.querySignature else { return self }
+        let mergedMetadata: TransactionQueryPageMetadata?
+        switch (queryMetadata, older.queryMetadata) {
+        case (nil, nil):
+            mergedMetadata = nil
+        case let (.some(current), .some(next)):
+            guard current.querySignature == next.querySignature else { return self }
+            let matchingIDs = current.matchingTransactionIDs.union(next.matchingTransactionIDs)
+            mergedMetadata = TransactionQueryPageMetadata(
+                totalMatchCount: next.totalMatchCount,
+                querySignature: current.querySignature,
+                matchingTransactionIDs: matchingIDs,
+                contributingTransactionIDs: current.contributingTransactionIDs
+                    .union(next.contributingTransactionIDs),
+                attachedContextTransactionIDs: current.attachedContextTransactionIDs
+                    .union(next.attachedContextTransactionIDs)
+                    .subtracting(matchingIDs)
+            )
+        default:
+            return self
+        }
         let existingIDs = Set(transactions.map(Self.identity))
         return LoadedAccountTransactions(
             transactions: transactions + older.transactions.filter { !existingIDs.contains(Self.identity($0)) },
@@ -479,31 +441,7 @@ extension LoadedAccountTransactions {
             offBudgetAccountIDs: older.offBudgetAccountIDs,
             reachedEnd: older.reachedEnd,
             nextOffset: older.nextOffset,
-            totalMatchCount: older.totalMatchCount,
-            querySignature: querySignature,
-            matchingTransactionIDs: matchingTransactionIDs.union(older.matchingTransactionIDs),
-            contributingTransactionIDs: contributingTransactionIDs.union(older.contributingTransactionIDs),
-            attachedContextTransactionIDs: attachedContextTransactionIDs.union(older.attachedContextTransactionIDs)
-        )
-    }
-
-    func replacingQueryMetadata(signature: TransactionQuerySignature) -> LoadedAccountTransactions {
-        LoadedAccountTransactions(
-            transactions: transactions,
-            balance: balance,
-            accountNames: accountNames,
-            categoryNames: categoryNames,
-            payeeNames: payeeNames,
-            transferPayeeIDs: transferPayeeIDs,
-            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: offBudgetAccountIDs,
-            reachedEnd: reachedEnd,
-            nextOffset: nextOffset,
-            totalMatchCount: totalMatchCount,
-            querySignature: signature,
-            matchingTransactionIDs: matchingTransactionIDs,
-            contributingTransactionIDs: contributingTransactionIDs,
-            attachedContextTransactionIDs: attachedContextTransactionIDs
+            queryMetadata: mergedMetadata
         )
     }
 
@@ -528,11 +466,7 @@ extension LoadedAccountTransactions {
             offBudgetAccountIDs: offBudgetAccountIDs,
             reachedEnd: reachedEnd,
             nextOffset: nextOffset,
-            totalMatchCount: totalMatchCount,
-            querySignature: querySignature,
-            matchingTransactionIDs: matchingTransactionIDs,
-            contributingTransactionIDs: contributingTransactionIDs,
-            attachedContextTransactionIDs: attachedContextTransactionIDs
+            queryMetadata: nil
         )
     }
 }

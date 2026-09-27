@@ -166,7 +166,7 @@ struct TransactionStatusFilterBaselineTests {
         })
     }
 
-    @Test func groupedStatusFiltersSelectRootStatusBeforeLimitAndUnlimitedAssembly() async throws {
+    @Test func groupedStatusFiltersSelectMatchingPhysicalRowsBeforeFamilyAssembly() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
         let unclearedPage = try await database.fetchTransactionPage(
@@ -192,13 +192,38 @@ struct TransactionStatusFilterBaselineTests {
         #expect(clearedRemainder.reachedEnd)
         #expect((unclearedPage.transactions + unclearedRemainder.transactions).map(\.id) == unclearedAll.transactions.map(\.id))
         #expect((clearedPage.transactions + clearedRemainder.transactions).map(\.id) == clearedAll.transactions.map(\.id))
-        #expect(!unclearedAll.transactions.contains { $0.id == "mixed-parent" })
+        // Pinned Actual's grouped executor reserves its parent-only fast path for
+        // account/date predicates. Status predicates therefore match physical
+        // children first and then attach their complete live family.
+        let unclearedParent = try #require(unclearedAll.transactions.first { $0.id == "mixed-parent" })
+        #expect(unclearedParent.subtransactions.map(\.id) == [
+            "mixed-uncategorized-child", "mixed-categorized-child",
+        ])
         let clearedParent = try #require(clearedAll.transactions.first { $0.id == "mixed-parent" })
         #expect(clearedParent.subtransactions.map(\.id) == [
             "mixed-uncategorized-child", "mixed-categorized-child",
         ])
         #expect(clearedAll.nextOffset == clearedAll.transactions.count)
         #expect(unclearedAll.nextOffset == unclearedAll.transactions.count)
+
+        let unclearedTyped = try await database.fetchTransactionQueryPage(
+            scope: .account("checking"),
+            query: TransactionFeedQuery(status: .uncleared)
+        )
+        let clearedTyped = try await database.fetchTransactionQueryPage(
+            scope: .account("checking"),
+            query: TransactionFeedQuery(status: .cleared)
+        )
+        let reconciledTyped = try await database.fetchTransactionQueryPage(
+            scope: .account("checking"),
+            query: TransactionFeedQuery(status: .reconciled)
+        )
+        #expect(unclearedTyped.matchingTransactionIDs.contains("mixed-uncategorized-child"))
+        #expect(unclearedTyped.attachedContextTransactionIDs.contains("mixed-parent"))
+        #expect(clearedTyped.matchingTransactionIDs.contains("mixed-parent"))
+        #expect(clearedTyped.attachedContextTransactionIDs.contains("mixed-uncategorized-child"))
+        #expect(reconciledTyped.matchingTransactionIDs.contains("mixed-categorized-child"))
+        #expect(reconciledTyped.attachedContextTransactionIDs.contains("mixed-parent"))
 
         let groupedChildSearch = try await database.fetchTransactionPage(
             accountID: "checking",

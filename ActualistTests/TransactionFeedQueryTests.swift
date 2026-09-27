@@ -35,6 +35,14 @@ struct TransactionFeedQueryTests {
         #expect(ids.values == [nil, "groceries", "utilities"])
     }
 
+    @Test func blankIDOperandsAreRemovedWithoutErasingExplicitNull() {
+        #expect(TransactionQueryIDCondition.equals(nil).values == [nil])
+        #expect(TransactionQueryIDCondition.equals("  ").values.isEmpty)
+        #expect(TransactionQueryIDCondition.doesNotEqual("\n").values.isEmpty)
+        #expect(TransactionQueryIDCondition.oneOf([" ", nil, " market "]).values == [nil, "market"])
+        #expect(TransactionQueryIDCondition.notOneOf(["", "  "]).values.isEmpty)
+    }
+
     @Test func queryReplacementKeepsTheOtherNormalizedIdentityFields() throws {
         let day = try #require(TransactionQueryDay(rawValue: "2026-09-09"))
         let condition = TransactionQueryCondition.date(
@@ -67,21 +75,48 @@ struct TransactionFeedQueryTests {
         let current = loadedPage(
             id: "current",
             signature: TransactionFeedQuery(status: .cleared).signature,
-            nextOffset: 1
+            nextOffset: 1,
+            matchingIDs: ["current"]
         )
         let older = loadedPage(
             id: "older",
             signature: TransactionFeedQuery(status: .uncleared).signature,
-            nextOffset: 2
+            nextOffset: 2,
+            matchingIDs: ["older"]
         )
 
         #expect(current.appendingPage(older) == current)
     }
 
+    @Test func pageAppendRemovesIDsFromContextWhenALaterPageMatchesThem() {
+        let signature = TransactionFeedQuery(text: "shared").signature
+        let current = loadedPage(
+            id: "parent",
+            signature: signature,
+            nextOffset: 1,
+            matchingIDs: ["parent"],
+            contextIDs: ["child"]
+        )
+        let older = loadedPage(
+            id: "child",
+            signature: signature,
+            nextOffset: 2,
+            matchingIDs: ["child"]
+        )
+
+        let merged = current.appendingPage(older)
+
+        #expect(merged.matchingTransactionIDs == ["parent", "child"])
+        #expect(merged.attachedContextTransactionIDs?.isEmpty == true)
+        #expect(merged.totalMatchCount == 2)
+    }
+
     private func loadedPage(
         id: String,
         signature: TransactionQuerySignature,
-        nextOffset: Int
+        nextOffset: Int,
+        matchingIDs: Set<String>,
+        contextIDs: Set<String> = []
     ) -> LoadedAccountTransactions {
         LoadedAccountTransactions(
             transactions: [ActualTransaction(
@@ -102,7 +137,13 @@ struct TransactionFeedQueryTests {
             transferPayeeIDs: [],
             reachedEnd: false,
             nextOffset: nextOffset,
-            querySignature: signature
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: 2,
+                querySignature: signature,
+                matchingTransactionIDs: matchingIDs,
+                contributingTransactionIDs: matchingIDs,
+                attachedContextTransactionIDs: contextIDs
+            )
         )
     }
 }
@@ -146,5 +187,56 @@ struct TransactionFeedReadSessionQueryIdentityTests {
         )
 
         #expect(account != spending)
+    }
+}
+
+@MainActor
+struct TransactionRepositoryTypedQueryCompatibilityTests {
+    @Test func legacyOnlyConformerCannotFabricateTypedQueryMetadata() async throws {
+        let repository = RecordingTransactionRepository()
+        let query = TransactionFeedQuery(status: .cleared, text: "market")
+        let legacyPage = try await repository.searchSpendingTransactions(
+            budgetID: "budget",
+            query: "market",
+            limit: 50,
+            offset: 0,
+            statusFilter: .cleared
+        )
+
+        #expect(legacyPage.queryMetadata == nil)
+        #expect(repository.cachedTransactions(
+            budgetID: "budget",
+            scope: .spending,
+            query: query
+        ) == nil)
+        await #expect(throws: TransactionQueryCapabilityError.unavailable) {
+            try await repository.refreshTransactions(
+                budgetID: "budget",
+                scope: .spending,
+                query: query
+            )
+        }
+        await #expect(throws: TransactionQueryCapabilityError.unavailable) {
+            try await repository.loadOlderTransactions(
+                budgetID: "budget",
+                scope: .spending,
+                query: query
+            )
+        }
+        await #expect(throws: TransactionQueryCapabilityError.unavailable) {
+            _ = try await repository.transactionPage(
+                budgetID: "budget",
+                scope: .spending,
+                query: query,
+                limit: 50,
+                offset: 0
+            )
+        }
+        await #expect(throws: TransactionQueryCapabilityError.unavailable) {
+            _ = try await repository.transactionDrilldown(
+                budgetID: "budget",
+                request: TransactionDrilldownRequest(scope: .spending, query: query)
+            )
+        }
     }
 }

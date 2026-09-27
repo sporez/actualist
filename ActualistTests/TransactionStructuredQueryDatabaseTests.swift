@@ -22,6 +22,7 @@ struct TransactionStructuredQueryDatabaseTests {
         #expect(page.matchingTransactionIDs == ["split-match"])
         #expect(page.contributingTransactionIDs == ["split-match"])
         #expect(page.attachedContextTransactionIDs == ["split-parent", "split-context"])
+        #expect(page.transactions.first?.category == nil)
         #expect(page.querySignature == query.signature)
     }
 
@@ -100,6 +101,154 @@ struct TransactionStructuredQueryDatabaseTests {
         #expect(parent.contributingTransactionIDs.isEmpty)
     }
 
+    @Test func flatParentAndChildMatchesContributeEachPhysicalIDOnlyOnce() async throws {
+        let database = try database()
+        let query = TransactionFeedQuery(text: "common needle")
+
+        let page = try await database.fetchTransactionQueryPage(scope: .spending, query: query)
+        let drilldown = try await database.fetchTransactionDrilldown(
+            TransactionDrilldownRequest(scope: .spending, query: query)
+        )
+
+        #expect(page.transactions.map(\.id) == ["checking-new", "split-parent", "split-match"])
+        #expect(page.totalMatchCount == 3)
+        #expect(page.matchingTransactionIDs == ["checking-new", "split-parent", "split-match"])
+        #expect(page.contributingTransactionIDs == ["checking-new", "split-match"])
+        #expect(page.attachedContextTransactionIDs == ["split-context"])
+        #expect(drilldown.contributingTransactions.map(\.id) == ["checking-new", "split-match"])
+    }
+
+    @Test func nullBlankNegativeAndSetIDOperationsRemainDistinct() async throws {
+        let database = try database()
+        let explicitNull = TransactionFeedQuery(conditions: [.payee(.equals(nil))])
+        let blankScalar = TransactionFeedQuery(conditions: [.payee(.equals("  "))])
+        let blankNegativeScalar = TransactionFeedQuery(conditions: [.payee(.doesNotEqual("\n"))])
+        let oneOf = TransactionFeedQuery(conditions: [.payee(.oneOf([nil, "market", " "]))])
+        let emptyOneOf = TransactionFeedQuery(conditions: [.payee(.oneOf([" "]))])
+        let notMarket = TransactionFeedQuery(conditions: [.payee(.doesNotEqual("market"))])
+        let notOneOfMarket = TransactionFeedQuery(conditions: [.payee(.notOneOf(["market"]))])
+        let emptyNotOneOf = TransactionFeedQuery(conditions: [.payee(.notOneOf([" "]))])
+
+        let nullPage = try await database.fetchTransactionQueryPage(scope: .spending, query: explicitNull)
+        let blankPage = try await database.fetchTransactionQueryPage(scope: .spending, query: blankScalar)
+        let blankNegativePage = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: blankNegativeScalar
+        )
+        let oneOfPage = try await database.fetchTransactionQueryPage(scope: .spending, query: oneOf)
+        let emptyOneOfPage = try await database.fetchTransactionQueryPage(scope: .spending, query: emptyOneOf)
+        let notMarketPage = try await database.fetchTransactionQueryPage(scope: .spending, query: notMarket)
+        let notOneOfPage = try await database.fetchTransactionQueryPage(scope: .spending, query: notOneOfMarket)
+        let emptyNotOneOfPage = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: emptyNotOneOf
+        )
+
+        #expect(nullPage.transactions.map(\.id) == ["split-parent"])
+        #expect(nullPage.matchingTransactionIDs == ["split-parent"])
+        #expect(blankPage.totalMatchCount == 0)
+        #expect(blankNegativePage.totalMatchCount == 0)
+        #expect(oneOfPage.transactions.map(\.id) == ["split-parent"])
+        #expect(oneOfPage.matchingTransactionIDs == ["split-parent", "split-match"])
+        #expect(emptyOneOfPage.totalMatchCount == 0)
+        #expect(notMarketPage.matchingTransactionIDs == [
+            "checking-new", "split-parent", "split-context", "savings-row",
+        ])
+        #expect(notOneOfPage.matchingTransactionIDs == notMarketPage.matchingTransactionIDs)
+        #expect(emptyNotOneOfPage.totalMatchCount == 0)
+    }
+
+    @Test func everyDateOperationUsesCanonicalInclusiveBoundaries() async throws {
+        let database = try database()
+        let septemberNinth = try #require(TransactionQueryDay(rawValue: "2026-09-09"))
+
+        func query(_ operation: TransactionQueryDateOperation) -> TransactionFeedQuery {
+            TransactionFeedQuery(conditions: [
+                .date(TransactionQueryDateCondition(operation: operation, day: septemberNinth)),
+            ])
+        }
+
+        let exact = try await database.fetchTransactionQueryPage(scope: .spending, query: query(.isOn))
+        let approximate = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: query(.isApproximately)
+        )
+        let after = try await database.fetchTransactionQueryPage(scope: .spending, query: query(.isAfter))
+        let onOrAfter = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: query(.isOnOrAfter)
+        )
+        let before = try await database.fetchTransactionQueryPage(scope: .spending, query: query(.isBefore))
+        let onOrBefore = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: query(.isOnOrBefore)
+        )
+
+        #expect(exact.transactions.map(\.id) == ["split-parent"])
+        #expect(approximate.transactions.map(\.id) == ["checking-new", "split-parent"])
+        #expect(after.transactions.map(\.id) == ["checking-new"])
+        #expect(onOrAfter.transactions.map(\.id) == ["checking-new", "split-parent"])
+        #expect(before.transactions.map(\.id) == ["savings-row"])
+        #expect(onOrBefore.transactions.map(\.id) == ["split-parent", "savings-row"])
+    }
+
+    @Test func statusWithDateAndAccountConditionsMatchesPhysicalChildren() async throws {
+        let database = try database()
+        let day = try #require(TransactionQueryDay(rawValue: "2026-09-09"))
+        let query = TransactionFeedQuery(
+            status: .uncleared,
+            conditions: [
+                .date(TransactionQueryDateCondition(operation: .isOn, day: day)),
+                .account(.equals("checking")),
+            ]
+        )
+
+        let page = try await database.fetchTransactionQueryPage(scope: .spending, query: query)
+
+        #expect(page.transactions.map(\.id) == ["split-parent"])
+        #expect(page.matchingTransactionIDs == ["split-match"])
+        #expect(page.contributingTransactionIDs == ["split-match"])
+        #expect(page.attachedContextTransactionIDs == ["split-parent", "split-context"])
+    }
+
+    @Test func accountScopeZeroResultAndMalformedFamiliesKeepExactOffsets() async throws {
+        let database = try database()
+        let missing = TransactionFeedQuery(conditions: [.category(.equals("utilities"))])
+        let coffee = TransactionFeedQuery(conditions: [.payee(.equals("coffee"))])
+
+        let empty = try await database.fetchTransactionQueryPage(
+            scope: .account("savings"),
+            query: missing,
+            limit: 1,
+            offset: 7
+        )
+        let live = try await database.fetchTransactionQueryPage(scope: .spending, query: coffee)
+
+        #expect(empty.transactions.isEmpty)
+        #expect(empty.totalMatchCount == 0)
+        #expect(empty.nextOffset == 7)
+        #expect(empty.reachedEnd)
+        #expect(!live.matchingTransactionIDs.contains("dead-child"))
+        #expect(!live.matchingTransactionIDs.contains("missing-parent-child"))
+    }
+
+    @Test func missingStatusColumnsUseTheKnownUnclearedCompatibilityProjection() async throws {
+        let database = try TransactionStatusFilterTestSupport.legacyDatabaseWithoutStatusColumns()
+        let query = TransactionFeedQuery(
+            status: .uncleared,
+            conditions: [.category(.equals(nil))]
+        )
+
+        let page = try await database.fetchTransactionQueryPage(
+            scope: .account("checking"),
+            query: query
+        )
+
+        #expect(page.transactions.map(\.id) == ["legacy-no-status"])
+        #expect(page.matchingTransactionIDs == ["legacy-no-status"])
+        #expect(page.totalMatchCount == 1)
+    }
+
     @Test func drilldownReturnsUnpagedContributorsWithoutCountingContext() async throws {
         let database = try database()
         let query = TransactionFeedQuery(conditions: [.category(.equals("groceries"))])
@@ -167,18 +316,24 @@ struct TransactionStructuredQueryDatabaseTests {
                     ('raw-market', 'market');
                 INSERT INTO transactions (
                     id, isParent, isChild, acct, category, amount, description, notes,
-                    date, sort_order, tombstone, parent_id
+                    date, sort_order, tombstone, parent_id, cleared, reconciled
                 ) VALUES
                     ('checking-new', 0, 0, 'checking', 'raw-groceries', -100, 'raw-coffee',
-                     'ordinary', 20260910, 50, 0, NULL),
-                    ('split-parent', 1, 0, 'checking', NULL, -500, NULL,
-                     'parent needle', 20260909, 40, 0, NULL),
+                     'ordinary common needle', 20260910, 50, 0, NULL, 0, 0),
+                    ('split-parent', 1, 0, 'checking', 'raw-groceries', -500, NULL,
+                     'parent needle common needle', 20260909, 40, 0, NULL, 1, 0),
                     ('split-match', 0, 1, 'checking', 'raw-groceries', -200, 'raw-market',
-                     'child needle', 20260909, 30, 0, 'split-parent'),
+                     'child needle common needle', 20260909, 30, 0, 'split-parent', 0, 0),
                     ('split-context', 0, 1, 'checking', 'raw-utilities', -300, 'raw-coffee',
-                     'sibling', 20260909, 20, 0, 'split-parent'),
+                     'sibling', 20260909, 20, 0, 'split-parent', 1, 1),
                     ('savings-row', 0, 0, 'savings', 'raw-groceries', -400, 'raw-coffee',
-                     'older', 20260901, 10, 0, NULL);
+                     'older', 20260901, 10, 0, NULL, 0, 0),
+                    ('dead-parent', 1, 0, 'checking', NULL, -100, NULL,
+                     'dead', 20260908, 8, 1, NULL, 0, 0),
+                    ('dead-child', 0, 1, 'checking', 'raw-groceries', -100, 'raw-coffee',
+                     'dead child', 20260908, 7, 0, 'dead-parent', 0, 0),
+                    ('missing-parent-child', 0, 1, 'checking', 'raw-groceries', -100, 'raw-coffee',
+                     'missing parent', 20260908, 6, 0, 'missing-parent', 0, 0);
                 """)
         }
         return try BudgetDatabase(databaseURL: url)

@@ -60,7 +60,6 @@ private struct CompiledTransactionQuery {
     let conditions: [String]
     let arguments: [DatabaseValueConvertible]
     let usesGroupedParentSelection: Bool
-    let marksWholeFamiliesMatching: Bool
 
     var whereSQL: String {
         conditions.joined(separator: " AND ")
@@ -172,17 +171,15 @@ private extension BudgetDatabase {
             }
         }
         let usesGroupedParentSelection = query.text == nil
-            && query.status != .uncategorized
+            && query.status == .all
             && hasOnlyParentSafeConditions
-        let marksWholeFamiliesMatching = usesGroupedParentSelection && query.status == .all
         return CompiledTransactionQuery(
             split: split,
             joins: joins,
             normalizedDate: normalizedDate,
             conditions: conditions,
             arguments: arguments,
-            usesGroupedParentSelection: usesGroupedParentSelection,
-            marksWholeFamiliesMatching: marksWholeFamiliesMatching
+            usesGroupedParentSelection: usesGroupedParentSelection
         )
     }
 
@@ -279,10 +276,8 @@ private extension BudgetDatabase {
         let physical = physicalTransactions(in: displayed)
         let displayedIDs = Set(physical.compactMap(\.id))
         let matchingIDs: Set<String>
-        if compiled.marksWholeFamiliesMatching {
+        if compiled.usesGroupedParentSelection {
             matchingIDs = displayedIDs
-        } else if compiled.usesGroupedParentSelection {
-            matchingIDs = Set(groupIDs)
         } else {
             matchingIDs = try matchingTransactionIDs(
                 db: db,
@@ -479,7 +474,15 @@ private extension BudgetDatabase {
     }
 
     func physicalTransactions(in transactions: [ActualTransaction]) -> [ActualTransaction] {
-        transactions.flatMap { [$0] + $0.subtransactions }
+        var seenIDs = Set<String>()
+        var ordered: [ActualTransaction] = []
+        for transaction in transactions.flatMap({ [$0] + $0.subtransactions }) {
+            if let id = transaction.id, !seenIDs.insert(id).inserted {
+                continue
+            }
+            ordered.append(transaction)
+        }
+        return ordered
     }
 
     func transactionQueryLimitSQL(
@@ -508,7 +511,11 @@ private extension BudgetDatabase {
         case .payee(let ids):
             return idPredicate(ids, expression: joins.mappedPayee, arguments: &arguments)
         case .category(let ids):
-            return idPredicate(ids, expression: joins.mappedCategory, arguments: &arguments)
+            return idPredicate(
+                ids,
+                expression: split.effectiveCategory(mappedCategory: joins.mappedCategory),
+                arguments: &arguments
+            )
         }
     }
 
@@ -564,15 +571,17 @@ private extension BudgetDatabase {
     ) -> String {
         switch condition.operation {
         case .isEqual:
+            guard condition.values.count == 1 else { return "0 = 1" }
             return idEqualityPredicate(
-                condition.values.first ?? nil,
+                condition.values[0],
                 expression: expression,
                 negated: false,
                 arguments: &arguments
             )
         case .isNotEqual:
+            guard condition.values.count == 1 else { return "0 = 1" }
             return idEqualityPredicate(
-                condition.values.first ?? nil,
+                condition.values[0],
                 expression: expression,
                 negated: true,
                 arguments: &arguments

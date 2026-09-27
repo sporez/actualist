@@ -66,11 +66,11 @@ struct TransactionQueryIDCondition: Hashable, Sendable {
     let values: [String?]
 
     static func equals(_ value: String?) -> Self {
-        Self(operation: .isEqual, values: [normalized(value)])
+        Self(operation: .isEqual, values: normalizedScalar(value))
     }
 
     static func doesNotEqual(_ value: String?) -> Self {
-        Self(operation: .isNotEqual, values: [normalized(value)])
+        Self(operation: .isNotEqual, values: normalizedScalar(value))
     }
 
     static func oneOf(_ values: [String?]) -> Self {
@@ -86,25 +86,36 @@ struct TransactionQueryIDCondition: Hashable, Sendable {
         self.values = values
     }
 
-    private static func normalized(_ value: String?) -> String? {
-        guard let value else { return nil }
+    private static func normalizedScalar(_ value: String?) -> [String?] {
+        guard let value else { return [nil] }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return trimmed.isEmpty ? [] : [trimmed]
     }
 
     private static func normalized(_ values: [String?]) -> [String?] {
         var seen = Set<String?>()
-        return values
-            .map(normalized)
-            .filter { seen.insert($0).inserted }
-            .sorted { lhs, rhs in
-                switch (lhs, rhs) {
-                case (nil, nil): false
-                case (nil, _): true
-                case (_, nil): false
-                case let (.some(lhs), .some(rhs)): lhs < rhs
-                }
+        var normalized: [String?] = []
+        for value in values {
+            let candidate: String?
+            if let value {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                candidate = trimmed
+            } else {
+                candidate = nil
             }
+            if seen.insert(candidate).inserted {
+                normalized.append(candidate)
+            }
+        }
+        return normalized.sorted { lhs, rhs in
+            switch (lhs, rhs) {
+            case (nil, nil): false
+            case (nil, _): true
+            case (_, nil): false
+            case let (.some(lhs), .some(rhs)): lhs < rhs
+            }
+        }
     }
 }
 
@@ -206,6 +217,14 @@ struct TransactionFeedQuery: Hashable, Sendable {
 enum TransactionQueryScope: Hashable, Sendable {
     case account(String)
     case spending
+}
+
+struct TransactionQueryPageMetadata: Hashable, Sendable {
+    let totalMatchCount: Int
+    let querySignature: TransactionQuerySignature
+    let matchingTransactionIDs: Set<String>
+    let contributingTransactionIDs: Set<String>
+    let attachedContextTransactionIDs: Set<String>
 }
 
 struct TransactionDrilldownRequest: Hashable, Sendable {
