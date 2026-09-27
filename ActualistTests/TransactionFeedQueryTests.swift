@@ -10,29 +10,41 @@ struct TransactionFeedQueryTests {
         let categories = TransactionQueryCondition.category(
             .oneOf([" utilities ", nil, "groceries", "utilities", ""])
         )
+        let excludesTransfers = TransactionQueryCondition.transfer(false)
 
         let first = TransactionFeedQuery(
             status: .cleared,
             text: "  market  ",
             conditionsJoin: .or,
-            conditions: [categories, date, categories]
+            conditions: [excludesTransfers, categories, date, categories, excludesTransfers]
         )
         let second = TransactionFeedQuery(
             status: .cleared,
             text: "market",
             conditionsJoin: .or,
-            conditions: [date, categories]
+            conditions: [date, excludesTransfers, categories]
         )
 
         #expect(first == second)
         #expect(first.signature == second.signature)
         #expect(first.text == "market")
-        #expect(first.conditions.count == 2)
+        #expect(first.conditions == [categories, date, excludesTransfers])
         guard case .category(let ids) = first.conditions.first else {
             Issue.record("Expected canonical category condition first")
             return
         }
         #expect(ids.values == [nil, "groceries", "utilities"])
+        #expect(first.conditions.last == excludesTransfers)
+    }
+
+    @Test func transferBooleanParticipatesInQueryIdentity() {
+        let transfers = TransactionFeedQuery(conditions: [.transfer(true)])
+        let nonTransfers = TransactionFeedQuery(conditions: [.transfer(false)])
+
+        #expect(transfers != nonTransfers)
+        #expect(transfers.signature != nonTransfers.signature)
+        #expect(transfers.signature.stableSortKey.contains("transfer|true"))
+        #expect(nonTransfers.signature.stableSortKey.contains("transfer|false"))
     }
 
     @Test func blankIDOperandsAreRemovedWithoutErasingExplicitNull() {

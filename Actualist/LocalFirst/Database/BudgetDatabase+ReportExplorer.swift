@@ -42,46 +42,65 @@ extension BudgetDatabase {
 
         switch query.metric {
         case .netWorth:
-            let rows = try queue.read { db in
-                try reportExplorerBalanceChanges(through: query.endDay, db: db)
+            let result = try queue.read { db in
+                let catalog = try reportExplorerFilterCatalog(db: db)
+                let accountIDs = reportExplorerAccountIDs(query: query, catalog: catalog)
+                return (
+                    try reportExplorerBalanceChanges(
+                        through: query.endDay,
+                        accountIDs: accountIDs,
+                        db: db
+                    ),
+                    catalog
+                )
             }
-            return try buildNetWorthExplorer(query: query, rows: rows)
+            return try buildNetWorthExplorer(query: query, rows: result.0, catalog: result.1)
         case .cashFlow, .spending, .budgetOverview, .spendingAverage:
             let result = try queue.read { db in
-                let activityStartDay = query.spendingAverageComparison?.history.first?.startDay
-                    ?? query.startDay
-                let rows = try reportActivityDays(
-                    from: activityStartDay,
-                    through: query.endDay,
-                    db: db
+                let activity = try reportExplorerActivityRead(query: query, db: db)
+                let currentRows = reportActivityDays(
+                    from: activity.current.contributingTransactions,
+                    catalog: activity.catalog
+                )
+                let historyRows = reportActivityDays(
+                    from: activity.history?.contributingTransactions ?? [],
+                    catalog: activity.catalog
                 )
                 let budgetedByMonth: [String: Int]
                 if query.metric == .budgetOverview {
+                    let categoryIDs = reportExplorerCategoryIDs(query: query, catalog: activity.catalog)
                     budgetedByMonth = try Dictionary(uniqueKeysWithValues: ReportCalendar.monthIDs(
                         from: String(query.startDay.prefix(7)),
                         through: String(query.endDay.prefix(7))
                     ).map { month in
-                        (month, try reportBudgetedExpenses(month: month, db: db))
+                        (month, try reportBudgetedExpenses(
+                            month: month,
+                            categoryIDs: categoryIDs,
+                            db: db
+                        ))
                     })
                 } else {
                     budgetedByMonth = [:]
                 }
-                return (rows, budgetedByMonth)
+                return (activity, currentRows + historyRows, budgetedByMonth)
             }
             return try buildActivityExplorer(
                 query: query,
-                rows: result.0,
-                budgetedByMonth: result.1
+                rows: result.1,
+                budgetedByMonth: result.2,
+                read: result.0
             )
         }
     }
 
     private func reportExplorerBalanceChanges(
         through endDay: String,
+        accountIDs: Set<String>,
         db: Database
     ) throws -> [RawReportExplorerAmount] {
         guard try tableExists("transactions", db: db),
-              try tableExists("accounts", db: db) else {
+              try tableExists("accounts", db: db),
+              !accountIDs.isEmpty else {
             return []
         }
 
@@ -89,6 +108,10 @@ extension BudgetDatabase {
         let accountColumns = try columnSet(for: "accounts", db: db)
         let split = transactionSplitQueryExpressions(columns: transactionColumns)
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let sortedAccountIDs = accountIDs.sorted()
+        let placeholders = Array(repeating: "?", count: sortedAccountIDs.count).joined(separator: ", ")
+        var arguments: [DatabaseValueConvertible] = [endDay]
+        arguments.append(contentsOf: sortedAccountIDs)
         let rows = try Row.fetchAll(
             db,
             sql: """
@@ -100,10 +123,11 @@ extension BudgetDatabase {
                 WHERE \(split.liveInlinePredicate())
                   AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
                   AND \(normalizedDate) <= ?
+                  AND \(split.qualifiedAccount) IN (\(placeholders))
                 GROUP BY \(normalizedDate)
                 ORDER BY \(normalizedDate)
                 """,
-            arguments: [endDay]
+            arguments: StatementArguments(arguments)
         )
         return rows.compactMap { row in
             guard let dayID = flexibleString(row["day"]) else { return nil }
@@ -113,7 +137,8 @@ extension BudgetDatabase {
 
     private func buildNetWorthExplorer(
         query: ReportExplorerQuery,
-        rows: [RawReportExplorerAmount]
+        rows: [RawReportExplorerAmount],
+        catalog: ReportExplorerFilterCatalog
     ) throws -> ReportExplorerSnapshot {
         let openingBalance = try ReportArithmetic.sum(rows.lazy.filter { $0.dayID < query.startDay }.map(\.amount))
         let changesByDay = try Dictionary(grouping: rows.filter { $0.dayID >= query.startDay }, by: \.dayID)
@@ -147,17 +172,20 @@ extension BudgetDatabase {
                 budgeted: 0,
                 averageSpending: 0
             ),
-            hasData: !rows.isEmpty
+            hasData: !rows.isEmpty,
+            filterCatalog: catalog,
+            drilldown: .unavailable(.balanceSnapshot)
         )
     }
 
     private func buildActivityExplorer(
         query: ReportExplorerQuery,
         rows: [RawReportActivityDay],
-        budgetedByMonth: [String: Int]
+        budgetedByMonth: [String: Int],
+        read: ReportExplorerActivityRead
     ) throws -> ReportExplorerSnapshot {
         if query.metric == .spendingAverage {
-            return try buildSpendingAverageExplorer(query: query, rows: rows)
+            return try buildSpendingAverageExplorer(query: query, rows: rows, read: read)
         }
 
         let rowsByDay = Dictionary(grouping: rows, by: \.dayID)
@@ -183,7 +211,7 @@ extension BudgetDatabase {
             for dayID in ReportCalendar.dayIDs(from: period.startDay, through: period.endDay) {
                 for row in rowsByDay[dayID] ?? [] {
                     switch query.metric {
-                    case .cashFlow where !row.isTransfer:
+                    case .cashFlow:
                         hasContributingData = hasContributingData || row.amount != 0
                         if row.isInflow {
                             income = try ReportArithmetic.add(income, row.amount)
@@ -241,13 +269,17 @@ extension BudgetDatabase {
                 budgeted: budgeted,
                 averageSpending: 0
             ),
-            hasData: hasContributingData || budgeted != 0
+            hasData: hasContributingData || budgeted != 0,
+            filterCatalog: read.catalog,
+            drilldown: reportExplorerDrilldownAvailability(read),
+            activityQuerySignature: read.current.querySignature
         )
     }
 
     private func buildSpendingAverageExplorer(
         query: ReportExplorerQuery,
-        rows: [RawReportActivityDay]
+        rows: [RawReportActivityDay],
+        read: ReportExplorerActivityRead
     ) throws -> ReportExplorerSnapshot {
         guard let comparison = query.spendingAverageComparison,
               let firstHistory = comparison.history.first else {
@@ -308,8 +340,20 @@ extension BudgetDatabase {
                 budgeted: 0,
                 averageSpending: average
             ),
-            hasData: points.contains { $0.expenses != 0 || $0.comparison != 0 }
+            hasData: points.contains { $0.expenses != 0 || $0.comparison != 0 },
+            filterCatalog: read.catalog,
+            drilldown: reportExplorerDrilldownAvailability(read),
+            activityQuerySignature: read.current.querySignature,
+            historyQuerySignature: read.history?.querySignature
         )
+    }
+
+    private func reportExplorerDrilldownAvailability(
+        _ read: ReportExplorerActivityRead
+    ) -> ReportDrilldownAvailability {
+        read.current.contributingTransactions.isEmpty
+            ? .unavailable(.noContributingTransactions)
+            : .transactions(read.currentRequest)
     }
 
     private func reportExplorerSpendingByDay(

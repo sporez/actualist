@@ -6,6 +6,7 @@ struct ReportExplorerView: View {
     @Environment(\.actualistDensity) private var density
     @State private var viewModel: ReportExplorerViewModel
     @State private var isCustomRangePresented = false
+    @State private var isFilterPresented = false
 
     init(reportCard: ReportCardKind) {
         _viewModel = State(initialValue: ReportExplorerViewModel(reportCard: reportCard))
@@ -22,6 +23,19 @@ struct ReportExplorerView: View {
 
                 if let snapshot = viewModel.displaySnapshot, snapshot.hasData {
                     ReportExplorerTotalsView(viewModel: viewModel)
+                    if let request = viewModel.drilldownRequest {
+                        NavigationLink {
+                            ReportTransactionDrilldownView(
+                                title: "\(viewModel.title) Transactions",
+                                request: request
+                            )
+                        } label: {
+                            Label("View Contributing Transactions", systemImage: "list.bullet.rectangle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
+                        .accessibilityIdentifier("report-drilldown-button")
+                    }
                     ReportExplorerChart(snapshot: snapshot, viewModel: viewModel)
                 } else if viewModel.isLoading {
                     ProgressView("Loading report")
@@ -44,6 +58,17 @@ struct ReportExplorerView: View {
         .navigationTitle(viewModel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isFilterPresented = true
+                } label: {
+                    Image(systemName: viewModel.activeFilterCount == 0
+                        ? "line.3.horizontal.decrease"
+                        : "line.3.horizontal.decrease.circle.fill")
+                }
+                .accessibilityLabel("Report filters")
+                .accessibilityIdentifier("report-filter-button")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 if viewModel.usesComparisonMonthSelection {
                     Menu {
@@ -103,6 +128,14 @@ struct ReportExplorerView: View {
             ) { start, end in
                 viewModel.selectCustomRange(start: start, end: end)
             }
+        }
+        .sheet(isPresented: $isFilterPresented) {
+            ReportExplorerFilterView(
+                metric: viewModel.query.metric,
+                filters: viewModel.filters,
+                catalog: viewModel.filterCatalog,
+                onApply: { viewModel.applyFilters($0) }
+            )
         }
         .task(id: loadIdentity) {
             await viewModel.load(using: appState)

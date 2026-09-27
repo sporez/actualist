@@ -159,8 +159,8 @@ struct TransactionStructuredQueryDatabaseTests {
     }
 
     @Test func scalarNullCategoryExcludesTransfersAndSplitParentsAcrossTransferStorageShapes() async throws {
-        let mappedTransferDatabase = try categoryNullDatabase(transferColumn: .actualMapped)
-        let directTransferDatabase = try categoryNullDatabase(transferColumn: .directCompatibility)
+        let mappedTransferDatabase = try categoryNullDatabase(storage: .actualMapped)
+        let directTransferDatabase = try categoryNullDatabase(storage: .directCompatibility)
         let scalarNull = TransactionFeedQuery(conditions: [.category(.equals(nil))])
 
         let mappedPage = try await mappedTransferDatabase.fetchTransactionQueryPage(
@@ -197,6 +197,53 @@ struct TransactionStructuredQueryDatabaseTests {
             mixedPage.transactions.first(where: { $0.id == "split-parent" })?.subtransactions.map(\.id)
                 == ["split-child"]
         )
+    }
+
+    @Test func transferConditionClassifiesRawAndMappedPayeesAndPreservesSplitContext() async throws {
+        for storage in TransferStorageShape.allCases {
+            let database = try transferDatabase(storage: storage)
+            let transfers = try await database.fetchTransactionQueryPage(
+                scope: .spending,
+                query: TransactionFeedQuery(conditions: [.transfer(true)])
+            )
+            let nonTransfers = try await database.fetchTransactionQueryPage(
+                scope: .spending,
+                query: TransactionFeedQuery(conditions: [.transfer(false)])
+            )
+
+            #expect(transfers.transactions.map(\.id) == [
+                "direct-transfer", "mapped-payee-transfer", "split-parent",
+            ])
+            #expect(transfers.matchingTransactionIDs == [
+                "direct-transfer", "mapped-payee-transfer", "split-transfer-child",
+            ])
+            #expect(transfers.contributingTransactionIDs == transfers.matchingTransactionIDs)
+            #expect(transfers.attachedContextTransactionIDs == ["split-parent", "split-context"])
+            #expect(transfers.totalMatchCount == 3)
+
+            #expect(nonTransfers.transactions.map(\.id) == ["ordinary", "split-parent"])
+            #expect(nonTransfers.matchingTransactionIDs == ["ordinary", "split-parent", "split-context"])
+            #expect(nonTransfers.contributingTransactionIDs == ["ordinary", "split-context"])
+            #expect(nonTransfers.attachedContextTransactionIDs == ["split-transfer-child"])
+            #expect(nonTransfers.totalMatchCount == 2)
+        }
+    }
+
+    @Test func existingReadDrilldownOverloadMatchesPublicUnpagedContributors() async throws {
+        let database = try transferDatabase(storage: .actualMapped)
+        let request = TransactionDrilldownRequest(
+            scope: .spending,
+            query: TransactionFeedQuery(conditions: [.transfer(true)])
+        )
+
+        let wrapped = try await database.fetchTransactionDrilldown(request)
+        let existingRead = try await database.testTransactionDrilldown(request)
+
+        #expect(existingRead == wrapped)
+        #expect(existingRead.contributingTransactions.map(\.id) == [
+            "direct-transfer", "mapped-payee-transfer", "split-transfer-child",
+        ])
+        #expect(existingRead.attachedContextTransactionIDs == ["split-parent", "split-context"])
     }
 
     @Test func everyDateOperationUsesCanonicalInclusiveBoundaries() async throws {
@@ -380,18 +427,39 @@ struct TransactionStructuredQueryDatabaseTests {
         return try BudgetDatabase(databaseURL: url)
     }
 
-    private enum TransferStorageColumn: String {
-        case actualMapped = "transferred_id"
-        case directCompatibility = "transfer_id"
+    private enum TransferStorageShape: CaseIterable {
+        case actualMapped
+        case directCompatibility
+
+        var transactionColumn: String {
+            switch self {
+            case .actualMapped: "transferred_id"
+            case .directCompatibility: "transfer_id"
+            }
+        }
+
+        var payeeMappingColumn: String {
+            switch self {
+            case .actualMapped: "targetId"
+            case .directCompatibility: "target_id"
+            }
+        }
+
+        var payeeAccountColumn: String {
+            switch self {
+            case .actualMapped: "transfer_acct"
+            case .directCompatibility: "transfer_account"
+            }
+        }
     }
 
-    private func categoryNullDatabase(transferColumn: TransferStorageColumn) throws -> BudgetDatabase {
+    private func categoryNullDatabase(storage: TransferStorageShape) throws -> BudgetDatabase {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "ActualistCategoryNull-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "db.sqlite")
         let queue = try DatabaseQueue(path: url.path)
-        let transferColumn = transferColumn.rawValue
+        let transferColumn = storage.transactionColumn
         try queue.write { db in
             try db.execute(sql: """
                 CREATE TABLE transactions (
@@ -412,5 +480,70 @@ struct TransactionStructuredQueryDatabaseTests {
                 """)
         }
         return try BudgetDatabase(databaseURL: url)
+    }
+
+    private func transferDatabase(storage: TransferStorageShape) throws -> BudgetDatabase {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistTransferQuery-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appending(path: "db.sqlite")
+        let queue = try DatabaseQueue(path: url.path)
+        let transferColumn = storage.transactionColumn
+        let mappingColumn = storage.payeeMappingColumn
+        let accountColumn = storage.payeeAccountColumn
+        try queue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE accounts (
+                    id TEXT PRIMARY KEY, name TEXT, offbudget INTEGER, tombstone INTEGER
+                );
+                CREATE TABLE payees (
+                    id TEXT PRIMARY KEY, name TEXT, \(accountColumn) TEXT
+                );
+                CREATE TABLE payee_mapping (id TEXT PRIMARY KEY, \(mappingColumn) TEXT);
+                CREATE TABLE transactions (
+                    id TEXT PRIMARY KEY, isParent INTEGER DEFAULT 0, isChild INTEGER DEFAULT 0,
+                    acct TEXT, category TEXT, amount INTEGER, description TEXT, notes TEXT,
+                    date INTEGER, sort_order REAL, tombstone INTEGER DEFAULT 0,
+                    parent_id TEXT, \(transferColumn) TEXT
+                );
+
+                INSERT INTO accounts VALUES
+                    ('checking', 'Checking', 0, 0),
+                    ('savings', 'Savings', 0, 0);
+                INSERT INTO payees VALUES
+                    ('regular-payee', 'Regular', NULL),
+                    ('transfer-payee', 'Savings', 'savings');
+                INSERT INTO payee_mapping VALUES
+                    ('raw-regular', 'regular-payee'),
+                    ('raw-transfer', 'transfer-payee');
+                INSERT INTO transactions (
+                    id, isParent, isChild, acct, category, amount, description, notes,
+                    date, sort_order, tombstone, parent_id, \(transferColumn)
+                ) VALUES
+                    ('direct-transfer', 0, 0, 'checking', NULL, -100, 'raw-regular', NULL,
+                     20260912, 60, 0, NULL, 'paired-id'),
+                    ('mapped-payee-transfer', 0, 0, 'checking', NULL, -100, 'raw-transfer', NULL,
+                     20260911, 50, 0, NULL, NULL),
+                    ('ordinary', 0, 0, 'checking', NULL, -100, 'raw-regular', NULL,
+                     20260910, 40, 0, NULL, NULL),
+                    ('split-parent', 1, 0, 'checking', NULL, -300, 'raw-regular', NULL,
+                     20260909, 30, 0, NULL, NULL),
+                    ('split-transfer-child', 0, 1, 'checking', NULL, -100, 'raw-transfer', NULL,
+                     20260909, 20, 0, 'split-parent', NULL),
+                    ('split-context', 0, 1, 'checking', NULL, -200, 'raw-regular', NULL,
+                     20260909, 10, 0, 'split-parent', NULL);
+                """)
+        }
+        return try BudgetDatabase(databaseURL: url)
+    }
+}
+
+private extension BudgetDatabase {
+    func testTransactionDrilldown(
+        _ request: TransactionDrilldownRequest
+    ) throws -> TransactionDrilldownResult {
+        try queue.read { db in
+            try transactionDrilldown(request, db: db)
+        }
     }
 }

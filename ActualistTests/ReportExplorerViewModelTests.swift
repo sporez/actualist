@@ -72,6 +72,89 @@ struct ReportExplorerViewModelTests {
         #expect(model.query.endDay == "2026-01-15")
     }
 
+    @Test func applyingFiltersCreatesTheNextImmutableQueryAndRequestsItOnce() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .budgetOverview, now: now)
+        let repository = ControlledExplorerRepository(plans: [
+            "budget": [.success(total: 10)],
+        ])
+        let filters = ReportExplorerFilters(
+            accounts: .only(["checking"]),
+            categories: .only(["groceries"]),
+            includesOffBudget: true,
+            includesHiddenCategories: false,
+            includesUncategorized: false
+        )
+
+        model.applyFilters(filters)
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+
+        #expect(model.query.filters == filters)
+        #expect(model.activeFilterCount == 5)
+        #expect(repository.requestedQueries == [model.query])
+    }
+
+    @Test func filterDraftDistinguishesAllSomeAndExplicitlyEmptySelections() {
+        var draft = ReportExplorerFilterDraft(filters: .default)
+        let accountIDs: Set<String> = ["checking", "savings"]
+
+        draft.setAccount("checking", selected: false, availableIDs: accountIDs)
+        #expect(draft.filters.accounts == .only(["savings"]))
+        draft.setAccount("checking", selected: true, availableIDs: accountIDs)
+        #expect(draft.filters.accounts == .all)
+
+        draft.clearAccounts()
+        draft.clearCategories()
+        #expect(draft.filters.accounts == .only([]))
+        #expect(draft.filters.categories == .only([]))
+        #expect(!draft.filters.includesUncategorized)
+    }
+
+    @Test func netWorthNormalizesUnsupportedCategoryVisibilityFilters() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .netWorth, now: now)
+        model.applyFilters(ReportExplorerFilters(
+            accounts: .only(["checking"]),
+            categories: .only(["groceries"]),
+            includesOffBudget: true,
+            includesHiddenCategories: false,
+            includesUncategorized: false
+        ))
+
+        #expect(model.query.filters.accounts == .only(["checking"]))
+        #expect(model.query.filters.categories == .all)
+        #expect(model.query.filters.includesOffBudget)
+        #expect(model.query.filters.includesHiddenCategories)
+        #expect(model.query.filters.includesUncategorized)
+        #expect(model.query.validationError == nil)
+    }
+
+    @Test func privacyModeMasksFilterCatalogWithoutChangingQueryIdentity() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        let source = makeSnapshot(
+            query: model.query,
+            total: 10,
+            catalog: ReportExplorerFilterCatalog(
+                accounts: [ReportExplorerAccountFilterOption(
+                    id: "checking", name: "Private Checking", isOffBudget: false, isClosed: false
+                )],
+                categories: [ReportExplorerCategoryFilterOption(
+                    id: "groceries", name: "Private Groceries", groupID: "needs",
+                    groupName: "Private Needs", isIncome: false, isHidden: false
+                )]
+            )
+        )
+        let repository = ControlledExplorerRepository(plans: ["budget": [.snapshot(source)]])
+
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: true)
+
+        #expect(model.snapshot?.filterCatalog.accounts.first?.name == "Private Checking")
+        #expect(model.displaySnapshot?.filterCatalog.accounts.first?.name != "Private Checking")
+        #expect(model.displaySnapshot?.filterCatalog.categories.first?.name != "Private Groceries")
+        #expect(model.displaySnapshot?.query == source.query)
+    }
+
     @Test func budgetSwitchClearsOldSnapshotWhileNewBudgetIsPendingThenPublishesNewResult() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
@@ -264,6 +347,7 @@ private final class ControlledExplorerRepository: ReportsRepositoryProtocol {
         case success(total: Int)
         case suspendedSuccess(total: Int, started: TestLatch, release: TestLatch)
         case suspendedSnapshot(ReportExplorerSnapshot, started: TestLatch, release: TestLatch)
+        case snapshot(ReportExplorerSnapshot)
         case failure
     }
 
@@ -312,6 +396,8 @@ private final class ControlledExplorerRepository: ReportsRepositoryProtocol {
             started.trip()
             await release.wait()
             return snapshot
+        case .snapshot(let snapshot):
+            return snapshot
         case .failure:
             throw ExplorerTestError.failed
         }
@@ -322,7 +408,11 @@ private enum ExplorerTestError: Error {
     case failed
 }
 
-private func makeSnapshot(query: ReportExplorerQuery, total: Int) -> ReportExplorerSnapshot {
+private func makeSnapshot(
+    query: ReportExplorerQuery,
+    total: Int,
+    catalog: ReportExplorerFilterCatalog = .empty
+) -> ReportExplorerSnapshot {
     let period = query.periods.first
         ?? ReportExplorerPeriod(startDay: query.startDay, endDay: query.endDay)
     let point = ReportExplorerPoint(
@@ -347,7 +437,8 @@ private func makeSnapshot(query: ReportExplorerQuery, total: Int) -> ReportExplo
             budgeted: 0,
             averageSpending: 0
         ),
-        hasData: true
+        hasData: true,
+        filterCatalog: catalog
     )
 }
 
