@@ -65,15 +65,6 @@ struct AccountLifecyclePresentationHost: ViewModifier {
     @Environment(AppState.self) private var appState
     @Environment(\.budgetCurrency) private var currency
     let coordinator: AccountLifecycleCoordinator
-    let onCommitted: @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void
-
-    init(
-        coordinator: AccountLifecycleCoordinator,
-        onCommitted: @escaping @MainActor (AccountLifecycleIdentity, AccountLifecycleOutcome) -> Void = { _, _ in }
-    ) {
-        self.coordinator = coordinator
-        self.onCommitted = onCommitted
-    }
 
     func body(content: Content) -> some View {
         content
@@ -100,6 +91,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
     private var sheetContent: some View {
         switch AccountLifecyclePresentation.mutationSheet(for: coordinator.state) {
         case .savedRefreshPending:
+            let receiptID = appState.routeCoordinator.pendingAccountLifecycleReceipt?.id
             NavigationStack {
                 ContentUnavailableView(
                     "Account Change Saved",
@@ -113,20 +105,25 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 }
             }
             .presentationDetents([.medium])
+            .onDisappear {
+                if let receiptID {
+                    appState.routeCoordinator.accountLifecycleSavedNoticeDismissed(receiptID: receiptID)
+                }
+            }
         case .rename:
             AccountRenameSheet(coordinator: coordinator) {
-                coordinator.submitRename(repository: appState.localFirstStore) { identity, outcome in
-                    appState.recordLocalDataMutation()
-                    onCommitted(identity, outcome)
-                }
+                coordinator.submitRename(
+                    repository: appState.localFirstStore,
+                    onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
+                )
             }
             .safeAreaInset(edge: .bottom) { retryButton }
         case .reopen:
             AccountReopenSheet(coordinator: coordinator) {
-                coordinator.confirmReopen(repository: appState.localFirstStore) { identity, outcome in
-                    appState.recordLocalDataMutation()
-                    onCommitted(identity, outcome)
-                }
+                coordinator.confirmReopen(
+                    repository: appState.localFirstStore,
+                    onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
+                )
             }
             .safeAreaInset(edge: .bottom) { retryButton }
         case .review:
@@ -160,10 +157,10 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     )
                 },
                 onConfirm: {
-                    coordinator.confirmReview(repository: appState.localFirstStore) { identity, outcome in
-                        appState.recordLocalDataMutation()
-                        onCommitted(identity, outcome)
-                    }
+                    coordinator.confirmReview(
+                        repository: appState.localFirstStore,
+                        onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
+                    )
                 },
                 onCancel: { coordinator.cancel() }
             )
