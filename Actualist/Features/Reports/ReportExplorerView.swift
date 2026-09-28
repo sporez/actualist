@@ -4,6 +4,7 @@ import SwiftUI
 struct ReportExplorerView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel: ReportExplorerViewModel
     @State private var isCustomRangePresented = false
     @State private var isFilterPresented = false
@@ -30,10 +31,24 @@ struct ReportExplorerView: View {
                                 request: request
                             )
                         } label: {
-                            Label("View Contributing Transactions", systemImage: "list.bullet.rectangle")
-                                .frame(maxWidth: .infinity)
+                            let layout = dynamicTypeSize.isAccessibilitySize
+                                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                                : AnyLayout(HStackLayout(alignment: .center, spacing: 8))
+                            layout {
+                                Image(systemName: "list.bullet.rectangle")
+                                    .accessibilityHidden(true)
+                                Text("View Contributing Transactions")
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center
+                            )
+                            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 6 : 0)
                         }
                         .buttonStyle(.glass)
+                        .buttonBorderShape(.roundedRectangle(radius: 18))
                         .accessibilityIdentifier("report-drilldown-button")
                     }
                     ReportExplorerChart(snapshot: snapshot, viewModel: viewModel)
@@ -252,6 +267,7 @@ private struct ReportExplorerTotalsView: View {
 }
 
 private struct ReportExplorerChart: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let snapshot: ReportExplorerSnapshot
     let viewModel: ReportExplorerViewModel
 
@@ -297,26 +313,30 @@ private struct ReportExplorerChart: View {
                 case .budgetOverview:
                     LineMark(
                         x: .value("Period", point.period.date),
-                        y: .value("Spending", point.expenses)
+                        y: .value("Spending", point.expenses),
+                        series: .value("Series", "Spending")
                     )
                     .foregroundStyle(ActualistTheme.danger)
                     .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     LineMark(
                         x: .value("Period", point.period.date),
-                        y: .value("Budgeted", point.budgeted)
+                        y: .value("Budgeted", point.budgeted),
+                        series: .value("Series", "Budgeted")
                     )
                     .foregroundStyle(ActualistTheme.warning)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 4]))
                 case .spendingAverage:
                     LineMark(
                         x: .value("Period", point.period.date),
-                        y: .value("Spending", point.expenses)
+                        y: .value("Spending", point.expenses),
+                        series: .value("Series", "Spending")
                     )
                     .foregroundStyle(ActualistTheme.danger)
                     .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                     LineMark(
                         x: .value("Period", point.period.date),
-                        y: .value("Average", point.comparison)
+                        y: .value("Average", point.comparison),
+                        series: .value("Series", "Average")
                     )
                     .foregroundStyle(ActualistTheme.warning)
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 4]))
@@ -325,28 +345,39 @@ private struct ReportExplorerChart: View {
         }
         .chartLegend(.hidden)
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: min(snapshot.points.count, 6))) {
+            AxisMarks(values: .automatic(desiredCount: min(
+                snapshot.points.count, dynamicTypeSize.isAccessibilitySize ? 1 : 4
+            ))) {
                 AxisGridLine().foregroundStyle(ActualistTheme.secondaryText.opacity(0.16))
-                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                AxisValueLabel(format: Date.FormatStyle(
+                    calendar: ReportCalendar.gregorianUTC,
+                    timeZone: .gmt
+                ).month(.abbreviated).day())
+                    .font(.caption2)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading) { value in
+            AxisMarks(
+                position: .leading,
+                values: .automatic(desiredCount: dynamicTypeSize.isAccessibilitySize ? 3 : 5)
+            ) { value in
                 AxisGridLine().foregroundStyle(ActualistTheme.secondaryText.opacity(0.16))
                 AxisValueLabel {
                     if let amount = value.as(Int.self) {
                         Text(viewModel.formatted(amount))
                     }
                 }
+                .font(.caption2)
                 .foregroundStyle(ActualistTheme.secondaryText)
             }
         }
-        .frame(height: 280)
+        .frame(height: dynamicTypeSize.isAccessibilitySize ? 360 : 280)
         .padding(16)
         .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(viewModel.title), \(viewModel.rangeTitle)")
+        .accessibilityIdentifier("report-explorer-chart")
     }
 }
 

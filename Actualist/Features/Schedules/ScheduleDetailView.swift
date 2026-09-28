@@ -113,9 +113,13 @@ struct ScheduleDetailView: View {
         tone: SchedulePresentationTone
     ) -> some View {
         LabeledContent(title) {
-            Label(value, systemImage: systemImage)
-                .foregroundStyle(tone.color)
-                .multilineTextAlignment(.trailing)
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .accessibilityHidden(true)
+                Text(value)
+            }
+            .foregroundStyle(tone.color)
+            .multilineTextAlignment(.trailing)
         }
     }
 

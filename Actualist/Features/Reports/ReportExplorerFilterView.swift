@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReportExplorerFilterView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var draft: ReportExplorerFilterDraft
     @State private var showsClosedAccounts = false
 
@@ -170,12 +171,21 @@ struct ReportExplorerFilterView: View {
         selectAll: @escaping () -> Void,
         clear: @escaping () -> Void
     ) -> some View {
-        HStack {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+        return layout {
             Text(title)
-            Spacer()
-            Button("All", action: selectAll)
-            Button("None", action: clear)
+                .fixedSize(horizontal: false, vertical: true)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+            }
+            HStack(spacing: 16) {
+                Button("All", action: selectAll)
+                Button("None", action: clear)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .textCase(nil)
     }
 }

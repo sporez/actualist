@@ -66,7 +66,7 @@ final class AccountLifecycleUITests: XCTestCase {
         let app = launchMutableAccounts()
         let closedSection = sectionButton(beginningWith: "Closed (1)", in: app)
         XCTAssertTrue(closedSection.waitForExistence(timeout: 10))
-        closedSection.tap()
+        tapSectionButton(closedSection)
 
         let carLoan = accountOverviewButton(accountID: "carloan", expectedName: "Car Loan", in: app)
         XCTAssertTrue(carLoan.waitForExistence(timeout: 5))
@@ -124,15 +124,24 @@ final class AccountLifecycleUITests: XCTestCase {
 
     func testOrdinaryCloseSubmissionMovesAccountToClosed() throws {
         let app = launchMutableAccounts()
-        try openCheckingCloseReview(in: app)
+        try openAccountDetail(named: "Everyday Checking", in: app)
+        let actions = app.buttons["Account Actions"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 5))
+        actions.tap()
+        let closeAction = app.buttons["account-lifecycle-close-action"]
+        XCTAssertTrue(closeAction.waitForExistence(timeout: 5))
+        closeAction.tap()
+        XCTAssertTrue(app.navigationBars["Review Account"].waitForExistence(timeout: 8))
         let close = try selectClosingDestination("High-Yield Savings", in: app)
 
         close.tap()
 
         XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.navigationBars["Everyday Checking"].exists)
         let closedSection = sectionButton(beginningWith: "Closed (2)", in: app)
         XCTAssertTrue(closedSection.waitForExistence(timeout: 10))
-        closedSection.tap()
+        tapSectionButton(closedSection)
         let closedChecking = accountOverviewButton(
             accountID: "checking",
             expectedName: "Everyday Checking",
@@ -172,11 +181,14 @@ final class AccountLifecycleUITests: XCTestCase {
         let disabledRename = app.buttons["account-lifecycle-rename-action"]
         XCTAssertTrue(disabledRename.waitForExistence(timeout: 5))
         XCTAssertFalse(disabledRename.isEnabled)
+        let disabledClose = app.buttons["account-lifecycle-close-action"]
+        XCTAssertTrue(disabledClose.waitForExistence(timeout: 5))
+        XCTAssertFalse(disabledClose.isEnabled)
         dismissMenu(in: app)
 
         let closedSection = sectionButton(beginningWith: "Closed (1)", in: app)
         XCTAssertTrue(closedSection.waitForExistence(timeout: 5))
-        closedSection.tap()
+        tapSectionButton(closedSection)
         let carLoan = accountOverviewButton(accountID: "carloan", in: app)
         XCTAssertTrue(carLoan.waitForExistence(timeout: 5))
         XCTAssertFalse(carLoan.label.contains("Car Loan"))
@@ -326,7 +338,7 @@ final class AccountLifecycleUITests: XCTestCase {
     private func returnToAccountsOverview(from accountName: String, in app: XCUIApplication) throws {
         if isWide(app) {
             let sidebar = app.collectionViews["Sidebar"]
-            let accounts = sidebar.cells.containing(.staticText, identifier: "Accounts").firstMatch
+            let accounts = sidebar.cells.containing(.image, identifier: "building.columns.fill").firstMatch
             XCTAssertTrue(accounts.waitForExistence(timeout: 5))
             accounts.tap()
         } else {
@@ -368,8 +380,12 @@ final class AccountLifecycleUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
     }
 
+    private func tapSectionButton(_ section: XCUIElement) {
+        section.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+    }
+
     private func setSampleValues(_ enabled: Bool, in app: XCUIApplication) {
-        XCTAssertTrue(app.navigationBars["Privacy"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Privacy & Notifications"].waitForExistence(timeout: 10))
         let sampleValues = app.switches["Use Sample Values"]
         XCTAssertTrue(sampleValues.waitForExistence(timeout: 5))
         let desired = enabled ? "1" : "0"

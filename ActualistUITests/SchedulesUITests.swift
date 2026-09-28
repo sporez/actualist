@@ -116,7 +116,12 @@ final class SchedulesUITests: XCTestCase {
         line: UInt = #line
     ) {
         let cancelSearch = app.buttons["Cancel"]
-        if cancelSearch.exists && cancelSearch.isHittable { cancelSearch.tap() }
+        let closeSearch = app.buttons["close"]
+        if cancelSearch.exists && cancelSearch.isHittable {
+            cancelSearch.tap()
+        } else if closeSearch.exists && closeSearch.isHittable {
+            closeSearch.tap()
+        }
         let close = app.buttons["schedules-close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5), file: file, line: line)
         close.tap()
@@ -153,11 +158,31 @@ final class SchedulesUITests: XCTestCase {
             "Every year",
             "Unavailable account",
             "No payee",
+        ] {
+            scrollToVisible(
+                detailList.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label CONTAINS %@", expectedText)).firstMatch,
+                named: expectedText,
+                in: detailList,
+                file: file,
+                line: line
+            )
+        }
+        assertDenseTransactionRows(
+            in: detailList,
+            layout: layout,
+            app: app,
+            file: file,
+            line: line
+        )
+
+        for expectedText in [
             "Read-only in Actualist",
             "The next occurrence is unavailable.",
         ] {
             scrollToVisible(
-                app.staticTexts[expectedText].firstMatch,
+                detailList.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label CONTAINS %@", expectedText)).firstMatch,
                 named: expectedText,
                 in: detailList,
                 file: file,
@@ -171,6 +196,74 @@ final class SchedulesUITests: XCTestCase {
         back.tap()
         XCTAssertTrue(app.navigationBars["Schedules"].waitForExistence(timeout: 5), file: file, line: line)
         XCTAssertTrue(scheduleRow(named: fixtureScheduleName, in: app).waitForExistence(timeout: 5), file: file, line: line)
+    }
+
+    private func assertDenseTransactionRows(
+        in detailList: XCUIElement,
+        layout: String,
+        app: XCUIApplication,
+        file: StaticString,
+        line: UInt
+    ) {
+        let account = detailRow(labeled: "Account, Unavailable account", in: detailList)
+        let payee = detailRow(labeled: "Payee, No payee", in: detailList)
+        let automaticPosting = detailRow(
+            labeled: "Automatic posting, Disabled",
+            in: detailList
+        )
+        for (name, row) in [
+            ("Account", account),
+            ("Payee", payee),
+            ("Automatic posting", automaticPosting),
+        ] {
+            XCTAssertTrue(
+                row.waitForExistence(timeout: 5),
+                "Missing schedule detail row: \(name)",
+                file: file,
+                line: line
+            )
+        }
+
+        // These fixture values are single-line at normal text size and the view
+        // adds no custom row padding. Allow almost two native row heights while
+        // rejecting the hundreds-of-points expansion this regression covers.
+        let maximumNativeRowCenterGap: CGFloat = 80
+        let accountToPayee = payee.frame.midY - account.frame.midY
+        let payeeToAutomaticPosting = automaticPosting.frame.midY - payee.frame.midY
+        XCTAssertGreaterThan(accountToPayee, 0, file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            accountToPayee,
+            maximumNativeRowCenterGap,
+            "Account and Payee rows must keep native List spacing",
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThan(payeeToAutomaticPosting, 0, file: file, line: line)
+        XCTAssertLessThanOrEqual(
+            payeeToAutomaticPosting,
+            maximumNativeRowCenterGap,
+            "Payee and Automatic posting rows must keep native List spacing",
+            file: file,
+            line: line
+        )
+
+        scrollToVisible(
+            automaticPosting,
+            named: "Automatic posting",
+            in: detailList,
+            file: file,
+            line: line
+        )
+        attachScreenshot(
+            named: "schedules-\(layout)-dark-detail-transaction-dense",
+            app: app
+        )
+    }
+
+    private func detailRow(labeled label: String, in detailList: XCUIElement) -> XCUIElement {
+        detailList.staticTexts
+            .matching(NSPredicate(format: "label == %@", label))
+            .firstMatch
     }
 
     private func exerciseSearchAndRefresh(
@@ -246,23 +339,89 @@ final class SchedulesUITests: XCTestCase {
     }
 
     private func prepareDemo(theme: String, sampleValues: Bool) {
-        let privacy = launchDemo(screen: "settings/privacy", replaceDemo: true)
-        setSampleValues(sampleValues, in: privacy)
-        privacy.terminate()
-
-        let appearance = launchDemo(screen: "settings/appearance")
-        setTheme(theme, in: appearance)
-        appearance.terminate()
+        let app = launchBudget(replaceDemo: true)
+        openNativeSettings(in: app)
+        openSettingsPage("Privacy & Notifications", in: app)
+        setSampleValues(sampleValues, in: app)
+        returnToSettingsDirectoryIfNeeded(from: "Privacy & Notifications", in: app)
+        openSettingsPage("Appearance", in: app)
+        setTheme(theme, in: app)
+        app.terminate()
     }
 
     private func restoreDefaults() {
-        let privacy = launchDemo(screen: "settings/privacy")
-        setSampleValues(false, in: privacy)
-        privacy.terminate()
+        let app = launchBudget()
+        openNativeSettings(in: app)
+        openSettingsPage("Privacy & Notifications", in: app)
+        setSampleValues(false, in: app)
+        returnToSettingsDirectoryIfNeeded(from: "Privacy & Notifications", in: app)
+        openSettingsPage("Appearance", in: app)
+        setTheme("Actual Purple (dark)", in: app)
+        app.terminate()
+    }
 
-        let appearance = launchDemo(screen: "settings/appearance")
-        setTheme("Actual Purple (dark)", in: appearance)
-        appearance.terminate()
+    private func openNativeSettings(
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        if isWide(app) {
+            let sidebar = app.collectionViews["Sidebar"]
+            XCTAssertTrue(sidebar.waitForExistence(timeout: 8), file: file, line: line)
+            let settings = sidebar.cells.containing(.staticText, identifier: "Settings").firstMatch
+            XCTAssertTrue(settings.waitForExistence(timeout: 5), file: file, line: line)
+            XCTAssertTrue(settings.isHittable, file: file, line: line)
+            settings.tap()
+            XCTAssertTrue(
+                app.navigationBars["Connection & Sync"].waitForExistence(timeout: 8),
+                file: file,
+                line: line
+            )
+        } else {
+            let settings = app.buttons["Settings"]
+            XCTAssertTrue(settings.waitForExistence(timeout: 5), file: file, line: line)
+            XCTAssertTrue(settings.isHittable, file: file, line: line)
+            settings.tap()
+            XCTAssertTrue(
+                app.navigationBars["Settings"].waitForExistence(timeout: 8),
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    private func openSettingsPage(
+        _ title: String,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let row = app.cells.containing(.staticText, identifier: title).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), file: file, line: line)
+        XCTAssertTrue(row.isHittable, file: file, line: line)
+        row.tap()
+        XCTAssertTrue(
+            app.navigationBars[title].waitForExistence(timeout: 8),
+            file: file,
+            line: line
+        )
+    }
+
+    private func returnToSettingsDirectoryIfNeeded(
+        from title: String,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard !isWide(app) else { return }
+        let back = app.navigationBars[title].buttons["Settings"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), file: file, line: line)
+        back.tap()
+        XCTAssertTrue(
+            app.navigationBars["Settings"].waitForExistence(timeout: 5),
+            file: file,
+            line: line
+        )
     }
 
     private func setSampleValues(_ enabled: Bool, in app: XCUIApplication) {
@@ -293,17 +452,12 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
     }
 
-    private func launchBudget(dynamicType: String? = nil) -> XCUIApplication {
-        launchDemo(screen: "budget", dynamicType: dynamicType)
-    }
-
-    private func launchDemo(
-        screen: String,
+    private func launchBudget(
         replaceDemo: Bool = false,
         dynamicType: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
         }
@@ -312,11 +466,21 @@ final class SchedulesUITests: XCTestCase {
         }
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        if isWide(app) {
+            XCTAssertTrue(app.collectionViews["Sidebar"].waitForExistence(timeout: 8))
+        } else {
+            XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 5))
+        }
         return app
     }
 
     private func requireCompact(_ app: XCUIApplication) throws {
         guard app.frame.width < 792 else { throw XCTSkip("Requires a compact window") }
+    }
+
+    private func isWide(_ app: XCUIApplication) -> Bool {
+        app.frame.width >= 792
     }
 
     private func requireWide(_ app: XCUIApplication) throws {
