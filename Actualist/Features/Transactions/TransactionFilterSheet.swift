@@ -31,29 +31,27 @@ struct TransactionFilterSheet: View {
             .accessibilityIdentifier("transaction-filter-review-scroll")
             .navigationTitle("Transaction Filters")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                ReviewSheetActions {
-                    Button("Clear") {
-                        if workflow.clearAndApply() { dismiss() }
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityIdentifier("transaction-filter-clear")
-
-                    Button(role: .cancel) { dismiss() } label: {
-                        Text("Cancel").frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityIdentifier("transaction-filter-cancel")
-
-                    Button {
-                        if workflow.apply() { dismiss() }
-                    } label: {
-                        Text("Apply").frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .accessibilityIdentifier("transaction-filter-apply")
+            .reviewSheetBottomBar {
+                Button("Clear") {
+                    if workflow.clearAndApply() { dismiss() }
                 }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("transaction-filter-clear")
+
+                Button(role: .cancel) { dismiss() } label: {
+                    Text("Cancel").frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("transaction-filter-cancel")
+
+                Button {
+                    if workflow.apply() { dismiss() }
+                } label: {
+                    Text("Apply").frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
+                .accessibilityIdentifier("transaction-filter-apply")
             }
         }
         .frame(idealWidth: 560)

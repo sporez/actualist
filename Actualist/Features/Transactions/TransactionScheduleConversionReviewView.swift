@@ -70,19 +70,17 @@ struct TransactionScheduleConversionReviewView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button("Cancel", role: .cancel) { close() }
-                    .buttonStyle(.glass)
-                    .accessibilityIdentifier("transaction-schedule-conversion-cancel")
-                Button("Convert Transaction", systemImage: "calendar.badge.plus") {
-                    coordinator.confirm(repository: repository, onCommitted: onCommitted)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-                .disabled(coordinator.state.isBusy)
-                .accessibilityIdentifier("transaction-schedule-conversion-confirm")
+        .reviewSheetBottomBar {
+            Button("Cancel", role: .cancel) { close() }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("transaction-schedule-conversion-cancel")
+            Button("Convert Transaction", systemImage: "calendar.badge.plus") {
+                coordinator.confirm(repository: repository, onCommitted: onCommitted)
             }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
+            .disabled(coordinator.state.isBusy)
+            .accessibilityIdentifier("transaction-schedule-conversion-confirm")
         }
     }
 
@@ -118,12 +116,10 @@ struct TransactionScheduleConversionReviewView: View {
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button("Done") { coordinator.finishCommitted(); dismiss() }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-            }
+        .reviewSheetBottomBar {
+            Button("Done") { coordinator.finishCommitted(); dismiss() }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
         }
     }
 
@@ -140,12 +136,10 @@ struct TransactionScheduleConversionReviewView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button("Close") { close() }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-            }
+        .reviewSheetBottomBar {
+            Button("Close") { close() }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
         }
     }
 

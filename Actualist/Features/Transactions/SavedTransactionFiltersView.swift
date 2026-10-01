@@ -43,12 +43,10 @@ struct SavedTransactionFiltersView: View {
             }
             .navigationTitle("Saved Filters")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                ReviewSheetActions {
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.glassProminent)
-                        .tint(ActualistTheme.accent)
-                }
+            .reviewSheetBottomBar {
+                Button("Done") { dismiss() }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
             }
         }
         .frame(idealWidth: 560)

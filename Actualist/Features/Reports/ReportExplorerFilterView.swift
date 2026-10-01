@@ -51,23 +51,21 @@ struct ReportExplorerFilterView: View {
             }
             .navigationTitle("Report Filters")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                ReviewSheetActions {
-                    Button(role: .cancel) { dismiss() } label: {
-                        Text("Cancel")
-                            .frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityIdentifier("report-filter-cancel")
-
-                    Button { applyDraft() } label: {
-                        Text("Apply")
-                            .frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .accessibilityIdentifier("report-filter-apply")
+            .reviewSheetBottomBar {
+                Button(role: .cancel) { dismiss() } label: {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("report-filter-cancel")
+
+                Button { applyDraft() } label: {
+                    Text("Apply")
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
+                .accessibilityIdentifier("report-filter-apply")
             }
         }
         .frame(idealWidth: 560)

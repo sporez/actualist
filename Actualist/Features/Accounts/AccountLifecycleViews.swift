@@ -45,43 +45,41 @@ struct AccountRenameSheet: View {
                         }
                     }
                     .scrollDismissesKeyboard(.interactively)
-                    .safeAreaBar(edge: .bottom, spacing: 0) {
-                        ReviewSheetActions {
-                            Button(role: .cancel, action: cancel) {
-                                Text("Cancel")
+                    .reviewSheetBottomBar {
+                        Button(role: .cancel, action: cancel) {
+                            Text("Cancel")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 32)
+                                .padding(.horizontal, 12)
+                        }
+                        .buttonStyle(.glass)
+                        if coordinator.errorMessage != nil {
+                            Button(action: onRetry) {
+                                Text("Review Again")
                                     .font(.subheadline.weight(.semibold))
-                                    .frame(minHeight: 32)
-                                    .padding(.horizontal, 12)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, minHeight: 32)
                             }
-                            .buttonStyle(.glass)
-                            if coordinator.errorMessage != nil {
-                                Button(action: onRetry) {
-                                    Text("Review Again")
+                            .buttonStyle(.glassProminent)
+                            .tint(ActualistTheme.accent)
+                        } else {
+                            Button(action: onSubmit) {
+                                if coordinator.isSubmitting {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity, minHeight: 32)
+                                } else {
+                                    Text("Rename Account")
                                         .font(.subheadline.weight(.semibold))
                                         .multilineTextAlignment(.center)
                                         .fixedSize(horizontal: false, vertical: true)
                                         .frame(maxWidth: .infinity, minHeight: 32)
                                 }
-                                .buttonStyle(.glassProminent)
-                                .tint(ActualistTheme.accent)
-                            } else {
-                                Button(action: onSubmit) {
-                                    if coordinator.isSubmitting {
-                                        ProgressView()
-                                            .frame(maxWidth: .infinity, minHeight: 32)
-                                    } else {
-                                        Text("Rename Account")
-                                            .font(.subheadline.weight(.semibold))
-                                            .multilineTextAlignment(.center)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .frame(maxWidth: .infinity, minHeight: 32)
-                                    }
-                                }
-                                .buttonStyle(.glassProminent)
-                                .tint(ActualistTheme.accent)
-                                .disabled(!coordinator.canSubmitRename)
-                                .accessibilityIdentifier("account-lifecycle-rename-button")
                             }
+                            .buttonStyle(.glassProminent)
+                            .tint(ActualistTheme.accent)
+                            .disabled(!coordinator.canSubmitRename)
+                            .accessibilityIdentifier("account-lifecycle-rename-button")
                         }
                     }
                 }
@@ -154,43 +152,41 @@ struct AccountReopenSheet: View {
                         }
                         .actualistReviewCard(padding: 16)
                     }
-                    .safeAreaBar(edge: .bottom, spacing: 0) {
-                        ReviewSheetActions {
-                            Button(role: .cancel, action: cancel) {
-                                Text("Cancel")
+                    .reviewSheetBottomBar {
+                        Button(role: .cancel, action: cancel) {
+                            Text("Cancel")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 32)
+                                .padding(.horizontal, 12)
+                        }
+                        .buttonStyle(.glass)
+                        if coordinator.errorMessage != nil {
+                            Button(action: onRetry) {
+                                Text("Review Again")
                                     .font(.subheadline.weight(.semibold))
-                                    .frame(minHeight: 32)
-                                    .padding(.horizontal, 12)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, minHeight: 32)
                             }
-                            .buttonStyle(.glass)
-                            if coordinator.errorMessage != nil {
-                                Button(action: onRetry) {
-                                    Text("Review Again")
+                            .buttonStyle(.glassProminent)
+                            .tint(ActualistTheme.accent)
+                        } else {
+                            Button(action: onConfirm) {
+                                if coordinator.isSubmitting {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity, minHeight: 32)
+                                } else {
+                                    Text("Reopen Account")
                                         .font(.subheadline.weight(.semibold))
                                         .multilineTextAlignment(.center)
                                         .fixedSize(horizontal: false, vertical: true)
                                         .frame(maxWidth: .infinity, minHeight: 32)
                                 }
-                                .buttonStyle(.glassProminent)
-                                .tint(ActualistTheme.accent)
-                            } else {
-                                Button(action: onConfirm) {
-                                    if coordinator.isSubmitting {
-                                        ProgressView()
-                                            .frame(maxWidth: .infinity, minHeight: 32)
-                                    } else {
-                                        Text("Reopen Account")
-                                            .font(.subheadline.weight(.semibold))
-                                            .multilineTextAlignment(.center)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .frame(maxWidth: .infinity, minHeight: 32)
-                                    }
-                                }
-                                .buttonStyle(.glassProminent)
-                                .tint(ActualistTheme.accent)
-                                .disabled(!coordinator.canConfirmReopen)
-                                .accessibilityIdentifier("account-lifecycle-reopen-button")
                             }
+                            .buttonStyle(.glassProminent)
+                            .tint(ActualistTheme.accent)
+                            .disabled(!coordinator.canConfirmReopen)
+                            .accessibilityIdentifier("account-lifecycle-reopen-button")
                         }
                     }
                 }
@@ -291,33 +287,31 @@ struct AccountLifecycleReviewSheet: View {
                                 .actualistReviewCard(padding: 14)
                         }
                     }
-                    .safeAreaBar(edge: .bottom, spacing: 0) {
-                        ReviewSheetActions {
-                            Button(role: .cancel, action: cancel) {
-                                Text("Cancel")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(minHeight: 32)
-                                    .padding(.horizontal, 12)
-                            }
-                            .buttonStyle(.glass)
-                            if let actionTitle = presentation.actionTitle, let onConfirm {
-                                Button(role: .destructive, action: onConfirm) {
-                                    if isSubmitting {
-                                        ProgressView()
-                                            .frame(maxWidth: .infinity, minHeight: 32)
-                                    } else {
-                                        Text(actionTitle)
-                                            .font(.subheadline.weight(.semibold))
-                                            .multilineTextAlignment(.center)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .frame(maxWidth: .infinity, minHeight: 32)
-                                    }
+                    .reviewSheetBottomBar {
+                        Button(role: .cancel, action: cancel) {
+                            Text("Cancel")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 32)
+                                .padding(.horizontal, 12)
+                        }
+                        .buttonStyle(.glass)
+                        if let actionTitle = presentation.actionTitle, let onConfirm {
+                            Button(role: .destructive, action: onConfirm) {
+                                if isSubmitting {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity, minHeight: 32)
+                                } else {
+                                    Text(actionTitle)
+                                        .font(.subheadline.weight(.semibold))
+                                        .multilineTextAlignment(.center)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .frame(maxWidth: .infinity, minHeight: 32)
                                 }
-                                .buttonStyle(.glassProminent)
-                                .tint(ActualistTheme.danger)
-                                .disabled(!presentation.canConfirm || isSubmitting || isRefreshing)
-                                .accessibilityIdentifier("account-lifecycle-close-button")
                             }
+                            .buttonStyle(.glassProminent)
+                            .tint(ActualistTheme.danger)
+                            .disabled(!presentation.canConfirm || isSubmitting || isRefreshing)
+                            .accessibilityIdentifier("account-lifecycle-close-button")
                         }
                     }
                 }
@@ -393,17 +387,15 @@ private struct AccountLifecyclePrivacyUnavailableView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .actualistReviewCard()
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button(role: .cancel, action: onCancel) {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
-                Spacer(minLength: 0)
+        .reviewSheetBottomBar {
+            Button(role: .cancel, action: onCancel) {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
             }
+            .buttonStyle(.glass)
+            Spacer(minLength: 0)
         }
     }
 }
