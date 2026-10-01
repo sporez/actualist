@@ -62,6 +62,13 @@ struct SchedulesView: View {
         @Bindable var viewModel = viewModel
 
         ReviewSheetContent {
+            // Top search field (the app's picker pattern). A `.searchable`
+            // drawer would take over the navigation bar while searching,
+            // hiding the add/refresh toolbar actions.
+            TextField("Search schedules", text: $viewModel.searchText)
+                .reviewSheetFieldStyle()
+                .accessibilityIdentifier("Search schedules")
+
             if context.isPrivacyModeEnabled {
                 privacyNotice
             }
@@ -131,7 +138,6 @@ struct SchedulesView: View {
         }
         .navigationTitle("Schedules")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $viewModel.searchText, prompt: "Search schedules")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if viewModel.canAddSchedule {
@@ -458,7 +464,7 @@ private struct ScheduleRowView: View {
     private var amount: some View {
         Text(row.amountText)
             .font(ActualistTypography.rowValue(for: density))
-            .foregroundStyle(row.tone.color)
+            .foregroundStyle(ActualistTheme.primaryText)
             .minimumScaleFactor(0.72)
     }
 }

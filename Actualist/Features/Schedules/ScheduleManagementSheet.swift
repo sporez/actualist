@@ -37,8 +37,6 @@ struct ScheduleManagementSheet: View {
                 }
             }
             .background(ActualistTheme.background)
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { close() }
@@ -84,11 +82,24 @@ struct ScheduleManagementSheet: View {
         }
         .accessibilityIdentifier("schedule-save-review")
         .reviewSheetBottomBar {
-            Button("Back") { coordinator.backToEditor() }
-                .buttonStyle(.glass)
-                .disabled(coordinator.isSubmitting)
-            Button("Save Schedule") {
+            Button {
+                coordinator.backToEditor()
+            } label: {
+                Text("Back")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+            .disabled(coordinator.isSubmitting)
+            Button {
                 coordinator.confirmSave(locale: locale, mutationRepository: mutationRepository)
+            } label: {
+                Text("Save Schedule")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
             .buttonStyle(.glassProminent)
             .tint(ActualistTheme.accent)
@@ -127,11 +138,24 @@ struct ScheduleManagementSheet: View {
         }
         .accessibilityIdentifier("schedule-action-review")
         .reviewSheetBottomBar {
-            Button("Cancel", role: .cancel) { coordinator.cancel() }
-                .buttonStyle(.glass)
-                .accessibilityIdentifier("schedule-action-cancel")
-            Button(review.action.title, role: review.action == .delete ? .destructive : nil) {
+            Button(role: .cancel) {
+                coordinator.cancel()
+            } label: {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+            .accessibilityIdentifier("schedule-action-cancel")
+            Button(role: review.action == .delete ? .destructive : nil) {
                 coordinator.confirmAction(mutationRepository: mutationRepository)
+            } label: {
+                Text(review.action.title)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
             .buttonStyle(.glassProminent)
             .tint(review.action == .delete ? ActualistTheme.danger : ActualistTheme.accent)
@@ -163,9 +187,16 @@ struct ScheduleManagementSheet: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .reviewSheetBottomBar {
-            Button("Done") { closeCommitted() }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
+            Button {
+                closeCommitted()
+            } label: {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
     }
 
@@ -179,9 +210,16 @@ struct ScheduleManagementSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .reviewSheetBottomBar {
-            Button("Close") { close() }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
+            Button {
+                close()
+            } label: {
+                Text("Close")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
     }
 
@@ -191,18 +229,6 @@ struct ScheduleManagementSheet: View {
             .foregroundStyle(warning ? ActualistTheme.warning : ActualistTheme.danger)
             .fixedSize(horizontal: false, vertical: true)
             .actualistReviewCard(padding: 12)
-    }
-
-    private var navigationTitle: String {
-        switch coordinator.state {
-        case .editing(let session), .reviewingSave(let session):
-            session.scheduleID == nil ? "New Schedule" : "Edit Schedule"
-        case .reviewingAction(let review): review.action.title
-        case .committed(let outcome), .noChanges(let outcome): committedTitle(outcome)
-        case .failed: "Schedule Update"
-        case .loading(let title), .submitting(let title): title
-        case .idle: "Schedule"
-        }
     }
 
     private func committedTitle(_ outcome: ScheduleMutationOutcome) -> String {
@@ -287,13 +313,28 @@ struct ScheduleEditorView: View {
         .accessibilityIdentifier("schedule-editor")
         .scrollDismissesKeyboard(.interactively)
         .reviewSheetBottomBar {
-            Button("Cancel", role: .cancel) { coordinator.cancel() }
-                .buttonStyle(.glass)
-            Button("Review") { coordinator.reviewSave(locale: locale) }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-                .disabled(coordinator.isSubmitting)
-                .accessibilityIdentifier("schedule-save-review-button")
+            Button(role: .cancel) {
+                coordinator.cancel()
+            } label: {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+            Button {
+                coordinator.reviewSave(locale: locale)
+            } label: {
+                Text("Review")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
+            .disabled(coordinator.isSubmitting)
+            .accessibilityIdentifier("schedule-save-review-button")
         }
     }
 
@@ -309,7 +350,7 @@ struct ScheduleEditorView: View {
             ))
             .textInputAutocapitalization(.words)
             .accessibilityIdentifier("schedule-editor-name")
-            .scheduleEditorFieldStyle()
+            .reviewSheetFieldStyle()
             .disabled(session.scheduleID != nil && !session.capabilities.canEditMetadata)
             if session.scheduleID != nil && !session.capabilities.canEditMetadata {
                 Text("Schedule name cannot be changed safely.").font(.footnote).foregroundStyle(ActualistTheme.secondaryText)
@@ -376,7 +417,7 @@ struct ScheduleEditorView: View {
                 ))
                 .keyboardType(.decimalPad)
                 .accessibilityIdentifier("schedule-editor-amount")
-                .scheduleEditorFieldStyle()
+                .reviewSheetFieldStyle()
                 if draft?.amountMode == .range {
                     Text("to").foregroundStyle(ActualistTheme.secondaryText)
                     TextField("Amount", text: Binding(
@@ -388,7 +429,7 @@ struct ScheduleEditorView: View {
                     ))
                     .keyboardType(.decimalPad)
                     .accessibilityIdentifier("schedule-editor-amount-upper")
-                    .scheduleEditorFieldStyle()
+                    .reviewSheetFieldStyle()
                 }
             }
             .disabled(!isCreate && !session.capabilities.canEditAmount)
@@ -464,7 +505,7 @@ struct ScheduleEditorView: View {
                 .keyboardType(.numberPad)
                 .frame(width: 54)
                 .accessibilityLabel("Repeat interval")
-                .scheduleEditorFieldStyle()
+                .reviewSheetFieldStyle()
                 Text("interval").foregroundStyle(ActualistTheme.secondaryText)
             }
             if draft?.frequency == .monthly { monthlyPatternControls }
@@ -495,7 +536,7 @@ struct ScheduleEditorView: View {
                     set: { coordinator.setEndingCount($0) }
                 ))
                 .keyboardType(.numberPad)
-                .scheduleEditorFieldStyle()
+                .reviewSheetFieldStyle()
             } else if draft?.endingMode == .onDate {
                 DatePicker("End date", selection: endingDate, displayedComponents: .date)
                     .datePickerStyle(.compact)

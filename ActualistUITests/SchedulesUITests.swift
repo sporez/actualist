@@ -44,7 +44,7 @@ final class SchedulesUITests: XCTestCase {
         openSchedules(in: app)
         assertMaskedFixture(in: app)
         XCTAssertTrue(scheduleRow(named: maskedScheduleName, in: app).isHittable)
-        let search = app.searchFields["Search schedules"]
+        let search = app.textFields["Search schedules"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         XCTAssertTrue(search.isHittable)
         XCTAssertTrue(app.buttons["schedules-close"].isHittable)
@@ -490,7 +490,7 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertTrue(waitForEnabled(refresh), file: file, line: line)
         XCTAssertTrue(scheduleRow(named: scheduleName, in: app).waitForExistence(timeout: 8), file: file, line: line)
 
-        let search = app.searchFields["Search schedules"]
+        let search = app.textFields["Search schedules"]
         XCTAssertTrue(search.waitForExistence(timeout: 5), file: file, line: line)
         search.tap()
         search.typeText(scheduleName)

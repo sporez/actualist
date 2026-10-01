@@ -37,8 +37,6 @@ struct SchedulePostingReviewView: View {
                 }
             }
             .background(ActualistTheme.background)
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { close() }
@@ -99,11 +97,24 @@ struct SchedulePostingReviewView: View {
         }
         .accessibilityIdentifier("schedule-post-review")
         .reviewSheetBottomBar {
-            Button("Cancel", role: .cancel) { close() }
-                .buttonStyle(.glass)
-                .accessibilityIdentifier("schedule-post-cancel")
-            Button("Post Transaction", systemImage: "arrow.up.circle") {
+            Button(role: .cancel) {
+                close()
+            } label: {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+            .accessibilityIdentifier("schedule-post-cancel")
+            Button {
                 coordinator.confirm(postingRepository: postingRepository)
+            } label: {
+                Label("Post Transaction", systemImage: "arrow.up.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
             .buttonStyle(.glassProminent)
             .tint(ActualistTheme.accent)
@@ -135,10 +146,16 @@ struct SchedulePostingReviewView: View {
                 .padding(.top, 8)
         }
         .reviewSheetBottomBar {
-            Button(coordinator.state.isSubmitting ? "Saving…" : "Cancel Sync", role: .cancel) {
+            Button(role: .cancel) {
                 if coordinator.state.isSubmitting { return }
                 _ = coordinator.cancel()
                 dismiss()
+            } label: {
+                Text(coordinator.state.isSubmitting ? "Saving…" : "Cancel Sync")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
             .buttonStyle(.glass)
             .disabled(coordinator.state.isSubmitting)
@@ -165,9 +182,17 @@ struct SchedulePostingReviewView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .reviewSheetBottomBar {
-            Button("Done") { coordinator.finishCommitted(); dismiss() }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
+            Button {
+                coordinator.finishCommitted()
+                dismiss()
+            } label: {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
     }
 
@@ -185,19 +210,16 @@ struct SchedulePostingReviewView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .reviewSheetBottomBar {
-            Button("Close") { close() }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-        }
-    }
-
-    private var navigationTitle: String {
-        switch coordinator.state {
-        case .idle, .loading, .review: "Review Post"
-        case .syncing: "Syncing"
-        case .submitting: "Posting"
-        case .committed, .committedRefreshPending: "Transaction Posted"
-        case .failed: "Post Unavailable"
+            Button {
+                close()
+            } label: {
+                Text("Close")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
     }
 
