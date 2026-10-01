@@ -71,6 +71,10 @@ struct SchedulesView: View {
                 errorBanner(errorMessage)
             }
 
+            if viewModel.showsAuthoringUnavailableNotice {
+                authoringUnavailableNotice
+            }
+
             if viewModel.isLoading && viewModel.snapshot == nil {
                 loadingState
             } else if let errorMessage = viewModel.errorMessage,
@@ -130,13 +134,15 @@ struct SchedulesView: View {
         .searchable(text: $viewModel.searchText, prompt: "Search schedules")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    beginCreate()
-                } label: {
-                    Image(systemName: "plus")
+                if viewModel.canAddSchedule {
+                    Button {
+                        beginCreate()
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Add Schedule")
+                    .accessibilityIdentifier("schedule-add")
                 }
-                .accessibilityLabel("Add Schedule")
-                .accessibilityIdentifier("schedule-add")
 
                 if viewModel.isRefreshing {
                     ProgressView()
@@ -203,6 +209,17 @@ struct SchedulesView: View {
             Text("Schedule names, accounts, payees, and amounts use sample values.")
         } icon: {
             Image(systemName: "eye.slash.fill")
+                .foregroundStyle(ActualistTheme.warning)
+        }
+        .font(ActualistTypography.rowLabel(for: density))
+        .actualistReviewCard()
+    }
+
+    private var authoringUnavailableNotice: some View {
+        Label {
+            Text("This budget's schedule data is from an older version of Actual, so new schedules can't be added here.")
+        } icon: {
+            Image(systemName: "lock.fill")
                 .foregroundStyle(ActualistTheme.warning)
         }
         .font(ActualistTypography.rowLabel(for: density))

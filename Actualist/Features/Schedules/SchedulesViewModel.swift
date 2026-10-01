@@ -42,6 +42,18 @@ final class SchedulesViewModel {
         snapshot?.schedules.isEmpty == true && !isLoading
     }
 
+    /// Authoring (the "+" entry) is offered only when the loaded snapshot
+    /// confirms this budget's schema supports schedule writes.
+    var canAddSchedule: Bool {
+        snapshot?.supportsAuthoring == true
+    }
+
+    /// Explains the missing "+" once a loaded snapshot proves this budget
+    /// cannot support schedule authoring.
+    var showsAuthoringUnavailableNotice: Bool {
+        snapshot?.supportsAuthoring == false
+    }
+
     var emptyState: ScheduleListEmptyState {
         guard snapshot != nil, !isLoading, sections.isEmpty else { return .none }
         if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

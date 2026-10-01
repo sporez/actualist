@@ -189,6 +189,24 @@ final class TransactionScheduleConversionCoordinator {
     }
 
     private func message(for error: Error) -> String {
-        error.userFacingMessage ?? error.localizedDescription
+        switch error {
+        case let conversionError as ScheduleConversionError:
+            switch conversionError {
+            case .reviewChanged, .transactionNotFuture, .identityConflict:
+                conversionError.errorDescription ?? conversionSaveFailed
+            case .unsupportedSource(let reason):
+                ScheduleMutationUserNotice.conversionSource(reason)
+            }
+        case let localFirstError as LocalFirstError:
+            // Unwrapped local-write refusals carry internal detail strings.
+            if case .invalidLocalWrite = localFirstError { conversionSaveFailed }
+            else { localFirstError.errorDescription ?? conversionSaveFailed }
+        default:
+            error.userFacingMessage ?? conversionSaveFailed
+        }
+    }
+
+    private var conversionSaveFailed: String {
+        "Actualist couldn't convert this transaction. Try again."
     }
 }

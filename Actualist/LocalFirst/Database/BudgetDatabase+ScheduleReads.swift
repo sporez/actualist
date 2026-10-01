@@ -48,6 +48,12 @@ extension BudgetDatabase {
             ruleColumns = []
         }
         let supportsScheduleRuleDeletion = ["id", "tombstone"].allSatisfy(ruleColumns.contains)
+        // Authoring (create and transaction conversion) shares the
+        // scheduleCreationMessages column requirements exactly; gating on this
+        // signal keeps the entry points and the write path in agreement.
+        let supportsAuthoring = supportsScheduleRuleEdit
+            && supportsNextDateWrites
+            && ["id", "conditions", "actions", "tombstone"].allSatisfy(ruleColumns.contains)
         let accountFacts = try scheduleAccountFacts(db: db)
         let payeeFacts = try schedulePayeeFacts(db: db)
         let payeeTargets = try schedulePayeeTargets(db: db)
@@ -221,7 +227,8 @@ extension BudgetDatabase {
             budgetID: budgetID,
             schedules: details.map(\.summary),
             detailsByID: Dictionary(uniqueKeysWithValues: details.map { ($0.id, $0) }),
-            defaultUpcomingLength: defaultUpcomingLength
+            defaultUpcomingLength: defaultUpcomingLength,
+            supportsAuthoring: supportsAuthoring
         )
     }
 

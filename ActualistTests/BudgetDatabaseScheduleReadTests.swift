@@ -151,6 +151,7 @@ struct BudgetDatabaseScheduleReadTests {
         #expect(detail.unsupportedReasons.contains(.missingNextDate))
         #expect(!detail.capabilities.canDelete)
         #expect(detail.name == nil)
+        #expect(!loaded.supportsAuthoring)
     }
 
     @Test func missingNextDateSchemaOnlyDisablesOccurrenceDependentCapabilities() async throws {
@@ -181,6 +182,47 @@ struct BudgetDatabaseScheduleReadTests {
         #expect(!detail.capabilities.canSkip)
         #expect(detail.capabilities.canComplete)
         #expect(detail.capabilities.canDelete)
+        // Authoring needs the full next-date schema, so this budget cannot
+        // accept new schedules even though metadata edits remain available.
+        #expect(!loaded.supportsAuthoring)
+    }
+
+    @Test func authoringCapabilityMirrorsTheColumnsScheduleCreationRequires() async throws {
+        // The full fixture carries every column scheduleCreationMessages needs.
+        let complete = try await makeLoadedSchedules()
+        #expect(complete.supportsAuthoring)
+
+        // Missing posts_transaction is the old-server demo budget's schema.
+        let legacy = try support.makeSQLiteFixture(extraSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY, conditions TEXT, actions TEXT,
+                tombstone INTEGER DEFAULT 0
+            );
+            CREATE TABLE schedules (
+                id TEXT PRIMARY KEY, rule TEXT, name TEXT,
+                completed INTEGER DEFAULT 0, tombstone INTEGER DEFAULT 0
+            );
+            CREATE TABLE schedules_next_date (
+                id TEXT PRIMARY KEY, schedule_id TEXT, local_next_date INTEGER,
+                local_next_date_ts INTEGER, base_next_date INTEGER,
+                base_next_date_ts INTEGER, tombstone INTEGER DEFAULT 0
+            );
+            """)
+        let legacyDatabase = try BudgetDatabase(databaseURL: legacy)
+        let legacyLoaded = try await legacyDatabase.fetchSchedules(
+            budgetID: "legacy-budget",
+            today: "2026-09-27"
+        )
+        #expect(!legacyLoaded.supportsAuthoring)
+
+        // A budget without a schedules table at all cannot accept authoring.
+        let missingTable = try support.makeSQLiteFixture(extraSQL: "")
+        let missingTableDatabase = try BudgetDatabase(databaseURL: missingTable)
+        let missingTableLoaded = try await missingTableDatabase.fetchSchedules(
+            budgetID: "budget",
+            today: "2026-09-27"
+        )
+        #expect(!missingTableLoaded.supportsAuthoring)
     }
 
     private func makeLoadedSchedules() async throws -> LoadedSchedules {

@@ -79,6 +79,14 @@ struct AccountTransactionsView: View {
         return appState.localFirstStore.budgetCurrency(budgetID: budgetID)
     }
 
+    /// Schedule-authoring capability from the store's cached schedules read.
+    /// Unknown (schedules not loaded yet) keeps the entry available; the write
+    /// path's tester-voiced failure remains the backstop.
+    private var supportsScheduleAuthoring: Bool {
+        guard let budgetID else { return true }
+        return appState.localFirstStore.cachedSchedules(budgetID: budgetID)?.supportsAuthoring ?? true
+    }
+
     private var transactionRepository: any TransactionRepositoryProtocol {
         appState.transactionRepository
     }
@@ -134,7 +142,8 @@ struct AccountTransactionsView: View {
             repository: transactionRepository,
             pendingNewTransactionIDs: pendingNewTransactionIDs,
             privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-            currency: budgetCurrency
+            currency: budgetCurrency,
+            supportsScheduleAuthoring: supportsScheduleAuthoring
         )
 
         return List {

@@ -44,15 +44,26 @@ struct TransactionScheduleConversionPresentationTests {
         #expect(entry(for: parent, lookup: .init()) == nil)
     }
 
+    @Test func entryPointRequiresScheduleAuthoringSupport() {
+        let lookup = TransactionRowLookup()
+        let future = transaction(id: "future", date: "2026-09-30")
+
+        // A budget whose schema cannot accept schedules offers no entry.
+        #expect(entry(for: future, lookup: lookup, supportsAuthoring: false) == nil)
+        #expect(entry(for: future, lookup: lookup, supportsAuthoring: true)?.transactionID == "future")
+    }
+
     private func entry(
         for transaction: ActualTransaction,
-        lookup: TransactionRowLookup
+        lookup: TransactionRowLookup,
+        supportsAuthoring: Bool = true
     ) -> TransactionScheduleConversionEntryPoint? {
         TransactionScheduleConversionEntryPoint.project(
             transaction: transaction,
             lookup: lookup,
             asOfDayID: "2026-09-29",
-            accountName: "Everyday Checking"
+            accountName: "Everyday Checking",
+            supportsAuthoring: supportsAuthoring
         )
     }
 

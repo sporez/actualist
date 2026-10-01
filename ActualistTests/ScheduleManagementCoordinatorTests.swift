@@ -165,6 +165,72 @@ struct ScheduleManagementCoordinatorTests {
         #expect(!coordinator.isSubmitting)
     }
 
+    @Test func unsupportedSchemaSaveFailureSurfacesTesterVoicedNotice() async {
+        let cases: [(any Error, String)] = [
+            (
+                ScheduleMutationCommandError.unsupportedCapability(
+                    "missing column schedules.posts_transaction"
+                ),
+                ScheduleMutationUserNotice.unsupportedBudgetSchedules
+            ),
+            (
+                ScheduleMutationCommandError.unsupportedCapability(
+                    "missing schedules table"
+                ),
+                ScheduleMutationUserNotice.unsupportedBudgetSchedules
+            ),
+            (
+                ScheduleMutationCommandError.unsupportedCapability(
+                    "This budget does not support schedule names."
+                ),
+                "This budget does not support schedule names."
+            ),
+            (
+                LocalFirstError.invalidLocalWrite("missing column schedules.tombstone"),
+                ScheduleMutationUserNotice.saveFailed
+            )
+        ]
+        for (createError, expectedNotice) in cases {
+            let store = ScheduleManagementRepositoryFake()
+            store.createError = createError
+            let coordinator = ScheduleManagementCoordinator()
+            coordinator.beginCreate(
+                expectedBudgetID: "budget",
+                expectedGeneration: 1,
+                today: "2026-09-28",
+                currency: .usd,
+                isPrivacyModeEnabled: false,
+                mutationRepository: store,
+                transactionRepository: RecordingTransactionRepository(
+                    editorOptionsResult: TransactionEditorOptions(
+                        accounts: [ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)],
+                        categories: [],
+                        categoryGroups: [],
+                        payees: []
+                    )
+                )
+            )
+            await ObservedTestState {
+                if case .editing = coordinator.state { true } else { false }
+            }.wait()
+            coordinator.setAccount("checking")
+            coordinator.setAmount("12.34")
+            coordinator.reviewSave(locale: Locale(identifier: "en_US"))
+            coordinator.confirmSave(locale: Locale(identifier: "en_US"), mutationRepository: store)
+
+            await ObservedTestState {
+                if case .editing = coordinator.state { true } else { false }
+            }.wait()
+
+            guard case .editing(let session) = coordinator.state else {
+                Issue.record("A failed save must reopen the editor with a notice")
+                return
+            }
+            #expect(session.notice == expectedNotice)
+            #expect(session.notice?.contains("missing column") != true)
+        }
+    }
+
     @Test func lateScheduleReviewAfterCancellationCannotOpenEditor() async {
         let store = ScheduleManagementRepositoryFake()
         store.pauseNextReview = true
@@ -248,6 +314,7 @@ private final class ScheduleManagementRepositoryFake: ScheduleRepositoryProtocol
         receipt: ScheduleMutationResult(scheduleID: "new-schedule", kind: .created, appliedMessageCount: 4),
         refreshPending: true
     )
+    var createError: Error?
 
     func cachedSchedules(budgetID: String) -> LoadedSchedules? { nil }
 
@@ -303,6 +370,7 @@ private final class ScheduleManagementRepositoryFake: ScheduleRepositoryProtocol
         _ command: ScheduleCreateCommand,
         context: ScheduleMutationSessionContext
     ) async throws -> ScheduleMutationOutcome {
+        if let createError { throw createError }
         createCalls += 1
         return createOutcome
     }

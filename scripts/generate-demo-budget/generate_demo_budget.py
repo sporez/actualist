@@ -80,7 +80,7 @@ from pathlib import Path
 
 # --- Identity (must match DemoBudget.swift) ---------------------------------
 
-DEMO_FILE_ID = "actualist-demo-budget-v6"
+DEMO_FILE_ID = "actualist-demo-budget-v8"
 DEMO_GROUP_ID = "actualist-demo-group-v1"
 DEMO_NODE_ID = "demo-node-00000001"
 DEMO_BUDGET_NAME = "Demo Budget"
@@ -88,8 +88,11 @@ DEMO_BUDGET_NAME = "Demo Budget"
 
 # --- Schema DDL -------------------------------------------------------------
 # Mirrors the table/column layout the app reads and writes (see
-# BudgetDatabase+Reads.swift / +TransactionWrites.swift / +BudgetWrites.swift
-# and the GRDB test fixture in LocalFirstActualStoreTestSupport.swift).
+# BudgetDatabase+Reads.swift / +TransactionWrites.swift / +BudgetWrites.swift,
+# the schedule write plan in ScheduleCreationMessagePlan.swift, and the GRDB
+# test fixtures in the *Schedule*Tests suites). The schedule write path
+# requires schedules.posts_transaction and a schedules_next_date table;
+# without them schedule creation and transaction conversion fail.
 
 SCHEMA = """
 CREATE TABLE accounts (
@@ -174,15 +177,30 @@ CREATE TABLE notes (
 );
 CREATE TABLE rules (
     id TEXT PRIMARY KEY,
+    stage TEXT,
     conditions TEXT,
     actions TEXT,
+    conditions_op TEXT DEFAULT 'and',
     tombstone INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE schedules (
     id TEXT PRIMARY KEY,
     name TEXT,
     rule TEXT,
+    active INTEGER NOT NULL DEFAULT 0,
     completed INTEGER NOT NULL DEFAULT 0,
+    posts_transaction INTEGER NOT NULL DEFAULT 0,
+    custom_upcoming_length TEXT,
+    sort_order REAL,
+    tombstone INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE schedules_next_date (
+    id TEXT PRIMARY KEY,
+    schedule_id TEXT,
+    local_next_date INTEGER,
+    local_next_date_ts INTEGER,
+    base_next_date INTEGER,
+    base_next_date_ts INTEGER,
     tombstone INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE messages_crdt (
@@ -474,8 +492,23 @@ def populate(conn: sqlite3.Connection, end_date: datetime.date):
         ),
     )
     cur.execute(
-        "INSERT INTO schedules (id, name, rule, completed, tombstone) VALUES (?, ?, ?, 0, 0)",
+        "INSERT INTO schedules (id, name, rule, active, completed, posts_transaction, "
+        "custom_upcoming_length, sort_order, tombstone) VALUES (?, ?, ?, 0, 0, 0, NULL, 0, 0)",
         (schedule_id, "Annual Insurance", schedule_rule_id),
+    )
+    # A live server-built schedule always has exactly one next-date row, and
+    # local/base timestamps are equal so the app treats local_next_date as the
+    # effective date. The fixed millisecond value keeps the artifact
+    # deterministic; only the equality matters to the app's reads.
+    next_day = 20270115
+    next_ts = int(
+        datetime.datetime(2027, 1, 15, tzinfo=datetime.timezone.utc).timestamp() * 1000
+    )
+    cur.execute(
+        "INSERT INTO schedules_next_date (id, schedule_id, local_next_date, "
+        "local_next_date_ts, base_next_date, base_next_date_ts, tombstone) "
+        "VALUES (?, ?, ?, ?, ?, ?, 0)",
+        ("annual-insurance-next", schedule_id, next_day, next_ts, next_day, next_ts),
     )
 
     month_note_id = f"budget-{end_date.year:04d}-{end_date.month:02d}"

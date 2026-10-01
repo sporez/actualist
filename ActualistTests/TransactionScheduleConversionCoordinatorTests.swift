@@ -251,6 +251,32 @@ struct TransactionScheduleConversionCoordinatorTests {
         }
     }
 
+    @Test func unsupportedSchemaConversionFailureSurfacesTesterVoicedNotice() async throws {
+        let repository = FakeConversionRepository()
+        repository.convertError = ScheduleConversionError.unsupportedSource(
+            "missing column schedules.posts_transaction"
+        )
+        let coordinator = TransactionScheduleConversionCoordinator()
+        repository.reviewResult = Self.review(transactionID: "future", context: repository.context)
+        coordinator.beginReview(
+            budgetID: "budget", expectedGeneration: repository.context.generation,
+            entryPoint: try Self.entryPoint(review: try #require(repository.reviewResult)),
+            currency: .usd,
+            isPrivacyModeEnabled: false, repository: repository
+        )
+        await ObservedTestState { if case .review = coordinator.state { true } else { false } }.wait()
+
+        coordinator.confirm(repository: repository)
+        await ObservedTestState { if case .failed = coordinator.state { true } else { false } }.wait()
+
+        guard case .failed(let message) = coordinator.state else {
+            Issue.record("Expected the conversion failure to present a notice")
+            return
+        }
+        #expect(message == ScheduleMutationUserNotice.unsupportedBudgetSchedules)
+        #expect(!message.contains("missing column"))
+    }
+
     private static func entryPoint(
         review: ScheduleConversionReview,
         names: TransactionScheduleConversionResolvedNames = TransactionScheduleConversionResolvedNames(
@@ -303,6 +329,7 @@ private final class FakeConversionRepository: TransactionScheduleConversionRepos
     var reviewRequests: [String] = []
     var convertEntered: TestLatch?
     var releaseConvert: TestLatch?
+    var convertError: Error?
 
     func scheduleConversionSessionContext(budgetID: String) throws -> ScheduleConversionSessionContext {
         context
@@ -325,6 +352,7 @@ private final class FakeConversionRepository: TransactionScheduleConversionRepos
     }
 
     func convertFutureTransaction(review: ScheduleConversionReview) async throws -> ScheduleConversionReceipt {
+        if let convertError { throw convertError }
         convertedReviews.append(review)
         convertEntered?.trip()
         await releaseConvert?.wait()

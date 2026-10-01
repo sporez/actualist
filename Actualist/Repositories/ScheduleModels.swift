@@ -5,13 +5,21 @@ struct LoadedSchedules: Hashable, Sendable {
     let schedules: [ScheduleSummary]
     let detailsByID: [String: ScheduleDetail]
     let defaultUpcomingLength: String
+    /// Whether this budget's schema can accept schedule authoring (creating
+    /// schedules and converting future transactions). Computed by the read
+    /// path from the same column requirements the write path enforces, so the
+    /// authoring entries can be gated before the user fills a form that cannot
+    /// be saved. Unknown/unfinished loads default to true and rely on the
+    /// write path's tester-voiced failure as the backstop.
+    var supportsAuthoring: Bool = true
 
     static func empty(budgetID: String) -> LoadedSchedules {
         LoadedSchedules(
             budgetID: budgetID,
             schedules: [],
             detailsByID: [:],
-            defaultUpcomingLength: "7"
+            defaultUpcomingLength: "7",
+            supportsAuthoring: false
         )
     }
 

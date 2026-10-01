@@ -61,6 +61,9 @@ struct AccountTransactionFeedProjection {
     let privacyModeEnabled: Bool
     var currency: BudgetCurrency = .usd
     var scheduleConversionDayID: String = SchedulesViewContext.currentDay()
+    /// Whether the budget's schema supports schedule authoring; false removes
+    /// the "Convert to Schedule" entry instead of failing at submit time.
+    var supportsScheduleAuthoring: Bool = true
 
     var displayState: AccountTransactionsDisplayState {
         let groups = TransactionGrouping.grouped(displayedTransactions).map { group in
@@ -146,7 +149,8 @@ struct AccountTransactionFeedProjection {
                 transaction: transaction,
                 lookup: lookup,
                 asOfDayID: scheduleConversionDayID,
-                accountName: scheduleConversionAccountName(for: transaction)
+                accountName: scheduleConversionAccountName(for: transaction),
+                supportsAuthoring: supportsScheduleAuthoring
             )
         )
     }

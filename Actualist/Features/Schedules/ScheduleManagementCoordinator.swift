@@ -616,7 +616,16 @@ final class ScheduleManagementCoordinator {
     }
 
     private func message(for error: Error) -> String {
-        error.userFacingMessage ?? error.localizedDescription
+        switch error {
+        case let commandError as ScheduleMutationCommandError:
+            ScheduleMutationUserNotice.commandError(commandError)
+        case let localFirstError as LocalFirstError:
+            // Unwrapped local-write refusals carry internal detail strings.
+            if case .invalidLocalWrite = localFirstError { ScheduleMutationUserNotice.saveFailed }
+            else { localFirstError.errorDescription ?? ScheduleMutationUserNotice.saveFailed }
+        default:
+            error.userFacingMessage ?? ScheduleMutationUserNotice.saveFailed
+        }
     }
 
     private static let createCapabilities = ScheduleMutationCapabilities(
@@ -638,5 +647,38 @@ private extension ScheduleEditorSession {
         var copy = self
         copy.notice = notice
         return copy
+    }
+}
+
+/// Single source of tester-voiced copy for schedule write failures that reach
+/// feature coordinators. Raw database details (for example "missing column
+/// schedules.posts_transaction" from budgets saved by older versions of
+/// Actual) must never reach the UI.
+enum ScheduleMutationUserNotice {
+    static let unsupportedBudgetSchedules =
+        "This budget's schedule data is from an older version of Actual, so schedules can't be changed in Actualist yet."
+    static let saveFailed =
+        "Actualist couldn't save this schedule. Try again."
+
+    static func commandError(_ error: ScheduleMutationCommandError) -> String {
+        switch error {
+        case .reviewChanged, .identityConflict, .duplicateName, .invalidCommand:
+            error.errorDescription ?? saveFailed
+        case .unsupportedCapability(let detail):
+            capabilityDetail(detail)
+        }
+    }
+
+    static func conversionSource(_ reason: String) -> String {
+        capabilityDetail(reason)
+    }
+
+    static func capabilityDetail(_ detail: String) -> String {
+        isInternalSchemaDetail(detail) ? unsupportedBudgetSchedules : detail
+    }
+
+    private static func isInternalSchemaDetail(_ detail: String) -> Bool {
+        detail.contains("missing column ")
+            || (detail.hasPrefix("missing ") && detail.hasSuffix(" table"))
     }
 }

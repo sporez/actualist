@@ -16,8 +16,10 @@ struct TransactionScheduleConversionEntryPoint: Hashable, Sendable {
         transaction: ActualTransaction,
         lookup: TransactionRowLookup,
         asOfDayID: String,
-        accountName: String?
+        accountName: String?,
+        supportsAuthoring: Bool = true
     ) -> TransactionScheduleConversionEntryPoint? {
+        guard supportsAuthoring else { return nil }
         guard let transactionID = transaction.id,
               !transactionID.isEmpty,
               !transaction.isChild,

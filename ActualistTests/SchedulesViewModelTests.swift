@@ -312,16 +312,53 @@ struct SchedulesViewModelTests {
         #expect(model.snapshot?.schedules.map(\.id) == ["fresh"])
     }
 
-    private func snapshot(budgetID: String, ids: [String]) -> LoadedSchedules {
-        snapshot(budgetID: budgetID, schedules: ids.map { summary(id: $0, name: $0, status: .upcoming) })
+    @Test func authoringCapabilityGatesTheAddEntryAndNotice() async {
+        let supported = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", ids: ["rent"], supportsAuthoring: true)
+        ])
+        let supportedModel = SchedulesViewModel(context: context())
+        await supportedModel.load(context: context(), repository: supported)
+        #expect(supportedModel.canAddSchedule)
+        #expect(!supportedModel.showsAuthoringUnavailableNotice)
+
+        let unsupported = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", ids: ["rent"], supportsAuthoring: false)
+        ])
+        let unsupportedModel = SchedulesViewModel(context: context())
+        await unsupportedModel.load(context: context(), repository: unsupported)
+        #expect(!unsupportedModel.canAddSchedule)
+        #expect(unsupportedModel.showsAuthoringUnavailableNotice)
+
+        // Before any snapshot loads, the entry stays hidden without claiming
+        // the budget is unsupported.
+        let loadingModel = SchedulesViewModel(context: context())
+        #expect(!loadingModel.canAddSchedule)
+        #expect(!loadingModel.showsAuthoringUnavailableNotice)
     }
 
-    private func snapshot(budgetID: String, schedules: [ScheduleSummary]) -> LoadedSchedules {
+    private func snapshot(
+        budgetID: String,
+        ids: [String],
+        supportsAuthoring: Bool = true
+    ) -> LoadedSchedules {
+        snapshot(
+            budgetID: budgetID,
+            schedules: ids.map { summary(id: $0, name: $0, status: .upcoming) },
+            supportsAuthoring: supportsAuthoring
+        )
+    }
+
+    private func snapshot(
+        budgetID: String,
+        schedules: [ScheduleSummary],
+        supportsAuthoring: Bool = true
+    ) -> LoadedSchedules {
         LoadedSchedules(
             budgetID: budgetID,
             schedules: schedules,
             detailsByID: [:],
-            defaultUpcomingLength: "7"
+            defaultUpcomingLength: "7",
+            supportsAuthoring: supportsAuthoring
         )
     }
 
