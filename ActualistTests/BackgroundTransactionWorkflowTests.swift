@@ -93,7 +93,15 @@ struct BackgroundTransactionWorkflowTests {
         )
         let settings = AppSettings(backgroundTransactionRefreshEnabled: false)
 
-        await workflow.prepare(isEnabled: settings.backgroundTransactionRefreshEnabled, settings: settings)
+        if let projection = await workflow.prepare(
+            isEnabled: settings.backgroundTransactionRefreshEnabled,
+            settings: settings,
+            budgetID: nil,
+            store: makeThrowawayStore()
+        ) {
+            var prepared = settings
+            workflow.applyPreparedProjection(projection, updatesBadge: false, to: &prepared)
+        }
 
         #expect(authorizationRequestCount == 0)
         #expect(badgeCounts.isEmpty)
@@ -114,7 +122,14 @@ struct BackgroundTransactionWorkflowTests {
             "budget|checking": ["txn-1", "txn-2"]
         ]
 
-        await workflow.prepare(isEnabled: settings.backgroundTransactionRefreshEnabled, settings: settings)
+        if let projection = await workflow.prepare(
+            isEnabled: settings.backgroundTransactionRefreshEnabled,
+            settings: settings,
+            budgetID: nil,
+            store: makeThrowawayStore()
+        ) {
+            workflow.applyPreparedProjection(projection, updatesBadge: true, to: &settings)
+        }
 
         #expect(authorizationRequestCount == 1)
         #expect(badgeCounts == [2])
@@ -156,63 +171,6 @@ struct BackgroundTransactionWorkflowTests {
         #expect(ids == Set(["txn-1", "txn-2", "txn-3"]))
     }
 
-    @Test func clearingPendingIDsByAccountUpdatesBadgeAndPersists() {
-        var badgeCounts: [Int] = []
-        let (workflow, store) = makeWorkflow(badgeUpdater: { badgeCounts.append($0) })
-        var settings = makeSettings(
-            pendingNewTransactionIDsByAccount: [
-                "budget|checking": ["txn-1", "txn-2"],
-                "budget|credit": ["txn-3"]
-            ]
-        )
-
-        workflow.clearPendingNewTransactionIDs(budgetID: "budget", accountID: "checking", in: &settings)
-
-        #expect(settings.pendingNewTransactionIDsByAccount["budget|checking"] == nil)
-        #expect(settings.pendingNewTransactionIDsByAccount["budget|credit"] == ["txn-3"])
-        #expect(badgeCounts == [1])
-        #expect(
-            store.load().pendingNewTransactionIDsByAccount["budget|checking"] == nil
-        )
-    }
-
-    @Test func clearingLastAccountPendingIDsClearsApplicationBadge() {
-        var badgeCounts: [Int] = []
-        let (workflow, _) = makeWorkflow(badgeUpdater: { badgeCounts.append($0) })
-        var settings = makeSettings(
-            pendingNewTransactionIDsByAccount: [
-                "budget|checking": ["txn-1", "txn-2"]
-            ]
-        )
-
-        workflow.clearPendingNewTransactionIDs(budgetID: "budget", accountID: "checking", in: &settings)
-
-        #expect(settings.pendingNewTransactionIDsByAccount.isEmpty)
-        #expect(badgeCounts == [0])
-    }
-
-    @Test func clearingPendingIDsByBudgetClearsEveryAccountInBudgetOnly() {
-        var badgeCounts: [Int] = []
-        let (workflow, store) = makeWorkflow(badgeUpdater: { badgeCounts.append($0) })
-        var settings = makeSettings(
-            pendingNewTransactionIDsByAccount: [
-                "budget|checking": ["txn-1"],
-                "budget|credit": ["txn-2"],
-                "other|checking": ["txn-3"]
-            ]
-        )
-
-        workflow.clearPendingNewTransactionIDs(budgetID: "budget", in: &settings)
-
-        #expect(settings.pendingNewTransactionIDsByAccount["budget|checking"] == nil)
-        #expect(settings.pendingNewTransactionIDsByAccount["budget|credit"] == nil)
-        #expect(settings.pendingNewTransactionIDsByAccount["other|checking"] == ["txn-3"])
-        #expect(badgeCounts == [1])
-        #expect(
-            store.load().pendingNewTransactionIDsByAccount["other|checking"] == ["txn-3"]
-        )
-    }
-
     @Test func updateApplicationBadgeReflectsDeduplicatedPendingCount() {
         var badgeCounts: [Int] = []
         let (workflow, _) = makeWorkflow(badgeUpdater: { badgeCounts.append($0) })
@@ -227,6 +185,103 @@ struct BackgroundTransactionWorkflowTests {
 
         #expect(count == 3)
         #expect(badgeCounts == [3])
+    }
+
+    @Test func applyingReviewOutcomeOnlyMutatesOwnedPendingProjection() {
+        let (workflow, _) = makeWorkflow()
+        var settings = AppSettings(
+            localFirstServerURLString: "https://current.example",
+            selectedBudgetID: "current-budget",
+            backgroundTransactionRefreshEnabled: false
+        )
+        settings.pendingNewTransactionIDsByAccount["other-budget|checking"] = ["other-1"]
+        let outcome = BackgroundTransactionWorkflow.PendingReviewOutcome(
+            budgetID: "current-budget",
+            projection: ["current-budget|checking": ["new-1"]],
+            clearedCount: 0,
+            scope: .account,
+            pendingProjectionGeneration: 0
+        )
+
+        workflow.applyPendingReviewOutcome(outcome, to: &settings)
+
+        #expect(settings.localFirstServerURLString == "https://current.example")
+        #expect(settings.selectedBudgetID == "current-budget")
+        #expect(!settings.backgroundTransactionRefreshEnabled)
+        #expect(settings.pendingNewTransactionIDsByAccount["current-budget|checking"] == ["new-1"])
+        #expect(settings.pendingNewTransactionIDsByAccount["other-budget|checking"] == ["other-1"])
+    }
+
+    @Test func sessionIdentityRejectsBudgetSwitchABA() {
+        let (workflow, _) = makeWorkflow()
+        let settings = AppSettings(
+            localFirstServerURLString: "https://current.example",
+            selectedBudgetID: "current-budget",
+            selectedLocalFirstFileID: "current-file",
+            selectedLocalFirstGroupID: "current-budget",
+            backgroundTransactionRefreshEnabled: true
+        )
+
+        let beforeSwitch = workflow.sessionIdentity(settings: settings, recoveryIdentity: 4)
+        let afterReturningToSameBudget = workflow.sessionIdentity(settings: settings, recoveryIdentity: 6)
+
+        #expect(beforeSwitch != afterReturningToSameBudget)
+    }
+
+    @Test func applyingRefreshResultPreservesUnrelatedSettingsAndLogs() async throws {
+        let pending = BackgroundPendingTransactions(accountID: "checking", transactionIDs: ["new-1"])
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(
+            BackgroundTransactionRefreshResult(budgetID: "budget", accountCount: 1, pendingTransactions: [pending])
+        )))
+        let (workflow, _) = makeWorkflow(runner: runner, notificationPoster: { _, _, _ in })
+        let initial = AppSettings(selectedBudgetID: "budget", backgroundTransactionRefreshEnabled: true)
+        let result = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false, settings: initial,
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        var current = initial
+        current.showHiddenCategories = true
+        current.localFirstSyncDebug.totalEventCount = 7
+        current.backgroundRefreshDebug.totalScheduleAttemptCount = 3
+
+        workflow.applyRefreshResult(result, to: &current)
+
+        #expect(current.showHiddenCategories)
+        #expect(current.localFirstSyncDebug.totalEventCount == 7)
+        #expect(current.backgroundRefreshDebug.totalScheduleAttemptCount == 3)
+        #expect(current.pendingNewTransactionIDsByAccount["budget|checking"] == ["new-1"])
+        #expect(current.backgroundRefreshDebug.recentRuns.first?.succeeded == true)
+    }
+
+    @Test func completedReviewPreventsOlderRefreshProjectionFromRestoringIDs() async {
+        let (workflow, _) = makeWorkflow()
+        _ = await workflow.prepare(
+            isEnabled: false,
+            settings: AppSettings(),
+            budgetID: nil,
+            store: makeThrowawayStore()
+        )
+        var refreshedSettings = AppSettings(selectedBudgetID: "budget")
+        refreshedSettings.pendingNewTransactionIDsByAccount = ["budget|checking": ["new-1"]]
+        let staleRefresh = BackgroundTransactionWorkflow.RefreshResult(
+            outcome: .success,
+            settings: refreshedSettings,
+            runID: nil,
+            budgetID: "budget",
+            pendingProjectionGeneration: 0
+        )
+        var current = refreshedSettings
+        workflow.applyPendingReviewOutcome(.init(
+            budgetID: "budget",
+            projection: [:],
+            clearedCount: 1,
+            scope: .account,
+            pendingProjectionGeneration: 1
+        ), to: &current)
+
+        workflow.applyRefreshResult(staleRefresh, to: &current)
+
+        #expect(current.pendingNewTransactionIDsByAccount.isEmpty)
     }
 
     // MARK: Schedule-attempt recording
@@ -308,6 +363,148 @@ struct BackgroundTransactionWorkflowTests {
         #expect(run.message == synced.completionMessage)
         // No new transactions: pending IDs are not recorded.
         #expect(output.settings.pendingNewTransactionIDsByAccount.isEmpty)
+    }
+
+    @Test func successfulNotificationRecordsSafeDetailedOutcome() async throws {
+        let pending = BackgroundPendingTransactions(accountID: "private-account", transactionIDs: ["private-transaction"])
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(
+            BackgroundTransactionRefreshResult(budgetID: "private-budget", accountCount: 1, pendingTransactions: [pending])
+        )))
+        var posted = 0
+        let (workflow, _) = makeWorkflow(runner: runner, notificationPoster: { _, _, _ in posted += 1 })
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false,
+            settings: AppSettings(backgroundTransactionRefreshEnabled: true),
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        let details = try #require(output.settings.backgroundRefreshDebug.recentRuns.first?.diagnosticDetails)
+        #expect(posted == 1)
+        #expect(details.alertsEnabled)
+        #expect(details.serverInsertedCount == 1)
+        #expect(details.notificationCandidateCount == 1)
+        #expect(details.durablePendingIDCount == 1)
+        #expect(details.notificationOutcome == .accepted)
+    }
+
+    @Test func failedNotificationRecordsFailureWithoutPersistingError() async throws {
+        let pending = BackgroundPendingTransactions(accountID: "private-account", transactionIDs: ["private-transaction"])
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(
+            BackgroundTransactionRefreshResult(budgetID: "private-budget", accountCount: 1, pendingTransactions: [pending])
+        )))
+        let (workflow, _) = makeWorkflow(
+            runner: runner,
+            notificationPoster: { _, _, _ in throw FakeRefreshError(message: "private host token=secret") }
+        )
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false,
+            settings: AppSettings(backgroundTransactionRefreshEnabled: true),
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(output.outcome == .success)
+        #expect(run.succeeded == true)
+        #expect(run.diagnosticDetails?.notificationOutcome == .failed)
+        #expect(run.diagnosticDetails?.refreshOutcome == .succeeded)
+        #expect(!run.message.contains("private host"))
+        #expect(!String(describing: run.diagnosticDetails).contains("secret"))
+    }
+
+    @Test func failedPostRetriesSameDeterministicRequestIdentifier() async throws {
+        let pendingStore = FakePendingTransactionStore()
+        let pending = BackgroundPendingTransactions(accountID: "checking", transactionIDs: ["new-1"])
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(
+            BackgroundTransactionRefreshResult(budgetID: "budget", accountCount: 1, pendingTransactions: [pending])
+        )))
+        var identifiers: [String] = []
+        let (workflow, _) = makeWorkflow(
+            runner: runner,
+            pendingTransactionStore: pendingStore,
+            notificationPoster: { _, identifier, _ in
+                identifiers.append(identifier)
+                if identifiers.count == 1 { throw FakeRefreshError(message: "not accepted") }
+            }
+        )
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+
+        let first = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false, settings: settings,
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        let second = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false, settings: first.settings,
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+
+        #expect(identifiers.count == 2)
+        #expect(identifiers.first == identifiers.last)
+        #expect(second.settings.backgroundRefreshDebug.recentRuns.first?.diagnosticDetails?.notificationOutcome == .accepted)
+    }
+
+    @Test func acceptedPostWithInterruptedAcknowledgementRetriesSameIdentifier() async throws {
+        let pendingStore = FakePendingTransactionStore(ackFailuresRemaining: 1)
+        let pending = BackgroundPendingTransactions(accountID: "checking", transactionIDs: ["new-1"])
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(
+            BackgroundTransactionRefreshResult(budgetID: "budget", accountCount: 1, pendingTransactions: [pending])
+        )))
+        var identifiers: [String] = []
+        let (workflow, _) = makeWorkflow(
+            runner: runner,
+            pendingTransactionStore: pendingStore,
+            notificationPoster: { _, identifier, _ in identifiers.append(identifier) }
+        )
+        let settings = AppSettings(backgroundTransactionRefreshEnabled: true)
+        let first = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false, settings: settings,
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        _ = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false, settings: first.settings,
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+
+        #expect(identifiers.count == 2)
+        #expect(identifiers.first == identifiers.last)
+    }
+
+    @Test func bankTimeoutIsRecordedWithoutRawErrorText() async throws {
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(
+            BackgroundTransactionRefreshResult(budgetID: "budget", accountCount: 0, pendingTransactions: [])
+        )))
+        let (workflow, _) = makeWorkflow(
+            runner: runner,
+            bankSyncApplier: FakeBackgroundBankSyncApplier(
+                result: .success(BankSyncBackgroundApplyResult(accountCount: 0, insertedTransactionIDsByAccount: [:])),
+                delay: .seconds(30)
+            ),
+            bankSyncTimeoutSleep: { _ in throw BackgroundBankSyncStepError.timedOut }
+        )
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false,
+            settings: AppSettings(backgroundTransactionRefreshEnabled: true, simplefinBackgroundSyncEnabled: true),
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        let details = try #require(output.settings.backgroundRefreshDebug.recentRuns.first?.diagnosticDetails)
+        #expect(details.bankOutcome == .timedOut)
+        #expect(details.bankDurationMilliseconds != nil)
+        #expect(!output.settings.backgroundRefreshDebug.recentRuns[0].message.contains("private"))
+    }
+
+    @Test func bankFailureIsRecordedWithoutPersistingErrorText() async throws {
+        let runner = FakeBackgroundTransactionRefreshRunner(result: .success(.synced(
+            BackgroundTransactionRefreshResult(budgetID: "budget", accountCount: 0, pendingTransactions: [])
+        )))
+        let (workflow, _) = makeWorkflow(
+            runner: runner,
+            bankSyncApplier: FakeBackgroundBankSyncApplier(result: .failure(FakeRefreshError(message: "private account secret")))
+        )
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false,
+            settings: AppSettings(backgroundTransactionRefreshEnabled: true, simplefinBackgroundSyncEnabled: true),
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        let details = try #require(output.settings.backgroundRefreshDebug.recentRuns.first?.diagnosticDetails)
+        #expect(details.bankOutcome == .failed)
+        #expect(!output.settings.backgroundRefreshDebug.recentRuns[0].message.contains("private account secret"))
     }
 
     @Test func performRefreshWhereRunnerSkipsStillSucceedsAndRecordsSkipMessage() async throws {
@@ -409,7 +606,13 @@ struct BackgroundTransactionWorkflowTests {
         try keychain.saveActualSyncToken("synthetic-token")
         backend.copyFailureStatus = errSecInteractionNotAllowed
         let store = LocalFirstActualStore(keychain: keychain)
-        let (workflow, _) = makeWorkflow(runner: BackgroundTransactionRefreshRunner())
+        // This test isolates credential preflight behavior. It intentionally
+        // gives the runner the full synthetic one-second budget rather than
+        // exercising the separately covered production completion reserve.
+        let (workflow, _) = makeWorkflow(
+            runner: BackgroundTransactionRefreshRunner(),
+            completionTimeReserve: .zero
+        )
         var settings = AppSettings(backgroundTransactionRefreshEnabled: true)
         settings.selectedBudgetID = "group-1"
         settings.localFirstServerURLString = "https://synthetic.invalid"
@@ -435,14 +638,24 @@ struct BackgroundTransactionWorkflowTests {
         authorizationRequester: @escaping @MainActor () async throws -> Bool = { true },
         badgeUpdater: @escaping @MainActor (Int) -> Void = { _ in },
         settingsStore: AppSettingsStore? = nil,
-        runner: (any BackgroundTransactionRefreshing)? = nil
+        runner: (any BackgroundTransactionRefreshing)? = nil,
+        bankSyncApplier: (any BackgroundBankSyncApplying)? = nil,
+        bankSyncTimeoutSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        completionTimeReserve: Duration = .seconds(2),
+        pendingTransactionStore: (any BackgroundPendingTransactionPersisting)? = nil,
+        notificationPoster: (@MainActor (String, String, Int) async throws -> Void)? = nil
     ) -> (BackgroundTransactionWorkflow, AppSettingsStore) {
         let store = settingsStore ?? makeSettingsStore()
         let workflow = BackgroundTransactionWorkflow(
             settingsStore: store,
+            bankSyncTimeoutSleep: bankSyncTimeoutSleep,
             notificationAuthorizationRequester: authorizationRequester,
             applicationBadgeUpdater: badgeUpdater,
-            runner: runner
+            runner: runner,
+            bankSyncApplier: bankSyncApplier,
+            completionTimeReserve: completionTimeReserve,
+            pendingTransactionStore: pendingTransactionStore ?? FakePendingTransactionStore(),
+            notificationPoster: notificationPoster
         )
         return (workflow, store)
     }
@@ -479,6 +692,65 @@ struct BackgroundTransactionWorkflowTests {
 }
 
 @MainActor
+private final class FakePendingTransactionStore: BackgroundPendingTransactionPersisting {
+    private var idsByAccount: [String: [String]] = [:]
+    private var delivery: LocalFirstActualStore.PendingNewTransactionDelivery?
+    private var ackFailuresRemaining: Int
+
+    init(ackFailuresRemaining: Int = 0) {
+        self.ackFailuresRemaining = ackFailuresRemaining
+    }
+
+    func reconcilePendingNewTransactionProjection(
+        budgetID: String,
+        legacyStorage: [String: [String]]
+    ) async throws -> [String: [String]] {
+        var result = legacyStorage.filter { !$0.key.hasPrefix("\(budgetID)|") }
+        for (accountID, ids) in idsByAccount {
+            result["\(budgetID)|\(accountID)"] = ids
+        }
+        return result
+    }
+
+    func registerRemotePendingNewTransactions(
+        _ pending: [BackgroundPendingTransactions],
+        budgetID: String,
+        notificationID: String
+    ) async throws {
+        for item in pending {
+            idsByAccount[item.accountID, default: []].append(contentsOf: item.transactionIDs)
+            idsByAccount[item.accountID] = Array(Set(idsByAccount[item.accountID] ?? [])).sorted()
+        }
+        let ids = idsByAccount.values.flatMap { $0 }.sorted()
+        if !ids.isEmpty, delivery == nil {
+            delivery = .init(
+                requestIdentifier: "actualist.new-transactions.\(notificationID)",
+                transactionIDs: ids
+            )
+        }
+    }
+
+    func pendingNewTransactionDelivery(
+        budgetID: String
+    ) async throws -> LocalFirstActualStore.PendingNewTransactionDelivery? { delivery }
+
+    func acknowledgePendingNewTransactionDelivery(
+        _ delivery: LocalFirstActualStore.PendingNewTransactionDelivery,
+        budgetID: String
+    ) async throws {
+        if ackFailuresRemaining > 0 {
+            ackFailuresRemaining -= 1
+            throw FakeRefreshError(message: "acknowledgement interrupted")
+        }
+        self.delivery = nil
+    }
+
+    func suppressPendingNewTransactionDeliveries(budgetID: String) async throws {
+        delivery = nil
+    }
+}
+
+@MainActor
 private final class FakeBackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
     private(set) var callCount = 0
     private(set) var lastHasSyncCredentials: Bool?
@@ -507,4 +779,15 @@ private final class FakeBackgroundTransactionRefreshRunner: BackgroundTransactio
 private struct FakeRefreshError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
+}
+
+@MainActor
+private struct FakeBackgroundBankSyncApplier: BackgroundBankSyncApplying {
+    let result: Result<BankSyncBackgroundApplyResult, Error>
+    var delay: Duration = .zero
+
+    func backgroundBankSyncApply(request: BankSyncBackgroundApplyRequest) async throws -> BankSyncBackgroundApplyResult {
+        if delay > .zero { try await Task.sleep(for: delay) }
+        return try result.get()
+    }
 }

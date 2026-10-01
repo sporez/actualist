@@ -215,6 +215,7 @@ struct BackgroundRefreshDebugInfo: Codable, Equatable {
     var recentRuns: [BackgroundRefreshDebugRun] = []
     var totalScheduleAttemptCount: Int = 0
     var recentScheduleAttempts: [BackgroundRefreshScheduleAttempt] = []
+    var recentPendingIDClears: [BackgroundPendingIDClearEvent] = []
 
     var wakeCount: Int {
         totalWakeCount
@@ -223,6 +224,52 @@ struct BackgroundRefreshDebugInfo: Codable, Equatable {
     var scheduleAttemptCount: Int {
         totalScheduleAttemptCount
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case totalWakeCount, recentRuns, totalScheduleAttemptCount, recentScheduleAttempts
+        case recentPendingIDClears
+    }
+
+    init(
+        totalWakeCount: Int = 0,
+        recentRuns: [BackgroundRefreshDebugRun] = [],
+        totalScheduleAttemptCount: Int = 0,
+        recentScheduleAttempts: [BackgroundRefreshScheduleAttempt] = [],
+        recentPendingIDClears: [BackgroundPendingIDClearEvent] = []
+    ) {
+        self.totalWakeCount = totalWakeCount
+        self.recentRuns = recentRuns
+        self.totalScheduleAttemptCount = totalScheduleAttemptCount
+        self.recentScheduleAttempts = recentScheduleAttempts
+        self.recentPendingIDClears = recentPendingIDClears
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        totalWakeCount = try container.decodeIfPresent(Int.self, forKey: .totalWakeCount) ?? 0
+        recentRuns = try container.decodeIfPresent([BackgroundRefreshDebugRun].self, forKey: .recentRuns) ?? []
+        totalScheduleAttemptCount = try container.decodeIfPresent(Int.self, forKey: .totalScheduleAttemptCount) ?? 0
+        recentScheduleAttempts = try container.decodeIfPresent(
+            [BackgroundRefreshScheduleAttempt].self,
+            forKey: .recentScheduleAttempts
+        ) ?? []
+        recentPendingIDClears = try container.decodeIfPresent(
+            [BackgroundPendingIDClearEvent].self,
+            forKey: .recentPendingIDClears
+        ) ?? []
+    }
+}
+
+struct BackgroundPendingIDClearEvent: Codable, Equatable, Identifiable {
+    enum Scope: String, Codable, Equatable, Sendable {
+        case account
+        case budget
+    }
+
+    let id: UUID
+    let date: Date
+    let scope: Scope
+    let clearedCount: Int
 }
 
 struct BackgroundRefreshDebugRun: Codable, Equatable, Identifiable {
@@ -231,6 +278,7 @@ struct BackgroundRefreshDebugRun: Codable, Equatable, Identifiable {
     var completionDate: Date?
     var succeeded: Bool?
     var message: String
+    var diagnosticDetails: BackgroundRefreshDiagnosticDetails? = nil
 }
 
 struct BackgroundRefreshScheduleAttempt: Codable, Equatable, Identifiable {

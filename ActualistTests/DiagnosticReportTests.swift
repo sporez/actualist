@@ -64,11 +64,23 @@ struct DiagnosticReportTests {
                     wakeDate: Date(timeIntervalSince1970: 1_700_000_100),
                     completionDate: Date(timeIntervalSince1970: 1_700_000_101),
                     succeeded: false,
-                    message: "My Checking failed for private-account-id"
+                    message: "My Checking failed for private-account-id",
+                    diagnosticDetails: {
+                        var details = BackgroundRefreshDiagnosticDetails(alertsEnabled: true)
+                        details.refreshOutcome = .succeeded
+                        details.serverInsertedCount = 2
+                        details.notificationCandidateCount = 2
+                        details.durablePendingIDCount = 2
+                        details.notificationOutcome = .accepted
+                        return details
+                    }()
                 )
             ],
             totalScheduleAttemptCount: 5,
-            recentScheduleAttempts: []
+            recentScheduleAttempts: [],
+            recentPendingIDClears: [
+                BackgroundPendingIDClearEvent(id: UUID(), date: Date(timeIntervalSince1970: 1_700_000_102), scope: .account, clearedCount: 2)
+            ]
         )
         state.lastErrorMessage = "Could not reach actual.private.example for private-budget-id"
         state.budgets = [
@@ -130,6 +142,10 @@ struct DiagnosticReportTests {
         #expect(report.text.contains("Total schedule attempts: 5"))
         #expect(report.text.contains("Total wakes: 4"))
         #expect(report.text.contains("Transaction count: 2"))
+        #expect(report.text.contains("Server new transactions: 2"))
+        #expect(report.text.contains("Notification request: accepted"))
+        #expect(report.text.contains("Pending IDs recorded for budget: 2"))
+        #expect(report.text.contains("scope account | cleared 2"))
         #expect(report.text.contains("History row count: 0"))
         #expect(report.text.contains("History newest age seconds: none"))
         #expect(!report.text.contains("actual.private.example"))
