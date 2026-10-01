@@ -73,6 +73,14 @@ struct ReportExplorerView: View {
         .navigationTitle(viewModel.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // Principal placement keeps every report explorer title centered;
+            // long titles next to the trailing glass capsule otherwise fall
+            // back to leading alignment (seen on "Budget Overview").
+            ToolbarItem(placement: .principal) {
+                Text(viewModel.title)
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     isFilterPresented = true
@@ -413,8 +421,7 @@ private struct ReportCustomRangeSheet: View {
                 .font(.body)
                 .actualistReviewCard(padding: 14)
             }
-            .navigationTitle("Custom Range")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .reviewSheetBottomBar {
                 Button(role: .cancel) { dismiss() } label: {
                     Text("Cancel")

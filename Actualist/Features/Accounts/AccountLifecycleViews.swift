@@ -317,8 +317,7 @@ struct AccountLifecycleReviewSheet: View {
                 }
             }
             .background(ActualistTheme.background)
-            .navigationTitle(presentation.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .presentationDetents([.large])
     }

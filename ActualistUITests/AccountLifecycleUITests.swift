@@ -114,7 +114,7 @@ final class AccountLifecycleUITests: XCTestCase {
         attachScreenshot(named: "account-lifecycle-close-review-\(layoutName(for: app))", app: app)
 
         app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Review the account effects before continuing."].waitForNonExistence(timeout: 5))
         XCTAssertTrue(accountOverviewButton(
             accountID: "checking",
             expectedName: "Everyday Checking",
@@ -131,12 +131,12 @@ final class AccountLifecycleUITests: XCTestCase {
         let closeAction = app.buttons["account-lifecycle-close-action"]
         XCTAssertTrue(closeAction.waitForExistence(timeout: 5))
         closeAction.tap()
-        XCTAssertTrue(app.navigationBars["Review Account"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Review the account effects before continuing."].waitForExistence(timeout: 8))
         let close = try selectClosingDestination("High-Yield Savings", in: app)
 
         close.tap()
 
-        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Review the account effects before continuing."].waitForNonExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.navigationBars["Everyday Checking"].exists)
         let closedSection = sectionButton(beginningWith: "Closed (2)", in: app)
@@ -167,7 +167,9 @@ final class AccountLifecycleUITests: XCTestCase {
         let balance = app.staticTexts["Balance"]
         XCTAssertTrue(balance.waitForExistence(timeout: 5))
         let initialBalanceFrame = balance.frame
-        let initialNavigationFrame = app.navigationBars["Review Account"].frame
+        let reviewHeader = app.staticTexts["Review the account effects before continuing."]
+        XCTAssertTrue(reviewHeader.waitForExistence(timeout: 5))
+        let initialNavigationFrame = reviewHeader.frame
         attachScreenshot(named: "close-picker-before-\(theme)-\(layoutName(for: app))", app: app)
 
         for (index, destination) in ["High-Yield Savings", "Visa Credit Card", "High-Yield Savings"].enumerated() {
@@ -177,7 +179,7 @@ final class AccountLifecycleUITests: XCTestCase {
             XCTAssertFalse(app.staticTexts["Reviewing Account"].exists)
             XCTAssertEqual(balance.frame.minY, initialBalanceFrame.minY, accuracy: 1)
             XCTAssertEqual(
-                app.navigationBars["Transfer Balance and Close"].frame.minY,
+                reviewHeader.frame.minY,
                 initialNavigationFrame.minY,
                 accuracy: 1
             )
@@ -185,7 +187,7 @@ final class AccountLifecycleUITests: XCTestCase {
             attachScreenshot(named: "close-picker-\(index)-\(theme)-\(layoutName(for: app))", app: app)
         }
         app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Review the account effects before continuing."].waitForNonExistence(timeout: 5))
         XCTAssertTrue(accountOverviewButton(accountID: "checking", expectedName: "Everyday Checking", in: app).exists)
     }
 
@@ -343,7 +345,7 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         XCTAssertTrue(close.isEnabled)
         close.tap()
-        XCTAssertTrue(app.navigationBars["Review Account"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Review the account effects before continuing."].waitForExistence(timeout: 8))
     }
 
     private func selectClosingDestination(
@@ -356,7 +358,12 @@ final class AccountLifecycleUITests: XCTestCase {
         let destinationButton = app.buttons[destination]
         XCTAssertTrue(destinationButton.waitForExistence(timeout: 5))
         destinationButton.tap()
-        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForExistence(timeout: 8))
+        let updatedPicker = app.buttons["account-lifecycle-destination-picker"]
+        let pickerUpdated = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", destination),
+            object: updatedPicker
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [pickerUpdated], timeout: 8), .completed)
         let close = app.buttons["account-lifecycle-close-button"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         return close

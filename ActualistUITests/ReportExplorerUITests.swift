@@ -51,7 +51,7 @@ final class ReportExplorerUITests: XCTestCase {
         assertSwitch("report-filter-uncategorized", equals: true, in: app)
         app.buttons["report-filter-apply"].tap()
 
-        XCTAssertTrue(app.navigationBars["Report Filters"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Filter This Report"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["No Activity in This Range"].waitForExistence(timeout: 8))
 
         openFilters(in: app)
@@ -69,7 +69,7 @@ final class ReportExplorerUITests: XCTestCase {
         assertSwitch("report-filter-account-checking", equals: true, fallbackDirection: .down, in: app)
         app.buttons["report-filter-apply"].tap()
 
-        XCTAssertTrue(app.navigationBars["Report Filters"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Filter This Report"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.buttons["report-drilldown-button"].waitForExistence(timeout: 8))
         revealReportElement(
             app.buttons["report-drilldown-button"], in: app, navigationTitle: "This Month"
@@ -138,7 +138,7 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Everyday Checking"].exists)
         assertSwitch("report-filter-uncategorized", equals: true, in: app)
         app.buttons["report-filter-cancel"].tap()
-        XCTAssertTrue(app.navigationBars["Report Filters"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Filter This Report"].waitForNonExistence(timeout: 5))
         attachScreenshot(named: "reports-average-light-privacy-ax-\(layoutName(in: app))", app: app)
 
         let drilldown = app.buttons["report-drilldown-button"]
@@ -201,7 +201,7 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertFalse(startDateValue.isEmpty)
         XCTAssertFalse(endDateValue.isEmpty)
         app.buttons["report-custom-range-cancel"].tap()
-        XCTAssertTrue(app.navigationBars["Custom Range"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Choose the date range"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Last 3 Months"].waitForExistence(timeout: 5))
 
         openCustomRange(in: app)
@@ -209,7 +209,7 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertEqual(endPicker.value as? String, endDateValue)
         app.buttons["report-custom-range-apply"].tap()
 
-        XCTAssertTrue(app.navigationBars["Custom Range"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Choose the date range"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Custom Range"].waitForExistence(timeout: 8))
     }
 
@@ -339,7 +339,7 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertTrue(filters.waitForExistence(timeout: 5))
         XCTAssertTrue(filters.isHittable)
         filters.tap()
-        XCTAssertTrue(app.navigationBars["Report Filters"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Filter This Report"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["report-filter-sheet"].exists)
         XCTAssertTrue(app.buttons["report-filter-cancel"].waitForExistence(timeout: 5))
     }
@@ -347,7 +347,7 @@ final class ReportExplorerUITests: XCTestCase {
     private func openCustomRange(in app: XCUIApplication) {
         app.buttons["Report date range"].tap()
         app.buttons["Custom Range…"].tap()
-        XCTAssertTrue(app.navigationBars["Custom Range"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Choose the date range"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["report-custom-range-sheet"].exists)
         XCTAssertTrue(app.buttons["report-custom-range-cancel"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["report-custom-range-apply"].waitForExistence(timeout: 5))

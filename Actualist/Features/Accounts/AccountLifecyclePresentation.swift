@@ -13,7 +13,6 @@ struct AccountLifecycleChoice: Identifiable, Hashable, Sendable {
 
 struct AccountLifecycleReviewPresentation: Hashable, Sendable {
     let accountName: String
-    let title: String
     let actionTitle: String?
     let canConfirm: Bool
     let isPrivacyProtected: Bool
@@ -123,19 +122,14 @@ enum AccountLifecyclePresentation {
         }
 
         let actionTitle: String?
-        let title: String
         switch review.resolvedAction {
         case .some(.deleteEmptyAccount):
-            title = "Delete Empty Account"
             actionTitle = "Delete Account"
         case .some(.closeAtZero):
-            title = "Close Account"
             actionTitle = "Close Account"
         case .some(.closeWithTransfer):
-            title = "Transfer Balance and Close"
             actionTitle = "Transfer and Close"
         case .none:
-            title = "Review Account"
             actionTitle = nil
         }
         let blockerMessages = review.blockers.map {
@@ -143,7 +137,6 @@ enum AccountLifecyclePresentation {
         }
         return AccountLifecycleReviewPresentation(
             accountName: accountName,
-            title: title,
             actionTitle: actionTitle,
             canConfirm: !privacyModeEnabled && review.blockers.isEmpty && review.resolvedAction != nil,
             isPrivacyProtected: privacyModeEnabled,

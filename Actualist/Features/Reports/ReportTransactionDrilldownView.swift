@@ -202,6 +202,9 @@ struct ReportTransactionDrilldownView: View {
                     }
                 }
             }
+            // Keep the last rows clear of the floating tab bar, matching the
+            // bottom clearance other scrolling tab screens use.
+            .padding(.bottom, 28)
         }
     }
 

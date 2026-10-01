@@ -49,8 +49,7 @@ struct ReportExplorerFilterView: View {
                         .actualistReviewCard(padding: 12)
                 }
             }
-            .navigationTitle("Report Filters")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .reviewSheetBottomBar {
                 Button(role: .cancel) { dismiss() } label: {
                     Text("Cancel")

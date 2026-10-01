@@ -25,6 +25,30 @@ struct ReportExplorerViewModelTests {
         #expect(repository.requestedQueries == [model.query])
     }
 
+    @Test func totalsPresentationKeepsPrimaryAndSecondaryLabelsAndTonesConsistentAcrossMetrics() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let expectations: [(card: ReportCardKind, primary: String, secondary: [(label: String, tone: ReportValueTone)])] = [
+            (.netWorth, "Ending balance", [("Change", .positive)]),
+            (.cashFlow, "Net cash flow", [("Income", .positive), ("Expenses", .danger)]),
+            (.monthComparison, "Total spending", []),
+            (.budgetOverview, "Spending", [("Budgeted", .neutral)]),
+            (.threeMonthAverage, "3-month average spending", [("This range", .danger)]),
+        ]
+
+        for expectation in expectations {
+            let model = ReportExplorerViewModel(reportCard: expectation.card, now: now)
+            let repository = ControlledExplorerRepository(plans: [
+                "budget": [.success(total: 4_000)],
+            ])
+            await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+
+            #expect(model.loadState == .loaded)
+            #expect(model.primaryTotalLabel == expectation.primary)
+            #expect(model.secondaryTotals.map(\.label) == expectation.secondary.map(\.label))
+            #expect(model.secondaryTotals.map(\.tone) == expectation.secondary.map(\.tone))
+        }
+    }
+
     @Test func invalidCustomRangeDoesNotCallTheRepository() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
