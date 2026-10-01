@@ -203,6 +203,13 @@ CREATE TABLE schedules_next_date (
     base_next_date_ts INTEGER,
     tombstone INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE transaction_filters (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    conditions TEXT,
+    conditions_op TEXT DEFAULT 'and',
+    tombstone INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE messages_crdt (
     timestamp TEXT,
     dataset TEXT,
