@@ -56,6 +56,100 @@ struct RuleConditionEvaluatorTests {
         #expect(!matches(.init(field: "date", operation: "lt", value: .string("2026-08-11")), context))
     }
 
+    @Test func dateOnlyContextAndSetActionsPreserveDaysAcrossExplicitTimeZones() throws {
+        let zones = [
+            ActualDateOnly.utc,
+            try #require(TimeZone(secondsFromGMT: 14 * 60 * 60)),
+            try #require(TimeZone(secondsFromGMT: -12 * 60 * 60)),
+            try #require(TimeZone(identifier: "America/Los_Angeles"))
+        ]
+        let dayIDs = ["2024-02-29", "2026-03-08", "2026-03-09", "2026-12-31", "2027-01-01"]
+
+        for timeZone in zones {
+            for dayID in dayIDs {
+                let date = try #require(ActualDateOnly.date(from: dayID, timeZone: timeZone))
+                #expect(ActualDateOnly.dayID(from: date, timeZone: timeZone) == dayID)
+                let context = makeContext(date: date, dateTimeZone: timeZone)
+                #expect(matches(.init(field: "date", operation: "is", value: .string(dayID)), context))
+            }
+
+            let inputDay = "2026-12-31"
+            let context = makeContext(
+                date: try #require(ActualDateOnly.date(from: inputDay, timeZone: timeZone)),
+                dateTimeZone: timeZone
+            )
+            for targetDay in dayIDs {
+                let dateRule = rule(
+                    id: "date-only-set",
+                    condition: .init(field: "date", operation: "is", value: .string(inputDay)),
+                    actions: [.init(operation: "set", field: "date", value: .string(targetDay))]
+                )
+                let result = RuleConditionEvaluator.applying([dateRule], to: context)
+                #expect(ActualDateOnly.dayID(from: result.date, timeZone: timeZone) == targetDay)
+            }
+        }
+
+        #expect(ActualDateOnly.dayDistance(from: "2026-03-08", to: "2026-03-09") == 1)
+        #expect(ActualDateOnly.dayDistance(from: "2026-12-31", to: "2027-01-01") == 1)
+        #expect(ActualDateOnly.dayDistance(from: "2024-02-29", to: "2024-03-01") == 1)
+        #expect(ActualDateOnly.dayDistance(fromCompact: "20240228", toCompact: "20240301") == 2)
+        #expect(ActualDateOnly.dayDistance(fromCompact: "20260229", toCompact: "20260301") == nil)
+        #expect(ActualDateOnly.date(from: "2026-02-29", timeZone: ActualDateOnly.utc) == nil)
+    }
+
+    @Test func approximateDateConditionsUseCalendarDaysAcrossDST() {
+        let timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let afterDST = ActualDateOnly.date(from: "2026-03-09", timeZone: timeZone)!
+        let context = makeContext(date: afterDST, dateTimeZone: timeZone)
+        #expect(matches(.init(field: "date", operation: "isapprox", value: .string("2026-03-07")), context))
+        #expect(!matches(.init(field: "date", operation: "isapprox", value: .string("2026-03-06")), context))
+    }
+
+    @Test func splitRuleDateActionsKeepTheContextCalendarDay() throws {
+        let timeZones = [
+            ActualDateOnly.utc,
+            try #require(TimeZone(secondsFromGMT: 14 * 60 * 60)),
+            try #require(TimeZone(secondsFromGMT: -12 * 60 * 60))
+        ]
+
+        for timeZone in timeZones {
+            let inputDay = "2026-02-28"
+            let targetDay = "2026-03-09"
+            let context = makeContext(
+                date: try #require(ActualDateOnly.date(from: inputDay, timeZone: timeZone)),
+                dateTimeZone: timeZone
+            )
+            let splitDateRule = rule(
+                id: "split-date-set",
+                condition: .init(field: "date", operation: "is", value: .string(inputDay)),
+                actions: [
+                    .init(
+                        operation: "set",
+                        field: "date",
+                        value: .string(targetDay),
+                        options: ["splitIndex": .number(0)]
+                    ),
+                    .init(
+                        operation: "set-split-amount",
+                        value: .number(100),
+                        options: ["method": .string("fixed-amount"), "splitIndex": .number(1)]
+                    )
+                ]
+            )
+
+            let result = RuleConditionEvaluator.applying([splitDateRule], to: context)
+            #expect(ActualDateOnly.dayID(from: result.date, timeZone: timeZone) == targetDay)
+
+            let invalidRule = rule(
+                id: "invalid-date-set",
+                condition: .init(field: "date", operation: "is", value: .string(inputDay)),
+                actions: [.init(operation: "set", field: "date", value: .string("2026-02-29"))]
+            )
+            let unchanged = RuleConditionEvaluator.applying([invalidRule], to: context)
+            #expect(ActualDateOnly.dayID(from: unchanged.date, timeZone: timeZone) == inputDay)
+        }
+    }
+
     @Test func importedPayeePayeeNameTagsAndMalformedRegexUsePWASemantics() {
         var context = makeContext(
             notes: "Trip #One #two #one",
@@ -598,7 +692,8 @@ struct RuleConditionEvaluatorTests {
         cleared: Bool = false,
         reconciled: Bool = false,
         isTransfer: Bool = false,
-        isParent: Bool = false
+        isParent: Bool = false,
+        dateTimeZone: TimeZone = ActualDateOnly.utc
     ) -> RuleEvaluationContext {
         RuleEvaluationContext(
             accountID: accountID,
@@ -610,6 +705,7 @@ struct RuleConditionEvaluatorTests {
             categoryGroupID: categoryID == "groceries" ? "everyday" : nil,
             categoryGroupName: categoryID == "groceries" ? "Everyday" : nil,
             date: date,
+            dateTimeZone: dateTimeZone,
             notes: notes,
             payeeID: payeeID,
             payeeName: payeeName,

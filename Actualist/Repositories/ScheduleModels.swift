@@ -130,20 +130,20 @@ enum ScheduleUnsupportedReason: Hashable, Sendable {
 
 struct ScheduleMutationCapabilities: Hashable, Sendable {
     let canRead: Bool
-    let canEdit: Bool
+    let canEditMetadata: Bool
+    let canEditAccount: Bool
+    let canEditPayee: Bool
+    let canEditAmount: Bool
+    let canEditDate: Bool
     let canSkip: Bool
     let canComplete: Bool
     let canDelete: Bool
     let canPost: Bool
 
-    static let readOnly = ScheduleMutationCapabilities(
-        canRead: true,
-        canEdit: false,
-        canSkip: false,
-        canComplete: false,
-        canDelete: false,
-        canPost: false
-    )
+    var canEdit: Bool {
+        canEditMetadata || canEditAccount || canEditPayee || canEditAmount || canEditDate
+    }
+
 }
 
 struct ScheduleOccurrenceIdentity: Hashable, Sendable {

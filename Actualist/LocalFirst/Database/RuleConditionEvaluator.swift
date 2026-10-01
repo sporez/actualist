@@ -20,6 +20,7 @@ struct RuleEvaluationContext {
     var categoryGroupID: String?
     var categoryGroupName: String?
     var date: Date
+    var dateTimeZone: TimeZone = .autoupdatingCurrent
     var notes: String?
     var payeeID: String?
     var payeeName: String
@@ -110,7 +111,7 @@ enum RuleConditionEvaluator {
         case "amount": actual = .number(Double(context.amount))
         case "category": actual = context.categoryID.map(RuleJSONValue.string) ?? .null
         case "category_group": actual = context.categoryGroupID.map(RuleJSONValue.string) ?? .null
-        case "date": actual = .string(ruleDateFormatter.string(from: context.date))
+        case "date": actual = .string(ActualDateOnly.dayID(from: context.date, timeZone: context.dateTimeZone))
         case "notes": actual = .string(context.notes ?? "")
         case "payee": actual = context.payeeID.map(RuleJSONValue.string) ?? .null
         case "imported_payee": actual = .string(context.importedPayee ?? "")
@@ -241,9 +242,8 @@ enum RuleConditionEvaluator {
             default: return false
             }
         case "isapprox":
-            guard let actualValue = ruleDateFormatter.date(from: actualDate),
-                  let expectedValue = ruleDateFormatter.date(from: expectedDate) else { return false }
-            return abs(actualValue.timeIntervalSince(expectedValue)) <= 2 * 24 * 60 * 60
+            guard let distance = ActualDateOnly.dayDistance(from: actualDate, to: expectedDate) else { return false }
+            return abs(distance) <= 2
         case "gt": return actualDate > expectedDate
         case "gte": return actualDate >= expectedDate
         case "lt": return actualDate < expectedDate
@@ -314,7 +314,8 @@ enum RuleConditionEvaluator {
                 context.categoryGroupID = context.categoryID.flatMap { context.categoryGroupsByCategoryID[$0] }
                 context.categoryGroupName = context.categoryGroupID.flatMap { context.categoryGroupNames[$0] }
             case "date":
-                if case .string(let value) = action.value, let date = ruleDateFormatter.date(from: value) {
+                if case .string(let value) = action.value,
+                   let date = ActualDateOnly.date(from: value, timeZone: context.dateTimeZone) {
                     context.date = date
                 }
             case "notes": context.notes = stringOrNil(action.value)
@@ -341,14 +342,4 @@ enum RuleConditionEvaluator {
         if case .string(let string) = value { return string.isEmpty ? nil : string }
         return nil
     }
-
-    private static let ruleDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
 }

@@ -5,7 +5,7 @@ enum WidgetDeepLink: Equatable, Sendable {
     case account(id: String)
     case quickAction(WidgetQuickAction)
 
-    static let scheme = "com.sporez.actualist"
+    static let scheme = AppInstallationIdentity.current.urlScheme
     static let categoryHost = "category"
 
     static func url(_ destination: WidgetDeepLink) -> URL {

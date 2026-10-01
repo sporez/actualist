@@ -104,6 +104,10 @@ extension BudgetDatabase {
             throw error
         } catch let error as AccountLifecycleCommandError {
             throw error
+        } catch let error as ScheduleMutationCommandError {
+            throw error
+        } catch let error as ScheduleConversionError {
+            throw error
         } catch let error as LocalFirstError {
             throw error
         } catch {

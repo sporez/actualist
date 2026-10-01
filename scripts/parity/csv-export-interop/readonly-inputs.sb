@@ -1,0 +1,6 @@
+(version 1)
+(allow default)
+(deny network-outbound)
+(deny network-inbound)
+(deny file-write* (subpath "/Users/neil/CC/actualist"))
+(deny file-write* (subpath "/Users/neil/.yarn/berry/cache"))

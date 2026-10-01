@@ -249,7 +249,7 @@ final class TrackingBudgetUITests: XCTestCase {
     @MainActor
     private func launch(dynamicType: String? = nil, screen: String = "budget") -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-tracking-demo", "-actualist-screen", screen]
         if !hasPreparedTrackingDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")

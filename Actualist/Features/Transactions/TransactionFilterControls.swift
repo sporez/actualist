@@ -3,6 +3,8 @@ import SwiftUI
 struct TransactionStatusFilterMenu: View {
     let selection: TransactionStatusFilter
     var showsTitle = false
+    var onMoreFilters: (() -> Void)?
+    var onSavedFilters: (() -> Void)?
     let onSelect: (TransactionStatusFilter) -> Void
 
     var body: some View {
@@ -18,6 +20,15 @@ struct TransactionStatusFilterMenu: View {
                     }
                 }
                 .accessibilityAddTraits(selection == filter ? .isSelected : [])
+            }
+            if let onMoreFilters {
+                Divider()
+                Button("More Filters…", systemImage: "slider.horizontal.3", action: onMoreFilters)
+                    .accessibilityIdentifier("transaction-more-filters")
+            }
+            if let onSavedFilters {
+                Button("Saved Filters…", systemImage: "bookmark", action: onSavedFilters)
+                    .accessibilityIdentifier("transaction-saved-filters")
             }
         } label: {
             if showsTitle {
@@ -54,6 +65,69 @@ struct TransactionStatusFilterIndicator: View {
             .accessibilityLabel("Clear \(selection.title) Filter")
             Spacer(minLength: 0)
         }
+    }
+}
+
+struct TransactionStructuredFilterIndicator: View {
+    let conditionCount: Int
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Button(action: onClear) {
+                HStack(spacing: 8) {
+                    Image(systemName: "slider.horizontal.3")
+                    Text("More Filters: \(conditionCount)")
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                }
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+            }
+            .buttonStyle(.glass)
+            .tint(ActualistTheme.accent)
+            .accessibilityLabel("Clear More Filters, \(conditionCount) \(conditionCount == 1 ? "condition" : "conditions")")
+            .accessibilityIdentifier("transaction-filter-clear-structured")
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+struct TransactionActiveFilterSections: View {
+    let status: TransactionStatusFilter
+    let structuredConditionCount: Int
+    let onClearStatus: () -> Void
+    let onClearStructured: () -> Void
+
+    var body: some View {
+        Group {
+            if status != .all {
+                Section {
+                    TransactionStatusFilterIndicator(selection: status, onClear: onClearStatus)
+                        .filterIndicatorRowStyle()
+                }
+            }
+            if structuredConditionCount > 0 {
+                Section {
+                    TransactionStructuredFilterIndicator(
+                        conditionCount: structuredConditionCount,
+                        onClear: onClearStructured
+                    )
+                    .filterIndicatorRowStyle()
+                }
+            }
+        }
+    }
+}
+
+private extension View {
+    func filterIndicatorRowStyle() -> some View {
+        listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
     }
 }
 

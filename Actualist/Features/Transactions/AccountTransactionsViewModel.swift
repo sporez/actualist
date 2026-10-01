@@ -107,6 +107,26 @@ final class AccountTransactionsViewModel {
         ).displayState
     }
 
+    func transactionBatchFeedSnapshot(
+        budgetID: String?,
+        sessionGeneration: Int,
+        repository: any TransactionRepositoryProtocol
+    ) -> TransactionBatchFeedSnapshot? {
+        guard let queryScope = scope.queryScope,
+              let budgetID,
+              let identity = readIdentity(budgetID: budgetID),
+              let loaded = activeCachedSnapshot(identity, repository: repository) else { return nil }
+        return TransactionBatchFeedSnapshot(
+            context: TransactionSelectionContext(
+                budgetID: budgetID,
+                sessionGeneration: sessionGeneration,
+                scope: queryScope,
+                querySignature: identity.query.signature
+            ),
+            loadedUngroupedTransactionIDs: loaded.transactions.compactMap(\.id)
+        )
+    }
+
     func showCreateEditor(using appState: AppState, presenter: RootTransactionEditorPresenter) {
         presenter.present(using: appState, account: scope.account, categoryName: scope.prefilledCategoryName)
     }

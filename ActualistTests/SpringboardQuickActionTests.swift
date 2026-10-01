@@ -13,8 +13,16 @@ struct SpringboardQuickActionTests {
     }
 
     @Test func unknownAndNonSpringboardTypesAreRejected() {
-        #expect(SpringboardQuickAction.action(for: "com.sporez.actualist.quick-action.reports") == nil)
-        #expect(SpringboardQuickAction.action(for: "com.sporez.actualist.action.budget") == nil)
+        #expect(SpringboardQuickAction.action(for: SpringboardQuickAction.typePrefix + "reports") == nil)
+        #expect(SpringboardQuickAction.action(
+            for: AppInstallationIdentity.current.rawValue + ".action.budget"
+        ) == nil)
+
+        let otherInstallation: AppInstallationIdentity = AppInstallationIdentity.current == .production
+            ? .development : .production
+        #expect(SpringboardQuickAction.action(
+            for: otherInstallation.quickActionPrefix + WidgetQuickAction.budget.rawValue
+        ) == nil)
     }
 
     @Test func appMetadataDeclaresTheFourFixedActionsInOrder() throws {

@@ -30,44 +30,12 @@ extension BudgetDatabase {
         payeeID: String?,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
-        guard !draft.accountID.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("missing account")
-        }
-        guard !draft.splits.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("split requires at least one child")
-        }
-
-        return try queue.read { db in
-            let columns = try resolveTransactionRowColumns(db: db)
-            if try tableExists("accounts", db: db),
-               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
-                throw LocalFirstError.invalidLocalWrite("missing account")
-            }
-            try validateSplitCategories(draft.splits, db: db)
-            let parent = try splitParentRecord(
-                id: parentTransactionID,
+        try queue.read { db in
+            try createSplitFamilyWrite(
                 draft: draft,
-                payeeID: payeeID,
-                inheritFrom: nil
-            )
-            let family = materializeSplitFamily(
-                parent: parent,
-                drafts: draft.splits,
-                existingChildren: [],
-                nullParentPayee: true
-            )
-            let persisted = try persistFamilyChange(
-                oldRows: [],
-                newRows: SplitTransactionFamilyOps.ungroupTransaction(family),
-                columns: columns,
-                db: db,
-                builder: &builder
-            )
-            return try appendingSplitParentImportMetadata(
-                to: persisted,
                 parentTransactionID: parentTransactionID,
-                draft: draft,
-                columns: columns,
+                payeeID: payeeID,
+                db: db,
                 builder: &builder
             )
         }

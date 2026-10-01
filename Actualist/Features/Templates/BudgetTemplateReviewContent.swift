@@ -7,23 +7,19 @@ struct BudgetTemplateReviewContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(spacing: 7) {
-                summaryRow("Funding required", display.fundingRequiredText, symbol: "dollarsign.circle")
-                summaryRow("Will assign", display.assignedText, symbol: "plus")
+                ReviewSummaryRow(title: "Funding required", value: display.fundingRequiredText, symbol: "dollarsign.circle")
+                ReviewSummaryRow(title: "Will assign", value: display.assignedText, symbol: "plus")
                 if let releasedText = display.releasedText {
-                    summaryRow(display.releasedTitle, releasedText, symbol: "arrow.uturn.backward")
+                    ReviewSummaryRow(title: display.releasedTitle, value: releasedText, symbol: "arrow.uturn.backward")
                 }
-                summaryRow("Still needed", display.stillNeededText, symbol: "minus",
-                           color: display.hasOutstandingFunding ? ActualistTheme.warning : nil)
-                summaryRow(display.leftoverTitle,
-                           "\(display.leftoverBeforeText) → \(display.leftoverAfterText)",
-                           symbol: "arrow.right")
-                summaryRow("Categories", display.changeCountText, symbol: "square.grid.2x2")
+                ReviewSummaryRow(title: "Still needed", value: display.stillNeededText, symbol: "minus",
+                                 valueColor: display.hasOutstandingFunding ? ActualistTheme.warning : nil)
+                ReviewSummaryRow(title: display.leftoverTitle,
+                                 value: "\(display.leftoverBeforeText) → \(display.leftoverAfterText)",
+                                 symbol: "arrow.right")
+                ReviewSummaryRow(title: "Categories", value: display.changeCountText, symbol: "square.grid.2x2")
             }
-            .padding(12)
-            .frame(maxWidth: .infinity)
-            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(ActualistTheme.separator, lineWidth: 1))
+            .actualistReviewCard(padding: 12)
             .accessibilityElement(children: .contain)
 
             if let warningText = display.warningText {
@@ -62,27 +58,6 @@ struct BudgetTemplateReviewContent: View {
                 }
             }
         }
-    }
-
-    private func summaryRow(_ title: String, _ value: String, symbol: String, color: Color? = nil) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(ActualistTheme.secondaryText)
-                .frame(width: 24, height: 24)
-                .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 8))
-                .accessibilityHidden(true)
-            Text(title)
-                .foregroundStyle(ActualistTheme.secondaryText)
-            Spacer(minLength: 8)
-            Text(value)
-                .monospacedDigit()
-                .foregroundStyle(color ?? ActualistTheme.primaryText)
-                .multilineTextAlignment(.trailing)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .font(.subheadline)
-        .accessibilityElement(children: .contain)
     }
 
     private func message(_ text: String, color: Color, symbol: String) -> some View {
@@ -180,11 +155,7 @@ private struct BudgetTemplateReviewCategoryCard: View {
                 .overlay(alignment: .top) { ActualistTheme.separator.frame(height: 1) }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .strokeBorder(ActualistTheme.separator, lineWidth: 1))
+        .actualistReviewCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("template-preview-category-\(category.id)")
     }

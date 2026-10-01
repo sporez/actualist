@@ -4,7 +4,18 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryProtocol, EntityNotesRepositoryProtocol, PayeeRepositoryProtocol, RuleRepositoryProtocol, ScheduleRepositoryProtocol, TransactionRepositoryProtocol, ReportsRepositoryProtocol {
+final class LocalFirstActualStore:
+    BudgetRepositoryProtocol,
+    AccountRepositoryProtocol,
+    EntityNotesRepositoryProtocol,
+    PayeeRepositoryProtocol,
+    RuleRepositoryProtocol,
+    ScheduleMutationRepositoryProtocol,
+    ScheduleRepositoryProtocol,
+    TransactionRepositoryProtocol,
+    SavedTransactionFilterRepositoryProtocol,
+    ReportsRepositoryProtocol
+{
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: (@Sendable (URL) -> any ActualSyncTransport)?
@@ -38,6 +49,17 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var lastPayeeUndoMessagesByBudget: [String: [ActualSyncDecodedMessage]] = [:]
     var actionLogDiagnosticSnapshot = ActionLogDiagnosticSnapshot.empty
     var rulesByBudget: [String: [ManagedRule]] = [:]
+    var savedTransactionFiltersByBudget: [String: SavedTransactionFilterReadResult] = [:]
+    @ObservationIgnored var savedTransactionFilterReadRevisionByBudget: [String: UInt64] = [:]
+    @ObservationIgnored var nextSavedTransactionFilterReadRevision: UInt64 = 0
+    @ObservationIgnored var savedFilterBeforeCommitHook: SavedFilterMutationHook?
+    @ObservationIgnored var savedFilterAfterCommitHook: SavedFilterMutationHook?
+    @ObservationIgnored var rulesCacheRevisionByBudget: [String: UInt64] = [:]
+    @ObservationIgnored var nextRulesCacheRevision: UInt64 = 0
+    @ObservationIgnored var rulesReadHook: RulesReadHook?
+    @ObservationIgnored var scheduleMutationBeforeCommitHook: ScheduleMutationHook?
+    @ObservationIgnored var scheduleMutationAfterCommitHook: ScheduleMutationHook?
+    @ObservationIgnored var scheduleMutationBeforeRefreshHook: ScheduleMutationRefreshHook?
     var budgetReadGeneration = 0
     var budgetSessionGeneration = 0
     @ObservationIgnored var activeReimportID: UUID?
@@ -52,6 +74,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
     var schedulesByBudget: [String: LoadedSchedules] = [:]
     @ObservationIgnored var scheduleRequestIdentity = ScheduleRequestIdentity()
     @ObservationIgnored var scheduleReadHook: ScheduleReadHook?
+    @ObservationIgnored let schedulePostingGate = SchedulePostingGate()
     var transactionFeedPagesByKey: [TransactionFeedCacheKey: TransactionFeedPage] = [:]
     @ObservationIgnored var transactionFeedRequestIdentity = TransactionFeedRequestIdentity()
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
@@ -210,6 +233,7 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
 
     // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
+        schedulePostingGate.invalidate(sessionGeneration: budgetSessionGeneration)
         activeReimportID = nil
         database?.invalidateSessionWrites()
         scheduleRequestIdentity.resetSession()
@@ -237,6 +261,11 @@ final class LocalFirstActualStore: BudgetRepositoryProtocol, AccountRepositoryPr
         lastPayeeUndoMessagesByBudget = [:]
         actionLogDiagnosticSnapshot = .empty
         rulesByBudget = [:]
+        rulesCacheRevisionByBudget = [:]
+        savedTransactionFiltersByBudget = [:]
+        savedTransactionFilterReadRevisionByBudget = [:]
+        savedFilterBeforeCommitHook = nil
+        savedFilterAfterCommitHook = nil
         monthsByBudget = [:]
         loadedBudgetMonthsByBudget = [:]
         templateBrowserByBudget = [:]

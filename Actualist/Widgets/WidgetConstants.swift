@@ -1,7 +1,7 @@
 import Foundation
 
 enum WidgetAppGroup {
-    static let identifier = "group.com.sporez.actualist"
+    static let identifier = AppInstallationIdentity.current.appGroupIdentifier
 }
 
 enum WidgetKind {

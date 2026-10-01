@@ -1,0 +1,72 @@
+{
+  "source": {
+    "product": "Actual",
+    "version": "26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+    "contract": "packages/loot-core/src/server/transactions/import/parse-file.ts"
+  },
+  "scope": "Synthetic parser inputs only; parser behavior is not a reviewed import/apply contract.",
+  "cases": [
+    {
+      "id": "utf8-bom-header-comma",
+      "options": { "delimiter": ",", "hasHeaderRow": true },
+      "csv": "\uFEFFDate,Payee,Notes,Amount\r\n2026-09-27,Sample Market,Groceries,12.34\r\n",
+      "upstreamBehavior": "BOM, configurable header and delimiter"
+    },
+    {
+      "id": "quoted-delimiter-and-escaped-quote",
+      "options": { "delimiter": ",", "hasHeaderRow": true },
+      "csv": "Date,Payee,Notes,Amount\n2026-09-27,\"Market, North\",\"Said \"\"hello\"\"\",12.34\n",
+      "upstreamBehavior": "Quoted values and escaped quotes"
+    },
+    {
+      "id": "quoted-embedded-newline",
+      "options": { "delimiter": ",", "hasHeaderRow": true },
+      "csv": "Date,Payee,Notes,Amount\n2026-09-27,Sample Store,\"First line\nSecond line\",12.34\n",
+      "upstreamBehavior": "Quoted values may contain a newline"
+    },
+    {
+      "id": "tab-delimiter",
+      "options": { "delimiter": "\t", "hasHeaderRow": true },
+      "csv": "Date\tPayee\tAmount\n2026-09-27\tSample Store\t12.34\n",
+      "upstreamBehavior": "Caller-configured tab delimiter"
+    },
+    {
+      "id": "relaxed-short-row",
+      "options": { "delimiter": ",", "hasHeaderRow": true },
+      "csv": "Date,Payee,Notes,Amount\n2026-09-27,Sample Store,,12.34\n2026-09-28,Second Store\n",
+      "upstreamBehavior": "Relaxed column counts; mapping/validation outcome intentionally unspecified"
+    },
+    {
+      "id": "relaxed-extra-column",
+      "options": { "delimiter": ",", "hasHeaderRow": true },
+      "csv": "Date,Payee,Amount\n2026-09-27,Sample Store,12.34,unmapped synthetic value\n",
+      "upstreamBehavior": "Relaxed column counts; mapping/validation outcome intentionally unspecified"
+    },
+    {
+      "id": "blank-lines",
+      "options": { "delimiter": ",", "hasHeaderRow": true },
+      "csv": "Date,Payee,Amount\n\n2026-09-27,Sample Store,12.34\n\n",
+      "upstreamBehavior": "Blank lines"
+    },
+    {
+      "id": "headerless-configured-columns",
+      "options": { "delimiter": ",", "hasHeaderRow": false },
+      "csv": "2026-09-27,Sample Store,synthetic note,12.34\n",
+      "upstreamBehavior": "Caller-configured header absence; column mapping is not specified here"
+    }
+  ],
+  "decisionsRequiredBeforeExpectedImportResults": [
+    "Date and amount locale/format and sign interpretation",
+    "Duplicate policy and repeated file/apply behavior",
+    "Payee/category ambiguity and resolution",
+    "Whether partially invalid rows can be excluded while valid rows apply",
+    "Transfer and Actual split-export marker policy",
+    "Atomicity and stale budget/account/source-revision behavior"
+  ],
+  "prohibitions": [
+    "No personal or financial data",
+    "No Actualist bank-sync or wallet importer semantics asserted",
+    "No parser result oracle or product importer behavior asserted"
+  ]
+}

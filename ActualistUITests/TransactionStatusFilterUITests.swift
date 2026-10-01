@@ -7,9 +7,10 @@ final class TransactionStatusFilterUITests: XCTestCase {
     func testSpendingFilterMenuAndClearIndicator() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = launchSpending()
-        let filterMenu = app.buttons["Filter Transactions"]
+        let filterMenu = app.buttons["transaction-actions-menu"]
         XCTAssertTrue(filterMenu.waitForExistence(timeout: 10))
         filterMenu.tap()
+        app.buttons["Filter Transactions"].tap()
         assertAllFilterChoices(in: app)
         app.buttons["Uncleared"].tap()
 
@@ -18,24 +19,28 @@ final class TransactionStatusFilterUITests: XCTestCase {
         XCTAssertTrue(indicator.label.contains("Uncleared"))
         attachScreenshot(named: "spending-status-filter-dark", app: app)
 
-        indicator.tap()
-        XCTAssertFalse(indicator.waitForExistence(timeout: 2))
+        let indicatorLabel = indicator.staticTexts["Filtered: Uncleared"]
+        XCTAssertTrue(indicatorLabel.exists)
+        XCTAssertTrue(indicatorLabel.isHittable)
+        indicatorLabel.tap()
+        XCTAssertTrue(indicator.waitForNonExistence(timeout: 2))
         XCTAssertTrue(filterMenu.exists)
     }
 
     func testFilterMenuRemainsReachableAtAccessibilityTextSize() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = [
             "-actualist-demo", "-actualist-screen", "spending",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
         ]
         app.launch()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 15))
-        let filterMenu = app.buttons["Filter Transactions"]
+        let filterMenu = app.buttons["transaction-actions-menu"]
         XCTAssertTrue(filterMenu.waitForExistence(timeout: 5))
         XCTAssertTrue(filterMenu.isHittable)
         filterMenu.tap()
+        app.buttons["Filter Transactions"].tap()
         assertAllFilterChoices(in: app)
         app.buttons["Reconciled"].tap()
         XCTAssertTrue(app.buttons["Clear Reconciled Filter"].waitForExistence(timeout: 5))
@@ -50,9 +55,10 @@ final class TransactionStatusFilterUITests: XCTestCase {
         search.typeText("market")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
 
-        let filterMenu = app.buttons["Filter Transactions"]
+        let filterMenu = app.buttons["transaction-actions-menu"]
         XCTAssertTrue(filterMenu.isHittable)
         filterMenu.tap()
+        app.buttons["Filter Transactions"].tap()
         app.buttons["Reconciled"].tap()
         XCTAssertTrue(app.buttons["Clear Reconciled Filter"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.exists)
@@ -60,11 +66,23 @@ final class TransactionStatusFilterUITests: XCTestCase {
 
     func testAccountFilterMenuPreservesBalanceAndToolbarActions() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "accounts"]
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-actualist-demo",
+            "-actualist-replace-demo-for-ui-testing",
+            "-actualist-screen", "accounts",
+        ]
         app.launch()
         XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 15))
-        app.staticTexts["Everyday Checking"].firstMatch.tap()
+        if app.frame.width >= 792 {
+            let checking = app.collectionViews["Sidebar"].staticTexts["Everyday Checking"]
+            XCTAssertTrue(checking.waitForExistence(timeout: 8))
+            checking.tap()
+        } else {
+            let checking = app.buttons["account-row-checking"]
+            XCTAssertTrue(checking.waitForExistence(timeout: 8))
+            checking.tap()
+        }
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 5))
 
         let summary = app.staticTexts["account-working-balance"]
@@ -98,7 +116,7 @@ final class TransactionStatusFilterUITests: XCTestCase {
     }
 
     func testSpendingStatusFiltersInLightAppearance() throws {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
@@ -112,8 +130,7 @@ final class TransactionStatusFilterUITests: XCTestCase {
         app.terminate()
 
         let spending = launchSpending()
-        XCTAssertTrue(spending.buttons["Filter Transactions"].waitForExistence(timeout: 10))
-        spending.buttons["Filter Transactions"].tap()
+        openSpendingFilterMenu(in: spending)
         spending.buttons["Reconciled"].tap()
         XCTAssertTrue(spending.buttons["Clear Reconciled Filter"].waitForExistence(timeout: 5))
         attachScreenshot(named: "spending-status-filter-light", app: spending)
@@ -136,11 +153,11 @@ final class TransactionStatusFilterUITests: XCTestCase {
         app.tabBars.buttons["Spending"].tap()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 5))
         XCTAssertFalse(indicator.exists)
-        XCTAssertTrue(app.buttons["Filter Transactions"].exists)
+        XCTAssertTrue(app.buttons["transaction-actions-menu"].exists)
     }
 
     private func launchSpending() -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "spending"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 15))
@@ -148,8 +165,13 @@ final class TransactionStatusFilterUITests: XCTestCase {
     }
 
     private func selectSpendingFilter(_ filter: String, in app: XCUIApplication) {
-        app.buttons["Filter Transactions"].tap()
+        openSpendingFilterMenu(in: app)
         app.buttons[filter].tap()
+    }
+
+    private func openSpendingFilterMenu(in app: XCUIApplication) {
+        app.buttons["transaction-actions-menu"].tap()
+        app.buttons["Filter Transactions"].tap()
     }
 
     private func assertAllFilterChoices(in app: XCUIApplication) {

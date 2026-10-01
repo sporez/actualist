@@ -126,7 +126,7 @@ extension LocalFirstActualStore {
         )
         if !learningMessages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
-            rulesByBudget[budgetID] = try await database.fetchRules()
+            try await refreshRulesCache(database: database, budgetID: budgetID)
             payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
                 .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         }

@@ -274,6 +274,7 @@ struct BudgetPickerView: View {
     @State private var viewModel = BudgetPickerViewModel()
     @State private var encryptedBudgetPrompt: ActualBudget?
     @State private var encryptionPassword = ""
+    @State private var emptyBudgetCoordinator = EmptyBudgetPickerCoordinator()
 
     var body: some View {
         NavigationStack {
@@ -316,17 +317,23 @@ struct BudgetPickerView: View {
                 } header: {
                     Text("Choose Budget")
                 }
+
+                if emptyBudgetCoordinator.offer(using: appState) == .offered {
+                    EmptyBudgetPickerSection(coordinator: emptyBudgetCoordinator)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
             .navigationTitle("Budgets")
             .task {
                 if appState.budgets.isEmpty {
-                    await viewModel.reload(using: appState)
+                    let succeeded = await viewModel.reload(using: appState)
+                    emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
                 }
             }
             .refreshable {
-                await viewModel.reload(using: appState)
+                let succeeded = await viewModel.reload(using: appState)
+                emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
             }
             .onChange(of: viewModel.openState) { _, newState in
                 switch newState {

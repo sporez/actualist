@@ -58,6 +58,24 @@ extension BudgetDatabase {
             totalMatchCount: selection.page.totalMatchCount
         )
     }
+
+    /// Gives focused local projections the exact query rows and names from one SQLite read.
+    func withTransactionQuerySnapshot<T>(
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        project: (Database, [ActualTransaction]) throws -> T
+    ) throws -> T {
+        try queue.read { db in
+            let selection = try transactionQuerySelection(
+                db: db,
+                scope: scope,
+                query: query,
+                limit: nil,
+                offset: 0
+            )
+            return try project(db, selection.page.transactions)
+        }
+    }
 }
 
 private struct CompiledTransactionQuery {

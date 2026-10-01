@@ -10,7 +10,10 @@ extension BudgetDatabase {
         formulas: [String],
         date: Date,
         sortOrder: Double?,
-        excludingTransactionID: String?
+        excludingTransactionID: String?,
+        // Existing direct callers retain the UTC cutoff unless they carry a
+        // more specific transaction-day convention.
+        dateTimeZone: TimeZone = ActualDateOnly.utc
     ) throws -> [String: Int] {
         let literals = formulas.flatMap(RuleFormulaEvaluator.extractBalanceOfLiterals)
         guard !literals.isEmpty else { return [:] }
@@ -24,7 +27,54 @@ extension BudgetDatabase {
                     accountID: resolvedID,
                     date: date,
                     sortOrder: sortOrder,
-                    excludingTransactionID: excludingTransactionID
+                    excludingTransactionID: excludingTransactionID,
+                    dateTimeZone: dateTimeZone
+                )
+            } else {
+                result[literal] = 0
+            }
+        }
+        return result
+    }
+
+    func prefetchBalanceOf(
+        formulas: [String],
+        date: Date,
+        sortOrder: Double?,
+        excludingTransactionID: String?,
+        db: Database,
+        // Existing direct callers retain the UTC cutoff unless they carry a
+        // more specific transaction-day convention.
+        dateTimeZone: TimeZone = ActualDateOnly.utc
+    ) throws -> [String: Int] {
+        let literals = formulas.flatMap(RuleFormulaEvaluator.extractBalanceOfLiterals)
+        guard !literals.isEmpty, try tableExists("accounts", db: db) else { return [:] }
+        let columns = try columnSet(for: "accounts", db: db)
+        guard columns.contains("id") else { return [:] }
+        let name = column("name", fallback: "id", columns: columns)
+        let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT id, \(name) AS name FROM accounts WHERE \(predicateForLiveRows(columns: columns)) ORDER BY \(order)"
+        )
+        let accounts = rows.compactMap { row -> (id: String, name: String)? in
+            guard let id = row["id"] as String? else { return nil }
+            return (id, row["name"] as String? ?? "")
+        }
+        let accountIDs = Set(accounts.map(\.id))
+        var result: [String: Int] = [:]
+        for literal in Set(literals) {
+            let resolvedID = accountIDs.contains(literal)
+                ? literal
+                : accounts.first(where: { $0.name == literal })?.id
+            if let resolvedID {
+                result[literal] = try runningBalanceBeforeTransaction(
+                    accountID: resolvedID,
+                    date: date,
+                    sortOrder: sortOrder,
+                    excludingTransactionID: excludingTransactionID,
+                    db: db,
+                    dateTimeZone: dateTimeZone
                 )
             } else {
                 result[literal] = 0
@@ -37,13 +87,33 @@ extension BudgetDatabase {
         accountID: String,
         date: Date,
         sortOrder: Double?,
-        excludingTransactionID: String?
+        excludingTransactionID: String?,
+        dateTimeZone: TimeZone
     ) throws -> Int {
         try queue.read { db in
+            try runningBalanceBeforeTransaction(
+                accountID: accountID,
+                date: date,
+                sortOrder: sortOrder,
+                excludingTransactionID: excludingTransactionID,
+                db: db,
+                dateTimeZone: dateTimeZone
+            )
+        }
+    }
+
+    private func runningBalanceBeforeTransaction(
+        accountID: String,
+        date: Date,
+        sortOrder: Double?,
+        excludingTransactionID: String?,
+        db: Database,
+        dateTimeZone: TimeZone
+    ) throws -> Int {
             guard try tableExists("transactions", db: db) else { return 0 }
             let columns = try columnSet(for: "transactions", db: db)
             let expressions = transactionSplitQueryExpressions(columns: columns)
-            let dateValue = Self.balanceOfDateFormatter.string(from: date)
+            let dateValue = ActualDateOnly.dayID(from: date, timeZone: dateTimeZone)
             let normalizedDate = normalizedDateExpression(expressions.qualifiedDate)
             var predicates = [
                 expressions.liveInlinePredicate(),
@@ -78,16 +148,6 @@ extension BudgetDatabase {
                 WHERE \(predicates.joined(separator: " AND "))
                 """
             return Int(try Int64.fetchOne(db, sql: sql, arguments: arguments) ?? 0)
-        }
     }
 
-    private static let balanceOfDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
 }

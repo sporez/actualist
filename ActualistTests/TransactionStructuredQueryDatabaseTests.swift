@@ -299,6 +299,41 @@ struct TransactionStructuredQueryDatabaseTests {
         #expect(page.attachedContextTransactionIDs == ["split-parent", "split-context"])
     }
 
+    @Test func statusTextAndStructuredConditionsAreAppliedBeforeEachFeedPage() async throws {
+        let database = try database()
+        let query = TransactionFeedQuery(
+            status: .uncleared,
+            text: "needle",
+            conditions: [.category(.equals("groceries"))]
+        )
+
+        for scope in [TransactionQueryScope.spending, .account("checking")] {
+            let first = try await database.fetchTransactionQueryPage(
+                scope: scope,
+                query: query,
+                limit: 1,
+                offset: 0
+            )
+            let second = try await database.fetchTransactionQueryPage(
+                scope: scope,
+                query: query,
+                limit: 1,
+                offset: first.nextOffset
+            )
+
+            #expect(first.transactions.map(\.id) == ["checking-new"])
+            #expect(first.totalMatchCount == 2)
+            #expect(!first.reachedEnd)
+            #expect(first.nextOffset == 1)
+            #expect(second.transactions.map(\.id) == ["split-match"])
+            #expect(second.totalMatchCount == 2)
+            #expect(second.reachedEnd)
+            #expect(second.nextOffset == 2)
+            #expect(first.querySignature == query.signature)
+            #expect(second.querySignature == query.signature)
+        }
+    }
+
     @Test func accountScopeZeroResultAndMalformedFamiliesKeepExactOffsets() async throws {
         let database = try database()
         let missing = TransactionFeedQuery(conditions: [.category(.equals("utilities"))])

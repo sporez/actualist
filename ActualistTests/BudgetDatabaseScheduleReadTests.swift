@@ -54,7 +54,9 @@ struct BudgetDatabaseScheduleReadTests {
         #expect(unsupported.rawActionsJSON?.contains("custom-action") == true)
         #expect(unsupported.unsupportedReasons.contains(.unsupportedDate))
         #expect(unsupported.unsupportedReasons.contains(.unsupportedActions))
-        #expect(!unsupported.capabilities.canEdit)
+        #expect(unsupported.capabilities.canEditMetadata)
+        #expect(unsupported.capabilities.canEditAmount)
+        #expect(!unsupported.capabilities.canEditDate)
     }
 
     @Test func preferredAliasesAndMalformedDateMatchingFollowPinnedReadSemantics() async throws {
@@ -70,14 +72,19 @@ struct BudgetDatabaseScheduleReadTests {
         let loaded = try await makeLoadedSchedules()
         let weekend = try #require(loaded.detail(id: "missing-weekend-mode"))
         #expect(weekend.unsupportedReasons.contains(.unsupportedDate))
-        #expect(!weekend.capabilities.canEdit)
+        #expect(weekend.capabilities.canEditMetadata)
+        #expect(!weekend.capabilities.canEditDate)
         #expect(!weekend.capabilities.canPost)
 
         for id in ["empty-link", "mismatched-link", "missing-link", "duplicate-link"] {
             let detail = try #require(loaded.detail(id: id))
             #expect(detail.unsupportedReasons.contains(.corruptRuleLinkage))
             #expect(detail.capabilities.canRead)
-            #expect(!detail.capabilities.canEdit)
+            #expect(!detail.capabilities.canEditMetadata)
+            #expect(!detail.capabilities.canEditAccount)
+            #expect(!detail.capabilities.canEditPayee)
+            #expect(!detail.capabilities.canEditAmount)
+            #expect(!detail.capabilities.canEditDate)
             #expect(!detail.capabilities.canPost)
         }
     }
@@ -94,7 +101,12 @@ struct BudgetDatabaseScheduleReadTests {
         let duplicate = try #require(loaded.detail(id: "duplicate-next"))
         #expect(duplicate.effectiveNextDate == nil)
         #expect(duplicate.unsupportedReasons.contains(.ambiguousNextDate))
-        #expect(!duplicate.capabilities.canEdit)
+        // This fixture also shares exact-rule with other live schedules.
+        #expect(!duplicate.capabilities.canEditMetadata)
+        #expect(!duplicate.capabilities.canEditPayee)
+        #expect(!duplicate.capabilities.canEditAmount)
+        #expect(!duplicate.capabilities.canEditAccount)
+        #expect(!duplicate.capabilities.canEditDate)
         #expect(!duplicate.capabilities.canPost)
     }
 
@@ -105,7 +117,10 @@ struct BudgetDatabaseScheduleReadTests {
         #expect(detail.unsupportedReasons.contains(.unsupportedActions))
         #expect(detail.capabilities.canSkip)
         #expect(detail.capabilities.canDelete)
-        #expect(!detail.capabilities.canEdit)
+        #expect(detail.capabilities.canEditMetadata)
+        #expect(detail.capabilities.canEditAccount)
+        #expect(!detail.capabilities.canEditAmount)
+        #expect(detail.capabilities.canEditDate)
         #expect(!detail.capabilities.canPost)
         let ambiguous = try #require(loaded.detail(id: "ambiguous-date"))
         #expect(ambiguous.unsupportedReasons.contains(.unsupportedDate))
@@ -136,6 +151,36 @@ struct BudgetDatabaseScheduleReadTests {
         #expect(detail.unsupportedReasons.contains(.missingNextDate))
         #expect(!detail.capabilities.canDelete)
         #expect(detail.name == nil)
+    }
+
+    @Test func missingNextDateSchemaOnlyDisablesOccurrenceDependentCapabilities() async throws {
+        let url = try support.makeSQLiteFixture(extraSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY, conditions TEXT, actions TEXT, tombstone INTEGER DEFAULT 0
+            );
+            CREATE TABLE schedules (
+                id TEXT PRIMARY KEY, rule TEXT, name TEXT, completed INTEGER DEFAULT 0,
+                posts_transaction INTEGER DEFAULT 0, custom_upcoming_length TEXT,
+                tombstone INTEGER DEFAULT 0
+            );
+            INSERT INTO rules VALUES (
+                'rule',
+                '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":"2026-10-01"}]',
+                '[{"op":"link-schedule","value":"legacy"}]', 0
+            );
+            INSERT INTO schedules VALUES ('legacy', 'rule', 'Legacy', 0, 0, NULL, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: url)
+        let loaded = try await database.fetchSchedules(budgetID: "budget", today: "2026-09-27")
+        let detail = try #require(loaded.detail(id: "legacy"))
+        #expect(detail.capabilities.canEditMetadata)
+        #expect(detail.capabilities.canEditPayee)
+        #expect(detail.capabilities.canEditAmount)
+        #expect(!detail.capabilities.canEditAccount)
+        #expect(!detail.capabilities.canEditDate)
+        #expect(!detail.capabilities.canSkip)
+        #expect(detail.capabilities.canComplete)
+        #expect(detail.capabilities.canDelete)
     }
 
     private func makeLoadedSchedules() async throws -> LoadedSchedules {

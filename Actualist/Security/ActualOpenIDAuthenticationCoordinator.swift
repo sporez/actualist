@@ -62,7 +62,7 @@ struct ActualOpenIDCallbackParser {
 }
 
 actor ActualOpenIDAuthenticationCoordinator {
-    static let callbackScheme = "com.sporez.actualist"
+    static let callbackScheme = AppInstallationIdentity.current.urlScheme
     static let callbackHost = "localhost"
 
     private var activeNonce: String?

@@ -24,6 +24,11 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
     case graphRewritten
     /// A category-learning rule that rode along with this gesture changed later.
     case sideEffectChanged
+    /// A transaction in a reviewed batch, or any cell/graph relationship it
+    /// captured, changed after the batch was applied.
+    case batchChanged
+    /// A transaction command's complete graph or any captured row changed later.
+    case transactionCommandChanged
     /// The action predates a budget conversion, or its legacy row has no
     /// trustworthy identity. Undo must never write into the active table.
     case budgetModeChanged
@@ -54,6 +59,10 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
             "This transaction was split, transferred, or rewritten after this action. Undo would not be safe."
         case .sideEffectChanged:
             "A category-learning rule from this action changed later. Undo would not be safe."
+        case .batchChanged:
+            "A transaction from this batch changed later. Undo would overwrite newer data, so it was refused."
+        case .transactionCommandChanged:
+            "A transaction or linked entry changed after this action. Undo would overwrite newer data, so it was refused."
         case .budgetModeChanged:
             "This budget changed after the action. Budget Undo is unavailable for this older action."
         case .notOfferedFromHistory:
@@ -82,6 +91,12 @@ enum BudgetActionUndoPlan: Equatable, Sendable {
         items: [BudgetCategorizeFact],
         learning: BudgetActionLearningSideEffect
     )
+    case restoreBatchTransactions(
+        snapshots: [TransactionBatchTransactionSnapshot],
+        learning: BudgetActionLearningSideEffect
+    )
+    case tombstoneDuplicateTransactions(transactionIDs: [String])
+    case restoreMergedTransactions(snapshots: [TransactionBatchTransactionSnapshot])
 }
 
 /// Result of running an inverse against live cells.
@@ -105,6 +120,9 @@ struct BudgetActionUndoPreview: Equatable, Sendable {
             case restore
             case recategorize
             case edit
+            case cleared
+            case duplicateRemoval
+            case mergeRestoration
         }
 
         var id: String
@@ -113,6 +131,10 @@ struct BudgetActionUndoPreview: Equatable, Sendable {
         var currentCategoryID: String?
         var proposedCategoryID: String?
         var effect: Effect
+        var currentCleared: Bool? = nil
+        var proposedCleared: Bool? = nil
+        var proposedAmount: Int? = nil
+        var isLinkedEntry: Bool = false
     }
 
     var actionID: String
@@ -138,6 +160,7 @@ enum BudgetActionUndo {
         liveBudgeted: [String: Int?],
         currentModeIdentity: BudgetModeIdentity? = nil,
         liveTransactions: [String: TransactionUndoSnapshot?] = [:],
+        liveTransactionBatchSnapshots: [String: TransactionBatchTransactionSnapshot?] = [:],
         liveRuleActions: [String: String?] = [:]
     ) -> BudgetActionUndoEvaluation {
         guard record.status == .applied else {
@@ -275,6 +298,55 @@ enum BudgetActionUndo {
                 return .blocked(blockedCount == categorize.items.count ? .transactionChanged : .transactionMissing)
             }
             return .clean(.restoreCategories(items: restorables, learning: categorize.learning))
+
+        case .transactionBatch(let batch):
+            if let block = learningBlock(batch.learning, liveRuleActions: liveRuleActions) {
+                return .blocked(block)
+            }
+            guard !batch.afterSnapshots.isEmpty,
+                  batch.beforeSnapshots.map(\.id) == batch.afterSnapshots.map(\.id) else {
+                return .blocked(.batchChanged)
+            }
+            for expected in batch.afterSnapshots {
+                guard let live = liveTransactionBatchSnapshots[expected.id] ?? nil,
+                      expected.matches(live) else {
+                    return .blocked(.batchChanged)
+                }
+            }
+            return .clean(.restoreBatchTransactions(
+                snapshots: batch.beforeSnapshots,
+                learning: batch.learning
+            ))
+
+        case .transactionDuplicate(let duplicate):
+            guard record.kind == .transactionDuplicate,
+                  case .transactionDuplicate(let summary) = record.summary,
+                  TransactionCommandActionValidation.duplicate(summary: summary, inverse: duplicate) else {
+                return .blocked(.transactionCommandChanged)
+            }
+            for expected in duplicate.afterSnapshots {
+                guard let live = liveTransactionBatchSnapshots[expected.id] ?? nil,
+                      expected.matches(live) else {
+                    return .blocked(.transactionCommandChanged)
+                }
+            }
+            return .clean(.tombstoneDuplicateTransactions(
+                transactionIDs: duplicate.afterSnapshots.map(\.id)
+            ))
+
+        case .transactionMerge(let merge):
+            guard record.kind == .transactionMerge,
+                  case .transactionMerge(let summary) = record.summary,
+                  TransactionCommandActionValidation.merge(summary: summary, inverse: merge) else {
+                return .blocked(.transactionCommandChanged)
+            }
+            for expected in merge.afterSnapshots {
+                guard let live = liveTransactionBatchSnapshots[expected.id] ?? nil,
+                      expected.matches(live) else {
+                    return .blocked(.transactionCommandChanged)
+                }
+            }
+            return .clean(.restoreMergedTransactions(snapshots: merge.beforeSnapshots))
 
         case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             return .blocked(.notOfferedFromHistory)

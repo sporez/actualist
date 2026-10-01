@@ -128,7 +128,7 @@ final class AccountReconciliationUITests: XCTestCase {
     @MainActor
     private func launchCheckingAccount() -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = [
             "-actualist-demo",
             "-actualist-replace-demo-for-ui-testing",

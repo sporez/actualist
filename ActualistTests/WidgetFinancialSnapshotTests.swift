@@ -84,7 +84,8 @@ struct WidgetFinancialSnapshotTests {
 
     @Test func accountLinksRoundTripAndRejectExtraPayload() throws {
         #expect(WidgetDeepLink.parse(WidgetDeepLink.url(.account(id: "account with spaces"))) == .account(id: "account with spaces"))
-        for value in ["com.sporez.actualist://account", "com.sporez.actualist://account/a/b", "com.sporez.actualist://account/a?token=invalid"] {
+        let scheme = AppInstallationIdentity.current.urlScheme
+        for value in ["\(scheme)://account", "\(scheme)://account/a/b", "\(scheme)://account/a?token=invalid"] {
             #expect(WidgetDeepLink.parse(try #require(URL(string: value))) == nil)
         }
     }

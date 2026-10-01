@@ -1,5 +1,7 @@
 import Foundation
 
+typealias RulesReadHook = @MainActor @Sendable (_ budgetID: String) async -> Void
+
 extension LocalFirstActualStore {
     func cachedRules(budgetID: String) -> [ManagedRule]? {
         rulesByBudget[budgetID]
@@ -7,7 +9,7 @@ extension LocalFirstActualStore {
 
     func refreshRules(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        rulesByBudget[budgetID] = try await database.fetchRules()
+        try await refreshRulesCache(database: database, budgetID: budgetID)
     }
 
     func ruleEditorOptions(budgetID: String) async throws -> RuleEditorOptions {
@@ -71,9 +73,31 @@ extension LocalFirstActualStore {
 
     private func reloadAfterRuleMutation(database: BudgetDatabase, budgetID: String) async throws {
         invalidateScheduleCache(budgetID: budgetID)
-        rulesByBudget[budgetID] = try await database.fetchRules()
+        invalidateRulesCache(budgetID: budgetID)
+        try await refreshRulesCache(database: database, budgetID: budgetID)
         payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         await refreshActionLogDiagnosticSnapshot(database: database)
+    }
+
+    func invalidateRulesCache(budgetID: String) {
+        rulesByBudget[budgetID] = nil
+        nextRulesCacheRevision &+= 1
+        rulesCacheRevisionByBudget[budgetID] = nextRulesCacheRevision
+    }
+
+    func refreshRulesCache(database: BudgetDatabase, budgetID: String) async throws {
+        let generation = budgetSessionGeneration
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        nextRulesCacheRevision &+= 1
+        let revision = nextRulesCacheRevision
+        rulesCacheRevisionByBudget[budgetID] = revision
+        let loaded = try await database.fetchRules()
+        await rulesReadHook?(budgetID)
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        guard rulesCacheRevisionByBudget[budgetID] == revision else {
+            throw CancellationError()
+        }
+        rulesByBudget[budgetID] = loaded
     }
 }

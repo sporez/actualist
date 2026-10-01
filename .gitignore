@@ -6,6 +6,8 @@
 # Xcode
 DerivedData/
 .derivedData/
+.derivedData-device/
+.derivedData-restore/
 build/
 *.xcresult
 *.xcworkspace/xcuserdata/
@@ -69,6 +71,10 @@ scripts/*
 !scripts/template-parity/*.mjs
 !scripts/split-parity/
 !scripts/split-parity/*.mjs
+!scripts/transaction-command-parity/
+!scripts/transaction-command-parity/*
+!scripts/parity/
+!scripts/parity/**
 !scripts/generate-demo-budget/
 !scripts/generate-demo-budget/generate_demo_budget.py
 !scripts/lib/

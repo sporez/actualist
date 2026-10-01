@@ -38,7 +38,7 @@ enum AccountLifecyclePresentation {
             .rename
         case .reopening, .submittingReopen, .failed(.reopen, _):
             .reopen
-        case .loadingReview, .reviewing, .reviewChanged, .submittingReview, .failed(.review, _):
+        case .loadingReview, .refreshingReview, .reviewing, .reviewChanged, .submittingReview, .failed(.review, _):
             .review
         case .completed(let outcome):
             outcome.refreshPending ? .savedRefreshPending : nil

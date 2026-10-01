@@ -1,0 +1,362 @@
+import Foundation
+
+struct ScheduleAdvancementResult: Sendable {
+    let receipts: [SchedulePostingWriteReceipt]
+    let scheduleMutated: Bool
+}
+
+extension BudgetDatabase {
+    /// Posts due or missed automatic schedules and advances paid occurrences.
+    /// `metadata.json` `lastScheduleRun` is local, like Actual's metadata marker,
+    /// and is patched with JSONSerialization so unknown keys survive. It is
+    /// written only after the run finishes with no post failure.
+    func advanceSchedules(
+        budgetID: String,
+        today: String,
+        now: Date = Date()
+    ) throws -> ScheduleAdvancementResult {
+        if scheduleAdvancementDayMarker() == today {
+            return ScheduleAdvancementResult(receipts: [], scheduleMutated: false)
+        }
+
+        var receipts: [SchedulePostingWriteReceipt] = []
+        var scheduleMutated = false
+        let ordered = schedulesInAdvancementOrder(
+            Array(try fetchSchedules(budgetID: budgetID, today: today).detailsByID.values)
+        )
+        for detail in ordered {
+            if Task.isCancelled {
+                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+            }
+            let step: ScheduleAdvancementStep
+            do {
+                step = try advanceSchedule(
+                    detail.id,
+                    budgetID: budgetID,
+                    today: today,
+                    now: now,
+                    receipts: &receipts,
+                    scheduleMutated: &scheduleMutated
+                )
+            } catch is CancellationError {
+                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+            }
+            if step == .stopRun {
+                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+            }
+        }
+
+        if Task.isCancelled {
+            return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+        }
+        // A marker write failure must not hide committed posts. Leaving the
+        // marker unset makes the next successful sync retry.
+        do {
+            try writeScheduleAdvancementDayMarker(today)
+        } catch {
+            return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+        }
+        return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+    }
+
+    private enum ScheduleAdvancementStep {
+        case nextSchedule
+        case stopRun
+    }
+
+    private static let maximumOccurrencesPerSchedule = 366
+    private static let dayMarkerKey = "lastScheduleRun"
+
+    private func advanceSchedule(
+        _ scheduleID: String,
+        budgetID: String,
+        today: String,
+        now: Date,
+        receipts: inout [SchedulePostingWriteReceipt],
+        scheduleMutated: inout Bool
+    ) throws -> ScheduleAdvancementStep {
+        for _ in 0..<Self.maximumOccurrencesPerSchedule {
+            try Task.checkCancellation()
+            guard let detail = try fetchSchedules(budgetID: budgetID, today: today).detail(id: scheduleID) else {
+                return .nextSchedule
+            }
+            let action = ScheduleOccurrencePlanner.action(
+                postsTransaction: detail.postsTransaction,
+                isRecurring: detail.dateRule.recurrence != nil,
+                nextDate: detail.effectiveNextDate ?? "",
+                status: detail.status,
+                accountAvailable: detail.account.availability == .available,
+                today: today
+            )
+            switch action {
+            case .stop:
+                return .nextSchedule
+            case .postScheduledDate:
+                let statusBefore = detail.status
+                let isRecurring = detail.dateRule.recurrence != nil
+                do {
+                    receipts.append(try postScheduledOccurrence(
+                        detail,
+                        budgetID: budgetID,
+                        today: today,
+                        now: now
+                    ))
+                } catch {
+                    return .stopRun
+                }
+                // A due post, and any one-time post, ends this schedule. Do not
+                // complete a one-time schedule in the same run as its post.
+                if statusBefore == .due || !isRecurring {
+                    return .nextSchedule
+                }
+                let moved = try advanceRecurringOccurrence(
+                    scheduleID,
+                    budgetID: budgetID,
+                    today: today,
+                    now: now,
+                    scheduleMutated: &scheduleMutated
+                )
+                if moved == .stopRun || moved == .dateUnchanged {
+                    return moved == .stopRun ? .stopRun : .nextSchedule
+                }
+            case .advanceRecurring:
+                let moved = try advanceRecurringOccurrence(
+                    scheduleID,
+                    budgetID: budgetID,
+                    today: today,
+                    now: now,
+                    scheduleMutated: &scheduleMutated
+                )
+                if moved != .dateChanged {
+                    return moved == .stopRun ? .stopRun : .nextSchedule
+                }
+            case .completeOneTime:
+                do {
+                    let result = try completeSchedule(
+                        review: scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID),
+                        now: now
+                    )
+                    if result.kind != .unchanged {
+                        scheduleMutated = true
+                    }
+                } catch is CancellationError {
+                    return .stopRun
+                } catch {
+                    return .nextSchedule
+                }
+                return .nextSchedule
+            }
+        }
+        return .nextSchedule
+    }
+
+    private enum RecurringAdvanceStep {
+        case dateChanged
+        case dateUnchanged
+        case stopRun
+    }
+
+    private func postScheduledOccurrence(
+        _ detail: ScheduleDetail,
+        budgetID: String,
+        today: String,
+        now: Date
+    ) throws -> SchedulePostingWriteReceipt {
+        guard let accountID = detail.account.id,
+              let amount = detail.amount.postingAmount,
+              let postedDayID = detail.effectiveNextDate,
+              let transactionDate = Self.postingDate(postedDayID) else {
+            throw LocalFirstError.invalidLocalWrite("schedule occurrence is unsupported")
+        }
+        let draft = TransactionDraft(
+            accountID: accountID,
+            date: transactionDate,
+            amountMinorUnits: amount,
+            payeeID: detail.payee.id,
+            payeeName: detail.payee.name ?? "",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            isTransfer: false,
+            scheduleID: detail.id
+        )
+        return try postScheduleOccurrence(
+            review: scheduleMutationReview(budgetID: budgetID, scheduleID: detail.id),
+            draft: draft,
+            transactionID: UUID().uuidString,
+            postedDayID: postedDayID,
+            asOf: today,
+            now: now
+        )
+    }
+
+    /// Moves a recurring next date from the day after the current occurrence.
+    /// This is not user skip: `nextDateAfterSkip` is not used.
+    private func advanceRecurringOccurrence(
+        _ scheduleID: String,
+        budgetID: String,
+        today: String,
+        now: Date,
+        scheduleMutated: inout Bool
+    ) throws -> RecurringAdvanceStep {
+        try Task.checkCancellation()
+        guard let detail = try fetchSchedules(budgetID: budgetID, today: today).detail(id: scheduleID),
+              let currentDayID = detail.effectiveNextDate,
+              detail.dateRule.recurrence != nil else {
+            return .dateUnchanged
+        }
+        let review: ScheduleMutationReview
+        do {
+            review = try scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID)
+        } catch is CancellationError {
+            return .stopRun
+        } catch {
+            return .dateUnchanged
+        }
+        let committed: (outcome: Bool, appliedCount: Int)
+        do {
+            committed = try commitLocalPlan(now: now) { db in
+                let current = try validateScheduleMutationReview(review, db: db)
+                guard let recurrence = current.projection.dateRule.recurrence,
+                      let effective = current.effectiveNextDate,
+                      let next = current.review.uniqueNextDate,
+                      let advanced = try advancedRecurringDayID(recurrence: recurrence, currentDayID: effective),
+                      advanced != effective else {
+                    return LocalCommitPlan(drafts: [], action: nil, outcome: false)
+                }
+                var builder = LocalFirstSyncMessageBuilder()
+                let messages = try localNextDateMessages(
+                    rowID: next.id,
+                    date: advanced,
+                    baseTimestamp: next.baseTimestamp,
+                    builder: &builder
+                )
+                return LocalCommitPlan(drafts: messages, action: nil, outcome: true)
+            }
+        } catch is CancellationError {
+            return .stopRun
+        } catch {
+            return .dateUnchanged
+        }
+        if committed.appliedCount > 0 {
+            scheduleMutated = true
+        }
+        guard committed.outcome,
+              let updated = try fetchSchedules(budgetID: budgetID, today: today).detail(id: scheduleID)?.effectiveNextDate,
+              updated != currentDayID else {
+            return .dateUnchanged
+        }
+        return .dateChanged
+    }
+
+    private func advancedRecurringDayID(
+        recurrence: ActualScheduleRecurrence,
+        currentDayID: String
+    ) throws -> String? {
+        guard let currentDate = ActualScheduleRecurrence.date(from: currentDayID),
+              let dayAfter = Calendar.actualScheduleGregorian.date(byAdding: .day, value: 1, to: currentDate) else {
+            return nil
+        }
+        return try recurrence.nextOccurrence(
+            onOrAfter: ActualScheduleRecurrence.dayID(from: dayAfter)
+        )
+    }
+
+    /// Same local next-date messages the skip writer enqueues (`base: false`).
+    private func localNextDateMessages(
+        rowID: String,
+        date: String,
+        baseTimestamp: String?,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        guard let baseTimestamp = baseTimestamp.flatMap(Int64.init) else {
+            throw ScheduleMutationCommandError.unsupportedCapability(
+                "The schedule's base date cannot be updated safely."
+            )
+        }
+        return [
+            try builder.makeMessage(
+                dataset: "schedules_next_date",
+                row: rowID,
+                column: "local_next_date",
+                value: scheduleDateValue(date)
+            ),
+            try builder.makeMessage(
+                dataset: "schedules_next_date",
+                row: rowID,
+                column: "local_next_date_ts",
+                value: .int(baseTimestamp)
+            )
+        ]
+    }
+
+    private func schedulesInAdvancementOrder(_ details: [ScheduleDetail]) -> [ScheduleDetail] {
+        details.sorted { lhs, rhs in
+            switch (lhs.effectiveNextDate, rhs.effectiveNextDate) {
+            case let (left?, right?) where left != right:
+                return left < right
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            default:
+                return lhs.id < rhs.id
+            }
+        }
+    }
+
+    /// Hour-12 local date, matching manual schedule posting. Not UTC midnight.
+    private static func postingDate(_ dayID: String) -> Date? {
+        guard ActualScheduleRecurrence.date(from: dayID) != nil else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        let parts = dayID.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(
+            year: parts[0], month: parts[1], day: parts[2], hour: 12
+        ))
+    }
+
+    private var scheduleAdvancementMetadataURL: URL {
+        databaseURL.deletingLastPathComponent().appending(path: "metadata.json")
+    }
+
+    private func scheduleAdvancementDayMarker() -> String? {
+        let url = scheduleAdvancementMetadataURL
+        guard FileManager.default.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let marker = object[Self.dayMarkerKey] as? String,
+              !marker.isEmpty else {
+            return nil
+        }
+        return marker
+    }
+
+    private func writeScheduleAdvancementDayMarker(_ dayID: String) throws {
+        let url = scheduleAdvancementMetadataURL
+        var object: [String: Any]
+        if FileManager.default.fileExists(atPath: url.path) {
+            let data = try Data(contentsOf: url)
+            guard let existing = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw LocalFirstError.invalidLocalWrite("schedule advancement cannot patch metadata.json")
+            }
+            object = existing
+        } else {
+            object = [:]
+        }
+        object[Self.dayMarkerKey] = dayID
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: url, options: .atomic)
+        var protected = url
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? protected.setResourceValues(values)
+        #if os(iOS)
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+            ofItemAtPath: url.path
+        )
+        #endif
+    }
+}

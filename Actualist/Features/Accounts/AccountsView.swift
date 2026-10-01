@@ -378,32 +378,17 @@ struct AccountsView: View {
     private func accountCard(_ rows: [AccountDisplay]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                HStack(spacing: 0) {
-                    NavigationLink(value: row.account) {
-                        AccountRow(
-                            row: row,
-                            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                            showsBottomSeparator: index < rows.count - 1
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("account-row-\(row.account.id)")
-                    .contextMenu {
-                        accountActionsMenu(row)
-                    }
-
-                    Menu {
-                        accountActionsMenu(row)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                            .frame(width: 36, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Account actions")
-                    .accessibilityIdentifier("account-actions-\(row.account.id)")
+                NavigationLink(value: row.account) {
+                    AccountRow(
+                        row: row,
+                        isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                        showsBottomSeparator: index < rows.count - 1
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("account-row-\(row.account.id)")
+                .contextMenu {
+                    accountActionsMenu(row)
                 }
             }
         }

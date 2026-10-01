@@ -47,8 +47,11 @@ extension BudgetDatabase {
         )
     }
 
-    func previewRules(for draft: TransactionDraft) throws -> TransactionRulePreview {
-        guard let preview = try previewRules(for: [draft]).first else {
+    func previewRules(
+        for draft: TransactionDraft,
+        dateTimeZone: TimeZone = .autoupdatingCurrent
+    ) throws -> TransactionRulePreview {
+        guard let preview = try previewRules(for: [draft], dateTimeZone: dateTimeZone).first else {
             throw LocalFirstError.invalidLocalWrite("missing rule preview")
         }
         return preview
@@ -57,22 +60,43 @@ extension BudgetDatabase {
     /// Evaluates a batch against one immutable rules/schedules/metadata
     /// snapshot. Bank Sync uses this for every downloaded row in a wake so it
     /// does not re-query rule and entity metadata hundreds of times.
-    func previewRules(for drafts: [TransactionDraft]) throws -> [TransactionRulePreview] {
+    func previewRules(
+        for drafts: [TransactionDraft],
+        dateTimeZone: TimeZone = .autoupdatingCurrent
+    ) throws -> [TransactionRulePreview] {
+        try queue.read { db in
+            try previewRules(for: drafts, db: db, dateTimeZone: dateTimeZone)
+        }
+    }
+
+    func previewRules(
+        for drafts: [TransactionDraft],
+        db: Database,
+        dateTimeZone: TimeZone = .autoupdatingCurrent
+    ) throws -> [TransactionRulePreview] {
         guard !drafts.isEmpty else { return [] }
-        let rules = try fetchRules()
-        let schedules = try fetchRuleScheduleIndex()
-        let metadata = try ruleEvaluationMetadata()
+        let rules = try fetchRules(db: db)
+        let schedules = try fetchRuleScheduleIndex(db: db)
+        let metadata = try ruleEvaluationMetadata(db: db)
         let formulas = rules.compactMap { $0.executionDraft() }.flatMap(\.actions).compactMap { action -> String? in
             if case .string(let formula) = action.options?["formula"] { return formula }
             return nil
         }
         return drafts.map { draft in
-            var context = ruleEvaluationContext(for: draft, metadata: metadata)
+            var context = ruleEvaluationContext(
+                for: draft,
+                metadata: metadata,
+                dateTimeZone: dateTimeZone
+            )
+            // Keep BALANCE_OF's cutoff on the draft's logical day, not the
+            // absolute instant represented by its date-only Date value.
             context.balanceOfPrefetch = (try? prefetchBalanceOf(
                 formulas: formulas,
                 date: draft.date,
                 sortOrder: draft.sortOrder,
-                excludingTransactionID: nil
+                excludingTransactionID: nil,
+                db: db,
+                dateTimeZone: dateTimeZone
             )) ?? [:]
             let result = RuleConditionEvaluator.applying(rules, to: context, schedules: schedules)
             return TransactionRulePreview(
@@ -81,7 +105,10 @@ extension BudgetDatabase {
                 accountID: result.accountID == draft.accountID ? nil : result.accountID,
                 payeeID: result.payeeID == draft.payeeID ? nil : result.payeeID,
                 amountMinorUnits: result.amount == draft.amountMinorUnits ? nil : result.amount,
-                date: Calendar.current.isDate(result.date, inSameDayAs: draft.date) ? nil : result.date,
+                date: ActualDateOnly.dayID(from: result.date, timeZone: dateTimeZone)
+                    == ActualDateOnly.dayID(from: draft.date, timeZone: dateTimeZone)
+                    ? nil
+                    : result.date,
                 cleared: result.cleared == draft.cleared ? nil : result.cleared,
                 scheduleID: result.scheduleID,
                 deletesTransaction: result.deletesTransaction,
@@ -100,9 +127,21 @@ extension BudgetDatabase {
         }
     }
 
+    func previewRules(
+        for draft: TransactionDraft,
+        db: Database,
+        dateTimeZone: TimeZone = .autoupdatingCurrent
+    ) throws -> TransactionRulePreview {
+        guard let preview = try previewRules(for: [draft], db: db, dateTimeZone: dateTimeZone).first else {
+            throw LocalFirstError.invalidLocalWrite("missing rule preview")
+        }
+        return preview
+    }
+
     func fetchMatchingTransactions(
         for draft: RuleDraft,
-        limit: Int
+        limit: Int,
+        dateTimeZone: TimeZone = .autoupdatingCurrent
     ) throws -> RuleTransactionMatchPreview {
         guard !draft.conditions.isEmpty else {
             return RuleTransactionMatchPreview(transactions: [], totalCount: 0)
@@ -111,7 +150,11 @@ extension BudgetDatabase {
         let transactions = try fetchTransactions()
         let metadata = try ruleEvaluationMetadata()
         let matches = transactions.compactMap { transaction -> RuleTransactionMatch? in
-            guard let context = ruleEvaluationContext(for: transaction, metadata: metadata),
+            guard let context = ruleEvaluationContext(
+                for: transaction,
+                metadata: metadata,
+                dateTimeZone: dateTimeZone
+            ),
                   RuleConditionEvaluator.conditionsMatch(draft, context: context),
                   let id = transaction.id else { return nil }
             let isTransfer = transaction.payee.map { metadata.transferPayeeIDs.contains($0) } ?? false
@@ -479,7 +522,10 @@ extension BudgetDatabase {
     }
 
     private func ruleEvaluationMetadata() throws -> RuleEvaluationMetadata {
-        try queue.read { db in
+        try queue.read { db in try ruleEvaluationMetadata(db: db) }
+    }
+
+    private func ruleEvaluationMetadata(db: Database) throws -> RuleEvaluationMetadata {
             var accountNames: [String: String] = [:]
             var offBudgetAccountIDs = Set<String>()
             if try tableExists("accounts", db: db) {
@@ -550,7 +596,11 @@ extension BudgetDatabase {
                 payeeNames: payeeNames,
                 transferPayeeIDs: transferPayeeIDs
             )
-        }
+    }
+
+    func rulePayeeName(for payeeID: String?, db: Database) throws -> String? {
+        guard let payeeID else { return nil }
+        return try ruleEvaluationMetadata(db: db).payeeNames[payeeID]
     }
 
     private func ruleEvaluationContext(for draft: TransactionDraft) throws -> RuleEvaluationContext {
@@ -559,7 +609,8 @@ extension BudgetDatabase {
 
     private func ruleEvaluationContext(
         for draft: TransactionDraft,
-        metadata: RuleEvaluationMetadata
+        metadata: RuleEvaluationMetadata,
+        dateTimeZone: TimeZone = .autoupdatingCurrent
     ) -> RuleEvaluationContext {
         let effectiveCategoryID = draft.isParent ? nil : draft.categoryID
         let categoryGroupID = effectiveCategoryID.flatMap { metadata.categoryGroupsByCategoryID[$0] }
@@ -573,6 +624,7 @@ extension BudgetDatabase {
             categoryGroupID: categoryGroupID,
             categoryGroupName: categoryGroupID.flatMap { metadata.categoryGroupNames[$0] },
             date: draft.date,
+            dateTimeZone: dateTimeZone,
             notes: draft.notes,
             payeeID: draft.payeeID,
             payeeName: draft.payeeName,
@@ -595,9 +647,10 @@ extension BudgetDatabase {
 
     private func ruleEvaluationContext(
         for transaction: ActualTransaction,
-        metadata: RuleEvaluationMetadata
+        metadata: RuleEvaluationMetadata,
+        dateTimeZone: TimeZone
     ) -> RuleEvaluationContext? {
-        guard let date = Self.rulePreviewDateFormatter.date(from: transaction.date) else { return nil }
+        guard let date = ActualDateOnly.date(from: transaction.date, timeZone: dateTimeZone) else { return nil }
         let effectiveCategoryID = transaction.isParent ? nil : transaction.category
         let categoryGroupID = effectiveCategoryID.flatMap { metadata.categoryGroupsByCategoryID[$0] }
         return RuleEvaluationContext(
@@ -611,6 +664,7 @@ extension BudgetDatabase {
             categoryGroupID: categoryGroupID,
             categoryGroupName: categoryGroupID.flatMap { metadata.categoryGroupNames[$0] },
             date: date,
+            dateTimeZone: dateTimeZone,
             notes: transaction.notes,
             payeeID: transaction.payee,
             payeeName: transaction.payeeName
@@ -632,16 +686,6 @@ extension BudgetDatabase {
             payeeNames: metadata.payeeNames
         )
     }
-
-    private static let rulePreviewDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
 
     private func globalCategoryLearningEnabled(db: Database) throws -> Bool {
         guard try tableExists("preferences", db: db) else { return true }

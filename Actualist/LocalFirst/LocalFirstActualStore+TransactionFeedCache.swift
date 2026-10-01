@@ -1,6 +1,17 @@
 import Foundation
 
 extension LocalFirstActualStore {
+    func invalidateTransactionFeedCaches(budgetID: String) {
+        let cachedKeys = Set(transactionFeedPagesByKey.keys.filter { $0.budgetID == budgetID })
+        let inFlightKeys = transactionFeedRequestIdentity.keys(forBudget: budgetID)
+        for key in cachedKeys.union(inFlightKeys) {
+            _ = transactionFeedRequestIdentity.begin(for: key)
+        }
+        for key in cachedKeys {
+            transactionFeedPagesByKey.removeValue(forKey: key)
+        }
+    }
+
     /// Refresh all cached account pages and Spending as one publication. A newer
     /// read for any member invalidates the whole candidate so a mutation cannot
     /// leave a partly old collection of observed filters.

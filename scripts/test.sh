@@ -18,8 +18,10 @@ Usage: scripts/test.sh [--dry-run] unit|ui|all [Suite[/testMethod] ...]
   --dry-run         Print the command without invoking Xcode or taking a lock.
 
 Selectors omit the target prefix, e.g. BankSyncReconcilerTests.
+Swift Testing methods may include argument labels, e.g. 'ExampleTests/check(_:)'.
 Uses ACTUALIST_SIMULATOR_ID from the environment or local destinations.sh.
 DERIVED_DATA_PATH defaults to .derivedData in the repository.
+ACTUALIST_SCHEME may be Actualist (the default) or Actualist Dev.
 
 ACTUALIST_TEST_PARALLEL:
   unset   unit runs with -parallel-testing-enabled YES; ui and all use NO.
@@ -68,6 +70,12 @@ else
   esac
 fi
 
+scheme="${ACTUALIST_SCHEME:-Actualist}"
+case "$scheme" in
+  Actualist|"Actualist Dev") ;;
+  *) fail "ACTUALIST_SCHEME must be Actualist or Actualist Dev" ;;
+esac
+
 selection=()
 case "$mode" in
   unit) target=ActualistTests ;;
@@ -83,7 +91,7 @@ if [[ "$mode" != "all" ]]; then
     selection+=("-only-testing:$target")
   else
     for selector in "$@"; do
-      [[ "$selector" =~ ^[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*(\(\))?)?$ ]] \
+      [[ "$selector" =~ ^[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*(\(([A-Za-z_][A-Za-z0-9_]*:)*\))?)?$ ]] \
         || fail "invalid suite/method selector: $selector"
       case "$selector" in
         ActualistTests|ActualistTests/*)
@@ -97,7 +105,7 @@ fi
 [[ -n "${ACTUALIST_SIMULATOR_ID:-}" ]] \
   || fail "set ACTUALIST_SIMULATOR_ID or configure scripts/lib/destinations.sh"
 
-command=(xcodebuild -project Actualist.xcodeproj -scheme Actualist
+command=(xcodebuild -project Actualist.xcodeproj -scheme "$scheme"
   -destination "platform=iOS Simulator,id=$ACTUALIST_SIMULATOR_ID"
   -derivedDataPath "${DERIVED_DATA_PATH:-.derivedData}"
   -parallel-testing-enabled "$parallel")

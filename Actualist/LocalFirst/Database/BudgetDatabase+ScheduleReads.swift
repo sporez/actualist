@@ -24,6 +24,30 @@ extension BudgetDatabase {
         let defaultUpcomingLength = try scheduleUpcomingLength(db: db)
         let rules = try scheduleRuleRows(db: db)
         let nextDates = try scheduleNextDateRows(db: db)
+        let nextDateColumns: Set<String>
+        if try tableExists("schedules_next_date", db: db) {
+            nextDateColumns = try columnSet(for: "schedules_next_date", db: db)
+        } else {
+            nextDateColumns = []
+        }
+        let supportsNextDateWrites = [
+            "id", "schedule_id", "local_next_date", "local_next_date_ts",
+            "base_next_date", "base_next_date_ts", "tombstone"
+        ].allSatisfy(nextDateColumns.contains)
+        let supportsScheduleRuleEdit = ["id", "rule", "completed", "posts_transaction", "tombstone"]
+            .allSatisfy(scheduleColumns.contains)
+        let supportsScheduleMetadataEdit = supportsScheduleRuleEdit
+            && ["name", "custom_upcoming_length"].allSatisfy(scheduleColumns.contains)
+        let supportsScheduleCompletion = ["id", "rule", "completed", "tombstone"]
+            .allSatisfy(scheduleColumns.contains)
+        let supportsScheduleDeletion = ["id", "rule", "tombstone"].allSatisfy(scheduleColumns.contains)
+        let ruleColumns: Set<String>
+        if try tableExists("rules", db: db) {
+            ruleColumns = try columnSet(for: "rules", db: db)
+        } else {
+            ruleColumns = []
+        }
+        let supportsScheduleRuleDeletion = ["id", "tombstone"].allSatisfy(ruleColumns.contains)
         let accountFacts = try scheduleAccountFacts(db: db)
         let payeeFacts = try schedulePayeeFacts(db: db)
         let payeeTargets = try schedulePayeeTargets(db: db)
@@ -76,7 +100,6 @@ extension BudgetDatabase {
         for row in rows {
             guard let id = row["id"] as String?, !id.isEmpty else { continue }
             let ruleID = row["rule"] as String?
-            let rawRule = ruleID.flatMap { rules[$0] }
             guard let projection = projectionsByScheduleID[id] else { continue }
             let nextDateCandidates = nextDates[id] ?? []
             let selectedNextDate = nextDateCandidates.count == 1 ? nextDateCandidates[0] : nil
@@ -115,14 +138,43 @@ extension BudgetDatabase {
                     upcomingLength: upcomingLength
                 )
             } ?? (isCompleted ? .completed : .scheduled)
-            let hasNextDate = effectiveNextDate != nil && nextDateCandidates.count == 1
+            let hasUniqueNextDateRow = selectedNextDate != nil
+            let hasEffectiveNextDate = effectiveNextDate != nil && hasUniqueNextDateRow
+            let hasUniqueRuleOwner: Bool
+            if let ruleID {
+                hasUniqueRuleOwner = try !scheduleRuleHasAnotherLiveOwner(
+                    ruleID: ruleID,
+                    scheduleID: id,
+                    db: db
+                )
+            } else {
+                hasUniqueRuleOwner = false
+            }
+            let canEditMetadata = projection.capabilities.canEditMetadata
+                && supportsScheduleMetadataEdit && hasUniqueRuleOwner
+            let canEditAccount = projection.capabilities.canEditAccount
+                && supportsScheduleRuleEdit && hasUniqueNextDateRow && supportsNextDateWrites
+                && selectedNextDate?.baseTimestamp.flatMap(Int64.init) != nil && hasUniqueRuleOwner
+            let canEditDate = projection.capabilities.canEditDate
+                && supportsScheduleRuleEdit && hasUniqueNextDateRow && supportsNextDateWrites
+                && selectedNextDate?.baseTimestamp.flatMap(Int64.init) != nil && hasUniqueRuleOwner
+            let canEditPayee = projection.capabilities.canEditPayee && supportsScheduleRuleEdit && hasUniqueRuleOwner
+            let canEditAmount = projection.capabilities.canEditAmount && supportsScheduleRuleEdit && hasUniqueRuleOwner
             let capabilities = ScheduleMutationCapabilities(
                 canRead: true,
-                canEdit: projection.capabilities.canEdit && hasNextDate,
-                canSkip: projection.capabilities.canSkip && hasNextDate,
-                canComplete: projection.capabilities.canComplete,
-                canDelete: ruleID != nil && rawRule != nil,
-                canPost: projection.capabilities.canPost && hasNextDate
+                canEditMetadata: canEditMetadata,
+                canEditAccount: canEditAccount,
+                canEditPayee: canEditPayee,
+                canEditAmount: canEditAmount,
+                canEditDate: canEditDate,
+                canSkip: projection.capabilities.canSkip && hasEffectiveNextDate
+                    && supportsNextDateWrites && selectedNextDate?.baseTimestamp.flatMap(Int64.init) != nil
+                    && hasUniqueRuleOwner,
+                canComplete: projection.capabilities.canComplete && supportsScheduleCompletion
+                    && !isCompleted && hasUniqueRuleOwner,
+                canDelete: projection.capabilities.canDelete && supportsScheduleDeletion
+                    && supportsScheduleRuleDeletion && hasUniqueRuleOwner,
+                canPost: projection.capabilities.canPost && hasEffectiveNextDate
             )
             details.append(
                 ScheduleDetail(
@@ -212,6 +264,23 @@ extension BudgetDatabase {
             guard let id = row["id"] as String? else { return nil }
             return (id, ScheduleRuleRow(conditions: row["conditions"], actions: row["actions"]))
         })
+    }
+
+    func scheduleRuleHasAnotherLiveOwner(
+        ruleID: String,
+        scheduleID: String,
+        db: Database
+    ) throws -> Bool {
+        let columns = try requiredColumns(table: "schedules", required: ["id", "rule"], db: db)
+        return try Row.fetchOne(
+            db,
+            sql: """
+                SELECT id FROM schedules
+                WHERE rule = ? AND id != ? AND \(predicateForLiveRows(columns: columns))
+                LIMIT 1
+                """,
+            arguments: [ruleID, scheduleID]
+        ) != nil
     }
 
     private func scheduleNextDateRows(db: Database) throws -> [String: [ScheduleNextDateRow]] {
@@ -399,7 +468,9 @@ extension BudgetDatabase {
         return dates.contains { $0 >= lowerBound }
     }
 
-    private func scheduleTransactionLowerBound(
+    /// Shared by schedule status reads and schedule-post write validation so
+    /// both use Actual's same exact-date / approximate lookback contract.
+    func scheduleTransactionLowerBound(
         occurrenceDate: String,
         matchingMode: ScheduleOccurrenceMatchingMode,
         postsTransaction: Bool
@@ -430,7 +501,7 @@ extension BudgetDatabase {
         return ActualScheduleRecurrence.date(from: dayID) == nil ? nil : dayID
     }
 
-    private func optionalScheduleDouble(_ value: DatabaseValueConvertible?) -> Double? {
+    func optionalScheduleDouble(_ value: DatabaseValueConvertible?) -> Double? {
         if let value = value as? Double { return value }
         if let value = value as? Float { return Double(value) }
         if let value = value as? Int { return Double(value) }

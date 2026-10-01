@@ -6,73 +6,89 @@ struct AccountRenameSheet: View {
 
     @Bindable var coordinator: AccountLifecycleCoordinator
     let onSubmit: () -> Void
+    let onRetry: () -> Void
 
     var body: some View {
         NavigationStack {
             Group {
                 if coordinator.isPrivacyModeEnabled {
-                    AccountLifecyclePrivacyUnavailableView(action: "rename accounts")
+                    AccountLifecyclePrivacyUnavailableView(action: "rename accounts", onCancel: cancel)
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Name")
-                                    .font(ActualistTypography.rowLabel(for: density))
-                                    .foregroundStyle(ActualistTheme.secondaryText)
-                                TextField("Account name", text: nameBinding)
-                                    .font(ActualistTypography.rowTitle(for: density))
-                                    .foregroundStyle(ActualistTheme.primaryText)
-                                    .textInputAutocapitalization(.words)
-                                    .submitLabel(.done)
-                                    .disabled(!coordinator.canEditRename)
-                                    .onSubmit(onSubmit)
-                                    .accessibilityIdentifier("account-lifecycle-rename-field")
-                            }
-                            .padding(16)
-                            .background(
-                                ActualistTheme.surface,
-                                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            )
+                    ReviewSheetContent {
+                        ReviewSheetHeader(
+                            title: coordinator.renameDraft?.account.name ?? "Account",
+                            subtitle: "Choose a name for this account."
+                        )
 
-                            if let message = validationMessage {
-                                Text(message)
-                                    .font(ActualistTypography.rowTitle(for: density))
-                                    .foregroundStyle(ActualistTheme.danger)
-                                    .accessibilityIdentifier("account-lifecycle-rename-message")
-                            }
-
-                            Button(action: onSubmit) {
-                                if coordinator.isSubmitting {
-                                    ProgressView()
-                                        .frame(maxWidth: .infinity)
-                                } else {
-                                    Text("Rename Account")
-                                        .font(ActualistTypography.control(for: density))
-                                        .frame(maxWidth: .infinity)
-                                }
-                            }
-                            .buttonStyle(.glassProminent)
-                            .tint(ActualistTheme.accent)
-                            .disabled(!coordinator.canSubmitRename)
-                            .accessibilityIdentifier("account-lifecycle-rename-button")
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Name")
+                                .font(ActualistTypography.rowLabel(for: density))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                            TextField("Account name", text: nameBinding)
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.primaryText)
+                                .textInputAutocapitalization(.words)
+                                .submitLabel(.done)
+                                .disabled(!coordinator.canEditRename)
+                                .onSubmit(onSubmit)
+                                .accessibilityIdentifier("account-lifecycle-rename-field")
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 20)
+                        .actualistReviewCard(padding: 16)
+
+                        if let message = validationMessage {
+                            Label(message, systemImage: "exclamationmark.triangle.fill")
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.danger)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .actualistReviewCard(padding: 14)
+                                .accessibilityIdentifier("account-lifecycle-rename-message")
+                        }
                     }
                     .scrollDismissesKeyboard(.interactively)
+                    .safeAreaBar(edge: .bottom, spacing: 0) {
+                        ReviewSheetActions {
+                            Button(role: .cancel, action: cancel) {
+                                Text("Cancel")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(minHeight: 32)
+                                    .padding(.horizontal, 12)
+                            }
+                            .buttonStyle(.glass)
+                            if coordinator.errorMessage != nil {
+                                Button(action: onRetry) {
+                                    Text("Review Again")
+                                        .font(.subheadline.weight(.semibold))
+                                        .multilineTextAlignment(.center)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .frame(maxWidth: .infinity, minHeight: 32)
+                                }
+                                .buttonStyle(.glassProminent)
+                                .tint(ActualistTheme.accent)
+                            } else {
+                                Button(action: onSubmit) {
+                                    if coordinator.isSubmitting {
+                                        ProgressView()
+                                            .frame(maxWidth: .infinity, minHeight: 32)
+                                    } else {
+                                        Text("Rename Account")
+                                            .font(.subheadline.weight(.semibold))
+                                            .multilineTextAlignment(.center)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .frame(maxWidth: .infinity, minHeight: 32)
+                                    }
+                                }
+                                .buttonStyle(.glassProminent)
+                                .tint(ActualistTheme.accent)
+                                .disabled(!coordinator.canSubmitRename)
+                                .accessibilityIdentifier("account-lifecycle-rename-button")
+                            }
+                        }
+                    }
                 }
             }
             .background(ActualistTheme.background)
             .navigationTitle("Rename Account")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        coordinator.cancel()
-                        dismiss()
-                    }
-                }
-            }
         }
         .presentationDetents([.medium])
     }
@@ -89,6 +105,11 @@ struct AccountRenameSheet: View {
         if let message = coordinator.renameDraft?.validationMessage { return message }
         return coordinator.renameDraft?.validationError?.localizedDescription
     }
+
+    private func cancel() {
+        coordinator.cancel()
+        dismiss()
+    }
 }
 
 struct AccountReopenSheet: View {
@@ -97,68 +118,97 @@ struct AccountReopenSheet: View {
 
     @Bindable var coordinator: AccountLifecycleCoordinator
     let onConfirm: () -> Void
+    let onRetry: () -> Void
 
     var body: some View {
         NavigationStack {
             Group {
                 if coordinator.isPrivacyModeEnabled {
-                    AccountLifecyclePrivacyUnavailableView(action: "reopen accounts")
+                    AccountLifecyclePrivacyUnavailableView(action: "reopen accounts", onCancel: cancel)
                 } else {
-                    VStack(spacing: 20) {
-                        Image(systemName: "arrow.uturn.backward.circle.fill")
-                            .font(.largeTitle)
-                            .foregroundStyle(ActualistTheme.accent)
-                            .accessibilityHidden(true)
-                        Text(accountName)
-                            .font(ActualistTypography.sectionTitle(for: density))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                        Text("This account will return to the open account list with its existing history and settings.")
-                            .font(ActualistTypography.body(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                            .multilineTextAlignment(.center)
+                    ReviewSheetContent {
+                        ReviewSheetHeader(
+                            title: accountName,
+                            subtitle: "Return this account to your open accounts."
+                        )
 
-                        if let errorMessage = coordinator.errorMessage {
-                            Text(errorMessage)
-                                .font(ActualistTypography.rowTitle(for: density))
-                                .foregroundStyle(ActualistTheme.danger)
-                        }
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label {
+                                Text("This account will return to the open account list with its existing history and settings.")
+                                    .font(ActualistTypography.body(for: density))
+                                    .foregroundStyle(ActualistTheme.secondaryText)
+                            } icon: {
+                                Image(systemName: "arrow.uturn.backward.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(ActualistTheme.accent)
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
 
-                        Button(action: onConfirm) {
-                            if coordinator.isSubmitting {
-                                ProgressView()
-                                    .frame(maxWidth: .infinity)
-                            } else {
-                                Text("Reopen Account")
-                                    .font(ActualistTypography.control(for: density))
-                                    .frame(maxWidth: .infinity)
+                            if let errorMessage = coordinator.errorMessage {
+                                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                                    .font(ActualistTypography.rowTitle(for: density))
+                                    .foregroundStyle(ActualistTheme.danger)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("account-lifecycle-reopen-error")
                             }
                         }
-                        .buttonStyle(.glassProminent)
-                        .tint(ActualistTheme.accent)
-                        .disabled(!coordinator.canConfirmReopen)
-                        .accessibilityIdentifier("account-lifecycle-reopen-button")
+                        .actualistReviewCard(padding: 16)
                     }
-                    .padding(24)
+                    .safeAreaBar(edge: .bottom, spacing: 0) {
+                        ReviewSheetActions {
+                            Button(role: .cancel, action: cancel) {
+                                Text("Cancel")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(minHeight: 32)
+                                    .padding(.horizontal, 12)
+                            }
+                            .buttonStyle(.glass)
+                            if coordinator.errorMessage != nil {
+                                Button(action: onRetry) {
+                                    Text("Review Again")
+                                        .font(.subheadline.weight(.semibold))
+                                        .multilineTextAlignment(.center)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .frame(maxWidth: .infinity, minHeight: 32)
+                                }
+                                .buttonStyle(.glassProminent)
+                                .tint(ActualistTheme.accent)
+                            } else {
+                                Button(action: onConfirm) {
+                                    if coordinator.isSubmitting {
+                                        ProgressView()
+                                            .frame(maxWidth: .infinity, minHeight: 32)
+                                    } else {
+                                        Text("Reopen Account")
+                                            .font(.subheadline.weight(.semibold))
+                                            .multilineTextAlignment(.center)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .frame(maxWidth: .infinity, minHeight: 32)
+                                    }
+                                }
+                                .buttonStyle(.glassProminent)
+                                .tint(ActualistTheme.accent)
+                                .disabled(!coordinator.canConfirmReopen)
+                                .accessibilityIdentifier("account-lifecycle-reopen-button")
+                            }
+                        }
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(ActualistTheme.background)
             .navigationTitle("Reopen Account")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        coordinator.cancel()
-                        dismiss()
-                    }
-                }
-            }
         }
         .presentationDetents([.medium])
     }
 
     private var accountName: String {
         coordinator.reopenSession?.account.name ?? "Account"
+    }
+
+    private func cancel() {
+        coordinator.cancel()
+        dismiss()
     }
 }
 
@@ -169,6 +219,7 @@ struct AccountLifecycleReviewSheet: View {
     let presentation: AccountLifecycleReviewPresentation
     let didReplaceReview: Bool
     let isSubmitting: Bool
+    let isRefreshing: Bool
     let onDestinationChange: @MainActor @Sendable (String?) -> Void
     let onCategoryChange: @MainActor @Sendable (String?) -> Void
     let onConfirm: (() -> Void)?
@@ -178,152 +229,181 @@ struct AccountLifecycleReviewSheet: View {
         NavigationStack {
             Group {
                 if presentation.isPrivacyProtected {
-                    AccountLifecyclePrivacyUnavailableView(action: "change accounts")
+                    AccountLifecyclePrivacyUnavailableView(action: "change accounts", onCancel: cancel)
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(presentation.accountName)
-                                    .font(ActualistTypography.sectionTitle(for: density))
-                                    .foregroundStyle(ActualistTheme.primaryText)
-                                Text("Review the account effects before continuing.")
-                                    .font(ActualistTypography.body(for: density))
-                                    .foregroundStyle(ActualistTheme.secondaryText)
-                            }
+                    ReviewSheetContent {
+                        ReviewSheetHeader(
+                            title: presentation.accountName,
+                            subtitle: "Review the account effects before continuing."
+                        )
 
-                            if didReplaceReview {
-                                Label(
-                                    "The account changed while you were reviewing it. Check the updated effects before continuing.",
-                                    systemImage: "arrow.triangle.2.circlepath"
-                                )
-                                .font(ActualistTypography.rowTitle(for: density))
-                                .foregroundStyle(ActualistTheme.warning)
-                                .accessibilityIdentifier("account-lifecycle-review-changed")
-                            }
-
-                            VStack(spacing: 0) {
-                                ForEach(Array(presentation.rows.enumerated()), id: \.element.id) { index, row in
-                                    consequenceRow(row)
-                                    if index < presentation.rows.count - 1 {
-                                        Divider().overlay(ActualistTheme.separator)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .background(
-                                ActualistTheme.surface,
-                                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        if didReplaceReview {
+                            Label(
+                                "The account changed while you were reviewing it. Check the updated effects before continuing.",
+                                systemImage: "arrow.triangle.2.circlepath"
                             )
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(ActualistTheme.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .actualistReviewCard()
+                            .accessibilityIdentifier("account-lifecycle-review-changed")
+                        }
 
-                            if presentation.showsDestinationPicker {
-                                lifecyclePicker(
-                                    title: "Transfer to",
-                                    choices: presentation.destinationChoices,
-                                    selection: presentation.selectedDestinationID,
-                                    accessibilityIdentifier: "account-lifecycle-destination-picker",
-                                    onChange: onDestinationChange
+                        VStack(spacing: 12) {
+                            ForEach(presentation.rows) { row in
+                                ReviewSummaryRow(
+                                    title: row.label,
+                                    value: row.value,
+                                    symbol: symbol(for: row.id)
                                 )
                             }
+                        }
+                        .actualistReviewCard(padding: 16)
+                        .accessibilityIdentifier("account-lifecycle-consequences")
 
-                            if presentation.showsCategoryPicker {
-                                lifecyclePicker(
-                                    title: "Category",
-                                    choices: presentation.categoryChoices,
-                                    selection: presentation.selectedCategoryID,
-                                    accessibilityIdentifier: "account-lifecycle-category-picker",
-                                    onChange: onCategoryChange
-                                )
+                        if presentation.showsDestinationPicker {
+                            lifecyclePicker(
+                                title: "Transfer to",
+                                symbol: "arrow.left.arrow.right",
+                                choices: presentation.destinationChoices,
+                                selection: presentation.selectedDestinationID,
+                                accessibilityIdentifier: "account-lifecycle-destination-picker",
+                                onChange: onDestinationChange
+                            )
+                        }
+
+                        if presentation.showsCategoryPicker {
+                            lifecyclePicker(
+                                title: "Category",
+                                symbol: "tag",
+                                choices: presentation.categoryChoices,
+                                selection: presentation.selectedCategoryID,
+                                accessibilityIdentifier: "account-lifecycle-category-picker",
+                                onChange: onCategoryChange
+                            )
+                        }
+
+                        ForEach(presentation.blockerMessages, id: \.self) { message in
+                            Label(message, systemImage: "exclamationmark.triangle.fill")
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.danger)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .actualistReviewCard(padding: 14)
+                        }
+                    }
+                    .safeAreaBar(edge: .bottom, spacing: 0) {
+                        ReviewSheetActions {
+                            Button(role: .cancel, action: cancel) {
+                                Text("Cancel")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(minHeight: 32)
+                                    .padding(.horizontal, 12)
                             }
-
-                            ForEach(presentation.blockerMessages, id: \.self) { message in
-                                Label(message, systemImage: "exclamationmark.triangle.fill")
-                                    .font(ActualistTypography.rowTitle(for: density))
-                                    .foregroundStyle(ActualistTheme.danger)
-                            }
-
+                            .buttonStyle(.glass)
                             if let actionTitle = presentation.actionTitle, let onConfirm {
                                 Button(role: .destructive, action: onConfirm) {
                                     if isSubmitting {
-                                        ProgressView().frame(maxWidth: .infinity)
+                                        ProgressView()
+                                            .frame(maxWidth: .infinity, minHeight: 32)
                                     } else {
-                                        Text(actionTitle).frame(maxWidth: .infinity)
+                                        Text(actionTitle)
+                                            .font(.subheadline.weight(.semibold))
+                                            .multilineTextAlignment(.center)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .frame(maxWidth: .infinity, minHeight: 32)
                                     }
                                 }
                                 .buttonStyle(.glassProminent)
                                 .tint(ActualistTheme.danger)
-                                .disabled(!presentation.canConfirm || isSubmitting)
+                                .disabled(!presentation.canConfirm || isSubmitting || isRefreshing)
                                 .accessibilityIdentifier("account-lifecycle-close-button")
                             }
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 20)
                     }
                 }
             }
             .background(ActualistTheme.background)
             .navigationTitle(presentation.title)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                        dismiss()
-                    }
-                }
-            }
         }
         .presentationDetents([.large])
     }
 
-    private func consequenceRow(_ row: AccountLifecycleConsequenceRow) -> some View {
-        HStack(spacing: 12) {
-            Text(row.label)
-                .font(ActualistTypography.body(for: density))
-                .foregroundStyle(ActualistTheme.secondaryText)
-            Spacer(minLength: 8)
-            Text(row.value)
-                .font(ActualistTypography.rowValue(for: density))
-                .foregroundStyle(ActualistTheme.primaryText)
-                .multilineTextAlignment(.trailing)
-        }
-        .padding(.vertical, 14)
-    }
-
-
     private func lifecyclePicker(
         title: String,
+        symbol: String,
         choices: [AccountLifecycleChoice],
         selection: String?,
         accessibilityIdentifier: String,
         onChange: @escaping @MainActor @Sendable (String?) -> Void
     ) -> some View {
-        Picker(
-            title,
-            selection: Binding(
-                get: { selection },
-                set: onChange
-            )
-        ) {
-            Text("Choose…").tag(String?.none)
-            ForEach(choices) { choice in
-                Text(choice.name).tag(Optional(choice.id))
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .frame(width: 26, height: 26)
+                .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 9))
+                .accessibilityHidden(true)
+            Picker(
+                title,
+                selection: Binding(
+                    get: { selection },
+                    set: onChange
+                )
+            ) {
+                Text("Choose…").tag(String?.none)
+                ForEach(choices) { choice in
+                    Text(choice.name).tag(Optional(choice.id))
+                }
             }
+            .pickerStyle(.menu)
+            .disabled(isSubmitting || isRefreshing)
+            .accessibilityIdentifier(accessibilityIdentifier)
         }
-        .pickerStyle(.menu)
-        .disabled(isSubmitting)
-        .accessibilityIdentifier(accessibilityIdentifier)
+        .actualistReviewCard(padding: 12)
+    }
+
+    private func symbol(for rowID: String) -> String {
+        switch rowID {
+        case "balance", "transfer-amount": "dollarsign"
+        case "transactions": "list.bullet.rectangle"
+        case "destination": "arrow.left.arrow.right"
+        case "category": "tag"
+        case "bank": "building.columns"
+        case "schedules", "schedule-posting": "calendar"
+        default: "info.circle"
+        }
+    }
+
+    private func cancel() {
+        onCancel()
+        dismiss()
     }
 }
 
 private struct AccountLifecyclePrivacyUnavailableView: View {
     let action: String
+    let onCancel: () -> Void
 
     var body: some View {
-        ContentUnavailableView(
-            "Sample Values",
-            systemImage: "eye.slash",
-            description: Text("Turn off Sample Values to \(action).")
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ReviewSheetContent {
+            ReviewSheetHeader(title: "Sample Values")
+            Label("Turn off Sample Values to \(action).", systemImage: "eye.slash")
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .actualistReviewCard()
+        }
+        .safeAreaBar(edge: .bottom, spacing: 0) {
+            ReviewSheetActions {
+                Button(role: .cancel, action: onCancel) {
+                    Text("Cancel")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
+                }
+                .buttonStyle(.glass)
+                Spacer(minLength: 0)
+            }
+        }
     }
 }

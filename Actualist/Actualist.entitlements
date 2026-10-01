@@ -6,7 +6,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.sporez.actualist</string>
+		<string>group.$(ACTUALIST_APP_IDENTIFIER)</string>
 	</array>
 </dict>
 </plist>

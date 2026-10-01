@@ -15,7 +15,8 @@ extension BudgetActionKind {
     var isMoneyFlow: Bool {
         switch self {
         case .assign, .move, .template,
-                .createTransaction, .editTransaction, .deleteTransaction, .categorize:
+                .createTransaction, .editTransaction, .deleteTransaction, .categorize,
+                .transactionBatch, .transactionDuplicate, .transactionMerge:
             true
         case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             false
@@ -30,7 +31,10 @@ extension BudgetActionKind {
             createTransaction.rawValue,
             editTransaction.rawValue,
             deleteTransaction.rawValue,
-            categorize.rawValue
+            categorize.rawValue,
+            transactionBatch.rawValue,
+            transactionDuplicate.rawValue,
+            transactionMerge.rawValue
         ]
     }
 }

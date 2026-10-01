@@ -72,6 +72,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 sheetContent
                     .appSwitcherPrivacyProtected(using: appState)
                     .interactiveDismissDisabled(coordinator.isSubmitting)
+                    .presentationBackground(ActualistTheme.background)
             }
             .onChange(of: appState.settings.selectedBudgetID) { coordinator.cancel() }
             .onChange(of: appState.localFirstStore.budgetSessionGeneration) { coordinator.cancel() }
@@ -93,16 +94,35 @@ struct AccountLifecyclePresentationHost: ViewModifier {
         case .savedRefreshPending:
             let receiptID = appState.routeCoordinator.pendingAccountLifecycleReceipt?.id
             NavigationStack {
-                ContentUnavailableView(
-                    "Account Change Saved",
-                    systemImage: "checkmark.circle",
-                    description: Text("Your change is saved on this device. Pull to refresh the account list to update its display.")
-                )
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { coordinator.cancel() }
+                ReviewSheetContent {
+                    ReviewSheetHeader(
+                        title: "Account Change Saved",
+                        subtitle: "Your change is saved on this device."
+                    )
+                    Label(
+                        "Pull to refresh the account list to update its display.",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .actualistReviewCard()
+                }
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    ReviewSheetActions {
+                        Spacer(minLength: 0)
+                        Button { coordinator.cancel() } label: {
+                            Text("Done")
+                                .font(.subheadline.weight(.semibold))
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, minHeight: 32)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(ActualistTheme.accent)
                     }
                 }
+                .navigationTitle("Account Change Saved")
+                .navigationBarTitleDisplayMode(.inline)
             }
             .presentationDetents([.medium])
             .onDisappear {
@@ -116,16 +136,18 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     repository: appState.localFirstStore,
                     onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
                 )
+            } onRetry: {
+                coordinator.retry(repository: appState.localFirstStore)
             }
-            .safeAreaInset(edge: .bottom) { retryButton }
         case .reopen:
             AccountReopenSheet(coordinator: coordinator) {
                 coordinator.confirmReopen(
                     repository: appState.localFirstStore,
                     onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
                 )
+            } onRetry: {
+                coordinator.retry(repository: appState.localFirstStore)
             }
-            .safeAreaInset(edge: .bottom) { retryButton }
         case .review:
             reviewSheet
         case nil:
@@ -144,6 +166,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 ),
                 didReplaceReview: coordinator.didReplaceReview,
                 isSubmitting: coordinator.isSubmitting,
+                isRefreshing: coordinator.isRefreshingReview,
                 onDestinationChange: {
                     coordinator.selectCloseDestination(
                         $0,
@@ -166,42 +189,69 @@ struct AccountLifecyclePresentationHost: ViewModifier {
             )
         } else if let error = coordinator.errorMessage {
             NavigationStack {
-                ContentUnavailableView(
-                    "Account Review Unavailable",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(error)
-                )
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { coordinator.cancel() }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Review Again") {
-                            coordinator.retry(repository: appState.localFirstStore)
+                ReviewSheetContent {
+                    ReviewSheetHeader(
+                        title: "Account Review Unavailable",
+                        subtitle: "The account effects could not be loaded."
+                    )
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(ActualistTheme.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .actualistReviewCard()
+                }
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    ReviewSheetActions {
+                        Button(role: .cancel) { coordinator.cancel() } label: {
+                            Text("Cancel")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 32)
+                                .padding(.horizontal, 12)
                         }
+                        .buttonStyle(.glass)
+                        Button {
+                            coordinator.retry(repository: appState.localFirstStore)
+                        } label: {
+                            Text("Review Again")
+                                .font(.subheadline.weight(.semibold))
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, minHeight: 32)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(ActualistTheme.accent)
                     }
                 }
+                .navigationTitle("Close Account")
+                .navigationBarTitleDisplayMode(.inline)
             }
+            .presentationDetents([.medium])
         } else {
             NavigationStack {
-                ProgressView("Reviewing account…")
-                    .navigationTitle("Close Account")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { coordinator.cancel() }
+                ReviewSheetContent {
+                    ReviewSheetHeader(
+                        title: "Reviewing Account",
+                        subtitle: "Checking the effects of closing this account."
+                    )
+                    ProgressView("Reviewing account…")
+                        .frame(maxWidth: .infinity)
+                        .actualistReviewCard(padding: 18)
+                }
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    ReviewSheetActions {
+                        Button(role: .cancel) { coordinator.cancel() } label: {
+                            Text("Cancel")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: 32)
+                                .padding(.horizontal, 12)
                         }
+                        .buttonStyle(.glass)
+                        Spacer(minLength: 0)
                     }
+                }
+                .navigationTitle("Close Account")
+                .navigationBarTitleDisplayMode(.inline)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var retryButton: some View {
-        if coordinator.errorMessage != nil {
-            Button("Review Again") { coordinator.retry(repository: appState.localFirstStore) }
-                .buttonStyle(.glass)
-                .padding()
+            .presentationDetents([.medium])
         }
     }
 }

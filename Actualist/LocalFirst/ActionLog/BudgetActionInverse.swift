@@ -29,6 +29,9 @@ enum BudgetActionInverse: Equatable, Sendable {
     case carryover(CarryoverBudgetAction)
     case learningPref(LearningPrefBudgetAction)
     case transactionMetadata(TransactionMetadataBudgetAction)
+    case transactionBatch(TransactionBatchTransactionInverse)
+    case transactionDuplicate(TransactionDuplicateTransactionInverse)
+    case transactionMerge(TransactionMergeTransactionInverse)
 }
 
 extension BudgetActionInverse {
@@ -45,7 +48,8 @@ extension BudgetActionInverse {
             true
         case .createTransaction, .editTransaction, .deleteTransaction,
                 .categorize, .payee, .rule, .account, .learningPref,
-                .transactionMetadata:
+                .transactionMetadata, .transactionBatch, .transactionDuplicate,
+                .transactionMerge:
             false
         }
     }
@@ -73,6 +77,10 @@ extension BudgetActionInverse {
             return carryover.startMonth
         case .transactionMetadata(let metadata):
             return metadata.month
+        case .transactionBatch:
+            return ""
+        case .transactionDuplicate, .transactionMerge:
+            return ""
         }
     }
 
@@ -81,6 +89,8 @@ extension BudgetActionInverse {
         case .createTransaction(let create): create.learning
         case .editTransaction(let edit): edit.learning
         case .categorize(let categorize): categorize.learning
+        case .transactionBatch(let batch): batch.learning
+        case .transactionDuplicate, .transactionMerge: .empty
         case .assign, .move, .template, .deleteTransaction,
                 .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             .empty
@@ -97,6 +107,12 @@ extension BudgetActionInverse {
             edit.allAfterSnapshots.map(\.id)
         case .categorize(let categorize):
             categorize.items.map(\.transactionID)
+        case .transactionBatch(let batch):
+            batch.afterSnapshots.map(\.id)
+        case .transactionDuplicate(let duplicate):
+            duplicate.afterSnapshots.map(\.id)
+        case .transactionMerge(let merge):
+            merge.afterSnapshots.map(\.id)
         case .assign, .move, .template,
                 .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             []
@@ -115,6 +131,11 @@ extension BudgetActionInverse {
         case .categorize(var categorize):
             categorize.learning = learning
             return .categorize(categorize)
+        case .transactionBatch(var batch):
+            batch.learning = learning
+            return .transactionBatch(batch)
+        case .transactionDuplicate, .transactionMerge:
+            return self
         case .assign, .move, .template, .deleteTransaction,
                 .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             return self
@@ -136,6 +157,9 @@ enum BudgetActionDescriptor: Equatable, Sendable {
     case editTransaction(EditTransactionDescriptor)
     case deleteTransaction(DeleteTransactionDescriptor)
     case categorize(CategorizeTransactionDescriptor)
+    case transactionBatch(TransactionBatchActionDescriptor)
+    case transactionDuplicate(TransactionDuplicateActionDescriptor)
+    case transactionMerge(TransactionMergeActionDescriptor)
     case payee(PayeeActionDescriptor)
     case rule(RuleActionDescriptor)
     case account(AccountActionDescriptor)
@@ -159,6 +183,9 @@ extension BudgetActionInverse: Codable {
         case carryover
         case learningPref
         case transactionMetadata
+        case transactionBatch
+        case transactionDuplicate
+        case transactionMerge
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -196,6 +223,12 @@ extension BudgetActionInverse: Codable {
             self = .learningPref(try payload.decode(LearningPrefBudgetAction.self, forKey: .payload))
         case .transactionMetadata:
             self = .transactionMetadata(try payload.decode(TransactionMetadataBudgetAction.self, forKey: .payload))
+        case .transactionBatch:
+            self = .transactionBatch(try payload.decode(TransactionBatchTransactionInverse.self, forKey: .payload))
+        case .transactionDuplicate:
+            self = .transactionDuplicate(try payload.decode(TransactionDuplicateTransactionInverse.self, forKey: .payload))
+        case .transactionMerge:
+            self = .transactionMerge(try payload.decode(TransactionMergeTransactionInverse.self, forKey: .payload))
         }
     }
 
@@ -242,6 +275,15 @@ extension BudgetActionInverse: Codable {
         case .transactionMetadata(let metadata):
             try container.encode(InverseKind.transactionMetadata, forKey: .type)
             try payload.encode(metadata, forKey: .payload)
+        case .transactionBatch(let batch):
+            try container.encode(InverseKind.transactionBatch, forKey: .type)
+            try payload.encode(batch, forKey: .payload)
+        case .transactionDuplicate(let duplicate):
+            try container.encode(InverseKind.transactionDuplicate, forKey: .type)
+            try payload.encode(duplicate, forKey: .payload)
+        case .transactionMerge(let merge):
+            try container.encode(InverseKind.transactionMerge, forKey: .type)
+            try payload.encode(merge, forKey: .payload)
         }
     }
 }

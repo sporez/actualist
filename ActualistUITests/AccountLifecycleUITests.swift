@@ -15,7 +15,7 @@ final class AccountLifecycleUITests: XCTestCase {
         try openOverviewRename(for: originalName, in: app)
         try replaceRenameField(expectedCurrentName: originalName, with: cancelledName, in: app)
         attachScreenshot(named: "account-lifecycle-row-rename-cancel-\(layoutName(for: app))", app: app)
-        app.navigationBars["Rename Account"].buttons["Cancel"].tap()
+        app.buttons["Cancel"].tap()
 
         XCTAssertTrue(app.navigationBars["Rename Account"].waitForNonExistence(timeout: 5))
         let cancelledRow = accountOverviewButton(
@@ -113,7 +113,7 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(close.isEnabled)
         attachScreenshot(named: "account-lifecycle-close-review-\(layoutName(for: app))", app: app)
 
-        app.navigationBars["Transfer Balance and Close"].buttons["Cancel"].tap()
+        app.buttons["Cancel"].tap()
         XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(accountOverviewButton(
             accountID: "checking",
@@ -149,6 +149,44 @@ final class AccountLifecycleUITests: XCTestCase {
         )
         XCTAssertTrue(closedChecking.waitForExistence(timeout: 8))
         attachScreenshot(named: "account-lifecycle-close-submitted-\(layoutName(for: app))", app: app)
+    }
+
+    func testCloseDestinationChangesKeepReviewInPlace() throws {
+        try assertCloseDestinationChangesKeepReviewInPlace(theme: "Actual Purple (dark)")
+    }
+
+    func testCloseDestinationChangesKeepReviewInPlaceInLightTheme() throws {
+        defer { restoreTheme("Actual Purple (dark)") }
+        try assertCloseDestinationChangesKeepReviewInPlace(theme: "Actual Purple (light)")
+    }
+
+    private func assertCloseDestinationChangesKeepReviewInPlace(theme: String) throws {
+        let app = launchMutableAccounts(theme: theme)
+        defer { app.terminate() }
+        try openCheckingCloseReview(in: app)
+        let balance = app.staticTexts["Balance"]
+        XCTAssertTrue(balance.waitForExistence(timeout: 5))
+        let initialBalanceFrame = balance.frame
+        let initialNavigationFrame = app.navigationBars["Review Account"].frame
+        attachScreenshot(named: "close-picker-before-\(theme)-\(layoutName(for: app))", app: app)
+
+        for (index, destination) in ["High-Yield Savings", "Visa Credit Card", "High-Yield Savings"].enumerated() {
+            let close = try selectClosingDestination(destination, in: app)
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: close)
+            XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+            XCTAssertFalse(app.staticTexts["Reviewing Account"].exists)
+            XCTAssertEqual(balance.frame.minY, initialBalanceFrame.minY, accuracy: 1)
+            XCTAssertEqual(
+                app.navigationBars["Transfer Balance and Close"].frame.minY,
+                initialNavigationFrame.minY,
+                accuracy: 1
+            )
+            XCTAssertTrue(app.buttons["account-lifecycle-destination-picker"].label.contains(destination))
+            attachScreenshot(named: "close-picker-\(index)-\(theme)-\(layoutName(for: app))", app: app)
+        }
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.navigationBars["Transfer Balance and Close"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(accountOverviewButton(accountID: "checking", expectedName: "Everyday Checking", in: app).exists)
     }
 
     func testSampleValuesDisableRenameAndReopenActions() throws {
@@ -223,13 +261,33 @@ final class AccountLifecycleUITests: XCTestCase {
 
     private func launchDemo(screen: String, replaceDemo: Bool) -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
+        let app = XCUIApplication()
+        let settingsPage = [
+            "settings/privacy": "Privacy & Notifications",
+            "settings/appearance": "Appearance",
+        ][screen]
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", settingsPage == nil ? screen : "budget"]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
         }
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
+        if let settingsPage {
+            // Use the native route; the developer-only direct Settings launch is deferred.
+            XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+            if isWide(app) {
+                let sidebar = app.collectionViews["Sidebar"]
+                let settings = sidebar.cells.containing(.staticText, identifier: "Settings").firstMatch
+                XCTAssertTrue(settings.waitForExistence(timeout: 5))
+                settings.tap()
+            } else {
+                app.buttons["Settings"].tap()
+            }
+            let page = app.cells.containing(.staticText, identifier: settingsPage).firstMatch
+            XCTAssertTrue(page.waitForExistence(timeout: 5))
+            page.tap()
+            XCTAssertTrue(app.navigationBars[settingsPage].waitForExistence(timeout: 8))
+        }
         return app
     }
 
@@ -370,10 +428,10 @@ final class AccountLifecycleUITests: XCTestCase {
     }
 
     private func openOverviewActions(accountID: String, in app: XCUIApplication) {
-        let actions = app.buttons["account-actions-\(accountID)"]
-        XCTAssertTrue(actions.waitForExistence(timeout: 5))
-        XCTAssertTrue(actions.isHittable)
-        actions.tap()
+        XCTAssertFalse(app.buttons["account-actions-\(accountID)"].exists)
+        let account = accountOverviewButton(accountID: accountID, in: app)
+        XCTAssertTrue(account.isHittable)
+        account.press(forDuration: 1)
     }
 
     private func sectionButton(beginningWith title: String, in app: XCUIApplication) -> XCUIElement {

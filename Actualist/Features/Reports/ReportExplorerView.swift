@@ -401,29 +401,47 @@ private struct ReportCustomRangeSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                DatePicker("Start", selection: $start, displayedComponents: .date)
-                DatePicker("End", selection: $end, displayedComponents: .date)
+            ReviewSheetContent {
+                ReviewSheetHeader(title: "Choose the date range")
+                VStack(spacing: 8) {
+                    DatePicker("Start", selection: $start, displayedComponents: .date)
+                        .accessibilityIdentifier("report-custom-range-start")
+                    ActualistTheme.separator.frame(height: 1)
+                    DatePicker("End", selection: $end, displayedComponents: .date)
+                        .accessibilityIdentifier("report-custom-range-end")
+                }
+                .font(.body)
+                .actualistReviewCard(padding: 14)
             }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
             .navigationTitle("Custom Range")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") {
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                ReviewSheetActions {
+                    Button(role: .cancel) { dismiss() } label: {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityIdentifier("report-custom-range-cancel")
+
+                    Button {
                         onApply(start, end)
                         dismiss()
+                    } label: {
+                        Text("Apply")
+                            .frame(maxWidth: .infinity, minHeight: 32)
                     }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
+                    .accessibilityIdentifier("report-custom-range-apply")
                 }
             }
         }
         .frame(idealWidth: 520)
         .presentationDetents([.medium])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
+        .accessibilityIdentifier("report-custom-range-sheet")
+        .presentationBackground(ActualistTheme.background)
         .environment(\.calendar, ReportCalendar.gregorianUTC)
         .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .gmt)
     }

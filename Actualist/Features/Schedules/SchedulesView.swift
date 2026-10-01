@@ -1,5 +1,12 @@
 import SwiftUI
 
+private enum SchedulesWorkflowSheet: String, Identifiable, Hashable {
+    case management
+    case posting
+
+    var id: String { rawValue }
+}
+
 struct SchedulesLoadIdentity: Hashable, Sendable {
     let context: SchedulesViewContext
     let refreshRevision: UInt64
@@ -10,13 +17,22 @@ struct SchedulesView: View {
     @Environment(\.actualistDensity) private var density
 
     private let repository: any ScheduleRepositoryProtocol
+    private let mutationRepository: any ScheduleMutationRepositoryProtocol
+    private let postingRepository: any SchedulePostingRepositoryProtocol
+    private let transactionRepository: any TransactionRepositoryProtocol
     private let context: SchedulesViewContext
     private let refreshRevision: UInt64
     @State private var viewModel: SchedulesViewModel
+    @State private var managementCoordinator = ScheduleManagementCoordinator()
+    @State private var postingCoordinator = SchedulePostingCoordinator()
+    @State private var workflowSheet: SchedulesWorkflowSheet?
     @State private var manualRefreshGeneration: UInt64 = 0
 
     init(
         repository: any ScheduleRepositoryProtocol,
+        mutationRepository: any ScheduleMutationRepositoryProtocol,
+        postingRepository: any SchedulePostingRepositoryProtocol,
+        transactionRepository: any TransactionRepositoryProtocol,
         budgetID: String,
         budgetSessionGeneration: Int,
         currency: BudgetCurrency,
@@ -34,6 +50,9 @@ struct SchedulesView: View {
             asOfDayID: asOfDayID
         )
         self.repository = repository
+        self.mutationRepository = mutationRepository
+        self.postingRepository = postingRepository
+        self.transactionRepository = transactionRepository
         self.context = context
         self.refreshRevision = refreshRevision
         _viewModel = State(initialValue: SchedulesViewModel(context: context))
@@ -42,7 +61,7 @@ struct SchedulesView: View {
     var body: some View {
         @Bindable var viewModel = viewModel
 
-        List {
+        ReviewSheetContent {
             if context.isPrivacyModeEnabled {
                 privacyNotice
             }
@@ -66,42 +85,59 @@ struct SchedulesView: View {
                 emptyState(viewModel.emptyState)
 
                 ForEach(viewModel.sections) { section in
-                    Section(section.kind.title) {
+                    Text(section.kind.title)
+                        .font(.headline.weight(.bold))
+                    LazyVStack(spacing: 10) {
                         ForEach(section.rows) { row in
                             NavigationLink {
                                 ScheduleDetailView(
                                     scheduleID: row.id,
-                                    viewModel: viewModel
+                                    viewModel: viewModel,
+                                    onEdit: beginEdit,
+                                    onAction: beginActionReview,
+                                    onPost: beginPostReview
                                 )
                             } label: {
-                                ScheduleRowView(row: row)
+                                HStack(spacing: 10) {
+                                    ScheduleRowView(row: row)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(ActualistTheme.secondaryText)
+                                        .accessibilityHidden(true)
+                                }
+                                .actualistReviewCard()
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
 
                 if viewModel.completedScheduleCount > 0 {
-                    Section {
-                        Toggle(
-                            "Show Completed (\(viewModel.completedScheduleCount))",
-                            isOn: $viewModel.showsCompleted
-                        )
-                    } footer: {
-                        Text("Completed schedules are hidden by default.")
-                    }
+                    Toggle(
+                        "Show Completed (\(viewModel.completedScheduleCount))",
+                        isOn: $viewModel.showsCompleted
+                    )
+                    .font(.subheadline)
+                    .actualistReviewCard()
+                    Text("Completed schedules are hidden by default.")
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.secondaryText)
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(ActualistTheme.background)
-        .foregroundStyle(ActualistTheme.primaryText)
-        .tint(ActualistTheme.accent)
         .navigationTitle("Schedules")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $viewModel.searchText, prompt: "Search schedules")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    beginCreate()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Add Schedule")
+                .accessibilityIdentifier("schedule-add")
+
                 if viewModel.isRefreshing {
                     ProgressView()
                         .controlSize(.small)
@@ -126,6 +162,40 @@ struct SchedulesView: View {
         .refreshable {
             await viewModel.load(context: context, repository: repository)
         }
+        .sheet(item: workflowSheetBinding) { route in
+            switch route {
+            case .management:
+                ScheduleManagementSheet(
+                    coordinator: managementCoordinator,
+                    mutationRepository: mutationRepository,
+                    currency: context.currency
+                )
+            case .posting:
+                SchedulePostingReviewView(
+                    coordinator: postingCoordinator,
+                    postingRepository: postingRepository
+                )
+            }
+        }
+        .onChange(of: managementCoordinator.contentRevision) { requestRefresh() }
+        .onChange(of: managementCoordinator.isPresented) { _, isPresented in
+            if !isPresented, workflowSheet == .management {
+                workflowSheet = nil
+            }
+        }
+        .onChange(of: postingCoordinator.isPresented) { _, isPresented in
+            if !isPresented, workflowSheet == .posting {
+                workflowSheet = nil
+            }
+        }
+        .onChange(of: postingCoordinator.state) { _, state in
+            switch state {
+            case .committed, .committedRefreshPending:
+                requestRefresh()
+            default:
+                break
+            }
+        }
     }
 
     private var privacyNotice: some View {
@@ -136,6 +206,7 @@ struct SchedulesView: View {
                 .foregroundStyle(ActualistTheme.warning)
         }
         .font(ActualistTypography.rowLabel(for: density))
+        .actualistReviewCard()
     }
 
     private var loadingState: some View {
@@ -149,16 +220,15 @@ struct SchedulesView: View {
     }
 
     private func errorBanner(_ message: String) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(ActualistTypography.body(for: density))
-                    .foregroundStyle(ActualistTheme.danger)
-                Button("Retry", systemImage: "arrow.clockwise") {
-                    requestRefresh()
-                }
-                .disabled(viewModel.isLoading || viewModel.isRefreshing)
+        VStack(alignment: .leading, spacing: 10) {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(ActualistTypography.body(for: density))
+                .foregroundStyle(ActualistTheme.danger)
+            Button("Retry", systemImage: "arrow.clockwise") {
+                requestRefresh()
             }
+            .buttonStyle(.glass)
+            .disabled(viewModel.isLoading || viewModel.isRefreshing)
         }
     }
 
@@ -210,11 +280,99 @@ struct SchedulesView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 260)
-        .listRowBackground(Color.clear)
     }
 
     private func requestRefresh() {
         manualRefreshGeneration &+= 1
+    }
+
+    private var workflowSheetBinding: Binding<SchedulesWorkflowSheet?> {
+        Binding(
+            get: { workflowSheet },
+            set: { route in
+                guard let route else {
+                    dismissWorkflowSheet()
+                    return
+                }
+                guard workflowSheet == nil || workflowSheet == route else { return }
+                workflowSheet = route
+            }
+        )
+    }
+
+    private func beginCreate() {
+        guard workflowSheet == nil else { return }
+        managementCoordinator.beginCreate(
+            expectedBudgetID: context.identity.budgetID,
+            expectedGeneration: context.identity.sessionGeneration,
+            today: context.asOfDayID,
+            currency: context.currency,
+            isPrivacyModeEnabled: context.isPrivacyModeEnabled,
+            mutationRepository: mutationRepository,
+            transactionRepository: transactionRepository
+        )
+        workflowSheet = .management
+    }
+
+    private func beginEdit(scheduleID: String) {
+        guard workflowSheet == nil else { return }
+        guard let detail = viewModel.scheduleDetail(id: scheduleID) else { return }
+        managementCoordinator.beginEdit(
+            detail: detail,
+            expectedBudgetID: context.identity.budgetID,
+            expectedGeneration: context.identity.sessionGeneration,
+            today: context.asOfDayID,
+            currency: context.currency,
+            isPrivacyModeEnabled: context.isPrivacyModeEnabled,
+            scheduleRepository: repository,
+            mutationRepository: mutationRepository,
+            transactionRepository: transactionRepository
+        )
+        workflowSheet = .management
+    }
+
+    private func beginActionReview(_ action: ScheduleManagementAction, scheduleID: String) {
+        guard workflowSheet == nil else { return }
+        guard let detail = viewModel.scheduleDetail(id: scheduleID) else { return }
+        managementCoordinator.beginActionReview(
+            action,
+            detail: detail,
+            expectedBudgetID: context.identity.budgetID,
+            expectedGeneration: context.identity.sessionGeneration,
+            currency: context.currency,
+            isPrivacyModeEnabled: context.isPrivacyModeEnabled,
+            today: context.asOfDayID,
+            scheduleRepository: repository,
+            mutationRepository: mutationRepository
+        )
+        workflowSheet = .management
+    }
+
+    private func beginPostReview(scheduleID: String) {
+        guard workflowSheet == nil else { return }
+        postingCoordinator.beginReview(
+            scheduleID: scheduleID,
+            expectedBudgetID: context.identity.budgetID,
+            expectedGeneration: context.identity.sessionGeneration,
+            today: context.asOfDayID,
+            currency: context.currency,
+            isPrivacyModeEnabled: context.isPrivacyModeEnabled,
+            scheduleRepository: repository,
+            postingRepository: postingRepository
+        )
+        workflowSheet = .posting
+    }
+
+    private func dismissWorkflowSheet() {
+        switch workflowSheet {
+        case .management:
+            _ = managementCoordinator.cancel()
+        case .posting:
+            _ = postingCoordinator.cancel()
+        case nil:
+            break
+        }
+        workflowSheet = nil
     }
 }
 

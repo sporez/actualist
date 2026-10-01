@@ -68,12 +68,29 @@ extension BudgetDatabase {
     func createSimpleTransactionMessages(
         _ draft: TransactionDraft,
         transactionID: String,
-        payeeID: String,
+        payeeID: String?,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        try queue.read { db in
+            try createSimpleTransactionMessages(
+                draft,
+                transactionID: transactionID,
+                payeeID: payeeID,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
+
+    func createSimpleTransactionMessages(
+        _ draft: TransactionDraft,
+        transactionID: String,
+        payeeID: String?,
+        db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try validateSimpleTransactionDraft(draft)
         var messages: [ActualSyncDecodedMessage] = []
-        try queue.read { db in
             let columns = try requiredColumns(
                 table: "transactions",
                 required: ["date", "amount"],
@@ -113,7 +130,7 @@ extension BudgetDatabase {
                     dataset: "transactions",
                     row: transactionID,
                     column: payeeColumn,
-                    value: .string(payeeID)
+                    value: payeeID.map(LocalFirstSyncValue.string) ?? .null
                 )
             )
             messages.append(
@@ -223,7 +240,6 @@ extension BudgetDatabase {
                     )
                 )
             }
-        }
         return messages
     }
 
@@ -324,6 +340,25 @@ extension BudgetDatabase {
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String, pairedTransactionID: String) {
+        try queue.read { db in
+            try createTransferTransactionMessages(
+                draft: draft,
+                sourceTransactionID: sourceTransactionID,
+                payeeID: payeeID,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
+
+    func createTransferTransactionMessages(
+        draft: TransactionDraft,
+        sourceTransactionID: String,
+        payeeID: String,
+        db: Database,
+        schedulePostingMetadata: SchedulePostingTransferMetadata? = nil,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String, pairedTransactionID: String) {
         guard !draft.accountID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
@@ -331,7 +366,6 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing amount")
         }
 
-        return try queue.read { db in
             let columns = try resolveTransactionRowColumns(db: db)
             guard columns.transferID != nil else {
                 throw LocalFirstError.invalidLocalWrite("missing column transactions.transferred_id")
@@ -368,7 +402,7 @@ extension BudgetDatabase {
                 sortOrder: nil,
                 columns: columns,
                 builder: &builder,
-                scheduleID: draft.scheduleID
+                scheduleID: schedulePostingMetadata?.scheduleID ?? draft.scheduleID
             )
             let pairedMessages = try transactionRowMessages(
                 rowID: pairedTransactionID,
@@ -377,18 +411,18 @@ extension BudgetDatabase {
                 amountMinorUnits: -draft.amountMinorUnits,
                 payeeID: fromPayeeID,
                 categoryID: transferCategories.destination,
-                notes: draft.notes,
-                cleared: false,
+                notes: schedulePostingMetadata.map(\.notes) ?? draft.notes,
+                cleared: schedulePostingMetadata?.cleared ?? false,
                 isParent: false,
                 parentID: nil,
                 isChild: false,
                 transferID: sourceTransactionID,
                 sortOrder: nil,
                 columns: columns,
-                builder: &builder
+                builder: &builder,
+                scheduleID: schedulePostingMetadata?.scheduleID
             )
-            return (sourceMessages + pairedMessages, destinationAccountID, pairedTransactionID)
-        }
+        return (sourceMessages + pairedMessages, destinationAccountID, pairedTransactionID)
     }
 
     func transferDestinationAccountID(payeeID: String, db: Database) throws -> String {

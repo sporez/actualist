@@ -210,7 +210,7 @@ final class TransactionEditorUITests: XCTestCase {
     }
 
     private func launchDemo() -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
@@ -281,7 +281,7 @@ final class TransactionEditorUITests: XCTestCase {
     }
 
     func testEditorLightAppearance() {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
         app.launch()
         let theme = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch

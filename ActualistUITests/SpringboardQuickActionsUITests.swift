@@ -6,9 +6,9 @@ final class SpringboardQuickActionsUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testAppIconMenuListsFixedActionsAndRoutesColdAndWarmLaunches() {
+    func testAppIconMenuListsFixedActionsAndRoutesColdAndWarmLaunches() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["Budget"].waitForExistence(timeout: 15))
@@ -16,7 +16,7 @@ final class SpringboardQuickActionsUITests: XCTestCase {
 
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         springboard.activate()
-        let appIcon = springboard.icons["Actualist"]
+        let appIcon = springboard.icons[try UITestAppIdentity.appDisplayName]
         XCTAssertTrue(appIcon.waitForExistence(timeout: 5))
         appIcon.press(forDuration: 1.5)
 

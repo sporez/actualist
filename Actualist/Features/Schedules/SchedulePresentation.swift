@@ -89,6 +89,7 @@ struct ScheduleDetailPresentation: Hashable, Sendable {
     let payeeIsMissing: Bool
     let automaticPostingText: String
     let unsupportedMessages: [String]
+    let capabilities: ScheduleMutationCapabilities
 }
 
 enum ScheduleListEmptyState: Hashable, Sendable {
@@ -209,7 +210,8 @@ enum SchedulePresentation {
                 if !messages.contains(reason.message) {
                     messages.append(reason.message)
                 }
-            }
+            },
+            capabilities: detail.capabilities
         )
     }
 

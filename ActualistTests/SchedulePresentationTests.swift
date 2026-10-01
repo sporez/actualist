@@ -222,7 +222,11 @@ struct SchedulePresentationTests {
             sortOrder: nil,
             rawConditionsJSON: nil,
             rawActionsJSON: nil,
-            capabilities: .readOnly,
+            capabilities: ScheduleMutationCapabilities(
+                canRead: true, canEditMetadata: false, canEditAccount: false,
+                canEditPayee: false, canEditAmount: false, canEditDate: false,
+                canSkip: false, canComplete: false, canDelete: false, canPost: false
+            ),
             unsupportedReasons: unsupportedReasons,
             occurrenceIdentity: ScheduleOccurrenceIdentity(
                 scheduleID: "schedule",

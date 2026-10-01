@@ -64,8 +64,9 @@ final class ReportExplorerUITests: XCTestCase {
         attachScreenshot(named: "reports-filter-empty-dark-\(layoutName(in: app))", app: app)
 
         let reset = app.buttons["report-filter-reset"]
-        scrollUntilHittable(reset, in: filterScroller(in: app), direction: .up)
+        scrollUntilHittable(reset, in: filterScroller(in: app), direction: .down)
         reset.tap()
+        assertSwitch("report-filter-account-checking", equals: true, fallbackDirection: .down, in: app)
         app.buttons["report-filter-apply"].tap()
 
         XCTAssertTrue(app.navigationBars["Report Filters"].waitForNonExistence(timeout: 5))
@@ -136,7 +137,7 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertFalse(checking.label.contains("Everyday Checking"))
         XCTAssertFalse(app.staticTexts["Everyday Checking"].exists)
         assertSwitch("report-filter-uncategorized", equals: true, in: app)
-        app.navigationBars["Report Filters"].buttons["Cancel"].tap()
+        app.buttons["report-filter-cancel"].tap()
         XCTAssertTrue(app.navigationBars["Report Filters"].waitForNonExistence(timeout: 5))
         attachScreenshot(named: "reports-average-light-privacy-ax-\(layoutName(in: app))", app: app)
 
@@ -167,6 +168,49 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertFalse(app.switches["report-filter-uncategorized"].exists)
         XCTAssertEqual(elements(in: app, identifierPrefix: "report-filter-category-").count, 0)
         attachScreenshot(named: "reports-net-worth-filter-light-privacy-ax-\(layoutName(in: app))", app: app)
+    }
+
+    func testCustomRangeSheetCancelPreservesAndApplyKeepsSelectedDates() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchDemo(screen: "budget")
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+
+        try openReportsFromNativeNavigation(in: app)
+        try openReportCard(named: "This Month", in: app)
+        XCTAssertTrue(app.navigationBars["This Month"].waitForExistence(timeout: 8))
+
+        app.buttons["Report date range"].tap()
+        app.buttons["Last 3 Months"].tap()
+        XCTAssertTrue(app.staticTexts["Last 3 Months"].waitForExistence(timeout: 8))
+
+        openCustomRange(in: app)
+        let startPicker = app.datePickers["report-custom-range-start"].buttons["Date Picker"]
+        let endPicker = app.datePickers["report-custom-range-end"].buttons["Date Picker"]
+        XCTAssertTrue(startPicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(endPicker.waitForExistence(timeout: 5))
+        attachScreenshot(named: "reports-custom-range-dark-\(layoutName(in: app))", app: app)
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "custom-range-native-date-controls"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        let startDateValue = try XCTUnwrap(startPicker.value as? String)
+        let endDateValue = try XCTUnwrap(endPicker.value as? String)
+        XCTAssertFalse(startDateValue.isEmpty)
+        XCTAssertFalse(endDateValue.isEmpty)
+        app.buttons["report-custom-range-cancel"].tap()
+        XCTAssertTrue(app.navigationBars["Custom Range"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Last 3 Months"].waitForExistence(timeout: 5))
+
+        openCustomRange(in: app)
+        XCTAssertEqual(startPicker.value as? String, startDateValue)
+        XCTAssertEqual(endPicker.value as? String, endDateValue)
+        app.buttons["report-custom-range-apply"].tap()
+
+        XCTAssertTrue(app.navigationBars["Custom Range"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Custom Range"].waitForExistence(timeout: 8))
     }
 
     private enum ScrollDirection {
@@ -297,6 +341,16 @@ final class ReportExplorerUITests: XCTestCase {
         filters.tap()
         XCTAssertTrue(app.navigationBars["Report Filters"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["report-filter-sheet"].exists)
+        XCTAssertTrue(app.buttons["report-filter-cancel"].waitForExistence(timeout: 5))
+    }
+
+    private func openCustomRange(in app: XCUIApplication) {
+        app.buttons["Report date range"].tap()
+        app.buttons["Custom Range…"].tap()
+        XCTAssertTrue(app.navigationBars["Custom Range"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["report-custom-range-sheet"].exists)
+        XCTAssertTrue(app.buttons["report-custom-range-cancel"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["report-custom-range-apply"].waitForExistence(timeout: 5))
     }
 
     private func filterNoneButtons(in app: XCUIApplication) throws -> [XCUIElement] {
@@ -369,10 +423,6 @@ final class ReportExplorerUITests: XCTestCase {
 
     private func filterScroller(in app: XCUIApplication) -> XCUIElement {
         let sheet = app.descendants(matching: .any)["report-filter-sheet"]
-        if let form = sheet.descendants(matching: .collectionView)
-            .allElementsBoundByIndex.first(where: { $0.isHittable }) {
-            return form
-        }
         let scroller = sheet.descendants(matching: .scrollView).firstMatch
         XCTAssertTrue(scroller.isHittable)
         return scroller
@@ -467,7 +517,7 @@ final class ReportExplorerUITests: XCTestCase {
         replaceDemo: Bool = false,
         dynamicType: String? = nil
     ) -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")

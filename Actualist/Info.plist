@@ -4,14 +4,18 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.sporez.actualist.transactions.refresh</string>
+		<string>$(ACTUALIST_APP_IDENTIFIER).transactions.refresh</string>
 	</array>
+	<key>ActualistAppIdentifier</key>
+	<string>$(ACTUALIST_APP_IDENTIFIER)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(ACTUALIST_APP_DISPLAY_NAME)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -26,10 +30,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>$(PRODUCT_BUNDLE_IDENTIFIER).openid</string>
+			<string>$(ACTUALIST_APP_IDENTIFIER).openid</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.sporez.actualist</string>
+				<string>$(ACTUALIST_APP_IDENTIFIER)</string>
 			</array>
 		</dict>
 	</array>
@@ -63,7 +67,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Add Expense</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.sporez.actualist.quick-action.add-expense</string>
+			<string>$(ACTUALIST_APP_IDENTIFIER).quick-action.add-expense</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
@@ -71,7 +75,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Budget</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.sporez.actualist.quick-action.budget</string>
+			<string>$(ACTUALIST_APP_IDENTIFIER).quick-action.budget</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
@@ -79,7 +83,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Spending</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.sporez.actualist.quick-action.spending</string>
+			<string>$(ACTUALIST_APP_IDENTIFIER).quick-action.spending</string>
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemIconSymbolName</key>
@@ -87,7 +91,7 @@
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>Accounts</string>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.sporez.actualist.quick-action.accounts</string>
+			<string>$(ACTUALIST_APP_IDENTIFIER).quick-action.accounts</string>
 		</dict>
 	</array>
 	<key>UIBackgroundModes</key>

@@ -11,6 +11,9 @@ struct SchedulesSheet: View {
                 if let budgetID = appState.settings.selectedBudgetID {
                     SchedulesView(
                         repository: appState.localFirstStore,
+                        mutationRepository: appState.localFirstStore,
+                        postingRepository: appState.localFirstStore,
+                        transactionRepository: appState.transactionRepository,
                         budgetID: budgetID,
                         budgetSessionGeneration: appState.localFirstStore.budgetSessionGeneration,
                         currency: appState.localFirstStore.budgetCurrency(budgetID: budgetID),
@@ -34,6 +37,7 @@ struct SchedulesSheet: View {
         .frame(idealWidth: 580)
         .presentationDetents([.large])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
+        .presentationBackground(ActualistTheme.background)
         .accessibilityIdentifier("schedules-sheet")
         .onChange(of: appState.settings.selectedBudgetID) { dismiss() }
     }

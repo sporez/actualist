@@ -48,7 +48,9 @@ struct SystemKeychainBackend: KeychainBackend, Sendable {
 }
 
 struct KeychainStore: Sendable {
-    static let actualist = KeychainStore(service: "com.sporez.actualist", account: "actual-sync-token")
+    static let actualist = KeychainStore(
+        service: AppInstallationIdentity.current.keychainService, account: "actual-sync-token"
+    )
     /// Device-wide SimpleFIN bridge access URL account (device-claim
     /// fallback, bank-sync plan Phase 5). Not budget-scoped: it survives
     /// budget switches and is only wiped with local data (erase) or an

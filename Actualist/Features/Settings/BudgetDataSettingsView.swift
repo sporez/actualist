@@ -1,12 +1,14 @@
 import SwiftUI
 
 /// Budget & Data settings: selected budget, change budget, payees, encryption
-/// status, reimport, Bank Sync, default account, and account order.
+/// status, reimport, portable export, Bank Sync, default account, and account
+/// order.
 struct BudgetDataSettingsView: View {
     @Environment(AppState.self) private var appState
 
     @State private var viewModel = SettingsViewModel()
     @State private var carryoverViewModel = BulkCategoryCarryoverViewModel()
+    @State private var exportWorkflow = PortableBudgetExportWorkflow()
     @State private var isBudgetPickerPresented = false
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
@@ -132,6 +134,8 @@ struct BudgetDataSettingsView: View {
                 .settingsSectionChrome()
             }
 
+            exportSection
+
             Section("Accounts") {
                 Button {
                     isAccountOrderPresented = true
@@ -205,6 +209,7 @@ struct BudgetDataSettingsView: View {
         }
         .task(id: appState.settings.selectedBudgetID) {
             isCarryoverConfirmationPresented = false
+            exportWorkflow.reset()
             guard let budgetID = appState.settings.selectedBudgetID else {
                 carryoverViewModel.reset()
                 return
@@ -239,6 +244,61 @@ struct BudgetDataSettingsView: View {
         } message: {
             Text("This budget's encryption settings changed on the server. Enter its current encryption password to download it again.")
         }
+    }
+
+    /// Export is non-destructive and stays its own section, visually and
+    /// semantically separate from the destructive Reimport row above. The
+    /// workflow owns the export; this only renders its state.
+    @ViewBuilder
+    private var exportSection: some View {
+        Section {
+            switch exportWorkflow.state {
+            case .idle:
+                Button {
+                    Task { await exportBudget() }
+                } label: {
+                    SettingsActionLabel(title: "Export Budget", systemImage: "square.and.arrow.up")
+                }
+                .disabled(appState.settings.selectedBudgetID == nil)
+            case .exporting:
+                LabeledContent("Exporting Budget") {
+                    ProgressView()
+                }
+            case .ready(let archiveURL):
+                ShareLink(
+                    item: archiveURL,
+                    preview: SharePreview(
+                        archiveURL.lastPathComponent,
+                        image: Image(systemName: "doc.zipper")
+                    )
+                ) {
+                    SettingsActionLabel(title: "Share Budget ZIP…", systemImage: "square.and.arrow.up")
+                }
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        appState.beginAppInitiatedSystemUIPresentation()
+                    }
+                )
+            case .failed(let message):
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+
+                Button {
+                    Task { await exportBudget() }
+                } label: {
+                    SettingsActionLabel(title: "Try Again", systemImage: "arrow.clockwise")
+                }
+                .disabled(appState.settings.selectedBudgetID == nil)
+            }
+        } header: {
+            Text("Export")
+        } footer: {
+            Text("Saves the open budget as a portable ZIP file you can share or import elsewhere. Your server data is not changed.")
+                .font(.caption)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+        .settingsSectionChrome()
     }
 
     private var allCategoriesCarryoverSelection: Binding<Bool> {
@@ -340,6 +400,11 @@ struct BudgetDataSettingsView: View {
         }
         let noun = pendingCount == 1 ? "change" : "changes"
         return "\(base) Warning: \(pendingCount) local \(noun) have not been confirmed by the server and will be permanently lost."
+    }
+
+    private func exportBudget() async {
+        guard let budgetID = appState.settings.selectedBudgetID else { return }
+        await exportWorkflow.export(budgetID: budgetID, store: appState.localFirstStore)
     }
 
     private func reimport(encryptionPassword: String? = nil) async {

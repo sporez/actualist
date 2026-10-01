@@ -33,11 +33,11 @@ struct WidgetQuickActionsTests {
     }
 
     @Test(arguments: [
-        "com.sporez.actualist://action/unknown",
-        "com.sporez.actualist://action",
-        "com.sporez.actualist://action/budget/extra",
-        "com.sporez.actualist://action/budget?payload=anything",
-        "com.sporez.actualist://action/budget#extra",
+        "\(AppInstallationIdentity.current.urlScheme)://action/unknown",
+        "\(AppInstallationIdentity.current.urlScheme)://action",
+        "\(AppInstallationIdentity.current.urlScheme)://action/budget/extra",
+        "\(AppInstallationIdentity.current.urlScheme)://action/budget?payload=anything",
+        "\(AppInstallationIdentity.current.urlScheme)://action/budget#extra",
         "https://action/budget"
     ])
     func malformedActionLinksAreIgnored(raw: String) throws {

@@ -106,6 +106,40 @@ extension BudgetDatabase {
                 )).sorted()
             )
 
+        case .transactionBatch(let batch):
+            let before = try transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
+            guard before.count == Set(batch.snapshotTransactionIDs).count else {
+                throw LocalFirstError.invalidLocalWrite("a transaction in the batch changed before action logging")
+            }
+            let summary = TransactionBatchBudgetAction(
+                operation: batch.operation,
+                selectedCount: batch.selectedTransactionIDs.count,
+                changedCount: Set(batch.affectedTransactionIDs).count,
+                clearTarget: batch.clearTarget,
+                categoryID: batch.categoryID
+            )
+            return ActionLogFacts(
+                kind: .transactionBatch,
+                month: "",
+                summary: .transactionBatch(summary),
+                inverse: .transactionBatch(TransactionBatchTransactionInverse(
+                    operation: batch.operation,
+                    selectedTransactionIDs: batch.selectedTransactionIDs,
+                    beforeSnapshots: before,
+                    afterSnapshots: before,
+                    learning: .empty
+                )),
+                affectedCategoryIDs: Array(Set(
+                    before.compactMap(\.categoryID) + [batch.categoryID].compactMap { $0 }
+                )).sorted()
+            )
+
+        case .transactionDuplicate(let duplicate):
+            return try captureTransactionDuplicateActionLogFacts(duplicate, db: db)
+
+        case .transactionMerge(let merge):
+            return try captureTransactionMergeActionLogFacts(merge, db: db)
+
         case .assign, .move, .template, .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             throw LocalFirstError.invalidLocalWrite("unexpected budget action in transaction capture")
         }
@@ -116,10 +150,31 @@ extension BudgetDatabase {
         descriptor: BudgetActionDescriptor,
         db: Database
     ) throws -> ActionLogFacts {
-        guard case .editTransaction(let edit) = descriptor,
-              case .editTransaction(var inverse) = facts.inverse else {
-            return facts
+        switch descriptor {
+        case .transactionDuplicate, .transactionMerge:
+            return try completeTransactionCommandActionLogFacts(
+                facts,
+                descriptor: descriptor,
+                db: db
+            )
+        case .assign, .move, .template, .createTransaction, .editTransaction,
+                .deleteTransaction, .categorize, .transactionBatch,
+                .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            break
         }
+        if case .transactionBatch(let batch) = descriptor,
+           case .transactionBatch(var inverse) = facts.inverse {
+            let after = try transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
+            guard after.count == Set(batch.snapshotTransactionIDs).count else {
+                throw LocalFirstError.invalidLocalWrite("a transaction disappeared while recording the batch")
+            }
+            inverse.afterSnapshots = after
+            var completed = facts
+            completed.inverse = .transactionBatch(inverse)
+            return completed
+        }
+        guard case .editTransaction(let edit) = descriptor,
+              case .editTransaction(var inverse) = facts.inverse else { return facts }
         guard let primaryAfter = try transactionUndoSnapshot(id: edit.transactionID, db: db) else {
             return facts
         }
@@ -336,6 +391,20 @@ extension BudgetDatabase {
                 )
             }
             return messages
+        case .restoreBatchTransactions(let snapshots, let learning):
+            let columns = try resolveTransactionRowColumns(db: db)
+            var messages: [ActualSyncDecodedMessage] = []
+            for snapshot in snapshots {
+                messages += try transactionBatchRestoreMessages(
+                    snapshot,
+                    columns: columns,
+                    builder: &builder
+                )
+            }
+            messages += try learningUndoMessages(learning, db: db, builder: &builder)
+            return messages
+        case .tombstoneDuplicateTransactions, .restoreMergedTransactions:
+            return try transactionCommandUndoMessages(plan: plan, db: db, builder: &builder)
         case .restoreCategories(let items, let learning):
             var messages: [ActualSyncDecodedMessage] = []
             for item in items {
@@ -357,8 +426,9 @@ extension BudgetDatabase {
         record: BudgetActionRecord,
         plan: BudgetActionUndoPlan
     ) -> [BudgetActionUndoPreview.TransactionLine] {
-        switch (record.summary, plan) {
-        case (.createTransaction(let create), .tombstoneTransactions):
+        switch record.summary {
+        case .createTransaction(let create):
+            guard case .tombstoneTransactions = plan else { return [] }
             return [
                 BudgetActionUndoPreview.TransactionLine(
                     id: record.id,
@@ -369,7 +439,8 @@ extension BudgetDatabase {
                     effect: .delete
                 )
             ]
-        case (.deleteTransaction(let delete), .unTombstoneTransactions):
+        case .deleteTransaction(let delete):
+            guard case .unTombstoneTransactions = plan else { return [] }
             return [
                 BudgetActionUndoPreview.TransactionLine(
                     id: record.id,
@@ -380,7 +451,8 @@ extension BudgetDatabase {
                     effect: .restore
                 )
             ]
-        case (.editTransaction(let edit), .restoreSnapshots):
+        case .editTransaction(let edit):
+            guard case .restoreSnapshots = plan else { return [] }
             return [
                 BudgetActionUndoPreview.TransactionLine(
                     id: record.id,
@@ -391,7 +463,8 @@ extension BudgetDatabase {
                     effect: .edit
                 )
             ]
-        case (.categorize, .restoreCategories(let items, _)):
+        case .categorize:
+            guard case .restoreCategories(let items, _) = plan else { return [] }
             return items.map { item in
                 BudgetActionUndoPreview.TransactionLine(
                     id: item.transactionID,
@@ -402,7 +475,38 @@ extension BudgetDatabase {
                     effect: .recategorize
                 )
             }
-        default:
+        case .transactionBatch(let batch):
+            guard case .restoreBatchTransactions = plan else { return [] }
+            guard case .transactionBatch(let inverse) = record.inverse else { return [] }
+            let afterByID = Dictionary(uniqueKeysWithValues: inverse.afterSnapshots.map { ($0.id, $0) })
+            let beforeByID = Dictionary(uniqueKeysWithValues: inverse.beforeSnapshots.map { ($0.id, $0) })
+            return inverse.selectedTransactionIDs.compactMap { id in
+                guard let before = beforeByID[id], let after = afterByID[id] else { return nil }
+                let effect: BudgetActionUndoPreview.TransactionLine.Effect
+                switch batch.operation {
+                case .clear: effect = .cleared
+                case .categorize: effect = .recategorize
+                case .delete: effect = .restore
+                }
+                return BudgetActionUndoPreview.TransactionLine(
+                    id: id,
+                    payeeName: nil,
+                    amount: before.amount,
+                    currentCategoryID: after.categoryID,
+                    proposedCategoryID: before.categoryID,
+                    effect: effect,
+                    currentCleared: after.cleared,
+                    proposedCleared: before.cleared
+                )
+            }
+        case .transactionDuplicate:
+            guard case .tombstoneDuplicateTransactions = plan else { return [] }
+            return transactionCommandUndoPreviewLines(record: record, plan: plan)
+        case .transactionMerge:
+            guard case .restoreMergedTransactions = plan else { return [] }
+            return transactionCommandUndoPreviewLines(record: record, plan: plan)
+        case .assign, .move, .template, .payee, .rule, .account,
+                .carryover, .learningPref, .transactionMetadata:
             return []
         }
     }

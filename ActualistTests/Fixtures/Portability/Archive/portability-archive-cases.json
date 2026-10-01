@@ -1,0 +1,88 @@
+{
+  "source": {
+    "product": "Actual",
+    "version": "26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+    "contract": "packages/loot-core/src/server/importers/actual.ts",
+    "portableEntries": ["db.sqlite", "metadata.json"]
+  },
+  "scope": "Declarative synthetic archive cases; materialize only from a generated synthetic SQLite fixture, never user/demo budget bytes.",
+  "cases": [
+    {
+      "id": "root-co-located-pair",
+      "layout": ["db.sqlite", "metadata.json"],
+      "expected": "accept"
+    },
+    {
+      "id": "nested-co-located-pair",
+      "layout": ["bundle/db.sqlite", "bundle/metadata.json"],
+      "expected": "accept"
+    },
+    {
+      "id": "missing-database",
+      "layout": ["metadata.json"],
+      "expected": "reject-before-install"
+    },
+    {
+      "id": "missing-metadata",
+      "layout": ["db.sqlite"],
+      "expected": "reject-before-install"
+    },
+    {
+      "id": "split-directory-pair",
+      "layout": ["one/db.sqlite", "two/metadata.json"],
+      "expected": "reject-before-install"
+    },
+    {
+      "id": "duplicate-database-candidates",
+      "layout": ["db.sqlite", "metadata.json", "other/db.sqlite"],
+      "expected": "reject-ambiguous-before-install"
+    },
+    {
+      "id": "duplicate-root-pair",
+      "layout": ["db.sqlite", "metadata.json", "copy/db.sqlite", "copy/metadata.json"],
+      "expected": "reject-ambiguous-before-install"
+    },
+    {
+      "id": "parent-traversal-entry",
+      "mutation": "add-entry",
+      "entryName": "../outside.txt",
+      "expected": "reject-before-extraction"
+    },
+    {
+      "id": "absolute-entry",
+      "mutation": "add-entry",
+      "entryName": "/outside.txt",
+      "expected": "reject-before-extraction"
+    },
+    {
+      "id": "backslash-traversal-entry",
+      "mutation": "add-entry",
+      "entryName": "..\\outside.txt",
+      "expected": "reject-before-extraction"
+    },
+    {
+      "id": "symbolic-link-entry",
+      "mutation": "add-symlink-entry",
+      "entryName": "bundle/link",
+      "expected": "reject-before-extraction"
+    },
+    {
+      "id": "truncated-archive",
+      "mutation": "truncate-archive",
+      "expected": "reject-before-install"
+    }
+  ],
+  "runtimeGeneratedCases": [
+    "compressed/expanded byte and entry-count limits",
+    "checksum/integrity failure",
+    "malformed and oversized metadata",
+    "unsupported newer schema and named supported migration",
+    "cleanup and no partial install after each failure boundary"
+  ],
+  "security": {
+    "syntheticBudgetDataOnly": true,
+    "noServerOrCredentialIdentityInFixture": true,
+    "noKeyIDOrEncryptionPassword": true
+  }
+}

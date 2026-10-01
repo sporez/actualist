@@ -1,0 +1,19 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.00000,0.36000,0.47000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : false,
+          "image-name" : "dev-envelope.png",
+          "name" : "Development Envelope"
+        }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

@@ -1,21 +1,5 @@
 import SwiftUI
 
-enum AccountTransactionsPresentation {
-    case navigation
-    case categoryInspector(onClose: @MainActor () -> Void)
-
-    var isCategoryInspector: Bool {
-        if case .categoryInspector = self { true } else { false }
-    }
-
-    @MainActor
-    func closeInspector() {
-        if case .categoryInspector(let onClose) = self {
-            onClose()
-        }
-    }
-}
-
 struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
     @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
@@ -38,6 +22,11 @@ struct AccountTransactionsView: View {
     @State private var viewModel: AccountTransactionsViewModel
     @State private var reconciliationCoordinator = AccountReconciliationCoordinator()
     @State private var lifecycleCoordinator = AccountLifecycleCoordinator()
+    @State private var transactionFilterPresentation = TransactionFilterPresentation()
+    @State private var transactionBatchPresentation = TransactionBatchPresentation()
+    @State private var scheduleConversionCoordinator = TransactionScheduleConversionCoordinator()
+    @State private var isCSVExportPresented = false
+    @State private var isCSVImportPresented = false
 
     init(account: ActualAccount) {
         self.scope = .account(account)
@@ -94,6 +83,30 @@ struct AccountTransactionsView: View {
         appState.transactionRepository
     }
 
+    private var transactionBatchFeedSnapshot: TransactionBatchFeedSnapshot? {
+        viewModel.transactionBatchFeedSnapshot(
+            budgetID: budgetID,
+            sessionGeneration: appState.localFirstStore.budgetSessionGeneration,
+            repository: transactionRepository
+        )
+    }
+
+    private var presentTransactionFilters: () -> Void {
+        {
+            transactionFilterPresentation.present(
+                viewModel: viewModel,
+                budgetID: budgetID,
+                repository: transactionRepository
+            )
+        }
+    }
+
+    private var presentSavedTransactionFilters: () -> Void {
+        {
+            transactionFilterPresentation.savedFilters.present(viewModel: viewModel, appState: appState)
+        }
+    }
+
     private var accountRepository: any AccountRepositoryProtocol {
         appState.accountRepository
     }
@@ -144,18 +157,24 @@ struct AccountTransactionsView: View {
                 }
             }
 
-            if scope.categoryDetails == nil, viewModel.statusFilter != .all {
-                Section {
-                    TransactionStatusFilterIndicator(selection: viewModel.statusFilter) {
+            if scope.categoryDetails == nil {
+                TransactionActiveFilterSections(
+                    status: viewModel.statusFilter,
+                    structuredConditionCount: viewModel.activeFeedQuery.conditions.count,
+                    onClearStatus: {
                         Task {
                             await viewModel.selectFilter(.all, budgetID: budgetID,
                                                          repository: transactionRepository)
                         }
+                    },
+                    onClearStructured: {
+                        Task {
+                            await viewModel.applyStructuredConditions(
+                                [], join: .and, budgetID: budgetID, repository: transactionRepository
+                            )
+                        }
                     }
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                }
+                )
             }
 
             if let presentation = reconciliationCoordinator.panelPresentation(
@@ -169,7 +188,53 @@ struct AccountTransactionsView: View {
                 }
             }
 
-            transactionList(displayState)
+            AccountTransactionFeedRows(
+                groups: displayState.groups,
+                scope: scope,
+                isSelectionMode: transactionBatchPresentation.isSelectionMode,
+                selectedIdentities: transactionBatchPresentation.selection.selectedIdentities,
+                selectionFailureMessage: transactionBatchPresentation.selectionFailureMessage,
+                isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
+                deletingTransactionID: viewModel.deletingTransactionID,
+                deletePresentation: deletePresentationBinding,
+                onOpenTransaction: { transaction in
+                    viewModel.showEditor(for: transaction, using: appState, presenter: transactionPresenter)
+                },
+                onToggleSelection: { transactionBatchPresentation.toggle($0) },
+                onConvertToSchedule: { entryPoint in
+                    guard let budgetID else { return }
+                    scheduleConversionCoordinator.beginReview(
+                        budgetID: budgetID,
+                        expectedGeneration: appState.localFirstStore.budgetSessionGeneration,
+                        entryPoint: entryPoint,
+                        currency: budgetCurrency,
+                        isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+                        repository: appState.localFirstStore
+                    )
+                },
+                onRequestDelete: { transaction in
+                    Task {
+                        await viewModel.requestDelete(
+                            transaction,
+                            budgetID: budgetID,
+                            repository: transactionRepository
+                        )
+                    }
+                },
+                onConfirmDelete: { transaction in
+                    let authorization = viewModel.deletePresentation?.reconciliationAuthorization
+                    Task {
+                        await viewModel.delete(
+                            transaction,
+                            budgetID: budgetID,
+                            repository: transactionRepository,
+                            reconciliationAuthorization: authorization,
+                            onChanged: onChanged
+                        )
+                    }
+                }
+            )
 
             if viewModel.isSearchActive {
                 searchFooter(displayState)
@@ -221,70 +286,82 @@ struct AccountTransactionsView: View {
         }
         .toolbar {
             if !presentation.isCategoryInspector {
-                if scope.categoryDetails != nil {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "xmark")
-                        }
-                        .accessibilityLabel("Close Category Details")
+                if transactionBatchPresentation.isBatchFlowActive {
+                    if transactionBatchPresentation.isSelectionMode {
+                        AccountTransactionsSelectionToolbar(
+                            batchPresentation: transactionBatchPresentation,
+                            feedSnapshot: transactionBatchFeedSnapshot,
+                            budgetID: budgetID,
+                            transactionRepository: transactionRepository,
+                            appState: appState
+                        )
                     }
-                }
-
-                if scope.account != nil {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            if let account = scope.account {
-                                AccountLifecycleMenu(accountID: account.id, coordinator: lifecycleCoordinator)
-                            }
+                } else {
+                    if scope.categoryDetails != nil {
+                        ToolbarItem(placement: .topBarLeading) {
                             Button {
-                                startReconciliation()
+                                dismiss()
                             } label: {
-                                Label("Reconcile", systemImage: "checkmark.seal")
+                                Image(systemName: "xmark")
                             }
-                            TransactionStatusFilterMenu(selection: viewModel.statusFilter, showsTitle: true) { filter in
-                                Task {
-                                    await viewModel.selectFilter(filter, budgetID: budgetID,
-                                                                 repository: transactionRepository)
+                            .accessibilityLabel("Close Category Details")
+                        }
+                    }
+
+                    if let account = scope.account {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            AccountTransactionActionsMenu(
+                                accountID: account.id,
+                                lifecycleCoordinator: lifecycleCoordinator,
+                                viewModel: viewModel,
+                                budgetID: budgetID,
+                                repository: transactionRepository,
+                                onReconcile: startReconciliation,
+                                onMoreFilters: presentTransactionFilters,
+                                onSavedFilters: presentSavedTransactionFilters,
+                                onSelectTransactions: {
+                                    transactionBatchPresentation.enter(context: transactionBatchFeedSnapshot?.context)
+                                },
+                                onExportCSV: { isCSVExportPresented = true },
+                                onImportCSV: { isCSVImportPresented = true }
+                            )
+                        }
+                    } else if scope.categoryDetails == nil {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            TransactionFeedActionsMenu(
+                                viewModel: viewModel,
+                                budgetID: budgetID,
+                                repository: transactionRepository,
+                                onMoreFilters: presentTransactionFilters,
+                                onSavedFilters: presentSavedTransactionFilters,
+                                onSelectTransactions: {
+                                    transactionBatchPresentation.enter(context: transactionBatchFeedSnapshot?.context)
                                 }
-                            }
+                            )
+                        }
+                    }
+
+                    if scope.categoryDetails == nil {
+                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                    }
+
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button {
+                            showSearch()
                         } label: {
-                            Image(systemName: "ellipsis")
+                            Image(systemName: "magnifyingglass")
                         }
-                        .accessibilityLabel("Account Actions")
-                    }
-                } else if scope.categoryDetails == nil {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        TransactionStatusFilterMenu(selection: viewModel.statusFilter) { filter in
-                            Task {
-                                await viewModel.selectFilter(filter, budgetID: budgetID,
-                                                             repository: transactionRepository)
-                            }
+                        .actualistToolbarGlassButton()
+                        .accessibilityLabel("Search Transactions")
+
+                        Button {
+                            viewModel.showCreateEditor(using: appState, presenter: transactionPresenter)
+                        } label: {
+                            Image(systemName: "plus")
                         }
+                        .actualistToolbarGlassButton()
+                        .accessibilityLabel("Add Transaction")
                     }
-                }
-
-                if scope.categoryDetails == nil {
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                }
-
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        showSearch()
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .actualistToolbarGlassButton()
-                    .accessibilityLabel("Search Transactions")
-
-                    Button {
-                        viewModel.showCreateEditor(using: appState, presenter: transactionPresenter)
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .actualistToolbarGlassButton()
-                    .accessibilityLabel("Add Transaction")
                 }
             }
         }
@@ -329,6 +406,7 @@ struct AccountTransactionsView: View {
         .onDisappear {
             viewModel.feedDidDisappear(editorIsPresented: transactionPresenter.presentation != nil)
             reconciliationCoordinator.cancel()
+            transactionBatchPresentation.feedDidDisappear()
             viewModel.clearPendingNewTransactions(budgetID: budgetID) { budgetID, accountID in
                 if let accountID {
                     appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: accountID)
@@ -348,6 +426,53 @@ struct AccountTransactionsView: View {
             .appSwitcherPrivacyProtected(using: appState)
         }
         .modifier(AccountLifecyclePresentationHost(coordinator: lifecycleCoordinator))
+        .modifier(TransactionFilterPresentationHost(presentation: transactionFilterPresentation))
+        .modifier(TransactionScheduleConversionPresentationHost(
+            coordinator: scheduleConversionCoordinator,
+            onCurrentSessionCommitted: {
+                appState.recordLocalDataMutation()
+                onChanged()
+            }
+        ))
+        .modifier(TransactionCSVExportPresentationHost(
+            isPresented: $isCSVExportPresented,
+            accountID: scope.account?.id
+        ))
+        .modifier(TransactionCSVImportPresentationHost(
+            isPresented: $isCSVImportPresented,
+            accountID: scope.account?.id
+        ))
+        .modifier(TransactionBatchPresentationHost(
+            presentation: transactionBatchPresentation,
+            selectedBudgetID: budgetID,
+            sessionGeneration: appState.localFirstStore.budgetSessionGeneration,
+            context: transactionBatchFeedSnapshot?.context,
+            feedSnapshot: {
+                viewModel.transactionBatchFeedSnapshot(
+                    budgetID: budgetID,
+                    sessionGeneration: appState.localFirstStore.budgetSessionGeneration,
+                    repository: transactionRepository
+                )
+            },
+            batchRepository: appState.localFirstStore,
+            onCommitted: { outcome in
+                guard outcome.sessionCurrent else { return }
+                appState.recordLocalDataMutation()
+                onChanged()
+            },
+            duplicateRepository: appState.localFirstStore,
+            mergeRepository: appState.localFirstStore,
+            onDuplicateCommitted: { outcome in
+                guard outcome.sessionCurrent else { return }
+                appState.recordLocalDataMutation()
+                onChanged()
+            },
+            onMergeCommitted: { outcome in
+                guard outcome.sessionCurrent else { return }
+                appState.recordLocalDataMutation()
+                onChanged()
+            }
+        ))
     }
 
     private var deletePresentationBinding: Binding<TransactionDeletePresentation?> {
@@ -365,6 +490,21 @@ struct AccountTransactionsView: View {
                     reconciliationCoordinator.targetSheetDismissed()
                 }
             }
+        )
+    }
+
+    private func header(_ displayState: AccountTransactionsDisplayState) -> some View {
+        AccountTransactionsSummaryView(
+            scope: scope,
+            displayState: displayState,
+            categoryCarryoverIsEnabled: categoryCarryoverIsEnabled,
+            categoryNotePresentation: categoryNotePresentation,
+            categoryCarryoverIsUpdating: categoryCarryoverIsUpdating,
+            canEditCategoryCarryover: canEditCategoryCarryover,
+            categoryCarryoverErrorMessage: categoryCarryoverErrorMessage,
+            onCategoryCarryoverChanged: onCategoryCarryoverChanged,
+            templateDoor: templateDoor,
+            onOpenTemplates: onOpenTemplates
         )
     }
 
@@ -404,20 +544,6 @@ struct AccountTransactionsView: View {
         .overlay(alignment: .bottom) {
             Divider().overlay(ActualistTheme.separator)
         }
-    }
-    private func header(_ displayState: AccountTransactionsDisplayState) -> some View {
-        AccountTransactionsSummaryView(
-            scope: scope,
-            displayState: displayState,
-            categoryCarryoverIsEnabled: categoryCarryoverIsEnabled,
-            categoryNotePresentation: categoryNotePresentation,
-            categoryCarryoverIsUpdating: categoryCarryoverIsUpdating,
-            canEditCategoryCarryover: canEditCategoryCarryover,
-            categoryCarryoverErrorMessage: categoryCarryoverErrorMessage,
-            onCategoryCarryoverChanged: onCategoryCarryoverChanged,
-            templateDoor: templateDoor,
-            onOpenTemplates: onOpenTemplates
-        )
     }
 
     private func reconciliationPanel(
@@ -502,31 +628,6 @@ struct AccountTransactionsView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 2)
-    }
-
-    private func transactionList(_ displayState: AccountTransactionsDisplayState) -> some View {
-        ForEach(displayState.groups) { group in
-            Text(group.title)
-                .font(ActualistTypography.sectionTitle(for: density))
-                .foregroundStyle(ActualistTheme.primaryText)
-                .textCase(nil)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
-                .padding(.horizontal, density.rowHorizontalPadding)
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-
-            ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
-                transactionButton(
-                    for: row,
-                    showsBottomSeparator: index < group.rows.count - 1
-                )
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(ActualistTheme.surface)
-            }
-        }
     }
 
     @ViewBuilder
@@ -640,74 +741,6 @@ struct AccountTransactionsView: View {
         }
     }
 
-    private func transactionButton(
-        for row: AccountTransactionRowPresentation,
-        showsBottomSeparator: Bool
-    ) -> some View {
-        Button {
-            viewModel.showEditor(
-                for: row.transaction,
-                using: appState,
-                presenter: transactionPresenter
-            )
-        } label: {
-            TransactionRow(
-                transaction: row.transaction,
-                semantics: row.semantics,
-                accountName: row.accountName,
-                isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
-                isNew: row.isNew,
-                showsBottomSeparator: showsBottomSeparator
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.deletingTransactionID == row.transaction.rowID)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                Task {
-                    await viewModel.requestDelete(
-                        row.transaction,
-                        budgetID: budgetID,
-                        repository: transactionRepository
-                    )
-                }
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            .tint(ActualistTheme.danger)
-            .disabled(row.transaction.id == nil || viewModel.deletingTransactionID != nil)
-        }
-        .confirmationDialog(
-            viewModel.deletePresentation?.confirmationTitle ?? "Delete Transaction?",
-            isPresented: deletePresentationBinding.isPresented(matching: row.id),
-            titleVisibility: .visible
-        ) {
-            Button(
-                viewModel.deletePresentation?.actionTitle ?? "Delete Transaction",
-                role: .destructive
-            ) {
-                let authorization = viewModel.deletePresentation?.reconciliationAuthorization
-                Task {
-                    await viewModel.delete(
-                        row.transaction,
-                        budgetID: budgetID,
-                        repository: transactionRepository,
-                        reconciliationAuthorization: authorization,
-                        onChanged: onChanged
-                    )
-                }
-            }
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                viewModel.deletePresentation?.message
-                    ?? "Delete \(row.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription)."
-            )
-        }
-    }
-
     private func showSearch() {
         withAnimation(.snappy(duration: 0.22)) {
             isSearchFieldVisible = true
@@ -748,21 +781,5 @@ struct AccountTransactionsView: View {
     private func reconciliationDidMutate() {
         appState.recordLocalDataMutation()
         onChanged()
-    }
-}
-
-private struct TransactionNavigationTitleModifier: ViewModifier {
-    let title: String
-    let isVisible: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isVisible {
-            content
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-        } else {
-            content
-        }
     }
 }

@@ -309,7 +309,7 @@ enum RuleSplitActionExecutor {
             id: context.evaluationID,
             amount: context.amount,
             account: context.accountID,
-            date: dateString(context.date),
+            date: ActualDateOnly.dayID(from: context.date, timeZone: context.dateTimeZone),
             category: context.categoryID,
             payee: context.payeeID,
             notes: context.notes,
@@ -328,7 +328,7 @@ enum RuleSplitActionExecutor {
         context.accountID = record.account ?? context.accountID
         context.accountName = context.accountNames[context.accountID] ?? context.accountName
         context.accountIsOffBudget = context.offBudgetAccountIDs.contains(context.accountID)
-        if let date = record.date.flatMap(dateValue) {
+        if let date = record.date.flatMap({ ActualDateOnly.date(from: $0, timeZone: context.dateTimeZone) }) {
             context.date = date
         }
         context.categoryID = record.category
@@ -376,25 +376,7 @@ enum RuleSplitActionExecutor {
                 "balance": .number(Double(context.balance)),
             ],
             balanceOfPrefetch: context.balanceOfPrefetch,
-            today: dateString(Date())
+            today: ActualDateOnly.dayID(from: Date(), timeZone: ActualDateOnly.utc)
         )
     }
-
-    private static func dateString(_ date: Date) -> String {
-        dateFormatter.string(from: date)
-    }
-
-    private static func dateValue(_ value: String) -> Date? {
-        dateFormatter.date(from: value)
-    }
-
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
 }

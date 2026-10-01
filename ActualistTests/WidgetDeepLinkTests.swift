@@ -26,14 +26,21 @@ struct WidgetDeepLinkTests {
     }
 
     @Test func rejectsOtherHostsAndMissingParameters() throws {
-        let otherHost = try #require(URL(string: "com.sporez.actualist://account/one?month=2026-07"))
-        let missingMonth = try #require(URL(string: "com.sporez.actualist://category/one"))
+        let scheme = AppInstallationIdentity.current.urlScheme
+        let otherHost = try #require(URL(string: "\(scheme)://account/one?month=2026-07"))
+        let missingMonth = try #require(URL(string: "\(scheme)://category/one"))
         let invalidMonth = try #require(
-            URL(string: "com.sporez.actualist://category/one?month=not-a-month")
+            URL(string: "\(scheme)://category/one?month=not-a-month")
+        )
+        let otherInstallation: AppInstallationIdentity = AppInstallationIdentity.current == .production
+            ? .development : .production
+        let wrongInstallation = try #require(
+            URL(string: "\(otherInstallation.urlScheme)://category/one?month=2026-07")
         )
 
         #expect(WidgetDeepLink.parse(otherHost) == nil)
         #expect(WidgetDeepLink.parse(missingMonth) == nil)
         #expect(WidgetDeepLink.parse(invalidMonth) == nil)
+        #expect(WidgetDeepLink.parse(wrongInstallation) == nil)
     }
 }

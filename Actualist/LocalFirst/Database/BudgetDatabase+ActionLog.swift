@@ -58,6 +58,7 @@ extension BudgetDatabase {
         var inverse: BudgetActionInverse
         var affectedCategoryIDs: [String]
         var modeIdentity: BudgetModeIdentity? = nil
+        var transactionCommandCapture: TransactionCommandActionCapture? = nil
 
         func record(
             id: String,
@@ -219,7 +220,8 @@ extension BudgetDatabase {
                 inverse: .template(template),
                 affectedCategoryIDs: affectedIDs
             )
-        case .createTransaction, .editTransaction, .deleteTransaction, .categorize:
+        case .createTransaction, .editTransaction, .deleteTransaction, .categorize,
+                .transactionBatch, .transactionDuplicate, .transactionMerge:
             return try captureTransactionActionLogFacts(descriptor: descriptor, db: db)
         case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             return try captureMetadataActionLogFacts(descriptor: descriptor, db: db)
@@ -445,7 +447,9 @@ extension BudgetDatabase {
                         entries: entries,
                         block: nil
                     )
-                case .tombstoneTransactions, .unTombstoneTransactions, .restoreSnapshots, .restoreCategories:
+                case .tombstoneTransactions, .unTombstoneTransactions, .restoreSnapshots,
+                        .restoreCategories, .restoreBatchTransactions,
+                        .tombstoneDuplicateTransactions, .restoreMergedTransactions:
                     return BudgetActionUndoPreview(
                         actionID: record.id,
                         month: record.inverse.month,
@@ -474,6 +478,49 @@ extension BudgetDatabase {
             ids: record.inverse.transactionIDs,
             db: db
         )
+        let expectedGraphSnapshots: [TransactionBatchTransactionSnapshot]?
+        switch record.inverse {
+        case .transactionBatch(let batch):
+            expectedGraphSnapshots = batch.afterSnapshots
+        case .transactionDuplicate(let duplicate):
+            guard record.kind == .transactionDuplicate,
+                  case .transactionDuplicate(let summary) = record.summary,
+                  TransactionCommandActionValidation.duplicate(summary: summary, inverse: duplicate) else {
+                return .blocked(.transactionCommandChanged)
+            }
+            expectedGraphSnapshots = duplicate.afterSnapshots
+        case .transactionMerge(let merge):
+            guard record.kind == .transactionMerge,
+                  case .transactionMerge(let summary) = record.summary,
+                  TransactionCommandActionValidation.merge(summary: summary, inverse: merge) else {
+                return .blocked(.transactionCommandChanged)
+            }
+            expectedGraphSnapshots = merge.afterSnapshots
+        case .assign, .move, .template, .createTransaction, .editTransaction, .deleteTransaction,
+                .categorize, .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            expectedGraphSnapshots = nil
+        }
+        let liveBatchSnapshots: [String: TransactionBatchTransactionSnapshot?]
+        if let expectedGraphSnapshots {
+            let snapshots = try transactionBatchSnapshots(
+                ids: expectedGraphSnapshots.map(\.id),
+                db: db
+            )
+            liveBatchSnapshots = Dictionary(
+                uniqueKeysWithValues: snapshots.map { ($0.id, Optional($0)) }
+            )
+            guard snapshots.count == expectedGraphSnapshots.count,
+                  snapshots.map(\.id) == expectedGraphSnapshots.map(\.id),
+                  try transactionBatchGraphMembershipMatches(expectedGraphSnapshots, db: db) else {
+                return .blocked(record.kind == .transactionBatch ? .batchChanged : .transactionCommandChanged)
+            }
+            if case .transactionDuplicate = record.inverse,
+               try !transactionDuplicateUndoStateMatches(expectedGraphSnapshots, db: db) {
+                return .blocked(.transactionCommandChanged)
+            }
+        } else {
+            liveBatchSnapshots = [:]
+        }
         let liveRules = try liveRuleActionsForUndo(
             learning: record.inverse.learning,
             db: db
@@ -483,6 +530,7 @@ extension BudgetDatabase {
             liveBudgeted: liveBudgeted,
             currentModeIdentity: try budgetModeIdentity(db: db),
             liveTransactions: liveTransactions,
+            liveTransactionBatchSnapshots: liveBatchSnapshots,
             liveRuleActions: liveRules
         )
     }
@@ -495,12 +543,28 @@ extension BudgetDatabase {
     /// `undone`.
     @discardableResult
     func commitActionUndo(record: BudgetActionRecord, now: Date = Date()) throws -> Int {
+        switch record.inverse {
+        case .transactionBatch, .transactionDuplicate, .transactionMerge:
+            return try sessionWritesAllowed.withLock { allowed in
+                guard allowed else { throw LocalFirstError.budgetNotOpened }
+                try Task.checkCancellation()
+                return try performActionUndoCommit(record: record, now: now)
+            }
+        case .assign, .move, .template, .createTransaction, .editTransaction, .deleteTransaction,
+                .categorize, .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            break
+        }
+        return try performActionUndoCommit(record: record, now: now)
+    }
+
+    private func performActionUndoCommit(record: BudgetActionRecord, now: Date) throws -> Int {
         guard var clock = localClock else {
             throw LocalFirstError.invalidLocalWrite("local clock is not configured")
         }
         let appliedCount: Int
         do {
             appliedCount = try queue.write { db in
+                try Task.checkCancellation()
                 guard try tableExists("messages_crdt", db: db) else {
                     throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
                 }
@@ -576,7 +640,9 @@ extension BudgetDatabase {
                 )
             }
             return drafts
-        case .tombstoneTransactions, .unTombstoneTransactions, .restoreSnapshots, .restoreCategories:
+        case .tombstoneTransactions, .unTombstoneTransactions, .restoreSnapshots,
+                .restoreCategories, .restoreBatchTransactions,
+                .tombstoneDuplicateTransactions, .restoreMergedTransactions:
             return try transactionUndoMessages(plan: plan, db: db, builder: &builder)
         }
     }
@@ -586,16 +652,18 @@ extension BudgetDatabase {
     /// review sheet opened cannot be silently skipped.
     private func requireNewestAppliedUndo(record: BudgetActionRecord, db: Database) throws {
         let createdAt = Self.outboxDateString(record.createdAt)
+        let moneyFlowKinds = BudgetActionKind.moneyFlowRawValues
+        let kindPlaceholders = moneyFlowKinds.map { _ in "?" }.joined(separator: ", ")
         let newerApplied = try Int.fetchOne(
             db,
             sql: """
                 SELECT COUNT(*) FROM actualist_action_log
                 WHERE status = ?
-                  AND kind IN (?, ?, ?, ?, ?, ?, ?)
+                   AND kind IN (\(kindPlaceholders))
                   AND (created_at > ? OR (created_at = ? AND id > ?))
                 """,
             arguments: StatementArguments(
-                [BudgetActionStatus.applied.rawValue] + BudgetActionKind.moneyFlowRawValues + [
+                [BudgetActionStatus.applied.rawValue] + moneyFlowKinds + [
                     createdAt,
                     createdAt,
                     record.id

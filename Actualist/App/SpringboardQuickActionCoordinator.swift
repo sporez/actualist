@@ -1,7 +1,7 @@
 import UIKit
 
 enum SpringboardQuickAction {
-    static let typePrefix = "com.sporez.actualist.quick-action."
+    static let typePrefix = AppInstallationIdentity.current.quickActionPrefix
     static let actions = WidgetQuickActions.defaults
 
     static func action(for type: String) -> WidgetQuickAction? {

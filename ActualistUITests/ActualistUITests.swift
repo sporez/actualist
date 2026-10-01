@@ -619,7 +619,7 @@ final class ActualistUITests: XCTestCase {
         screen: String = "budget",
         dynamicType: String? = nil
     ) -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
         if let dynamicType {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", dynamicType]

@@ -63,6 +63,7 @@ struct RuleDeleteActionTests {
                 categoryGroupID: nil,
                 categoryGroupName: nil,
                 date: Date(timeIntervalSince1970: 0),
+                dateTimeZone: ActualDateOnly.utc,
                 notes: "start",
                 payeeID: "coffee",
                 payeeName: "Coffee Shop",

@@ -21,6 +21,7 @@ struct ScheduleRuleProjection: Hashable, Sendable {
               let conditionData = conditionsJSON.data(using: .utf8),
               let conditions = try? decoder.decode([RuleCondition].self, from: conditionData) else {
             return unsupported(
+                scheduleID: scheduleID,
                 conditionsJSON: conditionsJSON,
                 actionsJSON: actionsJSON,
                 reason: conditionsJSON == nil ? .missingRule : .malformedConditions
@@ -30,6 +31,7 @@ struct ScheduleRuleProjection: Hashable, Sendable {
               let actionData = actionsJSON.data(using: .utf8),
               let actions = try? decoder.decode([RuleAction].self, from: actionData) else {
             return unsupported(
+                scheduleID: scheduleID,
                 conditionsJSON: conditionsJSON,
                 actionsJSON: actionsJSON,
                 reason: actionsJSON == nil ? .missingRule : .malformedActions
@@ -46,12 +48,8 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             primaryField: "payee",
             fallbackField: "description"
         )
-        let amountConditions = conditions.filter {
-            ["is", "isapprox", "isbetween"].contains($0.operation) && $0.field == "amount"
-        }
-        let dateConditions = conditions.filter {
-            ["is", "isapprox"].contains($0.operation) && $0.field == "date"
-        }
+        let amountConditions = conditions.filter { $0.field == "amount" }
+        let dateConditions = conditions.filter { $0.field == "date" }
         let amountCondition = amountConditions.count == 1 ? amountConditions[0] : nil
         let dateCondition = dateConditions.count == 1 ? dateConditions[0] : nil
 
@@ -60,9 +58,13 @@ struct ScheduleRuleProjection: Hashable, Sendable {
         let occurrenceMatchingMode: ScheduleOccurrenceMatchingMode =
             dateCondition?.operation == "isapprox" ? .approximate : .exact
         let actionsCanExecute = actions.allSatisfy(\.canExecuteAtRuntime)
-        let linkActions = actions.filter { $0.operation == "link-schedule" }
-        let hasValidLinkage = linkActions.count == 1
-            && linkActions[0].value.string == scheduleID
+        let editability = ScheduleRuleMutation.editability(
+            scheduleID: scheduleID,
+            conditionsJSON: conditionsJSON,
+            actionsJSON: actionsJSON
+        )
+        let hasValidLinkage = editability.hasValidLink
+        let accountConditions = conditions.filter { ["account", "acct"].contains($0.field) }
         var reasons: [ScheduleUnsupportedReason] = []
         if amountConditions.isEmpty { reasons.append(.missingAmount) }
         else if amountConditions.count > 1 { reasons.append(.unsupportedAmount) }
@@ -77,9 +79,14 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             reasons.append(.corruptRuleLinkage)
         }
 
-        let definitionIsSupported = reasons.isEmpty
         let hasSupportedDate = dateRule != .unavailable
         let hasSupportedAmount = amount != .unavailable
+        let canEditMetadata = hasValidLinkage
+        let canEditAccount = canEditMetadata && editability.canEditAccount
+            && accountConditions.count == 1 && hasSupportedDate
+        let canEditPayee = canEditMetadata && editability.canEditPayee
+        let canEditAmount = canEditMetadata && editability.canEditAmount
+        let canEditDate = canEditMetadata && editability.canEditDate
         return ScheduleRuleProjection(
             rawConditionsJSON: conditionsJSON,
             rawActionsJSON: actionsJSON,
@@ -90,10 +97,14 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             occurrenceMatchingMode: occurrenceMatchingMode,
             capabilities: ScheduleMutationCapabilities(
                 canRead: true,
-                canEdit: definitionIsSupported,
+                canEditMetadata: canEditMetadata,
+                canEditAccount: canEditAccount,
+                canEditPayee: canEditPayee,
+                canEditAmount: canEditAmount,
+                canEditDate: canEditDate,
                 canSkip: hasValidLinkage && dateRule.recurrence != nil,
                 canComplete: hasValidLinkage && hasSupportedDate && dateRule.recurrence == nil,
-                canDelete: true,
+                canDelete: hasValidLinkage,
                 canPost: hasValidLinkage
                     && hasSupportedDate
                     && hasSupportedAmount
@@ -160,11 +171,17 @@ struct ScheduleRuleProjection: Hashable, Sendable {
     }
 
     private static func unsupported(
+        scheduleID: String,
         conditionsJSON: String?,
         actionsJSON: String?,
         reason: ScheduleUnsupportedReason
     ) -> ScheduleRuleProjection {
-        ScheduleRuleProjection(
+        let linkage = ScheduleRuleMutation.editability(
+            scheduleID: scheduleID,
+            conditionsJSON: conditionsJSON,
+            actionsJSON: actionsJSON
+        )
+        return ScheduleRuleProjection(
             rawConditionsJSON: conditionsJSON,
             rawActionsJSON: actionsJSON,
             accountID: nil,
@@ -172,7 +189,18 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             amount: .unavailable,
             dateRule: .unavailable,
             occurrenceMatchingMode: .exact,
-            capabilities: .readOnly,
+            capabilities: ScheduleMutationCapabilities(
+                canRead: true,
+                canEditMetadata: linkage.hasValidLink,
+                canEditAccount: false,
+                canEditPayee: false,
+                canEditAmount: false,
+                canEditDate: false,
+                canSkip: false,
+                canComplete: false,
+                canDelete: linkage.hasValidLink,
+                canPost: false
+            ),
             unsupportedReasons: [reason]
         )
     }
@@ -189,7 +217,7 @@ struct ScheduleRuleProjection: Hashable, Sendable {
         }?.value.string
     }
 
-    private static func amount(from condition: RuleCondition) -> ScheduleAmount {
+    static func amount(from condition: RuleCondition) -> ScheduleAmount {
         switch condition.operation {
         case "is", "isapprox":
             guard let value = condition.value.number,
@@ -199,6 +227,9 @@ struct ScheduleRuleProjection: Hashable, Sendable {
             guard case .object(let range) = condition.value,
                   let lowerValue = range["num1"]?.number,
                   let upperValue = range["num2"]?.number,
+                  lowerValue.isFinite,
+                  upperValue.isFinite,
+                  lowerValue <= upperValue,
                   let lower = actualRounded(lowerValue),
                   let upper = actualRounded(upperValue),
                   let posting = actualRounded((lowerValue + upperValue) / 2) else {
@@ -210,7 +241,8 @@ struct ScheduleRuleProjection: Hashable, Sendable {
         }
     }
 
-    private static func dateRule(from condition: RuleCondition) -> ScheduleDateRule {
+    static func dateRule(from condition: RuleCondition) -> ScheduleDateRule {
+        guard ["is", "isapprox"].contains(condition.operation) else { return .unavailable }
         switch condition.value {
         case .string(let dayID):
             guard ActualScheduleRecurrence.date(from: dayID) != nil else { return .unavailable }
@@ -280,7 +312,7 @@ struct ScheduleRuleProjection: Hashable, Sendable {
     }
 }
 
-private extension RuleJSONValue {
+extension RuleJSONValue {
     var string: String? {
         guard case .string(let value) = self else { return nil }
         return value

@@ -14,6 +14,7 @@ enum AccountLifecycleState: Hashable, Sendable {
     case reopening(AccountReopenSession)
     case submittingReopen(AccountReopenSession)
     case loadingReview(AccountLifecycleReviewRequest)
+    case refreshingReview(AccountLifecycleReviewRequest, previous: AccountLifecycleReview)
     case reviewing(AccountLifecycleReview)
     case reviewChanged(AccountLifecycleReview)
     case submittingReview(AccountLifecycleReview)
@@ -60,6 +61,8 @@ final class AccountLifecycleCoordinator {
         switch state {
         case .reviewing(let review), .reviewChanged(let review), .submittingReview(let review):
             review
+        case .refreshingReview(_, let previous):
+            previous
         default:
             nil
         }
@@ -72,6 +75,11 @@ final class AccountLifecycleCoordinator {
         default:
             false
         }
+    }
+
+    var isRefreshingReview: Bool {
+        if case .refreshingReview = state { return true }
+        return false
     }
 
     var errorMessage: String? {
@@ -222,7 +230,14 @@ final class AccountLifecycleCoordinator {
     ) -> Task<Void, Never>? {
         guard !isPrivacyModeEnabled, !isSubmitting else { return nil }
         let requestGeneration = beginOperation()
-        state = .loadingReview(request)
+        if let review, review.identity.budgetID == request.budgetID,
+           review.identity.accountID == request.accountID {
+            // Keep the sheet and its scroll position while validating picker changes.
+            // This retained review is display-only until the new request completes.
+            state = .refreshingReview(request, previous: review)
+        } else {
+            state = .loadingReview(request)
+        }
         operationTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -247,12 +262,13 @@ final class AccountLifecycleCoordinator {
         return operationTask
     }
 
+    @discardableResult
     func selectCloseDestination(
         _ destinationAccountID: String?,
         repository: any AccountLifecycleRepositoryProtocol
-    ) {
-        guard let review, state.isReviewingWithoutSubmission else { return }
-        loadReview(
+    ) -> Task<Void, Never>? {
+        guard let review, state.isReviewingWithoutSubmission else { return nil }
+        return loadReview(
             request: AccountLifecycleReviewRequest(
                 budgetID: review.identity.budgetID,
                 accountID: review.identity.accountID,
@@ -265,13 +281,14 @@ final class AccountLifecycleCoordinator {
         )
     }
 
+    @discardableResult
     func selectCloseCategory(
         _ categoryID: String?,
         repository: any AccountLifecycleRepositoryProtocol
-    ) {
+    ) -> Task<Void, Never>? {
         guard let review, state.isReviewingWithoutSubmission,
-              case .close(let destinationAccountID, _) = review.identity.action else { return }
-        loadReview(
+               case .close(let destinationAccountID, _) = review.identity.action else { return nil }
+        return loadReview(
             request: AccountLifecycleReviewRequest(
                 budgetID: review.identity.budgetID,
                 accountID: review.identity.accountID,
@@ -331,16 +348,18 @@ final class AccountLifecycleCoordinator {
         return operationTask
     }
 
-    func retry(repository: any AccountLifecycleRepositoryProtocol) {
-        guard !isPrivacyModeEnabled, case .failed(let recovery, _) = state else { return }
+    @discardableResult
+    func retry(repository: any AccountLifecycleRepositoryProtocol) -> Task<Void, Never>? {
+        guard !isPrivacyModeEnabled, case .failed(let recovery, _) = state else { return nil }
         switch recovery {
         case .rename(let draft):
             state = .renaming(draft)
         case .reopen(let session):
             state = .reopening(session)
         case .review(let request):
-            loadReview(request: request, repository: repository)
+            return loadReview(request: request, repository: repository)
         }
+        return nil
     }
 
     func contextDidChange(to identity: AccountLifecycleIdentity?) {
@@ -367,7 +386,7 @@ final class AccountLifecycleCoordinator {
             draft.identity
         case .reopening(let session), .submittingReopen(let session):
             session.identity
-        case .loadingReview(let request):
+        case .loadingReview(let request), .refreshingReview(let request, _):
             AccountLifecycleIdentity(budgetID: request.budgetID, accountID: request.accountID)
         case .reviewing(let review), .reviewChanged(let review), .submittingReview(let review):
             AccountLifecycleIdentity(

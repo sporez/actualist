@@ -315,7 +315,8 @@ extension LocalFirstActualStore {
     @discardableResult
     func pullAndReload(
         budgetID: String,
-        serverURLString: String
+        serverURLString: String,
+        performsScheduleAdvancement: Bool = true
     ) async throws -> LocalFirstSyncResult {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
@@ -381,6 +382,16 @@ extension LocalFirstActualStore {
                 appliedCount: result.appliedRemoteMessageCount,
                 error: nil
             )
+            // Demo returns above. A failed pull throws above. Manual posting
+            // passes false so this pull does not post the occurrence it is
+            // about to write, and so advancement cannot re-enter this pull.
+            if performsScheduleAdvancement {
+                await advanceSchedulesAfterSuccessfulSync(
+                    budgetID: budgetID,
+                    database: database,
+                    generation: generation
+                )
+            }
             return result
         } catch {
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)

@@ -39,8 +39,9 @@ extension LocalFirstActualStoreTests {
 
     @Test func openIDCallbackParserAcceptsOnlyTheExpectedAttempt() throws {
         let nonce = "abc123"
+        let scheme = AppInstallationIdentity.current.urlScheme
         let valid = try #require(
-            URL(string: "com.sporez.actualist://localhost/openid/abc123/openid-cb?other=1&token=session%2Btoken")
+            URL(string: "\(scheme)://localhost/openid/abc123/openid-cb?other=1&token=session%2Btoken")
         )
         #expect(try ActualOpenIDCallbackParser.token(from: valid, expectedNonce: nonce) == "session+token")
 
@@ -48,20 +49,28 @@ extension LocalFirstActualStoreTests {
         #expect(throws: ActualOpenIDAuthenticationError.invalidCallback) {
             try ActualOpenIDCallbackParser.token(from: wrongScheme, expectedNonce: nonce)
         }
-        let wrongHost = try #require(URL(string: "com.sporez.actualist://other/openid/abc123/openid-cb?token=x"))
+        let otherInstallation: AppInstallationIdentity = AppInstallationIdentity.current == .production
+            ? .development : .production
+        let wrongInstallation = try #require(
+            URL(string: "\(otherInstallation.urlScheme)://localhost/openid/abc123/openid-cb?token=x")
+        )
+        #expect(throws: ActualOpenIDAuthenticationError.invalidCallback) {
+            try ActualOpenIDCallbackParser.token(from: wrongInstallation, expectedNonce: nonce)
+        }
+        let wrongHost = try #require(URL(string: "\(scheme)://other/openid/abc123/openid-cb?token=x"))
         #expect(throws: ActualOpenIDAuthenticationError.invalidCallback) {
             try ActualOpenIDCallbackParser.token(from: wrongHost, expectedNonce: nonce)
         }
-        let stale = try #require(URL(string: "com.sporez.actualist://localhost/openid/old/openid-cb?token=x"))
+        let stale = try #require(URL(string: "\(scheme)://localhost/openid/old/openid-cb?token=x"))
         #expect(throws: ActualOpenIDAuthenticationError.invalidCallback) {
             try ActualOpenIDCallbackParser.token(from: stale, expectedNonce: nonce)
         }
-        let missing = try #require(URL(string: "com.sporez.actualist://localhost/openid/abc123/openid-cb"))
+        let missing = try #require(URL(string: "\(scheme)://localhost/openid/abc123/openid-cb"))
         #expect(throws: ActualOpenIDAuthenticationError.missingToken) {
             try ActualOpenIDCallbackParser.token(from: missing, expectedNonce: nonce)
         }
         let duplicate = try #require(
-            URL(string: "com.sporez.actualist://localhost/openid/abc123/openid-cb?token=a&token=b")
+            URL(string: "\(scheme)://localhost/openid/abc123/openid-cb?token=a&token=b")
         )
         #expect(throws: ActualOpenIDAuthenticationError.ambiguousToken) {
             try ActualOpenIDCallbackParser.token(from: duplicate, expectedNonce: nonce)

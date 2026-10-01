@@ -198,6 +198,7 @@ struct RuleScheduleRuntimeTests {
             categoryGroupID: nil,
             categoryGroupName: nil,
             date: date,
+            dateTimeZone: ActualDateOnly.utc,
             notes: "start",
             payeeID: "coffee",
             payeeName: "Coffee Shop",

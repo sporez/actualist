@@ -186,11 +186,13 @@ final class IPadReviewUITests: XCTestCase {
     @MainActor
     func testWidgetBudgetRoutesLeaveSidebarSettings() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
+        let appIdentifier = try UITestAppIdentity.appIdentifier
         for (path, title) in [("action/history", "History"), ("action/uncategorized", "Uncategorized"), ("category/rent?month=2026-09", "Rent")] {
             let app = launch(screen: "settings")
             try requireWide(app)
             XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
-            XCUIDevice.shared.system.open(URL(string: "com.sporez.actualist://" + path)!)
+            let routeURL = try XCTUnwrap(URL(string: "\(appIdentifier)://" + path))
+            XCUIDevice.shared.system.open(routeURL)
             if title == "Rent" {
                 XCTAssertTrue(app.buttons["Close Category Details"].waitForExistence(timeout: 10))
             } else {
@@ -255,7 +257,7 @@ final class IPadReviewUITests: XCTestCase {
     }
 
     @MainActor private func launch(screen: String = "budget", replaceDemo: Bool = false) -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")

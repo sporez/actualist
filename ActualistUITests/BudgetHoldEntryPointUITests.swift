@@ -233,7 +233,7 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
     }
 
     private func launchDemo(screen: String = "budget", replaceDemo: Bool = false) -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
         if replaceDemo { app.launchArguments.append("-actualist-replace-demo-for-ui-testing") }
         app.launch()

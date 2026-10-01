@@ -19,20 +19,7 @@ struct BudgetTemplateConfirmationSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                VStack(spacing: 6) {
-                    Text("Review Template")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
-
-                    Text(selectedConfirmation.message)
-                        .font(.subheadline)
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                ReviewSheetHeader(title: "Review Template", subtitle: selectedConfirmation.message)
 
                 if isMonthConfirmation {
                     modePicker
@@ -56,7 +43,7 @@ struct BudgetTemplateConfirmationSheet: View {
             .padding(.bottom, 12)
         }
         .safeAreaBar(edge: .bottom, spacing: 0) {
-            HStack(spacing: 12) {
+            ReviewSheetActions {
                 Button(role: .cancel) {
                     cancel()
                 } label: {
@@ -82,12 +69,6 @@ struct BudgetTemplateConfirmationSheet: View {
                 .tint(selectedConfirmation.buttonTint)
                 .disabled(!viewModel.canApply)
             }
-            .controlSize(.small)
-            .frame(maxWidth: 520)
-            .padding(.horizontal, 22)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
         }
         .background(ActualistTheme.background)
         .task(id: "\(confirmation.id)|\(categoryID ?? "")|\(month)|\(String(describing: modeIdentity))|\(appState.settings.selectedBudgetID ?? "")|\(localDataRevision)|\(appState.settings.randomizedDisplayValuesEnabled)") {

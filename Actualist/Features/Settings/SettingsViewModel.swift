@@ -72,19 +72,27 @@ final class SettingsViewModel {
         appState.updateFallbackServerURL(fallbackServerURLString)
     }
 
-    func loadBudgetsForSelection(using appState: AppState) async {
+    /// Reloads the budget list and reports whether discovery completed
+    /// successfully. A thrown error — including cancellation — is `false`:
+    /// callers must never treat it as a discovered empty server.
+    @discardableResult
+    func loadBudgetsForSelection(using appState: AppState) async -> Bool {
         guard !isLoadingBudgets else {
-            return
+            return false
         }
 
         isLoadingBudgets = true
         appState.lastErrorMessage = nil
+        let succeeded: Bool
         do {
             try await appState.loadBudgets()
+            succeeded = true
         } catch {
             appState.lastErrorMessage = error.userFacingMessage
+            succeeded = false
         }
         isLoadingBudgets = false
+        return succeeded
     }
 
     func copyDiagnosticReport(using appState: AppState) {

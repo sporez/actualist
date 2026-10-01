@@ -5,10 +5,14 @@ struct AccountTransactionRowPresentation: Identifiable, Hashable {
     let semantics: TransactionRowSemantics
     let accountName: String?
     let isNew: Bool
+    let scheduleConversionEntryPoint: TransactionScheduleConversionEntryPoint?
 
     var id: String { transaction.rowID }
     var payeeName: String { semantics.payeeText }
     var categoryNames: [String] { [semantics.categoryText] }
+    var selectionIdentity: TransactionSelectionIdentity? {
+        TransactionSelectionIdentity(transaction: transaction)
+    }
 }
 
 struct AccountTransactionDateGroupPresentation: Identifiable, Hashable {
@@ -56,6 +60,7 @@ struct AccountTransactionFeedProjection {
     let pendingNewTransactionIDs: Set<String>
     let privacyModeEnabled: Bool
     var currency: BudgetCurrency = .usd
+    var scheduleConversionDayID: String = SchedulesViewContext.currentDay()
 
     var displayState: AccountTransactionsDisplayState {
         let groups = TransactionGrouping.grouped(displayedTransactions).map { group in
@@ -125,17 +130,24 @@ struct AccountTransactionFeedProjection {
     }
 
     private func rowPresentation(_ transaction: ActualTransaction) -> AccountTransactionRowPresentation {
-        AccountTransactionRowPresentation(
+        let semantics = TransactionRowSemantics.project(
+            transaction,
+            lookup: lookup,
+            privacyEnabled: privacyModeEnabled
+        )
+        return AccountTransactionRowPresentation(
             transaction: transaction,
-            semantics: TransactionRowSemantics.project(
-                transaction,
-                lookup: lookup,
-                privacyEnabled: privacyModeEnabled
-            ),
+            semantics: semantics,
             accountName: privacyModeEnabled && scope.showsAccountNames
                 ? PrivacyDisplay.name(for: .account, seed: transaction.account)
                 : accountName(for: transaction),
-            isNew: transaction.id.map { pendingNewTransactionIDs.contains($0) } ?? false
+            isNew: transaction.id.map { pendingNewTransactionIDs.contains($0) } ?? false,
+            scheduleConversionEntryPoint: TransactionScheduleConversionEntryPoint.project(
+                transaction: transaction,
+                lookup: lookup,
+                asOfDayID: scheduleConversionDayID,
+                accountName: scheduleConversionAccountName(for: transaction)
+            )
         )
     }
 
@@ -162,6 +174,16 @@ struct AccountTransactionFeedProjection {
         let name = activePage?.accountNames[transaction.account]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return name?.isEmpty == false ? name : "Unknown Account"
+    }
+
+    private func scheduleConversionAccountName(for transaction: ActualTransaction) -> String? {
+        if let name = activePage?.accountNames[transaction.account]
+            ?? loaded?.accountNames[transaction.account],
+           !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return name
+        }
+        guard let account = scope.account, account.id == transaction.account else { return nil }
+        return account.name
     }
 
     private func matches(_ value: String?) -> Bool {

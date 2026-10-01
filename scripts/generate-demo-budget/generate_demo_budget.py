@@ -149,7 +149,8 @@ CREATE TABLE transactions (
     imported_description TEXT,
     sort_order REAL,
     transferred_id TEXT,
-    is_child INTEGER NOT NULL DEFAULT 0
+    is_child INTEGER NOT NULL DEFAULT 0,
+    error TEXT
 );
 CREATE TABLE payees (
     id TEXT PRIMARY KEY,

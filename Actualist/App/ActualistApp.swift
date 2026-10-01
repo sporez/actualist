@@ -186,7 +186,7 @@ private struct BackgroundRefreshTaskCompletion: @unchecked Sendable {
 final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificationCenterDelegate {
     static let shared = BackgroundTransactionRefreshCoordinator()
 
-    static let taskIdentifier = "com.sporez.actualist.transactions.refresh"
+    static let taskIdentifier = AppInstallationIdentity.current.backgroundTaskIdentifier
     private let requestedInterval: TimeInterval = 60 * 60
     private weak var appState: AppState?
     private var didRegisterTask = false

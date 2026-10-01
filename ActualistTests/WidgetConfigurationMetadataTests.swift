@@ -26,7 +26,7 @@ struct WidgetConfigurationMetadataTests {
             includingPropertiesForKeys: nil
         )
         let widgetURL = try #require(plugInURLs.first { url in
-            Bundle(url: url)?.bundleIdentifier == "com.sporez.actualist.widgets"
+            Bundle(url: url)?.bundleIdentifier == AppInstallationIdentity.current.widgetBundleIdentifier
         })
         let metadataURL = widgetURL
             .appendingPathComponent("Metadata.appintents")

@@ -1,0 +1,8 @@
+{
+  "D0-encrypted-registration-follow-up.md": "3e82a5aa4070fbf51e3d98b786a38b0dc741f3c602f3cabbcf77c59b1a72d80e",
+  "oracle-fs-shim.ts": "918515c16d79f067914d9eff84af8f9d3be2edb92c4fb72deeb31c1c6478820b",
+  "oracle-setup.ts": "e9d98cdad6b41761542a58588999926059d26860898f33c5052be79d07641713",
+  "oracle.vitest.config.ts": "7ed6fec22bbf9e793a5ebf7973924d08fd8b5a47a3f129baa651409c356d3b13",
+  "run-oracle-proposal.sh": "598634ffaedc9315d288dd1b00950fa8b42361fd23fbcd5fbc89aa0658558400",
+  "zip-registration-oracle.test.ts": "fa787975d827a907e9fedabc9dc6d2f22eff2686e73944a0eabde890cc1618e0"
+}

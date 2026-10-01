@@ -1,6 +1,5 @@
 import Foundation
 import CryptoKit
-import ZIPFoundation
 
 struct LocalFirstResourceLimits: Equatable, Sendable {
     let maximumCompressedBudgetBytes: UInt64
@@ -271,7 +270,12 @@ struct BudgetFileManager {
 
     func validateStagedDownload(at stagingURL: URL) throws {
         let stagingURL = try containedURL(stagingURL)
-        let size = try fileSize(at: stagingURL)
+        let size: UInt64
+        do {
+            size = try UntrustedZipExtractor.fileSize(at: stagingURL, fileManager: fileManager)
+        } catch {
+            throw LocalFirstError.invalidDownloadedBudget
+        }
         guard size <= resourceLimits.maximumCompressedBudgetBytes else {
             throw LocalFirstError.remoteDataLimitExceeded
         }
@@ -418,96 +422,18 @@ struct BudgetFileManager {
     }
 
     private func extractArchive(at archiveURL: URL, to extractionURL: URL) throws {
-        let archive = try Archive(url: archiveURL, accessMode: .read)
-        let entries = Array(archive)
-        guard entries.count <= resourceLimits.maximumArchiveEntryCount else {
-            throw LocalFirstError.remoteDataLimitExceeded
-        }
-
-        var totalExpandedBytes: UInt64 = 0
-        for entry in entries {
-            try validateArchivePath(entry.path)
-            guard entry.type != .symlink else {
-                throw LocalFirstError.invalidDownloadedBudget
+        let extractor = UntrustedZipExtractor(
+            limits: resourceLimits,
+            fileManager: fileManager,
+            volumeURL: applicationSupportURL
+        )
+        do {
+            try extractor.extract(archiveAt: archiveURL, to: extractionURL) { candidate in
+                try containedURL(candidate)
             }
-            guard entry.uncompressedSize <= resourceLimits.maximumArchiveEntryBytes else {
-                throw LocalFirstError.remoteDataLimitExceeded
-            }
-            let (nextTotal, overflow) = totalExpandedBytes.addingReportingOverflow(entry.uncompressedSize)
-            guard !overflow, nextTotal <= resourceLimits.maximumExpandedBudgetBytes else {
-                throw LocalFirstError.remoteDataLimitExceeded
-            }
-            totalExpandedBytes = nextTotal
+        } catch let failure as UntrustedZipFailure {
+            throw failure.localFirstError
         }
-
-        try requireAvailableDiskSpace(forExpandedBytes: totalExpandedBytes)
-
-        var extractedBytes: UInt64 = 0
-        for entry in entries {
-            let destination = try containedURL(
-                extractionURL.appending(path: entry.path)
-            )
-            let checksum = try archive.extract(entry, to: destination)
-            guard checksum == entry.checksum else {
-                throw LocalFirstError.invalidDownloadedBudget
-            }
-            if entry.type == .file {
-                let actualSize = try fileSize(at: destination)
-                guard actualSize == entry.uncompressedSize else {
-                    throw LocalFirstError.invalidDownloadedBudget
-                }
-                let (nextExtracted, overflow) = extractedBytes.addingReportingOverflow(actualSize)
-                guard !overflow, nextExtracted <= resourceLimits.maximumExpandedBudgetBytes else {
-                    throw LocalFirstError.remoteDataLimitExceeded
-                }
-                extractedBytes = nextExtracted
-            }
-        }
-    }
-
-    private func validateArchivePath(_ path: String) throws {
-        let normalized = path.replacingOccurrences(of: "\\", with: "/")
-        let components = normalized.split(separator: "/", omittingEmptySubsequences: true)
-        guard !normalized.hasPrefix("/"),
-              !normalized.hasPrefix("//"),
-              !(normalized as NSString).isAbsolutePath,
-              !components.isEmpty,
-              !components.contains(where: { $0 == "." || $0 == ".." }) else {
-            throw LocalFirstError.invalidDownloadedBudget
-        }
-        guard components.count <= resourceLimits.maximumArchivePathDepth else {
-            throw LocalFirstError.remoteDataLimitExceeded
-        }
-        if let first = components.first,
-           first.count == 2,
-           first.last == ":" {
-            throw LocalFirstError.invalidDownloadedBudget
-        }
-    }
-
-    private func requireAvailableDiskSpace(forExpandedBytes expandedBytes: UInt64) throws {
-        guard expandedBytes <= UInt64(Int64.max) else {
-            throw LocalFirstError.remoteDataLimitExceeded
-        }
-        // The staged archive is already included in available capacity.
-        let withReserve = Int64(expandedBytes)
-            .addingReportingOverflow(resourceLimits.minimumFreeDiskReserveBytes)
-        let availableBytes = try? applicationSupportURL.resourceValues(
-            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
-        ).volumeAvailableCapacityForImportantUsage
-        guard !withReserve.overflow,
-              let availableBytes,
-              availableBytes >= withReserve.partialValue else {
-            throw LocalFirstError.insufficientStorage
-        }
-    }
-
-    private func fileSize(at url: URL) throws -> UInt64 {
-        let attributes = try fileManager.attributesOfItem(atPath: url.path)
-        guard let number = attributes[.size] as? NSNumber else {
-            throw LocalFirstError.invalidDownloadedBudget
-        }
-        return number.uint64Value
     }
 
     private func findDatabase(in directory: URL) throws -> URL? {

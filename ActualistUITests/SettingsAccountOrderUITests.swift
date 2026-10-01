@@ -7,7 +7,7 @@ final class SettingsAccountOrderUITests: XCTestCase {
     @MainActor
     func testAccountOrderLoadsAndDismisses() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Budget & Data"].waitForExistence(timeout: 15))

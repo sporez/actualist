@@ -59,6 +59,49 @@ import Testing
         try #expect(inverse.codableRoundTrip() == inverse)
     }
 
+    @Test func transactionBatchSummaryAndInverseCodableRoundTrip() throws {
+        let snapshot = TransactionBatchTransactionSnapshot(
+            id: "txn-1",
+            columns: ["acct", "amount", "category", "cleared", "date", "description", "tombstone"],
+            accountID: "checking",
+            dateValue: 20260901,
+            amount: -450,
+            payeeID: nil,
+            categoryID: "groceries",
+            notes: nil,
+            cleared: false,
+            reconciled: false,
+            tombstone: false,
+            isParent: false,
+            isChild: false,
+            parentID: nil,
+            transferID: nil,
+            sortOrder: 1,
+            splitError: nil,
+            startingBalance: false,
+            scheduleID: nil,
+            importedID: "import-1",
+            importedPayee: nil,
+            importedDescription: "Market"
+        )
+        let summary = BudgetActionSummary.transactionBatch(TransactionBatchBudgetAction(
+            operation: .categorize,
+            selectedCount: 1,
+            changedCount: 1,
+            clearTarget: nil,
+            categoryID: "dining"
+        ))
+        let inverse = BudgetActionInverse.transactionBatch(TransactionBatchTransactionInverse(
+            operation: .categorize,
+            selectedTransactionIDs: ["txn-1"],
+            beforeSnapshots: [snapshot],
+            afterSnapshots: [snapshot],
+            learning: .empty
+        ))
+        try #expect(summary.codableRoundTrip() == summary)
+        try #expect(inverse.codableRoundTrip() == inverse)
+    }
+
     @Test func kindsPersistAsDistinctDiscriminators() throws {
         let assign = BudgetActionInverse.assign(AssignBudgetAction(
             month: "2026-07",
@@ -76,6 +119,18 @@ import Testing
         #expect(assignJSON != moveJSON)
         #expect(try JSONDecoder().decode(BudgetActionInverse.self, from: assignJSON) == assign)
         #expect(try JSONDecoder().decode(BudgetActionInverse.self, from: moveJSON) == move)
+    }
+
+    @Test func legacyActionLogSummaryAndInverseFixturesStillDecode() throws {
+        let summaryJSON = Data(#"{"type":"assign","payload":{"payload":{"month":"2026-07","categoryID":"groceries","before":0,"after":1}}}"#.utf8)
+        let inverseJSON = Data(#"{"type":"categorize","payload":{"payload":{"month":"2026-07","items":[],"learning":{"createdRuleIDs":[],"updatedRules":[]}}}}"#.utf8)
+
+        #expect(try JSONDecoder().decode(BudgetActionSummary.self, from: summaryJSON) == .assign(
+            AssignBudgetAction(month: "2026-07", categoryID: "groceries", before: 0, after: 1)
+        ))
+        #expect(try JSONDecoder().decode(BudgetActionInverse.self, from: inverseJSON) == .categorize(
+            CategorizeTransactionInverse(month: "2026-07", items: [], learning: .empty)
+        ))
     }
 }
 

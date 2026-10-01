@@ -63,7 +63,7 @@ final class CredentialRecoveryUITests: XCTestCase {
     }
 
     private func launch(_ mode: String, screen: String? = nil, light: Bool = false) -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-test-credential-session", mode]
         if light { app.launchArguments.append("light") }
         if let screen { app.launchArguments += ["-actualist-screen", screen] }

@@ -18,6 +18,9 @@ enum BudgetActionKind: String, Codable, Sendable {
     case carryover
     case learningPref
     case transactionMetadata
+    case transactionBatch
+    case transactionDuplicate
+    case transactionMerge
 }
 
 enum BudgetActionStatus: String, Codable, Sendable {
@@ -95,6 +98,9 @@ enum BudgetActionSummary: Equatable, Sendable {
     case carryover(CarryoverBudgetAction)
     case learningPref(LearningPrefBudgetAction)
     case transactionMetadata(TransactionMetadataBudgetAction)
+    case transactionBatch(TransactionBatchBudgetAction)
+    case transactionDuplicate(TransactionDuplicateBudgetAction)
+    case transactionMerge(TransactionMergeBudgetAction)
 }
 
 /// A persisted money-flow gesture, decoded from `actualist_action_log`.
@@ -131,6 +137,9 @@ extension BudgetActionSummary: Codable {
         case carryover
         case learningPref
         case transactionMetadata
+        case transactionBatch
+        case transactionDuplicate
+        case transactionMerge
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -168,6 +177,12 @@ extension BudgetActionSummary: Codable {
             self = .learningPref(try payload.decode(LearningPrefBudgetAction.self, forKey: .payload))
         case .transactionMetadata:
             self = .transactionMetadata(try payload.decode(TransactionMetadataBudgetAction.self, forKey: .payload))
+        case .transactionBatch:
+            self = .transactionBatch(try payload.decode(TransactionBatchBudgetAction.self, forKey: .payload))
+        case .transactionDuplicate:
+            self = .transactionDuplicate(try payload.decode(TransactionDuplicateBudgetAction.self, forKey: .payload))
+        case .transactionMerge:
+            self = .transactionMerge(try payload.decode(TransactionMergeBudgetAction.self, forKey: .payload))
         }
     }
 
@@ -214,6 +229,15 @@ extension BudgetActionSummary: Codable {
         case .transactionMetadata(let metadata):
             try container.encode(SummaryKind.transactionMetadata, forKey: .type)
             try payload.encode(metadata, forKey: .payload)
+        case .transactionBatch(let batch):
+            try container.encode(SummaryKind.transactionBatch, forKey: .type)
+            try payload.encode(batch, forKey: .payload)
+        case .transactionDuplicate(let duplicate):
+            try container.encode(SummaryKind.transactionDuplicate, forKey: .type)
+            try payload.encode(duplicate, forKey: .payload)
+        case .transactionMerge(let merge):
+            try container.encode(SummaryKind.transactionMerge, forKey: .type)
+            try payload.encode(merge, forKey: .payload)
         }
     }
 }

@@ -11,6 +11,9 @@ struct HistoryRowModel: Identifiable, Equatable, Sendable {
         case editTransaction
         case deleteTransaction
         case categorize
+        case transactionBatch
+        case transactionDuplicate
+        case transactionMerge
         case metadata
     }
 
@@ -169,6 +172,16 @@ enum HistoryRowPresentation {
         case .categorize(let categorize):
             let noun = categorize.itemCount == 1 ? "transaction" : "transactions"
             return "Categorized \(categorize.itemCount) \(noun)"
+        case .transactionBatch(let batch):
+            return batchGestureSummary(batch, categoryNames: categoryNames, privacyEnabled: privacyEnabled)
+        case .transactionDuplicate(let duplicate):
+            let entryNoun = duplicate.duplicateTransactionIDs.count == 1 ? "entry" : "entries"
+            return "Undo removes \(duplicate.duplicateTransactionIDs.count) duplicate \(entryNoun)"
+        case .transactionMerge(let merge):
+            let linkedCount = max(0, merge.affectedGraphTransactionIDs.count - merge.orderedInputTransactionIDs.count)
+            return linkedCount == 0
+                ? "Undo restores the merged transactions"
+                : "Undo restores the merged transactions and \(linkedCount) linked entries"
         case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             return metadataTitle(
                 for: record.summary,
@@ -234,7 +247,9 @@ enum HistoryRowPresentation {
                 return (payee.map { "Updated note · \($0)" } ?? "Updated note", "Transaction")
             }
             return (payee.map { "Updated cleared · \($0)" } ?? "Updated cleared", "Transaction")
-        default:
+        case .assign, .move, .template, .createTransaction, .editTransaction,
+                .deleteTransaction, .categorize, .transactionBatch,
+                .transactionDuplicate, .transactionMerge:
             return ("Updated budget", "")
         }
     }
@@ -265,6 +280,27 @@ enum HistoryRowPresentation {
         }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    private static func batchGestureSummary(
+        _ batch: TransactionBatchBudgetAction,
+        categoryNames: [String: String],
+        privacyEnabled: Bool
+    ) -> String {
+        switch batch.operation {
+        case .clear:
+            let verb = batch.clearTarget == true ? "Cleared" : "Uncleared"
+            return "\(verb) \(batch.selectedCount) transactions"
+        case .categorize:
+            let category = displayName(
+                for: batch.categoryID,
+                categoryNames: categoryNames,
+                privacyEnabled: privacyEnabled
+            )
+            return "Categorized \(batch.selectedCount) as \(category)"
+        case .delete:
+            return "Deleted \(batch.selectedCount) transactions"
+        }
     }
 
     private static func row(
@@ -370,6 +406,36 @@ enum HistoryRowPresentation {
             title = "Categorized as \(name)"
             actionDetail = "\(categorize.itemCount) \(noun)"
             visual = .categorize
+
+        case .transactionBatch(let batch):
+            title = batchGestureSummary(batch, categoryNames: categoryNames, privacyEnabled: privacyEnabled)
+            switch batch.operation {
+            case .clear:
+                actionDetail = batch.clearTarget == true
+                    ? "Cleared \(batch.changedCount) entries"
+                    : "Uncleared \(batch.changedCount) entries"
+            case .categorize:
+                actionDetail = "\(batch.changedCount) transaction entries"
+            case .delete:
+                actionDetail = "Deleted \(batch.changedCount) entries"
+            }
+            visual = .transactionBatch
+
+        case .transactionDuplicate(let duplicate):
+            let count = duplicate.duplicateTransactionIDs.count
+            let noun = count == 1 ? "entry" : "entries"
+            title = "Duplicated \(count) transaction \(noun)"
+            actionDetail = "Undo removes the duplicates"
+            visual = .transactionDuplicate
+
+        case .transactionMerge(let merge):
+            let rowCount = merge.affectedGraphTransactionIDs.count
+            let linkedCount = max(0, rowCount - merge.orderedInputTransactionIDs.count)
+            title = "Merged transactions"
+            actionDetail = linkedCount == 0
+                ? "Undo restores \(rowCount) rows"
+                : "Undo restores \(rowCount) rows, including \(linkedCount) linked entries"
+            visual = .transactionMerge
 
         case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             let metadata = metadataTitle(

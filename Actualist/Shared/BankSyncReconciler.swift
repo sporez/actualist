@@ -369,10 +369,8 @@ enum BankSyncReconciliation {
     /// Malformed input returns `Int.max` so it can never fall inside the
     /// ±7-day window.
     static func dayDistance(_ a: String, _ b: String) -> Int {
-        guard let first = dayNumber(a), let second = dayNumber(b) else {
-            return .max
-        }
-        return abs(first - second)
+        guard let distance = ActualDateOnly.dayDistance(fromCompact: a, toCompact: b) else { return .max }
+        return abs(distance)
     }
 
     /// Today as a UTC `YYYYMMDD` string — the fallback day for an opening
@@ -382,28 +380,6 @@ enum BankSyncReconciliation {
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
         let parts = calendar.dateComponents([.year, .month, .day], from: now)
         return String(format: "%04d%02d%02d", parts.year ?? 1970, parts.month ?? 1, parts.day ?? 1)
-    }
-
-    /// Days since the civil epoch for a `YYYYMMDD` string, using Howard
-    /// Hinnant's `days_from_civil` algorithm — no `Date`, no timezone.
-    private static func dayNumber(_ dayID: String) -> Int? {
-        let characters = Array(dayID)
-        guard characters.count == 8, characters.allSatisfy(\.isNumber) else {
-            return nil
-        }
-        let year = Int(dayID.prefix(4)) ?? 0
-        let month = Int(dayID.dropFirst(4).prefix(2)) ?? 0
-        let day = Int(dayID.suffix(2)) ?? 0
-        guard (1...12).contains(month), (1...31).contains(day) else {
-            return nil
-        }
-        let shiftedYear = month <= 2 ? year - 1 : year
-        let era = (shiftedYear >= 0 ? shiftedYear : shiftedYear - 399) / 400
-        let yearOfEra = shiftedYear - era * 400
-        let monthShift = month <= 2 ? month + 9 : month - 3
-        let dayOfYear = (153 * monthShift + 2) / 5 + day - 1
-        let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
-        return era * 146_097 + dayOfEra - 719_468
     }
 
     // MARK: - Opening balance

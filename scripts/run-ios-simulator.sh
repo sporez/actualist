@@ -2,15 +2,45 @@
 set -euo pipefail
 
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT="${PROJECT:-Actualist.xcodeproj}"
+if [[ -n "${SCHEME+x}" && -n "${ACTUALIST_SCHEME+x}" && "$SCHEME" != "$ACTUALIST_SCHEME" ]]; then
+  echo "error: SCHEME contradicts ACTUALIST_SCHEME" >&2
+  exit 2
+fi
+SCHEME="${ACTUALIST_SCHEME:-${SCHEME:-Actualist}}"
+
+case "$SCHEME" in
+  Actualist)
+    DEFAULT_CONFIGURATION=Debug
+    EXPECTED_BUNDLE_ID=com.sporez.actualist
+    ;;
+  "Actualist Dev")
+    DEFAULT_CONFIGURATION=Dev
+    EXPECTED_BUNDLE_ID=com.sporez.actualist.dev
+    ;;
+  *)
+    echo "error: ACTUALIST_SCHEME must be Actualist or Actualist Dev" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -n "${BUNDLE_ID+x}" && "$BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
+  echo "error: BUNDLE_ID contradicts the identity selected by ACTUALIST_SCHEME" >&2
+  exit 2
+fi
+if [[ -n "${ACTUALIST_BUNDLE_ID+x}" && "$ACTUALIST_BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
+  echo "error: ACTUALIST_BUNDLE_ID contradicts the identity selected by ACTUALIST_SCHEME" >&2
+  exit 2
+fi
+: "${ACTUALIST_BUNDLE_ID:=$EXPECTED_BUNDLE_ID}"
+
 # shellcheck source=lib/load-destinations.sh
 source "$_script_dir/lib/load-destinations.sh"
 
-PROJECT="${PROJECT:-Actualist.xcodeproj}"
-SCHEME="${SCHEME:-Actualist}"
-CONFIGURATION="${CONFIGURATION:-Debug}"
+CONFIGURATION="${CONFIGURATION:-$DEFAULT_CONFIGURATION}"
 SIMULATOR_ID="${SIMULATOR_ID:-${ACTUALIST_SIMULATOR_ID:-}}"
 SIMULATOR_NAME="${SIMULATOR_NAME:-${ACTUALIST_SIMULATOR_NAME:-iPhone 17 Pro}}"
-BUNDLE_ID="${BUNDLE_ID:-${ACTUALIST_BUNDLE_ID:-com.sporez.actualist}}"
+BUNDLE_ID="${BUNDLE_ID:-${ACTUALIST_BUNDLE_ID:-}}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-.derivedData}"
 SCREENSHOT_DIR="${SCREENSHOT_DIR:-.artifacts/screenshots}"
 BOOT_IF_NEEDED="${BOOT_IF_NEEDED:-0}"
@@ -23,7 +53,7 @@ SCREEN_NAME="${SCREEN_NAME:-}"
 LAUNCH_WAIT_SECONDS="${LAUNCH_WAIT_SECONDS:-}"
 
 DESTINATION="platform=iOS Simulator,id=${SIMULATOR_ID}"
-APP_PATH="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}-iphonesimulator/${SCHEME}.app"
+APP_PATH="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}-iphonesimulator/Actualist.app"
 
 usage() {
   cat <<'EOF'
@@ -45,7 +75,8 @@ Options:
   -h, --help          Show this help.
 
 Environment overrides:
-  PROJECT, SCHEME, CONFIGURATION, SIMULATOR_ID, SIMULATOR_NAME, BUNDLE_ID,
+  ACTUALIST_SCHEME (Actualist or Actualist Dev; SCHEME is also accepted), PROJECT, CONFIGURATION,
+  SIMULATOR_ID, SIMULATOR_NAME, BUNDLE_ID, ACTUALIST_BUNDLE_ID,
   DERIVED_DATA_PATH, SCREENSHOT_DIR, LAUNCH_WAIT_SECONDS
 EOF
 }
@@ -94,6 +125,23 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+case "$SCHEME:$CONFIGURATION" in
+  Actualist:Debug|Actualist:Release|"Actualist Dev:Dev") ;;
+  *)
+    echo "error: CONFIGURATION '$CONFIGURATION' contradicts ACTUALIST_SCHEME '$SCHEME'" >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$ACTUALIST_BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
+  echo "error: ACTUALIST_BUNDLE_ID '$ACTUALIST_BUNDLE_ID' contradicts ACTUALIST_SCHEME '$SCHEME'" >&2
+  exit 2
+fi
+if [[ "$BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
+  echo "error: bundle identifier '$BUNDLE_ID' contradicts ACTUALIST_SCHEME '$SCHEME'" >&2
+  exit 2
+fi
+
 if [[ -z "${SIMULATOR_ID}" ]]; then
   echo "error: set ACTUALIST_SIMULATOR_ID, or copy scripts/lib/destinations.example.sh to scripts/lib/destinations.sh" >&2
   exit 2
@@ -115,6 +163,19 @@ xcodebuild \
   -destination "${DESTINATION}" \
   -derivedDataPath "${DERIVED_DATA_PATH}" \
   build
+
+if [[ ! -f "$APP_PATH/Info.plist" ]]; then
+  echo "error: built app Info.plist not found at $APP_PATH/Info.plist" >&2
+  exit 1
+fi
+if ! COMPILED_BUNDLE_ID="$(plutil -extract CFBundleIdentifier raw -o - "$APP_PATH/Info.plist" 2>/dev/null)"; then
+  echo "error: could not read the built app bundle identifier" >&2
+  exit 1
+fi
+if [[ "$COMPILED_BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
+  echo "error: built app identifier '$COMPILED_BUNDLE_ID' does not match '$EXPECTED_BUNDLE_ID'; refusing to uninstall or install" >&2
+  exit 1
+fi
 
 if ! xcrun simctl list devices booted | grep -Fq "${SIMULATOR_ID}"; then
   if [[ "${BOOT_IF_NEEDED}" == "1" ]]; then

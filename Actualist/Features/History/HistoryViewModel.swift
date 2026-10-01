@@ -244,7 +244,7 @@ final class HistoryViewModel {
                     line.payeeName,
                     seed: line.id,
                     privacyEnabled: privacyEnabled
-                ) ?? "Transaction"
+                ) ?? defaultTransactionLineName(for: line)
                 let current: String
                 let proposed: String
                 switch line.effect {
@@ -289,6 +289,36 @@ final class HistoryViewModel {
                         )
                     } ?? "Current"
                     proposed = "Previous"
+                case .cleared:
+                    current = line.currentCleared == true ? "Cleared" : "Uncleared"
+                    proposed = line.proposedCleared == true ? "Cleared" : "Uncleared"
+                case .duplicateRemoval:
+                    current = line.amount.map {
+                        HistoryRowPresentation.moneyText(
+                            $0,
+                            seed: "\(preview.actionID)-txn-\(line.id)",
+                            currency: currency,
+                            privacyEnabled: privacyEnabled
+                        )
+                    } ?? "Duplicate"
+                    proposed = "Remove duplicate"
+                case .mergeRestoration:
+                    current = line.amount.map {
+                        HistoryRowPresentation.moneyText(
+                            $0,
+                            seed: "\(preview.actionID)-txn-after-\(line.id)",
+                            currency: currency,
+                            privacyEnabled: privacyEnabled
+                        )
+                    } ?? "After merge"
+                    proposed = line.proposedAmount.map {
+                        HistoryRowPresentation.moneyText(
+                            $0,
+                            seed: "\(preview.actionID)-txn-before-\(line.id)",
+                            currency: currency,
+                            privacyEnabled: privacyEnabled
+                        )
+                    } ?? "Before merge"
                 }
                 return HistoryUndoReviewPresentation.Entry(
                     categoryID: line.id,
@@ -312,6 +342,19 @@ final class HistoryViewModel {
             entries: entries,
             blockReason: preview.block?.userFacingReason
         )
+    }
+
+    private func defaultTransactionLineName(
+        for line: BudgetActionUndoPreview.TransactionLine
+    ) -> String {
+        switch line.effect {
+        case .duplicateRemoval:
+            line.isLinkedEntry ? "Linked duplicate" : "Duplicate"
+        case .mergeRestoration:
+            line.isLinkedEntry ? "Linked transaction" : "Selected transaction"
+        case .delete, .restore, .recategorize, .edit, .cleared:
+            "Transaction"
+        }
     }
 
     private static func loadFailureMessage(for error: any Error) -> String {

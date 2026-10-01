@@ -24,49 +24,67 @@ struct ReportExplorerFilterView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            ReviewSheetContent {
+                ReviewSheetHeader(
+                    title: "Filter This Report",
+                    subtitle: metric.supportsCategoryFilters
+                        ? "Choose accounts and categories to include."
+                        : "Choose accounts to include."
+                )
+                Button("Reset Filters", systemImage: "arrow.counterclockwise") {
+                    draft = ReportExplorerFilterDraft(filters: .default)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+                .tint(ActualistTheme.accent)
+                .accessibilityIdentifier("report-filter-reset")
                 accountSection
                 if metric.supportsCategoryFilters {
                     categorySection
                 }
                 if metric == .budgetOverview {
-                    Section {
-                        Text("Account filters change Spending. Budgeted stays based on the selected categories because budgets are not assigned to accounts.")
-                            .font(.footnote)
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                }
-                Section {
-                    Button("Reset Filters") {
-                        draft = ReportExplorerFilterDraft(filters: .default)
-                    }
-                    .accessibilityIdentifier("report-filter-reset")
+                    Text("Account filters change Spending. Budgeted stays based on the selected categories because budgets are not assigned to accounts.")
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .actualistReviewCard(padding: 12)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
             .navigationTitle("Report Filters")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") {
-                        onApply(draft.filters)
-                        dismiss()
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                ReviewSheetActions {
+                    Button(role: .cancel) { dismiss() } label: {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity, minHeight: 32)
                     }
+                    .buttonStyle(.glass)
+                    .accessibilityIdentifier("report-filter-cancel")
+
+                    Button { applyDraft() } label: {
+                        Text("Apply")
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
                     .accessibilityIdentifier("report-filter-apply")
                 }
             }
         }
         .frame(idealWidth: 560)
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
+        .presentationBackground(ActualistTheme.background)
         .accessibilityIdentifier("report-filter-sheet")
     }
 
     private var accountSection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 8) {
+            filterHeader(
+                title: "Accounts",
+                symbol: "building.2",
+                selectAll: { draft.selectAllAccounts() },
+                clear: { draft.clearAccounts() }
+            )
+
             Toggle("Include off-budget accounts", isOn: $draft.filters.includesOffBudget)
                 .accessibilityIdentifier("report-filter-off-budget")
             ForEach(openAccounts) { option in
@@ -74,40 +92,48 @@ struct ReportExplorerFilterView: View {
             }
             if !closedAccounts.isEmpty {
                 DisclosureGroup("Closed Accounts", isExpanded: $showsClosedAccounts) {
-                    ForEach(closedAccounts) { option in
-                        accountToggle(option)
+                    VStack(spacing: 0) {
+                        ForEach(Array(closedAccounts.enumerated()), id: \.element.id) { index, option in
+                            if index > 0 { rowDivider }
+                            accountToggle(option)
+                        }
                     }
                 }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(ActualistTheme.primaryText)
             }
-        } header: {
-            filterHeader(
-                title: "Accounts",
-                selectAll: { draft.selectAllAccounts() },
-                clear: { draft.clearAccounts() }
-            )
         }
+        .actualistReviewCard(padding: 14)
     }
 
     private var categorySection: some View {
-        Section {
+        VStack(alignment: .leading, spacing: 8) {
+            filterHeader(
+                title: "Categories",
+                symbol: "square.grid.2x2",
+                selectAll: { draft.selectAllCategories() },
+                clear: { draft.clearCategories() }
+            )
+
             Toggle("Include hidden categories", isOn: $draft.filters.includesHiddenCategories)
                 .accessibilityIdentifier("report-filter-hidden-categories")
             Toggle("Include uncategorized", isOn: $draft.filters.includesUncategorized)
                 .accessibilityIdentifier("report-filter-uncategorized")
+
             ForEach(categoryGroups, id: \.name) { group in
                 DisclosureGroup(group.name) {
-                    ForEach(group.options) { option in
-                        categoryToggle(option)
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.options.enumerated()), id: \.element.id) { index, option in
+                            if index > 0 { rowDivider }
+                            categoryToggle(option)
+                        }
                     }
                 }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(ActualistTheme.primaryText)
             }
-        } header: {
-            filterHeader(
-                title: "Categories",
-                selectAll: { draft.selectAllCategories() },
-                clear: { draft.clearCategories() }
-            )
         }
+        .actualistReviewCard(padding: 14)
     }
 
     private var openAccounts: [ReportExplorerAccountFilterOption] {
@@ -132,20 +158,28 @@ struct ReportExplorerFilterView: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
+    private var rowDivider: some View {
+        ActualistTheme.separator.frame(height: 1)
+            .padding(.leading, 34)
+    }
+
     private func accountToggle(_ option: ReportExplorerAccountFilterOption) -> some View {
         Toggle(isOn: Binding(
             get: { draft.isAccountSelected(option.id) },
             set: { draft.setAccount(option.id, selected: $0, availableIDs: accountIDs) }
         )) {
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(option.name)
+                    .fixedSize(horizontal: false, vertical: true)
                 if option.isOffBudget {
                     Text("Off budget")
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
+        .font(.subheadline)
         .accessibilityIdentifier("report-filter-account-\(option.id)")
     }
 
@@ -154,20 +188,24 @@ struct ReportExplorerFilterView: View {
             get: { draft.isCategorySelected(option.id) },
             set: { draft.setCategory(option.id, selected: $0, availableIDs: categoryIDs) }
         )) {
-            HStack {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(option.name)
+                    .fixedSize(horizontal: false, vertical: true)
                 if option.isHidden {
                     Text("Hidden")
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
+        .font(.subheadline)
         .accessibilityIdentifier("report-filter-category-\(option.id)")
     }
 
     private func filterHeader(
         title: String,
+        symbol: String,
         selectAll: @escaping () -> Void,
         clear: @escaping () -> Void
     ) -> some View {
@@ -175,7 +213,9 @@ struct ReportExplorerFilterView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
         return layout {
-            Text(title)
+            Label(title, systemImage: symbol)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(ActualistTheme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             if !dynamicTypeSize.isAccessibilitySize {
                 Spacer(minLength: 8)
@@ -184,8 +224,15 @@ struct ReportExplorerFilterView: View {
                 Button("All", action: selectAll)
                 Button("None", action: clear)
             }
+            .buttonStyle(.plain)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(ActualistTheme.accent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .textCase(nil)
+    }
+
+    private func applyDraft() {
+        onApply(draft.filters)
+        dismiss()
     }
 }

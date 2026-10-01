@@ -233,6 +233,12 @@ private struct HistoryRowView: View {
             "trash"
         case .categorize:
             "tag"
+        case .transactionBatch:
+            "checkmark.circle"
+        case .transactionDuplicate:
+            "plus.square.on.square"
+        case .transactionMerge:
+            "arrow.triangle.merge"
         case .metadata:
             "pencil.and.outline"
         }

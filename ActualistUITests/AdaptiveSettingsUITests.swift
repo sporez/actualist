@@ -7,7 +7,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     @MainActor
     func testCompactSettingsCategoriesOpenByTappingRows() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings"]
         app.launch()
         guard app.frame.width < 700 else { throw XCTSkip("Requires compact navigation") }
@@ -29,7 +29,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     @MainActor
     func testWideDemoReentryLeavesSidebarSettings() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/connection"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
@@ -54,7 +54,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     @MainActor
     func testWideSettingsKeepsMenuWhileSwitchingDetail() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
@@ -88,7 +88,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     @MainActor
     func testWideSettingsNestedRouteCanSwitchCategory() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data/payees"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
@@ -101,7 +101,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     @MainActor
     func testWideBudgetHeaderRemainsVisibleAfterScrolling() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }

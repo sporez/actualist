@@ -62,6 +62,10 @@ final class SchedulesViewModel {
         )
     }
 
+    func scheduleDetail(id: String) -> ScheduleDetail? {
+        snapshot?.detail(id: id)
+    }
+
     func load(
         context: SchedulesViewContext,
         repository: any ScheduleRepositoryProtocol

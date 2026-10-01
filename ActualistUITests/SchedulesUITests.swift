@@ -50,6 +50,7 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["schedules-close"].isHittable)
         attachScreenshot(named: "schedules-compact-light-privacy-axxxl", app: app)
 
+        exerciseMaskedDetailAndBack(in: app, layout: "compact-light-privacy-axxxl")
         exerciseSearchAndRefresh(for: maskedScheduleName, in: app)
         closeSchedules(in: app)
     }
@@ -86,8 +87,209 @@ final class SchedulesUITests: XCTestCase {
         assertMaskedFixture(in: app)
         attachScreenshot(named: "schedules-wide-light-privacy", app: app)
 
+        exerciseMaskedDetailAndBack(in: app, layout: "wide-light-privacy")
         exerciseSearchAndRefresh(for: maskedScheduleName, in: app)
         closeSchedules(in: app)
+    }
+
+    func testCreateEditorShowsNativeScheduleInputsAndCanCancel() throws {
+        XCUIDevice.shared.orientation = .portrait
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchBudget()
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+        try requireCompact(app)
+
+        openSchedules(in: app)
+        let add = app.buttons["schedule-add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        let editor = app.scrollViews["schedule-editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.textFields["schedule-editor-name"].exists)
+        XCTAssertTrue(app.buttons["schedule-editor-account"].exists)
+        XCTAssertTrue(app.buttons["schedule-editor-payee"].exists)
+        XCTAssertTrue(app.textFields["schedule-editor-amount"].exists)
+        XCTAssertTrue(app.buttons["schedule-save-review-button"].exists)
+        attachScreenshot(named: "schedules-create-editor-dark", app: app)
+
+        app.buttons["schedule-management-close"].tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 8))
+        closeSchedules(in: app)
+    }
+
+    func testDisposableScheduleEditCanReviewBackAndConfirm() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchBudget()
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+        try requireCompact(app)
+        createSupportedSchedule(named: "UI Schedule Original", repeats: false, in: app)
+        openSchedule(named: "UI Schedule Original", in: app)
+        openManagementAction("schedule-edit", in: app)
+
+        let name = app.textFields["schedule-editor-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        app.typeKey("a", modifierFlags: .command)
+        app.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
+        name.typeText("UI Schedule Edited")
+        app.buttons["schedule-save-review-button"].tap()
+        XCTAssertTrue(app.scrollViews["schedule-save-review"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["UI Schedule Edited"].exists)
+        app.buttons["Back"].tap()
+
+        app.buttons["schedule-save-review-button"].tap()
+        app.buttons["schedule-save-confirm"].tap()
+        XCTAssertTrue(app.staticTexts["Schedule Updated"].waitForExistence(timeout: 8))
+        app.buttons["Done"].tap()
+        let back = app.navigationBars["Schedule Details"].buttons["Schedules"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+        XCTAssertTrue(scheduleRow(named: "UI Schedule Edited", in: app).waitForExistence(timeout: 8))
+    }
+
+    func testDisposableRecurringScheduleSkipReviewCanCancelAndConfirm() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchBudget()
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+        try requireCompact(app)
+        createSupportedSchedule(named: "UI Skip Fixture", repeats: true, in: app)
+        openSchedule(named: "UI Skip Fixture", in: app)
+        openManagementAction("schedule-skip", in: app)
+        cancelActionReview(in: app)
+        openManagementAction("schedule-skip", in: app)
+        app.buttons["schedule-action-confirm"].tap()
+        XCTAssertTrue(app.staticTexts["Next Date Skipped"].waitForExistence(timeout: 8))
+        app.buttons["Done"].tap()
+    }
+
+    func testDisposableScheduleCompletionReviewCanCancelAndConfirm() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchBudget()
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+        try requireCompact(app)
+        createSupportedSchedule(named: "UI Complete Fixture", repeats: false, in: app)
+        openSchedule(named: "UI Complete Fixture", in: app)
+        openManagementAction("schedule-complete", in: app)
+        cancelActionReview(in: app)
+        openManagementAction("schedule-complete", in: app)
+        app.buttons["schedule-action-confirm"].tap()
+        XCTAssertTrue(app.staticTexts["Schedule Completed"].waitForExistence(timeout: 8))
+        app.buttons["Done"].tap()
+    }
+
+    func testDisposableScheduleDeletionReviewCanCancelAndConfirm() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchBudget()
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+        try requireCompact(app)
+        createSupportedSchedule(named: "UI Delete Fixture", repeats: false, in: app)
+        openSchedule(named: "UI Delete Fixture", in: app)
+        openManagementAction("schedule-delete", in: app)
+        cancelActionReview(in: app)
+        openManagementAction("schedule-delete", in: app)
+        app.buttons["schedule-action-confirm"].tap()
+        XCTAssertTrue(app.staticTexts["Schedule Deleted"].waitForExistence(timeout: 8))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["Schedule Unavailable"].waitForExistence(timeout: 8))
+    }
+
+    func testDisposableSchedulePostReviewExplainsDemoRestrictionAndCanCancel() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchBudget()
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+        try requireCompact(app)
+        createSupportedSchedule(named: "UI Post Review Fixture", repeats: false, in: app)
+        openSchedule(named: "UI Post Review Fixture", in: app)
+
+        app.buttons["schedule-manage"].tap()
+        let reviewAction = app.buttons["schedule-post-review-open"]
+        XCTAssertTrue(reviewAction.waitForExistence(timeout: 5))
+        reviewAction.tap()
+
+        let review = app.descendants(matching: .any)["schedule-post-review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 8))
+        let reason = app.descendants(matching: .any)["schedule-post-unavailable-reason"]
+        XCTAssertTrue(reason.waitForExistence(timeout: 5))
+        XCTAssertTrue(reason.label.contains("Demo budgets cannot be remotely synced"))
+        XCTAssertFalse(app.buttons["schedule-post-confirm"].isEnabled)
+
+        app.buttons["schedule-post-cancel"].tap()
+        XCTAssertTrue(review.waitForNonExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars["Schedule Details"].exists)
+    }
+
+    private func createSupportedSchedule(named name: String, repeats: Bool, in app: XCUIApplication) {
+        openSchedules(in: app)
+        app.buttons["schedule-add"].tap()
+        let editor = app.scrollViews["schedule-editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 8))
+
+        let nameField = app.textFields["schedule-editor-name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText(name)
+
+        app.buttons["schedule-editor-account"].tap()
+        let account = app.buttons["Everyday Checking"]
+        XCTAssertTrue(account.waitForExistence(timeout: 5))
+        account.tap()
+
+        let amount = app.textFields["schedule-editor-amount"]
+        amount.tap()
+        amount.typeText("12.34")
+        if repeats {
+            app.buttons["Repeating"].tap()
+        }
+        app.buttons["schedule-save-review-button"].tap()
+        XCTAssertTrue(app.scrollViews["schedule-save-review"].waitForExistence(timeout: 5))
+        app.buttons["schedule-save-confirm"].tap()
+        XCTAssertTrue(app.staticTexts["Schedule Created"].waitForExistence(timeout: 8))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(scheduleRow(named: name, in: app).waitForExistence(timeout: 8))
+    }
+
+    private func openSchedule(named name: String, in app: XCUIApplication) {
+        if !app.navigationBars["Schedules"].exists {
+            openSchedules(in: app)
+        }
+        let row = scheduleRow(named: name, in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 8))
+        row.tap()
+        XCTAssertTrue(app.navigationBars["Schedule Details"].waitForExistence(timeout: 8))
+    }
+
+    private func openManagementAction(_ identifier: String, in app: XCUIApplication) {
+        app.buttons["schedule-manage"].tap()
+        let action = app.buttons[identifier]
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        action.tap()
+        let destination = identifier == "schedule-edit" ? "schedule-editor" : "schedule-action-review"
+        XCTAssertTrue(app.scrollViews[destination].waitForExistence(timeout: 8))
+    }
+
+    private func cancelActionReview(in app: XCUIApplication) {
+        app.buttons["schedule-action-cancel"].tap()
+        XCTAssertTrue(app.scrollViews["schedule-action-review"].waitForNonExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars["Schedule Details"].exists)
     }
 
     private func openSchedules(
@@ -144,12 +346,9 @@ final class SchedulesUITests: XCTestCase {
 
         let detail = app.navigationBars["Schedule Details"]
         XCTAssertTrue(detail.waitForExistence(timeout: 8), file: file, line: line)
-        let detailList = try XCTUnwrap(
-            app.collectionViews.allElementsBoundByIndex.first { $0.isHittable },
-            "Schedule detail list must be reachable",
-            file: file,
-            line: line
-        )
+        let detailList = app.scrollViews["schedule-detail-content"]
+        XCTAssertTrue(detailList.waitForExistence(timeout: 5), file: file, line: line)
+        XCTAssertTrue(detailList.isHittable, file: file, line: line)
         attachScreenshot(named: "schedules-\(layout)-dark-detail-top", app: app)
 
         for expectedText in [
@@ -198,6 +397,22 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertTrue(scheduleRow(named: fixtureScheduleName, in: app).waitForExistence(timeout: 5), file: file, line: line)
     }
 
+    private func exerciseMaskedDetailAndBack(in app: XCUIApplication, layout: String) {
+        scheduleRow(named: maskedScheduleName, in: app).tap()
+        let detail = app.navigationBars["Schedule Details"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 8))
+        let content = app.scrollViews["schedule-detail-content"]
+        XCTAssertTrue(content.waitForExistence(timeout: 5))
+        XCTAssertTrue(content.staticTexts[maskedScheduleName].exists)
+        XCTAssertFalse(content.staticTexts[fixtureScheduleName].exists)
+        attachScreenshot(named: "schedules-\(layout)-detail", app: app)
+        let account = content.descendants(matching: .any)["schedule-detail-account"]
+        scrollToVisible(account, named: "Account", in: content, file: #filePath, line: #line)
+        attachScreenshot(named: "schedules-\(layout)-detail-account", app: app)
+        detail.buttons["Schedules"].tap()
+        XCTAssertTrue(app.navigationBars["Schedules"].waitForExistence(timeout: 5))
+    }
+
     private func assertDenseTransactionRows(
         in detailList: XCUIElement,
         layout: String,
@@ -205,12 +420,9 @@ final class SchedulesUITests: XCTestCase {
         file: StaticString,
         line: UInt
     ) {
-        let account = detailRow(labeled: "Account, Unavailable account", in: detailList)
-        let payee = detailRow(labeled: "Payee, No payee", in: detailList)
-        let automaticPosting = detailRow(
-            labeled: "Automatic posting, Disabled",
-            in: detailList
-        )
+        let account = detailList.descendants(matching: .any)["schedule-detail-account"]
+        let payee = detailList.descendants(matching: .any)["schedule-detail-payee"]
+        let automaticPosting = detailList.descendants(matching: .any)["schedule-detail-automatic-posting"]
         for (name, row) in [
             ("Account", account),
             ("Payee", payee),
@@ -223,10 +435,12 @@ final class SchedulesUITests: XCTestCase {
                 line: line
             )
         }
+        XCTAssertTrue(account.staticTexts["Unavailable account"].exists, file: file, line: line)
+        XCTAssertTrue(payee.staticTexts["No payee"].exists, file: file, line: line)
+        XCTAssertTrue(automaticPosting.staticTexts["Disabled"].exists, file: file, line: line)
 
-        // These fixture values are single-line at normal text size and the view
-        // adds no custom row padding. Allow almost two native row heights while
-        // rejecting the hundreds-of-points expansion this regression covers.
+        // Reject the hundreds-of-points expansion this regression covers while
+        // allowing the compact icon-led rows to wrap their labels.
         let maximumNativeRowCenterGap: CGFloat = 80
         let accountToPayee = payee.frame.midY - account.frame.midY
         let payeeToAutomaticPosting = automaticPosting.frame.midY - payee.frame.midY
@@ -234,7 +448,7 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertLessThanOrEqual(
             accountToPayee,
             maximumNativeRowCenterGap,
-            "Account and Payee rows must keep native List spacing",
+            "Account and Payee rows must keep compact review spacing",
             file: file,
             line: line
         )
@@ -242,7 +456,7 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertLessThanOrEqual(
             payeeToAutomaticPosting,
             maximumNativeRowCenterGap,
-            "Payee and Automatic posting rows must keep native List spacing",
+            "Payee and Automatic posting rows must keep compact review spacing",
             file: file,
             line: line
         )
@@ -258,12 +472,6 @@ final class SchedulesUITests: XCTestCase {
             named: "schedules-\(layout)-dark-detail-transaction-dense",
             app: app
         )
-    }
-
-    private func detailRow(labeled label: String, in detailList: XCUIElement) -> XCUIElement {
-        detailList.staticTexts
-            .matching(NSPredicate(format: "label == %@", label))
-            .firstMatch
     }
 
     private func exerciseSearchAndRefresh(
@@ -456,7 +664,7 @@ final class SchedulesUITests: XCTestCase {
         replaceDemo: Bool = false,
         dynamicType: String? = nil
     ) -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")

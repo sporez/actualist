@@ -72,7 +72,8 @@ extension BudgetDatabase {
                 inverse: .transactionMetadata(payload),
                 affectedCategoryIDs: []
             )
-        case .assign, .move, .template, .createTransaction, .editTransaction, .deleteTransaction, .categorize:
+        case .assign, .move, .template, .createTransaction, .editTransaction, .deleteTransaction,
+                .categorize, .transactionBatch, .transactionDuplicate, .transactionMerge:
             throw LocalFirstError.invalidLocalWrite("unexpected money-flow action in metadata capture")
         }
     }

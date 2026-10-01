@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "status": "blocked-preparation-only",
+  "distributedUniquenessGuarantee": false,
+  "cases": [
+    {
+      "id": "one-time-due",
+      "roles": ["swift-manual", "node-import", "node-automatic"],
+      "expected": "Node advancement observes the Swift-posted occurrence and creates no replacement transaction."
+    },
+    {
+      "id": "recurring-due",
+      "roles": ["swift-manual", "node-import", "node-automatic"],
+      "expected": "A same-day Node service rerun writes nothing for the imported occurrence."
+    },
+    {
+      "id": "missed-recurrence",
+      "roles": ["swift-manual", "node-import", "node-automatic"],
+      "expected": "Swift posts the oldest occurrence; Node catches up remaining occurrences once and oldest first."
+    },
+    {
+      "id": "missed-approximate-post-today",
+      "roles": ["swift-manual-today", "node-import", "node-automatic"],
+      "expected": "Node finds the imported Today post inside Actual's date window and creates no replacement."
+    },
+    {
+      "id": "isolated-manual-versus-automatic",
+      "roles": ["swift-manual", "node-automatic"],
+      "expected": "Both merge orders are recorded; two-ID convergence is allowed and no uniqueness claim is made."
+    },
+    {
+      "id": "isolated-automatic-role-reversal",
+      "roles": ["swift-automatic", "node-automatic"],
+      "status": "blocked",
+      "blockedBy": "Packet 2C2 Actualist automatic runtime is unavailable and outside this source authorization.",
+      "expected": "Must not be passed, skipped as a substitute, or executed with two Node Actual handlers."
+    },
+    {
+      "id": "split-and-transfer",
+      "roles": ["swift-manual", "node-import", "node-automatic"],
+      "expected": "Parent and legs, schedule identity, transfer links, tombstones, and replay are compared on both clients."
+    },
+    {
+      "id": "earlier-date-rule-root-finding",
+      "roles": ["swift-manual", "node-import"],
+      "expected": "Swift rejects a rule-projected date before the occurrence lower bound before commit; Node paid/retry behavior is recorded independently."
+    }
+  ]
+}

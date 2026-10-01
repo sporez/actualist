@@ -10,6 +10,7 @@ struct SettingsBudgetPickerSheet: View {
     @State private var encryptedBudgetPrompt: ActualBudget?
     @State private var encryptionPassword = ""
     @State private var isUnlockingEncryptedBudget = false
+    @State private var emptyBudgetCoordinator = EmptyBudgetPickerCoordinator()
 
     var body: some View {
         NavigationStack {
@@ -61,6 +62,14 @@ struct SettingsBudgetPickerSheet: View {
                     }
                 }
                 .settingsSectionChrome()
+
+                if emptyBudgetCoordinator.offer(using: appState) == .offered {
+                    EmptyBudgetPickerSection(
+                        coordinator: emptyBudgetCoordinator,
+                        onBudgetSelected: { isPresented = false }
+                    )
+                    .settingsSectionChrome()
+                }
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
@@ -80,13 +89,15 @@ struct SettingsBudgetPickerSheet: View {
                 guard !appState.isDemoMode else {
                     return
                 }
-                await viewModel.loadBudgetsForSelection(using: appState)
+                let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
+                emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
             }
             .refreshable {
                 guard !appState.isDemoMode else {
                     return
                 }
-                await viewModel.loadBudgetsForSelection(using: appState)
+                let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
+                emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
             }
             .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in
                 EncryptedBudgetUnlockSheet(

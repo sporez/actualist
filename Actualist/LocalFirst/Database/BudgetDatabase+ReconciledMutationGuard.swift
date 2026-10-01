@@ -62,7 +62,7 @@ extension BudgetDatabase {
         let transferID: String?
     }
 
-    private func reconciledMutationReview(
+    func reconciledMutationReview(
         transactionID: String,
         columns: TransactionRowColumns,
         db: Database

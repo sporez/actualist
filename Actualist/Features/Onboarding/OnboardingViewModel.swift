@@ -172,18 +172,26 @@ final class BudgetPickerViewModel {
         openingBudgetID != nil
     }
 
-    func reload(using appState: AppState) async {
+    /// Reloads the budget list and reports whether discovery completed
+    /// successfully. A thrown error — including cancellation — is `false`:
+    /// callers must never treat it as a discovered empty server.
+    @discardableResult
+    func reload(using appState: AppState) async -> Bool {
         isLoading = true
+        let succeeded: Bool
         do {
             try await appState.loadBudgets()
             if case .failed = openState {
                 openState = .idle
             }
+            succeeded = true
         } catch {
             appState.lastErrorMessage = error.userFacingMessage
             openState = error.userFacingMessage.map { .failed(message: $0) } ?? .idle
+            succeeded = false
         }
         isLoading = false
+        return succeeded
     }
 
     func selectBudget(_ budget: ActualBudget, using appState: AppState) {

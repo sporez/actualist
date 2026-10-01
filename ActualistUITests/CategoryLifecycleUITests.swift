@@ -531,7 +531,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         screen: String = "budget",
         replaceDemo: Bool = true
     ) -> XCUIApplication {
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")

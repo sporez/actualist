@@ -485,7 +485,7 @@ struct FeedTestError: Error, LocalizedError, Sendable {
 }
 
 @MainActor
-final class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
+class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
     let accountSnapshot: LoadedAccountTransactions?
     let spendingSnapshot: LoadedAccountTransactions?
     let categorySnapshot: LoadedAccountTransactions?

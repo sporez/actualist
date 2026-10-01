@@ -18,6 +18,42 @@ scripts/run-ios-simulator.sh --boot
 The helper builds, installs, and launches the app. `--no-launch` builds and
 installs without launching; `--help` lists the options.
 
+## Side-by-side development app
+
+Use the shared `Actualist Dev` scheme for a development build that can be
+installed beside the regular app:
+
+```sh
+ACTUALIST_SCHEME='Actualist Dev' scripts/run-ios-simulator.sh --boot
+```
+
+The Dev scheme uses the `Dev` build configuration for every action, including
+Archive. It builds `com.sporez.actualist.dev` with the display name
+`Actualist Dev`, the Dev app icon, a separate widget identifier, and the
+`group.com.sporez.actualist.dev` App Group. The regular `Actualist` scheme and
+its Debug and Release identities remain the defaults.
+
+Physical-device installation requires an Apple developer account in Xcode and
+provisioning for both `com.sporez.actualist.dev` and
+`com.sporez.actualist.dev.widgets`, each using the Dev App Group. A wildcard
+profile cannot authorize App Groups. Select `Actualist Dev` and automatic
+signing with your team to create the separate profiles; keep the regular app's
+identifiers and App Group unchanged.
+
+Wallet transaction import is not provisioned in the Dev app because its
+transaction-picker entitlement is intentionally omitted. Use the regular app
+for Wallet import development.
+
+Select the same scheme explicitly when running tests against the Dev app:
+
+```sh
+ACTUALIST_SCHEME='Actualist Dev' scripts/test.sh unit BankSyncReconcilerTests
+```
+
+`ACTUALIST_SCHEME` accepts only `Actualist` and `Actualist Dev`. The simulator
+helper derives the matching bundle identifier and refuses conflicting bundle
+or configuration overrides before uninstalling or installing an app.
+
 ## Demo budgets
 
 Use the bundled offline demo for UI checks:

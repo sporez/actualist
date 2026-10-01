@@ -431,6 +431,78 @@ import Testing
         #expect(allChanged == .blocked(.transactionChanged))
     }
 
+    @Test func transactionBatchUndoRequiresEveryCompleteGraphSnapshotToMatch() {
+        let before = batchSnapshot(amount: -100, categoryID: "groceries")
+        let after = batchSnapshot(amount: -100, categoryID: "dining")
+        let inverse = TransactionBatchTransactionInverse(
+            operation: .categorize,
+            selectedTransactionIDs: ["txn-1"],
+            beforeSnapshots: [before],
+            afterSnapshots: [after],
+            learning: .empty
+        )
+        let summary = TransactionBatchBudgetAction(
+            operation: .categorize,
+            selectedCount: 1,
+            changedCount: 1,
+            clearTarget: nil,
+            categoryID: "dining"
+        )
+        let record = makeRecord(
+            inverse: .transactionBatch(inverse),
+            summary: .transactionBatch(summary),
+            affectedCategoryIDs: ["dining", "groceries"]
+        )
+
+        #expect(BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactionBatchSnapshots: ["txn-1": after]
+        ) == .clean(.restoreBatchTransactions(snapshots: [before], learning: .empty)))
+
+        let changed = batchSnapshot(amount: -100, categoryID: "dining", notes: "newer edit")
+        #expect(BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:],
+            liveTransactionBatchSnapshots: ["txn-1": changed]
+        ) == .blocked(.batchChanged))
+        #expect(BudgetActionUndo.evaluate(
+            record: record,
+            liveBudgeted: [:]
+        ) == .blocked(.batchChanged))
+    }
+
+    private func batchSnapshot(
+        amount: Int,
+        categoryID: String?,
+        notes: String? = nil
+    ) -> TransactionBatchTransactionSnapshot {
+        TransactionBatchTransactionSnapshot(
+            id: "txn-1",
+            columns: ["acct", "amount", "category", "date", "description", "tombstone"],
+            accountID: "checking",
+            dateValue: 20260901,
+            amount: amount,
+            payeeID: nil,
+            categoryID: categoryID,
+            notes: notes,
+            cleared: false,
+            reconciled: false,
+            tombstone: false,
+            isParent: false,
+            isChild: false,
+            parentID: nil,
+            transferID: nil,
+            sortOrder: nil,
+            splitError: nil,
+            startingBalance: false,
+            scheduleID: nil,
+            importedID: nil,
+            importedPayee: nil,
+            importedDescription: nil
+        )
+    }
+
     @Test func unsafeGraphEditIsLocked() {
         let snapshot = TransactionUndoSnapshot(
             id: "txn-1",

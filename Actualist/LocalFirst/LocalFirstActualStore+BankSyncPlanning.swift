@@ -152,7 +152,7 @@ extension LocalFirstActualStore {
         }
 
         let allDrafts = prepared.flatMap(\.ruleDrafts)
-        let previews = try await database.previewRules(for: allDrafts)
+        let previews = try await database.previewRules(for: allDrafts, dateTimeZone: ActualDateOnly.utc)
         guard previews.count == allDrafts.count else {
             throw LocalFirstError.invalidLocalWrite("missing bank sync rule preview")
         }
