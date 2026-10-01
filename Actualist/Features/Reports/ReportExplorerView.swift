@@ -415,26 +415,24 @@ private struct ReportCustomRangeSheet: View {
             }
             .navigationTitle("Custom Range")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                ReviewSheetActions {
-                    Button(role: .cancel) { dismiss() } label: {
-                        Text("Cancel")
-                            .frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityIdentifier("report-custom-range-cancel")
-
-                    Button {
-                        onApply(start, end)
-                        dismiss()
-                    } label: {
-                        Text("Apply")
-                            .frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .accessibilityIdentifier("report-custom-range-apply")
+            .reviewSheetBottomBar {
+                Button(role: .cancel) { dismiss() } label: {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("report-custom-range-cancel")
+
+                Button {
+                    onApply(start, end)
+                    dismiss()
+                } label: {
+                    Text("Apply")
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
+                .accessibilityIdentifier("report-custom-range-apply")
             }
         }
         .frame(idealWidth: 520)

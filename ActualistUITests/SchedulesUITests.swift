@@ -353,7 +353,9 @@ final class SchedulesUITests: XCTestCase {
 
         for expectedText in [
             fixtureScheduleName,
-            "Date unavailable",
+            // The regenerated demo budget carries a next-date row for the
+            // fixture schedule, so the detail renders the real occurrence.
+            "Jan 15, 2027",
             "Every year",
             "Unavailable account",
             "No payee",
@@ -376,8 +378,9 @@ final class SchedulesUITests: XCTestCase {
         )
 
         for expectedText in [
-            "Read-only in Actualist",
-            "The next occurrence is unavailable.",
+            // Full schedule-write support in the demo schema makes the
+            // fixture's management actions available.
+            "Available in Actualist",
         ] {
             scrollToVisible(
                 detailList.descendants(matching: .any)

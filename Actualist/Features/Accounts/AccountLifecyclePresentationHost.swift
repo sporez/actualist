@@ -107,19 +107,17 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     .fixedSize(horizontal: false, vertical: true)
                     .actualistReviewCard()
                 }
-                .safeAreaBar(edge: .bottom, spacing: 0) {
-                    ReviewSheetActions {
-                        Spacer(minLength: 0)
-                        Button { coordinator.cancel() } label: {
-                            Text("Done")
-                                .font(.subheadline.weight(.semibold))
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, minHeight: 32)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .tint(ActualistTheme.accent)
+                .reviewSheetBottomBar {
+                    Spacer(minLength: 0)
+                    Button { coordinator.cancel() } label: {
+                        Text("Done")
+                            .font(.subheadline.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, minHeight: 32)
                     }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
                 }
                 .navigationTitle("Account Change Saved")
                 .navigationBarTitleDisplayMode(.inline)
@@ -199,27 +197,25 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                         .fixedSize(horizontal: false, vertical: true)
                         .actualistReviewCard()
                 }
-                .safeAreaBar(edge: .bottom, spacing: 0) {
-                    ReviewSheetActions {
-                        Button(role: .cancel) { coordinator.cancel() } label: {
-                            Text("Cancel")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 32)
-                                .padding(.horizontal, 12)
-                        }
-                        .buttonStyle(.glass)
-                        Button {
-                            coordinator.retry(repository: appState.localFirstStore)
-                        } label: {
-                            Text("Review Again")
-                                .font(.subheadline.weight(.semibold))
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, minHeight: 32)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .tint(ActualistTheme.accent)
+                .reviewSheetBottomBar {
+                    Button(role: .cancel) { coordinator.cancel() } label: {
+                        Text("Cancel")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 32)
+                            .padding(.horizontal, 12)
                     }
+                    .buttonStyle(.glass)
+                    Button {
+                        coordinator.retry(repository: appState.localFirstStore)
+                    } label: {
+                        Text("Review Again")
+                            .font(.subheadline.weight(.semibold))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
                 }
                 .navigationTitle("Close Account")
                 .navigationBarTitleDisplayMode(.inline)
@@ -236,17 +232,15 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                         .frame(maxWidth: .infinity)
                         .actualistReviewCard(padding: 18)
                 }
-                .safeAreaBar(edge: .bottom, spacing: 0) {
-                    ReviewSheetActions {
-                        Button(role: .cancel) { coordinator.cancel() } label: {
-                            Text("Cancel")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 32)
-                                .padding(.horizontal, 12)
-                        }
-                        .buttonStyle(.glass)
-                        Spacer(minLength: 0)
+                .reviewSheetBottomBar {
+                    Button(role: .cancel) { coordinator.cancel() } label: {
+                        Text("Cancel")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 32)
+                            .padding(.horizontal, 12)
                     }
+                    .buttonStyle(.glass)
+                    Spacer(minLength: 0)
                 }
                 .navigationTitle("Close Account")
                 .navigationBarTitleDisplayMode(.inline)

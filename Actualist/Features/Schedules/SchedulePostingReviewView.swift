@@ -53,7 +53,6 @@ struct SchedulePostingReviewView: View {
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationBackground(ActualistTheme.background)
         .interactiveDismissDisabled(coordinator.state.isSubmitting)
-        .accessibilityIdentifier("schedule-post-review")
     }
 
     private func reviewContent(_ review: SchedulePostingReviewContent) -> some View {
@@ -98,19 +97,18 @@ struct SchedulePostingReviewView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button("Cancel", role: .cancel) { close() }
-                    .buttonStyle(.glass)
-                    .accessibilityIdentifier("schedule-post-cancel")
-                Button("Post Transaction", systemImage: "arrow.up.circle") {
-                    coordinator.confirm(postingRepository: postingRepository)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-                .disabled(!review.canSubmit || coordinator.state.isBusy)
-                .accessibilityIdentifier("schedule-post-confirm")
+        .accessibilityIdentifier("schedule-post-review")
+        .reviewSheetBottomBar {
+            Button("Cancel", role: .cancel) { close() }
+                .buttonStyle(.glass)
+                .accessibilityIdentifier("schedule-post-cancel")
+            Button("Post Transaction", systemImage: "arrow.up.circle") {
+                coordinator.confirm(postingRepository: postingRepository)
             }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
+            .disabled(!review.canSubmit || coordinator.state.isBusy)
+            .accessibilityIdentifier("schedule-post-confirm")
         }
     }
 
@@ -136,16 +134,14 @@ struct SchedulePostingReviewView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button(coordinator.state.isSubmitting ? "Saving…" : "Cancel Sync", role: .cancel) {
-                    if coordinator.state.isSubmitting { return }
-                    _ = coordinator.cancel()
-                    dismiss()
-                }
-                .buttonStyle(.glass)
-                .disabled(coordinator.state.isSubmitting)
+        .reviewSheetBottomBar {
+            Button(coordinator.state.isSubmitting ? "Saving…" : "Cancel Sync", role: .cancel) {
+                if coordinator.state.isSubmitting { return }
+                _ = coordinator.cancel()
+                dismiss()
             }
+            .buttonStyle(.glass)
+            .disabled(coordinator.state.isSubmitting)
         }
     }
 
@@ -168,12 +164,10 @@ struct SchedulePostingReviewView: View {
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button("Done") { coordinator.finishCommitted(); dismiss() }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-            }
+        .reviewSheetBottomBar {
+            Button("Done") { coordinator.finishCommitted(); dismiss() }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
         }
     }
 
@@ -190,12 +184,10 @@ struct SchedulePostingReviewView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            ReviewSheetActions {
-                Button("Close") { close() }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-            }
+        .reviewSheetBottomBar {
+            Button("Close") { close() }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
         }
     }
 
