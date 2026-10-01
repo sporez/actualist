@@ -314,12 +314,33 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         return await appState.performBackgroundTransactionRefresh()
     }
 
+    /// Handles the notification tap through the completion-handler
+    /// requirement on purpose. The async spelling cannot be MainActor-
+    /// isolated: the SDK's `UNUserNotificationCenter` and
+    /// `UNNotificationResponse` are not Sendable, so Swift 6 rejects an
+    /// isolated witness. But a `nonisolated` async witness returns on the
+    /// cooperative pool, and iOS performs the notification-response
+    /// completion (including the background-transition snapshot update)
+    /// on that thread — UIKit then aborts with an uncaught
+    /// NSAssertionHandler exception in
+    /// `_performBlockAfterCATransactionCommitSynchronizes:` when the
+    /// notification was tapped while the app was backgrounded. Routing on
+    /// the main actor and invoking the completion handler there keeps the
+    /// whole response completion on the main thread. Same class of fix as
+    /// delivering the BGTask launch handler on `.main`.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         let budgetID = response.notification.request.content.userInfo["budgetID"] as? String
-        await routeNotification(budgetID: budgetID)
+        // The system block is invoked exactly once, from the main actor; the
+        // unsafe binding only suspends the Sendable check across that hop.
+        nonisolated(unsafe) let completion = completionHandler
+        Task { @MainActor in
+            await routeNotification(budgetID: budgetID)
+            completion()
+        }
     }
 
     private func routeNotification(budgetID: String?) async {

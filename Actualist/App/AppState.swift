@@ -865,9 +865,16 @@ final class AppState {
 
     func routeToSpendingFromNotification(budgetID: String) async {
         guard settings.selectedBudgetID == budgetID else { return }
-        accountNavigationPath = []
-        selectedTab = .spending
-        routeCoordinator.enqueue(.tab(.spending))
+        // A notification tap can arrive while the Settings cover is presented
+        // (for example, the developer test notification is posted from there).
+        // Dismiss it first so the Spending route is actually visible, the same
+        // way widget deep links defer navigation through `afterDismissingSettings`.
+        routeCoordinator.afterDismissingSettings { [weak self] in
+            guard let self else { return }
+            self.accountNavigationPath = []
+            self.selectedTab = .spending
+            self.routeCoordinator.enqueue(.tab(.spending))
+        }
     }
 
     #if DEBUG
