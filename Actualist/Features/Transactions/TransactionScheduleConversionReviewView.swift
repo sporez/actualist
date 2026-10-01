@@ -23,8 +23,6 @@ struct TransactionScheduleConversionReviewView: View {
                 }
             }
             .background(ActualistTheme.background)
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { close() }
@@ -71,11 +69,24 @@ struct TransactionScheduleConversionReviewView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .reviewSheetBottomBar {
-            Button("Cancel", role: .cancel) { close() }
-                .buttonStyle(.glass)
-                .accessibilityIdentifier("transaction-schedule-conversion-cancel")
-            Button("Convert Transaction", systemImage: "calendar.badge.plus") {
+            Button(role: .cancel) {
+                close()
+            } label: {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+            .accessibilityIdentifier("transaction-schedule-conversion-cancel")
+            Button {
                 coordinator.confirm(repository: repository, onCommitted: onCommitted)
+            } label: {
+                Label("Convert Transaction", systemImage: "calendar.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
             .buttonStyle(.glassProminent)
             .tint(ActualistTheme.accent)
@@ -117,9 +128,17 @@ struct TransactionScheduleConversionReviewView: View {
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .reviewSheetBottomBar {
-            Button("Done") { coordinator.finishCommitted(); dismiss() }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
+            Button {
+                coordinator.finishCommitted()
+                dismiss()
+            } label: {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
     }
 
@@ -137,18 +156,16 @@ struct TransactionScheduleConversionReviewView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .reviewSheetBottomBar {
-            Button("Close") { close() }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-        }
-    }
-
-    private var navigationTitle: String {
-        switch coordinator.state {
-        case .idle, .loading, .review: "Convert Transaction"
-        case .submitting: "Creating Schedule"
-        case .committed: "Schedule Created"
-        case .failed: "Conversion Unavailable"
+            Button {
+                close()
+            } label: {
+                Text("Close")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
     }
 

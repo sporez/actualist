@@ -39,7 +39,7 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         app.buttons["transaction-selection-actions"].tap()
         app.buttons["Categorize Transactions…"].tap()
 
-        XCTAssertTrue(app.navigationBars["Choose Category"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Categorize Transactions"].waitForExistence(timeout: 10))
         let category = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "transaction-batch-category-")
         ).firstMatch

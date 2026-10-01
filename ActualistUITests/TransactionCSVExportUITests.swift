@@ -36,7 +36,7 @@ final class TransactionCSVExportUITests: XCTestCase {
         XCTAssertTrue(exportAction.waitForExistence(timeout: 5))
         exportAction.tap()
 
-        let exportTitle = app.navigationBars["Export CSV"]
+        let exportTitle = app.staticTexts["Export CSV"]
         XCTAssertTrue(exportTitle.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Transaction families"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["CSV rows"].waitForExistence(timeout: 5))

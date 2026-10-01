@@ -29,8 +29,7 @@ struct TransactionFilterSheet: View {
                 }
             }
             .accessibilityIdentifier("transaction-filter-review-scroll")
-            .navigationTitle("Transaction Filters")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .reviewSheetBottomBar {
                 Button("Clear") {
                     if workflow.clearAndApply() { dismiss() }

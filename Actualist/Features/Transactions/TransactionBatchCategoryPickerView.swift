@@ -74,8 +74,6 @@ struct TransactionBatchCategoryPickerView: View {
                     }
                 }
             }
-            .navigationTitle("Choose Category")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel", action: onCancel)

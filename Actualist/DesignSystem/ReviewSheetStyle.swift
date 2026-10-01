@@ -66,6 +66,27 @@ private struct ReviewSheetBottomBarModifier<Actions: View>: ViewModifier {
     }
 }
 
+/// Input-surface treatment for plain text fields on review sheets so they
+/// read as editable inputs. Matches the app's rounded control-surface
+/// precedent (the search field in `TransactionBatchCategoryPickerView`).
+struct ReviewSheetFieldStyle: ViewModifier {
+    @Environment(\.actualistDensity) private var density
+
+    func body(content: Content) -> some View {
+        content
+            .font(ActualistTypography.body(for: density))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+extension View {
+    func reviewSheetFieldStyle() -> some View {
+        modifier(ReviewSheetFieldStyle())
+    }
+}
+
 struct ReviewSheetHeader: View {
     let title: String
     var subtitle: String? = nil

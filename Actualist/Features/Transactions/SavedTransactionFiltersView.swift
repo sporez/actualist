@@ -7,7 +7,9 @@ struct SavedTransactionFiltersView: View {
     var body: some View {
         NavigationStack {
             ReviewSheetContent {
-                saveCurrentFilterCard
+                if coordinator.unavailableMessage == nil {
+                    saveCurrentFilterCard
+                }
                 if let unavailableMessage = coordinator.unavailableMessage {
                     ContentUnavailableView(
                         "Saved Filters Unavailable",
@@ -41,12 +43,16 @@ struct SavedTransactionFiltersView: View {
                         .actualistReviewCard(padding: 12)
                 }
             }
-            .navigationTitle("Saved Filters")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .reviewSheetBottomBar {
-                Button("Done") { dismiss() }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
             }
         }
         .frame(idealWidth: 560)
@@ -86,7 +92,7 @@ struct SavedTransactionFiltersView: View {
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
             TextField("Filter name", text: $coordinator.nameDraft)
-                .textFieldStyle(.roundedBorder)
+                .reviewSheetFieldStyle()
                 .accessibilityIdentifier("saved-transaction-filter-name")
             Button {
                 Task { await coordinator.saveCurrentConditions() }

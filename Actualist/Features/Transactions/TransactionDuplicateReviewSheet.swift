@@ -115,13 +115,25 @@ struct TransactionDuplicateReviewSheet: View {
             }
 
             ReviewSheetActions {
-                Button("Cancel", action: onCancel)
-                    .buttonStyle(.glass)
-                Button(display.confirmationTitle, action: onConfirm)
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .disabled(!display.canSubmit)
-                    .accessibilityIdentifier("transaction-duplicate-confirm")
+                Button(role: .cancel, action: onCancel) {
+                    Text("Cancel")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
+                }
+                .buttonStyle(.glass)
+
+                Button(action: onConfirm) {
+                    Text(display.confirmationTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
+                .disabled(!display.canSubmit)
+                .accessibilityIdentifier("transaction-duplicate-confirm")
             }
         }
         .background(ActualistTheme.background)
@@ -130,6 +142,22 @@ struct TransactionDuplicateReviewSheet: View {
     }
 
     private func duplicateRow(_ row: TransactionDuplicateReviewDisplay.Row) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                duplicateIdentity(row)
+                Spacer(minLength: 8)
+                duplicateAmount(row.amount)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                duplicateIdentity(row)
+                duplicateAmount(row.amount)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("transaction-duplicate-row-\(row.id)")
+    }
+
+    private func duplicateIdentity(_ row: TransactionDuplicateReviewDisplay.Row) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(row.role)
                 .font(.subheadline.weight(.semibold))
@@ -137,13 +165,16 @@ struct TransactionDuplicateReviewSheet: View {
             Text(row.context)
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
-            Text(row.amount)
-                .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(ActualistTheme.primaryText)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("transaction-duplicate-row-\(row.id)")
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func duplicateAmount(_ amount: String) -> some View {
+        Text(amount)
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(ActualistTheme.primaryText)
+            .multilineTextAlignment(.trailing)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

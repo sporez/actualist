@@ -9,23 +9,15 @@ struct TransactionCSVExportReviewView: View {
 
     var body: some View {
         NavigationStack {
-            ReviewSheetContent {
-                ReviewSheetHeader(
-                    title: "Export CSV",
-                    subtitle: "Export every transaction in this account from your local budget."
-                )
-                stateCard
-            }
-            .navigationTitle("Export CSV")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        workflow.cancel()
-                        dismiss()
+            sheetContent
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") {
+                            workflow.cancel()
+                            dismiss()
+                        }
                     }
                 }
-            }
         }
         .presentationBackground(ActualistTheme.background)
         .task {
@@ -35,8 +27,35 @@ struct TransactionCSVExportReviewView: View {
     }
 
     @ViewBuilder
+    private var sheetContent: some View {
+        if case .ready(let export) = workflow.state {
+            ReviewSheetContent {
+                header
+                summaryCard(for: export)
+            }
+            .reviewSheetBottomBar {
+                shareCSVButton(for: export)
+            }
+        } else {
+            ReviewSheetContent {
+                header
+                stateCard
+            }
+        }
+    }
+
+    private var header: some View {
+        ReviewSheetHeader(
+            title: "Export CSV",
+            subtitle: "Export every transaction in this account from your local budget."
+        )
+    }
+
+    @ViewBuilder
     private var stateCard: some View {
         switch workflow.state {
+        case .ready:
+            EmptyView()
         case .idle:
             EmptyView()
         case .exporting:
@@ -53,24 +72,31 @@ struct TransactionCSVExportReviewView: View {
                 .buttonStyle(.glass)
             }
             .actualistReviewCard()
-        case .ready(let export):
-            VStack(alignment: .leading, spacing: 12) {
-                ReviewSummaryRow(title: "Transaction families", value: "\(export.exportedFamilyCount)", symbol: "rectangle.stack")
-                ReviewSummaryRow(title: "CSV rows", value: "\(export.exportedRowCount)", symbol: "tablecells")
-                Text("A split family counts once above and includes one CSV row for each transaction. This file contains budget data; share it only with people you trust.")
-                    .font(.footnote)
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                ShareLink(
-                    item: TransactionCSVTransfer(data: export.data, filename: export.suggestedFilename),
-                    preview: SharePreview(export.suggestedFilename, image: Image(systemName: "doc.text"))
-                ) {
-                    Label("Share CSV…", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.glassProminent)
-            }
-            .actualistReviewCard()
         }
+    }
+
+    private func summaryCard(for export: TransactionCSVExport) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ReviewSummaryRow(title: "Transaction families", value: "\(export.exportedFamilyCount)", symbol: "rectangle.stack")
+            ReviewSummaryRow(title: "CSV rows", value: "\(export.exportedRowCount)", symbol: "tablecells")
+            Text("A split family counts once above and includes one CSV row for each transaction. This file contains budget data; share it only with people you trust.")
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .actualistReviewCard()
+    }
+
+    private func shareCSVButton(for export: TransactionCSVExport) -> some View {
+        ShareLink(
+            item: TransactionCSVTransfer(data: export.data, filename: export.suggestedFilename),
+            preview: SharePreview(export.suggestedFilename, image: Image(systemName: "doc.text"))
+        ) {
+            Label("Share CSV…", systemImage: "square.and.arrow.up")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 32)
+        }
+        .buttonStyle(.glassProminent)
+        .tint(ActualistTheme.accent)
     }
 }

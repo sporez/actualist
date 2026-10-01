@@ -81,7 +81,7 @@ struct TransactionMergeReviewSheet: View {
                             title: "Kept",
                             value: kept,
                             symbol: "checkmark.circle",
-                            valueColor: ActualistTheme.positive
+                            valueColor: ActualistTheme.accent
                         )
                     }
                     if let dropped = display.droppedLabel {
@@ -119,13 +119,25 @@ struct TransactionMergeReviewSheet: View {
             }
 
             ReviewSheetActions {
-                Button("Cancel", action: onCancel)
-                    .buttonStyle(.glass)
-                Button(display.confirmationTitle, action: onConfirm)
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .disabled(!display.canSubmit)
-                    .accessibilityIdentifier("transaction-merge-confirm")
+                Button(role: .cancel, action: onCancel) {
+                    Text("Cancel")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
+                }
+                .buttonStyle(.glass)
+
+                Button(action: onConfirm) {
+                    Text(display.confirmationTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
+                .disabled(!display.canSubmit)
+                .accessibilityIdentifier("transaction-merge-confirm")
             }
         }
         .background(ActualistTheme.background)
@@ -154,23 +166,22 @@ struct TransactionMergeReviewSheet: View {
             .foregroundStyle(ActualistTheme.primaryText)
 
             if let role = input.role, let context = input.context, let amount = input.amount {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(role)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                    Text(context)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        mergeIdentity(role: role, context: context)
+                        Spacer(minLength: 8)
+                        mergeAmount(amount)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        mergeIdentity(role: role, context: context)
+                        mergeAmount(amount)
+                    }
+                }
+                if let note = input.note {
+                    Text(note)
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
-                    Text(amount)
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(ActualistTheme.primaryText)
-                    if let note = input.note {
-                        Text(note)
-                            .font(.caption)
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                            .lineLimit(2)
-                    }
+                        .lineLimit(2)
                 }
             }
 
@@ -195,12 +206,33 @@ struct TransactionMergeReviewSheet: View {
         .accessibilityIdentifier("transaction-merge-input-\(input.position)-\(input.id)")
     }
 
+    private func mergeIdentity(role: String, context: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(role)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ActualistTheme.secondaryText)
+            Text(context)
+                .font(.caption)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func mergeAmount(_ amount: String) -> some View {
+        Text(amount)
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(ActualistTheme.primaryText)
+            .multilineTextAlignment(.trailing)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     @ViewBuilder
     private func outcomeLabel(_ label: String?, isKept: Bool) -> some View {
         if let label {
             Text(label)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(isKept ? ActualistTheme.positive : ActualistTheme.secondaryText)
+                .foregroundStyle(isKept ? ActualistTheme.accent : ActualistTheme.secondaryText)
                 .accessibilityIdentifier(isKept ? "transaction-merge-kept" : "transaction-merge-dropped")
         }
     }
@@ -240,9 +272,15 @@ struct TransactionCommandCommittedSheet: View {
                     .actualistReviewCard()
             }
             ReviewSheetActions {
-                Button("Done", action: onDone)
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
+                Button(action: onDone) {
+                    Text("Done")
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
             }
         }
         .background(ActualistTheme.background)

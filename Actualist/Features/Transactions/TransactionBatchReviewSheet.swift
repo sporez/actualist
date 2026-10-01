@@ -67,12 +67,24 @@ struct TransactionBatchReviewSheet: View {
             }
 
             ReviewSheetActions {
-                Button("Cancel", action: onCancel)
-                    .buttonStyle(.glass)
-                Button(display.confirmationTitle, action: onConfirm)
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .disabled(!display.canSubmit)
+                Button(role: .cancel, action: onCancel) {
+                    Text("Cancel")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
+                }
+                .buttonStyle(.glass)
+
+                Button(action: onConfirm) {
+                    Text(display.confirmationTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(confirmTint)
+                .disabled(!display.canSubmit)
             }
         }
         .background(ActualistTheme.background)
@@ -213,10 +225,16 @@ struct TransactionBatchReviewSheet: View {
         }
     }
 
+    /// Delete removes real transactions, so its confirm reads as destructive;
+    /// the other batch intents stay accent-tinted.
+    private var confirmTint: Color {
+        review.intent == .delete ? ActualistTheme.danger : ActualistTheme.accent
+    }
+
     private func toneColor(_ tone: TransactionBatchReviewDisplay.Tone) -> Color {
         switch tone {
         case .normal: ActualistTheme.primaryText
-        case .positive: ActualistTheme.positive
+        case .positive: ActualistTheme.accent
         case .warning: ActualistTheme.warning
         case .danger: ActualistTheme.danger
         case .secondary: ActualistTheme.secondaryText

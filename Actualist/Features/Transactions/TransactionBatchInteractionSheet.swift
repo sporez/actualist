@@ -85,9 +85,15 @@ struct TransactionBatchInteractionSheet: View {
                     .actualistReviewCard()
             }
             ReviewSheetActions {
-                Button("Done") { presentation.finishCommittedResult() }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
+                Button(action: { presentation.finishCommittedResult() }) {
+                    Text("Done")
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(ActualistTheme.accent)
             }
         }
         .background(ActualistTheme.background)
