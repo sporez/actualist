@@ -74,6 +74,7 @@ struct PayeePickerView: View {
     let searchPrompt: String
     let onSelect: (String) -> Void
     let onCustomSelect: ((String) -> Void)?
+    let onClear: (() -> Void)?
     @State private var searchText = ""
     @FocusState private var isSearchFocused: Bool
 
@@ -85,7 +86,8 @@ struct PayeePickerView: View {
         isLoading: Bool,
         searchPrompt: String,
         onSelect: @escaping (String) -> Void,
-        onCustomSelect: ((String) -> Void)? = nil
+        onCustomSelect: ((String) -> Void)? = nil,
+        onClear: (() -> Void)? = nil
     ) {
         self.title = title
         self.items = items
@@ -95,6 +97,7 @@ struct PayeePickerView: View {
         self.searchPrompt = searchPrompt
         self.onSelect = onSelect
         self.onCustomSelect = onCustomSelect
+        self.onClear = onClear
     }
 
     var body: some View {
@@ -106,6 +109,7 @@ struct PayeePickerView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         searchField
                         customPayeeButton
+                        clearButton
                         pickerContent
                     }
                     .padding(.horizontal, 18)
@@ -185,6 +189,36 @@ struct PayeePickerView: View {
                 )
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var clearButton: some View {
+        if let onClear, trimmedSearchText.isEmpty {
+            Button {
+                onClear()
+                dismiss()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "minus.circle.fill")
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                    Text("No payee")
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                    Spacer()
+                    if selectedIDs.isEmpty {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(ActualistTheme.positive)
+                    }
+                }
+                .padding(16)
+                .background(
+                    ActualistTheme.elevatedSurface,
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("payee-picker-clear")
         }
     }
 

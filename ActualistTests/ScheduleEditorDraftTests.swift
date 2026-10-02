@@ -4,6 +4,24 @@ import Testing
 
 @Suite("Schedule editor draft")
 struct ScheduleEditorDraftTests {
+    @Test func payeePickerProjectionMarksTransfersAndTitlesSelection() {
+        let choices = ScheduleEditorChoices.project(TransactionEditorOptions(
+            accounts: [ActualAccount(id: "savings", name: "Savings", offbudget: false, closed: false)],
+            categories: [],
+            categoryGroups: [],
+            payees: [
+                ActualPayee(id: "coffee", name: "Coffee Shop", category: nil, transferAccount: nil),
+                ActualPayee(id: "to-savings", name: "", category: nil, transferAccount: "savings")
+            ]
+        ))
+
+        #expect(choices.payeePickerItems.map(\.id) == ["coffee", "to-savings"])
+        #expect(choices.payeePickerItems.map(\.isTransfer) == [false, true])
+        #expect(choices.payeeTitle(for: nil) == "No payee")
+        #expect(choices.payeeTitle(for: "to-savings") == "Savings")
+        #expect(choices.payeeTitle(for: "deleted") == "Current payee (unavailable)")
+    }
+
     @Test func canonicalPayeeChoiceDoesNotRewriteAnUntouchedLegacyAlias() throws {
         let reviewed = review(payeeID: "legacy-coffee")
         let detail = detail(payeeID: "coffee")

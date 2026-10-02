@@ -48,11 +48,21 @@ struct ScheduleEditorPayeeChoice: Identifiable, Hashable, Sendable {
     /// Canonical payee ID; Actual creates its self-mapping with this same ID.
     let id: String
     let title: String
+    let isTransfer: Bool
 }
 
 struct ScheduleEditorChoices: Hashable, Sendable {
     let accounts: [ScheduleEditorAccountChoice]
     let payees: [ScheduleEditorPayeeChoice]
+
+    var payeePickerItems: [PayeePickerItem] {
+        payees.map { PayeePickerItem(id: $0.id, title: $0.title, isTransfer: $0.isTransfer) }
+    }
+
+    func payeeTitle(for payeeID: String?) -> String {
+        guard let payeeID else { return "No payee" }
+        return payees.first { $0.id == payeeID }?.title ?? "Current payee (unavailable)"
+    }
 
     static func project(
         _ options: TransactionEditorOptions,
@@ -77,7 +87,7 @@ struct ScheduleEditorChoices: Hashable, Sendable {
                 ? PrivacyDisplay.name(for: .payee, seed: "schedule-payee-\(id)")
                 : rawTitle
             guard !title.isEmpty else { return nil }
-            return ScheduleEditorPayeeChoice(id: id, title: title)
+            return ScheduleEditorPayeeChoice(id: id, title: title, isTransfer: payee.transferAccount != nil)
         }
         .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         return ScheduleEditorChoices(accounts: accounts, payees: payees)

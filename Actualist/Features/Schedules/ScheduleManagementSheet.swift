@@ -287,6 +287,7 @@ struct ScheduleEditorView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Bindable var coordinator: ScheduleManagementCoordinator
     let session: ScheduleEditorSession
+    @State private var isPayeePickerPresented = false
     let currency: BudgetCurrency
     let locale: Locale
 
@@ -379,22 +380,36 @@ struct ScheduleEditorView: View {
             .disabled(!isCreate && !session.capabilities.canEditAccount)
             .accessibilityIdentifier("schedule-editor-account")
 
-            Picker("Payee", selection: Binding(
-                get: { draft?.payeeID },
-                set: { coordinator.setPayee($0) }
-            )) {
-                if let payeeID = draft?.payeeID,
-                   !session.choices.payees.contains(where: { $0.id == payeeID }) {
-                    Text("Current payee (unavailable)").tag(Optional(payeeID))
+            Button {
+                isPayeePickerPresented = true
+            } label: {
+                HStack(spacing: 8) {
+                    Text("Payee").foregroundStyle(ActualistTheme.primaryText)
+                    Spacer(minLength: 12)
+                    Text(session.choices.payeeTitle(for: draft?.payeeID))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.secondaryText)
                 }
-                Text("No payee").tag(String?.none)
-                ForEach(session.choices.payees) { payee in
-                    Text(payee.title).tag(Optional(payee.id))
-                }
+                .contentShape(Rectangle())
             }
-            .pickerStyle(.menu)
+            .buttonStyle(.plain)
             .disabled(!isCreate && !session.capabilities.canEditPayee)
             .accessibilityIdentifier("schedule-editor-payee")
+            .sheet(isPresented: $isPayeePickerPresented) {
+                PayeePickerView(
+                    title: "Payee",
+                    items: session.choices.payeePickerItems,
+                    selectedIDs: Set(draft?.payeeID.map { [$0] } ?? []),
+                    allowsMultipleSelection: false,
+                    isLoading: false,
+                    searchPrompt: "Search payees",
+                    onSelect: { coordinator.setPayee($0) },
+                    onClear: { coordinator.setPayee(nil) }
+                )
+            }
 
             Picker("Amount type", selection: Binding(
                 get: { draft?.amountMode ?? .exact },

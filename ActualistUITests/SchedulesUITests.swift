@@ -116,6 +116,15 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["schedule-save-review-button"].exists)
         attachScreenshot(named: "schedules-create-editor-dark", app: app)
 
+        app.buttons["schedule-editor-payee"].tap()
+        let clearPayee = app.buttons["payee-picker-clear"]
+        XCTAssertTrue(clearPayee.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["Search payees"].exists)
+        attachScreenshot(named: "schedules-create-payee-picker-dark", app: app)
+        clearPayee.tap()
+        XCTAssertTrue(clearPayee.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["schedule-editor-payee"].staticTexts["No payee"].exists)
+
         app.buttons["schedule-management-close"].tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 8))
         closeSchedules(in: app)
