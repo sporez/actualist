@@ -27,9 +27,11 @@ scripts/run-ios-simulator.sh --boot --reset --demo --screen budget --screenshot
 ```
 
 For a tracking budget, replace `--demo` with `--tracking-demo`.
-**`--reset` uninstalls the simulator app and removes its local data.** Without
-it, a demo flag preserves any already-selected budget. Neither demo contacts a
-server.
+**`--reset` uninstalls the simulator app and removes its local data.** Run this
+example only on a confirmed disposable installation. Without reset, a demo
+flag preserves an existing real selected budget, which can resume normal
+server sync and appear in screenshots. Once entered, the bundled demos
+themselves are offline; a demo flag alone does not guarantee demo mode.
 
 Screens include `budget`, `spending`, `accounts`, `reports`, `settings`, and
 `uncategorized`. Settings paths can be nested, such as `settings/appearance`.
