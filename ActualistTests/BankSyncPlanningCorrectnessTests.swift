@@ -545,6 +545,26 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
+    @Test func backgroundTransferMarkersAreGroupedByActualAccount() async throws {
+        let (bundle, _) = try await makeLinkedCorrectnessStore(
+            transaction: correctnessTransaction(),
+            additionalFixtureSQL: transferPayeeRuleFixture()
+        )
+
+        let result = try await bundle.store.backgroundBankSyncApply(request: .init(
+            budgetID: "group-1",
+            notificationID: "opaque-transfer"
+        ))
+        let database = try #require(bundle.store.database)
+        let pending = try await database.pendingNewTransactionIDsByAccount()
+
+        #expect(result.insertedTransactionIDsByAccount["savings"]?.isEmpty == false)
+        #expect(result.insertedTransactionIDsByAccount["checking"]?.count == 1)
+        #expect(pending["savings"]?.sorted() == result.insertedTransactionIDsByAccount["savings"]?.sorted())
+        #expect(pending["checking"]?.sorted() == result.insertedTransactionIDsByAccount["checking"]?.sorted())
+    }
+
+    @MainActor
     @Test func syncAllReviewDoesNotFillTransferPayeeOnMatchedOrdinaryTransaction() async throws {
         let (bundle, _) = try await makeLinkedCorrectnessStore(
             transaction: correctnessTransaction(),

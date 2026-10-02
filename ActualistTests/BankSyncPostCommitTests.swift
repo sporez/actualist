@@ -7,7 +7,7 @@ import Testing
 struct BankSyncPostCommitTests {
     @Test func committedCancellationRetainsOutcomeWithoutBecomingUserFacingError() {
         let result = BankSyncReview.ApplyResult(insertedCount: 1, updatedCount: 0,
-            openingBalanceInserted: false, insertedTransactionIDs: ["saved"])
+            openingBalanceInserted: false, insertedTransactionIDsByAccount: ["checking": ["saved"]])
         let error = BankSyncCommittedRefreshError(result: result, underlyingError: CancellationError())
         #expect(error.isCancellation)
         #expect(error.userFacingMessage == nil)

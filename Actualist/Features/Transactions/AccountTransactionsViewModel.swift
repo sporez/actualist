@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+struct PendingNewTransactionReviewIntent: Equatable, Sendable {
+    let budgetID: String
+    let accountID: String?
+    let transactionIDs: Set<String>
+}
+
 @MainActor
 @Observable
 final class AccountTransactionsViewModel {
@@ -362,12 +368,24 @@ final class AccountTransactionsViewModel {
         readSession.startSearch(identity, scope: scope, repository: repository, debounced: false)
     }
 
-    func clearPendingNewTransactions(
+    func pendingNewTransactionReviewIntent(
         budgetID: String?,
-        clear: @MainActor (_ budgetID: String, _ accountID: String?) -> Void
-    ) {
-        guard let budgetID else { return }
-        clear(budgetID, scope.account?.id)
+        pendingTransactionIDs: Set<String>
+    ) -> PendingNewTransactionReviewIntent? {
+        guard let budgetID, !pendingTransactionIDs.isEmpty else { return nil }
+        return PendingNewTransactionReviewIntent(
+            budgetID: budgetID,
+            accountID: scope.account?.id,
+            transactionIDs: pendingTransactionIDs
+        )
+    }
+
+    func reviewPendingNewTransactions(
+        _ intent: PendingNewTransactionReviewIntent?,
+        review: @MainActor (PendingNewTransactionReviewIntent) async -> Void
+    ) async {
+        guard let intent else { return }
+        await review(intent)
     }
 
     private func refreshSnapshot(

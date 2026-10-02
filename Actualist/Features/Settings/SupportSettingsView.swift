@@ -4,6 +4,7 @@ import SwiftUI
 struct SupportSettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var diagnosticReportCopied = false
+    @State private var supportViewModel = SupportSettingsViewModel()
     @State private var viewModel = SettingsViewModel()
 
     private static let newIssueURL = URL(string: "https://github.com/sporez/actualist/issues/new")!
@@ -16,23 +17,21 @@ struct SupportSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
 
-                ShareLink(
-                    item: ActualistDiagnosticReportBuilder.make(appState: appState),
-                    preview: SharePreview(
-                        "Actualist Diagnostic Report",
-                        image: Image(systemName: "doc.text")
-                    )
-                ) {
-                    SettingsActionLabel(
-                        title: "Share Diagnostic Report",
-                        systemImage: "square.and.arrow.up"
-                    )
-                }
-                .simultaneousGesture(
-                    TapGesture().onEnded {
-                        appState.beginAppInitiatedSystemUIPresentation()
+                if let diagnosticReport = supportViewModel.diagnosticReport {
+                    ShareLink(
+                        item: diagnosticReport,
+                        preview: SharePreview(
+                            "Actualist Diagnostic Report",
+                            image: Image(systemName: "doc.text")
+                        )
+                    ) {
+                        SettingsActionLabel(
+                            title: "Share Diagnostic Report",
+                            systemImage: "square.and.arrow.up"
+                        )
                     }
-                )
+                    .accessibilityIdentifier("diagnostic-report-share")
+                }
 
                 Button {
                     viewModel.copyDiagnosticReport(using: appState)
@@ -83,6 +82,7 @@ struct SupportSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.hydrate(from: appState)
+            supportViewModel.prepareDiagnosticReport(using: appState)
         }
     }
 }

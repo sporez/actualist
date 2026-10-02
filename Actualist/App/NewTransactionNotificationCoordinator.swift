@@ -35,55 +35,14 @@ struct NewTransactionNotificationCoordinator {
         }.count
     }
 
-    func record(
-        _ transactionIDs: [String],
-        budgetID: String,
-        accountID: String,
-        in storage: inout [String: [String]]
-    ) {
-        let storageKey = key(budgetID: budgetID, accountID: accountID)
-        var existing = Set(storage[storageKey] ?? [])
-        existing.formUnion(transactionIDs)
-        storage[storageKey] = existing.sorted()
-    }
-
-    @discardableResult
-    func clear(
-        budgetID: String,
-        accountID: String,
-        in storage: inout [String: [String]]
-    ) -> Bool {
-        let storageKey = key(budgetID: budgetID, accountID: accountID)
-        guard storage[storageKey] != nil else {
-            return false
-        }
-        storage[storageKey] = nil
-        return true
-    }
-
-    @discardableResult
-    func clear(
-        budgetID: String,
-        in storage: inout [String: [String]]
-    ) -> Bool {
-        let prefix = "\(budgetID)|"
-        let keys = storage.keys.filter { $0.hasPrefix(prefix) }
-        guard !keys.isEmpty else {
-            return false
-        }
-        for key in keys {
-            storage[key] = nil
-        }
-        return true
-    }
-
     func post(
         budgetID: String,
+        requestIdentifier: String,
         badgeCount: Int? = nil,
         trigger: UNNotificationTrigger? = nil
     ) async throws {
         let request = UNNotificationRequest(
-            identifier: "actualist.new-transactions.\(budgetID).\(Date().timeIntervalSince1970)",
+            identifier: requestIdentifier,
             content: makeContent(budgetID: budgetID, badgeCount: badgeCount),
             trigger: trigger
         )
@@ -133,7 +92,11 @@ struct NewTransactionNotificationCoordinator {
         }
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
-        try await post(budgetID: budgetID, trigger: trigger)
+        try await post(
+            budgetID: budgetID,
+            requestIdentifier: "actualist.debug-new-transactions.\(UUID().uuidString)",
+            trigger: trigger
+        )
     }
     #endif
 

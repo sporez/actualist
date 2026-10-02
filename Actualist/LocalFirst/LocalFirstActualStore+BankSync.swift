@@ -268,7 +268,8 @@ extension LocalFirstActualStore {
     /// to false on this path.
     func applyBankSyncPlan(
         _ plan: BankSyncReview.AccountPlan,
-        budgetID: String
+        budgetID: String,
+        backgroundNotificationID: String? = nil
     ) async throws -> BankSyncReview.ApplyResult {
         let database = try requireDatabase(for: budgetID)
         let sessionGeneration = budgetSessionGeneration
@@ -285,14 +286,14 @@ extension LocalFirstActualStore {
         var resolvedPayeeIDs: [String: String] = [:]
         var insertedCount = 0
         var updatedCount = 0
-        var collectedInsertedIDs: [String] = []
+        var insertedIDsByAccount: [String: [String]] = [:]
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
 
         let accountIsOffBudget = try await database.bankSyncLinkedAccounts()
             .first { $0.id == plan.link.accountID }?.offbudget ?? false
         if let openingBalance = plan.openingBalance {
             let openingBalanceID = UUID().uuidString
-            collectedInsertedIDs.append(openingBalanceID)
+            insertedIDsByAccount[plan.link.accountID, default: []].append(openingBalanceID)
             messages.append(contentsOf: try await database.makeBankSyncOpeningBalanceMessages(
                 transactionID: openingBalanceID,
                 accountID: plan.link.accountID,
@@ -366,7 +367,7 @@ extension LocalFirstActualStore {
                     builder: &builder
                 ))
                 affectedAccountIDs.insert(transferDestinationID)
-                collectedInsertedIDs.append(transfer.pairedTransactionID)
+                insertedIDsByAccount[transferDestinationID, default: []].append(transfer.pairedTransactionID)
             } else {
                 transactionMessages = try await database.createSimpleTransactionMessages(
                     draft,
@@ -377,7 +378,7 @@ extension LocalFirstActualStore {
             }
             messages.append(contentsOf: payeeResolution.messages)
             messages.append(contentsOf: transactionMessages)
-            collectedInsertedIDs.append(transactionID)
+            insertedIDsByAccount[plan.link.accountID, default: []].append(transactionID)
             monthIDs.insert(draft.month.rawValue)
             insertedCount += 1
         }
@@ -403,13 +404,24 @@ extension LocalFirstActualStore {
         // Consume before awaiting the commit so overlapping runs cannot
         // both apply the same prepared inserts. A failed apply requires a new download.
         bankSyncGenerationByAccount[plan.link.accountID] = nil
-        _ = try await database.commitBankSyncMessages(messages, expectedLink: plan.link)
+        let pendingCommit = backgroundNotificationID.map {
+            BudgetDatabase.PendingNewTransactionCommit(
+                transactionIDsByAccount: insertedIDsByAccount,
+                source: .bankSync,
+                notificationID: $0
+            )
+        }
+        _ = try await database.commitBankSyncMessages(
+            messages,
+            expectedLink: plan.link,
+            pendingNewTransactions: pendingCommit
+        )
 
         let result = BankSyncReview.ApplyResult(
             insertedCount: insertedCount,
             updatedCount: updatedCount,
             openingBalanceInserted: plan.openingBalance != nil,
-            insertedTransactionIDs: collectedInsertedIDs
+            insertedTransactionIDsByAccount: insertedIDsByAccount
         )
         do {
             try requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
@@ -501,8 +513,9 @@ extension LocalFirstActualStore {
     /// existing new-transaction notification pipeline (when the alerts
     /// toggle is also on).
     func backgroundBankSyncApply(
-        budgetID: String
+        request: BankSyncBackgroundApplyRequest
     ) async throws -> BankSyncBackgroundApplyResult {
+        let budgetID = request.budgetID
         let database = try requireDatabase(for: budgetID)
         // Server SimpleFIN only; the Phase 5 device key is never read here.
         // The batched planner's provider resolution enforces configured server
@@ -539,15 +552,25 @@ extension LocalFirstActualStore {
         var insertedTransactionIDsByAccount: [String: [String]] = [:]
         for plan in plans {
             try Task.checkCancellation()
-            let result = try await applyBankSyncPlan(plan, budgetID: budgetID)
-            if !result.insertedTransactionIDs.isEmpty {
-                insertedTransactionIDsByAccount[plan.link.accountID] = result.insertedTransactionIDs
+            let result = try await applyBankSyncPlan(
+                plan,
+                budgetID: budgetID,
+                backgroundNotificationID: request.notificationID
+            )
+            for (accountID, transactionIDs) in result.insertedTransactionIDsByAccount {
+                insertedTransactionIDsByAccount[accountID, default: []].append(contentsOf: transactionIDs)
             }
         }
         return BankSyncBackgroundApplyResult(
             accountCount: linked.count,
             insertedTransactionIDsByAccount: insertedTransactionIDsByAccount
         )
+    }
+
+    /// Foreground/test convenience remains silent; only the background
+    /// workflow supplies notification consent and a durable request identity.
+    func backgroundBankSyncApply(budgetID: String) async throws -> BankSyncBackgroundApplyResult {
+        try await backgroundBankSyncApply(request: .init(budgetID: budgetID, notificationID: nil))
     }
 
     /// One row of the Settings Bank Sync list: every open budget account

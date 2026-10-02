@@ -31,6 +31,13 @@ final class AppState {
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
     private var developerUnlockTracker = DeveloperUnlockTracker()
 
+    private var backgroundSessionIdentity: BackgroundTransactionWorkflow.SessionIdentity {
+        backgroundTransactionWorkflow.sessionIdentity(
+            settings: settings,
+            recoveryIdentity: sessionRecovery.identity
+        )
+    }
+
     @ObservationIgnored lazy var localFirstStore: LocalFirstActualStore = {
         let store = providedLocalFirstStore ?? LocalFirstActualStore(
             keychain: keychain,
@@ -718,6 +725,8 @@ final class AppState {
     func updateBackgroundTransactionRefreshEnabled(_ isEnabled: Bool) async {
         let outcome = await backgroundTransactionWorkflow.enable(isEnabled, keychain: keychain)
         settings.backgroundTransactionRefreshEnabled = (outcome == .enabled)
+        await backgroundTransactionWorkflow.suppressDeliveriesIfNeeded(alertsEnabled:
+            settings.backgroundTransactionRefreshEnabled, budgetID: settings.selectedBudgetID, store: localFirstStore)
         settingsStore.save(settings)
         switch outcome {
         case .enabled:
@@ -748,15 +757,18 @@ final class AppState {
     }
 
     func prepareBackgroundTransactionNotifications() async {
-        await backgroundTransactionWorkflow.prepare(
-            isEnabled: settings.backgroundTransactionRefreshEnabled,
-            settings: settings
-        )
+        let identity = backgroundSessionIdentity
+        if let prepared = await backgroundTransactionWorkflow.prepare(isEnabled:
+            settings.backgroundTransactionRefreshEnabled, settings: settings,
+            budgetID: settings.selectedBudgetID, store: localFirstStore),
+           identity == backgroundSessionIdentity {
+            backgroundTransactionWorkflow.applyPreparedProjection(prepared, updatesBadge: settings.backgroundTransactionRefreshEnabled, to: &settings)
+        }
+        settingsStore.save(settings)
     }
 
-    func performBackgroundTransactionRefresh(
-        timeLimit: Duration = .seconds(25)
-    ) async -> Bool {
+    func performBackgroundTransactionRefresh(timeLimit: Duration = .seconds(25)) async -> Bool {
+        let identity = backgroundSessionIdentity
         let result = await backgroundTransactionWorkflow.performRefresh(
             timeLimit: timeLimit,
             isDemoMode: isDemoMode,
@@ -764,9 +776,20 @@ final class AppState {
             selectedBudget: selectedBudget,
             budgets: budgets,
             hasSyncCredentials: hasSyncCredentials,
-            store: localFirstStore
+            store: localFirstStore,
+            liveEligibility: { [weak self] in
+                guard let self else {
+                    return .init(sessionIsCurrent: false, alertsEnabled: false, bankSyncEnabled: false)
+                }
+                return self.backgroundTransactionWorkflow.liveEligibility(
+                    expected: identity,
+                    current: self.backgroundSessionIdentity
+                )
+            }
         )
-        settings = result.settings
+        if identity == backgroundSessionIdentity {
+            backgroundTransactionWorkflow.applyRefreshResult(result, to: &settings)
+        } else { return false }
         switch result.outcome {
         case .success:
             return true
@@ -807,47 +830,32 @@ final class AppState {
         }
     }
 
-    func recordBackgroundRefreshScheduleAttempt(
-        succeeded: Bool,
+    func recordBackgroundRefreshScheduleAttempt(succeeded: Bool,
         earliestBeginDate: Date?,
         message: String
     ) {
-        backgroundTransactionWorkflow.recordScheduleAttempt(
-            succeeded: succeeded,
-            earliestBeginDate: earliestBeginDate,
-            message: message,
-            in: &settings
-        )
+        backgroundTransactionWorkflow.recordScheduleAttempt(succeeded: succeeded,
+            earliestBeginDate: earliestBeginDate, message: message, in: &settings)
     }
 
     func pendingNewTransactionIDs(budgetID: String, accountID: String) -> Set<String> {
-        backgroundTransactionWorkflow.pendingNewTransactionIDs(
-            budgetID: budgetID,
-            accountID: accountID,
-            in: settings
-        )
+        backgroundTransactionWorkflow.pendingNewTransactionIDs(budgetID: budgetID,
+            accountID: accountID, in: settings)
     }
 
     func pendingNewTransactionIDs(budgetID: String) -> Set<String> {
-        backgroundTransactionWorkflow.pendingNewTransactionIDs(
-            budgetID: budgetID,
-            in: settings
-        )
+        backgroundTransactionWorkflow.pendingNewTransactionIDs(budgetID: budgetID, in: settings)
     }
 
-    func clearPendingNewTransactionIDs(budgetID: String, accountID: String) {
-        backgroundTransactionWorkflow.clearPendingNewTransactionIDs(
-            budgetID: budgetID,
-            accountID: accountID,
-            in: &settings
-        )
-    }
-
-    func clearPendingNewTransactionIDs(budgetID: String) {
-        backgroundTransactionWorkflow.clearPendingNewTransactionIDs(
-            budgetID: budgetID,
-            in: &settings
-        )
+    func clearPendingNewTransactionIDs(_ intent: PendingNewTransactionReviewIntent) async {
+        guard settings.selectedBudgetID == intent.budgetID else { return }
+        let identity = backgroundSessionIdentity
+        if let outcome = await backgroundTransactionWorkflow.clearPendingNewTransactionIDs(budgetID:
+            intent.budgetID, accountID: intent.accountID, transactionIDs: intent.transactionIDs,
+            settings: settings, store: localFirstStore),
+           identity == backgroundSessionIdentity {
+            backgroundTransactionWorkflow.applyPendingReviewOutcome(outcome, to: &settings)
+        }
     }
 
     @discardableResult
@@ -855,10 +863,18 @@ final class AppState {
         backgroundTransactionWorkflow.updateApplicationBadge(in: settings)
     }
 
-    func routeToSpendingFromNotification(budgetID _: String) async {
-        accountNavigationPath = []
-        selectedTab = .spending
-        routeCoordinator.enqueue(.tab(.spending))
+    func routeToSpendingFromNotification(budgetID: String) async {
+        guard settings.selectedBudgetID == budgetID else { return }
+        // A notification tap can arrive while the Settings cover is presented
+        // (for example, the developer test notification is posted from there).
+        // Dismiss it first so the Spending route is actually visible, the same
+        // way widget deep links defer navigation through `afterDismissingSettings`.
+        routeCoordinator.afterDismissingSettings { [weak self] in
+            guard let self else { return }
+            self.accountNavigationPath = []
+            self.selectedTab = .spending
+            self.routeCoordinator.enqueue(.tab(.spending))
+        }
     }
 
     #if DEBUG
@@ -922,14 +938,4 @@ final class AppState {
         }
     }
 
-    var budgetRepository: any BudgetRepositoryProtocol { localFirstStore }
-    var transactionRepository: any TransactionRepositoryProtocol { localFirstStore }
-    var accountRepository: any AccountRepositoryProtocol { localFirstStore }
-    var payeeRepository: any PayeeRepositoryProtocol { localFirstStore }
-    var ruleRepository: any RuleRepositoryProtocol { localFirstStore }
-    var reportsRepository: any ReportsRepositoryProtocol { localFirstStore }
-
-    func recordLocalDataMutation() {
-        localDataRevision &+= 1
-    }
 }

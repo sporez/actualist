@@ -4,6 +4,40 @@ import Testing
 
 @MainActor
 struct AccountTransactionsViewModelTests {
+    @Test func disappearanceReviewUsesCapturedBudgetIdentity() async {
+        let model = AccountTransactionsViewModel(scope: .account(Self.account))
+        let disappearingBudgetID: String? = "old-budget"
+        var currentBudgetID: String? = disappearingBudgetID
+        let intent = model.pendingNewTransactionReviewIntent(
+            budgetID: disappearingBudgetID,
+            pendingTransactionIDs: ["old-1"]
+        )
+        var reviewedIntent: PendingNewTransactionReviewIntent?
+        currentBudgetID = "new-budget"
+
+        await model.reviewPendingNewTransactions(intent) { intent in
+            reviewedIntent = intent
+        }
+
+        #expect(currentBudgetID == "new-budget")
+        #expect(reviewedIntent?.budgetID == "old-budget")
+        #expect(reviewedIntent?.accountID == Self.account.id)
+        #expect(reviewedIntent?.transactionIDs == ["old-1"])
+    }
+
+    @Test func spendingDisappearanceCapturesOnlyCurrentlyPendingIDsForBudgetReview() {
+        let model = AccountTransactionsViewModel(scope: .spending)
+
+        let intent = model.pendingNewTransactionReviewIntent(
+            budgetID: "budget",
+            pendingTransactionIDs: ["visible-1", "visible-2"]
+        )
+
+        #expect(intent?.budgetID == "budget")
+        #expect(intent?.accountID == nil)
+        #expect(intent?.transactionIDs == ["visible-1", "visible-2"])
+    }
+
     @Test func cachedSnapshotRendersImmediatelyAndSurvivesRefreshFailure() async {
         let cached = Self.loaded([Self.transaction(id: "cached", payee: "market")])
         let repository = AccountTransactionsRecordingRepository(

@@ -43,6 +43,13 @@ extension LocalFirstActualStoreTests {
         ) {}
         let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
         #expect(pendingCount > 0)
+        let database = try #require(bundle.store.database)
+        try await database.recordPendingNewTransactions(.init(
+            transactionIDsByAccount: ["checking": ["cold-open-new"]],
+            source: .bankSync,
+            notificationID: nil,
+            notificationAlreadyAcknowledged: true
+        ))
 
         bundle.store.reset()
         let state = try makeAppState(for: bundle)
@@ -60,5 +67,6 @@ extension LocalFirstActualStoreTests {
         let run = try #require(state.settings.backgroundRefreshDebug.recentRuns.first)
         #expect(run.succeeded == true)
         #expect(run.message == "Synced budget; no new transactions")
+        #expect(state.settings.pendingNewTransactionIDsByAccount["group-1|checking"] == ["cold-open-new"])
     }
 }

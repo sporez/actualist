@@ -39,6 +39,7 @@ struct AppRouteCoordinatorTests {
     @Test func notificationSpendingRouteUsesCoordinator() async {
         let defaults = UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")
         let state = AppState(settingsStore: AppSettingsStore(defaults: defaults ?? .standard))
+        state.settings.selectedBudgetID = "budget"
         state.selectedTab = .accounts
         state.accountNavigationPath = [
             ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)
@@ -49,6 +50,18 @@ struct AppRouteCoordinatorTests {
         #expect(state.selectedTab == .spending)
         #expect(state.accountNavigationPath.isEmpty)
         #expect(state.routeCoordinator.pendingRoute == .tab(.spending))
+    }
+
+    @Test func notificationForDifferentBudgetDoesNotRouteCurrentSession() async {
+        let defaults = UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)")
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults ?? .standard))
+        state.settings.selectedBudgetID = "current"
+        state.selectedTab = .accounts
+
+        await state.routeToSpendingFromNotification(budgetID: "old")
+
+        #expect(state.selectedTab == .accounts)
+        #expect(state.routeCoordinator.pendingRoute == nil)
     }
 
     @Test func routeApplicationDoesNotGuessMissingDestinations() {

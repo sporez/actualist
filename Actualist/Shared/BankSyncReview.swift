@@ -100,10 +100,25 @@ enum BankSyncReview {
         let insertedCount: Int
         let updatedCount: Int
         let openingBalanceInserted: Bool
-        /// Local IDs of the inserted transaction parents (and opening
-        /// balance), so the background path can feed the existing
-        /// new-transaction notification pipeline.
-        let insertedTransactionIDs: [String]
+        let insertedTransactionIDsByAccount: [String: [String]]
+
+        var insertedTransactionIDs: [String] {
+            insertedTransactionIDsByAccount.keys.sorted().flatMap {
+                insertedTransactionIDsByAccount[$0] ?? []
+            }
+        }
+
+        init(
+            insertedCount: Int,
+            updatedCount: Int,
+            openingBalanceInserted: Bool,
+            insertedTransactionIDsByAccount: [String: [String]]
+        ) {
+            self.insertedCount = insertedCount
+            self.updatedCount = updatedCount
+            self.openingBalanceInserted = openingBalanceInserted
+            self.insertedTransactionIDsByAccount = insertedTransactionIDsByAccount
+        }
     }
 }
 
@@ -124,4 +139,10 @@ struct BankSyncCommittedRefreshError: LocalizedError {
 struct BankSyncBackgroundApplyResult: Equatable, Sendable {
     let accountCount: Int
     let insertedTransactionIDsByAccount: [String: [String]]
+}
+
+struct BankSyncBackgroundApplyRequest: Equatable, Sendable {
+    let budgetID: String
+    /// Nil when alerts are disabled. Foreground imports never use this request.
+    let notificationID: String?
 }

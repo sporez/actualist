@@ -197,6 +197,18 @@ enum ActualistDiagnosticReportBuilder {
                 lines.append(
                     "\(index + 1). woke \(timestamp(run.wakeDate)) | completed \(timestamp(run.completionDate)) | result \(backgroundResult(run.succeeded)) | \(redactor.redact(SafeSyncDiagnostic.backgroundMessage(run.message, succeeded: run.succeeded)))"
                 )
+                if let details = run.diagnosticDetails {
+                    lines.append(contentsOf: BackgroundRefreshDiagnosticProjection.lines(details).map { "   \($0)" })
+                }
+            }
+        }
+
+        lines += ["", "[Pending Notification Clear History]"]
+        if settings.backgroundRefreshDebug.recentPendingIDClears.isEmpty {
+            lines.append("No pending notification IDs cleared")
+        } else {
+            for (index, event) in settings.backgroundRefreshDebug.recentPendingIDClears.enumerated() {
+                lines.append("\(index + 1). \(timestamp(event.date)) | scope \(event.scope.rawValue) | cleared \(event.clearedCount)")
             }
         }
 
