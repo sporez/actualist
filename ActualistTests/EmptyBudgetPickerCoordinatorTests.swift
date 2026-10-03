@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Empty-budget picker coverage: the offer decision (successful zero-budget
-/// discovery vs list failure/cancellation vs a populated picker vs demo mode),
+/// Budget picker Create/Import coverage: the offer decision (successful
+/// discovery with or without budgets vs list failure/cancellation vs demo mode),
 /// the create-input interpretation, and the create workflow's handoff to the
 /// existing selection path. The coordinator's store and selection steps are
 /// injected fakes; no server is contacted and no budget files are written.
@@ -64,22 +64,34 @@ struct EmptyBudgetPickerCoordinatorTests {
         #expect(offer == .hidden(.discoveryIncomplete))
     }
 
-    @Test func singleBudgetDoesNotOfferAndDoesNotFightAutoSelect() {
+    @Test(arguments: [1, 4])
+    func populatedPickerStillOffersCreateAndImport(budgetCount: Int) {
         let offer = EmptyBudgetPickerOffer.decide(
             discoverySucceeded: true,
             isDemoMode: false,
-            budgetCount: 1
+            budgetCount: budgetCount
         )
-        #expect(offer == .hidden(.budgetsPresent))
+        #expect(offer == .offered)
     }
 
-    @Test func populatedPickerDoesNotOffer() {
+    @Test func listedBudgetsOfferWithoutARecordedDiscovery() {
+        // Onboarding skips its own load when AppState already discovered
+        // budgets; a non-empty list proves discovery succeeded.
+        let offer = EmptyBudgetPickerOffer.decide(
+            discoverySucceeded: false,
+            isDemoMode: false,
+            budgetCount: 2
+        )
+        #expect(offer == .offered)
+    }
+
+    @Test func demoModeNeverOffersEvenWithListedBudgets() {
         let offer = EmptyBudgetPickerOffer.decide(
             discoverySucceeded: true,
-            isDemoMode: false,
-            budgetCount: 4
+            isDemoMode: true,
+            budgetCount: 1
         )
-        #expect(offer == .hidden(.budgetsPresent))
+        #expect(offer == .hidden(.demoMode))
     }
 
     @Test func demoModeNeverOffersEvenAfterSuccessfulEmptyDiscovery() {
@@ -109,13 +121,17 @@ struct EmptyBudgetPickerCoordinatorTests {
         #expect(coordinator.offer(using: appState) == .hidden(.demoMode))
     }
 
-    @Test func offerHidesWhenDiscoveryReturnsBudgets() {
+    @Test func offerStaysWhenDiscoveryReturnsBudgets() {
         let appState = makeAppState()
         let coordinator = EmptyBudgetPickerCoordinator()
-        coordinator.recordDiscovery(succeeded: true)
         appState.budgets = [makeBudget(fileID: "file-one")]
 
-        #expect(coordinator.offer(using: appState) == .hidden(.budgetsPresent))
+        // Budgets discovered elsewhere (AppState) offer before any host load.
+        #expect(coordinator.offer(using: appState) == .offered)
+
+        // A later failed refresh keeps the known list, so the offer stays.
+        coordinator.recordDiscovery(succeeded: false)
+        #expect(coordinator.offer(using: appState) == .offered)
     }
 
     // MARK: - Create input interpretation

@@ -3,27 +3,28 @@ import Observation
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Whether a budget-picker host may offer empty-budget actions.
+/// Whether a budget-picker host may offer Create New Budget and Import.
 ///
-/// The offer is shown only after a successful discovery of zero budgets.
-/// List failure and cancellation both arrive as `discoverySucceeded == false`
-/// and are never treated as an empty server; demo mode always has a bundled
-/// budget and never offers server actions; a populated picker stays hidden so
-/// the offer can never fight the existing auto-select of exactly one budget
-/// (`AppState.presentDiscoveredBudgets`).
+/// Both actions are offered on any server session, whether or not it already
+/// has budgets. A non-empty list can only come from a successful discovery, so
+/// it offers without a recorded attempt (onboarding skips its own load when
+/// `AppState` already discovered budgets). An empty list offers only after a
+/// successful discovery: list failure and cancellation arrive as
+/// `discoverySucceeded == false` and are never treated as an empty server.
+/// Demo mode has no server to create on and never offers. Offering beside a
+/// single budget does not fight its auto-select
+/// (`AppState.presentDiscoveredBudgets`), which runs during discovery.
 enum EmptyBudgetPickerOffer: Equatable {
-    /// Successful discovery of zero budgets on a non-demo session.
+    /// A non-demo session with a known budget list.
     case offered
     case hidden(HiddenReason)
 
     enum HiddenReason: Equatable {
-        /// Demo mode: the bundled budget is the whole session, not an empty server.
+        /// Demo mode: the bundled budget is the whole session, not a server.
         case demoMode
-        /// Discovery has not completed successfully (failure, cancellation,
-        /// or never ran).
+        /// No budgets are listed and discovery has not completed successfully
+        /// (failure, cancellation, or never ran).
         case discoveryIncomplete
-        /// Discovery returned at least one budget.
-        case budgetsPresent
     }
 
     static func decide(
@@ -32,9 +33,8 @@ enum EmptyBudgetPickerOffer: Equatable {
         budgetCount: Int
     ) -> EmptyBudgetPickerOffer {
         if isDemoMode { return .hidden(.demoMode) }
-        guard discoverySucceeded else { return .hidden(.discoveryIncomplete) }
-        if budgetCount == 0 { return .offered }
-        return .hidden(.budgetsPresent)
+        guard discoverySucceeded || budgetCount > 0 else { return .hidden(.discoveryIncomplete) }
+        return .offered
     }
 }
 
@@ -83,8 +83,8 @@ extension NewBudgetCreation {
     }
 }
 
-/// Owns the empty-budget picker offer: when it appears (successful discovery
-/// of zero budgets) and the create workflow behind it. Both `BudgetPickerView`
+/// Owns the budget picker's Create New Budget / Import offer: when it appears
+/// (see `EmptyBudgetPickerOffer`) and the create and import workflows behind it. Both `BudgetPickerView`
 /// and `SettingsBudgetPickerSheet` call this coordinator; the views stay
 /// presentation-only and never validate archives, name budgets, choose
 /// encryption, upload, or open.
@@ -231,8 +231,8 @@ final class EmptyBudgetPickerCoordinator {
     }
 }
 
-/// The empty-state section both budget-picker hosts embed when the coordinator
-/// offers empty-budget actions. Presentation only: it binds the create form's
+/// The Create New Budget / Import section both budget-picker hosts embed when
+/// the coordinator offers it. Presentation only: it binds the create form's
 /// controls and calls coordinator intents.
 struct EmptyBudgetPickerSection: View {
     let coordinator: EmptyBudgetPickerCoordinator
@@ -282,7 +282,7 @@ struct EmptyBudgetPickerSection: View {
                 }
             }
         } header: {
-            Text("No Budgets")
+            Text(appState.budgets.isEmpty ? "No Budgets" : "New Budget")
         }
         .sheet(isPresented: $isCreateFormPresented) {
             EmptyBudgetCreateForm(coordinator: coordinator, onCreated: onBudgetSelected)
