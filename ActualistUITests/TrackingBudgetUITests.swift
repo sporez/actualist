@@ -42,7 +42,7 @@ final class TrackingBudgetUITests: XCTestCase {
         app.buttons["Actual Purple (dark)"].tap()
         app.terminate()
         app = launch()
-        let month = app.navigationBars.buttons.matching(NSPredicate(format: "label CONTAINS '2026' AND label CONTAINS 'Sep'")).firstMatch
+        let month = displayedMonthButton(in: app)
         XCTAssertTrue(month.waitForExistence(timeout: 15))
         month.tap()
         app.buttons["Aug"].tap()
@@ -78,9 +78,13 @@ final class TrackingBudgetUITests: XCTestCase {
     func testPastMonthRolloverThemesAndPrivacy() throws {
         var app = launch()
         if app.frame.width >= 792 {
-            app.buttons["Previous month"].tap()
+            // Step back from the real current month to August 2026, the last
+            // month with demo data.
+            for _ in 0..<12 where !app.buttons["available-2026-08-groceries"].exists {
+                app.buttons["Previous month"].tap()
+            }
         } else {
-            app.navigationBars.buttons.matching(NSPredicate(format: "label CONTAINS '2026' AND label CONTAINS 'Sep'")).firstMatch.tap()
+            displayedMonthButton(in: app).tap()
             app.buttons["Aug"].tap()
         }
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Saved'")).firstMatch.waitForExistence(timeout: 5))
@@ -269,5 +273,14 @@ final class TrackingBudgetUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    /// The tracking demo opens on the real current month, while its data ends
+    /// in August 2026, so match whichever month the navigation bar shows
+    /// rather than a hard-coded one.
+    private func displayedMonthButton(in app: XCUIApplication) -> XCUIElement {
+        app.navigationBars.buttons.matching(
+            NSPredicate(format: "label MATCHES %@", ".*[A-Z][a-z]{2} 20[0-9]{2}$")
+        ).firstMatch
     }
 }
