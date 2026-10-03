@@ -100,15 +100,7 @@ struct SchedulesView: View {
                         .font(.headline.weight(.bold))
                     LazyVStack(spacing: 10) {
                         ForEach(section.rows) { row in
-                            NavigationLink {
-                                ScheduleDetailView(
-                                    scheduleID: row.id,
-                                    viewModel: viewModel,
-                                    onEdit: beginEdit,
-                                    onAction: beginActionReview,
-                                    onPost: beginPostReview
-                                )
-                            } label: {
+                            NavigationLink(value: ScheduleDetailRoute(scheduleID: row.id)) {
                                 HStack(spacing: 10) {
                                     ScheduleRowView(row: row)
                                     Image(systemName: "chevron.right")
@@ -135,6 +127,18 @@ struct SchedulesView: View {
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }
             }
+        }
+        // Value-based so the pushed detail outlives its row: a delete removes
+        // the row, and the detail then shows its unavailable state instead of
+        // being torn down with the link.
+        .navigationDestination(for: ScheduleDetailRoute.self) { route in
+            ScheduleDetailView(
+                scheduleID: route.scheduleID,
+                viewModel: viewModel,
+                onEdit: beginEdit,
+                onAction: beginActionReview,
+                onPost: beginPostReview
+            )
         }
         .navigationTitle("Schedules")
         .navigationBarTitleDisplayMode(.inline)
@@ -189,7 +193,7 @@ struct SchedulesView: View {
                 )
             }
         }
-        .onChange(of: managementCoordinator.contentRevision) { requestRefresh() }
+        .onChange(of: managementCoordinator.contentRevision) { reloadAfterCommit() }
         .onChange(of: managementCoordinator.isPresented) { _, isPresented in
             if !isPresented, workflowSheet == .management {
                 workflowSheet = nil
@@ -203,7 +207,7 @@ struct SchedulesView: View {
         .onChange(of: postingCoordinator.state) { _, state in
             switch state {
             case .committed, .committedRefreshPending:
-                requestRefresh()
+                reloadAfterCommit()
             default:
                 break
             }
@@ -307,6 +311,14 @@ struct SchedulesView: View {
 
     private func requestRefresh() {
         manualRefreshGeneration &+= 1
+    }
+
+    /// A commit usually lands while a schedule's detail is pushed over this
+    /// list, where the list's `.task(id:)` does not rerun until it reappears.
+    /// Reload directly so the pushed detail reflects the change; `load` keeps
+    /// only the newest result.
+    private func reloadAfterCommit() {
+        Task { await viewModel.load(context: context, repository: repository) }
     }
 
     private var workflowSheetBinding: Binding<SchedulesWorkflowSheet?> {
@@ -479,4 +491,8 @@ extension SchedulePresentationTone {
         case .neutral: ActualistTheme.secondaryText
         }
     }
+}
+
+private struct ScheduleDetailRoute: Hashable {
+    let scheduleID: String
 }

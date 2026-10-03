@@ -144,9 +144,12 @@ final class SchedulesUITests: XCTestCase {
 
         let name = app.textFields["schedule-editor-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap()
-        app.typeKey("a", modifierFlags: .command)
-        app.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
+        // Put the cursor at the end and delete the existing text explicitly;
+        // Command-A needs the simulator's hardware keyboard, which not every
+        // destination has connected.
+        name.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
+        let existing = name.value as? String ?? ""
+        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
         name.typeText("UI Schedule Edited")
         app.buttons["schedule-save-review-button"].tap()
         XCTAssertTrue(app.scrollViews["schedule-save-review"].waitForExistence(timeout: 5))

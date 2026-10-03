@@ -131,6 +131,7 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertNotEqual(selectedMonth, initialMonth)
         let expectedRange = try XCTUnwrap(completedMonthRangeTitle(for: selectedMonth))
         XCTAssertTrue(app.staticTexts[expectedRange].waitForExistence(timeout: 8))
+        stepBackToMonthWithContributors(from: selectedMonth, comparisonMonth: comparisonMonth, in: app)
 
         openFilters(in: app)
         let checking = assertSwitch("report-filter-account-checking", equals: true, in: app)
@@ -419,6 +420,30 @@ final class ReportExplorerUITests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 8), .completed)
         return month.label
+    }
+
+    /// The bundled demo budget's data ends on a fixed date while the
+    /// comparison month starts from today, so a recent month can be empty and
+    /// hide the drilldown. Step back until a month has contributing
+    /// transactions; the cap bounds the walk if the demo data ages out.
+    private func stepBackToMonthWithContributors(
+        from month: String,
+        comparisonMonth: XCUIElement,
+        in app: XCUIApplication
+    ) {
+        var month = month
+        var steps = 0
+        while !app.buttons["report-drilldown-button"].waitForExistence(timeout: 2), steps < 12 {
+            comparisonMonth.tap()
+            XCTAssertTrue(app.buttons["Previous Month"].waitForExistence(timeout: 3))
+            app.buttons["Previous Month"].tap()
+            month = waitForComparisonMonthChange(from: month, in: app)
+            steps += 1
+        }
+        XCTAssertTrue(
+            app.buttons["report-drilldown-button"].exists,
+            "No demo month with contributing transactions within 12 months of \(month)"
+        )
     }
 
     private func filterScroller(in app: XCUIApplication) -> XCUIElement {
