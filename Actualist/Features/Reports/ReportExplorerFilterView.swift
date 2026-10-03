@@ -53,13 +53,16 @@ struct ReportExplorerFilterView: View {
             .reviewSheetBottomBar {
                 Button(role: .cancel) { dismiss() } label: {
                     Text("Cancel")
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
                 }
                 .buttonStyle(.glass)
                 .accessibilityIdentifier("report-filter-cancel")
 
                 Button { applyDraft() } label: {
                     Text("Apply")
+                        .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .buttonStyle(.glassProminent)
