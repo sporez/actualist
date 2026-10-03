@@ -160,7 +160,7 @@ final class TransactionStructuredFilterUITests: XCTestCase {
         // screen, so "More Filters" sits below the fold and the automation
         // tree never exposes it (context menus cannot be scrolled by XCUITest).
         // A human can scroll the menu; this flow needs a smaller-entry menu or
-        // manual verification. Tracked in the sheet-remediation plan.
+        // manual verification. Tracked in the private follow-ups list.
         throw XCTSkip(
             "The filter menu's More Filters entry is below the fold at accessibility text sizes and cannot be reached by the automation harness."
         )
