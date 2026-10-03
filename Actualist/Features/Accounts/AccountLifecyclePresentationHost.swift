@@ -119,8 +119,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     .buttonStyle(.glassProminent)
                     .tint(ActualistTheme.accent)
                 }
-                .navigationTitle("Account Change Saved")
-                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .navigationBar)
             }
             .presentationDetents([.medium])
             .onDisappear {
@@ -217,8 +216,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     .buttonStyle(.glassProminent)
                     .tint(ActualistTheme.accent)
                 }
-                .navigationTitle("Close Account")
-                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .navigationBar)
             }
             .presentationDetents([.medium])
         } else {
@@ -242,8 +240,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     .buttonStyle(.glass)
                     Spacer(minLength: 0)
                 }
-                .navigationTitle("Close Account")
-                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .navigationBar)
             }
             .presentationDetents([.medium])
         }

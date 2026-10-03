@@ -85,8 +85,7 @@ struct AccountRenameSheet: View {
                 }
             }
             .background(ActualistTheme.background)
-            .navigationTitle("Rename Account")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .presentationDetents([.medium])
     }
@@ -192,8 +191,7 @@ struct AccountReopenSheet: View {
                 }
             }
             .background(ActualistTheme.background)
-            .navigationTitle("Reopen Account")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
         }
         .presentationDetents([.medium])
     }

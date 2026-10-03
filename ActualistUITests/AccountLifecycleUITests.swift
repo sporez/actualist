@@ -17,7 +17,7 @@ final class AccountLifecycleUITests: XCTestCase {
         attachScreenshot(named: "account-lifecycle-row-rename-cancel-\(layoutName(for: app))", app: app)
         app.buttons["Cancel"].tap()
 
-        XCTAssertTrue(app.navigationBars["Rename Account"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["account-lifecycle-rename-button"].waitForNonExistence(timeout: 5))
         let cancelledRow = accountOverviewButton(
             accountID: "checking", expectedName: originalName, in: app
         )
@@ -77,7 +77,7 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(reopenAction.isEnabled)
         reopenAction.tap()
 
-        XCTAssertTrue(app.navigationBars["Reopen Account"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["account-lifecycle-reopen-button"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Car Loan"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[
             "This account will return to the open account list with its existing history and settings."
@@ -88,7 +88,7 @@ final class AccountLifecycleUITests: XCTestCase {
         attachScreenshot(named: "account-lifecycle-reopen-sheet-\(layoutName(for: app))", app: app)
         reopenButton.tap()
 
-        XCTAssertTrue(app.navigationBars["Reopen Account"].waitForNonExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["account-lifecycle-reopen-button"].waitForNonExistence(timeout: 8))
         let offBudgetSection = sectionButton(beginningWith: "Off Budget", in: app)
         XCTAssertTrue(offBudgetSection.waitForExistence(timeout: 8))
         let reopened = accountOverviewButton(accountID: "carloan", expectedName: "Car Loan", in: app)
@@ -240,8 +240,8 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(disabledReopen.waitForExistence(timeout: 5))
         XCTAssertFalse(closedRename.isEnabled)
         XCTAssertFalse(disabledReopen.isEnabled)
-        XCTAssertFalse(app.navigationBars["Rename Account"].exists)
-        XCTAssertFalse(app.navigationBars["Reopen Account"].exists)
+        XCTAssertFalse(app.buttons["account-lifecycle-rename-button"].exists)
+        XCTAssertFalse(app.buttons["account-lifecycle-reopen-button"].exists)
         attachScreenshot(named: "account-lifecycle-sample-values-gating-\(layoutName(for: app))", app: app)
     }
 
@@ -303,7 +303,7 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(rename.waitForExistence(timeout: 5))
         XCTAssertTrue(rename.isEnabled)
         rename.tap()
-        XCTAssertTrue(app.navigationBars["Rename Account"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["account-lifecycle-rename-button"].waitForExistence(timeout: 5))
     }
 
     private func openAccountDetail(named accountName: String, in app: XCUIApplication) throws {
@@ -331,7 +331,7 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(rename.waitForExistence(timeout: 5))
         XCTAssertTrue(rename.isEnabled)
         rename.tap()
-        XCTAssertTrue(app.navigationBars["Rename Account"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["account-lifecycle-rename-button"].waitForExistence(timeout: 5))
     }
 
     private func openCheckingCloseReview(in app: XCUIApplication) throws {
@@ -397,7 +397,7 @@ final class AccountLifecycleUITests: XCTestCase {
         XCTAssertTrue(rename.isEnabled)
         XCTAssertTrue(rename.isHittable)
         rename.tap()
-        XCTAssertTrue(app.navigationBars["Rename Account"].waitForNonExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["account-lifecycle-rename-button"].waitForNonExistence(timeout: 8))
     }
 
     private func returnToAccountsOverview(from accountName: String, in app: XCUIApplication) throws {
