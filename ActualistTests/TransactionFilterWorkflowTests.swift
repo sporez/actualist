@@ -130,7 +130,7 @@ struct TransactionFilterWorkflowTests {
         ])
     }
 
-    @Test func clearIntentAppliesEmptyConditionsAndAndJoin() {
+    @Test func resetClearsTheDraftWithoutApplyingUntilApply() {
         var applied: ([TransactionQueryCondition], TransactionQueryJoin)?
         let workflow = TransactionFilterWorkflow(
             conditions: [.account(.equals("checking")), .transfer(false)],
@@ -138,7 +138,10 @@ struct TransactionFilterWorkflowTests {
             onApply: { applied = ($0, $1) }
         )
 
-        #expect(workflow.clearAndApply())
+        workflow.resetDraft()
+        #expect(applied == nil)
+
+        #expect(workflow.apply())
         #expect(applied?.0.isEmpty == true)
         #expect(applied?.1 == .and)
     }

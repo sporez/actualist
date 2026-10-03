@@ -37,52 +37,60 @@ struct TransactionCSVImportReviewView: View {
     }
 
     private func reviewSheet(_ review: TransactionCSVImportReview) -> some View {
-        VStack(spacing: 0) {
-            ReviewSheetContent {
-                ReviewSheetHeader(
-                    title: "Import CSV",
-                    subtitle: "Review the rows before anything is added to this account."
-                )
-                .accessibilityIdentifier("transaction-csv-import-review")
+        ReviewSheetContent {
+            ReviewSheetHeader(
+                title: "Import CSV",
+                subtitle: "Review the rows before anything is added to this account."
+            )
+            .accessibilityIdentifier("transaction-csv-import-review")
 
-                if let summary = coordinator.summary {
-                    VStack(spacing: 8) {
-                        ReviewSummaryRow(
-                            title: "New rows",
-                            value: "\(summary.insert)",
-                            symbol: "plus.square"
-                        )
-                        ReviewSummaryRow(
-                            title: "Existing rows updated",
-                            value: "\(summary.update)",
-                            symbol: "pencil.line"
-                        )
-                        ReviewSummaryRow(
-                            title: "Duplicates left unchanged",
-                            value: "\(summary.ignored + summary.skipped)",
-                            symbol: "checkmark.circle"
-                        )
-                    }
-                    .actualistReviewCard()
+            if let summary = coordinator.summary {
+                VStack(spacing: 8) {
+                    ReviewSummaryRow(
+                        title: "New rows",
+                        value: "\(summary.insert)",
+                        symbol: "plus.square"
+                    )
+                    ReviewSummaryRow(
+                        title: "Existing rows updated",
+                        value: "\(summary.update)",
+                        symbol: "pencil.line"
+                    )
+                    ReviewSummaryRow(
+                        title: "Duplicates left unchanged",
+                        value: "\(summary.ignored + summary.skipped)",
+                        symbol: "checkmark.circle"
+                    )
                 }
-
-                ForEach(review.rows) { row in
-                    importRow(row)
-                }
+                .actualistReviewCard()
             }
 
-            ReviewSheetActions {
-                Button("Cancel", action: onCancel)
-                    .buttonStyle(.glass)
-                    .accessibilityIdentifier("transaction-csv-import-cancel")
-                Button(coordinator.submitTitle) {
-                    Task { await coordinator.submit(repository: repository) }
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-                .disabled(!coordinator.canSubmit)
-                .accessibilityIdentifier("transaction-csv-import-confirm")
+            ForEach(review.rows) { row in
+                importRow(row)
             }
+        }
+        .reviewSheetBottomBar {
+            Button(role: .cancel, action: onCancel) {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+            .accessibilityIdentifier("transaction-csv-import-cancel")
+            Button {
+                Task { await coordinator.submit(repository: repository) }
+            } label: {
+                Text(coordinator.submitTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
+            .disabled(!coordinator.canSubmit)
+            .accessibilityIdentifier("transaction-csv-import-confirm")
         }
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])
@@ -153,18 +161,21 @@ struct TransactionCSVImportReviewView: View {
     }
 
     private func failureSheet(_ message: String) -> some View {
-        VStack(spacing: 0) {
-            ReviewSheetContent {
-                ReviewSheetHeader(
-                    title: "Couldn't Import",
-                    subtitle: message
-                )
-                .accessibilityIdentifier("transaction-csv-import-failed")
+        ReviewSheetContent {
+            ReviewSheetHeader(
+                title: "Couldn't Import",
+                subtitle: message
+            )
+            .accessibilityIdentifier("transaction-csv-import-failed")
+        }
+        .reviewSheetBottomBar {
+            Button(action: onCancel) {
+                Text("Close")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            ReviewSheetActions {
-                Button("OK", action: onCancel)
-                    .buttonStyle(.glass)
-            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
         .background(ActualistTheme.background)
         .presentationDetents([.medium])

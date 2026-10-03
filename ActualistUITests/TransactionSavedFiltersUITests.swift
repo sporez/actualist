@@ -38,7 +38,7 @@ final class TransactionSavedFiltersUITests: XCTestCase {
         let savedFilters = app.buttons["transaction-saved-filters"]
         XCTAssertTrue(savedFilters.waitForExistence(timeout: 5))
         savedFilters.tap()
-        XCTAssertTrue(app.staticTexts["Save Current Filters"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved Filters"].waitForExistence(timeout: 5))
 
         let name = "Saved Category UI Test"
         let nameField = app.textFields["saved-transaction-filter-name"]
@@ -53,7 +53,7 @@ final class TransactionSavedFiltersUITests: XCTestCase {
         let savedName = app.staticTexts[name]
         XCTAssertTrue(savedName.waitForExistence(timeout: 10))
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts["Save Current Filters"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved Filters"].waitForNonExistence(timeout: 5))
 
         let activeFilter = app.buttons["transaction-filter-clear-structured"]
         XCTAssertTrue(activeFilter.waitForExistence(timeout: 5))
@@ -67,10 +67,10 @@ final class TransactionSavedFiltersUITests: XCTestCase {
 
         openSpendingFilterMenu(in: app)
         app.buttons["transaction-saved-filters"].tap()
-        XCTAssertTrue(app.staticTexts["Save Current Filters"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved Filters"].waitForExistence(timeout: 5))
         XCTAssertTrue(savedName.waitForExistence(timeout: 5))
         savedName.tap()
-        XCTAssertTrue(app.staticTexts["Save Current Filters"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved Filters"].waitForNonExistence(timeout: 5))
 
         XCTAssertTrue(activeFilter.waitForExistence(timeout: 5))
         XCTAssertTrue(activeFilter.label.contains("1"))
@@ -79,9 +79,9 @@ final class TransactionSavedFiltersUITests: XCTestCase {
 
         openSpendingFilterMenu(in: app)
         app.buttons["transaction-saved-filters"].tap()
-        XCTAssertTrue(app.staticTexts["Save Current Filters"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved Filters"].waitForExistence(timeout: 5))
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts["Save Current Filters"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Saved Filters"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(activeFilter.exists, "Dismissing filter management must not change the active query")
         XCTAssertTrue(app.buttons["Clear Uncleared Filter"].exists)
         XCTAssertEqual(search.value as? String, "market")

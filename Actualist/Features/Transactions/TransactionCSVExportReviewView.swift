@@ -8,17 +8,36 @@ struct TransactionCSVExportReviewView: View {
     @State private var workflow = TransactionCSVExportWorkflow()
 
     var body: some View {
-        NavigationStack {
-            sheetContent
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") {
-                            workflow.cancel()
-                            dismiss()
-                        }
-                    }
-                }
+        ReviewSheetContent {
+            header
+            if case .ready(let export) = workflow.state {
+                summaryCard(for: export)
+            } else {
+                stateCard
+            }
         }
+        .reviewSheetBottomBar {
+            if case .ready(let export) = workflow.state {
+                Button(role: .cancel, action: close) {
+                    Text("Done")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
+                }
+                .buttonStyle(.glass)
+                shareCSVButton(for: export)
+            } else {
+                Button(role: .cancel, action: close) {
+                    Text("Cancel")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
+                }
+                .buttonStyle(.glass)
+                Spacer(minLength: 0)
+            }
+        }
+        .background(ActualistTheme.background)
         .presentationBackground(ActualistTheme.background)
         .task {
             await workflow.export(budgetID: budgetID, accountID: accountID, repository: repository)
@@ -26,22 +45,9 @@ struct TransactionCSVExportReviewView: View {
         .onDisappear { workflow.cancel() }
     }
 
-    @ViewBuilder
-    private var sheetContent: some View {
-        if case .ready(let export) = workflow.state {
-            ReviewSheetContent {
-                header
-                summaryCard(for: export)
-            }
-            .reviewSheetBottomBar {
-                shareCSVButton(for: export)
-            }
-        } else {
-            ReviewSheetContent {
-                header
-                stateCard
-            }
-        }
+    private func close() {
+        workflow.cancel()
+        dismiss()
     }
 
     private var header: some View {

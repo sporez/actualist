@@ -75,26 +75,24 @@ struct TransactionBatchInteractionSheet: View {
     }
 
     private func committedContent(_ outcome: TransactionBatchOutcome) -> some View {
-        VStack(spacing: 0) {
-            ReviewSheetContent {
-                ReviewSheetHeader(title: "Changes Saved")
-                Text(completionMessage(outcome))
-                    .font(.subheadline)
-                    .foregroundStyle(ActualistTheme.secondaryText)
+        ReviewSheetContent {
+            ReviewSheetHeader(title: "Changes Saved")
+            Text(completionMessage(outcome))
+                .font(.subheadline)
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .actualistReviewCard()
+        }
+        .reviewSheetBottomBar {
+            Button(action: { presentation.finishCommittedResult() }) {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .actualistReviewCard()
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            ReviewSheetActions {
-                Button(action: { presentation.finishCommittedResult() }) {
-                    Text("Done")
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])

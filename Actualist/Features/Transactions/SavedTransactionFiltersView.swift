@@ -7,6 +7,10 @@ struct SavedTransactionFiltersView: View {
     var body: some View {
         NavigationStack {
             ReviewSheetContent {
+                ReviewSheetHeader(
+                    title: "Saved Filters",
+                    subtitle: "Reuse filters for this transaction feed."
+                )
                 if coordinator.unavailableMessage == nil {
                     saveCurrentFilterCard
                 }
@@ -45,14 +49,39 @@ struct SavedTransactionFiltersView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .reviewSheetBottomBar {
-                Button {
-                    dismiss()
-                } label: {
-                    Text("Done")
-                        .frame(maxWidth: .infinity, minHeight: 32)
+                if coordinator.unavailableMessage == nil {
+                    Button(role: .cancel) {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: 32)
+                            .padding(.horizontal, 12)
+                    }
+                    .buttonStyle(.glass)
+
+                    Button {
+                        Task { await coordinator.saveCurrentConditions() }
+                    } label: {
+                        Text(coordinator.isSaving ? "Saving…" : "Save Filter")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
+                    .disabled(!coordinator.canSaveCurrentConditions)
+                    .accessibilityIdentifier("saved-transaction-filter-save")
+                } else {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("Done")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(ActualistTheme.accent)
                 }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
             }
         }
         .frame(idealWidth: 560)
@@ -84,26 +113,18 @@ struct SavedTransactionFiltersView: View {
 
     private var saveCurrentFilterCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ReviewSheetHeader(
-                title: "Save Current Filters",
-                subtitle: "Keep these conditions for another review."
-            )
-            Text(coordinator.currentConditionsSummary)
-                .font(.footnote)
-                .foregroundStyle(ActualistTheme.secondaryText)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Current Filters")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                Spacer(minLength: 8)
+                Text(coordinator.currentConditionsSummary)
+                    .font(.subheadline)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
             TextField("Filter name", text: $coordinator.nameDraft)
                 .reviewSheetFieldStyle()
                 .accessibilityIdentifier("saved-transaction-filter-name")
-            Button {
-                Task { await coordinator.saveCurrentConditions() }
-            } label: {
-                Label(coordinator.isSaving ? "Saving…" : "Save Filter", systemImage: "bookmark")
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
-            .disabled(!coordinator.canSaveCurrentConditions)
-            .accessibilityIdentifier("saved-transaction-filter-save")
         }
         .actualistReviewCard()
     }

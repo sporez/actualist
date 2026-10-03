@@ -65,80 +65,77 @@ struct TransactionMergeReviewSheet: View {
             currency: currency,
             isPrivacyModeEnabled: isPrivacyModeEnabled
         )
-        VStack(spacing: 0) {
-            ReviewSheetContent {
-                ReviewSheetHeader(title: display.title, subtitle: display.subtitle)
-                    .accessibilityIdentifier("transaction-merge-review")
+        ReviewSheetContent {
+            ReviewSheetHeader(title: display.title, subtitle: display.subtitle)
+                .accessibilityIdentifier("transaction-merge-review")
 
-                VStack(spacing: 8) {
+            VStack(spacing: 8) {
+                ReviewSummaryRow(
+                    title: "Selected transactions",
+                    value: display.inputCountText,
+                    symbol: "checkmark.circle"
+                )
+                if let kept = display.keptLabel {
                     ReviewSummaryRow(
-                        title: "Selected transactions",
-                        value: display.inputCountText,
-                        symbol: "checkmark.circle"
+                        title: "Kept",
+                        value: kept,
+                        symbol: "checkmark.circle",
+                        valueColor: ActualistTheme.accent
                     )
-                    if let kept = display.keptLabel {
-                        ReviewSummaryRow(
-                            title: "Kept",
-                            value: kept,
-                            symbol: "checkmark.circle",
-                            valueColor: ActualistTheme.accent
-                        )
-                    }
-                    if let dropped = display.droppedLabel {
-                        ReviewSummaryRow(
-                            title: "Dropped",
-                            value: dropped,
-                            symbol: "minus.circle",
-                            valueColor: ActualistTheme.secondaryText
-                        )
-                    }
                 }
-                .actualistReviewCard()
-
-                if let blocked = display.blockedMessage {
-                    Label(blocked, systemImage: "exclamationmark.circle")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(ActualistTheme.danger)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .actualistReviewCard()
-                        .accessibilityIdentifier("transaction-merge-blocked-reason")
-                }
-
-                if let warning = display.authorizationMessage {
-                    Label(warning, systemImage: "lock.trianglebadge.exclamationmark")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(ActualistTheme.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .actualistReviewCard()
-                        .accessibilityIdentifier("transaction-merge-reconciled-warning")
-                }
-
-                ForEach(display.inputs) { input in
-                    inputCard(input, effects: input.isKept ? display.keptEffects : [])
+                if let dropped = display.droppedLabel {
+                    ReviewSummaryRow(
+                        title: "Dropped",
+                        value: dropped,
+                        symbol: "minus.circle",
+                        valueColor: ActualistTheme.secondaryText
+                    )
                 }
             }
+            .actualistReviewCard()
 
-            ReviewSheetActions {
-                Button(role: .cancel, action: onCancel) {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
-
-                Button(action: onConfirm) {
-                    Text(display.confirmationTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-                .disabled(!display.canSubmit)
-                .accessibilityIdentifier("transaction-merge-confirm")
+            if let blocked = display.blockedMessage {
+                Label(blocked, systemImage: "exclamationmark.circle")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ActualistTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .actualistReviewCard()
+                    .accessibilityIdentifier("transaction-merge-blocked-reason")
             }
+
+            if let warning = display.authorizationMessage {
+                Label(warning, systemImage: "lock.trianglebadge.exclamationmark")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ActualistTheme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .actualistReviewCard()
+                    .accessibilityIdentifier("transaction-merge-reconciled-warning")
+            }
+
+            ForEach(display.inputs) { input in
+                inputCard(input, effects: input.isKept ? display.keptEffects : [])
+            }
+        }
+        .reviewSheetBottomBar {
+            Button(role: .cancel, action: onCancel) {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+
+            Button(action: onConfirm) {
+                Text(display.confirmationTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
+            .disabled(!display.canSubmit)
+            .accessibilityIdentifier("transaction-merge-confirm")
         }
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])
@@ -262,26 +259,24 @@ struct TransactionCommandCommittedSheet: View {
     let onDone: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            ReviewSheetContent {
-                ReviewSheetHeader(title: "Changes Saved")
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundStyle(ActualistTheme.secondaryText)
+        ReviewSheetContent {
+            ReviewSheetHeader(title: "Changes Saved")
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .actualistReviewCard()
+        }
+        .reviewSheetBottomBar {
+            Button(action: onDone) {
+                Text("Done")
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .actualistReviewCard()
+                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            ReviewSheetActions {
-                Button(action: onDone) {
-                    Text("Done")
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
         }
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])

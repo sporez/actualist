@@ -14,6 +14,13 @@ struct TransactionFilterSheet: View {
                     title: "More Filters",
                     subtitle: "Refine this transaction feed."
                 )
+                Button("Reset Filters", systemImage: "arrow.counterclockwise") {
+                    workflow.resetDraft()
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+                .tint(ActualistTheme.accent)
+                .accessibilityIdentifier("transaction-filter-reset")
                 joinCard
                 dateCard
                 ForEach(TransactionFilterField.allCases, id: \.self) { field in
@@ -31,14 +38,11 @@ struct TransactionFilterSheet: View {
             .accessibilityIdentifier("transaction-filter-review-scroll")
             .toolbar(.hidden, for: .navigationBar)
             .reviewSheetBottomBar {
-                Button("Clear") {
-                    if workflow.clearAndApply() { dismiss() }
-                }
-                .buttonStyle(.glass)
-                .accessibilityIdentifier("transaction-filter-clear")
-
                 Button(role: .cancel) { dismiss() } label: {
-                    Text("Cancel").frame(maxWidth: .infinity, minHeight: 32)
+                    Text("Cancel")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 32)
+                        .padding(.horizontal, 12)
                 }
                 .buttonStyle(.glass)
                 .accessibilityIdentifier("transaction-filter-cancel")
@@ -46,7 +50,9 @@ struct TransactionFilterSheet: View {
                 Button {
                     if workflow.apply() { dismiss() }
                 } label: {
-                    Text("Apply").frame(maxWidth: .infinity, minHeight: 32)
+                    Text("Apply")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .buttonStyle(.glassProminent)
                 .tint(ActualistTheme.accent)

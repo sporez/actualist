@@ -65,76 +65,73 @@ struct TransactionDuplicateReviewSheet: View {
             locale: locale,
             isPrivacyModeEnabled: isPrivacyModeEnabled
         )
-        VStack(spacing: 0) {
-            ReviewSheetContent {
-                ReviewSheetHeader(title: display.title, subtitle: display.subtitle)
-                    .accessibilityIdentifier("transaction-duplicate-review")
+        ReviewSheetContent {
+            ReviewSheetHeader(title: display.title, subtitle: display.subtitle)
+                .accessibilityIdentifier("transaction-duplicate-review")
 
-                VStack(spacing: 8) {
-                    ReviewSummaryRow(
-                        title: "Selected transactions",
-                        value: display.selectedCountText,
-                        symbol: "checkmark.circle"
-                    )
-                    ReviewSummaryRow(
-                        title: "Copies",
-                        value: display.copyCountText,
-                        symbol: "plus.square.on.square"
-                    )
+            VStack(spacing: 8) {
+                ReviewSummaryRow(
+                    title: "Selected transactions",
+                    value: display.selectedCountText,
+                    symbol: "checkmark.circle"
+                )
+                ReviewSummaryRow(
+                    title: "Copies",
+                    value: display.copyCountText,
+                    symbol: "plus.square.on.square"
+                )
+            }
+            .actualistReviewCard()
+
+            if let familyMessage = display.familyDeduplicationMessage {
+                Text(familyMessage)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .actualistReviewCard()
+                    .accessibilityIdentifier("transaction-duplicate-family-deduplication")
+            }
+
+            if let unavailable = display.unavailableMessage {
+                Text(unavailable)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ActualistTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .actualistReviewCard()
+            }
+
+            ForEach(display.groups) { group in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(group.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                    ForEach(group.rows) { row in
+                        duplicateRow(row)
+                    }
                 }
                 .actualistReviewCard()
-
-                if let familyMessage = display.familyDeduplicationMessage {
-                    Text(familyMessage)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .actualistReviewCard()
-                        .accessibilityIdentifier("transaction-duplicate-family-deduplication")
-                }
-
-                if let unavailable = display.unavailableMessage {
-                    Text(unavailable)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(ActualistTheme.danger)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .actualistReviewCard()
-                }
-
-                ForEach(display.groups) { group in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(group.title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                        ForEach(group.rows) { row in
-                            duplicateRow(row)
-                        }
-                    }
-                    .actualistReviewCard()
-                }
             }
-
-            ReviewSheetActions {
-                Button(role: .cancel, action: onCancel) {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
-
-                Button(action: onConfirm) {
-                    Text(display.confirmationTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
-                .disabled(!display.canSubmit)
-                .accessibilityIdentifier("transaction-duplicate-confirm")
+        }
+        .reviewSheetBottomBar {
+            Button(role: .cancel, action: onCancel) {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
             }
+            .buttonStyle(.glass)
+
+            Button(action: onConfirm) {
+                Text(display.confirmationTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(ActualistTheme.accent)
+            .disabled(!display.canSubmit)
+            .accessibilityIdentifier("transaction-duplicate-confirm")
         }
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])

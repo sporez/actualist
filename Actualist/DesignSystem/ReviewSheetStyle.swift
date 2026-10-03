@@ -32,37 +32,16 @@ struct ReviewSheetContent<Content: View>: View {
     }
 }
 
-/// Pins the review action bar below the sheet's scroll content.
-///
-/// Invariant: `.safeAreaBar(edge: .bottom)` does not reliably inset scroll
-/// content when the sheet runs inside a `NavigationStack` presented with
-/// `.presentationSizing(.page...)`, letting scrolled rows render underneath
-/// the bar. Composing the scroll area and `ReviewSheetActions` as
-/// `VStack(spacing: 0)` siblings is plain layout, so the scroll area
-/// geometrically ends above the bar in every presentation context; the
-/// opaque `ActualistTheme.background` keeps content from showing through or
-/// under the bar; and keyboard avoidance lifts the whole stack, so the bar
-/// stays above the keyboard while the scroll area shrinks and remains
-/// reachable. This is the composition proven by `TransactionBatchReviewSheet`
-/// and matches the rendered appearance of the
-/// `BudgetTemplateConfirmationSheet` master.
+/// Floats the review actions over the scroll content exactly like the
+/// `BudgetTemplateConfirmationSheet` master: no bar background, the system
+/// scroll-edge effect softens content passing under the buttons.
 extension View {
     func reviewSheetBottomBar<Actions: View>(
         @ViewBuilder actions: @escaping () -> Actions
     ) -> some View {
-        modifier(ReviewSheetBottomBarModifier(actions: actions))
-    }
-}
-
-private struct ReviewSheetBottomBarModifier<Actions: View>: ViewModifier {
-    @ViewBuilder let actions: () -> Actions
-
-    func body(content: Content) -> some View {
-        VStack(spacing: 0) {
-            content
+        safeAreaBar(edge: .bottom, spacing: 0) {
             ReviewSheetActions { actions() }
         }
-        .background(ActualistTheme.background)
     }
 }
 

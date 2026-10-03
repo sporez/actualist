@@ -14,78 +14,75 @@ struct TransactionBatchReviewSheet: View {
             locale: locale,
             isPrivacyModeEnabled: isPrivacyModeEnabled
         )
-        VStack(spacing: 0) {
-            ReviewSheetContent {
-                ReviewSheetHeader(
-                    title: display.title,
-                    subtitle: "These are the exact transactions and stored changes that will be saved together."
+        ReviewSheetContent {
+            ReviewSheetHeader(
+                title: display.title,
+                subtitle: "These are the exact transactions and stored changes that will be saved together."
+            )
+
+            VStack(spacing: 8) {
+                ReviewSummaryRow(
+                    title: "Selected transactions",
+                    value: display.selectedCountText,
+                    symbol: "checkmark.circle"
                 )
-
-                VStack(spacing: 8) {
+                ReviewSummaryRow(
+                    title: "Rows changing",
+                    value: display.changedCountText,
+                    symbol: "arrow.left.arrow.right"
+                )
+                if let skipped = display.skippedCountText {
                     ReviewSummaryRow(
-                        title: "Selected transactions",
-                        value: display.selectedCountText,
-                        symbol: "checkmark.circle"
+                        title: "Skipped",
+                        value: skipped,
+                        symbol: "minus.circle",
+                        valueColor: ActualistTheme.secondaryText
                     )
+                }
+                if let blocked = display.blockedCountText {
                     ReviewSummaryRow(
-                        title: "Rows changing",
-                        value: display.changedCountText,
-                        symbol: "arrow.left.arrow.right"
+                        title: "Blocked",
+                        value: blocked,
+                        symbol: "exclamationmark.circle",
+                        valueColor: ActualistTheme.danger
                     )
-                    if let skipped = display.skippedCountText {
-                        ReviewSummaryRow(
-                            title: "Skipped",
-                            value: skipped,
-                            symbol: "minus.circle",
-                            valueColor: ActualistTheme.secondaryText
-                        )
-                    }
-                    if let blocked = display.blockedCountText {
-                        ReviewSummaryRow(
-                            title: "Blocked",
-                            value: blocked,
-                            symbol: "exclamationmark.circle",
-                            valueColor: ActualistTheme.danger
-                        )
-                    }
-                }
-                .actualistReviewCard()
-
-                if let warning = display.authorizationMessage {
-                    Label(warning, systemImage: "lock.trianglebadge.exclamationmark")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(ActualistTheme.warning)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .actualistReviewCard()
-                }
-
-                LazyVStack(spacing: 10) {
-                    ForEach(display.rows) { row in
-                        transactionCard(row)
-                    }
                 }
             }
+            .actualistReviewCard()
 
-            ReviewSheetActions {
-                Button(role: .cancel, action: onCancel) {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
-
-                Button(action: onConfirm) {
-                    Text(display.confirmationTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(confirmTint)
-                .disabled(!display.canSubmit)
+            if let warning = display.authorizationMessage {
+                Label(warning, systemImage: "lock.trianglebadge.exclamationmark")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ActualistTheme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .actualistReviewCard()
             }
+
+            LazyVStack(spacing: 10) {
+                ForEach(display.rows) { row in
+                    transactionCard(row)
+                }
+            }
+        }
+        .reviewSheetBottomBar {
+            Button(role: .cancel, action: onCancel) {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 32)
+                    .padding(.horizontal, 12)
+            }
+            .buttonStyle(.glass)
+
+            Button(action: onConfirm) {
+                Text(display.confirmationTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(confirmTint)
+            .disabled(!display.canSubmit)
         }
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])

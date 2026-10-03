@@ -246,12 +246,7 @@ final class TransactionFilterWorkflow {
         }
     }
 
-    func clearAndApply() -> Bool {
-        clearDraft()
-        return apply()
-    }
-
-    private func clearDraft() {
+    func resetDraft() {
         includesDate = false
         selectedAccountIDs.removeAll()
         selectedPayeeIDs.removeAll()
