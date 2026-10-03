@@ -18,6 +18,11 @@ CRDT replay is asserted independently from that result.
 - Required prepared tools: Node `24.21.x`, Yarn `4.17.1`, and the checkout's
   installed Vitest executable.
 - Runtime timezone is pinned to `UTC` and recorded.
+- Pinned loot-core test setup fixes `currentDay()` at `2017-01-01` whenever
+  `global.IS_TESTING` is true, independently of `MockDate`. The harness saves
+  that exact flag, disables it only across the real-handler and cleanup window,
+  verifies pinned Actual's real `currentDay()` after every controlled clock
+  change, and restores both the flag and `MockDate` even if cleanup throws.
 - Native SQLite export requires `ACTUAL_DATA_DIR` because the pinned electron
   backend backs an in-memory database up to a temporary file before reading its
   bytes. The runner supplies a new mode-700 synthetic directory owned by the run

@@ -13,6 +13,7 @@ import {
   skipNextDate,
 } from '#server/schedules/app';
 import { updateRule } from '#server/transactions/transaction-rules';
+import { currentDay } from '#shared/months';
 import { q } from '#shared/query';
 import type { RuleActionEntity, RuleConditionEntity } from '#types/models';
 
@@ -38,6 +39,7 @@ import {
 
 const EXPECTED_COMMIT = '59fe126f637d858c061e1eeedbef5436c8f2225a';
 const TODAY = '2026-09-27';
+const NEXT_DAY = '2026-09-28';
 const evidencePath = process.env.ACTUAL_SCHEDULE_PARITY_EVIDENCE;
 
 // Actual's serialized HULC format permits a 16-character node field with no
@@ -209,6 +211,16 @@ async function applyAndRecord(
 
 function localNoon(year: number, month: number, day: number): Date {
   return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function setOracleTime(instant: Date | number, expectedDay: string): void {
+  MockDate.set(instant);
+  const observedDay = currentDay();
+  requireOracle(
+    observedDay === expectedDay,
+    `pinned Actual currentDay follows controlled day ${expectedDay}`,
+    observedDay,
+  );
 }
 
 function occurrenceIdentityFinding(count: number): string {
@@ -403,7 +415,7 @@ async function caseOneTimeManualThenPeerAdvance(): Promise<CaseEvidence> {
   const dueDayAdvance = await automaticAdvance(peer, 'advance-due-day');
   const dueDay = await snapshotAndRecord(peer, 'dueDay', scheduleID);
 
-  MockDate.set(localNoon(2026, 9, 28));
+  setOracleTime(localNoon(2026, 9, 28), NEXT_DAY);
   const nextDayAdvance = await automaticAdvance(peer, 'advance-next-day');
   const nextDay = await snapshotAndRecord(peer, 'nextDay', scheduleID);
   const actualReceivesDueDay = await applyAndRecord(
@@ -416,7 +428,7 @@ async function caseOneTimeManualThenPeerAdvance(): Promise<CaseEvidence> {
     nextDayAdvance,
     scheduleID,
   );
-  MockDate.set(localNoon(2026, 9, 27));
+  setOracleTime(localNoon(2026, 9, 27), TODAY);
 
   requireOracle(before.status === 'due', 'case 1 begins due', before.status);
   requireOracle(
@@ -490,7 +502,7 @@ async function caseRecurringManualSameDayRerun(): Promise<CaseEvidence> {
     ),
   );
   const afterSkip = await snapshotAndRecord(peer, 'afterSkip', scheduleID);
-  MockDate.set(localNoon(2026, 9, 27).getTime() + 1_000);
+  setOracleTime(localNoon(2026, 9, 27).getTime() + 1_000, TODAY);
   const reset = recordBatch(
     await captureOperation(peer, 'reset-next-date', () =>
       setNextDate({ id: scheduleID, reset: true }),
@@ -505,7 +517,7 @@ async function caseRecurringManualSameDayRerun(): Promise<CaseEvidence> {
   const actualReceivesRerun = await applyAndRecord(actual, rerun, scheduleID);
   const actualReceivesSkip = await applyAndRecord(actual, skipped, scheduleID);
   const actualReceivesReset = await applyAndRecord(actual, reset, scheduleID);
-  MockDate.set(localNoon(2026, 9, 27));
+  setOracleTime(localNoon(2026, 9, 27), TODAY);
 
   requireOracle(
     afterAdvance.occurrenceTransactionIDs.length === 1,
@@ -1233,7 +1245,7 @@ async function caseSplitAndTransferPropagation(): Promise<CaseEvidence> {
 describe('Actual v26.9.0 cross-client schedule occurrence identity oracle', () => {
   test('runs the mandatory seven-case matrix sequentially and records the product gate', async () => {
     requireOracle(evidencePath, 'ACTUAL_SCHEDULE_PARITY_EVIDENCE is set');
-    MockDate.set(localNoon(2026, 9, 27));
+    const previousIsTesting = global.IS_TESTING;
 
     const cases = [
       {
@@ -1267,6 +1279,8 @@ describe('Actual v26.9.0 cross-client schedule occurrence identity oracle', () =
     ];
 
     try {
+      global.IS_TESTING = false;
+      setOracleTime(localNoon(2026, 9, 27), TODAY);
       assertPeerNodeClockRoundTrips(PEER_NODE_IDS);
       for (const item of cases) {
         beginCase(item.name);
@@ -1301,9 +1315,13 @@ describe('Actual v26.9.0 cross-client schedule occurrence identity oracle', () =
       writeEvidence();
       throw error;
     } finally {
-      MockDate.reset();
-      await persistActivePeer();
-      await closeOracleDatabase();
+      try {
+        await persistActivePeer();
+        await closeOracleDatabase();
+      } finally {
+        global.IS_TESTING = previousIsTesting;
+        MockDate.reset();
+      }
     }
   });
 });
