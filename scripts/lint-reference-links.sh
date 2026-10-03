@@ -34,12 +34,13 @@ while IFS= read -r md; do
       http://*|https://*|mailto:*|/*) continue ;;
     esac
     checked_links=$((checked_links + 1))
-    resolved="$dir/$target"
-    if [[ -e "$resolved" ]]; then
+    # Resolve lexically from the checkout root: reference/ may be a symlink to a
+    # shared private folder, and its ../ links mean this checkout, not the
+    # symlink target's parent.
+    norm="$(python3 -c 'import os,sys; print(os.path.normpath(sys.argv[1]))' "$dir/$target")"
+    if [[ -e "$norm" ]]; then
       continue
     fi
-    # Normalize ./ segments for the reference-internal classification.
-    norm="$(python3 -c 'import os,sys; print(os.path.normpath(sys.argv[1]))' "$resolved")"
     if [[ "$norm" == reference/* ]]; then
       echo "error: $md -> $target (missing, resolves inside reference/)"
       broken_internal=$((broken_internal + 1))
@@ -49,7 +50,7 @@ while IFS= read -r md; do
       missing_external=$((missing_external + 1))
     fi
   done < <(grep -oE '\]\([^)#[:space:]]+(#[^)]*)?\)' "$md" | sed 's/^](\(.*\))$/\1/' || true)
-done < <(find reference -type f -name '*.md' | sort)
+done < <(find -H reference -type f -name '*.md' | sort)
 
 echo "Checked $checked_links links across reference/:" \
   "$broken_internal broken internal, $missing_external missing external."
