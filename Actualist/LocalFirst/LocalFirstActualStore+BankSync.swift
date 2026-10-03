@@ -538,33 +538,73 @@ extension LocalFirstActualStore {
             )
         }
 
-        let plans = try await downloadBankSyncPlans(
-            accountIDs: linked.map(\.id),
-            budgetID: budgetID,
-            deviceFallback: false
-        )
-        // Preflight every account before the first write. A malformed row in a
-        // later account cannot leave earlier accounts applied from this wake.
-        guard plans.allSatisfy(\.problems.isEmpty) else {
-            throw BankSyncStoreError.unresolvedProblems
-        }
-
+        var tally = BankSyncRunTally()
         var insertedTransactionIDsByAccount: [String: [String]] = [:]
-        for plan in plans {
-            try Task.checkCancellation()
-            let result = try await applyBankSyncPlan(
-                plan,
+        do {
+            let plans = try await downloadBankSyncPlans(
+                accountIDs: linked.map(\.id),
                 budgetID: budgetID,
-                backgroundNotificationID: request.notificationID
+                deviceFallback: false
             )
-            for (accountID, transactionIDs) in result.insertedTransactionIDsByAccount {
-                insertedTransactionIDsByAccount[accountID, default: []].append(contentsOf: transactionIDs)
+            // Preflight every account before the first write. A malformed row in a
+            // later account cannot leave earlier accounts applied from this wake.
+            guard plans.allSatisfy(\.problems.isEmpty) else {
+                throw BankSyncStoreError.unresolvedProblems
             }
+
+            for plan in plans {
+                try Task.checkCancellation()
+                let result: BankSyncReview.ApplyResult
+                do {
+                    result = try await applyBankSyncPlan(
+                        plan,
+                        budgetID: budgetID,
+                        backgroundNotificationID: request.notificationID
+                    )
+                } catch let error as BankSyncCommittedRefreshError {
+                    tally.record(error.result, skipped: plan.durableStatus != .ok)
+                    throw error
+                }
+                tally.record(result, skipped: plan.durableStatus != .ok)
+                for (accountID, transactionIDs) in result.insertedTransactionIDsByAccount {
+                    insertedTransactionIDsByAccount[accountID, default: []].append(contentsOf: transactionIDs)
+                }
+            }
+            await recordBackgroundBankSyncRun(tally.completedSummary(plannedCount: plans.count), in: database)
+        } catch {
+            await recordBackgroundBankSyncRun(
+                tally.stoppedSummary(totalCount: linked.count)
+                    ?? (error.isCancellation ? nil : BankSyncRunTally.nothingSavedSummary),
+                in: database
+            )
+            throw error
         }
         return BankSyncBackgroundApplyResult(
             accountCount: linked.count,
             insertedTransactionIDsByAccount: insertedTransactionIDsByAccount
         )
+    }
+
+    /// Written to the database the run started on, so a budget switch
+    /// mid-run cannot attach the summary to another budget. The record is
+    /// display-only; failing to save it must not fail the bank step.
+    private func recordBackgroundBankSyncRun(_ summary: String?, in database: BudgetDatabase) async {
+        guard let summary else { return }
+        try? await database.saveBankSyncLastRun(BankSyncLastRun(
+            finishedAt: Date(),
+            trigger: .background,
+            summary: summary
+        ))
+    }
+
+    // MARK: - Last run
+
+    func bankSyncLastRun(budgetID: String) async throws -> BankSyncLastRun? {
+        try await requireDatabase(for: budgetID).bankSyncLastRun()
+    }
+
+    func recordBankSyncLastRun(_ run: BankSyncLastRun, budgetID: String) async throws {
+        try await requireDatabase(for: budgetID).saveBankSyncLastRun(run)
     }
 
     /// Foreground/test convenience remains silent; only the background

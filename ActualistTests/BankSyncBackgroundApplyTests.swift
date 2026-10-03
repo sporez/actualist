@@ -72,7 +72,12 @@ extension LocalFirstActualStoreTests {
         let database = try #require(bundle.store.database)
         #expect(try await database.pendingNewTransactionIDsByAccount().isEmpty)
 
+        let firstRun = try #require(try await bundle.store.bankSyncLastRun(budgetID: "group-1"))
+        #expect(firstRun.trigger == .background)
+        #expect(firstRun.summary == "Added 1 transaction · Added 1 opening balance")
+
         let second = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        #expect(try await bundle.store.bankSyncLastRun(budgetID: "group-1")?.summary == "Everything already matches.")
         #expect(second.accountCount == 1)
         #expect(second.insertedTransactionIDsByAccount["savings"]?.isEmpty != false)
         // Once the account has local history, balance metadata is not needed
@@ -177,6 +182,9 @@ extension LocalFirstActualStoreTests {
             $0.dataset == "transactions" && $0.column == "financial_id"
         })
         #expect((await transport.transactionsRequests).count == 1)
+        let run = try await bundle.store.bankSyncLastRun(budgetID: "group-1")
+        #expect(run?.trigger == .background)
+        #expect(run?.summary == BankSyncRunTally.nothingSavedSummary)
     }
 
     @Test func backgroundApplySkipsUnlinkedAccounts() async throws {

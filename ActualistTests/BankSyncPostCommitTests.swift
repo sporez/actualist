@@ -43,7 +43,7 @@ struct BankSyncPostCommitTests {
             Issue.record("Expected committed refresh failure"); return
         }
         #expect(message.contains("saved locally"))
-        #expect(model.resultSummary?.contains("Added 1 transaction") == true)
+        #expect(model.lastRun?.summary.contains("Added 1 transaction") == true)
         #expect(model.resultLines.first?.addedCount == 1)
         #expect(try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM transactions WHERE financial_id = 'saved-before-refresh'")
