@@ -119,7 +119,9 @@ enum BankSyncReconciliation {
     /// loot-core three-pass match, in order: (1) `financial_id` equality,
     /// (2) same payee within ±7 days and the same amount across every
     /// candidate, (3) nearest remaining same-amount row in the window.
-    /// A local row is claimed by at most one download.
+    /// A local row is claimed by at most one download. Children of a split
+    /// parent matched by `financial_id` are reserved from both fuzzy passes
+    /// for the whole batch, regardless of download order (loot-core 24deae7).
     static func plan(
         candidates: [Candidate],
         existing: [Existing],
@@ -128,6 +130,7 @@ enum BankSyncReconciliation {
         transferPayeeIDs: Set<String> = []
     ) -> Plan {
         var claimed = Set<String>()
+        var exactMatchedParentIDs = Set<String>()
 
         // Pass 1 + fuzzy dataset construction (loot-core transactionsStep1).
         struct StepOne {
@@ -145,6 +148,7 @@ enum BankSyncReconciliation {
                 }
                 if let idMatch {
                     claimed.insert(idMatch.id)
+                    if idMatch.isParent { exactMatchedParentIDs.insert(idMatch.id) }
                 } else if suppressedFinancialIDs.contains(financialID) {
                     entries.append(.skippedDeleted(financialID: financialID))
                     continue
@@ -156,12 +160,18 @@ enum BankSyncReconciliation {
             stepOne.append(StepOne(candidate: candidate, matchedID: idMatch?.id, fuzzy: fuzzy))
         }
 
+        func isReserved(_ row: Existing) -> Bool {
+            row.parentID.map(exactMatchedParentIDs.contains) ?? false
+        }
+
         // Pass 2: same payee (loot-core transactionsStep2).
         var matches: [Int: String] = [:]
         for (index, step) in stepOne.enumerated() {
             guard step.matchedID == nil, let fuzzy = step.fuzzy,
                   let payeeID = step.candidate.payeeID else { continue }
-            guard let row = fuzzy.first(where: { !claimed.contains($0.id) && $0.payeeID == payeeID }) else { continue }
+            guard let row = fuzzy.first(where: {
+                !claimed.contains($0.id) && !isReserved($0) && $0.payeeID == payeeID
+            }) else { continue }
             claimed.insert(row.id)
             matches[index] = row.id
         }
@@ -169,7 +179,7 @@ enum BankSyncReconciliation {
         // Pass 3: nearest remaining same-amount row (transactionsStep3).
         for (index, step) in stepOne.enumerated() where matches[index] == nil && step.matchedID == nil {
             guard let fuzzy = step.fuzzy else { continue }
-            if let row = fuzzy.first(where: { !claimed.contains($0.id) }) {
+            if let row = fuzzy.first(where: { !claimed.contains($0.id) && !isReserved($0) }) {
                 claimed.insert(row.id)
                 matches[index] = row.id
             }
