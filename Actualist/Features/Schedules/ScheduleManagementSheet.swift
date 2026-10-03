@@ -8,44 +8,34 @@ struct ScheduleManagementSheet: View {
     let currency: BudgetCurrency
 
     var body: some View {
-        NavigationStack {
-            Group {
-                switch coordinator.state {
-                case .idle:
-                    ContentUnavailableView("Schedule", systemImage: "calendar")
-                case .loading(let title):
-                    ProgressView(title).frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .editing(let session):
-                    ScheduleEditorView(
-                        coordinator: coordinator,
-                        session: session,
-                        currency: currency,
-                        locale: locale
-                    )
-                case .reviewingSave(let session):
-                    saveReview(session)
-                case .reviewingAction(let review):
-                    actionReview(review)
-                case .submitting(let title):
-                    ProgressView(title).frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .committed(let outcome):
-                    committed(outcome)
-                case .noChanges(let outcome):
-                    committed(outcome)
-                case .failed(let message):
-                    failure(message)
-                }
-            }
-            .background(ActualistTheme.background)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { close() }
-                        .labelStyle(.iconOnly)
-                        .disabled(coordinator.isSubmitting)
-                        .accessibilityIdentifier("schedule-management-close")
-                }
+        Group {
+            switch coordinator.state {
+            case .idle:
+                ContentUnavailableView("Schedule", systemImage: "calendar")
+            case .loading(let title):
+                ProgressView(title).frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .editing(let session):
+                ScheduleEditorView(
+                    coordinator: coordinator,
+                    session: session,
+                    currency: currency,
+                    locale: locale
+                )
+            case .reviewingSave(let session):
+                saveReview(session)
+            case .reviewingAction(let review):
+                actionReview(review)
+            case .submitting(let title):
+                ProgressView(title).frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .committed(let outcome):
+                committed(outcome)
+            case .noChanges(let outcome):
+                committed(outcome)
+            case .failed(let message):
+                failure(message)
             }
         }
+        .background(ActualistTheme.background)
         .frame(idealWidth: 580)
         .presentationDetents([.large])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
@@ -323,6 +313,7 @@ struct ScheduleEditorView: View {
                     .padding(.horizontal, 12)
             }
             .buttonStyle(.glass)
+            .accessibilityIdentifier("schedule-editor-cancel")
             Button {
                 coordinator.reviewSave(locale: locale)
             } label: {

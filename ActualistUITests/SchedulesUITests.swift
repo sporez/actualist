@@ -125,7 +125,7 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertTrue(clearPayee.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.buttons["schedule-editor-payee"].staticTexts["No payee"].exists)
 
-        app.buttons["schedule-management-close"].tap()
+        app.buttons["schedule-editor-cancel"].tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 8))
         closeSchedules(in: app)
     }

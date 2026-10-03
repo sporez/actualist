@@ -7,37 +7,26 @@ struct TransactionScheduleConversionReviewView: View {
     let onCommitted: @MainActor (TransactionScheduleConversionOutcome) -> Void
 
     var body: some View {
-        NavigationStack {
-            Group {
-                switch coordinator.state {
-                case .idle:
-                    ContentUnavailableView("Transaction", systemImage: "calendar.badge.plus")
-                case .loading:
-                    ProgressView("Preparing Conversion Review")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .review(let review): reviewContent(review)
-                case .submitting:
-                    progressContent
-                case .committed(let receipt): committed(receipt)
-                case .failed(let message): failure(message)
-                }
-            }
-            .background(ActualistTheme.background)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { close() }
-                        .labelStyle(.iconOnly)
-                        .disabled(coordinator.state.isSubmitting)
-                        .accessibilityIdentifier("transaction-schedule-conversion-close")
-                }
+        Group {
+            switch coordinator.state {
+            case .idle:
+                ContentUnavailableView("Transaction", systemImage: "calendar.badge.plus")
+            case .loading:
+                ProgressView("Preparing Conversion Review")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .review(let review): reviewContent(review)
+            case .submitting:
+                progressContent
+            case .committed(let receipt): committed(receipt)
+            case .failed(let message): failure(message)
             }
         }
+        .background(ActualistTheme.background)
         .frame(idealWidth: 540)
         .presentationDetents([.large])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationBackground(ActualistTheme.background)
         .interactiveDismissDisabled(coordinator.state.isSubmitting)
-        .accessibilityIdentifier("transaction-schedule-conversion-review")
     }
 
     private func reviewContent(_ review: TransactionScheduleConversionReviewContent) -> some View {
@@ -46,6 +35,7 @@ struct TransactionScheduleConversionReviewView: View {
                 title: "Convert Future Transaction",
                 subtitle: "Review the schedule that will replace this transaction."
             )
+            .accessibilityIdentifier("transaction-schedule-conversion-review")
             VStack(spacing: 10) {
                 ReviewSummaryRow(title: "Date", value: review.dateText, symbol: "calendar")
                 ReviewSummaryRow(title: "Amount", value: review.amountText, symbol: "dollarsign.circle")

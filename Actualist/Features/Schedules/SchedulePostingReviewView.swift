@@ -6,46 +6,36 @@ struct SchedulePostingReviewView: View {
     let postingRepository: any SchedulePostingRepositoryProtocol
 
     var body: some View {
-        NavigationStack {
-            Group {
-                switch coordinator.state {
-                case .idle:
-                    ContentUnavailableView("Schedule", systemImage: "calendar")
-                case .loading:
-                    ProgressView("Preparing Post Review")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .review(let review):
-                    reviewContent(review)
-                case .syncing:
-                    progressContent(
-                        title: "Syncing before post",
-                        message: "Actualist is syncing this budget before it posts the transaction.",
-                        symbol: "arrow.triangle.2.circlepath"
-                    )
-                case .submitting:
-                    progressContent(
-                        title: "Posting transaction",
-                        message: "The transaction is being saved to this budget. Keep this review open until it finishes.",
-                        symbol: "square.and.arrow.down"
-                    )
-                case .committed(let receipt):
-                    committed(receipt, refreshPending: false)
-                case .committedRefreshPending(let receipt):
-                    committed(receipt, refreshPending: true)
-                case .failed(let message):
-                    failure(message)
-                }
-            }
-            .background(ActualistTheme.background)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { close() }
-                        .labelStyle(.iconOnly)
-                        .disabled(coordinator.state.isSubmitting)
-                        .accessibilityIdentifier("schedule-post-close")
-                }
+        Group {
+            switch coordinator.state {
+            case .idle:
+                ContentUnavailableView("Schedule", systemImage: "calendar")
+            case .loading:
+                ProgressView("Preparing Post Review")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .review(let review):
+                reviewContent(review)
+            case .syncing:
+                progressContent(
+                    title: "Syncing before post",
+                    message: "Actualist is syncing this budget before it posts the transaction.",
+                    symbol: "arrow.triangle.2.circlepath"
+                )
+            case .submitting:
+                progressContent(
+                    title: "Posting transaction",
+                    message: "The transaction is being saved to this budget. Keep this review open until it finishes.",
+                    symbol: "square.and.arrow.down"
+                )
+            case .committed(let receipt):
+                committed(receipt, refreshPending: false)
+            case .committedRefreshPending(let receipt):
+                committed(receipt, refreshPending: true)
+            case .failed(let message):
+                failure(message)
             }
         }
+        .background(ActualistTheme.background)
         .frame(idealWidth: 540)
         .presentationDetents([.large])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
