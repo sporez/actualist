@@ -5,9 +5,7 @@
 
 # Xcode
 DerivedData/
-.derivedData/
-.derivedData-device/
-.derivedData-restore/
+.derivedData*/
 build/
 *.xcresult
 *.xcworkspace/xcuserdata/
@@ -75,6 +73,8 @@ scripts/*
 !scripts/transaction-command-parity/*
 !scripts/parity/
 !scripts/parity/**
+**/__pycache__/
+*.pyc
 !scripts/generate-demo-budget/
 !scripts/generate-demo-budget/generate_demo_budget.py
 !scripts/lib/
