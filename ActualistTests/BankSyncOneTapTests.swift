@@ -56,7 +56,7 @@ extension LocalFirstActualStoreTests {
         #expect(blockedLine.problemCount == 2)
         #expect(blockedLine.problemSummary?.contains("Unreadable amount") == true)
         #expect(blockedLine.problemSummary?.contains("Currency mismatch") == true)
-        #expect(model.resultSummary == nil)
+        #expect(model.lastRun?.summary == BankSyncRunTally.nothingSavedSummary)
         #expect(try financialIDs(in: bundle).isEmpty)
         #expect((await transport.transactionsRequests).count == 1)
     }
@@ -95,7 +95,7 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
 
         #expect(model.phase == .ready)
-        #expect(model.resultSummary == "Synced 1 of 2 accounts. Added 1 transaction · 1 account skipped")
+        #expect(model.lastRun?.summary == "Synced 1 of 2 accounts. Added 1 transaction · 1 account skipped")
         let skipped = try #require(model.resultLines.first { $0.id == "savings" })
         #expect(skipped.addedCount == 0)
         #expect(skipped.statusText == "Skipped · Timed out")
@@ -122,8 +122,8 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
 
         #expect(model.phase == .ready)
-        #expect(model.resultSummary == "No accounts synced. 1 skipped.")
-        #expect(model.resultSummary != "Everything already matches.")
+        #expect(model.lastRun?.summary == "No accounts synced. 1 skipped.")
+        #expect(model.lastRun?.summary != "Everything already matches.")
         #expect(model.resultLines.first?.statusText == "Skipped · Needs attention")
         #expect(try financialIDs(in: bundle).isEmpty)
     }
@@ -179,8 +179,8 @@ extension LocalFirstActualStoreTests {
             Issue.record("Expected the second account apply to fail")
             return
         }
-        #expect(model.resultSummary?.hasPrefix("Sync stopped after 1 of 2 accounts. ") == true)
-        #expect(model.resultSummary?.contains("Added 1 transaction") == true)
+        #expect(model.lastRun?.summary.hasPrefix("Sync stopped after 1 of 2 accounts. ") == true)
+        #expect(model.lastRun?.summary.contains("Added 1 transaction") == true)
         #expect(model.resultLines.map(\.id) == ["checking"])
         #expect(try financialIDs(in: bundle) == ["committed-before-failure"])
         #expect(try startingBalanceCount(in: bundle) == 0)
@@ -191,8 +191,8 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
 
         #expect(model.phase == .ready)
-        #expect(model.resultSummary?.contains("Added 1 transaction") == true)
-        #expect(model.resultSummary?.contains("Added 1 opening balance") == true)
+        #expect(model.lastRun?.summary.contains("Added 1 transaction") == true)
+        #expect(model.lastRun?.summary.contains("Added 1 opening balance") == true)
         #expect(try financialIDs(in: bundle) == [
             "committed-before-failure", "rolled-back-second"
         ])
@@ -201,7 +201,7 @@ extension LocalFirstActualStoreTests {
         await model.syncAll()
 
         #expect(model.phase == .ready)
-        #expect(model.resultSummary == "Everything already matches.")
+        #expect(model.lastRun?.summary == "Everything already matches.")
         #expect(try financialIDs(in: bundle) == [
             "committed-before-failure", "rolled-back-second"
         ])
@@ -291,14 +291,14 @@ extension LocalFirstActualStoreTests {
 
         #expect(model.phase == .ready)
         #expect(model.resultLines.isEmpty)
-        #expect(model.resultSummary == nil)
+        #expect(model.lastRun?.summary == nil)
         #expect(try financialIDs(in: bundle).isEmpty)
         #expect(model.canSyncAll)
 
         await model.syncAll()
 
         #expect(model.phase == .ready)
-        #expect(model.resultSummary == "Added 1 transaction")
+        #expect(model.lastRun?.summary == "Added 1 transaction")
         #expect(transport.transactionRequestCount == 2)
         #expect(try financialIDs(in: bundle) == ["cancelled-late-row"])
     }
@@ -350,15 +350,46 @@ extension LocalFirstActualStoreTests {
 
         #expect(retiredModel.phase == .downloading)
         #expect(retiredModel.resultLines.isEmpty)
-        #expect(retiredModel.resultSummary == nil)
+        #expect(retiredModel.lastRun?.summary == nil)
         #expect(try financialIDs(in: bundle).isEmpty)
 
         await replacementModel.syncAll()
 
         #expect(replacementModel.phase == .ready)
-        #expect(replacementModel.resultSummary == "Added 1 transaction")
+        #expect(replacementModel.lastRun?.summary == "Added 1 transaction")
         #expect(transport.transactionRequestCount == 2)
         #expect(try financialIDs(in: bundle) == ["retired-session-row"])
+    }
+
+    @Test func oneTapLastRunPersistsForTheNextScreenVisit() async throws {
+        let remote = oneTapRemoteAccount(id: "one-tap-persisted", name: "Savings")
+        let transport = StubSimpleFINTransport(response: SimpleFINTransactionsResponse(
+            downloads: [
+                remote.accountID: oneTapDownload(transactions: [
+                    oneTapTransaction(id: "persisted-row", remoteAccountID: remote.accountID, amount: "-4.00")
+                ])
+            ],
+            errorType: nil,
+            errorCode: nil
+        ))
+        let (model, bundle) = try await makeOneTapModel(
+            transport: transport,
+            links: [("savings", remote)]
+        )
+        #expect(model.lastRun == nil)
+
+        await model.syncAll()
+        #expect(model.lastRun?.summary == "Added 1 transaction")
+
+        let revisit = BankSyncViewModel(store: bundle.store, budgetID: "group-1", currency: .usd)
+        await revisit.load()
+        let saved = try #require(model.lastRun)
+        let restored = try #require(revisit.lastRun)
+        #expect(restored.summary == saved.summary)
+        #expect(restored.trigger == .manual)
+        // SQLite REAL keeps the time to well under a millisecond, not bit-exact.
+        #expect(abs(restored.finishedAt.timeIntervalSince(saved.finishedAt)) < 0.001)
+        #expect(revisit.lastRunCaption == "Sync All · just now")
     }
 
     private func makeOneTapModel(

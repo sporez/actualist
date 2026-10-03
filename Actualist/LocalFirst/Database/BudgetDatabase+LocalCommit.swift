@@ -9,8 +9,8 @@ extension BudgetDatabase {
     }
 
     // Work on a clock copy so a rolled-back transaction cannot advance in-memory time.
-    // Review validation, action-log facts, CRDT cells and outbox rows all share
-    // the same SQLite transaction.
+    // Review validation, action-log facts, CRDT cells, outbox rows and durable
+    // pending new-transaction rows all share the same SQLite transaction.
     func commitLocalSyncMessagesAndEnqueue(
         _ drafts: [ActualSyncDecodedMessage],
         now: Date = Date(),
@@ -19,7 +19,8 @@ extension BudgetDatabase {
         expectedBankLink: BankSyncLinkIdentity? = nil,
         reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil,
         expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil,
-        expectedHoldReview: BudgetHoldReview? = nil
+        expectedHoldReview: BudgetHoldReview? = nil,
+        pendingNewTransactions: PendingNewTransactionCommit? = nil
     ) throws -> Int {
         let review = LocalCommitReview(
             mode: expectedMode,
@@ -36,7 +37,12 @@ extension BudgetDatabase {
         }
         return try commitLocalPlan(now: now) { db in
             try validateLocalCommit(review, drafts: drafts, action: actionLogCommit, db: db)
-            return LocalCommitPlan(drafts: drafts, action: actionLogCommit, outcome: ())
+            return LocalCommitPlan(
+                drafts: drafts,
+                action: actionLogCommit,
+                outcome: (),
+                pendingNewTransactions: pendingNewTransactions
+            )
         }.appliedCount
     }
 
@@ -44,6 +50,7 @@ extension BudgetDatabase {
         let drafts: [ActualSyncDecodedMessage]
         let action: ActionLogCommit?
         let outcome: Outcome
+        var pendingNewTransactions: PendingNewTransactionCommit? = nil
     }
 
     /// Preparation runs on the committing database handle. An empty plan is a
@@ -81,6 +88,9 @@ extension BudgetDatabase {
                     baseTimestamp: baseTimestamp,
                     db: db
                 )
+                if let pendingNewTransactions = plan.pendingNewTransactions {
+                    try recordPendingNewTransactions(pendingNewTransactions, db: db)
+                }
                 let appliedCount: Int
                 if let actionLogCommit = plan.action {
                     appliedCount = try finishActionLogCommit(
@@ -138,5 +148,74 @@ extension BudgetDatabase {
             drafts, expectedMode: review.mode, descriptor: action?.descriptor, db: db
         )
         try validateReconciledMutationPrecondition(review.reconciledMutation, db: db)
+    }
+
+    struct CommittedDraftsResult: Sendable {
+        var appliedCount: Int
+        var firstTimestamp: String?
+        var lastTimestamp: String?
+    }
+
+    /// Applies pending-timestamp drafts inside an already-open write
+    /// transaction: stamps hybrid-logical timestamps, validates, rejects
+    /// superseded writes, applies cells, appends `messages_crdt`, and
+    /// enqueues outbox rows. Shared by the forward commit and the History
+    /// undo commit so the two paths can never diverge.
+    func applyCommittedDrafts(
+        _ drafts: [ActualSyncDecodedMessage],
+        clock: inout HybridLogicalClock,
+        now: Date,
+        baseTimestamp: String,
+        db: Database
+    ) throws -> CommittedDraftsResult {
+        var appliedCount = 0
+        var insertedRows = Set<String>()
+        var firstTimestamp: String?
+        var lastTimestamp: String?
+        for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
+            let message = ActualSyncDecodedMessage(
+                timestamp: try clock.next(now: now),
+                dataset: draft.dataset,
+                row: draft.row,
+                column: draft.column,
+                serializedValue: draft.serializedValue
+            )
+            try validateLocalMessage(message, db: db)
+
+            if try hasSameOrNewerMessage(message, db: db) {
+                throw LocalFirstError.localWriteSuperseded
+            }
+
+            let rowKey = message.dataset + message.row
+            let hasRow: Bool
+            if insertedRows.contains(rowKey) {
+                hasRow = true
+            } else {
+                hasRow = try rowExists(
+                    table: message.dataset,
+                    rowID: message.row,
+                    db: db
+                )
+            }
+            let value = try deserializeSyncValue(message.serializedValue)
+            try apply(message: message, value: value, rowExists: hasRow, db: db)
+            insertedRows.insert(rowKey)
+            try insertCRDTMessage(message, db: db)
+            try insertLocalSyncOutboxMessage(
+                message,
+                baseTimestamp: baseTimestamp,
+                db: db
+            )
+            if firstTimestamp == nil {
+                firstTimestamp = message.timestamp
+            }
+            lastTimestamp = message.timestamp
+            appliedCount += 1
+        }
+        return CommittedDraftsResult(
+            appliedCount: appliedCount,
+            firstTimestamp: firstTimestamp,
+            lastTimestamp: lastTimestamp
+        )
     }
 }

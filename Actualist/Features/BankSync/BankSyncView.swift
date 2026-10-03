@@ -96,12 +96,24 @@ private struct BankSyncScreen: View {
                 .multilineTextAlignment(.trailing)
             }
 
-            if let summary = viewModel.resultSummary {
-                LabeledContent("Last result") {
-                    Text(summary)
+            if let lastRun = viewModel.lastRun {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Last result")
+                        Spacer(minLength: 8)
+                        if let caption = viewModel.lastRunCaption {
+                            Text(caption)
+                                .font(.caption)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+                    }
+                    Text(lastRun.summary)
+                        .font(.subheadline)
                         .foregroundStyle(ActualistTheme.secondaryText)
-                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
 
             if case .failed(let message) = viewModel.phase {

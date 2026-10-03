@@ -63,6 +63,45 @@ struct BackgroundRefreshDebugRecorderTests {
         #expect(settings.backgroundRefreshDebug == BackgroundRefreshDebugInfo())
     }
 
+    @Test func historicRunWithoutStructuredDetailsStillDecodes() throws {
+        let legacy = BackgroundRefreshDebugRun(
+            id: UUID(), wakeDate: Date(timeIntervalSince1970: 1_700_000_000),
+            completionDate: nil, succeeded: nil, message: "Started"
+        )
+        var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any])
+        object.removeValue(forKey: "diagnosticDetails")
+        let data = try JSONSerialization.data(withJSONObject: object)
+        let restored = try JSONDecoder().decode(BackgroundRefreshDebugRun.self, from: data)
+        #expect(restored.message == "Started")
+        #expect(restored.diagnosticDetails == nil)
+
+        let oldDebugInfo = Data(#"{"totalWakeCount":2,"recentRuns":[],"totalScheduleAttemptCount":1,"recentScheduleAttempts":[]}"#.utf8)
+        let restoredDebugInfo = try JSONDecoder().decode(BackgroundRefreshDebugInfo.self, from: oldDebugInfo)
+        #expect(restoredDebugInfo.totalWakeCount == 2)
+        #expect(restoredDebugInfo.recentPendingIDClears.isEmpty)
+    }
+
+    @Test func structuredRunDetailsSurvivePersistenceRoundTrip() throws {
+        var details = BackgroundRefreshDiagnosticDetails(alertsEnabled: true)
+        details.refreshOutcome = .succeeded
+        details.serverInsertedCount = 3
+        details.serverSyncDurationMilliseconds = 125
+        details.bankOutcome = .failed
+        details.bankDurationMilliseconds = 900
+        details.notificationCandidateCount = 3
+        details.durablePendingIDCount = 3
+        details.notificationOutcome = .accepted
+        let run = BackgroundRefreshDebugRun(
+            id: UUID(), wakeDate: Date(timeIntervalSince1970: 1_700_000_000),
+            completionDate: Date(timeIntervalSince1970: 1_700_000_001),
+            succeeded: true, message: "Synced", diagnosticDetails: details
+        )
+
+        let restored = try JSONDecoder().decode(BackgroundRefreshDebugRun.self, from: JSONEncoder().encode(run))
+
+        #expect(restored.diagnosticDetails == details)
+    }
+
     private static func makeFixture() throws -> RecorderFixture {
         let suiteName = "BackgroundRefreshDebugRecorderTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

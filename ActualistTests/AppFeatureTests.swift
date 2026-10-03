@@ -77,6 +77,7 @@ struct AppFeatureTests {
 
     @Test func transactionNotificationRoutingSelectsSpending() async {
         let state = makeAppState()
+        state.settings.selectedBudgetID = "budget"
         state.selectedTab = .accounts
         state.accountNavigationPath = [
             ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)
@@ -86,36 +87,6 @@ struct AppFeatureTests {
 
         #expect(state.selectedTab == .spending)
         #expect(state.accountNavigationPath.isEmpty)
-    }
-
-    @Test func clearingBudgetPendingNewTransactionsClearsEveryAccountInBudgetOnlyAndUpdatesBadge() {
-        var badgeCounts: [Int] = []
-        let state = makeAppState(applicationBadgeUpdater: { badgeCounts.append($0) })
-        state.settings.pendingNewTransactionIDsByAccount = [
-            "budget|checking": ["txn-1"],
-            "budget|credit": ["txn-2"],
-            "other|checking": ["txn-3"]
-        ]
-
-        state.clearPendingNewTransactionIDs(budgetID: "budget")
-
-        #expect(state.settings.pendingNewTransactionIDsByAccount["budget|checking"] == nil)
-        #expect(state.settings.pendingNewTransactionIDsByAccount["budget|credit"] == nil)
-        #expect(state.settings.pendingNewTransactionIDsByAccount["other|checking"] == ["txn-3"])
-        #expect(badgeCounts == [1])
-    }
-
-    @Test func clearingLastAccountHighlightClearsApplicationBadge() {
-        var badgeCounts: [Int] = []
-        let state = makeAppState(applicationBadgeUpdater: { badgeCounts.append($0) })
-        state.settings.pendingNewTransactionIDsByAccount = [
-            "budget|checking": ["txn-1", "txn-2"]
-        ]
-
-        state.clearPendingNewTransactionIDs(budgetID: "budget", accountID: "checking")
-
-        #expect(state.settings.pendingNewTransactionIDsByAccount.isEmpty)
-        #expect(badgeCounts == [0])
     }
 
     @Test func preparingEnabledBackgroundNotificationsRefreshesBadgeAuthorizationAndCount() async {
@@ -137,6 +108,22 @@ struct AppFeatureTests {
 
         #expect(authorizationRequestCount == 1)
         #expect(badgeCounts == [2])
+    }
+
+    @Test func staleDisappearReviewCannotClearAnotherBudget() async {
+        let state = makeAppState()
+        state.settings.selectedBudgetID = "new-budget"
+        state.settings.pendingNewTransactionIDsByAccount = [
+            "old-budget|checking": ["old-1"],
+            "new-budget|checking": ["new-1"]
+        ]
+
+        await state.clearPendingNewTransactionIDs(.init(
+            budgetID: "old-budget", accountID: "checking", transactionIDs: ["old-1"]
+        ))
+
+        #expect(state.settings.pendingNewTransactionIDsByAccount["old-budget|checking"] == ["old-1"])
+        #expect(state.settings.pendingNewTransactionIDsByAccount["new-budget|checking"] == ["new-1"])
     }
 
     @Test func defaultAccountIDRoundTripsPerBudget() {

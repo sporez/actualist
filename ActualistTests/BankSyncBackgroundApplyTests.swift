@@ -69,13 +69,44 @@ extension LocalFirstActualStoreTests {
         // One download + one opening balance (100.00 − (−10.00)).
         #expect(first.insertedTransactionIDsByAccount["savings"]?.count == 2)
         #expect(await transport.accountsRequests == 1)
+        let database = try #require(bundle.store.database)
+        #expect(try await database.pendingNewTransactionIDsByAccount().isEmpty)
+
+        let firstRun = try #require(try await bundle.store.bankSyncLastRun(budgetID: "group-1"))
+        #expect(firstRun.trigger == .background)
+        #expect(firstRun.summary == "Added 1 transaction · Added 1 opening balance")
 
         let second = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        #expect(try await bundle.store.bankSyncLastRun(budgetID: "group-1")?.summary == "Everything already matches.")
         #expect(second.accountCount == 1)
         #expect(second.insertedTransactionIDsByAccount["savings"]?.isEmpty != false)
         // Once the account has local history, balance metadata is not needed
         // for opening-balance math and no second account-list request is made.
         #expect(await transport.accountsRequests == 1)
+    }
+
+    @Test func backgroundApplyWithAlertConsentCommitsDurableMarkers() async throws {
+        let bundle = try await makeBankSyncStore(transport: backgroundTransport())
+        try await bundle.store.linkBankAccount("savings", to: SimpleFINRemoteAccount(
+            accountID: "sfin-1",
+            name: "Checking",
+            balance: "100.00",
+            currency: "USD",
+            institution: nil,
+            orgName: "Chase",
+            orgDomain: "chase.example",
+            orgID: "org-1"
+        ), budgetID: "group-1")
+
+        let result = try await bundle.store.backgroundBankSyncApply(request: .init(
+            budgetID: "group-1",
+            notificationID: "opaque-bank-wake"
+        ))
+        let database = try #require(bundle.store.database)
+        let pending = try await database.pendingNewTransactionIDsByAccount()
+
+        #expect(pending["savings"]?.count == result.insertedTransactionIDsByAccount["savings"]?.count)
+        #expect(try await database.pendingNewTransactionDelivery()?.notificationID == "opaque-bank-wake")
     }
 
     @Test func backgroundPreflightsEveryBatchedPlanBeforeFirstApply() async throws {
@@ -151,6 +182,9 @@ extension LocalFirstActualStoreTests {
             $0.dataset == "transactions" && $0.column == "financial_id"
         })
         #expect((await transport.transactionsRequests).count == 1)
+        let run = try await bundle.store.bankSyncLastRun(budgetID: "group-1")
+        #expect(run?.trigger == .background)
+        #expect(run?.summary == BankSyncRunTally.nothingSavedSummary)
     }
 
     @Test func backgroundApplySkipsUnlinkedAccounts() async throws {

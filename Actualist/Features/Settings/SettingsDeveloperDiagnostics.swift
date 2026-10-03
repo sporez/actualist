@@ -347,6 +347,18 @@ private struct BackgroundRefreshDebugRows: View {
                 BackgroundRefreshDebugRunRow(run: run)
             }
         }
+
+        if debug.recentPendingIDClears.isEmpty {
+            Text("No pending notification IDs cleared")
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+        } else {
+            ForEach(debug.recentPendingIDClears.prefix(10)) { event in
+                Text("\(event.date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())) · Cleared \(event.clearedCount) · \(event.scope.rawValue)")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
+        }
     }
 }
 
@@ -417,6 +429,14 @@ private struct BackgroundRefreshDebugRunRow: View {
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .lineLimit(4)
+
+            if let details = run.diagnosticDetails {
+                ForEach(BackgroundRefreshDiagnosticProjection.lines(details), id: \.self) { line in
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+            }
         }
         .padding(.vertical, 2)
     }

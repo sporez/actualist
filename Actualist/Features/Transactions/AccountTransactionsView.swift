@@ -416,11 +416,13 @@ struct AccountTransactionsView: View {
             viewModel.feedDidDisappear(editorIsPresented: transactionPresenter.presentation != nil)
             reconciliationCoordinator.cancel()
             transactionBatchPresentation.feedDidDisappear()
-            viewModel.clearPendingNewTransactions(budgetID: budgetID) { budgetID, accountID in
-                if let accountID {
-                    appState.clearPendingNewTransactionIDs(budgetID: budgetID, accountID: accountID)
-                } else {
-                    appState.clearPendingNewTransactionIDs(budgetID: budgetID)
+            let reviewIntent = viewModel.pendingNewTransactionReviewIntent(
+                budgetID: budgetID,
+                pendingTransactionIDs: pendingNewTransactionIDs
+            )
+            Task {
+                await viewModel.reviewPendingNewTransactions(reviewIntent) { intent in
+                    await appState.clearPendingNewTransactionIDs(intent)
                 }
             }
         }

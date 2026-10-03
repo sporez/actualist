@@ -4,12 +4,17 @@ import GRDB
 extension BudgetDatabase {
     func commitBankSyncMessages(
         _ messages: [ActualSyncDecodedMessage],
-        expectedLink: BankSyncLinkIdentity
+        expectedLink: BankSyncLinkIdentity,
+        pendingNewTransactions: PendingNewTransactionCommit? = nil
     ) throws -> Int {
         try sessionWritesAllowed.withLock { allowed in
             guard allowed else { throw LocalFirstError.budgetNotOpened }
             try Task.checkCancellation()
-            return try commitLocalSyncMessagesAndEnqueue(messages, expectedBankLink: expectedLink)
+            return try commitLocalSyncMessagesAndEnqueue(
+                messages,
+                expectedBankLink: expectedLink,
+                pendingNewTransactions: pendingNewTransactions
+            )
         }
     }
 

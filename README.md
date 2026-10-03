@@ -39,7 +39,8 @@ and iOS Liquid Glass controls.
 - Envelope and tracking budgets, category assignments and organization,
   rollover, templates, notes, and overspending review. Move Money and
   Hold / Release for Next Month are available for envelope budgets.
-- Searchable transaction feeds, with create, edit, delete, categorize,
+- Searchable transaction feeds with All, Uncategorized, Uncleared, Cleared,
+  and Reconciled status filters, plus create, edit, delete, categorize,
   split, transfer, and eligible undo actions.
 - Accounts with on-budget, off-budget, and closed balances, plus notes. Add
   and reconcile accounts. Manage groups when your Actual server supports them.

@@ -529,10 +529,11 @@ coordination defects.
 
 For UI changes, drive an appropriate pinned simulator with the bundled demo
 budget and inspect a screenshot rather than asking the user to tap through
-onboarding:
+onboarding. After confirming the simulator's installed app/data are disposable,
+use:
 
 ```sh
-scripts/run-ios-simulator.sh --boot --demo --screen budget --screenshot
+scripts/run-ios-simulator.sh --boot --reset --demo --screen budget --screenshot
 ```
 
 `--screen` is a slash path. Roots are `budget`, `spending`, `accounts`, `reports`,
@@ -540,11 +541,15 @@ scripts/run-ios-simulator.sh --boot --demo --screen budget --screenshot
 (`settings/appearance`) or used as a unique shorthand (`appearance`).
 
 `--reset` uninstalls first. Use it only for a confirmed disposable demo/test
-installation, not to erase an existing real selected budget. Without reset,
-`-actualist-demo` does not erase a real selected budget.
+installation, not to erase an existing real selected budget. If the installation
+is not disposable, choose a separate simulator/test installation; do not assume
+`--demo` will replace its selected budget. Without reset, `-actualist-demo`
+preserves a real selected budget, which may resume normal server sync.
 
 Screenshots land in `.artifacts/screenshots/` (gitignored). Read the PNG to
-confirm the result. `--demo` never writes a sync token or contacts a server.
+confirm the result. A successfully entered bundled demo session is offline
+and writes no sync token; the `--demo` flag alone does not guarantee that
+session was entered or that the screenshot contains demo data.
 
 Perform the required affected-screen/device/theme verification at closeout,
 not after every intermediate edit. Documentation, test-runner, or test-fixture

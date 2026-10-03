@@ -27,6 +27,7 @@ actor BudgetDatabase {
         defer { LaunchSignpost.end(LaunchStage.budgetDatabaseCompatibility, compatibility) }
         try Self.prepareBankSyncStatusCompatibility(in: queue)
         try Self.prepareBankSyncSchemaCompatibility(in: queue)
+        try Self.preparePendingNewTransactionSchema(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
         try Self.prepareBudgetIdentity(in: queue)
         if let localNodeID {

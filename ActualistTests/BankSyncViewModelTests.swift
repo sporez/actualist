@@ -137,7 +137,7 @@ extension LocalFirstActualStoreTests {
         #expect(line.updatedCount == 0)
 
         #expect(model.phase == .ready)
-        #expect(model.resultSummary?.contains("Added 1 transaction") == true)
+        #expect(model.lastRun?.summary.contains("Added 1 transaction") == true)
 
         // The write really happened.
         let messages = try storedCRDTMessages(at: try bundle.fileManager.databaseURL(fileID: "file-1"))
@@ -215,10 +215,10 @@ extension LocalFirstActualStoreTests {
         let (model, bundle) = try await makeViewModel(transport: transport, linkSavings: true)
 
         await model.syncAll()
-        #expect(model.resultSummary == "Added 1 transaction")
+        #expect(model.lastRun?.summary == "Added 1 transaction")
         await model.syncAll()
         #expect(model.phase == .ready)
-        #expect(model.resultSummary == "Everything already matches.")
+        #expect(model.lastRun?.summary == "Everything already matches.")
 
         let messages = try storedCRDTMessages(at: try bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(messages.filter { $0.dataset == "transactions" && $0.column == "financial_id" }.count == 1)
@@ -343,7 +343,7 @@ extension LocalFirstActualStoreTests {
         #expect(!model.canSyncAll)
         await model.syncAll()
         #expect(model.phase == .ready)
-        #expect(model.resultSummary == nil)
+        #expect(model.lastRun?.summary == nil)
         #expect(await transport.transactionsRequests.isEmpty)
     }
 }
@@ -367,5 +367,17 @@ extension LocalFirstActualStoreTests {
         // The device-token provider text is shown, not "Not connected".
         #expect(BankSyncCopy.providerText(support: model.serverSupport, hasDeviceKey: model.hasDeviceKey, isDemoMode: false)
             == "SimpleFIN via a device token")
+    }
+
+    @Test func lastRunCaptionNamesTheTriggerAndAge() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let manual = BankSyncLastRun(finishedAt: now.addingTimeInterval(-10), trigger: .manual, summary: "")
+        let background = BankSyncLastRun(
+            finishedAt: now.addingTimeInterval(-3 * 3_600),
+            trigger: .background,
+            summary: ""
+        )
+        #expect(BankSyncCopy.lastRunCaption(manual, now: now) == "Sync All · just now")
+        #expect(BankSyncCopy.lastRunCaption(background, now: now) == "Background sync · 3h ago")
     }
 }

@@ -27,6 +27,127 @@ final class AdaptiveSettingsUITests: XCTestCase {
     }
 
     @MainActor
+    func testDemoSupportCanShareReportDismissAndReopen() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
+        let themePicker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
+        XCTAssertTrue(themePicker.waitForExistence(timeout: 5))
+        themePicker.tap()
+        let darkTheme = app.buttons["Actual Purple (dark)"]
+        XCTAssertTrue(darkTheme.waitForExistence(timeout: 5))
+        darkTheme.tap()
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
+        app.navigationBars["Appearance"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        let supportRow = app.cells.containing(.staticText, identifier: "Support").firstMatch
+        XCTAssertTrue(supportRow.waitForExistence(timeout: 5))
+        supportRow.tap()
+        XCTAssertTrue(app.navigationBars["Support"].waitForExistence(timeout: 15))
+        let shareButton = app.buttons["diagnostic-report-share"]
+        XCTAssertTrue(shareButton.waitForExistence(timeout: 10))
+
+        let supportScreenshot = XCTAttachment(screenshot: app.screenshot())
+        supportScreenshot.name = "support-diagnostic-report"
+        supportScreenshot.lifetime = .keepAlways
+        add(supportScreenshot)
+
+        shareButton.tap()
+        let shareSheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: 10))
+
+        let shareScreenshot = XCTAttachment(screenshot: app.screenshot())
+        shareScreenshot.name = "support-diagnostic-report-share-sheet"
+        shareScreenshot.lifetime = .keepAlways
+        add(shareScreenshot)
+
+        dismissShareSheet(in: app, sheet: shareSheet)
+        XCTAssertTrue(shareButton.waitForExistence(timeout: 5))
+
+        shareButton.tap()
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: 10))
+        dismissShareSheet(in: app, sheet: shareSheet)
+    }
+
+    @MainActor
+    func testDemoSupportShareWithAlwaysPrivacyInLightTheme() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
+        let themePicker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
+        XCTAssertTrue(themePicker.waitForExistence(timeout: 5))
+        themePicker.tap()
+        let lightTheme = app.buttons["Actual Purple (light)"]
+        XCTAssertTrue(lightTheme.waitForExistence(timeout: 5))
+        lightTheme.tap()
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
+
+        app.navigationBars["Appearance"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        let privacyRow = app.cells.containing(.staticText, identifier: "Privacy & Notifications").firstMatch
+        XCTAssertTrue(privacyRow.waitForExistence(timeout: 5))
+        privacyRow.tap()
+        XCTAssertTrue(app.navigationBars["Privacy & Notifications"].waitForExistence(timeout: 5))
+
+        let appSwitcherPicker = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'App Switcher'")
+        ).firstMatch
+        XCTAssertTrue(appSwitcherPicker.waitForExistence(timeout: 5))
+        appSwitcherPicker.tap()
+        let alwaysPrivacy = app.buttons["Always"]
+        XCTAssertTrue(alwaysPrivacy.waitForExistence(timeout: 5))
+        alwaysPrivacy.tap()
+
+        app.navigationBars["Privacy & Notifications"].buttons.firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        let supportRow = app.cells.containing(.staticText, identifier: "Support").firstMatch
+        XCTAssertTrue(supportRow.waitForExistence(timeout: 5))
+        supportRow.tap()
+        XCTAssertTrue(app.navigationBars["Support"].waitForExistence(timeout: 5))
+
+        let shareButton = app.buttons["diagnostic-report-share"]
+        XCTAssertTrue(shareButton.waitForExistence(timeout: 10))
+        let supportScreenshot = XCTAttachment(screenshot: app.screenshot())
+        supportScreenshot.name = "support-diagnostic-report-light-always-privacy"
+        supportScreenshot.lifetime = .keepAlways
+        add(supportScreenshot)
+
+        shareButton.tap()
+        let shareSheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: 10))
+        let shareScreenshot = XCTAttachment(screenshot: app.screenshot())
+        shareScreenshot.name = "support-diagnostic-report-share-sheet-light-always-privacy"
+        shareScreenshot.lifetime = .keepAlways
+        add(shareScreenshot)
+
+        dismissShareSheet(in: app, sheet: shareSheet)
+        XCTAssertTrue(shareButton.waitForExistence(timeout: 5))
+        shareButton.tap()
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: 10))
+        dismissShareSheet(in: app, sheet: shareSheet)
+    }
+
+    private func dismissShareSheet(in app: XCUIApplication, sheet: XCUIElement) {
+        // iOS 27 exposes native sharing as a popover with a dismiss region;
+        // its embedded ActivityListView cannot receive a swipe through XCTest.
+        let dismissRegion = app.otherElements["PopoverDismissRegion"]
+        if dismissRegion.exists {
+            dismissRegion.tap()
+        } else {
+            let close = app.buttons["Close"]
+            XCTAssertTrue(close.waitForExistence(timeout: 5))
+            close.tap()
+        }
+        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
     func testWideDemoReentryLeavesSidebarSettings() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()

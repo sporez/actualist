@@ -76,8 +76,13 @@ final class BankSyncViewModel {
     private(set) var remoteAccountsStatus: RemoteAccountsStatus = .idle
     private(set) var resultLines: [ResultLine] = []
     private(set) var selectedAccountID: String?
-    /// Summary includes completed work even when a later account fails.
-    private(set) var resultSummary: String?
+    /// Last finished run on this device, persisted per budget. Its summary
+    /// includes completed work even when a later account fails.
+    private(set) var lastRun: BankSyncLastRun?
+
+    var lastRunCaption: String? {
+        lastRun.map { BankSyncCopy.lastRunCaption($0, now: Date()) }
+    }
 
     var isSyncing: Bool { phase == .downloading || phase == .applying }
 
@@ -150,14 +155,17 @@ final class BankSyncViewModel {
         guard !isSyncing, sessionIsCurrent else { return }
         loadGeneration += 1
         let generation = loadGeneration
-        // Deliberately keeps resultSummary so the last apply result survives
-        // the post-apply reload. Do not start in `.loading` when a cached
-        // provider can enable Sync All immediately.
+        // Do not start in `.loading` when a cached provider can enable Sync
+        // All immediately.
         do {
             let rows = try await store.bankSyncAccountRows(budgetID: budgetID)
+            // The last-run record is display-only; an unreadable one must not
+            // block Sync All.
+            let persistedRun = try? await store.bankSyncLastRun(budgetID: budgetID)
             guard sessionIsCurrent, generation == loadGeneration else { return }
             try Task.checkCancellation()
             accountLines = rows.map(\.toLine)
+            lastRun = persistedRun
             if isDemoMode {
                 serverSupport = nil
                 hasDeviceKey = false
@@ -260,14 +268,10 @@ final class BankSyncViewModel {
         guard canSyncAll else { return }
         loadGeneration += 1
         phase = .downloading
-        resultSummary = nil
+        lastRun = nil
         resultLines = []
         let syncableAccountIDs = accountLines.filter(\.isSyncable).map(\.id)
-        var inserted = 0
-        var updated = 0
-        var openings = 0
-        var completed = 0
-        var skipped = 0
+        var tally = BankSyncRunTally()
         var applyingAccountName: String?
         do {
             let plans = try await store.downloadBankSyncPlans(
@@ -284,6 +288,7 @@ final class BankSyncViewModel {
                 resultLines = plans.map {
                     $0.toLine(accountNames: accountNames, currency: currency, applied: false)
                 }
+                await recordRun(BankSyncRunTally.nothingSavedSummary)
                 phase = .failed("Nothing was saved. Some bank transactions could not be read; see the account details below.")
                 return
             }
@@ -301,28 +306,18 @@ final class BankSyncViewModel {
                     refreshFailure = error
                 }
                 guard sessionIsCurrent else { return }
-                inserted += result.insertedCount
-                updated += result.updatedCount
-                openings += result.openingBalanceInserted ? 1 : 0
-                completed += 1
-                skipped += plan.durableStatus == .ok ? 0 : 1
+                tally.record(result, skipped: plan.durableStatus != .ok)
                 resultLines.append(plan.toLine(accountNames: accountNames, currency: currency, applied: true))
                 if let refreshFailure { throw refreshFailure }
             }
-            resultSummary = skipped == plans.count
-                ? "No accounts synced. \(skipped) skipped."
-                : (skipped > 0 ? "Synced \(completed - skipped) of \(plans.count) accounts. " : "")
-                    + BankSyncCopy.applySummary(inserted: inserted, updated: updated, openings: openings)
-                    + BankSyncCopy.skippedSuffix(skipped)
+            await recordRun(tally.completedSummary(plannedCount: plans.count))
             phase = .ready
         } catch {
             guard sessionIsCurrent else { return }
-            if completed > 0 {
-                resultSummary = "Sync stopped after \(completed) of \(syncableAccountIDs.count) accounts. "
-                    + (completed == skipped ? "No transactions imported."
-                        : BankSyncCopy.applySummary(inserted: inserted, updated: updated, openings: openings))
-                    + BankSyncCopy.skippedSuffix(skipped)
-            }
+            await recordRun(
+                tally.stoppedSummary(totalCount: syncableAccountIDs.count)
+                    ?? (error.isCancellation ? nil : BankSyncRunTally.nothingSavedSummary)
+            )
             phase = error.userFacingMessage.map { message in
                 .failed((applyingAccountName.map { "\($0): " } ?? "") + message)
             } ?? .ready
@@ -340,6 +335,16 @@ final class BankSyncViewModel {
         }
         guard sessionIsCurrent else { return }
         phase = outcome
+    }
+
+    /// Publishes the run immediately and persists it for later visits. Call
+    /// while the phase still rejects Sync All. The record is display-only, so
+    /// a failed save keeps the run's own outcome.
+    private func recordRun(_ summary: String?) async {
+        guard let summary, sessionIsCurrent else { return }
+        let run = BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: summary)
+        lastRun = run
+        try? await store.recordBankSyncLastRun(run, budgetID: budgetID)
     }
 
     // MARK: - Device token (Phase 5)
@@ -519,22 +524,26 @@ enum BankSyncCopy {
             return "Never synced"
         }
         let date = Date(timeIntervalSince1970: TimeInterval(epochMilliseconds) / 1_000)
-        let seconds = Date().timeIntervalSince(date)
+        return "Synced " + relativeAgeText(since: date, now: Date())
+    }
+
+    static func relativeAgeText(since date: Date, now: Date) -> String {
+        let seconds = now.timeIntervalSince(date)
         if seconds < 45 {
-            return "Synced just now"
+            return "just now"
         }
         let minutes = Int(seconds / 60)
         if minutes < 1 {
-            return "Synced <1m ago"
+            return "<1m ago"
         }
         if minutes < 60 {
-            return "Synced \(minutes)m ago"
+            return "\(minutes)m ago"
         }
         let hours = minutes / 60
         if hours < 24 {
-            return "Synced \(hours)h ago"
+            return "\(hours)h ago"
         }
-        return "Synced \(hours / 24)d ago"
+        return "\(hours / 24)d ago"
     }
 
     static func statusText(durableStatus: String?) -> String? {
@@ -682,23 +691,10 @@ enum BankSyncCopy {
         return "After a background budget sync, linked bank accounts are downloaded and saved automatically. No notification is posted for this."
     }
 
-    static func applySummary(inserted: Int, updated: Int, openings: Int) -> String {
-        var parts: [String] = []
-        if inserted > 0 {
-            parts.append(inserted == 1 ? "Added 1 transaction" : "Added \(inserted) transactions")
-        }
-        if updated > 0 {
-            parts.append(updated == 1 ? "Updated 1 match" : "Updated \(updated) matches")
-        }
-        if openings > 0 {
-            parts.append(openings == 1 ? "Added 1 opening balance" : "Added \(openings) opening balances")
-        }
-        return parts.isEmpty ? "Everything already matches." : parts.joined(separator: " · ")
-    }
-
-    static func skippedSuffix(_ count: Int) -> String {
-        guard count > 0 else { return "" }
-        return count == 1 ? " · 1 account skipped" : " · \(count) accounts skipped"
+    /// "Sync All · 2h ago" / "Background sync · just now".
+    static func lastRunCaption(_ run: BankSyncLastRun, now: Date) -> String {
+        let source = run.trigger == .background ? "Background sync" : "Sync All"
+        return "\(source) · \(relativeAgeText(since: run.finishedAt, now: now))"
     }
 
 }
