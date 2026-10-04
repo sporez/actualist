@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 protocol ActualSyncTransport: Sendable {
     func sync(data: Data, token: String) async throws -> Data
@@ -223,7 +224,8 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
         return try await execute(
             request,
-            responseByteLimit: resourceLimits.maximumSyncResponseBytes
+            responseByteLimit: resourceLimits.maximumSyncResponseBytes,
+            limitError: ActualAPIError.syncCatchUpTooLarge
         )
     }
 
@@ -247,10 +249,14 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
     }
 
-    private func execute(_ request: URLRequest, responseByteLimit: Int? = nil) async throws -> Data {
+    private func execute(
+        _ request: URLRequest,
+        responseByteLimit: Int? = nil,
+        limitError: any Error = LocalFirstError.remoteDataLimitExceeded
+    ) async throws -> Data {
         Self.debugLogRequest(request)
         return try await withFirstConnectionRecovery { [self] in
-            try await performExecute(request, responseByteLimit: responseByteLimit)
+            try await performExecute(request, responseByteLimit: responseByteLimit, limitError: limitError)
         }
     }
 
@@ -258,14 +264,19 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     /// iOS Local Network permission prompt cannot surface as a hard first-launch
     /// failure. See `withFirstConnectionRecovery` for the invariant that makes
     /// retrying any HTTP method (including POST login/sync) safe here.
-    private func performExecute(_ request: URLRequest, responseByteLimit: Int?) async throws -> Data {
+    private func performExecute(
+        _ request: URLRequest,
+        responseByteLimit: Int?,
+        limitError: any Error
+    ) async throws -> Data {
         let data: Data
         let response: URLResponse
         do {
             if let responseByteLimit {
                 (data, response) = try await limitedData(
                     for: request,
-                    maximumBytes: responseByteLimit
+                    maximumBytes: responseByteLimit,
+                    limitError: limitError
                 )
             } else {
                 (data, response) = try await session.data(for: request, delegate: redirectDelegate)
@@ -331,25 +342,29 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         )
     }
 
-    private func limitedData(for request: URLRequest, maximumBytes: Int) async throws -> (Data, URLResponse) {
-        let (bytes, response) = try await session.bytes(for: request, delegate: redirectDelegate)
-        if let httpResponse = response as? HTTPURLResponse,
-           redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
-        if response.expectedContentLength > Int64(maximumBytes) {
-            throw LocalFirstError.remoteDataLimitExceeded
+    private func limitedData(
+        for request: URLRequest,
+        maximumBytes: Int,
+        limitError: any Error
+    ) async throws -> (Data, URLResponse) {
+        do {
+            return try await LimitedResponseReader.data(
+                for: request,
+                session: session,
+                redirects: redirectDelegate,
+                maximumBytes: maximumBytes,
+                onResponse: refuseRedirects
+            )
+        } catch LimitedResponseReader.ReadError.limitExceeded {
+            throw limitError
         }
+    }
 
-        var data = Data()
-        if response.expectedContentLength > 0 {
-            data.reserveCapacity(min(Int(response.expectedContentLength), maximumBytes))
+    private var refuseRedirects: @Sendable (URLResponse) throws -> Void {
+        { [redirectDelegate] response in
+            if let httpResponse = response as? HTTPURLResponse,
+               redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         }
-        for try await byte in bytes {
-            guard data.count < maximumBytes else {
-                throw LocalFirstError.remoteDataLimitExceeded
-            }
-            data.append(byte)
-        }
-        return (data, response)
     }
 
     private func executeDownload(_ request: URLRequest, to destinationURL: URL) async throws {
@@ -375,48 +390,49 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
         do {
             try handle.truncate(atOffset: 0)
-            let (bytes, response) = try await session.bytes(for: request, delegate: redirectDelegate)
+            let budgetLimit = resourceLimits.maximumCompressedBudgetBytes
+            let errorBody = ChunkBox()
+            let byteCount = Mutex<UInt64>(0)
+            let succeeded = Mutex(false)
+            let refuseRedirects = refuseRedirects
+            let response = try await LimitedResponseReader.stream(
+                for: request,
+                session: session,
+                redirects: redirectDelegate,
+                onResponse: { response in
+                    try refuseRedirects(response)
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        throw ActualAPIError.invalidResponse
+                    }
+                    if (200..<300).contains(httpResponse.statusCode) {
+                        succeeded.withLock { $0 = true }
+                        return .init(maximumBytes: budgetLimit)
+                    }
+                    return .init(maximumBytes: 64 * 1_024, truncatesAtLimit: true)
+                },
+                onChunk: { chunk in
+                    if succeeded.withLock({ $0 }) {
+                        try handle.write(contentsOf: chunk)
+                        byteCount.withLock { $0 += UInt64(chunk.count) }
+                    } else {
+                        errorBody.append(chunk)
+                    }
+                }
+            )
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw ActualAPIError.invalidResponse
             }
-            if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
-            if !(200..<300).contains(httpResponse.statusCode) {
-                var errorData = Data()
-                for try await byte in bytes {
-                    guard errorData.count < 64 * 1_024 else { break }
-                    errorData.append(byte)
-                }
-                throw Self.apiError(statusCode: httpResponse.statusCode, data: errorData)
-            }
-            guard httpResponse.expectedContentLength <= 0
-                    || httpResponse.expectedContentLength <= Int64(resourceLimits.maximumCompressedBudgetBytes) else {
-                throw LocalFirstError.remoteDataLimitExceeded
-            }
-
-            var byteCount: UInt64 = 0
-            var buffer = Data()
-            buffer.reserveCapacity(64 * 1_024)
-            for try await byte in bytes {
-                let (nextByteCount, overflow) = byteCount.addingReportingOverflow(1)
-                guard !overflow,
-                      nextByteCount <= resourceLimits.maximumCompressedBudgetBytes else {
-                    throw LocalFirstError.remoteDataLimitExceeded
-                }
-                byteCount = nextByteCount
-                buffer.append(byte)
-                if buffer.count == 64 * 1_024 {
-                    try handle.write(contentsOf: buffer)
-                    buffer.removeAll(keepingCapacity: true)
-                }
-            }
-            if !buffer.isEmpty {
-                try handle.write(contentsOf: buffer)
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw Self.apiError(statusCode: httpResponse.statusCode, data: errorBody.data)
             }
             try handle.synchronize()
-            Self.debugLogResponse(httpResponse, byteCount: byteCount)
+            Self.debugLogResponse(httpResponse, byteCount: byteCount.withLock { $0 })
         } catch where error.isCancellation {
             try? fileManager.removeItem(at: destinationURL)
             throw CancellationError()
+        } catch LimitedResponseReader.ReadError.limitExceeded {
+            try? fileManager.removeItem(at: destinationURL)
+            throw LocalFirstError.remoteDataLimitExceeded
         } catch let error as LocalFirstError {
             try? fileManager.removeItem(at: destinationURL)
             throw error
@@ -598,6 +614,9 @@ enum ActualAPIError: LocalizedError {
     /// `.serverRejected` response so reset recovery sees the precise token.
     case syncRejected(status: Int, reason: ActualSyncRejectionReason)
     case httpStatus(Int)
+    /// A sync reply was larger than the response cap. Never retried or split:
+    /// the user re-downloads the budget instead (audit decision D7c).
+    case syncCatchUpTooLarge
     case decoding
     case transport(URLError.Code?)
     case localNetworkDenied
@@ -646,6 +665,8 @@ enum ActualAPIError: LocalizedError {
             }
         case .httpStatus(let status):
             "The server returned HTTP \(status)."
+        case .syncCatchUpTooLarge:
+            "This budget has more changes waiting on the server than Actualist can sync at once. Download the budget again to catch up."
         case .decoding:
             "Actualist could not read the server response."
         case .transport(let code):

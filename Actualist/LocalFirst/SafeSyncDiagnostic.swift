@@ -61,6 +61,7 @@ enum SafeSyncDiagnostic {
             ActualAPIError.redirectRefused.localizedDescription,
             ActualAPIError.invalidResponse.localizedDescription,
             ActualAPIError.decoding.localizedDescription,
+            ActualAPIError.syncCatchUpTooLarge.localizedDescription,
             ActualAPIError.localNetworkDenied.localizedDescription,
             ActualAPIError.unsupportedAuthenticationMethod.localizedDescription,
             ActualAPIError.transport(.timedOut).localizedDescription,

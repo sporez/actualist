@@ -405,7 +405,7 @@ extension LocalFirstActualStoreTests {
             session: session,
             resourceLimits: testResourceLimits(maximumSyncResponseBytes: 8)
         )
-        await #expect(throws: LocalFirstError.remoteDataLimitExceeded) {
+        await #expect(throws: ActualAPIError.self) {
             _ = try await oversizedSyncClient.sync(data: Data(), token: "token")
         }
     }
