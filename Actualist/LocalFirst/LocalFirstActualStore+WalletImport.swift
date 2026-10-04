@@ -46,7 +46,6 @@ extension LocalFirstActualStore {
         var messages: [ActualSyncDecodedMessage] = []
         var categorizedIDs = Set<String>()
         var importedFinancialIDs: [String] = []
-        var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
         var affectedAccountIDs = Set([accountID])
         let accountIsOffBudget = try await database.accountIsOffBudget(accountID)
@@ -131,7 +130,6 @@ extension LocalFirstActualStore {
             seenIDs.insert(candidate.financialID)
             importedFinancialIDs.append(candidate.financialID)
             importedCount += 1
-            monthIDs.insert(draft.month.rawValue)
             if draft.categoryID != nil, transferDestinationID == nil, !draft.isSplit {
                 categorizedIDs.insert(transactionID)
             }
@@ -166,8 +164,7 @@ extension LocalFirstActualStore {
         try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: Array(affectedAccountIDs),
-            monthIDs: Array(monthIDs)
+            accountIDs: Array(affectedAccountIDs)
         )
         return WalletTransactionImportResult(
             importedCount: importedCount,

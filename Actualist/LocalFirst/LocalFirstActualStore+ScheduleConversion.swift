@@ -71,8 +71,7 @@ extension LocalFirstActualStore {
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: context.budgetID,
-                    accountIDs: [committed.sourceAccountID],
-                    monthIDs: [committed.sourceMonthID]
+                    accountIDs: [committed.sourceAccountID]
                 )
                 try requireScheduleConversionSession(context, database: database)
                 try await scheduleMutationBeforeRefreshHook?()

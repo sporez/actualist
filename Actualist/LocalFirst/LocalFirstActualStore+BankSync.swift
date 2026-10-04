@@ -185,13 +185,6 @@ extension LocalFirstActualStore {
         )
     }
 
-    private func bankSyncDeviceClient() throws -> SimpleFINBridgeClient {
-        guard let client = try bankSyncDeviceClientIfPresent() else {
-            throw BankSyncStoreError.notConfigured
-        }
-        return client
-    }
-
     /// Remote SimpleFIN-side accounts through the resolved provider
     /// (server first, device-claimed bridge fallback).
     func bankSyncRemoteAccounts(budgetID: String) async throws -> [SimpleFINRemoteAccount] {
@@ -325,7 +318,6 @@ extension LocalFirstActualStore {
             updatedCount += 1
         }
 
-        var monthIDs = Set<String>()
         var affectedAccountIDs = Set([plan.link.accountID])
         for (index, candidate) in plan.inserts.enumerated() {
             try Task.checkCancellation()
@@ -381,7 +373,6 @@ extension LocalFirstActualStore {
             messages.append(contentsOf: payeeResolution.messages)
             messages.append(contentsOf: transactionMessages)
             insertedIDsByAccount[plan.link.accountID, default: []].append(transactionID)
-            monthIDs.insert(draft.month.rawValue)
             insertedCount += 1
         }
 
@@ -445,8 +436,7 @@ extension LocalFirstActualStore {
                     try await reloadAfterTransactionMutation(
                         database: database,
                         budgetID: budgetID,
-                        accountIDs: Array(affectedAccountIDs),
-                        monthIDs: Array(monthIDs)
+                        accountIDs: Array(affectedAccountIDs)
                     )
                 } catch {
                     reloadError = error

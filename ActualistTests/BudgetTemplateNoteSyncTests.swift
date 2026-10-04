@@ -60,14 +60,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '#template 700');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 70_000)
     }
 
@@ -80,14 +80,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '#template 700');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         await #expect(throws: LocalFirstError.self) {
-            _ = try await database.budgetTemplateMessages(
+            _ = try await database.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
                 builder: &builder
-            )
+            ).messages
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         // The stale 500 definition was not applied.
@@ -103,14 +103,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '#template remainder');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         do {
-            _ = try await database.budgetTemplateMessages(
+            _ = try await database.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
                 builder: &builder
-            )
+            ).messages
             Issue.record("Expected a type-change to be refused")
         } catch LocalFirstError.unsupportedTemplate(let reason) {
             #expect(reason.contains("stale"))
@@ -131,14 +131,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', 'Just a plain note now.');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         do {
-            _ = try await database.budgetTemplateMessages(
+            _ = try await database.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
                 builder: &builder
-            )
+            ).messages
             Issue.record("Expected a removed directive to be refused")
         } catch LocalFirstError.unsupportedTemplate(let reason) {
             #expect(reason.contains("no longer contains"))
@@ -155,13 +155,13 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', 'No goal anymore.');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
+        ).messages
         #expect(messages.isEmpty)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 50_000)
     }
@@ -177,14 +177,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', 'Ordinary note with no directive.');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 70_000)
     }
 
@@ -201,14 +201,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', 'Switched to the UI editor.');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 70_000)
     }
 
@@ -226,14 +226,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '#template 700');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 70_000)
     }
 
@@ -248,14 +248,14 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '#template bad');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         do {
-            _ = try await database.budgetTemplateMessages(
+            _ = try await database.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
                 builder: &builder
-            )
+            ).messages
             Issue.record("Expected a malformed note to be refused")
         } catch LocalFirstError.unsupportedTemplate(let reason) {
             #expect(reason.contains("malformed"))
@@ -274,13 +274,13 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('groceries', '#template bad');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
+        ).messages
         #expect(messages.isEmpty)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 50_000)
     }
@@ -294,14 +294,14 @@ extension LocalFirstActualStoreTests {
             SET goal_def = '[{"directive":"template","type":"simple","monthly":700,"priority":0}]'
             WHERE id = 'groceries';
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 70_000)
     }
 
@@ -320,16 +320,16 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('utilities-stale', '#template 700');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         // Target only groceries; the stale utilities-stale category is out of
         // scope and must not cause a refusal.
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         #expect(try zeroBudgetAmount(at: fixtureURL, category: "groceries") == 50_000)
     }
 
@@ -350,14 +350,14 @@ extension LocalFirstActualStoreTests {
             INSERT INTO notes VALUES ('groceries', '\(note)');
             \(extraSQL)
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         do {
-            _ = try await database.budgetTemplateMessages(
+            _ = try await database.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
                 builder: &builder
-            )
+            ).messages
             return false
         } catch LocalFirstError.unsupportedTemplate(let reason) {
             return reason.contains("stale")

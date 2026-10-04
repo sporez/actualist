@@ -417,10 +417,6 @@ struct BudgetFileManager {
         }
     }
 
-    func reimportBackupExists(fileID: String) throws -> Bool {
-        fileManager.fileExists(atPath: try reimportBackupDirectory(fileID: fileID).path)
-    }
-
     private func importBudgetZip(
         at stagedArchiveURL: URL,
         into directory: URL,

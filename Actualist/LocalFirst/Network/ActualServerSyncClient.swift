@@ -251,7 +251,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
 
     private func execute(
         _ request: URLRequest,
-        responseByteLimit: Int? = nil,
+        responseByteLimit: Int,
         limitError: any Error = LocalFirstError.remoteDataLimitExceeded
     ) async throws -> Data {
         Self.debugLogRequest(request)
@@ -266,21 +266,17 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     /// retrying any HTTP method (including POST login/sync) safe here.
     private func performExecute(
         _ request: URLRequest,
-        responseByteLimit: Int?,
+        responseByteLimit: Int,
         limitError: any Error
     ) async throws -> Data {
         let data: Data
         let response: URLResponse
         do {
-            if let responseByteLimit {
-                (data, response) = try await limitedData(
-                    for: request,
-                    maximumBytes: responseByteLimit,
-                    limitError: limitError
-                )
-            } else {
-                (data, response) = try await session.data(for: request, delegate: redirectDelegate)
-            }
+            (data, response) = try await limitedData(
+                for: request,
+                maximumBytes: responseByteLimit,
+                limitError: limitError
+            )
         } catch where error.isCancellation {
             throw CancellationError()
         } catch let error as LocalFirstError {

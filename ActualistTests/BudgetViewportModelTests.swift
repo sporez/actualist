@@ -86,7 +86,7 @@ struct BudgetViewportModelTests {
         #expect(model.snapshot(for: "2026-07")?.month.categoryGroups
             .flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == 10_000)
         let afterAugust = try #require(model.snapshot(for: "2026-08"))
-        let storedAugust = try await bundle.store.fetchBudgetMonthUncached(
+        let storedAugust = try await bundle.store.readBudgetMonth(
             budgetID: "group-1", month: "2026-08"
         ).month
         #expect(afterAugust.month == storedAugust)

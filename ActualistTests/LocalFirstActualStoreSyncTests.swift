@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Testing
 @testable import Actualist
 
@@ -520,54 +521,55 @@ extension LocalFirstActualStoreTests {
         #expect(recorder.events().count == 1)
     }
 
-    @Test func applyLocalSyncMessagesUpdatesSQLiteAndMessagesTable() async throws {
+    @Test func localCommitUpdatesSQLiteAndMessagesTable() async throws {
         let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let message = ActualSyncDecodedMessage(
-            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
-            dataset: "transactions",
-            row: "txn",
-            column: "category",
-            serializedValue: LocalFirstSyncValue.string("gas").serialized
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        var builder = LocalFirstSyncMessageBuilder()
+        let draft = try builder.makeMessage(
+            dataset: "transactions", row: "txn", column: "category", value: .string("gas")
         )
 
-        let appliedCount = try await database.applyLocalSyncMessages([message])
+        let appliedCount = try await database.commitLocalSyncMessagesAndEnqueue([draft])
 
         let transactions = try await database.fetchTransactions(accountID: "checking")
         let transaction = try #require(transactions.first { $0.id == "txn" })
+        let stored = try storedCRDTMessages(at: fixtureURL)
         #expect(appliedCount == 1)
         #expect(transaction.category == "gas")
-        #expect(try await database.latestSyncTimestamp() == message.timestamp)
+        #expect(stored.map(\.serializedValue) == [draft.serializedValue])
+        #expect(try await database.latestSyncTimestamp() == stored.first?.timestamp)
     }
 
-    @Test func sameCellLocalTimestampCollisionIsReportedAndDoesNotChangeTheValue() async throws {
+    @Test func localCommitRefusesAWriteSupersededByANewerStoredMessage() async throws {
         let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let timestamp = "2026-07-04T12:34:56.789Z-0000-node1"
-        let first = ActualSyncDecodedMessage(
-            timestamp: timestamp,
-            dataset: "transactions",
-            row: "txn",
-            column: "category",
-            serializedValue: LocalFirstSyncValue.string("first").serialized
-        )
-        let colliding = ActualSyncDecodedMessage(
-            timestamp: timestamp,
-            dataset: "transactions",
-            row: "txn",
-            column: "category",
-            serializedValue: LocalFirstSyncValue.string("silently-lost-before-8a").serialized
-        )
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        var builder = LocalFirstSyncMessageBuilder()
+        _ = try await database.commitLocalSyncMessagesAndEnqueue([
+            try builder.makeMessage(
+                dataset: "transactions", row: "txn", column: "category", value: .string("first")
+            )
+        ])
+        let newerTimestamp = "2099-01-01T00:00:00.000Z-0000-0000000000000000"
+        let queue = try DatabaseQueue(path: fixtureURL.path)
+        try await queue.write { db in
+            try db.execute(
+                sql: "INSERT INTO messages_crdt VALUES (?, 'transactions', 'txn', 'category', 'S:newer')",
+                arguments: [newerTimestamp]
+            )
+        }
 
-        _ = try await database.applyLocalSyncMessages([first])
         await #expect(throws: LocalFirstError.localWriteSuperseded) {
-            _ = try await database.applyLocalSyncMessages([colliding])
+            _ = try await database.commitLocalSyncMessagesAndEnqueue([
+                try builder.makeMessage(
+                    dataset: "transactions", row: "txn", column: "category", value: .string("silently-lost")
+                )
+            ])
         }
 
         let transactions = try await database.fetchTransactions(accountID: "checking")
         let transaction = try #require(transactions.first { $0.id == "txn" })
         #expect(transaction.category == "first")
-        #expect(try await database.latestSyncTimestamp() == timestamp)
+        #expect(try await database.latestSyncTimestamp() != newerTimestamp)
     }
 
     @Test func midBatchRollbackKeepsDatabaseAndVisibleBudgetStateInSyncAndShowsError() async throws {
@@ -604,7 +606,7 @@ extension LocalFirstActualStoreTests {
                     "the database transaction was rolled back"
                 ).localizedDescription
         )
-        #expect(model.assignmentDraft?.submissionState.isSubmitting == false)
+        #expect(model.assignmentWorkflow.draft?.submissionState.isSubmitting == false)
         #expect(
             model.visibleGroups.flatMap(\.visibleCategories)
                 .first { $0.id == "groceries" }?.budgeted == 50_000
@@ -622,66 +624,41 @@ extension LocalFirstActualStoreTests {
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
     }
 
-    @Test func applyLocalSyncMessagesAndEnqueueStoresPendingOutboxMessages() async throws {
+    @Test func localCommitEnqueuesPendingOutboxMessages() async throws {
         let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         // Prime the cached miss before the first write creates the outbox.
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         let baseTimestamp = try await database.latestSyncTimestamp()
-        let message = ActualSyncDecodedMessage(
-            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
-            dataset: "transactions",
-            row: "txn",
-            column: "category",
-            serializedValue: LocalFirstSyncValue.string("gas").serialized
+        var builder = LocalFirstSyncMessageBuilder()
+        let draft = try builder.makeMessage(
+            dataset: "transactions", row: "txn", column: "category", value: .string("gas")
         )
 
-        let appliedCount = try await database.applyLocalSyncMessagesAndEnqueue([message], baseTimestamp: baseTimestamp)
+        let appliedCount = try await database.commitLocalSyncMessagesAndEnqueue([draft])
         let pending = try await database.pendingLocalSyncMessages()
         let transactions = try await database.fetchTransactions(accountID: "checking")
         let transaction = try #require(transactions.first { $0.id == "txn" })
 
         #expect(appliedCount == 1)
         #expect(transaction.category == "gas")
-        #expect(pending.map(\.message) == [message])
+        #expect(pending.map(\.message) == (try storedCRDTMessages(at: fixtureURL)))
         #expect(pending.first?.baseTimestamp == baseTimestamp)
         #expect(try await database.pendingLocalSyncMessageCount() == 1)
     }
 
-    @Test func failedLocalSyncApplyDoesNotLeaveOutboxRows() async throws {
+    @Test func failedLocalCommitDoesNotLeaveOutboxRows() async throws {
         let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let message = ActualSyncDecodedMessage(
-            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
-            dataset: "transactions",
-            row: "txn",
-            column: "bogus",
-            serializedValue: LocalFirstSyncValue.string("nope").serialized
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        var builder = LocalFirstSyncMessageBuilder()
+        let draft = try builder.makeMessage(
+            dataset: "transactions", row: "txn", column: "bogus", value: .string("nope")
         )
 
         await #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
-            _ = try await database.applyLocalSyncMessagesAndEnqueue(
-                [message],
-                baseTimestamp: try await database.latestSyncTimestamp()
-            )
+            _ = try await database.commitLocalSyncMessagesAndEnqueue([draft])
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
-    }
-
-    @Test func applyLocalSyncMessagesRejectsUnknownColumns() async throws {
-        let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let message = ActualSyncDecodedMessage(
-            timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
-            dataset: "transactions",
-            row: "txn",
-            column: "bogus",
-            serializedValue: LocalFirstSyncValue.string("nope").serialized
-        )
-
-        await #expect(throws: LocalFirstError.invalidLocalWrite("unknown column transactions.bogus")) {
-            _ = try await database.applyLocalSyncMessages([message])
-        }
     }
 
     @Test func deserializeRemoteNumericPayloadsRejectNonFiniteButPreservesHugeDoubles() async throws {

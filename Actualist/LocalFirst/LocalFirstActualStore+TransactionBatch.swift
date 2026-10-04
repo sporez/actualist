@@ -43,8 +43,7 @@ extension LocalFirstActualStore: TransactionBatchRepositoryProtocol {
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: review.context.budgetID,
-                    accountIDs: receipt.changedAccountIDs,
-                    monthIDs: receipt.changedMonthIDs
+                    accountIDs: receipt.changedAccountIDs
                 )
             }
         )

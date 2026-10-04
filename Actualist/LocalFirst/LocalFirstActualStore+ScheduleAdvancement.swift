@@ -67,8 +67,7 @@ extension LocalFirstActualStore {
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: budgetID,
-                    accountIDs: result.receipts.flatMap(\.affectedAccountIDs),
-                    monthIDs: result.receipts.flatMap(\.affectedMonthIDs)
+                    accountIDs: result.receipts.flatMap(\.affectedAccountIDs)
                 )
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)

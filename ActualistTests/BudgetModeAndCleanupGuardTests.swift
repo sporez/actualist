@@ -12,7 +12,7 @@ struct BudgetModeAndCleanupGuardTests {
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT, tombstone INTEGER DEFAULT 0);
             INSERT INTO preferences VALUES ('budgetType', 'tracking', 1);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         #expect(try await database.isTrackingBudget() == false)
     }
 
@@ -21,7 +21,7 @@ struct BudgetModeAndCleanupGuardTests {
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT, tombstone INTEGER DEFAULT 0);
             INSERT INTO preferences VALUES ('budgetType', 'tracking', 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         #expect(try await database.isTrackingBudget() == true)
     }
 
@@ -36,14 +36,14 @@ struct BudgetModeAndCleanupGuardTests {
                 cleanup_def = ''
             WHERE id = 'groceries';
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 
         #expect(try orphanGroupTombstone(at: fixtureURL) == 0)
     }

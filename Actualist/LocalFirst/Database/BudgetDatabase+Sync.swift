@@ -187,67 +187,6 @@ extension BudgetDatabase {
         return result.mapValues { $0.sorted() }
     }
 
-    func applyLocalSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
-        try applyLocalSyncMessages(messages, outboxBaseTimestamp: nil)
-    }
-
-    func applyLocalSyncMessagesAndEnqueue(
-        _ messages: [ActualSyncDecodedMessage],
-        baseTimestamp: String
-    ) throws -> Int {
-        try applyLocalSyncMessages(messages, outboxBaseTimestamp: baseTimestamp)
-    }
-
-    func applyLocalSyncMessages(
-        _ messages: [ActualSyncDecodedMessage],
-        outboxBaseTimestamp: String?
-    ) throws -> Int {
-        guard !messages.isEmpty else {
-            return 0
-        }
-        try beforeBudgetDataMutation()
-
-        return try writeTrackingMerkle { db in
-            guard try tableExists("messages_crdt", db: db) else {
-                throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
-            }
-            if outboxBaseTimestamp != nil {
-                try ensureLocalSyncOutbox(db)
-            }
-
-            var appliedCount = 0
-            let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
-            var insertedRows = Set<RowKey>()
-
-            for message in sortedMessages {
-                try validateLocalMessage(message, db: db)
-
-                if try hasSameOrNewerMessage(message, db: db) {
-                    throw LocalFirstError.localWriteSuperseded
-                }
-
-                let rowWasInserted = insertedRows.contains(RowKey(message))
-                let hasRow: Bool
-                if rowWasInserted {
-                    hasRow = true
-                } else {
-                    hasRow = try rowExists(table: message.dataset, rowID: message.row, db: db)
-                }
-
-                let value = try deserializeSyncValue(message.serializedValue)
-                try apply(message: message, value: value, rowExists: hasRow, db: db)
-                insertedRows.insert(RowKey(message))
-                try insertCRDTMessage(message, db: db)
-                if let outboxBaseTimestamp {
-                    try insertLocalSyncOutboxMessage(message, baseTimestamp: outboxBaseTimestamp, db: db)
-                }
-                appliedCount += 1
-            }
-
-            return appliedCount
-        }
-    }
-
     func pendingLocalSyncMessageCount() throws -> Int {
         try queue.read { db in
             guard try tableExists("actualist_outbox", db: db) else {

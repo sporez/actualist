@@ -161,86 +161,6 @@ extension LocalFirstActualStoreTests {
         }
     }
 
-    @Test func uncategorizedAlertCountsOnlyReviewableTransactions() async {
-        let transferAccountIDsByPayeeID = ["on-budget-xfer": "checking"]
-        let transactions = [
-            makeTransaction(id: "needs-category", category: nil),
-            makeTransaction(id: "also-needs", category: ""),
-            makeTransaction(id: "categorized", category: "groceries"),
-            makeTransaction(id: "transfer", category: nil, payee: "on-budget-xfer"),
-            makeTransaction(id: "split-parent", category: nil, isParent: true),
-            makeTransaction(id: "split-child", category: nil, isChild: true, parentID: "split-parent"),
-            makeTransaction(id: "other-month", category: nil, date: "2026-06-30"),
-            makeTransaction(
-                id: "split-with-children",
-                category: nil,
-                subtransactions: [makeTransaction(id: "child", category: "groceries")]
-            )
-        ]
-
-        let alerts = LocalFirstActualStore.uncategorizedAlerts(
-            transactions: transactions,
-            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: []
-        )
-
-        #expect(alerts.count == 1)
-        let alert = try! #require(alerts.first)
-        #expect(alert.kind == "uncategorizedTransactions")
-        #expect(alert.severity == "warning")
-        #expect(alert.title == "Uncategorized transactions")
-        #expect(alert.actionTitle == "Review")
-        #expect(alert.count == 4)
-    }
-
-    @Test func uncategorizedAlertEmptyWhenEverythingCategorized() async {
-        let transactions = [
-            makeTransaction(id: "a", category: "groceries"),
-            makeTransaction(id: "b", category: "rent")
-        ]
-
-        let alerts = LocalFirstActualStore.uncategorizedAlerts(
-            transactions: transactions,
-            transferAccountIDsByPayeeID: [:],
-            offBudgetAccountIDs: []
-        )
-
-        #expect(alerts.isEmpty)
-    }
-
-    @Test func uncategorizedAlertIncludesOnBudgetTransferToOffBudgetAccount() async {
-        let transactions = [
-            makeTransaction(id: "off-budget-transfer", category: nil, payee: "off-budget-xfer"),
-            makeTransaction(id: "on-budget-transfer", category: nil, payee: "on-budget-xfer")
-        ]
-
-        let alerts = LocalFirstActualStore.uncategorizedAlerts(
-            transactions: transactions,
-            transferAccountIDsByPayeeID: [
-                "off-budget-xfer": "savings",
-                "on-budget-xfer": "checking"
-            ],
-            offBudgetAccountIDs: ["savings"]
-        )
-
-        #expect(alerts.first?.count == 1)
-    }
-
-    @Test func uncategorizedAlertExcludesTransactionsInsideOffBudgetAccounts() async {
-        let transactions = [
-            makeTransaction(id: "tracking-adjustment", account: "tracking", category: nil),
-            makeTransaction(id: "checking-purchase", account: "checking", category: nil)
-        ]
-
-        let alerts = LocalFirstActualStore.uncategorizedAlerts(
-            transactions: transactions,
-            transferAccountIDsByPayeeID: [:],
-            offBudgetAccountIDs: ["tracking"]
-        )
-
-        #expect(alerts.first?.count == 1)
-    }
-
     @Test func toBudgetAlertShowsSurplusAndOverbudgetButNotZero() async {
         let surplus = try! #require(LocalFirstActualStore.toBudgetAlert(month: makeBudgetMonth(toBudget: 1500)))
         #expect(surplus.kind == "toBudget")
@@ -319,28 +239,6 @@ extension LocalFirstActualStoreTests {
         // A hidden group hides its children in tracking; envelope keeps them.
         #expect(LocalFirstActualStore.overspendingAlert(month: month, isTrackingBudget: true) == nil)
         #expect(LocalFirstActualStore.overspendingAlert(month: month, isTrackingBudget: false)?.count == 1)
-    }
-
-    @Test func budgetAlertsAreOrderedToBudgetThenOverspendingThenUncategorized() async {
-        let month = makeBudgetMonth(
-            toBudget: 1500,
-            groups: [
-                makeGroup(id: "everyday", isIncome: false, categories: [
-                    makeCategory(id: "groceries", balance: -2000)
-                ])
-            ]
-        )
-        let transactions = [makeTransaction(id: "needs-category", category: nil)]
-
-        let alerts = LocalFirstActualStore.budgetAlerts(
-            month: month,
-            transactions: transactions,
-            transferAccountIDsByPayeeID: [:],
-            offBudgetAccountIDs: [],
-            isTrackingBudget: false
-        )
-
-        #expect(alerts.map(\.kind) == ["toBudget", "overspending", "uncategorizedTransactions"])
     }
 
     @Test func openCachedBudgetUsesImportedDatabaseWithoutTokenOrNetwork() async throws {

@@ -77,7 +77,7 @@ struct ReservedSyncDatasetTests {
         let local = message("2026-07-04T12:34:56.789Z-0000-local", "actualist_budget_identity", "local", "mode", "x")
 
         await #expect(throws: LocalFirstError.invalidLocalWrite("unknown dataset actualist_budget_identity")) {
-            _ = try await database.applyLocalSyncMessages([local])
+            _ = try await database.commitLocalSyncMessagesAndEnqueue([local])
         }
         #expect(try scalar("SELECT COUNT(*) FROM actualist_budget_identity WHERE id = 'local'", url) == "0")
     }

@@ -91,20 +91,4 @@ struct ActionLogAndRulePrefetchResilienceTests {
             _ = try await database.previewRules(for: [draft], dateTimeZone: ActualDateOnly.utc)
         }
     }
-
-    @Test func directBalanceOfPrefetchPropagatesQueryFailure() async throws {
-        let url = try support.makeSQLiteFixture(extraSQL: """
-            INSERT INTO transactions (id, acct, date, amount, tombstone, is_parent)
-            VALUES ('overflow-a', 'checking', 20260702, 9223372036854775807, 0, 0),
-                   ('overflow-b', 'checking', 20260702, 9223372036854775807, 0, 0);
-            """)
-        let database = try BudgetDatabase(databaseURL: url, localNodeID: "diag")
-        let date = try #require(ActualDateOnly.date(from: "2026-07-03", timeZone: ActualDateOnly.utc))
-        await #expect(throws: (any Error).self) {
-            _ = try await database.prefetchBalanceOf(
-                formulas: [#"=BALANCE_OF("Checking")"#], date: date, sortOrder: nil,
-                excludingTransactionID: nil, dateTimeZone: ActualDateOnly.utc
-            )
-        }
-    }
 }

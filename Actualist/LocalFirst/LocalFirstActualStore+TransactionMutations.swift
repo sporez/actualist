@@ -103,8 +103,7 @@ extension LocalFirstActualStore {
         try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: uniqueAccounts,
-            monthIDs: [draft.month.rawValue]
+            accountIDs: uniqueAccounts
         )
         return TransactionMutationResult(
             ok: true,
@@ -287,8 +286,7 @@ extension LocalFirstActualStore {
         try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: changedAccounts,
-            monthIDs: changedMonths
+            accountIDs: changedAccounts
         )
         return TransactionMutationResult(
             ok: true,
@@ -423,8 +421,7 @@ extension LocalFirstActualStore {
         try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: changedAccounts,
-            monthIDs: changedMonths
+            accountIDs: changedAccounts
         )
         return TransactionMutationResult(
             ok: true,
@@ -546,8 +543,7 @@ extension LocalFirstActualStore {
         try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: changedAccounts,
-            monthIDs: [monthID]
+            accountIDs: changedAccounts
         )
         return TransactionMutationResult(
             ok: true,

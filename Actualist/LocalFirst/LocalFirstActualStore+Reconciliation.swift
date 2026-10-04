@@ -101,8 +101,7 @@ extension LocalFirstActualStore {
             try await finishCommittedTransactionWrite(
                 database: database,
                 budgetID: budgetID,
-                accountIDs: write.changed.accounts,
-                monthIDs: write.changed.months
+                accountIDs: write.changed.accounts
             )
         }
         let snapshot = try await database.accountReconciliationSnapshot(accountID: accountID)

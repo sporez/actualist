@@ -56,20 +56,6 @@ extension LocalFirstActualStore {
         }
     }
 
-    func stageAuthenticatedConnection(
-        serverURLString: String,
-        token: String,
-        selectedBudgetID: String?
-    ) async throws -> StagedLocalFirstConnection {
-        return try await withConnectionFailover(serverURLString: serverURLString) { client in
-            try await self.stageAuthenticatedConnection(
-                client: client,
-                token: token,
-                selectedBudgetID: selectedBudgetID
-            )
-        }
-    }
-
     private func stageAuthenticatedConnection(
         client: any ActualServerConnectionTransport,
         token: String,

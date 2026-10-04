@@ -86,7 +86,6 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         var messages: [ActualSyncDecodedMessage] = []
         var updates: [BudgetDatabase.TransactionCSVImportUpdate] = []
         var affectedAccountIDs: Set<String> = [request.accountID]
-        var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
         var knownPayees: [ActualPayee]?
         var insertedCount = 0
@@ -106,7 +105,6 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             case .update(let plan):
                 updates.append(BudgetDatabase.TransactionCSVImportUpdate(line: row.sourceLine, plan: plan))
                 updatedCount += 1
-                monthIDs.insert(String(row.dateText.prefix(7)))
             case .insert:
                 // Empty payee text resolves to a null payee, never an
                 // unnamed payee.
@@ -180,7 +178,6 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
                     )
                 }
                 insertedCount += 1
-                monthIDs.insert(String(row.dateText.prefix(7)))
             }
         }
 
@@ -201,8 +198,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         try await finishCommittedTransactionWrite(
             database: database,
             budgetID: request.budgetID,
-            accountIDs: Array(affectedAccountIDs),
-            monthIDs: Array(monthIDs)
+            accountIDs: Array(affectedAccountIDs)
         )
         return TransactionCSVImportApplyResult(
             insertedCount: insertedCount,

@@ -9,7 +9,7 @@ import ZIPFoundation
 extension LocalFirstActualStoreTests {
     @Test func budgetDatabaseMapsAccountsBalancesAndBudgetMonth() async throws {
         let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let accounts = try await database.fetchAccountDisplays()
         let months = try await database.fetchAvailableMonths()
@@ -40,7 +40,7 @@ extension LocalFirstActualStoreTests {
                 ('future-failure', 'Future Failure', 0, 0, 0, 4, 'simpleFin', 'new-provider-error'),
                 ('local', 'Local Account', 0, 0, 0, 5, NULL, 'failed');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let accounts = try await database.fetchAccounts()
         let states = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.bankSyncState) })
@@ -69,7 +69,7 @@ extension LocalFirstActualStoreTests {
                 'S:timed-out'
             );
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         var account = try #require(try await database.fetchAccounts().first)
         #expect(account.bankSyncStatus == "timed-out")
@@ -97,7 +97,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('sept', 'checking', '2026/09/03', -12345, 'groceries', 0, NULL, 0);
             INSERT INTO transactions VALUES ('invalid-month', 'checking', '2026-13-03', -12345, 'groceries', 0, NULL, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         #expect(try await database.fetchAvailableMonths() == ["2026-07", "2026-08", "2026-09"])
     }
@@ -112,15 +112,15 @@ extension LocalFirstActualStoreTests {
             INSERT INTO categories VALUES ('priority-food', 'Food', 'group', 0, 0, 0, 2, '[{"directive":"template","type":"periodic","amount":5,"period":{"period":"month","amount":1},"starting":"2026-07-01","priority":1}]');
             INSERT INTO category_mapping VALUES ('priority-food', 'priority-food');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("priority-food"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let month = try await database.fetchBudgetMonth(month: "2026-07")
         let food = try #require(month.categoryGroups.flatMap(\.categories).first { $0.id == "priority-food" })
 
@@ -140,15 +140,15 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('buffer-june', 'checking', 20260610, -2000, 'buffer', 0, NULL, 0);
             INSERT INTO transactions VALUES ('buffer-july', 'checking', 20260710, -3000, 'buffer', 0, NULL, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let julyMessages = try await database.budgetTemplateMessages(
+        let julyMessages = try await database.budgetTemplateApply(
             command: .category("buffer"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(julyMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(julyMessages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let julyBuffer = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
@@ -156,12 +156,12 @@ extension LocalFirstActualStoreTests {
         #expect(julyBuffer.budgeted == 2_000)
         #expect(julyBuffer.balance == 7_000)
 
-        let augustMessages = try await database.budgetTemplateMessages(
+        let augustMessages = try await database.budgetTemplateApply(
             command: .category("buffer"),
             month: "2026-08",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(augustMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(augustMessages)
         let august = try await database.fetchBudgetMonth(month: "2026-08")
         let augustBuffer = try #require(
             august.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
@@ -192,29 +192,29 @@ extension LocalFirstActualStoreTests {
             INSERT INTO category_mapping VALUES ('hold', 'hold');
             INSERT INTO zero_budgets VALUES (202606, 'hold', 12000, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let refillMessages = try await database.budgetTemplateMessages(
+        let refillMessages = try await database.budgetTemplateApply(
             command: .category("refill"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(refillMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(refillMessages)
 
-        let releaseMessages = try await database.budgetTemplateMessages(
+        let releaseMessages = try await database.budgetTemplateApply(
             command: .category("release"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(releaseMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(releaseMessages)
 
-        let holdMessages = try await database.budgetTemplateMessages(
+        let holdMessages = try await database.budgetTemplateApply(
             command: .category("hold"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(holdMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(holdMessages)
 
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let categories = july.categoryGroups.flatMap(\.categories)
@@ -232,15 +232,15 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('allowance', 'allowance');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("allowance"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let allowance = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "allowance" }
@@ -257,15 +257,15 @@ extension LocalFirstActualStoreTests {
             SET goal_def = '[{"directive":"template","type":"periodic","amount":1,"period":{"period":"day","amount":1},"starting":"0001-01-01","priority":0}]'
             WHERE id = 'groceries';
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let groceries = try #require(
@@ -302,15 +302,15 @@ extension LocalFirstActualStoreTests {
                 SET goal_def = '[\(template)]'
                 WHERE id = 'groceries';
                 """)
-            let database = try BudgetDatabase(databaseURL: fixtureURL)
+            let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
             var builder = LocalFirstSyncMessageBuilder()
 
             do {
-                _ = try await database.budgetTemplateMessages(
+                _ = try await database.budgetTemplateApply(
                     command: .category("groceries"),
                     month: "2026-07",
                     builder: &builder
-                )
+                ).messages
                 Issue.record("Expected \(label) to be rejected")
             } catch LocalFirstError.unsupportedTemplate {
             } catch {
@@ -335,15 +335,15 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('weekly', 'weekly');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("weekly"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let weekly = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "weekly" }
@@ -361,15 +361,15 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('daily', 'daily');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("daily"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let daily = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "daily" }
@@ -391,15 +391,15 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('leftover', 'leftover');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("leftover"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let leftover = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "leftover" }
@@ -436,14 +436,14 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('a-second', 'a-second');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let categories = Dictionary(
             uniqueKeysWithValues: july.categoryGroups.flatMap(\.categories).map { ($0.id, $0.budgeted) }
@@ -467,14 +467,14 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('later', 'later');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: command,
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         return try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "later" }?.budgeted
@@ -494,15 +494,15 @@ extension LocalFirstActualStoreTests {
             INSERT INTO category_mapping VALUES ('buffer', 'buffer');
             INSERT INTO zero_budgets VALUES (202606, 'buffer', 8000, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("buffer"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let buffer = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
@@ -522,15 +522,15 @@ extension LocalFirstActualStoreTests {
             INSERT INTO category_mapping VALUES ('insurance', 'insurance');
             INSERT INTO zero_budgets VALUES (202606, 'insurance', 3000, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let julyMessages = try await database.budgetTemplateMessages(
+        let julyMessages = try await database.budgetTemplateApply(
             command: .category("insurance"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(julyMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(julyMessages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let julyInsurance = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "insurance" }
@@ -538,12 +538,12 @@ extension LocalFirstActualStoreTests {
         #expect(julyInsurance.budgeted == 3_000)
         #expect(julyInsurance.balance == 6_000)
 
-        let augustMessages = try await database.budgetTemplateMessages(
+        let augustMessages = try await database.budgetTemplateApply(
             command: .category("insurance"),
             month: "2026-08",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(augustMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(augustMessages)
         let august = try await database.fetchBudgetMonth(month: "2026-08")
         let augustInsurance = try #require(
             august.categoryGroups.flatMap(\.categories).first { $0.id == "insurance" }
@@ -561,15 +561,15 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('renewal', 'renewal');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("renewal"),
             month: "2026-08",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let august = try await database.fetchBudgetMonth(month: "2026-08")
         let renewal = try #require(
             august.categoryGroups.flatMap(\.categories).first { $0.id == "renewal" }
@@ -586,15 +586,15 @@ extension LocalFirstActualStoreTests {
             SET goal_def = '[{"directive":"template","type":"periodic","amount":50,"period":"month","priority":0}]'
             WHERE id = 'groceries';
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
         do {
-            _ = try await database.budgetTemplateMessages(
+            _ = try await database.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
                 builder: &builder
-            )
+            ).messages
             Issue.record("Expected the malformed periodic template to be refused")
         } catch LocalFirstError.unsupportedTemplate(let reason) {
             #expect(reason.contains("Groceries"))
@@ -619,14 +619,14 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('salary', 'salary');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("salary"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let salary = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "salary" }
@@ -645,13 +645,13 @@ extension LocalFirstActualStoreTests {
             SET goal_def = '[{"directive":"error","type":"error","line":"#template bad","error":"parse failure"}]'
             WHERE id = 'groceries';
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
+        ).messages
 
         #expect(messages.isEmpty)
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
@@ -672,14 +672,14 @@ extension LocalFirstActualStoreTests {
             ]'
             WHERE id = 'groceries';
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(messages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let groceries = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
@@ -706,34 +706,34 @@ extension LocalFirstActualStoreTests {
             );
             INSERT INTO category_mapping VALUES ('hidden-cat', 'hidden-cat');
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let wholeBudget = try await database.budgetTemplateMessages(
+        let wholeBudget = try await database.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(wholeBudget)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(wholeBudget)
 
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 1_000)
         #expect(try zeroBudgetAmount("orphan", at: fixtureURL) == nil)
         #expect(try zeroBudgetAmount("hidden-cat", at: fixtureURL) == nil)
 
-        let orphanMessages = try await database.budgetTemplateMessages(
+        let orphanMessages = try await database.budgetTemplateApply(
             command: .category("orphan"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(orphanMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(orphanMessages)
         #expect(try zeroBudgetAmount("orphan", at: fixtureURL) == 2_500)
 
-        let hiddenMessages = try await database.budgetTemplateMessages(
+        let hiddenMessages = try await database.budgetTemplateApply(
             command: .category("hidden-cat"),
             month: "2026-07",
             builder: &builder
-        )
-        _ = try await database.applyLocalSyncMessages(hiddenMessages)
+        ).messages
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(hiddenMessages)
         #expect(try zeroBudgetAmount("hidden-cat", at: fixtureURL) == 4_000)
     }
 
@@ -746,7 +746,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('inc-jun', 'checking', 20260615, 200000, 'salary', 0, NULL, 0);
             INSERT INTO transactions VALUES ('gro-jun', 'checking', 20260620, -40000, 'groceries', 0, NULL, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let month = try await database.fetchBudgetMonth(month: "2026-07")
 
@@ -762,7 +762,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('income', 'checking', 20260701, 200000, 'salary', 0, NULL, 0);
             INSERT INTO transactions VALUES ('mystery', 'checking', 20260705, -1000, NULL, 0, NULL, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let month = try await database.fetchBudgetMonth(month: "2026-07")
 
@@ -779,7 +779,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('split-child-1', 'checking', 20260804, -20000, 'groceries', 0, 'split-parent', 0);
             INSERT INTO transactions VALUES ('split-child-2', 'checking', 20260804, -10000, 'groceries', 0, 'split-parent', 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         let month = try await database.fetchBudgetMonth(month: "2026-08")
         let groceries = month.categoryGroups.first?.categories.first
 
@@ -797,7 +797,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('inc-jul', 'checking', 20260710, 100000, 'salary', 0, NULL, 0);
             INSERT INTO zero_budget_months VALUES ('2026-07', 25000);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let august = try await database.fetchBudgetMonth(month: "2026-08")
@@ -818,7 +818,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 1);
             INSERT INTO transactions VALUES ('inc-jul', 'checking', 20260710, 40000, 'salary', 0, NULL, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let august = try await database.fetchBudgetMonth(month: "2026-08")
@@ -841,7 +841,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('inc-jul', 'checking', 20260710, 40000, 'salary', 0, NULL, 0);
             INSERT INTO zero_budget_months VALUES ('2026-07', 20000);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let month = try await database.fetchBudgetMonth(month: "2026-07")
 
@@ -855,7 +855,7 @@ extension LocalFirstActualStoreTests {
         // category carryover must never infer a hold, and legacy databases without
         // zero_budget_months must still query cleanly.
         let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let month = try await database.fetchBudgetMonth(month: "2026-07")
 
@@ -883,7 +883,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO zero_budgets VALUES (202608, 'groceries', 30000, 0);
             INSERT INTO zero_budgets VALUES (202608, 'dining', 2000, 0);
             """)
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let july = try await database.fetchBudgetMonth(month: "2026-07")
         let august = try await database.fetchBudgetMonth(month: "2026-08")

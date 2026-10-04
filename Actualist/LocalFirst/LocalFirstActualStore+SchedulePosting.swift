@@ -219,8 +219,7 @@ extension LocalFirstActualStore {
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: session.budgetID,
-                    accountIDs: receipt.affectedAccountIDs,
-                    monthIDs: receipt.affectedMonthIDs
+                    accountIDs: receipt.affectedAccountIDs
                 )
                 try requireSchedulePostingSession(session, database: database)
                 try await refreshSchedulesAfterWrite(budgetID: session.budgetID, asOf: ActualDateOnly.today())

@@ -680,12 +680,6 @@ final class AppState {
         }
     }
 
-    #if DEBUG
-    func setBudgetSwitchInProgressForTesting(_ isInProgress: Bool) {
-        isBudgetSwitchInProgress = isInProgress
-    }
-    #endif
-
     func loadBudgets() async throws {
         let discoveryIdentity = sessionRecovery.identity
         do {

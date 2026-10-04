@@ -91,7 +91,18 @@ struct BudgetDatabaseRuleDateTests {
     }
 
     @Test func balanceOfCutoffUsesTheCallerLogicalDayAcrossTimeZones() async throws {
-        let url = try support.makeSQLiteFixture()
+        let url = try support.makeSQLiteFixture(extraSQL: #"""
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY, stage TEXT, conditions TEXT, actions TEXT,
+                conditions_op TEXT DEFAULT 'and', tombstone INTEGER DEFAULT 0
+            );
+            INSERT INTO rules VALUES (
+                'balance-rule', 'normal',
+                '[{"op":"is","field":"account","value":"checking","type":"id"}]',
+                '[{"op":"set-split-amount","value":0,"options":{"method":"formula","formula":"=BALANCE_OF(\"Checking\")","splitIndex":1}},{"op":"set-split-amount","value":0,"options":{"method":"remainder","splitIndex":2}}]',
+                'and', 0
+            );
+            """#)
         let queue = try DatabaseQueue(path: url.path)
         try await queue.write { db in
             try db.execute(sql: """
@@ -111,15 +122,16 @@ struct BudgetDatabaseRuleDateTests {
         ]
 
         for timeZone in zones {
-            let date = try #require(ActualDateOnly.date(from: "2026-07-03", timeZone: timeZone))
-            let balances = try await database.prefetchBalanceOf(
-                formulas: [#"=BALANCE_OF("Checking")"#],
-                date: date,
-                sortOrder: nil,
-                excludingTransactionID: nil,
-                dateTimeZone: timeZone
+            let draft = TransactionDraft(
+                accountID: "checking",
+                date: try #require(ActualDateOnly.date(from: "2026-07-03", timeZone: timeZone)),
+                amountMinorUnits: -100, payeeID: nil, payeeName: "", categoryID: nil, notes: nil,
+                cleared: false, isTransfer: false
             )
-            #expect(balances["Checking"] == -7_000)
+            let preview = try await database.previewRules(for: draft, dateTimeZone: timeZone)
+            // The prefetched balance is -7,000 minor units; the formula engine
+            // scales its number by 100 into the split amount (-700,000).
+            #expect(preview.splits.first?.amountMinorUnits == -700_000)
         }
     }
 }

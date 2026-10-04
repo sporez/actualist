@@ -12,20 +12,6 @@ struct BudgetTemplateApplyResult: Sendable {
 }
 
 extension BudgetDatabase {
-    func budgetTemplateMessages(
-        command: BudgetTemplateCommand,
-        month: String,
-        currentMonth: String? = nil,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
-        try budgetTemplateApply(
-            command: command,
-            month: month,
-            currentMonth: currentMonth,
-            builder: &builder
-        ).messages
-    }
-
     func budgetTemplateApply(
         command: BudgetTemplateCommand,
         month: String,

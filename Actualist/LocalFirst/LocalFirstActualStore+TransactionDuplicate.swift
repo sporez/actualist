@@ -36,8 +36,7 @@ extension LocalFirstActualStore: TransactionDuplicateRepositoryProtocol {
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: review.context.budgetID,
-                    accountIDs: receipt.changed.accounts,
-                    monthIDs: receipt.changed.months
+                    accountIDs: receipt.changed.accounts
                 )
             }
         )

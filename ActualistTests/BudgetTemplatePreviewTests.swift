@@ -169,7 +169,7 @@ struct BudgetTemplatePreviewTests {
         #expect(preview.categories.first?.drafts.count == 1)
         #expect(preview.categories.first?.priorityLevels == [1])
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == before)
-        _ = try await database.applyLocalSyncMessages(applied.messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)
         if let proposed = preview.categories.first(where: { $0.categoryID == "groceries" })?.proposed {
             #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == proposed)
         }
@@ -330,7 +330,7 @@ struct BudgetTemplatePreviewTests {
             month: "2026-07",
             builder: &builder
         )
-        _ = try await database.applyLocalSyncMessages(applied.messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 300)
     }
 
@@ -456,7 +456,7 @@ struct BudgetTemplatePreviewTests {
             month: "2026-07",
             builder: &builder
         )
-        _ = try await database.applyLocalSyncMessages(applied.messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == -500)
     }
 
@@ -568,7 +568,7 @@ struct BudgetTemplatePreviewTests {
         let apply = try await database.budgetTemplateApply(
             command: .overwrite, month: "2026-07", builder: &builder
         )
-        _ = try await database.applyLocalSyncMessages(apply.messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(apply.messages)
         let month = try await database.fetchBudgetMonth(month: "2026-07")
         #expect(month.trackingSummary?.plannedSavings == preview.availableAfter)
     }

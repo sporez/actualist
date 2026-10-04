@@ -99,7 +99,7 @@ extension LocalFirstActualStoreTests {
         #expect(await transport.capturedFirstTimeLoginPassword == nil)
     }
 
-    @Test func authenticatedStagingUsesTheProvidedTokenWithoutCommittingIt() async throws {
+    @Test func authenticatedStagingUsesTheServerTokenWithoutCommittingIt() async throws {
         let file = ActualSyncRemoteFile(
             fileID: "file-1",
             groupID: "group-1",
@@ -108,16 +108,16 @@ extension LocalFirstActualStoreTests {
             encryptKeyID: nil,
             requiresEncryptionPassword: false
         )
-        let transport = StubConnectionTransport(files: [file])
+        let transport = StubConnectionTransport(files: [file], token: "openid-token")
         let keychain = KeychainStore(service: "OpenIDTests", account: UUID().uuidString)
         let store = LocalFirstActualStore(
             keychain: keychain,
             connectionTransportFactory: { _ in transport }
         )
 
-        let staged = try await store.stageAuthenticatedConnection(
+        let staged = try await store.stageConnection(
             serverURLString: "https://sync.example",
-            token: "openid-token",
+            password: "password",
             selectedBudgetID: "group-1"
         )
 

@@ -11,37 +11,6 @@ extension BudgetDatabase {
         date: Date,
         sortOrder: Double?,
         excludingTransactionID: String?,
-        // Existing direct callers retain the UTC cutoff unless they carry a
-        // more specific transaction-day convention.
-        dateTimeZone: TimeZone = ActualDateOnly.utc
-    ) throws -> [String: Int] {
-        let literals = formulas.flatMap(RuleFormulaEvaluator.extractBalanceOfLiterals)
-        guard !literals.isEmpty else { return [:] }
-        let accounts = try fetchAccounts()
-        let byID = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0) })
-        var result: [String: Int] = [:]
-        for literal in Set(literals) {
-            let resolvedID = byID[literal]?.id ?? accounts.first { $0.name == literal }?.id
-            if let resolvedID {
-                result[literal] = try runningBalanceBeforeTransaction(
-                    accountID: resolvedID,
-                    date: date,
-                    sortOrder: sortOrder,
-                    excludingTransactionID: excludingTransactionID,
-                    dateTimeZone: dateTimeZone
-                )
-            } else {
-                result[literal] = 0
-            }
-        }
-        return result
-    }
-
-    func prefetchBalanceOf(
-        formulas: [String],
-        date: Date,
-        sortOrder: Double?,
-        excludingTransactionID: String?,
         db: Database,
         // Existing direct callers retain the UTC cutoff unless they carry a
         // more specific transaction-day convention.

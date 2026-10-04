@@ -76,7 +76,7 @@ struct TrackingBudgetDatabaseContractTests {
                 try db.execute(sql: "INSERT INTO transactions (id, acct, date, amount, category, tombstone) VALUES ('activity', 'checking', 20260802, ?, 'groceries', 0)",
                     arguments: [testCase.activity])
             }
-            let database = try BudgetDatabase(databaseURL: url)
+            let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
             let month = try await database.fetchBudgetMonth(month: "2026-08")
             let category = try #require(month.categoryGroups.first?.categories.first)
             #expect(category.balance == testCase.balance)
@@ -85,7 +85,7 @@ struct TrackingBudgetDatabaseContractTests {
 
     @Test func trackingReadContractExposesEnvelopeCarryAndMissingFutureMonth() async throws {
         let url = try makeTrackingContractFixture()
-        let database = try BudgetDatabase(databaseURL: url)
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         let august = try await database.fetchBudgetMonth(month: "2026-08")
         let category = try #require(august.categoryGroups.first?.categories.first)
         #expect(category.balance == 0)
@@ -95,7 +95,7 @@ struct TrackingBudgetDatabaseContractTests {
 
     @Test func trackingConversionRoundTripRetainsMetadataRevisionAcrossReopen() async throws {
         let url = try makeTrackingContractFixture()
-        let database = try BudgetDatabase(databaseURL: url)
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         #expect(try await database.isTrackingBudget())
         let changes = [
             ActualSyncDecodedMessage(timestamp: "2026-09-01T00:00:00.000Z-0000-0000000000000001",
@@ -104,7 +104,7 @@ struct TrackingBudgetDatabaseContractTests {
                 dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:tracking")
         ]
         #expect(try await database.applyRemoteSyncMessages(changes) == 2)
-        let reopened = try BudgetDatabase(databaseURL: url)
+        let reopened = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         #expect(try await reopened.isTrackingBudget())
         let stored = try LocalFirstActualStoreTests().storedCRDTMessages(at: url)
         #expect(stored.filter { $0.dataset == "preferences" }.count == 2)
@@ -114,19 +114,20 @@ struct TrackingBudgetDatabaseContractTests {
     @Test func trackingPendingWriteKeepsDatasetAcrossConversionAndDuplicateDelivery() async throws {
         let firstURL = try makeTrackingContractFixture()
         let secondURL = try makeTrackingContractFixture()
-        let first = try BudgetDatabase(databaseURL: firstURL)
-        let second = try BudgetDatabase(databaseURL: secondURL)
-        let assignment = ActualSyncDecodedMessage(
-            timestamp: "2026-09-01T00:00:00.000Z-0000-0000000000000001",
-            dataset: "reflect_budgets", row: "202607-groceries", column: "amount", serializedValue: "N:800")
+        let first = try BudgetDatabase(databaseURL: firstURL, localNodeID: "node1")
+        let second = try BudgetDatabase(databaseURL: secondURL, localNodeID: "node1")
         let conversion = ActualSyncDecodedMessage(
             timestamp: "2026-09-02T00:00:00.000Z-0000-0000000000000002",
             dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:envelope")
-        _ = try await first.applyLocalSyncMessagesAndEnqueue([assignment],
-            baseTimestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000")
+        let draft = ActualSyncDecodedMessage(
+            timestamp: "actualist-pending-00000000",
+            dataset: "reflect_budgets", row: "202607-groceries", column: "amount", serializedValue: "N:800")
+        _ = try await first.commitLocalSyncMessagesAndEnqueue(
+            [draft], now: try #require(ActualDateOnly.date(from: "2026-09-01", timeZone: ActualDateOnly.utc)))
+        let assignment = try #require(try await first.pendingLocalSyncMessages().first?.message)
         _ = try await first.applyRemoteSyncMessages([conversion])
         _ = try await second.applyRemoteSyncMessages([conversion, assignment])
-        let reopened = try BudgetDatabase(databaseURL: firstURL)
+        let reopened = try BudgetDatabase(databaseURL: firstURL, localNodeID: "node1")
         let pending = try await reopened.pendingLocalSyncMessages()
         #expect(pending.map(\.message) == [assignment])
         #expect(try await second.applyRemoteSyncMessages(pending.map(\.message)) == 0)
@@ -143,20 +144,20 @@ struct TrackingBudgetDatabaseContractTests {
 
     @Test func trackingExplicitRolloverHorizonIncludesFarFutureRows() async throws {
         let url = try makeTrackingContractFixture()
-        let database = try BudgetDatabase(databaseURL: url)
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.categoryCarryoverMessages(categoryID: "groceries",
             carryover: true, startMonth: "2026-07", throughMonth: "2029-12", builder: &builder)
         #expect(messages.allSatisfy { $0.dataset == "reflect_budgets" })
         #expect(messages.contains { $0.row == "202912-groceries" && $0.column == "carryover" })
-        _ = try await database.applyLocalSyncMessages(messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let queue = try DatabaseQueue(path: url.path)
         #expect(try await queue.read { try Int.fetchOne($0, sql: "SELECT carryover FROM reflect_budgets WHERE id = '202912-groceries'") } == 1)
     }
 
     @Test func trackingRolloverHorizonIncludesExistingFutureRowsBeyondSuppliedEnd() async throws {
         let url = try makeTrackingContractFixture()
-        let database = try BudgetDatabase(databaseURL: url)
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.categoryCarryoverMessages(
             categoryID: "groceries", carryover: true,

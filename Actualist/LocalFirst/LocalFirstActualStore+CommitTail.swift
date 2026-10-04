@@ -48,15 +48,13 @@ extension LocalFirstActualStore {
     func finishCommittedTransactionWrite(
         database: BudgetDatabase,
         budgetID: String,
-        accountIDs: [String],
-        monthIDs: [String]
+        accountIDs: [String]
     ) async throws -> Bool {
         try await finishCommittedWrite(database: database, budgetID: budgetID) {
             try await reloadAfterTransactionMutation(
                 database: database,
                 budgetID: budgetID,
-                accountIDs: accountIDs,
-                monthIDs: monthIDs
+                accountIDs: accountIDs
             )
         }
     }

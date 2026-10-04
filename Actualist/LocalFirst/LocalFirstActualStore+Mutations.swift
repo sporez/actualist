@@ -402,8 +402,7 @@ extension LocalFirstActualStore {
         try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: repair.write.affectedAccountIDs,
-            monthIDs: []
+            accountIDs: repair.write.affectedAccountIDs
         )
         return repair.result
     }
@@ -411,8 +410,7 @@ extension LocalFirstActualStore {
     func reloadAfterTransactionMutation(
         database: BudgetDatabase,
         budgetID: String,
-        accountIDs: [String],
-        monthIDs: [String]
+        accountIDs: [String]
     ) async throws {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
