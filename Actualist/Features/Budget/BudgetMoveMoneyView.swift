@@ -217,15 +217,18 @@ struct BudgetMoveMoneyView: View {
 
                 Spacer()
 
-                Text(moveDisplayAmountText(draft))
-                    .font(ActualistTypography.rowValue(for: density))
-                    .foregroundStyle(ActualistTheme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        isNumberPadVisible = true
-                    }
+                Button {
+                    isNumberPadVisible = true
+                } label: {
+                    Text(moveDisplayAmountText(draft))
+                        .font(ActualistTypography.rowValue(for: density))
+                        .foregroundStyle(ActualistTheme.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the amount keypad")
 
                 Text(moveCounterpartyAvailableText(draft))
                     .font(ActualistTypography.rowBadge(for: density))
@@ -386,16 +389,19 @@ struct BudgetMoveMoneyView: View {
 
                 Spacer()
 
-                Text(moveAllocationAmountText(allocation))
-                    .font(ActualistTypography.rowValue(for: density))
-                    .foregroundStyle(ActualistTheme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        viewModel.setFocusedMoveMoneyAllocation(allocation.id)
-                        isNumberPadVisible = true
-                    }
+                Button {
+                    viewModel.setFocusedMoveMoneyAllocation(allocation.id)
+                    isNumberPadVisible = true
+                } label: {
+                    Text(moveAllocationAmountText(allocation))
+                        .font(ActualistTypography.rowValue(for: density))
+                        .foregroundStyle(ActualistTheme.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the amount keypad")
             }
 
             BudgetMoveMoneyAmountSlider(
