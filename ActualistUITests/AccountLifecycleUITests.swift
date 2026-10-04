@@ -62,6 +62,21 @@ final class AccountLifecycleUITests: XCTestCase {
         attachScreenshot(named: "account-lifecycle-detail-renamed-twice-light-\(layoutName(for: app))", app: app)
     }
 
+    func testAccountsRowShowsVisibleActionsButtonThatOpensTheActions() throws {
+        let app = launchMutableAccounts()
+        _ = accountOverviewButton(accountID: "checking", expectedName: "Everyday Checking", in: app)
+
+        let actions = app.buttons["account-actions-checking"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 5), "Expected the visible account actions button")
+        XCTAssertEqual(actions.label, "Account actions")
+        actions.tap()
+
+        let rename = app.buttons["account-lifecycle-rename-action"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 5))
+        XCTAssertTrue(rename.isEnabled)
+        XCTAssertTrue(app.buttons["account-lifecycle-close-action"].exists)
+    }
+
     func testClosedAccountReopenPreservesOffBudgetMembership() throws {
         let app = launchMutableAccounts()
         let closedSection = sectionButton(beginningWith: "Closed (1)", in: app)
@@ -435,7 +450,6 @@ final class AccountLifecycleUITests: XCTestCase {
     }
 
     private func openOverviewActions(accountID: String, in app: XCUIApplication) {
-        XCTAssertFalse(app.buttons["account-actions-\(accountID)"].exists)
         let account = accountOverviewButton(accountID: accountID, in: app)
         XCTAssertTrue(account.isHittable)
         account.press(forDuration: 1)
