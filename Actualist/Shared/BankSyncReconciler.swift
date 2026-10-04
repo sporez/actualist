@@ -129,6 +129,7 @@ enum BankSyncReconciliation {
         accountIsOffBudget: Bool = false,
         transferPayeeIDs: Set<String> = []
     ) -> Plan {
+        let epochDays = existing.map { epochDay(compact: $0.dayID) }
         var claimed = Set<String>()
         var exactMatchedParentIDs = Set<String>()
 
@@ -155,7 +156,7 @@ enum BankSyncReconciliation {
                 }
             }
             let fuzzy: [Existing]? = idMatch == nil
-                ? fuzzyDataset(for: candidate, in: existing)
+                ? fuzzyDataset(for: candidate, in: existing, epochDays: epochDays)
                 : nil
             stepOne.append(StepOne(candidate: candidate, matchedID: idMatch?.id, fuzzy: fuzzy))
         }
@@ -241,21 +242,27 @@ enum BankSyncReconciliation {
     /// inclusive, sorted by day distance (stable). `strictIdChecking` is
     /// false here, so rows with a different or absent `financial_id` are
     /// still eligible.
-    private static func fuzzyDataset(for candidate: Candidate, in existing: [Existing]) -> [Existing] {
-        existing
-            .filter { row in
-                row.isValidCandidate
-                    && row.amountMinorUnits == candidate.amountMinorUnits
-                    && abs(dayDistance(row.dayID, candidate.dayID)) <= 7
-            }
-            .enumerated()
-            .sorted {
-                let left = abs(dayDistance($0.element.dayID, candidate.dayID))
-                let right = abs(dayDistance($1.element.dayID, candidate.dayID))
-                if left != right { return left < right }
-                return $0.offset < $1.offset
-            }
-            .map(\.element)
+    static func fuzzyDataset(
+        for candidate: Candidate, in existing: [Existing], epochDays: [Int?]
+    ) -> [Existing] {
+        // A malformed day never falls inside the window (`dayDistance` is .max).
+        guard let candidateDay = epochDay(compact: candidate.dayID) else { return [] }
+        var matches: [(distance: Int, offset: Int)] = []
+        for (offset, row) in existing.enumerated() {
+            guard row.isValidCandidate, row.amountMinorUnits == candidate.amountMinorUnits,
+                  let day = epochDays[offset] else { continue }
+            let distance = abs(day - candidateDay)
+            if distance <= 7 { matches.append((distance, offset)) }
+        }
+        matches.sort { $0.distance != $1.distance ? $0.distance < $1.distance : $0.offset < $1.offset }
+        return matches.map { existing[$0.offset] }
+    }
+
+    /// Epoch day of a `YYYYMMDD` id, parsed once per row by the caller.
+    static func epochDay(compact dayID: String) -> Int? {
+        let digits = Array(dayID)
+        guard digits.count == 8, digits.allSatisfy(\.isNumber) else { return nil }
+        return ActualDateOnly.epochDay("\(dayID.prefix(4))-\(dayID.dropFirst(4).prefix(2))-\(dayID.suffix(2))")
     }
 
     /// Split-parent cleared cascade: when a matched parent's cleared value
