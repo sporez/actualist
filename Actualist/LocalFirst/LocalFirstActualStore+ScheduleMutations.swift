@@ -141,7 +141,7 @@ extension LocalFirstActualStore {
                 var calendar = Calendar(identifier: .gregorian)
                 calendar.timeZone = .autoupdatingCurrent
                 let today = ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
-                _ = try await refreshSchedules(budgetID: context.budgetID, asOf: today)
+                try await refreshSchedulesAfterWrite(budgetID: context.budgetID, asOf: today)
                 try requireScheduleMutationSession(context, database: database)
                 try await refreshRulesCache(database: database, budgetID: context.budgetID)
                 try requireScheduleMutationSession(context, database: database)

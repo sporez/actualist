@@ -75,7 +75,7 @@ extension LocalFirstActualStore {
                 try requireScheduleConversionSession(context, database: database)
                 try await scheduleMutationBeforeRefreshHook?()
                 try requireScheduleConversionSession(context, database: database)
-                _ = try await refreshSchedules(
+                try await refreshSchedulesAfterWrite(
                     budgetID: context.budgetID,
                     asOf: Self.scheduleConversionToday()
                 )

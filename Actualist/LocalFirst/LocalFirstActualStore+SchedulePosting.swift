@@ -221,7 +221,7 @@ extension LocalFirstActualStore {
                     monthIDs: receipt.affectedMonthIDs
                 )
                 try requireSchedulePostingSession(session, database: database)
-                _ = try await refreshSchedules(budgetID: session.budgetID, asOf: Self.schedulePostingToday())
+                try await refreshSchedulesAfterWrite(budgetID: session.budgetID, asOf: Self.schedulePostingToday())
                 try requireSchedulePostingSession(session, database: database)
                 await schedulePendingLocalMessageFlush(database: database, budgetID: session.budgetID)
                 try requireSchedulePostingSession(session, database: database)

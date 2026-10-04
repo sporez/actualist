@@ -72,7 +72,7 @@ extension LocalFirstActualStore {
                 )
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            _ = try await refreshSchedules(budgetID: budgetID, asOf: today)
+            try await refreshSchedulesAfterWrite(budgetID: budgetID, asOf: today)
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         } catch {

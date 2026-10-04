@@ -188,6 +188,22 @@ struct LocalFirstActualStoreSchedulePostingTests {
         #expect(try await database.pendingLocalSyncMessageCount() > 0)
     }
 
+    @Test func newerScheduleReadSupersedingTheFinisherRefreshIsNotRefreshPending() async throws {
+        let transport = RecordingSyncTransport()
+        let bundle = try await makeBundle(transport: transport)
+        try bundle.keychain.saveActualSyncToken("synthetic-token")
+        let store = bundle.store
+        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        // A newer schedules read (here its invalidation) supersedes the finisher's
+        // own refresh. The data is fine, so the receipt must not claim a pending refresh.
+        store.scheduleReadHook = { budgetID, _ in store.invalidateScheduleCache(budgetID: budgetID) }
+        defer { store.scheduleReadHook = nil }
+
+        let receipt = try await store.postSchedule(review: review, date: .scheduled)
+
+        #expect(!receipt.refreshPending)
+    }
+
     @Test func failedPostCommitRefreshClearsOldFeedAndPreservesReceipt() async throws {
         let failure = SchedulePostingRefreshFailure()
         let bundle = try await support.makeOpenedWritableStoreBundle(

@@ -65,6 +65,17 @@ extension LocalFirstActualStore {
         return loaded
     }
 
+    /// Refresh used after a committed write. A newer schedules read (or an
+    /// invalidation) supersedes this one with `CancellationError`, which leaves
+    /// current data and is not a failed refresh. Any other failure still throws.
+    func refreshSchedulesAfterWrite(budgetID: String, asOf today: String) async throws {
+        do {
+            _ = try await refreshSchedules(budgetID: budgetID, asOf: today)
+        } catch is CancellationError where !Task.isCancelled {
+            return
+        }
+    }
+
     func invalidateScheduleCache(budgetID: String) {
         schedulesByBudget[budgetID] = nil
         scheduleRequestIdentity.invalidate(budgetID: budgetID)
