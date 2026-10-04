@@ -37,6 +37,7 @@ final class TransactionEditorViewModel {
     var isLoadingCategoryBalances = false
     var currency: BudgetCurrency = .usd
     var errorMessage: String?
+    var draftBaseline: TransactionEditorDraftSnapshot?
     var submissionState: TransactionSubmissionState {
         mutationCoordinator.submissionState
     }
@@ -455,6 +456,7 @@ final class TransactionEditorViewModel {
         }
 
         isLoading = false
+        captureDraftBaselineIfNeeded()
     }
 
     func refreshCategoryBalancesIfNeeded(using appState: AppState) async {

@@ -17,6 +17,7 @@ struct TransactionEditorView: View {
     @State private var isDatePickerPresented = false
     @State private var childPayeePickerRowID: String?
     @State private var childCategoryPickerRowID: String?
+    @State private var isDiscardConfirmationPresented = false
     @FocusState private var focusedField: TransactionEditorField?
 
     let session: TransactionEditorSession
@@ -54,16 +55,32 @@ struct TransactionEditorView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         focusedField = nil
-                        dismiss()
+                        if viewModel.hasUnsavedChanges {
+                            isDiscardConfirmationPresented = true
+                        } else {
+                            dismiss()
+                        }
                     } label: {
                         Image(systemName: "xmark")
                     }
                     .actualistToolbarGlassButton()
+                    .accessibilityIdentifier("transaction-editor-close")
+                    .confirmationDialog(
+                        "Discard Changes",
+                        isPresented: $isDiscardConfirmationPresented,
+                        titleVisibility: .hidden
+                    ) {
+                        Button("Discard Changes", role: .destructive) { dismiss() }
+                        Button("Keep Editing", role: .cancel) {}
+                    }
                 }
             }
             .navigationTitle(viewModel.title)
             .navigationBarTitleDisplayMode(.inline)
         }
+        // With unsaved input a swipe-down bounces back; the close button asks
+        // before discarding, as in Apple's editors.
+        .interactiveDismissDisabled(viewModel.hasUnsavedChanges)
         .onAppear {
             if session.consumePresentationFeedback() {
                 ActualistHaptics.editorOpened()

@@ -46,6 +46,53 @@ final class TransactionEditorUITests: XCTestCase {
         try exerciseEditorInteraction(requireWide: true)
     }
 
+    func testUnsavedInputBlocksSwipeAndAsksBeforeDiscarding() {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        let editorTitle = openAddTransaction(in: app)
+        app.typeText("5")
+        XCTAssertTrue(formattedAmount(containing: "0.05", in: app).waitForExistence(timeout: 5))
+
+        editorTitle.swipeDown(velocity: .fast)
+        XCTAssertFalse(editorTitle.waitForNonExistence(timeout: 2), "Swipe dismissed unsaved input")
+
+        let close = app.buttons["transaction-editor-close"]
+        close.tap()
+        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 5))
+        // iOS 26 anchors the confirmation as a popover; tapping outside it is
+        // Keep Editing.
+        app.otherElements["PopoverDismissRegion"].tap()
+        XCTAssertTrue(app.buttons["Discard Changes"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(editorTitle.exists)
+        XCTAssertTrue(formattedAmount(containing: "0.05", in: app).exists)
+
+        close.tap()
+        let discard = app.buttons["Discard Changes"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 5))
+        discard.tap()
+        XCTAssertTrue(editorTitle.waitForNonExistence(timeout: 5))
+    }
+
+    func testUntouchedEditorClosesWithoutAsking() {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        let editorTitle = openAddTransaction(in: app)
+
+        app.buttons["transaction-editor-close"].tap()
+        XCTAssertTrue(editorTitle.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Discard Changes"].exists)
+    }
+
+    private func openAddTransaction(in app: XCUIApplication) -> XCUIElement {
+        let addTransaction = app.buttons["Add Transaction"]
+        XCTAssertTrue(addTransaction.waitForExistence(timeout: 10))
+        addTransaction.tap()
+        let editorTitle = app.navigationBars["Add Transaction"]
+        XCTAssertTrue(editorTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        return editorTitle
+    }
+
     private func exerciseEditorInteraction(requireWide: Bool) throws {
         XCUIDevice.shared.orientation = .portrait
         let app = launchDemo()
@@ -181,7 +228,11 @@ final class TransactionEditorUITests: XCTestCase {
         assertNoEditorKeyboard(in: app)
 
         captureScreenshot(named: requireWide ? "transaction-editor-ipad-picker-return" : "transaction-editor-iphone-picker-return")
+        // The draft has edits, so closing asks before discarding them.
         editor.buttons.firstMatch.tap()
+        let discard = app.buttons["Discard Changes"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 5))
+        discard.tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 10))
         addTransaction.tap()
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
