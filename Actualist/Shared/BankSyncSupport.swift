@@ -121,22 +121,18 @@ enum BankSyncAmounts {
         return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))
     }
 
-    /// Inverse of `dayID(fromUnixSeconds:)` for drafts: UTC noon on the given
-    /// calendar day, so a normalized day survives Date round-trips.
-    static func date(fromDayID dayID: String) -> Date? {
+    /// Inverse of the draft date convention: local noon on the given calendar
+    /// day (`TransactionDraft.date`'s local day is the transaction day). Pass
+    /// `ActualDateOnly.utc` only to pair with `dayID(fromUnixSeconds:)`.
+    static func date(fromDayID dayID: String, timeZone: TimeZone = .autoupdatingCurrent) -> Date? {
         let characters = Array(dayID)
         guard characters.count == 8, characters.allSatisfy(\.isNumber) else {
             return nil
         }
-        var components = DateComponents()
-        components.timeZone = TimeZone(secondsFromGMT: 0)
-        components.year = Int(dayID.prefix(4))
-        components.month = Int(dayID.dropFirst(4).prefix(2))
-        components.day = Int(dayID.suffix(2))
-        components.hour = 12
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
-        return calendar.date(from: components)
+        return ActualDateOnly.date(
+            from: "\(dayID.prefix(4))-\(dayID.dropFirst(4).prefix(2))-\(dayID.suffix(2))",
+            timeZone: timeZone
+        )
     }
 
     /// Sync lookback start in `YYYY-MM-DD`: `max(today − 89 days, oldest live
@@ -148,7 +144,7 @@ enum BankSyncAmounts {
         let earliestAllowed = calendar.date(byAdding: .day, value: -89, to: now) ?? now
         var earliest = earliestAllowed
         if let oldestLiveTransactionDayID,
-           let oldest = date(fromDayID: oldestLiveTransactionDayID),
+           let oldest = date(fromDayID: oldestLiveTransactionDayID, timeZone: ActualDateOnly.utc),
            oldest > earliestAllowed {
             earliest = oldest
         }

@@ -10,7 +10,7 @@ struct BankSyncFieldMappingTests {
         dayID: String = "20240301",
         raw: [String: SimpleFINRawValue] = [:]
     ) -> SimpleFINRemoteTransaction {
-        let seconds = Int64(BankSyncAmounts.date(fromDayID: dayID)!.timeIntervalSince1970)
+        let seconds = Int64(BankSyncAmounts.date(fromDayID: dayID, timeZone: ActualDateOnly.utc)!.timeIntervalSince1970)
         return SimpleFINRemoteTransaction(
             id: "t1",
             dateUnixSeconds: seconds,

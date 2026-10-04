@@ -28,7 +28,7 @@ extension LocalFirstActualStoreTests {
     ) -> SimpleFINRemoteTransaction {
         SimpleFINRemoteTransaction(
             id: id,
-            dateUnixSeconds: Int64(BankSyncAmounts.date(fromDayID: dayID)!.timeIntervalSince1970),
+            dateUnixSeconds: Int64(BankSyncAmounts.date(fromDayID: dayID, timeZone: ActualDateOnly.utc)!.timeIntervalSince1970),
             amount: "-10.00",
             currency: currency,
             payeeName: payeeName,

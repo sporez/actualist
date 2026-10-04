@@ -289,8 +289,10 @@ extension BudgetDatabase {
         return false
     }
 
-    static func actualDateValue(_ date: Date) throws -> Int {
-        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+    static func actualDateValue(_ date: Date, timeZone: TimeZone = .autoupdatingCurrent) throws -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
         guard let year = components.year, let month = components.month, let day = components.day else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction date")
         }

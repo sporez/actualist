@@ -341,9 +341,8 @@ enum BankSyncReconciliation {
         projected.payeeID = preview.payeeID ?? projected.payeeID
         projected.amountMinorUnits = preview.amountMinorUnits ?? projected.amountMinorUnits
         if let date = preview.date {
-            projected.dayID = BankSyncAmounts.dayID(
-                fromUnixSeconds: Int64(date.timeIntervalSince1970)
-            )
+            projected.dayID = ActualDateOnly.dayID(from: date, timeZone: .autoupdatingCurrent)
+                .replacingOccurrences(of: "-", with: "")
         }
         // Rule preview carries the final notes value, including `nil` when a
         // matching rule removes downloaded notes. Nil is not "no change".
