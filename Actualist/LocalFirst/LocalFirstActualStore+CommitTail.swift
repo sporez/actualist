@@ -69,6 +69,14 @@ extension LocalFirstActualStore {
         }
     }
 
+    /// `finishCommittedWrite` for the account reload scope.
+    @discardableResult
+    func finishCommittedAccountWrite(database: BudgetDatabase, budgetID: String) async throws -> Bool {
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
+        }
+    }
+
     /// Tail for durable receipts that must survive caller cancellation and
     /// session retirement. An unstructured MainActor task owns publication, so
     /// the caller can neither erase nor misreport the commit.

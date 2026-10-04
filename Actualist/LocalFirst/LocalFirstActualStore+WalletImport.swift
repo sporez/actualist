@@ -163,13 +163,12 @@ extension LocalFirstActualStore {
                 .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         }
 
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
             accountIDs: Array(affectedAccountIDs),
             monthIDs: Array(monthIDs)
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return WalletTransactionImportResult(
             importedCount: importedCount,
             duplicateCount: duplicateCount

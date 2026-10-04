@@ -98,13 +98,12 @@ extension LocalFirstActualStore {
         accountID: String
     ) async throws -> AccountReconciliationMutationResult {
         if write.committed {
-            try await reloadAfterTransactionMutation(
+            try await finishCommittedTransactionWrite(
                 database: database,
                 budgetID: budgetID,
                 accountIDs: write.changed.accounts,
                 monthIDs: write.changed.months
             )
-            await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         }
         let snapshot = try await database.accountReconciliationSnapshot(accountID: accountID)
         return AccountReconciliationMutationResult(snapshot: snapshot, changed: write.changed)
