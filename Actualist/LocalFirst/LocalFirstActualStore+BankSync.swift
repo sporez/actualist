@@ -459,9 +459,12 @@ extension LocalFirstActualStore {
         sortOrder: Double,
         accountIsOffBudget: Bool = false
     ) throws -> TransactionDraft {
+        guard let date = BankSyncAmounts.date(fromDayID: candidate.dayID) else {
+            throw LocalFirstError.invalidLocalWrite("missing bank sync download")
+        }
         var draft = TransactionDraft(
             accountID: accountID,
-            date: try Unwrap(BankSyncAmounts.date(fromDayID: candidate.dayID)),
+            date: date,
             amountMinorUnits: candidate.amountMinorUnits,
             payeeID: payeeID,
             payeeName: candidate.payeeName ?? "",
@@ -698,14 +701,6 @@ extension LocalFirstActualStore {
         bankSyncSessionCache.rememberSimpleFINRemoteAccounts(accounts, for: serverURL)
     }
 
-}
-
-/// Small helper to keep `try Unwrap(optional)` readable in apply paths.
-private func Unwrap<T>(_ value: T?) throws -> T {
-    guard let value else {
-        throw LocalFirstError.invalidLocalWrite("missing bank sync download")
-    }
-    return value
 }
 
 /// The store is the production conformer of the background workflow's

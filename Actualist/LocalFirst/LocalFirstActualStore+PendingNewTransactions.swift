@@ -13,10 +13,7 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let prefix = pendingNewTransactionPrefix(budgetID: budgetID)
-        let legacyByAccount = legacyStorage.reduce(into: [String: [String]]()) { result, entry in
-            guard entry.key.hasPrefix(prefix) else { return }
-            result[String(entry.key.dropFirst(prefix.count))] = entry.value
-        }
+        let legacyByAccount = Self.accountScopedIDs(in: legacyStorage, prefix: prefix)
         try await database.migrateLegacyPendingNewTransactions(legacyByAccount)
         let durable = try await database.pendingNewTransactionIDsByAccount()
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
@@ -91,10 +88,7 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         let prefix = pendingNewTransactionPrefix(budgetID: budgetID)
-        let legacyByAccount = projection.reduce(into: [String: [String]]()) { result, entry in
-            guard entry.key.hasPrefix(prefix) else { return }
-            result[String(entry.key.dropFirst(prefix.count))] = entry.value
-        }
+        let legacyByAccount = Self.accountScopedIDs(in: projection, prefix: prefix)
         let clearedCount = try await database.migrateLegacyAndReviewPendingNewTransactions(
             legacyByAccount,
             transactionIDs: transactionIDs,
@@ -127,6 +121,17 @@ extension LocalFirstActualStore {
 
     private func pendingNewTransactionPrefix(budgetID: String) -> String {
         "\(budgetID)|"
+    }
+
+    /// Entries stored under `<budgetID>|<accountID>`, keyed by account.
+    private static func accountScopedIDs(
+        in storage: [String: [String]],
+        prefix: String
+    ) -> [String: [String]] {
+        storage.reduce(into: [String: [String]]()) { result, entry in
+            guard entry.key.hasPrefix(prefix) else { return }
+            result[String(entry.key.dropFirst(prefix.count))] = entry.value
+        }
     }
 }
 

@@ -323,6 +323,15 @@ struct ActualCategory: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+extension Sequence where Element == ActualCategory {
+    /// Display names keyed by category id; rows without an id have no entry.
+    var namesByID: [String: String] {
+        Dictionary(uniqueKeysWithValues: compactMap { category in
+            category.id.map { ($0, category.name) }
+        })
+    }
+}
+
 struct ActualTransaction: Codable, Identifiable, Hashable, Sendable {
     let id: String?
     let account: String

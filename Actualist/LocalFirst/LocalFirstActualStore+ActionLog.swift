@@ -41,9 +41,7 @@ extension LocalFirstActualStore {
     func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] {
         let database = try requireDatabase(for: budgetID)
         let categories = try await database.fetchCategories()
-        return Dictionary(uniqueKeysWithValues: categories.compactMap { category in
-            category.id.map { ($0, category.name) }
-        })
+        return categories.namesByID
     }
 
     /// Current → proposed amounts for the undo review, or a typed block reason.
