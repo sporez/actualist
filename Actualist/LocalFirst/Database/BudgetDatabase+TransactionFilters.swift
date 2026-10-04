@@ -195,12 +195,13 @@ extension BudgetDatabase {
     }
 
     private func liveSavedFilters(db: Database) throws -> [SavedTransactionFilter] {
+        let columns = try columnSet(for: "transaction_filters", db: db)
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT id, name, conditions, conditions_op, tombstone
                 FROM transaction_filters
-                WHERE tombstone = 0
+                WHERE \(predicateForLiveRows(columns: columns))
                 ORDER BY id
                 """
         )

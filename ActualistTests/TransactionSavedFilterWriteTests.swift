@@ -105,6 +105,15 @@ struct TransactionSavedFilterWriteTests {
         #expect(try support.storedCRDTMessages(at: url).map(\.column) == ["tombstone"])
     }
 
+    @Test func deleteTreatsNullTombstoneAsLive() async throws {
+        let raw = #"[{"field":"amount","op":"gt","value":100}]"#
+        let url = try fixture(filterRows: "INSERT INTO transaction_filters VALUES ('null-tombstone', 'Legacy', '\(raw)', 'and', NULL);")
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "savedfilternode")
+        var builder = LocalFirstSyncMessageBuilder()
+        #expect(try await database.deleteSavedTransactionFilter(id: "null-tombstone", builder: &builder).changed)
+        #expect(try savedFilterRow("null-tombstone", at: url).tombstone == 1)
+    }
+
     private func fixture(filterRows: String) throws -> URL {
         try support.makeSQLiteFixture(extraSQL: """
             CREATE TABLE transaction_filters (
